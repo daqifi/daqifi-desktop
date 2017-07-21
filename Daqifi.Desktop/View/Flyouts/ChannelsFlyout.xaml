@@ -1,0 +1,88 @@
+﻿<Controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.ChannelsFlyout"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="600"
+             Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsChannelSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right" Header="Channel Settings">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+            <GroupBox Header="Channel Name">
+                <TextBox Text="{Binding SelectedChannel.Name}" Height="50" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
+            </GroupBox>
+            <GroupBox Header="Scaling">
+                <StackPanel>
+                    <Controls:ToggleSwitch IsChecked="{Binding SelectedChannel.IsScalingActive, Mode=TwoWay}" OffLabel="Off" OnLabel="On" HorizontalAlignment="Center"/>
+                    <StackPanel Visibility="{Binding Path=SelectedChannel.IsScalingActive, Converter={StaticResource BoolToVis}}" >
+                        <Label Content="Not a valid scaling expression!" Visibility="{Binding Path=SelectedChannel.HasValidExpression, Converter={StaticResource InvertedBoolToVis}}" Foreground="Orange" HorizontalAlignment="Center"/>
+                        <TextBox Text="{Binding SelectedChannel.ScaleExpression, Delay=500, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Height="50" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
+                        <Label Content="example: x + 5" HorizontalAlignment="Center" FontSize="10" />
+                    </StackPanel>
+                </StackPanel>
+            </GroupBox>
+            <GroupBox Header="Color">
+                <Button Background="{Binding SelectedChannel.ChannelColorBrush}" Width="50" Height="50" Command="{Binding ShowSelectColorDialogCommand}" CommandParameter="{Binding SelectedChannel}"/>
+            </GroupBox>
+        </StackPanel>
+
+        <StackPanel Grid.Column="1">
+
+            <!-- ADC Mode -->
+            <GroupBox Header="ADC Mode" Visibility="{Binding Path=SelectedChannel.HasADC, Converter={StaticResource BoolToVis}}">
+                <Grid >
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ComboBox ItemsSource="{Binding SelectedChannel.ADCModes}" Text="{Binding SelectedChannel.ADCMode}"/>
+                </Grid>
+            </GroupBox>
+
+            <!-- Set Analog Output -->
+            <Grid Visibility="{Binding Path=SelectedChannel.IsAnalog, Converter={StaticResource BoolToVis}}">
+                <GroupBox Header="Analog Output Value" Visibility="{Binding Path=SelectedChannel.IsOutput, Converter={StaticResource BoolToVis}}">
+                    <Grid >
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBox Grid.Row="0" Text="{Binding ElementName=AnalogOutputSlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
+                        <Slider Grid.Row="1" Name="AnalogOutputSlider" HorizontalAlignment="Stretch" Minimum="0" Maximum="10" TickFrequency="0.25" IsSnapToTickEnabled="True" Value="{Binding SelectedChannel.OutputValue, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
+                    </Grid>
+                </GroupBox>
+            </Grid>
+
+            <!-- Set Direction -->
+            <GroupBox Header="I/O Direction" Visibility="{Binding Path=SelectedChannel.IsBidirectional, Converter={StaticResource BoolToVis}}">
+                <Grid >
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Controls:ToggleSwitch Grid.Row="0" IsChecked="{Binding SelectedChannel.IsOutput, Mode=TwoWay}" OffLabel="Input" OnLabel="Output" HorizontalAlignment="Center"/>
+                </Grid>
+            </GroupBox>
+
+            <!-- Set Digital Output -->
+            <Grid Visibility="{Binding Path=SelectedChannel.IsDigital, Converter={StaticResource BoolToVis}}">
+                <GroupBox Header="Digital Output" Visibility="{Binding Path=SelectedChannel.IsOutput, Converter={StaticResource BoolToVis}}">
+                    <Grid >
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Controls:ToggleSwitch Grid.Row="0" IsChecked="{Binding SelectedChannel.IsDigitalOn, Mode=TwoWay}" OffLabel="On" OnLabel="Off" HorizontalAlignment="Center"/>
+                    </Grid>
+                </GroupBox>
+            </Grid>
+            
+        </StackPanel>
+    </Grid>
+</Controls:Flyout>

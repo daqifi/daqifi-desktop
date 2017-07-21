@@ -1,0 +1,29 @@
+﻿<controls:MetroWindow x:Class="Daqifi.Desktop.View.SelectColorDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        Title="Select Color" ResizeMode="NoResize" Height="300" Width="300" GlowBrush="{DynamicResource AccentColorBrush}">
+    <Grid>
+        <!-- Add Channel UI -->
+        <Border>
+            <DockPanel Name="AddChannelUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
+                <!-- Select Color Button -->
+                <Button Name="btnSelect" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=ColorList, Path=SelectedItems}" Command="{Binding SelectColorCommand}" Click="btnSelect_Click" Content="Select" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+
+                <!-- Colors -->
+                <ListBox Name="ColorList" ItemsSource="{Binding AvailableColors}" SelectionMode="Single" Margin="5" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel IsItemsHost="True" Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{Binding}" Width="20" Height="20"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+    </Grid>
+</controls:MetroWindow>

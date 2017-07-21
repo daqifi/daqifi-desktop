@@ -1,0 +1,84 @@
+﻿<Controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.DevicesFlyout"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="600"
+             Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsDeviceSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right" Header="Device Settings">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Frequency Configuration-->
+        <GroupBox Grid.Column="0" Grid.Row="0" Header="Sampling Frequency (Hz)">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBox Grid.Row="0" Text="{Binding ElementName=FrequencySlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
+                <Slider Grid.Row="1" Name="FrequencySlider" HorizontalAlignment="Stretch" Minimum="1" Maximum="1000" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding SelectedStreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
+            </Grid>
+        </GroupBox>
+
+        <!-- Network Configuration -->
+        <GroupBox Grid.Column="0" Grid.Row="1" Header="WiFi Configuration">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Label Grid.Column="0" Grid.Row="0" Content="Security" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18"/>
+                <ComboBox Grid.Column="1" Grid.Row="0" ItemsSource="{Binding SelectedDevice.SecurityTypes}" Text="{Binding SelectedDevice.NetworkConfiguration.SecurityType}"/>
+                <Label Grid.Column="0" Grid.Row="1" Content="SSID" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18"/>
+                <TextBox Grid.Column="1" Grid.Row="1"  Text="{Binding SelectedDevice.NetworkConfiguration.SSID, Mode=TwoWay}"/>
+                <Label Grid.Column="0" Grid.Row="2" Content="Password" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18"/>
+                <TextBox Grid.Column="1" Grid.Row="2" Text="{Binding SelectedDevice.NetworkConfiguration.Password, Mode=TwoWay}" />
+                <DockPanel Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="3" HorizontalAlignment="Right">
+                    <Button Content="Update" Command="{Binding UpdateNetworkConfigurationCommand}"/>
+                </DockPanel>
+            </Grid>
+        </GroupBox>
+
+        <!-- ADC Range -->
+        <GroupBox Grid.Column="1" Grid.Row="0" Header="ADC Range">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <ComboBox ItemsSource="{Binding SelectedDevice.ADCRanges}" Text="{Binding SelectedDevice.ADCRangeText}"/>
+            </Grid>
+        </GroupBox>
+
+        <GroupBox Grid.Column="0" Grid.Row="2" Header="Update Firmware">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBox Grid.Column="0" Text="{Binding FirmwareFilePath, Mode=TwoWay}" />
+                <Button Grid.Column="1" Content="Browse"  Command="{Binding BrowseForFirmwareCommand}"/>
+                <Button Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Width="50" Content="Update" Command="{Binding UploadFirmwareCommand}" />
+            </Grid>
+        </GroupBox>
+    </Grid>
+</Controls:Flyout>

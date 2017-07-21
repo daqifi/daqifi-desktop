@@ -1,0 +1,28 @@
+message WiFiDAQOutMessage
+{
+	// Put repetitive information in first 15 fields to keep encoded data as short as possible
+	
+	optional uint32 msg_seq = 1;							//  Incrementing counter for each data read event
+	repeated sint32 analog_in_data_i = 2 [packed=true]; 	//  Analog in data int (maximum 18bit/ch)
+	optional bytes analog_in_data_b = 3;					//  Analog in data non-byte aligned (maximum 144bit/8ch)
+	optional bytes digital_data = 4;						//  Digital IO data 
+
+	optional uint32 device_status = 5;						//	Device status word
+	optional uint32 bat_level = 6;							//  Battery voltage level
+	optional uint32 pwr_status = 7;							//  Power status
+	optional uint32 board_temp = 8;							//  Temperature of the PCB
+	
+	repeated sint32 analog_out_data = 9 [packed=true]; 		//  Analog out data int (maximum 12bit/ch)
+
+	repeated bytes ip_addr = 16;							//  Device IP address
+	optional string host_name = 17;							//  Device HostName
+	repeated bytes mac_addr = 18;							//  Device MAC address
+	optional string ssid = 19;								//  SSID device is to connect to
+	
+	optional bytes digital_port_dir = 20;					//	Digital IO port direction
+	optional bytes analog_port_rse = 21;					//  Analog in port referenced single ended (RSE)
+	optional bytes analog_port_enabled = 22;				//  Analog in port enabled list
+	optional bytes analog_port_range = 23;					//	Analog in port voltage range		
+	optional uint32 adc_bytes = 24;							//  Analog in (ADC) resolution (bits)
+	optional uint32 dac_bytes = 25;							//  Analog out (DAC) resolution (bits)
+}

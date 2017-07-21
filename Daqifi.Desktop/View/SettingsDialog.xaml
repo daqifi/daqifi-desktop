@@ -1,0 +1,31 @@
+﻿<controls:MetroWindow  x:Class="Daqifi.Desktop.View.SettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        mc:Ignorable="d"
+        Title="DAQifi Settings" ResizeMode="NoResize" Height="400" Width="400" GlowBrush="{DynamicResource AccentColorBrush}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <GroupBox Grid.Row="1" Header="Report Errors">
+            <StackPanel>
+                <TextBlock Text="Help us improve your experience by providing anonymous data.  No information is collected that could be used to either identify or contact you." TextWrapping="WrapWithOverflow"/>
+                <DockPanel Margin="15">
+                    <CheckBox IsChecked="{Binding CanReportErrors}"/>
+                    <TextBlock  Text="Report errors and usage data" TextWrapping="WrapWithOverflow"/>
+                </DockPanel>
+            </StackPanel>
+        </GroupBox>
+
+        <DockPanel Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="5">
+            <Button Content="Close" Width="100" Height="30" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True" Click="Close_Click"/>
+        </DockPanel>
+    </Grid>
+</controls:MetroWindow>

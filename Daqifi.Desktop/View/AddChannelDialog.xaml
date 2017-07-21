@@ -1,0 +1,63 @@
+﻿<controls:MetroWindow x:Class="Daqifi.Desktop.View.AddChannelDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        Title="Add Channel" ResizeMode="NoResize" Height="300" Width="300" GlowBrush="{DynamicResource AccentColorBrush}">
+    <Grid>
+        <!-- Add Channel UI -->
+        <Border>
+            <DockPanel Name="AddChannelUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
+                <!-- Add Channel Button -->
+                <Button Name="btnAdd" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=ChannelList, Path=SelectedItems}" Command="{Binding AddChannelCommand}" Click="btnAdd_Click" Content="Add" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+
+                <!-- Device Selector -->
+                <DockPanel DockPanel.Dock="Top" LastChildFill="True">
+                    <Label Content="Device:" DockPanel.Dock="Left"/>
+                    <ComboBox Name="SelectedDevice" ItemsSource="{Binding AvailableDevices}" SelectedItem="{Binding SelectedDevice}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border >
+                                    <StackPanel Orientation="Vertical">
+                                        <Label Content="{Binding Name}"/>
+                                        <!--<Label Content="{Binding IPAddress}"/>-->
+                                        <!--<Label Content="{Binding MACAddress}"/>-->
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </DockPanel>
+                
+                <!-- Channel List -->
+                <Grid>
+                    <ListView Name="ChannelList" ItemsSource="{Binding AvailableChannels}" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Border >
+                                    <StackPanel Orientation="Horizontal">
+                                        <Label Content="Channel:"/>
+                                        <Label Content="{Binding Name}"/>
+                                        <Label Content="Type:"/>
+                                        <Label Content="{Binding TypeString}"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <!-- Message if there aren't any devices connected -->
+                    <!--<Border HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                        <Label HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalAlignment="Stretch" VerticalContentAlignment="Center">
+                            <Label.Content>
+                                <StackPanel Orientation="Vertical" Width="150" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Label Content="No Avaliable Devices" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                                    <Label Content="Add a Device First" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                                </StackPanel>
+                            </Label.Content>
+                        </Label>
+                    </Border>-->
+                </Grid>
+            </DockPanel>
+        </Border>
+    </Grid>
+</controls:MetroWindow>

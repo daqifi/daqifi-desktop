@@ -1,0 +1,75 @@
+﻿<controls:MetroWindow x:Class="Daqifi.Desktop.View.ConnectionDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        Title="Connect Device" ResizeMode="NoResize" Height="300" Width="300" Closing="MetroWindow_Closing" GlowBrush="{DynamicResource AccentColorBrush}" >
+    <Grid>
+        <TabControl>
+            <TabItem Header="WiFi" controls:ControlsHelper.HeaderFontSize="18">
+                <Grid>
+                    <controls:ProgressRing IsActive="{Binding HasNoWiFiDevices}" />
+                    <Border>
+                        <DockPanel Name="ConnectionUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
+                            <!-- Connect Button -->
+                            <Button Name="btnConnect" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}" Command="{Binding ConnectCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right"  Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+
+                            <!-- Device List -->
+                            <ListView Name="DeviceList" ItemsSource="{Binding AvailableWiFiDevices}" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border >
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="1" Orientation="Vertical">
+                                                    <Label Content="{Binding Name}"/>
+                                                    <Label Content="{Binding IPAddress}"/>
+                                                    <Label Content="{Binding MACAddress}"/>
+                                                </StackPanel>
+                                                <Image Grid.Column="0" Source="../Images/DAQImage.png" Width="50" Height="50"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+            <TabItem Header="USB" controls:ControlsHelper.HeaderFontSize="18">
+                <Grid>
+                    <controls:ProgressRing IsActive="{Binding HasNoSerialDevices}" />
+                    <Border>
+                        <DockPanel Name="SerialConnectionUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
+                            <!-- Connect Button -->
+                            <Button Name="btnConnectSerial" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}" Command="{Binding ConnectSerialCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+
+                            <!-- Device List -->
+                            <ListView Name="SerialList" ItemsSource="{Binding AvailableSerialDevices}" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border >
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="1" Orientation="Vertical">
+                                                    <Label Content="{Binding Port.PortName}"/>
+                                                </StackPanel>
+                                                <Image Grid.Column="0" Source="../Images/DAQImage.png" Width="50" Height="50"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</controls:MetroWindow>
+
