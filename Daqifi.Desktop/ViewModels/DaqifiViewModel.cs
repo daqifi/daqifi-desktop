@@ -94,14 +94,14 @@ namespace Daqifi.Desktop.ViewModels
                 if (_isLogging)
                 {
                     Plotter.ClearPlot();
-                    foreach (IDevice device in ConnectedDevices)
+                    foreach (var device in ConnectedDevices)
                     {
                         device.InitializeStreaming();
                     }
                 }
                 else
                 {
-                    foreach (IDevice device in ConnectedDevices)
+                    foreach (var device in ConnectedDevices)
                     {
                         device.StopStreaming();
                     }
@@ -212,7 +212,7 @@ namespace Daqifi.Desktop.ViewModels
                 
                 if (LoggingManager.Instance.Active)
                 {
-                    ErrorDialogViewModel errorDialogViewModel = new ErrorDialogViewModel("Cannot change sampling frequency while logging.");
+                    var errorDialogViewModel = new ErrorDialogViewModel("Cannot change sampling frequency while logging.");
                     _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
                     return;
                 }
@@ -330,7 +330,7 @@ namespace Daqifi.Desktop.ViewModels
                 //Database logging
                 DbLogger = new DatabaseLogger();
                 LoggingManager.Instance.AddLogger(DbLogger);
-                using (LoggingContext context = new LoggingContext())
+                using (var context = new LoggingContext())
                 {
                     var previouseSessions = new List<LoggingSession>();
                     var previouseSampleSessions = (from s in context.Sessions select s).ToList();

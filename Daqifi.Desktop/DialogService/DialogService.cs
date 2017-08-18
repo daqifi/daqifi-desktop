@@ -10,14 +10,13 @@ namespace Daqifi.Desktop.DialogService
 {
     public class DialogService : IDialogService
     {
-        private readonly HashSet<FrameworkElement> views;
-		private readonly IWindowViewModelMappings windowViewModelMappings;
+        private readonly HashSet<FrameworkElement> _views;
+		private readonly IWindowViewModelMappings _windowViewModelMappings;
 
         public DialogService(IWindowViewModelMappings windowViewModelMappings = null)
         {
-            this.windowViewModelMappings = windowViewModelMappings;
-
-            views = new HashSet<FrameworkElement>();
+            _windowViewModelMappings = windowViewModelMappings;
+            _views = new HashSet<FrameworkElement>();
         }
 
 
@@ -28,7 +27,7 @@ namespace Daqifi.Desktop.DialogService
         /// </summary>
         public ReadOnlyCollection<FrameworkElement> Views
         {
-            get { return new ReadOnlyCollection<FrameworkElement>(views.ToList()); }
+            get { return new ReadOnlyCollection<FrameworkElement>(_views.ToList()); }
         }
 
 
@@ -52,7 +51,7 @@ namespace Daqifi.Desktop.DialogService
             // preventing memory leaks
             owner.Closed += OwnerClosed;
 
-            views.Add(view);
+            _views.Add(view);
         }
 
 
@@ -62,7 +61,7 @@ namespace Daqifi.Desktop.DialogService
         /// <param name="view">The unregistered View.</param>
         public void Unregister(FrameworkElement view)
         {
-            views.Remove(view);
+            _views.Remove(view);
         }
 
 
@@ -81,7 +80,7 @@ namespace Daqifi.Desktop.DialogService
         /// </returns>
         public bool? ShowDialog(object ownerViewModel, object viewModel)
         {
-            Type dialogType = windowViewModelMappings.GetWindowTypeFromViewModelType(viewModel.GetType());
+            Type dialogType = _windowViewModelMappings.GetWindowTypeFromViewModelType(viewModel.GetType());
             return ShowDialog(ownerViewModel, viewModel, dialogType);
         }
 
@@ -221,7 +220,7 @@ namespace Daqifi.Desktop.DialogService
         /// </summary>
         private Window FindOwnerWindow(object viewModel)
         {
-            var view = views.SingleOrDefault(v => ReferenceEquals(v.DataContext, viewModel));
+            var view = _views.SingleOrDefault(v => ReferenceEquals(v.DataContext, viewModel));
             if (view == null)
             {
                 throw new ArgumentException("Viewmodel is not referenced by any registered View.");
@@ -269,7 +268,7 @@ namespace Daqifi.Desktop.DialogService
             {
                 // Find Views acting within closed window
                 IEnumerable<FrameworkElement> windowViews =
-                    from view in views
+                    from view in _views
                     where Window.GetWindow(view) == owner
                     select view;
 

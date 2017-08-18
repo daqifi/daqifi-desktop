@@ -181,7 +181,8 @@
     <Compile Include="Commands\IActiveAware.cs" />
     <Compile Include="Device\SerialDevice.cs" />
     <Compile Include="Device\SerialDeviceFinder.cs" />
-    <Compile Include="Device\UsbHIdDevice.cs" />
+    <Compile Include="Device\HidDevice.cs" />
+    <Compile Include="Device\HidDeviceFinder.cs" />
     <Compile Include="Device\WifiSecurityType.cs" />
     <Compile Include="Loggers\AppLogger.cs" />
     <Compile Include="Helpers\BooleanConverter.cs" />
@@ -229,6 +230,7 @@
     <Compile Include="ViewModels\ConnectionDialogViewModel.cs" />
     <Compile Include="ViewModels\ErrorDialogViewModel.cs" />
     <Compile Include="ViewModels\ExportDialogViewModel.cs" />
+    <Compile Include="ViewModels\FirmwareDialogViewModel.cs" />
     <Compile Include="ViewModels\SelectColorDialogViewModel.cs" />
     <Compile Include="ViewModels\DaqifiViewModel.cs" />
     <Compile Include="ViewModels\SettingsViewModel.cs" />
@@ -243,6 +245,9 @@
     </Compile>
     <Compile Include="View\ExportDialog.xaml.cs">
       <DependentUpon>ExportDialog.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="View\FirmwareDialog.xaml.cs">
+      <DependentUpon>FirmwareDialog.xaml</DependentUpon>
     </Compile>
     <Compile Include="View\Flyouts\ChannelsFlyout.xaml.cs">
       <DependentUpon>ChannelsFlyout.xaml</DependentUpon>
@@ -300,6 +305,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="View\ExportDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="View\FirmwareDialog.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

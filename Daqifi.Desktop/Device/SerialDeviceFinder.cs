@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.Device
     public class SerialDeviceFinder : IDeviceFinder
     {
         #region Private Data
-        private string[] _serialPorts = new string[] { };
+        private string[] _serialPorts = { };
         private SerialPort _serialPort;
         private static ManagementEventWatcher _deviceAddedWatcher;
         private static ManagementEventWatcher _deviceRemovedWatcher;
@@ -49,13 +49,13 @@ namespace Daqifi.Desktop.Device
                 var addedPorts = availableSerialPorts.Except(_serialPorts);
                 var removedPorts = _serialPorts.Except(availableSerialPorts);
 
-                foreach (string portName in addedPorts)
+                foreach (var portName in addedPorts)
                 {
                    var device = new SerialDevice(portName);
                    NotifyDeviceFound(this,device);
                 }
 
-                foreach (string portName in removedPorts)
+                foreach (var portName in removedPorts)
                 {
                     var device = new SerialDevice(portName);
                     NotifyDeviceRemoved(this, device);
@@ -85,14 +85,12 @@ namespace Daqifi.Desktop.Device
 
         public void NotifyDeviceFound(object sender, IDevice device)
         {
-            if (OnDeviceFound == null) return;
-            OnDeviceFound(sender, device);
+            OnDeviceFound?.Invoke(sender, device);
         }
 
         public void NotifyDeviceRemoved(object sender, IDevice device)
         {
-            if (OnDeviceRemoved == null) return;
-            OnDeviceRemoved(sender, device);
+            OnDeviceRemoved?.Invoke(sender, device);
         }
     }
 }
