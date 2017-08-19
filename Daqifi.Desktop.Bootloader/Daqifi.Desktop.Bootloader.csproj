@@ -45,6 +45,7 @@
   <ItemGroup>
     <Compile Include="Crc16.cs" />
     <Compile Include="IBootloader.cs" />
+    <Compile Include="ObservableObject.cs" />
     <Compile Include="Pic32Bootloader.cs" />
     <Compile Include="Pic32BootloaderMessageConsumer.cs" />
     <Compile Include="Pic32BootloaderMessageProducer.cs" />

@@ -554,6 +554,7 @@ namespace Daqifi.Desktop.ViewModels
         private void ShowConnectionDialog(object o)
         {
             var connectionDialogViewModel = new ConnectionDialogViewModel();
+            connectionDialogViewModel.StartConnectionFinders();
             _dialogService.ShowDialog<ConnectionDialog>(this, connectionDialogViewModel);
         }
 
@@ -634,7 +635,7 @@ namespace Daqifi.Desktop.ViewModels
         public void UpdateFirmware(object o)
         {
             var bootloader = new Pic32Bootloader();
-            bootloader.GetVersion();
+            bootloader.RequestVersion();
             //bootloader.LoadFirmware(FirmwareFilePath);
         }
 

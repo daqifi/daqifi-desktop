@@ -7,13 +7,22 @@ using HidLibrary;
 
 namespace Daqifi.Desktop.Bootloader
 {
-    public class Pic32Bootloader : IBootloader
+    public class Pic32Bootloader : ObservableObject, IBootloader
     {
         private HidDevice _device;
+        private string _version;
+
+        public string Version {
+            get => _version;
+            set
+            {
+                _version = value;
+                NotifyPropertyChanged("Version");
+            } }    
 
         #region IBootloader Methods
 
-        public string GetVersion()
+        public void RequestVersion()
         {
             var messageProducer = new Pic32BootloaderMessageProducer();
             var requestVersionMessage = messageProducer.CreateRequestVersionMessage();
@@ -25,25 +34,22 @@ namespace Daqifi.Desktop.Bootloader
             _device = HidDevices.Enumerate(vendorId, productId).FirstOrDefault();
             if (_device == null)
             {
-                return "Error - Unable to connect to device";
+                // TODO Handle
             }
 
             _device.OpenDevice();
-            _device.ReadReport(OnReport);
+            _device.ReadReport(OnVersionReceived);
 
             _device.Write(requestVersionMessage);
-
-            return "version";
         }
 
-        private void OnReport(HidReport report)
+        private void OnVersionReceived(HidReport report)
         {
             var deviceData = report.Data;
             var consumer = new Pic32BootloaderMessageConsumer();
-            consumer.DecodeMessage(deviceData);
+            Version = consumer.DecodeMessage(deviceData);
         }
         
-
         /// <summary>
         /// [<SOH>…]<SOH><0x03>[<HEX_RECORD>…]<CRCL><CRCH><EOT>
         /// </summary>

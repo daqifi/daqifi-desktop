@@ -17,9 +17,9 @@ namespace Daqifi.Desktop.ViewModels
     public class ConnectionDialogViewModel : ObservableObject
     {
         #region Private Variables
-        private readonly DaqifiDeviceFinder _wifiFinder;
-        private readonly SerialDeviceFinder _serialFinder;
-        private readonly HidDeviceFinder _hidDeviceFinder;
+        private DaqifiDeviceFinder _wifiFinder;
+        private SerialDeviceFinder _serialFinder;
+        private HidDeviceFinder _hidDeviceFinder;
         private readonly IDialogService _dialogService;
         private bool _hasNoWiFiDevices = true;
         private bool _hasNoSerialDevices = true;
@@ -70,6 +70,11 @@ namespace Daqifi.Desktop.ViewModels
 
         public ConnectionDialogViewModel(IDialogService dialogService)
         {
+            _dialogService = dialogService;
+        }
+
+        public void StartConnectionFinders()
+        {
             _wifiFinder = new DaqifiDeviceFinder(30303);
             _wifiFinder.OnDeviceFound += WiFiDeviceFound;
             _wifiFinder.OnDeviceRemoved += WiFiDeviceRemoved;
@@ -84,8 +89,6 @@ namespace Daqifi.Desktop.ViewModels
             _hidDeviceFinder.OnDeviceFound += HidDeviceFound;
             _hidDeviceFinder.OnDeviceRemoved += HidDeviceRemoved;
             _hidDeviceFinder.Start();
-
-            _dialogService = dialogService;
         }
         #endregion
 
@@ -107,6 +110,11 @@ namespace Daqifi.Desktop.ViewModels
         }
 
         private bool CanConnectHid(object selectedItems)
+        {
+            return true;
+        }
+
+        private bool CanOpenFirmware(object selectedItems)
         {
             return true;
         }
@@ -141,8 +149,8 @@ namespace Daqifi.Desktop.ViewModels
             var hidDevice = selectedDevices.FirstOrDefault();
             if (hidDevice == null) return;
 
-            var view = ServiceLocator.GetInstance<SomeDialogView>();
-            view.ShowDialog();
+            //var view = ServiceLocator.GetInstance<SomeDialogView>();
+            //view.ShowDialog();
 
             var firmwareDialogViewModel = new FirmwareDialogViewModel(hidDevice);
             _dialogService.ShowDialog<FirmwareDialog>(this, firmwareDialogViewModel);
@@ -236,8 +244,9 @@ namespace Daqifi.Desktop.ViewModels
 
         public void Close()
         {
-            _wifiFinder.Stop();
-            _serialFinder.Stop();
+            _wifiFinder?.Stop();
+            _serialFinder?.Stop();
+            _hidDeviceFinder?.Stop();
         }
     }
 }

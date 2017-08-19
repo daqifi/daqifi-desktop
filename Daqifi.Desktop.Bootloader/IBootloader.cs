@@ -4,6 +4,6 @@ namespace Daqifi.Desktop.Bootloader
     public interface IBootloader
     {
         bool LoadFirmware(string filePath);
-        string GetVersion();
+        void RequestVersion();
     }
 }

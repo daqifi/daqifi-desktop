@@ -14,19 +14,21 @@ namespace Daqifi.Desktop.Bootloader
         private const byte EraseFlashCommand = 0x02;
         #endregion
 
-        public void DecodeMessage(byte[] data)
+        public string DecodeMessage(byte[] data)
         {
-            if (data.Length < 2) return;
+            int majorVersion = 0;
+            int minorVersion = 0;
+
+            if (data.Length < 2) return "Error";
 
             // Check if we start correctly
-            if (data.First() != StartOfHeader) return;
+            if (data.First() != StartOfHeader) return "Error";
 
             // Determine what type of response this is
             // Request Version Response
             if (data[1] == DataLinkEscape && data[2] == RequestVersionCommand)
             {
-                int majorVersion;
-                int minorVersion;
+                
                 int pointer = 3;
 
                 majorVersion = data[pointer] == DataLinkEscape ? data[++pointer] : data[pointer];
@@ -34,6 +36,8 @@ namespace Daqifi.Desktop.Bootloader
                 minorVersion = data[pointer] == DataLinkEscape ? data[++pointer] : data[pointer];
                 pointer++;
             }
+
+            return $"{majorVersion}.{minorVersion}";
         }
     }
 }

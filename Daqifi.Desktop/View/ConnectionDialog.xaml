@@ -2,7 +2,6 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
-        xmlns:viewModels="clr-namespace:Daqifi.Desktop.ViewModels"
         xmlns:dialogService="clr-namespace:Daqifi.Desktop.DialogService"
         dialogService:DialogService.IsRegisteredView="True"              
         Title="Connect Device" ResizeMode="NoResize" Height="300" Width="300" Closing="MetroWindow_Closing" GlowBrush="{DynamicResource AccentColorBrush}" >
@@ -15,7 +14,7 @@
                         <DockPanel Name="ConnectionUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
                             <!-- Connect Button -->
                             <Button Name="btnConnect" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}" Command="{Binding ConnectCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right"  Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
-
+                           
                             <!-- Device List -->
                             <ListView Name="DeviceList" ItemsSource="{Binding AvailableWiFiDevices}" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
                                 <ListView.ItemTemplate>
@@ -77,8 +76,8 @@
                     <controls:ProgressRing IsActive="{Binding HasNoHidDevices}" />
                     <Border>
                         <DockPanel Name="HidConnectionUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
-                            <!-- Connect Button -->
-                            <Button Name="BtnConnectHid" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=HidList, Path=SelectedItems}" Command="{Binding ConnectHidCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+                            <!-- Open Firmware Button -->
+                            <Button Name="BtnOpenFirmware" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=HidList, Path=SelectedItems}" Command="{Binding ConnectHidCommand}" Content="Open Firmware" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
 
                             <!-- Device List -->
                             <ListView Name="HidList" ItemsSource="{Binding AvailableHidDevices}" SelectionMode="Single" Margin="5" Background="Transparent" BorderThickness="0">
