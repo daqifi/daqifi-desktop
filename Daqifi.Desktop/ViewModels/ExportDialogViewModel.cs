@@ -11,7 +11,7 @@ using Daqifi.Desktop.Loggers;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    class ExportDialogViewModel : ObservableObject
+    public class ExportDialogViewModel : ObservableObject
     {
         #region Private Variables
         private readonly ICollection<LoggingSession> _sessions;
@@ -98,28 +98,28 @@ namespace Daqifi.Desktop.ViewModels
 
         private void BrowseExportPath(object o)
         {
-            Microsoft.Win32.SaveFileDialog dlg = new Microsoft.Win32.SaveFileDialog
+            var dialog = new Microsoft.Win32.SaveFileDialog
             {
                 DefaultExt = ".csv",
                 Filter = "Log File|*.csv"
             };
 
-            bool? result = dlg.ShowDialog();
+            var result = dialog.ShowDialog();
 
             if (result == false) return;
 
-            ExportFilePath = dlg.FileName;
+            ExportFilePath = dialog.FileName;
         }
 
         private void BrowseExportDirectory(object o)
         {
-            System.Windows.Forms.FolderBrowserDialog dlg = new System.Windows.Forms.FolderBrowserDialog();
+            var dialog = new System.Windows.Forms.FolderBrowserDialog();
 
-            System.Windows.Forms.DialogResult result = dlg.ShowDialog();
+            var result = dialog.ShowDialog();
 
             if (result == System.Windows.Forms.DialogResult.Cancel) return;
 
-            ExportFilePath = dlg.SelectedPath;
+            ExportFilePath = dialog.SelectedPath;
         }
 
         private void ExportSingleSession(object o)
@@ -131,7 +131,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 foreach (var session in _sessions)
                 {
-                    string filepath = ExportFilePath;
+                    var filepath = ExportFilePath;
                     if (ExportAllSelected)
                     {
                         ExportAllSamples(session, filepath);
@@ -153,9 +153,9 @@ namespace Daqifi.Desktop.ViewModels
             var bw = new BackgroundWorker();
             bw.DoWork += delegate
             {
-                foreach (LoggingSession session in _sessions)
+                foreach (var session in _sessions)
                 {
-                    string filepath = ExportFilePath + "\\" + session.Name + ".csv";
+                    var filepath = ExportFilePath + "\\" + session.Name + ".csv";
                     if (ExportAllSelected)
                     {
                         ExportAllSamples(session, filepath);

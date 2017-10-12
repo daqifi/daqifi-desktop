@@ -9,8 +9,9 @@ namespace Daqifi.Desktop.Bootloader
 {
     public class Pic32Bootloader : ObservableObject, IBootloader
     {
-        private HidDevice _device;
+        private readonly HidDevice _device;
         private string _version;
+        private bool _attached;
 
         public string Version {
             get => _version;
@@ -18,16 +19,10 @@ namespace Daqifi.Desktop.Bootloader
             {
                 _version = value;
                 NotifyPropertyChanged("Version");
-            } }    
+            } }
 
-        #region IBootloader Methods
-
-        public void RequestVersion()
+        public Pic32Bootloader()
         {
-            var messageProducer = new Pic32BootloaderMessageProducer();
-            var requestVersionMessage = messageProducer.CreateRequestVersionMessage();
-
-            // Send Request
             const int vendorId = 0x4D8;
             const int productId = 0x03C;
 
@@ -37,19 +32,25 @@ namespace Daqifi.Desktop.Bootloader
                 // TODO Handle
             }
 
+            _device.Inserted += HandleDeviceInserted;
+            _device.Removed += HandleDeviceRemoved;
             _device.OpenDevice();
-            _device.ReadReport(OnVersionReceived);
-
-            _device.Write(requestVersionMessage);
+            _device.MonitorDeviceEvents = true;
         }
 
-        private void OnVersionReceived(HidReport report)
+        #region IBootloader Methods
+
+        public void RequestVersion()
         {
-            var deviceData = report.Data;
-            var consumer = new Pic32BootloaderMessageConsumer();
-            Version = consumer.DecodeMessage(deviceData);
+            // Send Request
+            var messageProducer = new Pic32BootloaderMessageProducer();
+            var requestVersionMessage = messageProducer.CreateRequestVersionMessage();
+            
+            _device.ReadReport(HandleVersionReceived);
+            _device.Write(requestVersionMessage);
+
         }
-        
+
         /// <summary>
         /// [<SOH>…]<SOH><0x03>[<HEX_RECORD>…]<CRCL><CRCH><EOT>
         /// </summary>
@@ -57,14 +58,15 @@ namespace Daqifi.Desktop.Bootloader
         /// <returns></returns>
         public bool LoadFirmware(string filePath)
         {
+            var messageProducer = new Pic32BootloaderMessageProducer();
+
             // Create Message
-            var loadFirmwareCommand = new byte[] { 0x03 };
             var asciiLines = File.ReadAllLines(filePath);
             var hexRecords = new List<byte[]>();
-            var asciiData = asciiLines.Select(line => line.Remove(0, 1)).ToList();
+            //var asciiData = asciiLines.Select(line => line.Remove(0, 1)).ToList();
 
             // Convert ASCII Data to Hex Data
-            foreach (var line in asciiData)
+            foreach (var line in asciiLines)
             {
                 var hexLine = new List<byte>();
 
@@ -75,6 +77,7 @@ namespace Daqifi.Desktop.Bootloader
                 if (line.Length %2 != 1) throw new Exception();
 
                 // Get two ascii characters and convert them to a hex value
+                // Skip the first item as it is ":" and should be ignored
                 for (var i = 1; i < line.Length; i+=2)
                 {
                     var asciiCharacters = new []{line[i], line[i+1]};
@@ -84,40 +87,99 @@ namespace Daqifi.Desktop.Bootloader
                 hexRecords.Add(hexLine.ToArray());
             }
 
-            foreach (var hexRecord in hexRecords)
+            _device.ReadReport(HandleProgramFlashResponseReceived);
+
+            //// Send 10 hex at a time
+            //while (hexList.Any())
+            //{
+            //    byte[] send;
+            //    if (hexList.Count >= 11)
+            //    {
+            //        send = Combine(hexList.(11).ToArray());
+            //    }
+            //    else
+            //    {
+            //        send = Combine(hexRecords.Take(hexRecords.Count).ToArray());
+            //    }
+            //    var loadFirmwareMessage = messageProducer.CreateProgramFlashMessage(send);
+
+            //    while(loadFirmwareMessage.Any())
+            //    {
+            //        if (loadFirmwareMessage.Length >= 64)
+            //        {
+            //            _device.WriteFeatureData(loadFirmwareMessage.Take(64).ToArray());
+            //        }
+            //        else
+            //        {
+            //            _device.Write(loadFirmwareMessage.Take(loadFirmwareMessage.Length).ToArray());
+            //        }
+            //    }
+
+            //    _device.Write(loadFirmwareMessage);
+            //}
+
+            for (var i = 0; i < hexRecords.Count; i++)
             {
-                var data = loadFirmwareCommand.Concat(hexRecord).ToArray();
-                var crc = new Crc16(data);
+                var hexRecord = hexRecords[i];
+                if (!_attached) return false;
 
                 // Send a hex record
-                var loadFirmwareMessage = new List<byte>();
-                //loadFirmwareMessage.Add(soh);
-                loadFirmwareMessage.AddRange(loadFirmwareCommand);
-                loadFirmwareMessage.AddRange(hexRecord);
-                loadFirmwareMessage.Add(crc.Low);
-                loadFirmwareMessage.Add(crc.High);
-                //loadFirmwareMessage.Add(eot);
-
-
-                // Receieve Response
-
+                var loadFirmwareMessage = messageProducer.CreateProgramFlashMessage(hexRecord);
+                _device.Write(loadFirmwareMessage);
             }
 
-            //
-            //loadFirmwareRequest.Add(soh);
-            //loadFirmwareRequest.Add(command);
-            //loadFirmwareRequest.AddRange(firmwareData);
-            //loadFirmwareRequest.Add(crc.Low);
-            //loadFirmwareRequest.Add(crc.High);
-            //loadFirmwareRequest.Add(eot);
-
-            // Reset Device
-            // Force Firmware Upgrade Mode
-            // Build Message
-            // Program Flash
             return false;
         }
+
+        public static byte[] Combine(params byte[][] arrays)
+        {
+            byte[] ret = new byte[arrays.Sum(x => x.Length)];
+            int offset = 0;
+            foreach (byte[] data in arrays)
+            {
+                Buffer.BlockCopy(data, 0, ret, offset, data.Length);
+                offset += data.Length;
+            }
+            return ret;
+        }
+
+        private void HandleVersionReceived(HidReport report)
+        {
+            if (!_attached) return;
+
+            var staus = report.ReadStatus;
+
+            var deviceData = report.Data;
+            var consumer = new Pic32BootloaderMessageConsumer();
+            Version = consumer.DecodeVersionResponse(deviceData);
+        }
+
+        private void HandleProgramFlashResponseReceived(HidReport report)
+        {
+            if (!_attached) return;
+
+            var status = report.ReadStatus;
+            var deviceData = report.Data;
+            var consumer = new Pic32BootloaderMessageConsumer();
+            var success = consumer.DecodeProgramFlashResponse(deviceData);
+
+            if (status != HidDeviceData.ReadStatus.NotConnected)
+            {
+                _device.ReadReport(HandleProgramFlashResponseReceived);
+            }
+        }
+
+        private void HandleDeviceRemoved()
+        {
+            _attached = false;
+        }
+
+        private void HandleDeviceInserted()
+        {
+            _attached = true;
+        }
         #endregion
+
 
 
     }

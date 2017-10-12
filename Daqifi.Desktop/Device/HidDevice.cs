@@ -4,6 +4,7 @@ using Daqifi.Desktop.Message;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using HidLibrary;
 
 namespace DAQifi.Desktop.Device
 {

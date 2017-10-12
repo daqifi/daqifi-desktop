@@ -184,10 +184,9 @@ namespace Daqifi.Desktop.Logger
                     using (var context = new LoggingContext())
                     {
                         //Remove the samples from the collection
-                        for (int i = 0; i < bufferCount; i++)
+                        for (var i = 0; i < bufferCount; i++)
                         {
-                            DataSample sample;
-                            if (_buffer.TryTake(out sample)) samples.Add(sample);
+                            if (_buffer.TryTake(out DataSample sample)) samples.Add(sample);
                         }
                         context.BulkInsert(samples);
                         samples.Clear();

@@ -7,21 +7,32 @@
         xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
         mc:Ignorable="d"
         dialogService:DialogService.IsRegisteredView="True"
-        Title="Firmware Settings" Height="300" Width="300">
+        Title="Firmware Settings" Height="300" Width="500" GlowBrush="{DynamicResource AccentColorBrush}">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <GroupBox Header="Firmware Settings">
+        <GroupBox Grid.Row="0" Header="Bootloader Version">
+            <Label Content="{Binding Version}"/>
+        </GroupBox>
+
+        <GroupBox Grid.Row="1" Header="Update Firmware">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="85"/>
                 </Grid.ColumnDefinitions>
-                <Label Grid.Column="0" Content="Firmware Version:"/>
-                <Label Grid.Column="1" Content="{Binding Version}"/>
+                <TextBox Grid.Column="0" Height="30" VerticalAlignment="Top" Margin="5" Text="{Binding FirmwareFilePath, Mode=OneWay}"/>
+                <Button Grid.Column="1" Content="Browse" Width="75" Height="30" Margin="5" VerticalAlignment="Top" Style="{StaticResource SquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True" Command="{Binding BrowseFirmwarePathCommand}"/>
+                
             </Grid>
         </GroupBox>
+        
+        <DockPanel Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" LastChildFill="True" Margin="5">
+            <Button Content="Cancel" Width="100" Height="30"  Style="{StaticResource SquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+            <Button DockPanel.Dock="Bottom" Content="Upload" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True" Command="{Binding UploadFirmwareCommand}"/>
+        </DockPanel>
     </Grid>
 </controls:MetroWindow>

@@ -64,6 +64,7 @@ namespace Daqifi.Desktop.Bootloader
 
             packet.Add(StartOfHeader);
 
+            // Add DLE whenever SOH, EOT, or DLE are present
             foreach (var item in commandAndCrc)
             {
                 if (item == StartOfHeader || item == EndOfTransmission || item == DataLinkEscape)

@@ -1,5 +1,8 @@
-﻿using Daqifi.Desktop;
+﻿using System.IO;
+using System.Windows.Input;
+using Daqifi.Desktop;
 using Daqifi.Desktop.Bootloader;
+using Daqifi.Desktop.Commands;
 using DAQifi.Desktop.Device;
 using ObservableObject = Daqifi.Desktop.ObservableObject;
 
@@ -10,6 +13,7 @@ namespace DAQifi.Desktop.ViewModels
         private string _version;
         private HidDevice _hidDevice;
         private Pic32Bootloader _bootloader;
+        private string _firmwareFilePath;
 
         public string Version
         {
@@ -21,12 +25,37 @@ namespace DAQifi.Desktop.ViewModels
             }
         }
 
+        public string FirmwareFilePath
+        {
+            get => _firmwareFilePath;
+            set
+            {
+                _firmwareFilePath = value;
+                NotifyPropertyChanged("FirmwareFilePath");
+            }
+        }
+
+        public ICommand BrowseFirmwarePathCommand { get; private set; }
+        private bool CanBrowseFirmwarePath(object o)
+        {
+            return true;
+        }
+
+        public ICommand UploadFirmwareCommand { get; private set; }
+        private bool CanUploadFirmware(object o)
+        {
+            return true;
+        }
+
         public FirmwareDialogViewModel(HidDevice hidDevice)
         {
             _hidDevice = hidDevice;
             _bootloader = new Pic32Bootloader();
             _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
             _bootloader.RequestVersion();
+
+            BrowseFirmwarePathCommand = new DelegateCommand(BrowseFirmwarePath, CanBrowseFirmwarePath);
+            UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
         }
 
         private void OnHidDevicePropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -36,5 +65,29 @@ namespace DAQifi.Desktop.ViewModels
                 Version = _bootloader.Version;
             }
         }
+
+        private void BrowseFirmwarePath(object o)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                DefaultExt = ".hex",
+                Filter = "Firmware|*.hex"
+            };
+
+            var result = dialog.ShowDialog();
+
+            if (result == false) return;
+
+            FirmwareFilePath = dialog.FileName;
+        }
+
+        private void UploadFirmware(object obj)
+        {
+            if (string.IsNullOrWhiteSpace(FirmwareFilePath)) return;
+            if (!File.Exists(FirmwareFilePath)) return;
+
+            _bootloader.LoadFirmware(FirmwareFilePath);
+        }
+
     }
 }
