@@ -4,9 +4,11 @@ using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.View;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -15,9 +17,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
-using Daqifi.Desktop.Bootloader;
-using Daqifi.Desktop.Loggers;
-using Microsoft.Win32;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -377,8 +376,6 @@ namespace Daqifi.Desktop.ViewModels
             RebootSelectedDeviceCommand = new DelegateCommand(RebootSelectedDevice, CanRebootSelectedDevice);
             OpenHelpCommand = new DelegateCommand(OpenHelp, CanOpenHelp);
             BrowseForFirmwareCommand = new DelegateCommand(BrowseForFirmware, CanBrowseForFirmware);
-            UploadFirmwareCommand = new DelegateCommand(UpdateFirmware, CanUploadFirmware);
-
             HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
         }
         #endregion
@@ -630,13 +627,6 @@ namespace Daqifi.Desktop.ViewModels
             {
                 FirmwareFilePath = openFileDialog.FileName;
             }
-        }
-
-        public void UpdateFirmware(object o)
-        {
-            var bootloader = new Pic32Bootloader();
-            bootloader.RequestVersion();
-            //bootloader.LoadFirmware(FirmwareFilePath);
         }
 
         private void OpenLiveGraphSettings(object o)

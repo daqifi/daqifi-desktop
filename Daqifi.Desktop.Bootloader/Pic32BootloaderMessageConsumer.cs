@@ -12,17 +12,18 @@ namespace Daqifi.Desktop.Bootloader
         private const byte DataLinkEscape = 0x10;
         private const byte RequestVersionCommand = 0x01;
         private const byte EraseFlashCommand = 0x02;
+        private const byte ProgramFlashCommand = 0x03;
         #endregion
 
         public string DecodeVersionResponse(byte[] data)
         {
-            int majorVersion = 0;
-            int minorVersion = 0;
+            var majorVersion = 0;
+            var minorVersion = 0;
 
             if (data.Length < 2) return "Error";
 
             // Check if we start correctly
-            if (data.First() != StartOfHeader) return "Error";
+            if (data[0] != StartOfHeader) return "Error";
 
             // Determine what type of response this is
             // Request Version Response
@@ -40,10 +41,14 @@ namespace Daqifi.Desktop.Bootloader
 
         public bool DecodeProgramFlashResponse(byte[] data)
         {
+            if (data.Length < 2) return false;
+
             // Check if we start correctly
-            if (data.First() != StartOfHeader) return false;
+            if (data[0] != StartOfHeader) return false;
 
-
+            // Determine what type of response this is
+            // Request Version Response
+            if (data[1] != ProgramFlashCommand) return false;
 
             return true;
         }

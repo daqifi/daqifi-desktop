@@ -11,26 +11,30 @@ namespace DAQifi.Desktop.Device
     public class HidDevice : IDevice
     {
         #region Private Data
-        private readonly HidLibrary.HidDevice _device;
+
         #endregion
+
+        public HidLibrary.HidDevice Device { get; }
 
         public event PropertyChangedEventHandler PropertyChanged;
 
         public HidDevice(HidLibrary.HidDevice device)
         {
-            _device = device;
+            Device = device;
         }
 
         public bool Connect()
         {
-            _device.OpenDevice();
-            return _device.IsConnected;
+            //_device.OpenDevice();
+            //return _device.IsConnected;\
+            return true;
         }
 
         public bool Disconnect()
         {
-            _device.CloseDevice();
-            return !_device.IsConnected;
+            //_device.CloseDevice();
+            //return !_device.IsConnected;
+            return false;
         }
 
         #region Not Implemented Device Property and Methods

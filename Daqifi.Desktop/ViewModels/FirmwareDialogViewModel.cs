@@ -1,8 +1,11 @@
-﻿using System.IO;
+﻿using System;
+using System.ComponentModel;
+using System.IO;
 using System.Windows.Input;
 using Daqifi.Desktop;
 using Daqifi.Desktop.Bootloader;
 using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Loggers;
 using DAQifi.Desktop.Device;
 using ObservableObject = Daqifi.Desktop.ObservableObject;
 
@@ -14,6 +17,7 @@ namespace DAQifi.Desktop.ViewModels
         private HidDevice _hidDevice;
         private Pic32Bootloader _bootloader;
         private string _firmwareFilePath;
+        private bool _isFirmwareUploading;
 
         public string Version
         {
@@ -35,6 +39,16 @@ namespace DAQifi.Desktop.ViewModels
             }
         }
 
+        public bool IsFirmwareUploading
+        {
+            get => _isFirmwareUploading;
+            set
+            {
+                _isFirmwareUploading = value;
+                NotifyPropertyChanged("IsFirmwareUploading");
+            }
+        }
+
         public ICommand BrowseFirmwarePathCommand { get; private set; }
         private bool CanBrowseFirmwarePath(object o)
         {
@@ -50,7 +64,7 @@ namespace DAQifi.Desktop.ViewModels
         public FirmwareDialogViewModel(HidDevice hidDevice)
         {
             _hidDevice = hidDevice;
-            _bootloader = new Pic32Bootloader();
+            _bootloader = new Pic32Bootloader(_hidDevice.Device);
             _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
             _bootloader.RequestVersion();
 
@@ -83,11 +97,28 @@ namespace DAQifi.Desktop.ViewModels
 
         private void UploadFirmware(object obj)
         {
-            if (string.IsNullOrWhiteSpace(FirmwareFilePath)) return;
-            if (!File.Exists(FirmwareFilePath)) return;
+            var bw = new BackgroundWorker();
+            bw.DoWork += delegate
+            {
+                try
+                {
+                    IsFirmwareUploading = true;
+                    if (string.IsNullOrWhiteSpace(FirmwareFilePath)) return;
+                    if (!File.Exists(FirmwareFilePath)) return;
 
-            _bootloader.LoadFirmware(FirmwareFilePath);
+                    _bootloader.LoadFirmware(FirmwareFilePath);
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Instance.Error(ex, "Problem Uploading Firmware");
+                }
+                finally
+                {
+                    IsFirmwareUploading = false;
+                }
+            };
+
+            bw.RunWorkerAsync();
         }
-
     }
 }

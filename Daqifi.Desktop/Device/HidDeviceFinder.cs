@@ -1,7 +1,7 @@
 ﻿using Daqifi.Desktop.Device;
-using HidLibrary;
 using System;
 using System.Linq;
+using HidLibrary;
 
 namespace DAQifi.Desktop.Device
 {
@@ -14,8 +14,17 @@ namespace DAQifi.Desktop.Device
 
         public void Start()
         {
-            foreach (var device in HidDevices.Enumerate()
-                .Where(d => d.Attributes.VendorId == VendorId && d.Attributes.ProductId == ProductId))
+            ////hidsharp
+            //foreach (var device in new HidSharp.HidDeviceLoader().GetDevices()
+            //    .Where(d => d.VendorID == VendorId && d.ProductID == ProductId))
+            //{
+            //    var daqifiDevice = new HidDevice(device);
+            //    NotifyDeviceFound(this, daqifiDevice);
+            //}
+
+            var devices = HidDevices.Enumerate(VendorId, ProductId);
+
+            foreach (var device in devices)
             {
                 var daqifiDevice = new HidDevice(device);
                 NotifyDeviceFound(this, daqifiDevice);

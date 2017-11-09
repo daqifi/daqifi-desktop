@@ -14,6 +14,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+        
         <GroupBox Grid.Row="0" Header="Bootloader Version">
             <Label Content="{Binding Version}"/>
         </GroupBox>
@@ -34,5 +35,15 @@
             <Button Content="Cancel" Width="100" Height="30"  Style="{StaticResource SquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
             <Button DockPanel.Dock="Bottom" Content="Upload" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True" Command="{Binding UploadFirmwareCommand}"/>
         </DockPanel>
+
+        <Grid Grid.RowSpan="3" Background="#ccffffff" Visibility="{Binding IsFirmwareUploading,  Converter={StaticResource BoolToVis}}" >
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <controls:ProgressRing Grid.Row="1"/>
+            <Label Grid.Row="2" Content="Loading Firmware..."  HorizontalAlignment="Center" />
+        </Grid>
     </Grid>
 </controls:MetroWindow>

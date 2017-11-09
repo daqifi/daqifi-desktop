@@ -12,7 +12,7 @@ namespace Daqifi.Desktop
     public partial class App
     {
         private const string AppName = "DAQifi";
-        private const string Version = "0.7.0";
+        private const string Version = "0.9.0";
         private const string XamarinKey = "699deee1bbdab8013281235f782bc0b49f082df4";
 
         public SplashScreen SplashScreen { get; private set; }
