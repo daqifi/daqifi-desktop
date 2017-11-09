@@ -5,7 +5,7 @@
         Manufacturer="DAQifi"
         UpgradeCode="ACA4F4E1-6DBB-47C0-A829-84AA1536C147"
         Language="1033"
-        Version="0.6.0.0">
+        Version="0.9.0.0">
 
     <Package Id="*"
              Description="DAQifi Installer"
@@ -28,7 +28,7 @@
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of DAQifi is already installed." />
     <Media Id="1" Cabinet="Cab1.cab" EmbedCab="yes" />
-    <Icon Id="Icon.exe" SourceFile="$(var.DAQifi Desktop.TargetPath)"/>
+    <Icon Id="Icon.exe" SourceFile="$(var.Daqifi.Desktop.TargetPath)"/>
 
     <Feature Id="ProductFeature" Title="DAQifiDesktop_Setup" Level="1" Display="expand">
       <ComponentRef Id="UninstallProgramMenuItems"/>
@@ -82,7 +82,7 @@
   <Fragment>
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER" >
       <Component Id="MainExecutable" Guid="A0B50642-0EB2-48B2-B83E-5E2D62DA01E8">
-        <File Id="DAQifiEXE" Name="DAQifi Desktop.exe" Source="$(var.DAQifi Desktop.TargetPath)" KeyPath="yes">
+        <File Id="DAQifiEXE" Name="DAQifi Desktop.exe" Source="$(var.Daqifi.Desktop.TargetPath)" KeyPath="yes">
           <!-- Start Menu Shortcut-->
           <Shortcut Id="DAQShortcutProgramMenu"
                     Directory="ProgramMenuDAQifiDesktop"
@@ -102,72 +102,83 @@
       </Component>
 
       <Component Id="DAQifiDesktop.exe.config" Guid="36A06DA8-C3F3-47F8-B53A-29A090138DE2">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\DAQifi Desktop.exe.config" KeyPath="yes"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)DAQifi Desktop.exe.config" KeyPath="yes"/>
       </Component>
 
+      <!-- Daqifi DLLs-->
+      <Component Id="Daqifi.Desktop.Bootloader" Guid="C23982B1-AADC-40BA-8CB5-0C2300CB8F9E">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Daqifi.Desktop.Bootloader.dll"/>
+      </Component>
+      
       <!-- 3rd Party DLLs-->
+      <Component Id="HidLibrary" Guid="919CEA39-D40A-478D-AD1C-51CE83DC5135">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\HidLibrary.dll"/>
+      </Component>
+      <Component Id="Nlog" Guid="57CCBA0A-22C2-46B6-8D1C-525A59A1D7D1">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\NLog.dll"/>
+      </Component>
       <Component Id="OxyPlot" Guid="DE2005A7-CBB2-4FB8-BF70-816D00145A05">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\OxyPlot.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\OxyPlot.dll"/>
       </Component>
       <Component Id="OxyPlotWPF" Guid="C6336DE5-711C-43A0-A581-39505E66CD9A">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\OxyPlot.WPF.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\OxyPlot.WPF.dll"/>
       </Component>
       <Component Id="GoogleProtoBuf" Guid="E52D39BA-60E9-4FAE-B601-6C92BF0FD4DF">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\Google.ProtocolBuffers.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Google.ProtocolBuffers.dll"/>
       </Component>
       <Component Id="GoogleProtoBufSerialization" Guid="94F44762-E809-4A13-A7FA-4093F306D703">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\Google.ProtocolBuffers.Serialization.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Google.ProtocolBuffers.Serialization.dll"/>
       </Component>
       <Component Id="MahApps" Guid="D2955D07-F5C2-499E-A2B3-280746E1F4EF">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\MahApps.Metro.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\MahApps.Metro.dll"/>
       </Component>
        <Component Id="XamarinInsights" Guid="DD20EE01-175E-495F-B63A-4060F8C0807E">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\Xamarin.Insights.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Xamarin.Insights.dll"/>
       </Component>
       <Component Id="WindowsInteractivity" Guid="5154E02B-5671-4DC7-9AC4-29437F13CD76">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\System.Windows.Interactivity.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Windows.Interactivity.dll"/>
       </Component>
       <Component Id="EntityFramework" Guid="4ED9C890-16AE-4221-8BFF-6FA9C969231F">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\EntityFramework.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.dll"/>
       </Component>
       <Component Id="EntityFrameworkSQL" Guid="1273C986-995F-4006-B42C-AB4A78DCE3CF">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\EntityFramework.SqlServer.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.SqlServer.dll"/>
       </Component>
        <Component Id="EntityFrameworkSQLCompact" Guid="121327B4-4D93-46AC-ABCF-D29932A51D73">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\EntityFramework.SqlServerCompact.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.SqlServerCompact.dll"/>
       </Component>
       <Component Id="EntityFrameworkBulkInsert" Guid="FF8B3699-A7B5-4652-96A8-74D310091988">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\EntityFramework.BulkInsert.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.BulkInsert.dll"/>
       </Component>
       <Component Id="EntityFrameworkMappingAPI" Guid="22EE3112-2021-487D-810B-D76E83A14F14">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\EntityFramework.MappingAPI.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.MappingAPI.dll"/>
       </Component>
       <Component Id="SystemDataSQLServerCe" Guid="CEA751DC-66CF-4193-888F-F85C3F3E12E5">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\Database\System.Data.SqlServerCe.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\System.Data.SqlServerCe.dll"/>
       </Component>
       <Component Id="SystemDataSQLServerCeEntity" Guid="41704D1B-9562-4DCB-A295-C844869B2A58">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\Database\System.Data.SqlServerCe.Entity.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\System.Data.SqlServerCe.Entity.dll"/>
       </Component>
       <Component Id="sqlceca40" Guid="8CA53811-0B5F-467B-BA22-91E882F63414">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\Database\x86\sqlceca40.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceca40.dll"/>
       </Component>
       <Component Id="sqlcecompact40" Guid="681F8E06-FBCE-48B8-9FB1-E6C49CE483DA">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\Database\x86\sqlcecompact40.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlcecompact40.dll"/>
       </Component>
       <Component Id="sqlceer40EN" Guid="FC7935C7-83F8-4409-A435-D72B9BE57BEB">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\Database\x86\sqlceer40EN.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceer40EN.dll"/>
       </Component>
       <Component Id="sqlceme40" Guid="E6EC4E89-5DA9-48E1-A7E1-421EDA404672">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\Database\x86\sqlceme40.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceme40.dll"/>
       </Component>
       <Component Id="sqlceqp40" Guid="68F42531-63E8-4D2A-8047-E77C553F6F47">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\Database\x86\sqlceqp40.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceqp40.dll"/>
       </Component>
       <Component Id="sqlcese40" Guid="3073A38C-C8AC-4B83-A917-B4270CBB63AE">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\Database\x86\sqlcese40.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlcese40.dll"/>
       </Component>
       <Component Id="NCalc" Guid="01114530-070E-457A-AE7D-E4DD80D872CB">
-        <File Source="$(var.DAQifi Desktop.TargetDir)\NCalc.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\NCalc.dll"/>
       </Component>
     </ComponentGroup>
   </Fragment>
