@@ -180,6 +180,9 @@
       <Component Id="NCalc" Guid="01114530-070E-457A-AE7D-E4DD80D872CB">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\NCalc.dll"/>
       </Component>
+      <Component Id="NCalc" Guid="01114530-070E-457A-AE7D-E4DD80D872CB">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\NCalc.dll"/>
+      </Component>
     </ComponentGroup>
   </Fragment>
 </Wix>
