@@ -35,17 +35,17 @@
     </WixExtension>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\DAQifi Desktop\DAQifi Desktop.csproj">
-      <Name>DAQifi Desktop</Name>
-      <Project>{35db11eb-a53b-410a-b058-35c9c21bdcaa}</Project>
+    <Content Include="License.rtf" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Daqifi.Desktop\Daqifi.Desktop.csproj">
+      <Name>Daqifi.Desktop</Name>
+      <Project>{757cb4d9-9b2e-4e6c-a6aa-50f113589c12}</Project>
       <Private>True</Private>
       <DoNotHarvest>True</DoNotHarvest>
       <RefProjectOutputGroups>Binaries;Content;Satellites</RefProjectOutputGroups>
       <RefTargetDir>INSTALLFOLDER</RefTargetDir>
     </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="License.rtf" />
   </ItemGroup>
   <Import Project="$(WixTargetsPath)" />
   <!--

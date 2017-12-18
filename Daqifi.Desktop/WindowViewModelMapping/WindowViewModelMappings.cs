@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using Daqifi.Desktop.View;
 using Daqifi.Desktop.ViewModels;
+using DAQifi.Desktop.View;
+using DAQifi.Desktop.ViewModels;
 
 namespace Daqifi.Desktop.WindowViewModelMapping
 {
@@ -21,7 +23,8 @@ namespace Daqifi.Desktop.WindowViewModelMapping
             _mappings = new Dictionary<Type, Type>
 			{
 				{ typeof(DaqifiViewModel), typeof(string) },
-                { typeof(ConnectionDialogViewModel), typeof(ConnectionDialog) }
+                { typeof(ConnectionDialogViewModel), typeof(ConnectionDialog) },
+			    { typeof(FirmwareDialogViewModel), typeof(FirmwareDialog) }
             };
         }
 

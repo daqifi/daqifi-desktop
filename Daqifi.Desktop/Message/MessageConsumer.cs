@@ -24,7 +24,9 @@ namespace Daqifi.Desktop.Message
                 try
                 {
                     //Blocks until the DAQ sends a message
-                    var daqMessage = new MessageEventArgs(new ProtobufMessage(WiFiDAQOutMessage.ParseDelimitedFrom(DataStream)));
+                    var outMessage = WiFiDAQOutMessage.ParseDelimitedFrom(DataStream);
+                    var protoMessage = new ProtobufMessage(outMessage);
+                    var daqMessage = new MessageEventArgs(protoMessage);
                     NotifyMessageReceived(this, daqMessage);
                 }
                 catch (Exception ex)
@@ -33,16 +35,24 @@ namespace Daqifi.Desktop.Message
                     {
                         return;
                     }
-                    AppLogger.Error(ex, "Failed in HandleCommunication");
+
+                    AppLogger.Error(ex, "Failed in AbstractMessageConsumer Run");
                 }
             }
         }
 
         public override void Stop()
         {
-            _isDisposed = true;
-            DataStream.Close();
-            base.Stop();
+            try
+            {
+                _isDisposed = true;
+                DataStream.Close();
+                base.Stop();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Failed in AbstractMessageConsumer Stop");
+            }   
         }
         #endregion
     }

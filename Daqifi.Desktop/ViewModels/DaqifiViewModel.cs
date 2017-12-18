@@ -4,9 +4,11 @@ using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.View;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -15,9 +17,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
-using Daqifi.Desktop.Bootloader;
-using Daqifi.Desktop.Loggers;
-using Microsoft.Win32;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -94,14 +93,14 @@ namespace Daqifi.Desktop.ViewModels
                 if (_isLogging)
                 {
                     Plotter.ClearPlot();
-                    foreach (IDevice device in ConnectedDevices)
+                    foreach (var device in ConnectedDevices)
                     {
                         device.InitializeStreaming();
                     }
                 }
                 else
                 {
-                    foreach (IDevice device in ConnectedDevices)
+                    foreach (var device in ConnectedDevices)
                     {
                         device.StopStreaming();
                     }
@@ -212,7 +211,7 @@ namespace Daqifi.Desktop.ViewModels
                 
                 if (LoggingManager.Instance.Active)
                 {
-                    ErrorDialogViewModel errorDialogViewModel = new ErrorDialogViewModel("Cannot change sampling frequency while logging.");
+                    var errorDialogViewModel = new ErrorDialogViewModel("Cannot change sampling frequency while logging.");
                     _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
                     return;
                 }
@@ -330,7 +329,7 @@ namespace Daqifi.Desktop.ViewModels
                 //Database logging
                 DbLogger = new DatabaseLogger();
                 LoggingManager.Instance.AddLogger(DbLogger);
-                using (LoggingContext context = new LoggingContext())
+                using (var context = new LoggingContext())
                 {
                     var previouseSessions = new List<LoggingSession>();
                     var previouseSampleSessions = (from s in context.Sessions select s).ToList();
@@ -377,8 +376,6 @@ namespace Daqifi.Desktop.ViewModels
             RebootSelectedDeviceCommand = new DelegateCommand(RebootSelectedDevice, CanRebootSelectedDevice);
             OpenHelpCommand = new DelegateCommand(OpenHelp, CanOpenHelp);
             BrowseForFirmwareCommand = new DelegateCommand(BrowseForFirmware, CanBrowseForFirmware);
-            UploadFirmwareCommand = new DelegateCommand(UpdateFirmware, CanUploadFirmware);
-
             HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
         }
         #endregion
@@ -554,6 +551,7 @@ namespace Daqifi.Desktop.ViewModels
         private void ShowConnectionDialog(object o)
         {
             var connectionDialogViewModel = new ConnectionDialogViewModel();
+            connectionDialogViewModel.StartConnectionFinders();
             _dialogService.ShowDialog<ConnectionDialog>(this, connectionDialogViewModel);
         }
 
@@ -629,13 +627,6 @@ namespace Daqifi.Desktop.ViewModels
             {
                 FirmwareFilePath = openFileDialog.FileName;
             }
-        }
-
-        public void UpdateFirmware(object o)
-        {
-            var bootloader = new Pic32Bootloader();
-            bootloader.GetVersion();
-            //bootloader.LoadFirmware(FirmwareFilePath);
         }
 
         private void OpenLiveGraphSettings(object o)

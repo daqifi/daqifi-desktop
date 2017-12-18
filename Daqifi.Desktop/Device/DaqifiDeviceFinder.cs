@@ -10,7 +10,8 @@ namespace Daqifi.Desktop.Device
     public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
     {
         #region Private Data
-        private readonly byte[] _queryCommand = Encoding.ASCII.GetBytes("WiFiDAQ Device Query?\r\n");
+        //private readonly byte[] _queryCommand = Encoding.ASCII.GetBytes("WiFiDAQ Device Query?\r\n");
+        private readonly byte[] _queryCommand = Encoding.ASCII.GetBytes("Discovery: Who is out there?\r\n");
         #endregion
 
         #region Properties
@@ -78,7 +79,7 @@ namespace Daqifi.Desktop.Device
 
                 var receivedText = Encoding.ASCII.GetString(receivedBytes);
 
-                if (!receivedText.Contains("WiFiDAQ Device Query?") &&
+                if (!receivedText.Contains("Discovery: Who is out there?") &&
                     !receivedText.Contains("Power event occurred"))
                 {
                     var message = WiFiDAQOutMessage.ParseFrom(receivedBytes);

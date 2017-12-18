@@ -9,9 +9,9 @@ namespace Daqifi.Desktop.Bootloader.Test
         [TestMethod]
         public void GetVersion_ReturnsCorrectValue()
         {
-            var bootloader = new Pic32Bootloader();
-            var version = bootloader.GetVersion();
-            Assert.IsTrue(false);
+            //var bootloader = new Pic32Bootloader();
+            //var version = bootloader.RequestVersion();
+            //Assert.IsTrue(false);
         }
     }
 }

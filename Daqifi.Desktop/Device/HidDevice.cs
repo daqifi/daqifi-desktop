@@ -1,39 +1,40 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using Daqifi.Desktop.Channel;
+﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Message;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using HidLibrary;
 
 namespace DAQifi.Desktop.Device
 {
-    public class UsbHidDevice : IDevice
+    public class HidDevice : IDevice
     {
         #region Private Data
-        private const int VendorId = 0x4D8;
-        private const int ProductId = 0x03C;
-        private readonly HidDevice _device;
+
         #endregion
+
+        public HidLibrary.HidDevice Device { get; }
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        public UsbHidDevice()
+        public HidDevice(HidLibrary.HidDevice device)
         {
-            _device = HidDevices.Enumerate(VendorId, ProductId).FirstOrDefault();
+            Device = device;
         }
 
         public bool Connect()
         {
-            _device.OpenDevice();
-            return _device.IsConnected;
+            //_device.OpenDevice();
+            //return _device.IsConnected;\
+            return true;
         }
 
         public bool Disconnect()
         {
-            _device.CloseDevice();
-            return !_device.IsConnected;
+            //_device.CloseDevice();
+            //return !_device.IsConnected;
+            return false;
         }
 
         #region Not Implemented Device Property and Methods
