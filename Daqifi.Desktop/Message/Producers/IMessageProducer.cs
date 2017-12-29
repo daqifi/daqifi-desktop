@@ -1,4 +1,4 @@
-﻿namespace Daqifi.Desktop.Message
+﻿namespace Daqifi.Desktop.Message.Producers
 {
     public interface IMessageProducer
     {

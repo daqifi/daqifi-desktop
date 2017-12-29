@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace Daqifi.Desktop.Message
+namespace Daqifi.Desktop.Message.MessageTypes
 {
     public class ScpiMessage : AbstractMessage
     {

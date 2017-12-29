@@ -1,16 +1,17 @@
 ﻿using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Device.HidDevice;
+using Daqifi.Desktop.Device.SerialDevice;
+using Daqifi.Desktop.Device.WiFiDevice;
+using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Loggers;
-using DAQifi.Desktop.Device;
+using DAQifi.Desktop.View;
+using DAQifi.Desktop.ViewModels;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
-using Daqifi.Desktop.DialogService;
-using Daqifi.Desktop.View;
-using DAQifi.Desktop.View;
-using DAQifi.Desktop.ViewModels;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -30,9 +31,9 @@ namespace Daqifi.Desktop.ViewModels
 
         public AppLogger AppLogger = AppLogger.Instance;
 
-        public ObservableCollection<DaqifiDevice> AvailableWiFiDevices { get; } = new ObservableCollection<DaqifiDevice>();
-        public ObservableCollection<SerialDevice> AvailableSerialDevices { get; } = new ObservableCollection<SerialDevice>();
-        public ObservableCollection<HidDevice> AvailableHidDevices { get; } = new ObservableCollection<HidDevice>();
+        public ObservableCollection<DaqifiStreamingDevice> AvailableWiFiDevices { get; } = new ObservableCollection<DaqifiStreamingDevice>();
+        public ObservableCollection<SerialStreamingDevice> AvailableSerialDevices { get; } = new ObservableCollection<SerialStreamingDevice>();
+        public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = new ObservableCollection<HidFirmwareDevice>();
 
         public bool HasNoWiFiDevices
         {
@@ -123,7 +124,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             _wifiFinder.Stop();
 
-            var selectedDevices = ((IEnumerable)selectedItems).Cast<IDevice>();
+            var selectedDevices = ((IEnumerable)selectedItems).Cast<IStreamingDevice>();
             foreach (var device in selectedDevices)
             {
                 ConnectionManager.Instance.Connect(device);
@@ -134,7 +135,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             _serialFinder.Stop();
 
-            var selectedDevices = ((IEnumerable)selectedItems).Cast<IDevice>();
+            var selectedDevices = ((IEnumerable)selectedItems).Cast<IStreamingDevice>();
             foreach (var device in selectedDevices)
             {
                 ConnectionManager.Instance.Connect(device);
@@ -145,7 +146,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             _hidDeviceFinder.Stop();
 
-            var selectedDevices = ((IEnumerable)selectedItems).Cast<HidDevice>();
+            var selectedDevices = ((IEnumerable)selectedItems).Cast<HidFirmwareDevice>();
             var hidDevice = selectedDevices.FirstOrDefault();
             if (hidDevice == null) return;
 
@@ -160,7 +161,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void WiFiDeviceFound(object sender, IDevice device)
         {
-            var wifiDevice = device as DaqifiDevice;
+            var wifiDevice = device as DaqifiStreamingDevice;
 
             if (wifiDevice == null) return;
 
@@ -176,7 +177,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void WiFiDeviceRemoved(object sender, IDevice device)
         {
-            var wifiDevice = device as DaqifiDevice;
+            var wifiDevice = device as DaqifiStreamingDevice;
 
             if (wifiDevice == null) return;
 
@@ -192,7 +193,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void SerialDeviceFound(object sender, IDevice device)
         {
-            var serialDevice = device as SerialDevice;
+            var serialDevice = device as SerialStreamingDevice;
 
             if (serialDevice == null) return;
 
@@ -208,7 +209,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void SerialDeviceRemoved(object sender, IDevice device)
         {
-            var serialDevice = device as SerialDevice;
+            var serialDevice = device as SerialStreamingDevice;
 
             if (serialDevice == null) return;
 
@@ -224,7 +225,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void HidDeviceFound(object sender, IDevice device)
         {
-            var hidDevice = device as HidDevice;
+            var hidDevice = device as HidFirmwareDevice;
 
             if (hidDevice == null) return;
 
@@ -237,7 +238,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void HidDeviceRemoved(object sender, IDevice device)
         {
-            var hidDevice = device as HidDevice;
+            var hidDevice = device as HidFirmwareDevice;
 
             if (hidDevice == null) return;
         }

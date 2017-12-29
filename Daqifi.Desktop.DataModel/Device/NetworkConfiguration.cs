@@ -1,4 +1,6 @@
-﻿namespace Daqifi.Desktop.Device
+﻿using Daqifi.Desktop.DataModel.Common;
+
+namespace Daqifi.Desktop.DataModel.Device
 {
     public class NetworkConfiguration: ObservableObject
     {
@@ -8,7 +10,7 @@
 
         public string SSID
         {
-            get { return _SSID; }
+            get => _SSID;
             set 
             { 
                 _SSID = value;
@@ -18,7 +20,7 @@
 
         public string SecurityType
         {
-            get { return _securityType; }
+            get => _securityType;
             set 
             {
                 _securityType = value;
@@ -28,7 +30,7 @@
 
         public string Password
         {
-            get { return _password; }
+            get => _password;
             set 
             { 
                 _password = value;

@@ -1,4 +1,4 @@
-﻿namespace Daqifi.Desktop.Channel
+﻿namespace Daqifi.Desktop.DataModel.Channel
 {
     public enum ChannelDirection
     {

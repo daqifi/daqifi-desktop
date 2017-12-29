@@ -1,9 +1,6 @@
-﻿using Daqifi.Desktop.Device;
-using System;
-using System.Linq;
-using HidLibrary;
+﻿using HidLibrary;
 
-namespace DAQifi.Desktop.Device
+namespace Daqifi.Desktop.Device.HidDevice
 {
     public class HidDeviceFinder : IDeviceFinder
     {
@@ -15,10 +12,10 @@ namespace DAQifi.Desktop.Device
         public void Start()
         {
             ////hidsharp
-            //foreach (var device in new HidSharp.HidDeviceLoader().GetDevices()
+            //foreach (var streamingDevice in new HidSharp.HidDeviceLoader().GetDevices()
             //    .Where(d => d.VendorID == VendorId && d.ProductID == ProductId))
             //{
-            //    var daqifiDevice = new HidDevice(device);
+            //    var daqifiDevice = new HidFirmwareDevice(streamingDevice);
             //    NotifyDeviceFound(this, daqifiDevice);
             //}
 
@@ -26,7 +23,7 @@ namespace DAQifi.Desktop.Device
 
             foreach (var device in devices)
             {
-                var daqifiDevice = new HidDevice(device);
+                var daqifiDevice = new HidFirmwareDevice(device);
                 NotifyDeviceFound(this, daqifiDevice);
             }
         }
@@ -38,14 +35,12 @@ namespace DAQifi.Desktop.Device
 
         public void NotifyDeviceFound(object sender, IDevice device)
         {
-            if (OnDeviceFound == null) return;
-            OnDeviceFound(sender, device);
+            OnDeviceFound?.Invoke(sender, device);
         }
 
         public void NotifyDeviceRemoved(object sender, IDevice device)
         {
-            if (OnDeviceRemoved == null) return;
-            OnDeviceRemoved(sender, device);
+            OnDeviceRemoved?.Invoke(sender, device);
         }
     }
 }

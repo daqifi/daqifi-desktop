@@ -1,7 +1,7 @@
-﻿using System;
+﻿using Daqifi.Desktop.Channel;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
-using Daqifi.Desktop.Channel;
 
 namespace Daqifi.Desktop.Logger
 {

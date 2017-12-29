@@ -1,4 +1,5 @@
 ﻿using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Device.WiFiDevice;
 using System;
 using System.Text;
 
@@ -11,17 +12,17 @@ namespace Daqifi.Desktop.Message
 
         #endregion
 
-        public DeviceMessage(WiFiDAQOutMessage message)
+        public DeviceMessage(DaqifiOutMessage message)
         {
             Data = message;
-            string name = message.HostName;
+            var name = message.HostName;
 
-            string ipAddress  = "";
-            string macAddress = BitConverter.ToString(message.MacAddrList[0].ToByteArray());
+            var ipAddress  = "";
+            var macAddress = BitConverter.ToString(message.MacAddr.ToByteArray());
             
-            byte[] ipAddressBytes = message.IpAddrList[0].ToByteArray();
+            var ipAddressBytes = message.IpAddr.ToByteArray();
             
-            for(int i = 0; i < ipAddressBytes.Length; i++)
+            for(var i = 0; i < ipAddressBytes.Length; i++)
             {
                 if(i == ipAddressBytes.Length -1)
                 {
@@ -29,15 +30,15 @@ namespace Daqifi.Desktop.Message
                 }
                 else
                 {
-                     ipAddress += ipAddressBytes[i].ToString() + "." ; 
+                     ipAddress += ipAddressBytes[i] + "." ; 
                 }
             }
 
-            Device = new DaqifiDevice(name, macAddress, ipAddress);
+            Device = new DaqifiStreamingDevice(name, macAddress, ipAddress);
 
             if(message.HasSsid)
             {
-                (Device as DaqifiDevice).NetworkConfiguration.SSID = message.Ssid;
+                (Device as DaqifiStreamingDevice).NetworkConfiguration.SSID = message.Ssid;
             }
         }
 

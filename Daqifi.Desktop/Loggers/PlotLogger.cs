@@ -1,5 +1,6 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.DataModel.Channel;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;

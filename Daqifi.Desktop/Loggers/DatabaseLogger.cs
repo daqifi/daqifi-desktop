@@ -1,4 +1,7 @@
 ﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.DataModel.Channel;
+using Daqifi.Desktop.Loggers;
 using EntityFramework.BulkInsert;
 using EntityFramework.BulkInsert.Extensions;
 using OxyPlot;
@@ -12,8 +15,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Windows.Input;
-using Daqifi.Desktop.Commands;
-using Daqifi.Desktop.Loggers;
 
 namespace Daqifi.Desktop.Logger
 {

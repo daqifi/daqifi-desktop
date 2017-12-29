@@ -1,4 +1,5 @@
-﻿using Daqifi.Desktop.Device;
+﻿using Daqifi.Desktop.DataModel.Channel;
+using Daqifi.Desktop.Device;
 using NCalc;
 using System;
 using System.Collections.Generic;
@@ -19,7 +20,7 @@ namespace Daqifi.Desktop.Channel
         private bool _isDigitalOn;
         private string _adcMode;
         private DataSample _activeSample;
-        protected IDevice _owner;
+        protected IStreamingDevice _owner;
         private string _scaledExpression;
         private bool _hasValidExpression;
         private bool _isScalingActive;
@@ -29,7 +30,7 @@ namespace Daqifi.Desktop.Channel
         public int ID { get; set; }
         public string Name
         {
-            get { return _name; }
+            get => _name;
             set
             {
                 _name = value;
@@ -40,7 +41,7 @@ namespace Daqifi.Desktop.Channel
 
         public double OutputValue
         {
-            get { return _outputValue; }
+            get => _outputValue;
             set
             {
                 if(Direction != ChannelDirection.Output) return;
@@ -53,12 +54,12 @@ namespace Daqifi.Desktop.Channel
         [NotMapped]
         public List<string> AdcModes { get; } = new List<string> { "Single-Ended", "Differential" };
 
-        public abstract ChannelType Type { get; }
+        public abstract DataModel.Channel.ChannelType Type { get; }
 
         [NotMapped]
         public ChannelDirection Direction
         {
-            get { return _direction; }
+            get => _direction;
             set 
             { 
                 if(_direction == value)  return;
@@ -79,16 +80,16 @@ namespace Daqifi.Desktop.Channel
         [NotMapped]
         public string AdcMode
         {
-            get { return _adcMode; }
+            get => _adcMode;
             set
             {
                 if (value == AdcModes[0])
                 {
-                    _owner.SetAdcMode(this, Channel.AdcMode.SingleEnded);
+                    _owner.SetAdcMode(this, DataModel.Channel.AdcMode.SingleEnded);
                 }
                 else if (value == AdcModes[1])
                 {
-                    _owner.SetAdcMode(this, Channel.AdcMode.Differential);
+                    _owner.SetAdcMode(this, DataModel.Channel.AdcMode.Differential);
                 }
                 else
                 {
@@ -105,7 +106,7 @@ namespace Daqifi.Desktop.Channel
         [NotMapped]
         public bool IsOutput
         {
-            get { return _isOutput; }
+            get => _isOutput;
             set 
             { 
                 _isOutput = value;
@@ -119,7 +120,7 @@ namespace Daqifi.Desktop.Channel
         [NotMapped]
         public bool HasAdc
         {
-            get { return _hasAdc; }
+            get => _hasAdc;
             set
             {
                 _hasAdc = value;
@@ -130,7 +131,7 @@ namespace Daqifi.Desktop.Channel
         [NotMapped]
         public Brush ChannelColorBrush
         {
-            get { return _channelColorBrush; }
+            get => _channelColorBrush;
             set
             {
                 _channelColorBrush = value;
@@ -148,7 +149,7 @@ namespace Daqifi.Desktop.Channel
         [NotMapped]
         public bool IsDigitalOn
         {
-            get { return _isDigitalOn; }
+            get => _isDigitalOn;
             set
             {
                 _isDigitalOn = value;
@@ -165,7 +166,7 @@ namespace Daqifi.Desktop.Channel
         {
             get
             {
-                string typeString = "";
+                var typeString = "";
 
                 if (IsDigital) typeString = "Digital ";
                 if (IsAnalog) typeString = "Analog ";
@@ -190,7 +191,7 @@ namespace Daqifi.Desktop.Channel
         [NotMapped]
         public string ScaleExpression
         {
-            get { return _scaledExpression; }
+            get => _scaledExpression;
             set
              {
                 _scaledExpression = value;
@@ -214,7 +215,7 @@ namespace Daqifi.Desktop.Channel
         [NotMapped]
         public bool IsScalingActive
         {
-            get { return _isScalingActive; }
+            get => _isScalingActive;
             set
             {
                 _isScalingActive = value;
@@ -225,7 +226,7 @@ namespace Daqifi.Desktop.Channel
         [NotMapped]
         public bool HasValidExpression
         {
-            get { return _hasValidExpression; }
+            get => _hasValidExpression;
             set
             {
                 _hasValidExpression = value;
@@ -237,7 +238,7 @@ namespace Daqifi.Desktop.Channel
 
         public DataSample ActiveSample
         {
-            get { return _activeSample; }
+            get => _activeSample;
             set
             {
                 _activeSample = value;

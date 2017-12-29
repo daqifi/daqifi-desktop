@@ -1,16 +1,16 @@
 ﻿using Daqifi.Desktop.Message;
+using Daqifi.Desktop.Message.Consumers;
 using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 
-namespace Daqifi.Desktop.Device
+namespace Daqifi.Desktop.Device.WiFiDevice
 {
     public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
     {
         #region Private Data
-        //private readonly byte[] _queryCommand = Encoding.ASCII.GetBytes("WiFiDAQ Device Query?\r\n");
         private readonly byte[] _queryCommand = Encoding.ASCII.GetBytes("Discovery: Who is out there?\r\n");
         #endregion
 
@@ -34,7 +34,7 @@ namespace Daqifi.Desktop.Device
             }
             catch(Exception ex)
             {
-                AppLogger.Error(ex, "Error creating device listener");
+                AppLogger.Error(ex, "Error creating streamingDevice listener");
             }
         }
         #endregion
@@ -47,7 +47,7 @@ namespace Daqifi.Desktop.Device
 
             while (Running)
             {
-                 Client.Send(_queryCommand, _queryCommand.Length, Destination);
+                Client.Send(_queryCommand, _queryCommand.Length, Destination);
                 Thread.Sleep(1000);
             }
         }
@@ -82,16 +82,31 @@ namespace Daqifi.Desktop.Device
                 if (!receivedText.Contains("Discovery: Who is out there?") &&
                     !receivedText.Contains("Power event occurred"))
                 {
-                    var message = WiFiDAQOutMessage.ParseFrom(receivedBytes);
-                    if (message.HasHostName)
+                    try
                     {
-                        var device = new DeviceMessage(message).Device;
+                        var message = DaqifiOutMessage.ParseFrom(receivedBytes);
+                        if (message.HasHostName)
+                        {
+                            var device = new DeviceMessage(message).Device;
+                            NotifyDeviceFound(this, device);
+                        }
+                    }
+                    catch
+                    {
+                        var device = new DaqifiStreamingDevice("Test Device", "Test Mac", remoteIpEndPoint.Address.ToString());
                         NotifyDeviceFound(this, device);
                     }
                 }
                 Client.BeginReceive(OnFinderMessageReceived, null);
             }
-            catch (ObjectDisposedException) { }
+            catch (ObjectDisposedException)
+            {
+
+            }
+            catch (Exception ex)
+            {
+                var temp = "Test";
+            }
         }
 
         public void NotifyDeviceFound(object sender, IDevice device)
@@ -102,18 +117,6 @@ namespace Daqifi.Desktop.Device
         public void NotifyDeviceRemoved(object sender, IDevice device)
         {
             OnDeviceRemoved?.Invoke(sender, device);
-        }
-
-        /// <summary>
-        /// Sends a datagram message to the destintion
-        /// </summary>
-        /// <param name="message"></param>
-        /// <param name="destinationPort"></param>
-        public void Send(IMessage message, int destinationPort)
-        {
-            var serializedMessage = message.GetBytes();
-            
-            Client.Send(serializedMessage, serializedMessage.Length, Destination);
         }
     }
 }

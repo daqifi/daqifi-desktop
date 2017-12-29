@@ -1,7 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using Daqifi.Desktop.Device;
+﻿using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Loggers;
+using System;
+using System.Collections.Generic;
 
 namespace Daqifi.Desktop
 {
@@ -10,7 +10,7 @@ namespace Daqifi.Desktop
         #region Private Variables
         private DAQifiConnectionStatus _connectionStatus = DAQifiConnectionStatus.Disconnected;
         private string _connectionStatusString = "Disconnected";
-        private List<IDevice> _connectedDevices;
+        private List<IStreamingDevice> _connectedDevices;
         private bool _isDisconnected = true;
         #endregion
 
@@ -30,13 +30,13 @@ namespace Daqifi.Desktop
 
         public string ConnectionStatusString
         {
-            get { return _connectionStatusString; }
+            get => _connectionStatusString;
             set { _connectionStatusString = value; }
         }
 
-        public List<IDevice> ConnectedDevices
+        public List<IStreamingDevice> ConnectedDevices
         {
-            get { return _connectedDevices; }
+            get => _connectedDevices;
             set
             {
                 _connectedDevices = value;
@@ -63,19 +63,14 @@ namespace Daqifi.Desktop
 
         private ConnectionManager()
         {
-            ConnectedDevices = new List<IDevice>();
+            ConnectedDevices = new List<IStreamingDevice>();
         }
 
-        public static ConnectionManager Instance
-        {
-            get 
-            {
-                return instance;
-            }
-        }
+        public static ConnectionManager Instance => instance;
+
         #endregion
 
-        public void Connect(IDevice device)
+        public void Connect(IStreamingDevice device)
         {
             try
             {
@@ -93,7 +88,7 @@ namespace Daqifi.Desktop
             }
         }
 
-        public void Disconnect(IDevice device)
+        public void Disconnect(IStreamingDevice device)
         {
             try
             {
@@ -107,7 +102,7 @@ namespace Daqifi.Desktop
             }
         }
 
-        public void Reboot(IDevice device)
+        public void Reboot(IStreamingDevice device)
         {
             try
             {

@@ -1,21 +1,25 @@
-﻿using System;
+﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.DataModel.Channel;
+using Daqifi.Desktop.DataModel.Device;
+using Daqifi.Desktop.Loggers;
+using Daqifi.Desktop.Message;
+using Daqifi.Desktop.Message.Consumers;
+using Daqifi.Desktop.Message.Producers;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using Daqifi.Desktop.Message;
-using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Loggers;
 
 namespace Daqifi.Desktop.Device
 {
-    public abstract class AbstractDevice : ObservableObject, IDevice
+    public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevice
     {
         #region Private Data
 
         protected static DateTime? _firstTime;
         protected static uint _firstMessageSequence;
-        private string _AdcRangeText;
-        protected readonly double _ADCResolution = 131072;
-        protected double _ADCRange = 1;
+        private string _adcRangeText;
+        protected readonly double AdcResolution = 131072;
+        protected double AdcRange = 1;
         private int _streamingFrequency = 1;
         #endregion
 
@@ -28,7 +32,7 @@ namespace Daqifi.Desktop.Device
 
         public int StreamingFrequency
         {
-            get { return _streamingFrequency; }
+            get => _streamingFrequency;
             set
             {
                 if (value < 1) return;
@@ -48,7 +52,7 @@ namespace Daqifi.Desktop.Device
 
         public string AdcRangeText
         {
-            get { return _AdcRangeText; }
+            get => _adcRangeText;
             set 
             {
                 if(value == ADCRanges[0])
@@ -63,7 +67,7 @@ namespace Daqifi.Desktop.Device
                 {
                     return;
                 }
-                _AdcRangeText = value;
+                _adcRangeText = value;
                 NotifyPropertyChanged("ADCRange");
             }
         }
@@ -106,24 +110,24 @@ namespace Daqifi.Desktop.Device
         {
             MessageConsumer.OnMessageReceived -= StatusMessageReceived;
 
-            var message = e.Message.Data as WiFiDAQOutMessage;
+            var message = e.Message.Data as DaqifiOutMessage;
             foreach (var key in message.DevicePn.ToLower().Split('-'))
             {
                 if (key.StartsWith("ai"))
                 {
-                    int analogInputCount = int.Parse(key.Substring(2));
+                    var analogInputCount = int.Parse(key.Substring(2));
                     for (int i = 0; i < analogInputCount; i++) DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
                 }
 
                 if (key.StartsWith("ao"))
                 {
-                    int analogOutputCount = int.Parse(key.Substring(2));
+                    var analogOutputCount = int.Parse(key.Substring(2));
                     for (int i = 0; i < analogOutputCount; i++) DataChannels.Add(new AnalogChannel(this, "AO" + i, i, ChannelDirection.Output, false));
                 }
 
                 if (key.StartsWith("dio"))
                 {
-                    int digitalCount = int.Parse(key.Substring(3));
+                    var digitalCount = int.Parse(key.Substring(3));
                     for (int i = 0; i < digitalCount; i++) DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
                 }
             }
@@ -133,20 +137,20 @@ namespace Daqifi.Desktop.Device
 
         protected void MessageReceived(object sender, MessageEventArgs e)
         {
-            var message = e.Message.Data as WiFiDAQOutMessage;
+            var message = e.Message.Data as DaqifiOutMessage;
 
             if (_firstTime == null)
             {
                 _firstTime = DateTime.Now;
-                _firstMessageSequence = message.MsgSeq;
+                _firstMessageSequence = message.MsgTimeStamp;
             }
 
-            double relativeTimestamp = Convert.ToDouble(message.MsgSeq - _firstMessageSequence) / StreamingFrequency;
+            var relativeTimestamp = Convert.ToDouble(message.MsgTimeStamp - _firstMessageSequence) / StreamingFrequency;
             var timestamp = _firstTime.Value.AddMilliseconds(relativeTimestamp * 1000);
 
             //Update digital channel information
-            int digitalCount = 0;
-            int analogCount = 0;
+            var digitalCount = 0;
+            var analogCount = 0;
             foreach (var channel in DataChannels)
             {
                 if (channel.Direction != ChannelDirection.Input) continue;
@@ -155,20 +159,20 @@ namespace Daqifi.Desktop.Device
                 {
                     if (channel.IsActive)
                     {
-                        bool bit = (message.DigitalData.ElementAt(0) & (1 << digitalCount)) != 0;
+                        var bit = (message.DigitalData.ElementAt(0) & (1 << digitalCount)) != 0;
                         channel.ActiveSample = new DataSample(this, channel, timestamp, Convert.ToInt32(bit));
                     }
                     digitalCount++;
                 }
                 else if (channel.Type == ChannelType.Analog && channel.IsActive)
                 {
-                    if (analogCount > message.AnalogInDataIList.Count - 1)
+                    if (analogCount > message.AnalogInDataList.Count - 1)
                     {
                         AppLogger.Error("Trying to access at least one more analog channel than we actually recieved.  This might happen if recently added an analog channel but not yet receiving data from it yet.");
                         break;
                     }
 
-                    channel.ActiveSample = new DataSample(this, channel, timestamp, ScaleSample(message.AnalogInDataIList.ElementAt(analogCount)));
+                    channel.ActiveSample = new DataSample(this, channel, timestamp, ScaleSample(message.AnalogInDataList.ElementAt(analogCount)));
                     analogCount++;
                 }
             }
@@ -176,7 +180,7 @@ namespace Daqifi.Desktop.Device
 
         private double ScaleSample(double sampleValue)
         {
-            return sampleValue * (_ADCRange * 10.0 + 10.0) / _ADCResolution;
+            return sampleValue * (AdcRange * 10.0 + 10.0) / AdcResolution;
         }
     }
 }

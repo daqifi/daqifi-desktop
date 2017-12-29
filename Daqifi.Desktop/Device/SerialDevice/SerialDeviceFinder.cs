@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Management;
 
-namespace Daqifi.Desktop.Device
+namespace Daqifi.Desktop.Device.SerialDevice
 {
     public class SerialDeviceFinder : IDeviceFinder
     {
@@ -51,13 +51,13 @@ namespace Daqifi.Desktop.Device
 
                 foreach (var portName in addedPorts)
                 {
-                   var device = new SerialDevice(portName);
+                   var device = new SerialStreamingDevice(portName);
                    NotifyDeviceFound(this,device);
                 }
 
                 foreach (var portName in removedPorts)
                 {
-                    var device = new SerialDevice(portName);
+                    var device = new SerialStreamingDevice(portName);
                     NotifyDeviceRemoved(this, device);
                 }
 

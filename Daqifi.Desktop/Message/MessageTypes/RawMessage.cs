@@ -1,6 +1,4 @@
-﻿using Daqifi.Desktop.Message;
-
-namespace DAQifi.Desktop.Message
+﻿namespace Daqifi.Desktop.Message.MessageTypes
 {
     public class RawMessage : IMessage
     {

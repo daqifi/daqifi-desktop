@@ -1,31 +1,31 @@
 ﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Loggers;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Windows.Input;
-using Daqifi.Desktop.Commands;
-using Daqifi.Desktop.Loggers;
 
 namespace Daqifi.Desktop.ViewModels
 {
     public class AddChannelDialogViewModel : ObservableObject
     {
         #region Private Variables
-        private IDevice _selectedDevice;
+        private IStreamingDevice _selectedDevice;
         #endregion
 
         #region Properties
         public AppLogger AppLogger = AppLogger.Instance;
 
-        public ObservableCollection<IDevice> AvailableDevices { get; } = new ObservableCollection<IDevice>();
+        public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
         public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
 
-        public IDevice SelectedDevice
+        public IStreamingDevice SelectedDevice
         {
-            get { return _selectedDevice; }
+            get => _selectedDevice;
             set
             {
                 _selectedDevice = value;
@@ -38,7 +38,7 @@ namespace Daqifi.Desktop.ViewModels
         #region Constructor
         public AddChannelDialogViewModel()
         {
-            foreach (IDevice device in ConnectionManager.Instance.ConnectedDevices)
+            foreach (IStreamingDevice device in ConnectionManager.Instance.ConnectedDevices)
             {
                 AvailableDevices.Add(device);
             }
@@ -46,11 +46,11 @@ namespace Daqifi.Desktop.ViewModels
         }
         #endregion
 
-        public void GetAvailableChannels(IDevice device)
+        public void GetAvailableChannels(IStreamingDevice device)
         {
             AvailableChannels.Clear();
 
-            foreach(IChannel channel in device.DataChannels)
+            foreach(var channel in device.DataChannels)
             {
                 if(!channel.IsActive) AvailableChannels.Add(channel);
             }

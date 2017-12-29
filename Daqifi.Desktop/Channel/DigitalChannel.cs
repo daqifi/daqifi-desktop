@@ -1,4 +1,5 @@
-﻿using Daqifi.Desktop.Device;
+﻿using Daqifi.Desktop.DataModel.Channel;
+using Daqifi.Desktop.Device;
 
 namespace Daqifi.Desktop.Channel
 {
@@ -24,7 +25,7 @@ namespace Daqifi.Desktop.Channel
         #region Constructors
         public DigitalChannel() { }
 
-        public DigitalChannel(IDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional)
+        public DigitalChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional)
         {
             _owner = owner;
             Name = name;

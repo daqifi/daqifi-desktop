@@ -2,7 +2,7 @@
 using System.Threading;
 using Daqifi.Desktop.Loggers;
 
-namespace Daqifi.Desktop.Message
+namespace Daqifi.Desktop.Message.Consumers
 {
     public abstract class AbstractMessageConsumer : IMessageConsumer
     {
@@ -17,7 +17,7 @@ namespace Daqifi.Desktop.Message
 
         public bool Running
         {
-            get { return _running; }
+            get => _running;
             set { _running = value; }
         }
 
@@ -48,8 +48,7 @@ namespace Daqifi.Desktop.Message
 
         public void NotifyMessageReceived(object sender, MessageEventArgs e)
         {
-            if (OnMessageReceived == null) return;
-            OnMessageReceived(sender, e);
+            OnMessageReceived?.Invoke(sender, e);
         }
 
         public abstract void Run();

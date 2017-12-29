@@ -1,24 +1,22 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Device;
+using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Message;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using HidLibrary;
+using Daqifi.Desktop.Message.Consumers;
+using Daqifi.Desktop.Message.Producers;
 
-namespace DAQifi.Desktop.Device
+namespace Daqifi.Desktop.Device.HidDevice
 {
-    public class HidDevice : IDevice
+    public class HidFirmwareDevice : IFirmwareDevice
     {
-        #region Private Data
-
-        #endregion
 
         public HidLibrary.HidDevice Device { get; }
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        public HidDevice(HidLibrary.HidDevice device)
+        public HidFirmwareDevice(HidLibrary.HidDevice device)
         {
             Device = device;
         }

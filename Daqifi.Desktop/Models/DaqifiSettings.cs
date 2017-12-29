@@ -1,7 +1,7 @@
-﻿using System;
+﻿using Daqifi.Desktop.Loggers;
+using System;
 using System.IO;
 using System.Xml.Linq;
-using Daqifi.Desktop.Loggers;
 
 namespace Daqifi.Desktop.Models
 {
@@ -9,14 +9,14 @@ namespace Daqifi.Desktop.Models
     {
         #region Private Data
         private bool _canReportErrors;
-        private static readonly string _appDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
-        private static readonly string _settingsXMLPath = _appDirectory + "\\DAQifiConfiguration.xml";
+        private static readonly string AppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
+        private static readonly string SettingsXmlPath = AppDirectory + "\\DAQifiConfiguration.xml";
         #endregion
 
         #region Properties
         public bool CanReportErrors
         {
-            get { return _canReportErrors; }
+            get => _canReportErrors;
             set
             {
                 _canReportErrors = value;
@@ -33,10 +33,8 @@ namespace Daqifi.Desktop.Models
             LoadDAQifiSettings();
         }
 
-        public static DaqifiSettings Instance
-        {
-            get { return _instance; }
-        }
+        public static DaqifiSettings Instance => _instance;
+
         #endregion
 
         #region Settings Methods
@@ -44,21 +42,20 @@ namespace Daqifi.Desktop.Models
         {
             try
             {
-                if (!Directory.Exists(_appDirectory))
+                if (!Directory.Exists(AppDirectory))
                 {
-                    Directory.CreateDirectory(_appDirectory);
+                    Directory.CreateDirectory(AppDirectory);
                 }
 
-                if (!File.Exists(_settingsXMLPath))
+                if (!File.Exists(SettingsXmlPath))
                 {
                     LoadDefaultValues();
                 }
 
-                var xml = XElement.Load(_settingsXMLPath);
+                var xml = XElement.Load(SettingsXmlPath);
 
                 if (xml.Element("CanReportErrors") == null) return;
-                bool temp;
-                if (bool.TryParse(xml.Element("CanReportErrors").Value, out temp))
+                if (bool.TryParse(xml.Element("CanReportErrors").Value, out bool temp))
                 {
                     _canReportErrors = temp;
                 }
@@ -81,7 +78,7 @@ namespace Daqifi.Desktop.Models
             {
                 var xml = new XElement("DAQifiSettings");
                 xml.Add(new XElement("CanReportErrors", CanReportErrors));
-                xml.Save(_settingsXMLPath);
+                xml.Save(SettingsXmlPath);
             }
             catch (Exception ex)
             {

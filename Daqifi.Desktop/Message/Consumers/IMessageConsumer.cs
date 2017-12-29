@@ -1,6 +1,6 @@
 ﻿using System.IO;
 
-namespace Daqifi.Desktop.Message
+namespace Daqifi.Desktop.Message.Consumers
 {
     public delegate void OnMessageReceivedHandler(object sender, MessageEventArgs e);
 

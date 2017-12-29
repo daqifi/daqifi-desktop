@@ -1,7 +1,8 @@
-﻿using System;
+﻿using Daqifi.Desktop.Message.MessageTypes;
+using System;
 using System.IO;
 
-namespace Daqifi.Desktop.Message
+namespace Daqifi.Desktop.Message.Consumers
 {
     public class MessageConsumer : AbstractMessageConsumer
     {
@@ -23,15 +24,14 @@ namespace Daqifi.Desktop.Message
             {
                 try
                 {
-                    //Blocks until the DAQ sends a message
-                    var outMessage = WiFiDAQOutMessage.ParseDelimitedFrom(DataStream);
-                    var protoMessage = new ProtobufMessage(outMessage);
-                    var daqMessage = new MessageEventArgs(protoMessage);
+                    var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
+                    var protobufMessage = new ProtobufMessage(outMessage);
+                    var daqMessage = new MessageEventArgs(protobufMessage);
                     NotifyMessageReceived(this, daqMessage);
                 }
                 catch (Exception ex)
                 {
-                    if(_isDisposed)
+                    if (_isDisposed)
                     {
                         return;
                     }

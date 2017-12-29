@@ -1,50 +1,54 @@
-﻿using System;
+﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.DataModel.Channel;
+using Daqifi.Desktop.Message.Consumers;
+using Daqifi.Desktop.Message.MessageTypes;
+using Daqifi.Desktop.Message.Producers;
+using System;
 using System.Collections.Generic;
+using System.IO.Ports;
 using System.Linq;
-using System.Net.Sockets;
 using System.Threading;
-using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Message;
-using DAQifi.Desktop.Message;
 
-namespace Daqifi.Desktop.Device
+namespace Daqifi.Desktop.Device.SerialDevice
 {
-    public class DaqifiDevice : AbstractDevice
+    public class SerialStreamingDevice : AbstractStreamingDevice
     {
+        #region Private Data
+        private readonly List<string> _securityTypes = new List<string> { "None (Open Network)", "WEP-40", "WEP-104", "WPA-PSK Phrase", "WPA-PSK Key" };
+
+        #endregion
+
         #region Properties
-        public TcpClient Client { get; set; }
-        public string IPAddress { get; set; }
-        public string MACAddress { get; set; }
+        public SerialPort Port { get; }
+
         #endregion
 
         #region Constructor
-        public DaqifiDevice(string name, string macAddress, string ipAddress)
+        public SerialStreamingDevice(string portName)
         {
-            Name = name;
-            MACAddress = macAddress;
-            IPAddress = ipAddress;
+            Name = portName;
+            Port = new SerialPort(portName);
 
             DataChannels = new List<IChannel>();
-            IsStreaming = false;
         }
         #endregion
 
-        #region Device Methods
+        #region Override Methods
         public override bool Connect()
         {
             try
             {
-                Client = new TcpClient(IPAddress, 9760);
-                MessageProducer = new MessageProducer(Client.GetStream());
-                StopStreaming();
-                MessageConsumer = new MessageConsumer(Client.GetStream());
+                Port.Open();
+                MessageProducer = new MessageProducer(Port.BaseStream);
+                MessageConsumer = new MessageConsumer(Port.BaseStream);
                 MessageConsumer.Start();
+                StopStreaming();
+                TurnOffEcho();
                 InitializeDeviceState();
                 return true;
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Problem with connectiong to DAQDevice.");
                 return false;
             }
         }
@@ -53,14 +57,13 @@ namespace Daqifi.Desktop.Device
         {
             try
             {
-                StopStreaming();
                 MessageConsumer.Stop();
-                Client.Close();
+                StopStreaming();
+                Port.Close();
                 return true;
             }
-            catch (Exception ex)
+            catch
             {
-                AppLogger.Error(ex, "Problem with Disconnectiong from DAQDevice.");
                 return false;
             }
         }
@@ -78,9 +81,20 @@ namespace Daqifi.Desktop.Device
             _firstTime = null;
         }
 
+        private void TurnOffEcho()
+        {
+            MessageProducer.SendAsync(new ScpiMessage("system:ECHO -1"));
+        }
+
+        public override void InitializeDeviceState()
+        {
+            MessageConsumer.OnMessageReceived += StatusMessageReceived;
+            MessageProducer.SendAsync(new ScpiMessage("SYSTem:SYSInfoPB? 0"));
+        }
+
         public override void SetAdcMode(IChannel channel, AdcMode mode)
         {
-            switch(mode)
+            switch (mode)
             {
                 case AdcMode.Differential:
                     MessageProducer.SendAsync(new ScpiMessage("CONFigure:ADC:SINGleend " + channel.Index + "," + 0));
@@ -97,11 +111,11 @@ namespace Daqifi.Desktop.Device
             {
                 case 5:
                     MessageProducer.SendAsync(new ScpiMessage("CONFigure:ADC:RANGe " + 0));
-                    _ADCRange = 0;
+                    AdcRange = 0;
                     break;
                 case 10:
                     MessageProducer.SendAsync(new ScpiMessage("CONFigure:ADC:RANGe " + 1));
-                    _ADCRange = 1;
+                    AdcRange = 1;
                     break;
             }
         }
@@ -113,9 +127,9 @@ namespace Daqifi.Desktop.Device
                 case ChannelType.Analog:
                     var activeAnalogChannels = GetActiveChannels(ChannelType.Analog);
                     int channelSetByte = 0;
-                    
+
                     //Get Exsiting Channel Set Byte
-                    foreach (IChannel activeChannel in activeAnalogChannels)
+                    foreach (var activeChannel in activeAnalogChannels)
                     {
                         channelSetByte = channelSetByte | (1 << activeChannel.Index);
                     }
@@ -130,8 +144,16 @@ namespace Daqifi.Desktop.Device
                     MessageProducer.SendAsync(new ScpiMessage("configure:adc:channel " + channelSetString));
                     break;
             }
+        }
 
-            newChannel.IsActive = true;
+        public List<IChannel> GetActiveChannels(ChannelType channelType)
+        {
+            switch (channelType)
+            {
+                case ChannelType.Analog:
+                    return DataChannels.Where(channel => channel.Type == ChannelType.Analog && channel.IsActive).ToList();
+            }
+            throw new NotImplementedException();
         }
 
         public override void RemoveChannel(IChannel channelToRemove)
@@ -139,11 +161,11 @@ namespace Daqifi.Desktop.Device
             switch (channelToRemove.Type)
             {
                 case ChannelType.Analog:
-                    var activeAnalogChannels = GetActiveChannels(ChannelType.Analog);
+                    IList<IChannel> activeAnalogChannels = GetActiveChannels(ChannelType.Analog);
                     int channelSetByte = 0;
 
                     //Get Exsiting Channel Set Byte
-                    foreach (IChannel activeChannel in activeAnalogChannels)
+                    foreach (var activeChannel in activeAnalogChannels)
                     {
                         channelSetByte = channelSetByte | (1 << activeChannel.Index);
                     }
@@ -167,7 +189,7 @@ namespace Daqifi.Desktop.Device
             Thread.Sleep(100);
             MessageProducer.SendAsync(new ScpiMessage("system:communicate:lan:ssid " + NetworkConfiguration.SSID));
             Thread.Sleep(100);
-            MessageProducer.SendAsync(new ScpiMessage("system:communicate:lan:security " + SecurityTypes.IndexOf(NetworkConfiguration.SecurityType)));
+            MessageProducer.SendAsync(new ScpiMessage("system:communicate:lan:security " + _securityTypes.IndexOf(NetworkConfiguration.SecurityType)));
             Thread.Sleep(100);
             MessageProducer.SendAsync(new ScpiMessage("system:communicate:lan:pass " + NetworkConfiguration.Password));
             Thread.Sleep(100);
@@ -176,17 +198,12 @@ namespace Daqifi.Desktop.Device
 
         public override void UpdateFirmware(byte[] data)
         {
-            MessageProducer.SendAsync(new RawMessage(data));
-        }
-
-        public override void Reboot()
-        {
-            MessageProducer.SendAsync(new ScpiMessage("system:reboot" ));
+            
         }
 
         public override void SetChannelOutputValue(IChannel channel, double value)
         {
-            switch(channel.Type)
+            switch (channel.Type)
             {
                 case ChannelType.Analog:
                     MessageProducer.SendAsync(new ScpiMessage("SOURce:VOLTage:LEVel " + channel.Index + "," + value));
@@ -199,50 +216,20 @@ namespace Daqifi.Desktop.Device
 
         public override void SetChannelDirection(IChannel channel, ChannelDirection direction)
         {
-           switch(direction)
-           {
-               case ChannelDirection.Input:
-                   MessageProducer.SendAsync(new ScpiMessage("PORt:DIRection " + channel.Index + "," + 0));
-                   break;
-               case ChannelDirection.Output:
-                   MessageProducer.SendAsync(new ScpiMessage("PORt:DIRection " + channel.Index + "," + 1));
-                   break;
-           }
-        }
-
-        public override void InitializeDeviceState()
-        {
-            MessageConsumer.OnMessageReceived += StatusMessageReceived;
-            MessageProducer.SendAsync(new ScpiMessage("SYSTem:SYSInfoPB? 0"));
-        }
-        #endregion
-
-        #region Private Methods
-        private List<IChannel> GetActiveChannels(ChannelType channelType)
-        {
-            switch(channelType)
+            switch (direction)
             {
-                case ChannelType.Analog:
-                    return DataChannels.Where(channel => channel.Type == ChannelType.Analog && channel.IsActive).ToList();
+                case ChannelDirection.Input:
+                    MessageProducer.SendAsync(new ScpiMessage("PORt:DIRection " + channel.Index + "," + 0));
+                    break;
+                case ChannelDirection.Output:
+                    MessageProducer.SendAsync(new ScpiMessage("PORt:DIRection " + channel.Index + "," + 1));
+                    break;
             }
-            throw new NotImplementedException();
-        }
-        #endregion
-
-        #region Object overrides
-        public override string ToString()
-        {
-            return Name;
         }
 
-        public override bool Equals(object obj)
+        public override void Reboot()
         {
-            var other = obj as DaqifiDevice;
-            if (other == null) return false;
-            if (Name != other.Name) return false;
-            if (IPAddress != other.IPAddress) return false;
-            if (MACAddress != other.MACAddress) return false;
-            return true;
+            MessageProducer.SendAsync(new ScpiMessage("system:reboot"));
         }
         #endregion
     }

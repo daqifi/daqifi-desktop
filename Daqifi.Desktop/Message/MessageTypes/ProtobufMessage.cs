@@ -1,15 +1,15 @@
-﻿namespace Daqifi.Desktop.Message
+﻿namespace Daqifi.Desktop.Message.MessageTypes
 {
     public class ProtobufMessage : AbstractMessage
     {
-        public ProtobufMessage(WiFiDAQOutMessage message)
+        public ProtobufMessage(DaqifiOutMessage message)
         {
             Data = message;
         }
 
         public override byte[] GetBytes()
         {
-            return ((WiFiDAQOutMessage)Data).ToByteArray();
+            return ((DaqifiOutMessage)Data).ToByteArray();
         }
     }
 }

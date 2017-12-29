@@ -1,4 +1,4 @@
-﻿namespace Daqifi.Desktop.Device
+﻿namespace Daqifi.Desktop.DataModel.Device
 {
     public enum WifiSecurityType
     {
