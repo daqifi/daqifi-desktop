@@ -40,10 +40,10 @@ namespace Daqifi.Desktop.Device.SerialDevice
             {
                 Port.Open();
                 MessageProducer = new MessageProducer(Port.BaseStream);
+                TurnOffEcho();
+                StopStreaming();
                 MessageConsumer = new MessageConsumer(Port.BaseStream);
                 MessageConsumer.Start();
-                StopStreaming();
-                TurnOffEcho();
                 InitializeDeviceState();
                 return true;
             }
@@ -70,26 +70,27 @@ namespace Daqifi.Desktop.Device.SerialDevice
 
         public override void InitializeStreaming()
         {
-            MessageProducer.SendAsync(new ScpiMessage("system:startstreamdata " + StreamingFrequency.ToString()));
+            //MessageProducer.SendAsync(new ScpiMessagePoducer("system:startstreamdata " + StreamingFrequency.ToString()));
+            MessageProducer.SendAsync(ScpiMessagePoducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
         }
 
         public override void StopStreaming()
         {
             IsStreaming = false;
-            MessageProducer.SendAsync(new ScpiMessage("system:stopstreamdata"));
+            MessageProducer.SendAsync(ScpiMessagePoducer.StopStreaming);
             _firstTime = null;
         }
 
         private void TurnOffEcho()
         {
-            MessageProducer.SendAsync(new ScpiMessage("system:ECHO -1"));
+            MessageProducer.SendAsync(ScpiMessagePoducer.Echo(-1));
         }
 
         public override void InitializeDeviceState()
         {
-            MessageConsumer.OnMessageReceived += StatusMessageReceived;
-            MessageProducer.SendAsync(new ScpiMessage("SYSTem:SYSInfoPB? 0"));
+            MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
+            MessageProducer.SendAsync(ScpiMessagePoducer.SystemInfo);
         }
 
         public override void SetAdcMode(IChannel channel, AdcMode mode)
@@ -97,10 +98,10 @@ namespace Daqifi.Desktop.Device.SerialDevice
             switch (mode)
             {
                 case AdcMode.Differential:
-                    MessageProducer.SendAsync(new ScpiMessage("CONFigure:ADC:SINGleend " + channel.Index + "," + 0));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcMode(channel.Index, 0));
                     break;
                 case AdcMode.SingleEnded:
-                    MessageProducer.SendAsync(new ScpiMessage("CONFigure:ADC:SINGleend " + channel.Index + "," + 1));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcMode(channel.Index, 1));
                     break;
             }
         }
@@ -110,11 +111,11 @@ namespace Daqifi.Desktop.Device.SerialDevice
             switch (range)
             {
                 case 5:
-                    MessageProducer.SendAsync(new ScpiMessage("CONFigure:ADC:RANGe " + 0));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcRange(0));
                     AdcRange = 0;
                     break;
                 case 10:
-                    MessageProducer.SendAsync(new ScpiMessage("CONFigure:ADC:RANGe " + 1));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcRange(1));
                     AdcRange = 1;
                     break;
             }
@@ -141,7 +142,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
                     string channelSetString = Convert.ToString(channelSetByte);
 
                     //Send the command to add the channel
-                    MessageProducer.SendAsync(new ScpiMessage("configure:adc:channel " + channelSetString));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcChannels(channelSetString));
                     break;
             }
         }
@@ -177,7 +178,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
                     string channelSetString = Convert.ToString(channelSetByte);
 
                     //Send the command to add the channel
-                    MessageProducer.SendAsync(new ScpiMessage("configure:adc:channel " + channelSetString));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcChannels(channelSetString));
 
                     break;
             }
@@ -187,11 +188,11 @@ namespace Daqifi.Desktop.Device.SerialDevice
         {
             if (IsStreaming) StopStreaming();
             Thread.Sleep(100);
-            MessageProducer.SendAsync(new ScpiMessage("system:communicate:lan:ssid " + NetworkConfiguration.SSID));
+            MessageProducer.SendAsync(ScpiMessagePoducer.SetSsid(NetworkConfiguration.Ssid));
             Thread.Sleep(100);
-            MessageProducer.SendAsync(new ScpiMessage("system:communicate:lan:security " + _securityTypes.IndexOf(NetworkConfiguration.SecurityType)));
+            MessageProducer.SendAsync(ScpiMessagePoducer.SetSecurity(SecurityTypes.IndexOf(NetworkConfiguration.SecurityType)));
             Thread.Sleep(100);
-            MessageProducer.SendAsync(new ScpiMessage("system:communicate:lan:pass " + NetworkConfiguration.Password));
+            MessageProducer.SendAsync(ScpiMessagePoducer.SetPassword(NetworkConfiguration.Password));
             Thread.Sleep(100);
             Reboot();
         }
@@ -206,10 +207,10 @@ namespace Daqifi.Desktop.Device.SerialDevice
             switch (channel.Type)
             {
                 case ChannelType.Analog:
-                    MessageProducer.SendAsync(new ScpiMessage("SOURce:VOLTage:LEVel " + channel.Index + "," + value));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetVoltageLevel(channel.Index, value));
                     break;
                 case ChannelType.Digital:
-                    MessageProducer.SendAsync(new ScpiMessage("OUTPut:PORt:STATe " + channel.Index + "," + value));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetPortState(channel.Index, value));
                     break;
             }
         }
@@ -219,17 +220,17 @@ namespace Daqifi.Desktop.Device.SerialDevice
             switch (direction)
             {
                 case ChannelDirection.Input:
-                    MessageProducer.SendAsync(new ScpiMessage("PORt:DIRection " + channel.Index + "," + 0));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetPortDirection(channel.Index, 0));
                     break;
                 case ChannelDirection.Output:
-                    MessageProducer.SendAsync(new ScpiMessage("PORt:DIRection " + channel.Index + "," + 1));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetPortDirection(channel.Index, 1));
                     break;
             }
         }
 
         public override void Reboot()
         {
-            MessageProducer.SendAsync(new ScpiMessage("system:reboot"));
+            MessageProducer.SendAsync(ScpiMessagePoducer.Reboot);
         }
         #endregion
     }

@@ -4,17 +4,17 @@ namespace Daqifi.Desktop.DataModel.Device
 {
     public class NetworkConfiguration: ObservableObject
     {
-        private string _SSID;
+        private string _ssid;
         private string _securityType;
         private string _password;
 
-        public string SSID
+        public string Ssid
         {
-            get => _SSID;
+            get => _ssid;
             set 
             { 
-                _SSID = value;
-                NotifyPropertyChanged("SSID");
+                _ssid = value;
+                NotifyPropertyChanged("Ssid");
             }
         }
 

@@ -5,13 +5,13 @@ VisualStudioVersion = 15.0.27004.2010
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop", "Daqifi.Desktop\Daqifi.Desktop.csproj", "{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.Test", "Daqifi.Desktop.Test\Daqifi.Desktop.Test.csproj", "{97B8E444-4824-4202-A362-EBA58A42AFFC}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.Bootloader", "Daqifi.Desktop.Bootloader\Daqifi.Desktop.Bootloader.csproj", "{E1B7FA13-2AD8-4B9F-983E-0EA88C3A1062}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.Bootloader.Test", "Daqifi.Desktop.Bootloader.Test\Daqifi.Desktop.Bootloader.Test.csproj", "{7FA43845-475E-4006-BBB5-DB0BBC28A54F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.DataModel", "Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj", "{8E553D17-C0B1-447F-B4A2-0F11903CAA49}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.Test", "Daqifi.Desktop.Test\Daqifi.Desktop.Test.csproj", "{4FB2B70A-A69A-465E-ADB5-5369E5E2C015}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -23,10 +23,6 @@ Global
 		{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}.Release|Any CPU.Build.0 = Release|Any CPU
-		{97B8E444-4824-4202-A362-EBA58A42AFFC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{97B8E444-4824-4202-A362-EBA58A42AFFC}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{97B8E444-4824-4202-A362-EBA58A42AFFC}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{97B8E444-4824-4202-A362-EBA58A42AFFC}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E1B7FA13-2AD8-4B9F-983E-0EA88C3A1062}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E1B7FA13-2AD8-4B9F-983E-0EA88C3A1062}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E1B7FA13-2AD8-4B9F-983E-0EA88C3A1062}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -39,6 +35,10 @@ Global
 		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4FB2B70A-A69A-465E-ADB5-5369E5E2C015}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4FB2B70A-A69A-465E-ADB5-5369E5E2C015}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4FB2B70A-A69A-465E-ADB5-5369E5E2C015}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4FB2B70A-A69A-465E-ADB5-5369E5E2C015}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

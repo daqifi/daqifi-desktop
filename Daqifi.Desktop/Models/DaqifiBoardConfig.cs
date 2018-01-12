@@ -11,14 +11,14 @@ namespace Daqifi.Desktop.Models
         #endregion
 
         #region Properties
-        public string IPAddress
+        public string IpAddress
         {
             get => _ipAddress;
             set 
             {
                 if (value == _ipAddress) return;
                 _ipAddress = value;
-                NotifyPropertyChanged("IPAddress");
+                NotifyPropertyChanged("IpAddress");
             }
         }
 

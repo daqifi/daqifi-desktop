@@ -38,7 +38,7 @@ namespace Daqifi.Desktop.Message
 
             if(message.HasSsid)
             {
-                (Device as DaqifiStreamingDevice).NetworkConfiguration.SSID = message.Ssid;
+                (Device as DaqifiStreamingDevice).NetworkConfiguration.Ssid = message.Ssid;
             }
         }
 

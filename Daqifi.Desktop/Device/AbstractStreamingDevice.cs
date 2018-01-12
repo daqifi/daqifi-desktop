@@ -106,9 +106,9 @@ namespace Daqifi.Desktop.Device
         public abstract void Reboot();
         #endregion
 
-        protected void StatusMessageReceived(object sender, MessageEventArgs e)
+        protected void HandleStatusMessageReceived(object sender, MessageEventArgs e)
         {
-            MessageConsumer.OnMessageReceived -= StatusMessageReceived;
+            MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
 
             var message = e.Message.Data as DaqifiOutMessage;
             foreach (var key in message.DevicePn.ToLower().Split('-'))
@@ -116,19 +116,19 @@ namespace Daqifi.Desktop.Device
                 if (key.StartsWith("ai"))
                 {
                     var analogInputCount = int.Parse(key.Substring(2));
-                    for (int i = 0; i < analogInputCount; i++) DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
+                    for (var i = 0; i < analogInputCount; i++) DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
                 }
 
                 if (key.StartsWith("ao"))
                 {
                     var analogOutputCount = int.Parse(key.Substring(2));
-                    for (int i = 0; i < analogOutputCount; i++) DataChannels.Add(new AnalogChannel(this, "AO" + i, i, ChannelDirection.Output, false));
+                    for (var i = 0; i < analogOutputCount; i++) DataChannels.Add(new AnalogChannel(this, "AO" + i, i, ChannelDirection.Output, false));
                 }
 
                 if (key.StartsWith("dio"))
                 {
                     var digitalCount = int.Parse(key.Substring(3));
-                    for (int i = 0; i < digitalCount; i++) DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
+                    for (var i = 0; i < digitalCount; i++) DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
                 }
             }
 

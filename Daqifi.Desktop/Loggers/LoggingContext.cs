@@ -8,11 +8,6 @@ namespace Daqifi.Desktop.Logger
     [Serializable]
     public class LoggingContext : DbContext
     {
-        #region Properties
-        public DbSet<LoggingSession> Sessions { get; set; }
-        public DbSet<DataSample> Samples { get; set; }
-        #endregion
-
         #region Constructors
         public LoggingContext() : base("name=LoggingDatabaseContext")
         {
@@ -35,5 +30,10 @@ namespace Daqifi.Desktop.Logger
                 .WillCascadeOnDelete(true);
             base.OnModelCreating(modelBuilder);
         }
+
+        #region DBSets
+        public DbSet<LoggingSession> Sessions { get; set; }
+        public DbSet<DataSample> Samples { get; set; }
+        #endregion
     }
 }

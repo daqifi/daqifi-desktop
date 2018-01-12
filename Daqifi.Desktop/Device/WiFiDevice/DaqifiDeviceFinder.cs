@@ -1,5 +1,4 @@
-﻿using Daqifi.Desktop.Message;
-using Daqifi.Desktop.Message.Consumers;
+﻿using Daqifi.Desktop.Message.Consumers;
 using System;
 using System.Net;
 using System.Net.Sockets;
@@ -12,6 +11,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
     {
         #region Private Data
         private readonly byte[] _queryCommand = Encoding.ASCII.GetBytes("Discovery: Who is out there?\r\n");
+        //private readonly byte[] _queryCommand = Encoding.ASCII.GetBytes("DAQiFi?\r\n");
         #endregion
 
         #region Properties
@@ -80,22 +80,27 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                 var receivedText = Encoding.ASCII.GetString(receivedBytes);
 
                 if (!receivedText.Contains("Discovery: Who is out there?") &&
+                    !receivedText.Contains("DAQiFi?") &&
                     !receivedText.Contains("Power event occurred"))
                 {
-                    try
-                    {
-                        var message = DaqifiOutMessage.ParseFrom(receivedBytes);
-                        if (message.HasHostName)
-                        {
-                            var device = new DeviceMessage(message).Device;
-                            NotifyDeviceFound(this, device);
-                        }
-                    }
-                    catch
-                    {
-                        var device = new DaqifiStreamingDevice("Test Device", "Test Mac", remoteIpEndPoint.Address.ToString());
-                        NotifyDeviceFound(this, device);
-                    }
+                    //try
+                    //{
+                    //    var message = DaqifiOutMessage.ParseFrom(receivedBytes);
+                    //    if (message.HasHostName)
+                    //    {
+                    //        var device = new DeviceMessage(message).Device;
+                    //        NotifyDeviceFound(this, device);
+                    //    }
+                    //}
+                    //catch
+                    //{
+                    //    var device = new DaqifiStreamingDevice("Test Device", "Test Mac", remoteIpEndPoint.Address.ToString());
+                    //    NotifyDeviceFound(this, device);
+                    //}
+
+                    // TODO HACK - Remove once disovery sends protobuf again
+                    var device = new DaqifiStreamingDevice("Test Device", "Test Mac", remoteIpEndPoint.Address.ToString());
+                    NotifyDeviceFound(this, device);
                 }
                 Client.BeginReceive(OnFinderMessageReceived, null);
             }

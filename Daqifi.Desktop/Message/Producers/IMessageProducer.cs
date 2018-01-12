@@ -1,7 +1,9 @@
-﻿namespace Daqifi.Desktop.Message.Producers
+﻿using System.Threading.Tasks;
+
+namespace Daqifi.Desktop.Message.Producers
 {
     public interface IMessageProducer
     {
-        void SendAsync(IMessage message);
+        Task SendAsync(IMessage message);
     }
 }

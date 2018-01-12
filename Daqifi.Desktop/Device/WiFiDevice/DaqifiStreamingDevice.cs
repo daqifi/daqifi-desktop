@@ -15,16 +15,16 @@ namespace Daqifi.Desktop.Device.WiFiDevice
     {
         #region Properties
         public TcpClient Client { get; set; }
-        public string IPAddress { get; set; }
-        public string MACAddress { get; set; }
+        public string IpAddress { get; set; }
+        public string MacAddress { get; set; }
         #endregion
 
         #region Constructor
         public DaqifiStreamingDevice(string name, string macAddress, string ipAddress)
         {
             Name = name;
-            MACAddress = macAddress;
-            IPAddress = ipAddress;
+            MacAddress = macAddress;
+            IpAddress = ipAddress;
 
             DataChannels = new List<IChannel>();
             IsStreaming = false;
@@ -36,8 +36,9 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         {
             try
             {
-                Client = new TcpClient(IPAddress, 9760);
+                Client = new TcpClient(IpAddress, 9760);
                 MessageProducer = new MessageProducer(Client.GetStream());
+                TurnOffEcho();
                 StopStreaming();
                 MessageConsumer = new MessageConsumer(Client.GetStream());
                 MessageConsumer.Start();
@@ -46,9 +47,14 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Problem with connectiong to DAQDevice.");
+                AppLogger.Error(ex, "Problem with connectiong to DAQiFi Device.");
                 return false;
             }
+        }
+
+        private void TurnOffEcho()
+        {
+            MessageProducer.SendAsync(ScpiMessagePoducer.Echo(-1));
         }
 
         public override bool Disconnect()
@@ -69,26 +75,26 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
         public override void InitializeStreaming()
         {
-            MessageProducer.SendAsync(new ScpiMessage("system:startstreamdata " + StreamingFrequency.ToString()));
+            MessageProducer.SendAsync(ScpiMessagePoducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
         }
 
         public override void StopStreaming()
         {
             IsStreaming = false;
-            MessageProducer.SendAsync(new ScpiMessage("system:stopstreamdata"));
+            MessageProducer.SendAsync(ScpiMessagePoducer.StopStreaming);
             _firstTime = null;
         }
 
         public override void SetAdcMode(IChannel channel, AdcMode mode)
         {
-            switch(mode)
+            switch (mode)
             {
                 case AdcMode.Differential:
-                    MessageProducer.SendAsync(new ScpiMessage("CONFigure:ADC:SINGleend " + channel.Index + "," + 0));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcMode(channel.Index, 0));
                     break;
                 case AdcMode.SingleEnded:
-                    MessageProducer.SendAsync(new ScpiMessage("CONFigure:ADC:SINGleend " + channel.Index + "," + 1));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcMode(channel.Index, 1));
                     break;
             }
         }
@@ -98,11 +104,11 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             switch (range)
             {
                 case 5:
-                    MessageProducer.SendAsync(new ScpiMessage("CONFigure:ADC:RANGe " + 0));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcRange(0));
                     AdcRange = 0;
                     break;
                 case 10:
-                    MessageProducer.SendAsync(new ScpiMessage("CONFigure:ADC:RANGe " + 1));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcRange(1));
                     AdcRange = 1;
                     break;
             }
@@ -129,7 +135,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                     var channelSetString = Convert.ToString(channelSetByte);
 
                     //Send the command to add the channel
-                    MessageProducer.SendAsync(new ScpiMessage("configure:adc:channel " + channelSetString));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcChannels(channelSetString));
                     break;
             }
 
@@ -157,7 +163,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                     var channelSetString = Convert.ToString(channelSetByte);
 
                     //Send the command to add the channel
-                    MessageProducer.SendAsync(new ScpiMessage("configure:adc:channel " + channelSetString));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcChannels(channelSetString));
 
                     break;
             }
@@ -167,11 +173,11 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         {
             if (IsStreaming) StopStreaming();
             Thread.Sleep(100);
-            MessageProducer.SendAsync(new ScpiMessage("system:communicate:lan:ssid " + NetworkConfiguration.SSID));
+            MessageProducer.SendAsync(ScpiMessagePoducer.SetSsid(NetworkConfiguration.Ssid));
             Thread.Sleep(100);
-            MessageProducer.SendAsync(new ScpiMessage("system:communicate:lan:security " + SecurityTypes.IndexOf(NetworkConfiguration.SecurityType)));
+            MessageProducer.SendAsync(ScpiMessagePoducer.SetSecurity(SecurityTypes.IndexOf(NetworkConfiguration.SecurityType)));
             Thread.Sleep(100);
-            MessageProducer.SendAsync(new ScpiMessage("system:communicate:lan:pass " + NetworkConfiguration.Password));
+            MessageProducer.SendAsync(ScpiMessagePoducer.SetPassword(NetworkConfiguration.Password));
             Thread.Sleep(100);
             Reboot();
         }
@@ -183,7 +189,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
         public override void Reboot()
         {
-            MessageProducer.SendAsync(new ScpiMessage("system:reboot" ));
+            MessageProducer.SendAsync(ScpiMessagePoducer.Reboot);
         }
 
         public override void SetChannelOutputValue(IChannel channel, double value)
@@ -191,10 +197,10 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             switch(channel.Type)
             {
                 case ChannelType.Analog:
-                    MessageProducer.SendAsync(new ScpiMessage("SOURce:VOLTage:LEVel " + channel.Index + "," + value));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetVoltageLevel(channel.Index,value));
                     break;
                 case ChannelType.Digital:
-                    MessageProducer.SendAsync(new ScpiMessage("OUTPut:PORt:STATe " + channel.Index + "," + value));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetPortState(channel.Index,value));
                     break;
             }
         }
@@ -204,18 +210,18 @@ namespace Daqifi.Desktop.Device.WiFiDevice
            switch(direction)
            {
                case ChannelDirection.Input:
-                   MessageProducer.SendAsync(new ScpiMessage("PORt:DIRection " + channel.Index + "," + 0));
+                   MessageProducer.SendAsync(ScpiMessagePoducer.SetPortDirection(channel.Index, 0));
                    break;
                case ChannelDirection.Output:
-                   MessageProducer.SendAsync(new ScpiMessage("PORt:DIRection " + channel.Index + "," + 1));
+                   MessageProducer.SendAsync(ScpiMessagePoducer.SetPortDirection(channel.Index, 1));
                    break;
            }
         }
 
         public override void InitializeDeviceState()
         {
-            MessageConsumer.OnMessageReceived += StatusMessageReceived;
-            MessageProducer.SendAsync(new ScpiMessage("SYSTem:SYSInfoPB? 0"));
+            MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
+            MessageProducer.SendAsync(ScpiMessagePoducer.SystemInfo);
         }
         #endregion
 
@@ -242,8 +248,8 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             var other = obj as DaqifiStreamingDevice;
             if (other == null) return false;
             if (Name != other.Name) return false;
-            if (IPAddress != other.IPAddress) return false;
-            if (MACAddress != other.MACAddress) return false;
+            if (IpAddress != other.IpAddress) return false;
+            if (MacAddress != other.MacAddress) return false;
             return true;
         }
         #endregion

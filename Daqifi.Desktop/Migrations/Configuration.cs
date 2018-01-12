@@ -1,29 +1,23 @@
 namespace Daqifi.Desktop.Migrations
 {
+    using System;
+    using System.Data.Entity;
     using System.Data.Entity.Migrations;
+    using System.Linq;
 
-    internal sealed class Configuration : DbMigrationsConfiguration<Logger.LoggingContext>
+    internal sealed class Configuration : DbMigrationsConfiguration<Daqifi.Desktop.Logger.LoggingContext>
     {
         public Configuration()
         {
-            AutomaticMigrationsEnabled = false;
-            ContextKey = "DAQifi_Desktop.Logger.LoggingContext";
+            AutomaticMigrationsEnabled = true;
         }
 
-        protected override void Seed(Logger.LoggingContext context)
+        protected override void Seed(Daqifi.Desktop.Logger.LoggingContext context)
         {
             //  This method will be called after migrating to the latest version.
 
             //  You can use the DbSet<T>.AddOrUpdate() helper extension method 
-            //  to avoid creating duplicate seed data. E.g.
-            //
-            //    context.People.AddOrUpdate(
-            //      p => p.FullName,
-            //      new Person { FullName = "Andrew Peters" },
-            //      new Person { FullName = "Brice Lambson" },
-            //      new Person { FullName = "Rowan Miller" }
-            //    );
-            //
+            //  to avoid creating duplicate seed data.
         }
     }
 }

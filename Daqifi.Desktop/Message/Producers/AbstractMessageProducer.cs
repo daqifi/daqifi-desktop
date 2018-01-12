@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Threading.Tasks;
 
 namespace Daqifi.Desktop.Message.Producers
 {
@@ -13,6 +14,6 @@ namespace Daqifi.Desktop.Message.Producers
 
         #endregion
 
-        public abstract void SendAsync(IMessage message);
+        public abstract Task SendAsync(IMessage message);
     }
 }

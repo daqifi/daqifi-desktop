@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Threading.Tasks;
 
 namespace Daqifi.Desktop.Message.Producers
 {
@@ -12,10 +13,11 @@ namespace Daqifi.Desktop.Message.Producers
         #endregion
 
         #region AbstractMessageProducer overrides
-        public override void SendAsync(IMessage message)
+        public override async Task SendAsync(IMessage message)
         {
             var serializedMessage = message.GetBytes();
-            DataStream.WriteAsync(serializedMessage, 0, serializedMessage.Length);
+            //await DataStream.WriteAsync(serializedMessage, 0, serializedMessage.Length);
+            DataStream.Write(serializedMessage,0,serializedMessage.Length);
         }
         #endregion
     }

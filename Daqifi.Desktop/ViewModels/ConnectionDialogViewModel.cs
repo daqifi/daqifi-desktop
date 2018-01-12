@@ -165,7 +165,7 @@ namespace Daqifi.Desktop.ViewModels
 
             if (wifiDevice == null) return;
 
-            if(AvailableWiFiDevices.FirstOrDefault(d => d.MACAddress == wifiDevice.MACAddress) == null)
+            if(AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress) == null)
             {
                 Application.Current.Dispatcher.Invoke(() =>
                 {
@@ -181,7 +181,7 @@ namespace Daqifi.Desktop.ViewModels
 
             if (wifiDevice == null) return;
 
-            var matchingDevice = AvailableWiFiDevices.FirstOrDefault(d => d.MACAddress == wifiDevice.MACAddress);
+            var matchingDevice = AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress);
             if (matchingDevice != null)
             {
                 Application.Current.Dispatcher.Invoke(() =>
