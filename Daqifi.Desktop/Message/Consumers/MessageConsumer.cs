@@ -28,27 +28,27 @@ namespace Daqifi.Desktop.Message.Consumers
             {
                 try
                 {
-                    //var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
-                    //var protobufMessage = new ProtobufMessage(outMessage);
-                    //var daqMessage = new MessageEventArgs(protobufMessage);
-                    //NotifyMessageReceived(this, daqMessage);
+                    var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
+                    var protobufMessage = new ProtobufMessage(outMessage);
+                    var daqMessage = new MessageEventArgs(protobufMessage);
+                    NotifyMessageReceived(this, daqMessage);
 
-                    int bytesRead;
-                    while ((bytesRead = DataStream.Read(buffer, 0, buffer.Length)) != 0)
-                    {
-                        Debug.WriteLine("");
-                        foreach (var dataByte in buffer)
-                        {
-                            Debug.Write($"0x{dataByte:X2}, ");
-                        }
+                    //int bytesRead;
+                    //while ((bytesRead = DataStream.Read(buffer, 0, buffer.Length)) != 0)
+                    //{
+                    //    Debug.WriteLine("");
+                    //    foreach (var dataByte in buffer)
+                    //    {
+                    //        Debug.Write($"0x{dataByte:X2}, ");
+                    //    }
 
-                        var receivedBytes = buffer.Take(bytesRead).ToArray();
+                    //    var receivedBytes = buffer.Take(bytesRead).ToArray();
 
-                        var outMessage = DaqifiOutMessage.ParseFrom(receivedBytes);
-                        var protobufMessage = new ProtobufMessage(outMessage);
-                        var daqMessage = new MessageEventArgs(protobufMessage);
-                        NotifyMessageReceived(this, daqMessage);
-                    }
+                    //    var outMessage = DaqifiOutMessage.ParseFrom(receivedBytes);
+                    //    var protobufMessage = new ProtobufMessage(outMessage);
+                    //    var daqMessage = new MessageEventArgs(protobufMessage);
+                    //    NotifyMessageReceived(this, daqMessage);
+                //}
                 }
                 catch (Exception ex)
                 {

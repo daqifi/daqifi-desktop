@@ -1,6 +1,9 @@
-﻿using Daqifi.Desktop.Message.Consumers;
+﻿using Daqifi.Desktop.Message;
+using Daqifi.Desktop.Message.Consumers;
 using System;
+using System.IO;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -10,8 +13,10 @@ namespace Daqifi.Desktop.Device.WiFiDevice
     public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
     {
         #region Private Data
-        private readonly byte[] _queryCommand = Encoding.ASCII.GetBytes("Discovery: Who is out there?\r\n");
-        //private readonly byte[] _queryCommand = Encoding.ASCII.GetBytes("DAQiFi?\r\n");
+        private const string DaqifiFinderQuery = "DAQiFi?\r\n";
+        private const string NativeFinderQuery = "Discovery: Who is out there?\r\n";
+        private const string PowerEvent = "Power event occurred"; // TODO check if this is still needed
+        private readonly byte[] _queryCommandBytes = Encoding.ASCII.GetBytes(DaqifiFinderQuery);
         #endregion
 
         #region Properties
@@ -29,7 +34,9 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         {
             try
             {
-                Destination = new IPEndPoint(IPAddress.Broadcast, broadcastPort);
+                //Destination = new IPEndPoint(IPAddress.Broadcast, broadcastPort);
+
+                Destination = new IPEndPoint(GetBroadcastAddress(), broadcastPort);
                 Client = new UdpClient(broadcastPort);
             }
             catch(Exception ex)
@@ -43,11 +50,11 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         public override void Run()
         {
             Client.EnableBroadcast = true;
-            Client.BeginReceive(OnFinderMessageReceived, null);
+            Client.BeginReceive(HandleFinderMessageReceived, null);
 
             while (Running)
             {
-                Client.Send(_queryCommand, _queryCommand.Length, Destination);
+                Client.Send(_queryCommandBytes, _queryCommandBytes.Length, Destination);
                 Thread.Sleep(1000);
             }
         }
@@ -70,7 +77,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             }
         }
 
-        private void OnFinderMessageReceived(IAsyncResult res)
+        private void HandleFinderMessageReceived(IAsyncResult res)
         {
             try
             {
@@ -79,38 +86,29 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
                 var receivedText = Encoding.ASCII.GetString(receivedBytes);
 
-                if (!receivedText.Contains("Discovery: Who is out there?") &&
-                    !receivedText.Contains("DAQiFi?") &&
-                    !receivedText.Contains("Power event occurred"))
+                if (!receivedText.Contains(NativeFinderQuery) &&
+                    !receivedText.Contains(DaqifiFinderQuery) &&
+                    !receivedText.Contains(PowerEvent))
                 {
-                    //try
-                    //{
-                    //    var message = DaqifiOutMessage.ParseFrom(receivedBytes);
-                    //    if (message.HasHostName)
-                    //    {
-                    //        var device = new DeviceMessage(message).Device;
-                    //        NotifyDeviceFound(this, device);
-                    //    }
-                    //}
-                    //catch
-                    //{
-                    //    var device = new DaqifiStreamingDevice("Test Device", "Test Mac", remoteIpEndPoint.Address.ToString());
-                    //    NotifyDeviceFound(this, device);
-                    //}
 
-                    // TODO HACK - Remove once disovery sends protobuf again
-                    var device = new DaqifiStreamingDevice("Test Device", "Test Mac", remoteIpEndPoint.Address.ToString());
-                    NotifyDeviceFound(this, device);
+                    var stream = new MemoryStream(receivedBytes);
+                    var message = DaqifiOutMessage.ParseDelimitedFrom(stream);
+                    if (message.HasHostName)
+                    {
+                        var device = new DeviceMessage(message).Device;
+                        NotifyDeviceFound(this, device);
+                    }
+
                 }
-                Client.BeginReceive(OnFinderMessageReceived, null);
+                Client.BeginReceive(HandleFinderMessageReceived, null);
             }
             catch (ObjectDisposedException)
             {
-
+                // hide this exception for now. TODO find a better way.
             }
             catch (Exception ex)
             {
-                var temp = "Test";
+                AppLogger.Error(ex, "Problem in DaqifiDeviceFinder");
             }
         }
 
@@ -122,6 +120,41 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         public void NotifyDeviceRemoved(object sender, IDevice device)
         {
             OnDeviceRemoved?.Invoke(sender, device);
+        }
+
+
+
+        private IPAddress GetBroadcastAddress()
+        {
+            var address = IPAddress.Broadcast;
+            var subnet = IPAddress.None;
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var ip in host.AddressList)
+            {
+                if (ip.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    address = ip;
+                }
+            }
+
+            foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                foreach (var unicastIpAddressInformation in networkInterface.GetIPProperties().UnicastAddresses)
+                {
+                    if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork) continue;
+                    if (address.Equals(unicastIpAddressInformation.Address))
+                    {
+                        subnet = unicastIpAddressInformation.IPv4Mask;
+                    }
+                }
+            }
+
+            var broadcastAddress = new byte[address.GetAddressBytes().Length];
+            for (var i = 0; i < broadcastAddress.Length; i++)
+            {
+                broadcastAddress[i] = (byte)(address.GetAddressBytes()[i] | (subnet.GetAddressBytes()[i] ^ 255));
+            }
+            return new IPAddress(broadcastAddress);
         }
     }
 }
