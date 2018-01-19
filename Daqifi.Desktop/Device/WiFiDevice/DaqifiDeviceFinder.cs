@@ -95,6 +95,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                     var message = DaqifiOutMessage.ParseDelimitedFrom(stream);
                     if (message.HasHostName)
                     {
+                        // TODO I don't like how the device message creates a device. Breaks single responsibility principle.
                         var device = new DeviceMessage(message).Device;
                         NotifyDeviceFound(this, device);
                     }
@@ -121,8 +122,6 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         {
             OnDeviceRemoved?.Invoke(sender, device);
         }
-
-
 
         private IPAddress GetBroadcastAddress()
         {

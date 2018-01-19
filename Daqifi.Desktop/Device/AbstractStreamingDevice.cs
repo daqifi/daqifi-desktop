@@ -111,26 +111,31 @@ namespace Daqifi.Desktop.Device
             MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
 
             var message = e.Message.Data as DaqifiOutMessage;
-            foreach (var key in message.DevicePn.ToLower().Split('-'))
-            {
-                if (key.StartsWith("ai"))
-                {
-                    var analogInputCount = int.Parse(key.Substring(2));
-                    for (var i = 0; i < analogInputCount; i++) DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
-                }
+            var digitalCount = 8;
+            var analogInputCount = 8;
+            for (var i = 0; i < digitalCount; i++) DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
+            for (var i = 0; i < analogInputCount; i++) DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
 
-                if (key.StartsWith("ao"))
-                {
-                    var analogOutputCount = int.Parse(key.Substring(2));
-                    for (var i = 0; i < analogOutputCount; i++) DataChannels.Add(new AnalogChannel(this, "AO" + i, i, ChannelDirection.Output, false));
-                }
+            //foreach (var key in message.DevicePn.ToLower().Split('-'))
+            //{
+            //    if (key.StartsWith("ai"))
+            //    {
+            //        var analogInputCount = int.Parse(key.Substring(2));
+            //        for (var i = 0; i < analogInputCount; i++) DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
+            //    }
 
-                if (key.StartsWith("dio"))
-                {
-                    var digitalCount = int.Parse(key.Substring(3));
-                    for (var i = 0; i < digitalCount; i++) DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
-                }
-            }
+            //    if (key.StartsWith("ao"))
+            //    {
+            //        var analogOutputCount = int.Parse(key.Substring(2));
+            //        for (var i = 0; i < analogOutputCount; i++) DataChannels.Add(new AnalogChannel(this, "AO" + i, i, ChannelDirection.Output, false));
+            //    }
+
+            //    if (key.StartsWith("dio"))
+            //    {
+            //        var digitalCount = int.Parse(key.Substring(3));
+            //        for (var i = 0; i < digitalCount; i++) DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
+            //    }
+            //}
 
             MessageConsumer.OnMessageReceived += MessageReceived;
         }

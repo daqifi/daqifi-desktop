@@ -28,27 +28,23 @@ namespace Daqifi.Desktop.Message.Consumers
             {
                 try
                 {
-                    var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
-                    var protobufMessage = new ProtobufMessage(outMessage);
-                    var daqMessage = new MessageEventArgs(protobufMessage);
-                    NotifyMessageReceived(this, daqMessage);
+                    // TODO this should and used to work but no longer does. Investigate why
+                    //var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
+                    //var protobufMessage = new ProtobufMessage(outMessage);
+                    //var daqMessage = new MessageEventArgs(protobufMessage);
+                    //NotifyMessageReceived(this, daqMessage);
 
-                    //int bytesRead;
-                    //while ((bytesRead = DataStream.Read(buffer, 0, buffer.Length)) != 0)
-                    //{
-                    //    Debug.WriteLine("");
-                    //    foreach (var dataByte in buffer)
-                    //    {
-                    //        Debug.Write($"0x{dataByte:X2}, ");
-                    //    }
+                    int bytesRead;
+                    while ((bytesRead = DataStream.Read(buffer, 0, buffer.Length)) != 0)
+                    {
+                        var receivedBytes = buffer.Take(bytesRead).ToArray();
+                        var stream = new MemoryStream(receivedBytes);
+                        var outMessage = DaqifiOutMessage.ParseDelimitedFrom(stream);
 
-                    //    var receivedBytes = buffer.Take(bytesRead).ToArray();
-
-                    //    var outMessage = DaqifiOutMessage.ParseFrom(receivedBytes);
-                    //    var protobufMessage = new ProtobufMessage(outMessage);
-                    //    var daqMessage = new MessageEventArgs(protobufMessage);
-                    //    NotifyMessageReceived(this, daqMessage);
-                //}
+                        var protobufMessage = new ProtobufMessage(outMessage);
+                        var daqMessage = new MessageEventArgs(protobufMessage);
+                        NotifyMessageReceived(this, daqMessage);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -56,7 +52,6 @@ namespace Daqifi.Desktop.Message.Consumers
                     {
                         return;
                     }
-
                     AppLogger.Error(ex, "Failed in AbstractMessageConsumer Run");
                 }
             }
