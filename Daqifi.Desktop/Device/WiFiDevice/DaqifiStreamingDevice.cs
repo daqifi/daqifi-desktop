@@ -68,7 +68,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Problem with Disconnectiong from DAQDevice.");
+                AppLogger.Error(ex, "Problem with Disconnectiong from DAQifi Device.");
                 return false;
             }
         }
@@ -83,7 +83,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         {
             IsStreaming = false;
             MessageProducer.SendAsync(ScpiMessagePoducer.StopStreaming);
-            _firstTime = null;
+            _previousTimestamp = null;
         }
 
         public override void SetAdcMode(IChannel channel, AdcMode mode)
@@ -236,8 +236,9 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                     return DataChannels.Where(channel => channel.Type == ChannelType.Analog && channel.IsActive).ToList();
                 case ChannelType.Digital:
                     return DataChannels.Where(channel => channel.Type == ChannelType.Digital && channel.IsActive).ToList();
+                default:
+                    throw new NotImplementedException();
             }
-            throw new NotImplementedException();
         }
         #endregion
 

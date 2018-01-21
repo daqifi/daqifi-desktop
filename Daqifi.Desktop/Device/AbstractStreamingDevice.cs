@@ -15,12 +15,13 @@ namespace Daqifi.Desktop.Device
     {
         #region Private Data
 
-        protected static DateTime? _firstTime;
-        protected static uint _firstMessageSequence;
+        protected static DateTime? _previousTimestamp;
         private string _adcRangeText;
         protected readonly double AdcResolution = 131072;
         protected double AdcRange = 1;
         private int _streamingFrequency = 1;
+        private uint _timestampFrequency;
+        private uint? _previousDeviceTimestamp;
         #endregion
 
         #region Properties
@@ -116,6 +117,8 @@ namespace Daqifi.Desktop.Device
             AddDigitalChannels(message);
             AddAnalogInChannels(message);
             AddAnalogOutChannels(message);
+
+            _timestampFrequency = message.TimestampFreq;
         }
 
         private void AddAnalogInChannels(DaqifiOutMessage message)
@@ -145,14 +148,37 @@ namespace Daqifi.Desktop.Device
         {
             var message = e.Message.Data as DaqifiOutMessage;
 
-            if (_firstTime == null)
+            if (!message.HasMsgTimeStamp)
             {
-                _firstTime = DateTime.Now;
-                _firstMessageSequence = message.MsgTimeStamp;
+                AppLogger.Warning("Message did not contain a timestamp.  Will ignore message");
+                return;
             }
 
-            var relativeTimestamp = Convert.ToDouble(message.MsgTimeStamp - _firstMessageSequence) / StreamingFrequency;
-            var timestamp = _firstTime.Value.AddMilliseconds(relativeTimestamp * 1000);
+            if (_previousTimestamp == null)
+            {
+                // TODO this starting time is inaccurate due to transmission delays.
+                // The board only sends relative timestamps based on a timestamp clock frequency
+                _previousTimestamp = DateTime.Now;
+                _previousDeviceTimestamp = message.MsgTimeStamp;
+            }
+
+            // Get timestamp difference (i.e. number of clock cycles between messages)
+            // Check for rollover scenario
+            uint numberOfClockCyclesBetweenMessages;
+            if (_previousDeviceTimestamp > message.MsgTimeStamp)
+            {
+                var numberOfCyclesToMax = uint.MaxValue - _previousDeviceTimestamp.Value;
+                numberOfClockCyclesBetweenMessages = numberOfCyclesToMax + message.MsgTimeStamp;
+            }
+            else
+            {
+                numberOfClockCyclesBetweenMessages = message.MsgTimeStamp - _previousDeviceTimestamp.Value;
+            }
+
+            // Convert clock cycles to a time value
+            var secondsBetweenMessages = numberOfClockCyclesBetweenMessages / (double) _timestampFrequency;
+
+            var messageTimestamp = _previousTimestamp.Value.AddMilliseconds(secondsBetweenMessages * 1000.0);
 
             //Update digital channel information
             var digitalCount = 0;
@@ -166,7 +192,7 @@ namespace Daqifi.Desktop.Device
                     if (channel.IsActive)
                     {
                         var bit = (message.DigitalData.ElementAt(0) & (1 << digitalCount)) != 0;
-                        channel.ActiveSample = new DataSample(this, channel, timestamp, Convert.ToInt32(bit));
+                        channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
                     }
                     digitalCount++;
                 }
@@ -178,10 +204,14 @@ namespace Daqifi.Desktop.Device
                         break;
                     }
 
-                    channel.ActiveSample = new DataSample(this, channel, timestamp, ScaleAnalogSample(message.AnalogInDataList.ElementAt(analogCount)));
+                    channel.ActiveSample = new DataSample(this, channel, messageTimestamp, ScaleAnalogSample(message.AnalogInDataList.ElementAt(analogCount)));
                     analogCount++;
                 }
             }
+
+            // Updates the previous timestamps
+            _previousDeviceTimestamp = message.MsgTimeStamp;
+            _previousTimestamp = messageTimestamp;
         }
 
         private double ScaleAnalogSample(double sampleValue)

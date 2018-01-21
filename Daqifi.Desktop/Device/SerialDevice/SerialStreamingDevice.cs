@@ -78,7 +78,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
         {
             IsStreaming = false;
             MessageProducer.SendAsync(ScpiMessagePoducer.StopStreaming);
-            _firstTime = null;
+            _previousTimestamp = null;
         }
 
         private void TurnOffEcho()
