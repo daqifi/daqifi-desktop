@@ -1,13 +1,15 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26730.15
+VisualStudioVersion = 15.0.27004.2010
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop", "..\Daqifi.Desktop\Daqifi.Desktop.csproj", "{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.Bootloader", "..\Daqifi.Desktop.Bootloader\Daqifi.Desktop.Bootloader.csproj", "{E1B7FA13-2AD8-4B9F-983E-0EA88C3A1062}"
 EndProject
 Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "DAQifiDesktop_Setup", "DAQifiDesktopSetup\DAQifiDesktop_Setup.wixproj", "{CD91730F-E4A6-4BB1-9D13-8F2E67F69D7C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.DataModel", "..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj", "{8E553D17-C0B1-447F-B4A2-0F11903CAA49}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -53,6 +55,18 @@ Global
 		{CD91730F-E4A6-4BB1-9D13-8F2E67F69D7C}.Release|Mixed Platforms.Build.0 = Release|x86
 		{CD91730F-E4A6-4BB1-9D13-8F2E67F69D7C}.Release|x86.ActiveCfg = Release|x86
 		{CD91730F-E4A6-4BB1-9D13-8F2E67F69D7C}.Release|x86.Build.0 = Release|x86
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|x86.Build.0 = Debug|Any CPU
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Mixed Platforms.Build.0 = Release|Any CPU
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|x86.ActiveCfg = Release|Any CPU
+		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

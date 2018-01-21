@@ -5,7 +5,7 @@
         Manufacturer="DAQifi"
         UpgradeCode="ACA4F4E1-6DBB-47C0-A829-84AA1536C147"
         Language="1033"
-        Version="0.9.0.0">
+        Version="1.0.0.0">
 
     <Package Id="*"
              Description="DAQifi Installer"
@@ -109,10 +109,49 @@
       <Component Id="Daqifi.Desktop.Bootloader" Guid="C23982B1-AADC-40BA-8CB5-0C2300CB8F9E">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\Daqifi.Desktop.Bootloader.dll"/>
       </Component>
+      <Component Id="Daqifi.Desktop.DataLayer" Guid="69FF3151-04DF-4370-8C03-CEEE1A1325B2">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Daqifi.Desktop.DataModel.dll"/>
+      </Component>
       
       <!-- 3rd Party DLLs-->
+      <Component Id="EntityFramework" Guid="4ED9C890-16AE-4221-8BFF-6FA9C969231F">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.dll"/>
+      </Component>
+      <Component Id="EntityFrameworkBulkInsert" Guid="6A7FAB3D-5578-4194-A8F2-5DC259C82C33">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.BulkInsert.dll"/>
+      </Component>
+      <Component Id="EntityFrameworkBulkInsertSqlServerCe" Guid="FF8B3699-A7B5-4652-96A8-74D310091988">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.BulkInsert.SqlServerCe.dll"/>
+      </Component>
+      <Component Id="EntityFrameworkMappingAPI" Guid="22EE3112-2021-487D-810B-D76E83A14F14">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.MappingAPI.dll"/>
+      </Component>
+      <Component Id="EntityFrameworkSqlServer" Guid="1273C986-995F-4006-B42C-AB4A78DCE3CF">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.SqlServer.dll"/>
+      </Component>
+      <Component Id="EntityFrameworkSqlServerCompact" Guid="121327B4-4D93-46AC-ABCF-D29932A51D73">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.SqlServerCompact.dll"/>
+      </Component>
+      <Component Id="GoogleProtoBuf" Guid="E52D39BA-60E9-4FAE-B601-6C92BF0FD4DF">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Google.ProtocolBuffers.dll"/>
+      </Component>
+      <Component Id="GoogleProtoBufSerialization" Guid="94F44762-E809-4A13-A7FA-4093F306D703">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Google.ProtocolBuffers.Serialization.dll"/>
+      </Component>
       <Component Id="HidLibrary" Guid="919CEA39-D40A-478D-AD1C-51CE83DC5135">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\HidLibrary.dll"/>
+      </Component>
+      <Component Id="LoadingIndicators" Guid="9A3C0C7D-4593-4A5A-9E54-4621B4C425D3">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\LoadingIndicators.WPF.dll"/>
+      </Component>
+      <Component Id="MahApps" Guid="D2955D07-F5C2-499E-A2B3-280746E1F4EF">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\MahApps.Metro.dll"/>
+      </Component>
+      <Component Id="MoreLinq" Guid="DF6EF103-114E-4FAA-84F1-9B7627F917EB">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\MoreLinq.dll"/>
+      </Component>
+      <Component Id="NCalc" Guid="01114530-070E-457A-AE7D-E4DD80D872CB">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\NCalc.dll"/>
       </Component>
       <Component Id="Nlog" Guid="57CCBA0A-22C2-46B6-8D1C-525A59A1D7D1">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\NLog.dll"/>
@@ -123,41 +162,11 @@
       <Component Id="OxyPlotWPF" Guid="C6336DE5-711C-43A0-A581-39505E66CD9A">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\OxyPlot.WPF.dll"/>
       </Component>
-      <Component Id="GoogleProtoBuf" Guid="E52D39BA-60E9-4FAE-B601-6C92BF0FD4DF">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Google.ProtocolBuffers.dll"/>
+      <Component Id="OxyPlotXps" Guid="BB45351B-02CB-4082-A202-3F0A63E75AC4">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\OxyPlot.Xps.dll"/>
       </Component>
-      <Component Id="GoogleProtoBufSerialization" Guid="94F44762-E809-4A13-A7FA-4093F306D703">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Google.ProtocolBuffers.Serialization.dll"/>
-      </Component>
-      <Component Id="MahApps" Guid="D2955D07-F5C2-499E-A2B3-280746E1F4EF">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\MahApps.Metro.dll"/>
-      </Component>
-       <Component Id="XamarinInsights" Guid="DD20EE01-175E-495F-B63A-4060F8C0807E">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Xamarin.Insights.dll"/>
-      </Component>
-      <Component Id="WindowsInteractivity" Guid="5154E02B-5671-4DC7-9AC4-29437F13CD76">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Windows.Interactivity.dll"/>
-      </Component>
-      <Component Id="EntityFramework" Guid="4ED9C890-16AE-4221-8BFF-6FA9C969231F">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.dll"/>
-      </Component>
-      <Component Id="EntityFrameworkSQL" Guid="1273C986-995F-4006-B42C-AB4A78DCE3CF">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.SqlServer.dll"/>
-      </Component>
-       <Component Id="EntityFrameworkSQLCompact" Guid="121327B4-4D93-46AC-ABCF-D29932A51D73">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.SqlServerCompact.dll"/>
-      </Component>
-      <Component Id="EntityFrameworkBulkInsert" Guid="FF8B3699-A7B5-4652-96A8-74D310091988">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.BulkInsert.dll"/>
-      </Component>
-      <Component Id="EntityFrameworkMappingAPI" Guid="22EE3112-2021-487D-810B-D76E83A14F14">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.MappingAPI.dll"/>
-      </Component>
-      <Component Id="SystemDataSQLServerCe" Guid="CEA751DC-66CF-4193-888F-F85C3F3E12E5">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\System.Data.SqlServerCe.dll"/>
-      </Component>
-      <Component Id="SystemDataSQLServerCeEntity" Guid="41704D1B-9562-4DCB-A295-C844869B2A58">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\System.Data.SqlServerCe.Entity.dll"/>
+      <Component Id="ProtobufNet" Guid="29C75437-029D-4EBD-BE76-D6256744F17A">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\protobuf-net.dll"/>
       </Component>
       <Component Id="sqlceca40" Guid="8CA53811-0B5F-467B-BA22-91E882F63414">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceca40.dll"/>
@@ -177,11 +186,20 @@
       <Component Id="sqlcese40" Guid="3073A38C-C8AC-4B83-A917-B4270CBB63AE">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlcese40.dll"/>
       </Component>
-      <Component Id="NCalc" Guid="01114530-070E-457A-AE7D-E4DD80D872CB">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\NCalc.dll"/>
+      <Component Id="SystemDataSQLServerCe" Guid="CEA751DC-66CF-4193-888F-F85C3F3E12E5">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\System.Data.SqlServerCe.dll"/>
       </Component>
-      <Component Id="NCalc" Guid="01114530-070E-457A-AE7D-E4DD80D872CB">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\NCalc.dll"/>
+      <Component Id="SystemDataSQLServerCeEntity" Guid="41704D1B-9562-4DCB-A295-C844869B2A58">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\System.Data.SqlServerCe.Entity.dll"/>
+      </Component>
+      <Component Id="SystemValueTuple" Guid="9F8DAB16-FBCA-4F08-A883-4A8689B744CC">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.ValueTuple.dll"/>
+      </Component>
+      <Component Id="SystemWindowsInteractivity" Guid="5154E02B-5671-4DC7-9AC4-29437F13CD76">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Windows.Interactivity.dll"/>
+      </Component>
+       <Component Id="XamarinInsights" Guid="DD20EE01-175E-495F-B63A-4060F8C0807E">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Xamarin.Insights.dll"/>
       </Component>
     </ComponentGroup>
   </Fragment>

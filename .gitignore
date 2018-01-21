@@ -11,3 +11,6 @@
 /.vs/DAQIifi Desktop/v15/Server/sqlite3
 /Daqifi.Desktop.DataModel/bin/Debug
 /Daqifi.Desktop.DataModel/obj/Debug
+/Daqifi.Desktop.Setup/packages
+/Daqifi.Desktop.Setup/DAQifiDesktopSetup/bin
+/Daqifi.Desktop.Setup/DAQifiDesktopSetup/obj
