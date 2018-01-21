@@ -1,5 +1,6 @@
 ﻿using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Loggers;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -7,7 +8,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows.Input;
-using Daqifi.Desktop.Loggers;
 
 namespace Daqifi.Desktop.ViewModels
 {

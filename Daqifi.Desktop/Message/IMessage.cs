@@ -1,5 +1,4 @@
-﻿using System;
-
+﻿
 namespace Daqifi.Desktop.Message
 {
     public interface IMessage

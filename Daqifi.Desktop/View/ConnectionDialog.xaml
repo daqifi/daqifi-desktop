@@ -27,8 +27,8 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="1" Orientation="Vertical">
                                                     <Label Content="{Binding Name}"/>
-                                                    <Label Content="{Binding IPAddress}"/>
-                                                    <Label Content="{Binding MACAddress}"/>
+                                                    <Label Content="{Binding IpAddress}"/>
+                                                    <Label Content="{Binding MacAddress}"/>
                                                 </StackPanel>
                                                 <Image Grid.Column="0" Source="../Images/DAQImage.png" Width="50" Height="50"/>
                                             </Grid>

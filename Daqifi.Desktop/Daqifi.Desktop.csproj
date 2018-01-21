@@ -7,7 +7,7 @@
     <ProjectGuid>{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>DAQifi.Desktop</RootNamespace>
+    <RootNamespace>Daqifi.Desktop</RootNamespace>
     <AssemblyName>DAQifi Desktop</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
@@ -76,13 +76,11 @@
     <Reference Include="EntityFramework.SqlServerCompact, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
       <HintPath>..\packages\EntityFramework.SqlServerCompact.PrivateDeployment.6.2.0.1\lib\net45\EntityFramework.SqlServerCompact.dll</HintPath>
     </Reference>
-    <Reference Include="Google.ProtocolBuffers, Version=2.4.1.521, Culture=neutral, PublicKeyToken=55f7125234beb589, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>Dependencies\Google.ProtocolBuffers.dll</HintPath>
+    <Reference Include="Google.ProtocolBuffers, Version=2.4.1.555, Culture=neutral, PublicKeyToken=55f7125234beb589, processorArchitecture=MSIL">
+      <HintPath>..\packages\Google.ProtocolBuffers.2.4.1.555\lib\net40\Google.ProtocolBuffers.dll</HintPath>
     </Reference>
-    <Reference Include="Google.ProtocolBuffers.Serialization, Version=2.4.1.521, Culture=neutral, PublicKeyToken=55f7125234beb589, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>Dependencies\Google.ProtocolBuffers.Serialization.dll</HintPath>
+    <Reference Include="Google.ProtocolBuffers.Serialization, Version=2.4.1.555, Culture=neutral, PublicKeyToken=55f7125234beb589, processorArchitecture=MSIL">
+      <HintPath>..\packages\Google.ProtocolBuffers.2.4.1.555\lib\net40\Google.ProtocolBuffers.Serialization.dll</HintPath>
     </Reference>
     <Reference Include="HidLibrary, Version=3.2.46.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\hidlibrary.3.2.46.0\lib\HidLibrary.dll</HintPath>
@@ -158,28 +156,26 @@
       <SubType>Designer</SubType>
     </ApplicationDefinition>
     <Compile Include="Channel\AbstractChannel.cs" />
-    <Compile Include="Channel\AdcMode.cs" />
     <Compile Include="Channel\AnalogChannel.cs" />
     <Compile Include="Channel\ChannelColorManager.cs" />
-    <Compile Include="Channel\ChannelDirection.cs" />
     <Compile Include="Channel\ChannelEventArgs.cs" />
-    <Compile Include="Channel\ChannelType.cs" />
     <Compile Include="Channel\ChannelUpdateMessage.cs" />
     <Compile Include="Channel\DataSample.cs" />
     <Compile Include="Channel\DigitalChannel.cs" />
     <Compile Include="Commands\CompositeCommand.cs" />
+    <Compile Include="Communication\DaqifiOutMessage.cs" />
     <Compile Include="Configuration\IColorable.cs" />
     <Compile Include="Database\SqlCeBulkInsertProvider.cs" />
-    <Compile Include="Device\AbstractDevice.cs" />
+    <Compile Include="Device\AbstractStreamingDevice.cs" />
     <Compile Include="Device\IDeviceFinder.cs" />
-    <Compile Include="Device\NetworkConfiguration.cs" />
     <Compile Include="Commands\HostCommands.cs" />
     <Compile Include="Commands\IActiveAware.cs" />
-    <Compile Include="Device\SerialDevice.cs" />
-    <Compile Include="Device\SerialDeviceFinder.cs" />
-    <Compile Include="Device\HidDevice.cs" />
-    <Compile Include="Device\HidDeviceFinder.cs" />
-    <Compile Include="Device\WifiSecurityType.cs" />
+    <Compile Include="Device\IFirmwareDevice.cs" />
+    <Compile Include="Device\IStreamingDevice.cs" />
+    <Compile Include="Device\SerialDevice\SerialStreamingDevice.cs" />
+    <Compile Include="Device\SerialDevice\SerialDeviceFinder.cs" />
+    <Compile Include="Device\HidDevice\HidFirmwareDevice.cs" />
+    <Compile Include="Device\HidDevice\HidDeviceFinder.cs" />
     <Compile Include="Loggers\AppLogger.cs" />
     <Compile Include="Helpers\BooleanConverter.cs" />
     <Compile Include="Helpers\BooleanToVisibilityConverter.cs" />
@@ -191,11 +187,12 @@
     <Compile Include="Loggers\PlotLogger.cs" />
     <Compile Include="Loggers\LoggingManager.cs" />
     <Compile Include="Message\AbstractMessage.cs" />
-    <Compile Include="Message\AbstractMessageConsumer.cs" />
-    <Compile Include="Message\AbstractMessageProducer.cs" />
+    <Compile Include="Message\Consumers\AbstractMessageConsumer.cs" />
+    <Compile Include="Message\MessageTypes\ScpiMessage.cs" />
+    <Compile Include="Message\Producers\AbstractMessageProducer.cs" />
     <Compile Include="Commands\DelegateCommand.cs" />
-    <Compile Include="Device\DaqifiDevice.cs" />
-    <Compile Include="Device\DaqifiDeviceFinder.cs" />
+    <Compile Include="Device\WiFiDevice\DaqifiStreamingDevice.cs" />
+    <Compile Include="Device\WiFiDevice\DaqifiDeviceFinder.cs" />
     <Compile Include="DialogService\DialogService.cs" />
     <Compile Include="DialogService\IDialogService.cs" />
     <Compile Include="DialogService\IDialogServiceContract.cs" />
@@ -205,23 +202,22 @@
     <Compile Include="Channel\IChannel.cs" />
     <Compile Include="Device\IDevice.cs" />
     <Compile Include="Message\IMessage.cs" />
-    <Compile Include="Message\IMessageConsumer.cs" />
-    <Compile Include="Message\IMessageProducer.cs" />
+    <Compile Include="Message\Consumers\IMessageConsumer.cs" />
+    <Compile Include="Message\Producers\IMessageProducer.cs" />
     <Compile Include="Message\MessageEventArgs.cs" />
-    <Compile Include="Message\RawMessage.cs" />
-    <Compile Include="Migrations\201603290351260_InitialCreate.cs" />
-    <Compile Include="Migrations\201603290351260_InitialCreate.Designer.cs">
-      <DependentUpon>201603290351260_InitialCreate.cs</DependentUpon>
+    <Compile Include="Message\MessageTypes\RawMessage.cs" />
+    <Compile Include="Message\MessageTypes\ScpiMessagePoducer.cs" />
+    <Compile Include="Migrations\201712291614345_InitialMigration.cs" />
+    <Compile Include="Migrations\201712291614345_InitialMigration.Designer.cs">
+      <DependentUpon>201712291614345_InitialMigration.cs</DependentUpon>
     </Compile>
     <Compile Include="Migrations\Configuration.cs" />
     <Compile Include="Models\DaqifiBoardConfig.cs" />
     <Compile Include="Models\DaqifiSettings.cs" />
-    <Compile Include="Models\WiFiDAQOutMessage.cs" />
     <Compile Include="ObservableObject.cs" />
-    <Compile Include="Message\ProtobufMessage.cs" />
-    <Compile Include="Message\MessageConsumer.cs" />
-    <Compile Include="Message\MessageProducer.cs" />
-    <Compile Include="Message\ScpiMessage.cs" />
+    <Compile Include="Message\MessageTypes\ProtobufMessage.cs" />
+    <Compile Include="Message\Consumers\MessageConsumer.cs" />
+    <Compile Include="Message\Producers\MessageProducer.cs" />
     <Compile Include="ViewModels\AddChannelDialogViewModel.cs" />
     <Compile Include="ViewModels\ConnectionDialogViewModel.cs" />
     <Compile Include="ViewModels\ErrorDialogViewModel.cs" />
@@ -347,8 +343,8 @@
       <DependentUpon>Settings.settings</DependentUpon>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
-    <EmbeddedResource Include="Migrations\201603290351260_InitialCreate.resx">
-      <DependentUpon>201603290351260_InitialCreate.cs</DependentUpon>
+    <EmbeddedResource Include="Migrations\201712291614345_InitialMigration.resx">
+      <DependentUpon>201712291614345_InitialMigration.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -373,9 +369,7 @@
       <SubType>Designer</SubType>
     </None>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Updater\" />
-  </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <Resource Include="Images\Configuration.png" />
   </ItemGroup>
@@ -454,6 +448,10 @@
     <ProjectReference Include="..\Daqifi.Desktop.Bootloader\Daqifi.Desktop.Bootloader.csproj">
       <Project>{e1b7fa13-2ad8-4b9f-983e-0ea88c3a1062}</Project>
       <Name>Daqifi.Desktop.Bootloader</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj">
+      <Project>{8E553D17-C0B1-447F-B4A2-0F11903CAA49}</Project>
+      <Name>Daqifi.Desktop.DataModel</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

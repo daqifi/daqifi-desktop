@@ -1,6 +1,7 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Configuration;
+using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
@@ -38,7 +39,7 @@ namespace Daqifi.Desktop.ViewModels
         private int _selectedChannelOutput;
         public WindowState _viewWindowState;
         private readonly IDialogService _dialogService;
-        private IDevice _selectedDevice;
+        private IStreamingDevice _selectedDevice;
         private IChannel _selectedChannel;
         private LoggingSession _selectedLoggingSession;
         private bool _isLogging;
@@ -52,7 +53,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public WindowState ViewWindowState
         {
-            get { return _viewWindowState; }
+            get => _viewWindowState;
             set 
             {
                 _viewWindowState = value;
@@ -66,7 +67,7 @@ namespace Daqifi.Desktop.ViewModels
         /// </summary>
         public bool IsBusy
         {
-            get { return _isBusy; }
+            get => _isBusy;
             private set
             {
                 _isBusy = value;
@@ -76,7 +77,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public bool IsLoggedDataBusy
         {
-            get { return _isLoggedDataBusy; }
+            get => _isLoggedDataBusy;
             private set
             {
                 _isLoggedDataBusy = value;
@@ -86,7 +87,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public bool IsLogging
         {
-            get { return _isLogging; }
+            get => _isLogging;
             set
             {
                 _isLogging = value;
@@ -111,7 +112,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public bool CanToggleLogging
         {
-            get { return _canToggleLogging; }
+            get => _canToggleLogging;
             private set
             {
                 _canToggleLogging = value;
@@ -121,7 +122,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public bool IsDeviceSettingsOpen
         {
-            get { return _isDeviceSettingsOpen; }
+            get => _isDeviceSettingsOpen;
             set
             {
                 _isDeviceSettingsOpen = value;
@@ -131,7 +132,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public bool IsLoggingSessionSettingsOpen
         {
-            get { return _isLoggingSessionSettingsOpen; }
+            get => _isLoggingSessionSettingsOpen;
             set
             {
                 _isLoggingSessionSettingsOpen = value;
@@ -141,7 +142,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public bool IsChannelSettingsOpen
         {
-            get { return _isChannelSettingsOpen; }
+            get => _isChannelSettingsOpen;
             set
             {
                 _isChannelSettingsOpen = value;
@@ -151,7 +152,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public bool IsLiveGraphSettingsOpen
         {
-            get { return _isLiveGraphSettingsOpen; }
+            get => _isLiveGraphSettingsOpen;
             set
             {
                 _isLiveGraphSettingsOpen = value;
@@ -161,7 +162,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public int Width
         {
-            get { return _width; }
+            get => _width;
             set
             {
                 _width = value;
@@ -172,7 +173,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public int Height
         {
-            get { return _height; }
+            get => _height;
             set
             {
                 _height = value;
@@ -183,7 +184,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public string FirmwareFilePath
         {
-            get { return _firmwareFilePath; }
+            get => _firmwareFilePath;
             set
             {
                 _firmwareFilePath = value;
@@ -193,7 +194,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public int SelectedIndex
         {
-            get { return _selectedIndex; }
+            get => _selectedIndex;
             set
             {
                 _selectedIndex = value;
@@ -204,7 +205,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public int SelectedStreamingFrequency
         {
-            get { return _selectedStreamingFrequency; }
+            get => _selectedStreamingFrequency;
             set
             {
                 if (value < 1) return;
@@ -224,7 +225,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public int SelectedChannelOutput
         {
-            get { return _selectedStreamingFrequency; }
+            get => _selectedStreamingFrequency;
             set
             {
                 if (SelectedChannel.Direction != ChannelDirection.Output) return;
@@ -258,9 +259,9 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-        public IDevice SelectedDevice
+        public IStreamingDevice SelectedDevice
         {
-            get { return _selectedDevice; }
+            get => _selectedDevice;
             set 
             { 
                 _selectedDevice = value;
@@ -270,7 +271,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public IChannel SelectedChannel
         {
-            get { return _selectedChannel; }
+            get => _selectedChannel;
             set
             {
                 _selectedChannel = value;
@@ -280,7 +281,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public LoggingSession SelectedLoggingSession
         {
-            get { return _selectedLoggingSession; }
+            get => _selectedLoggingSession;
             set
             {
                 _selectedLoggingSession = value;
@@ -288,7 +289,7 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-        public ObservableCollection<IDevice> ConnectedDevices { get; } = new ObservableCollection<IDevice>();
+        public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = new ObservableCollection<IStreamingDevice>();
         public ObservableCollection<IChannel> ActiveChannels { get; } = new ObservableCollection<IChannel>();
         public ObservableCollection<IChannel> ActiveInputChannels { get; } = new ObservableCollection<IChannel>();
         public ObservableCollection<LoggingSession> LoggingSessions { get; } = new ObservableCollection<LoggingSession>();
@@ -298,7 +299,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public string LoggedDataBusyReason
         {
-            get { return _loggedDataBusyReason; }
+            get => _loggedDataBusyReason;
             set
             {
                 _loggedDataBusyReason = value;
@@ -318,7 +319,7 @@ namespace Daqifi.Desktop.ViewModels
 
                 RegisterCommands();
 
-                //Manage connected device list
+                //Manage connected streamingDevice list
                 ConnectionManager.Instance.PropertyChanged += UpdateUi;
 
                 //Manage data for plotting
@@ -351,7 +352,6 @@ namespace Daqifi.Desktop.ViewModels
             {
                 AppLogger.Instance.Error(ex, "DAQifiViewModel");
             }
-          
         }
 
         public void RegisterCommands()
@@ -472,7 +472,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             if (LoggingManager.Instance.Active)
             {
-                var errorDialogViewModel = new ErrorDialogViewModel("Cannot disconnect device while logging.");
+                var errorDialogViewModel = new ErrorDialogViewModel("Cannot disconnect streamingDevice while logging.");
                 _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
 
                 return false;
@@ -539,12 +539,6 @@ namespace Daqifi.Desktop.ViewModels
         {
             return true;
         }
-
-        public ICommand UploadFirmwareCommand { get; private set; }
-        private bool CanUploadFirmware(object o)
-        {
-            return true;
-        }
         #endregion
 
         #region Command Methods
@@ -596,7 +590,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void DisconnectDevice(object o)
         {
-            var deviceToRemove = o as IDevice;
+            var deviceToRemove = o as IStreamingDevice;
             foreach(var channel in deviceToRemove.DataChannels)
             {
                 if (channel.IsActive)
@@ -637,8 +631,8 @@ namespace Daqifi.Desktop.ViewModels
 
         private void OpenDeviceSettings(object o)
         {
-            var item = o as IDevice;
-            if (item == null) AppLogger.Error("Error opening device settings");
+            var item = o as IStreamingDevice;
+            if (item == null) AppLogger.Error("Error opening streamingDevice settings");
 
             CloseFlyouts();
             SelectedDevice = item;
@@ -817,7 +811,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void RebootSelectedDevice(object o)
         {
-            var deviceToReboot = o as IDevice;
+            var deviceToReboot = o as IStreamingDevice;
 
             if(deviceToReboot == null) return;
 

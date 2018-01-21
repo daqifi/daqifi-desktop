@@ -1,5 +1,6 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
+using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
 
@@ -24,9 +25,9 @@ namespace Daqifi.Desktop.Channel
         #region Constructors
         public DataSample() { }
 
-        public DataSample(AbstractDevice device, IChannel channel, DateTime timestamp, double value)
+        public DataSample(AbstractStreamingDevice streamingDevice, IChannel channel, DateTime timestamp, double value)
         {
-            DeviceName = device.Name;
+            DeviceName = streamingDevice.Name;
             ChannelName = channel.Name;
             Type = channel.Type;
             Color = channel.ChannelColorBrush.ToString();

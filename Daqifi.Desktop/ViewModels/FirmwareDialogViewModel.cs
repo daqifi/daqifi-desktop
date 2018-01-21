@@ -1,12 +1,12 @@
-﻿using System;
+﻿using Daqifi.Desktop.Bootloader;
+using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Loggers;
+using System;
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
-using Daqifi.Desktop;
-using Daqifi.Desktop.Bootloader;
-using Daqifi.Desktop.Commands;
-using Daqifi.Desktop.Loggers;
-using DAQifi.Desktop.Device;
+using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Device.HidDevice;
 using ObservableObject = Daqifi.Desktop.ObservableObject;
 
 namespace DAQifi.Desktop.ViewModels
@@ -14,7 +14,7 @@ namespace DAQifi.Desktop.ViewModels
     public class FirmwareDialogViewModel : ObservableObject
     {
         private string _version;
-        private HidDevice _hidDevice;
+        private HidFirmwareDevice _hidFirmwareDevice;
         private Pic32Bootloader _bootloader;
         private string _firmwareFilePath;
         private bool _isFirmwareUploading;
@@ -61,10 +61,10 @@ namespace DAQifi.Desktop.ViewModels
             return true;
         }
 
-        public FirmwareDialogViewModel(HidDevice hidDevice)
+        public FirmwareDialogViewModel(HidFirmwareDevice hidFirmwareDevice)
         {
-            _hidDevice = hidDevice;
-            _bootloader = new Pic32Bootloader(_hidDevice.Device);
+            _hidFirmwareDevice = hidFirmwareDevice;
+            _bootloader = new Pic32Bootloader(_hidFirmwareDevice.Device);
             _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
             _bootloader.RequestVersion();
 

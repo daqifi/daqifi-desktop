@@ -7,3 +7,7 @@
 /Daqifi.Desktop.Test/obj
 /Daqifi.Desktop.Test/bin
 /packages
+/.vs/DAQIifi Desktop/v15/*.suo
+/.vs/DAQIifi Desktop/v15/Server/sqlite3
+/Daqifi.Desktop.DataModel/bin/Debug
+/Daqifi.Desktop.DataModel/obj/Debug
