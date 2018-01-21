@@ -70,7 +70,6 @@ namespace Daqifi.Desktop.Device.SerialDevice
 
         public override void InitializeStreaming()
         {
-            //MessageProducer.SendAsync(new ScpiMessagePoducer("system:startstreamdata " + StreamingFrequency.ToString()));
             MessageProducer.SendAsync(ScpiMessagePoducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
         }
@@ -210,7 +209,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
                     MessageProducer.SendAsync(ScpiMessagePoducer.SetVoltageLevel(channel.Index, value));
                     break;
                 case ChannelType.Digital:
-                    MessageProducer.SendAsync(ScpiMessagePoducer.SetPortState(channel.Index, value));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetDioPortState(channel.Index, value));
                     break;
             }
         }
@@ -220,10 +219,10 @@ namespace Daqifi.Desktop.Device.SerialDevice
             switch (direction)
             {
                 case ChannelDirection.Input:
-                    MessageProducer.SendAsync(ScpiMessagePoducer.SetPortDirection(channel.Index, 0));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetDioPortDirection(channel.Index, 0));
                     break;
                 case ChannelDirection.Output:
-                    MessageProducer.SendAsync(ScpiMessagePoducer.SetPortDirection(channel.Index, 1));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetDioPortDirection(channel.Index, 1));
                     break;
             }
         }

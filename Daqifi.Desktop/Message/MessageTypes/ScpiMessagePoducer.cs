@@ -145,14 +145,24 @@ namespace Daqifi.Desktop.Message.MessageTypes
 
         #region DIO
 
-        public static IMessage SetPortDirection(int channel, int direction)
+        public static IMessage SetDioPortDirection(int channel, int direction)
         {
             return new ScpiMessage($"DIO:PORt:DIRection {channel},{direction}");
         }
 
-        public static IMessage SetPortState(int channel, double value)
+        public static IMessage SetDioPortState(int channel, double value)
         {
             return new ScpiMessage($"DIO:PORt:STATe {channel},{value}");
+        }
+
+        public static IMessage EnableDioPorts()
+        {
+            return new ScpiMessage("DIO:PORt:ENAble 1");
+        }
+
+        public static IMessage DisableDioPorts()
+        {
+            return new ScpiMessage("DIO:PORt:ENAble 0");
         }
 
         #endregion

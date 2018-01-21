@@ -123,7 +123,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                     int channelSetByte = 0;
                     
                     //Get Exsiting Channel Set Byte
-                    foreach (IChannel activeChannel in activeAnalogChannels)
+                    foreach (var activeChannel in activeAnalogChannels)
                     {
                         channelSetByte = channelSetByte | (1 << activeChannel.Index);
                     }
@@ -136,6 +136,9 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
                     //Send the command to add the channel
                     MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcChannels(channelSetString));
+                    break;
+                case ChannelType.Digital:
+                    MessageProducer.SendAsync(ScpiMessagePoducer.EnableDioPorts());
                     break;
             }
 
@@ -164,7 +167,6 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
                     //Send the command to add the channel
                     MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcChannels(channelSetString));
-
                     break;
             }
         }
@@ -200,7 +202,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                     MessageProducer.SendAsync(ScpiMessagePoducer.SetVoltageLevel(channel.Index,value));
                     break;
                 case ChannelType.Digital:
-                    MessageProducer.SendAsync(ScpiMessagePoducer.SetPortState(channel.Index,value));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetDioPortState(channel.Index,value));
                     break;
             }
         }
@@ -210,10 +212,10 @@ namespace Daqifi.Desktop.Device.WiFiDevice
            switch(direction)
            {
                case ChannelDirection.Input:
-                   MessageProducer.SendAsync(ScpiMessagePoducer.SetPortDirection(channel.Index, 0));
+                   MessageProducer.SendAsync(ScpiMessagePoducer.SetDioPortDirection(channel.Index, 0));
                    break;
                case ChannelDirection.Output:
-                   MessageProducer.SendAsync(ScpiMessagePoducer.SetPortDirection(channel.Index, 1));
+                   MessageProducer.SendAsync(ScpiMessagePoducer.SetDioPortDirection(channel.Index, 1));
                    break;
            }
         }
@@ -226,12 +228,14 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         #endregion
 
         #region Private Methods
-        private List<IChannel> GetActiveChannels(ChannelType channelType)
+        private IEnumerable<IChannel> GetActiveChannels(ChannelType channelType)
         {
             switch(channelType)
             {
                 case ChannelType.Analog:
                     return DataChannels.Where(channel => channel.Type == ChannelType.Analog && channel.IsActive).ToList();
+                case ChannelType.Digital:
+                    return DataChannels.Where(channel => channel.Type == ChannelType.Digital && channel.IsActive).ToList();
             }
             throw new NotImplementedException();
         }

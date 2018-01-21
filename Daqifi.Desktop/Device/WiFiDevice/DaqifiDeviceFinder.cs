@@ -90,7 +90,6 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                     !receivedText.Contains(DaqifiFinderQuery) &&
                     !receivedText.Contains(PowerEvent))
                 {
-
                     var stream = new MemoryStream(receivedBytes);
                     var message = DaqifiOutMessage.ParseDelimitedFrom(stream);
                     if (message.HasHostName)
@@ -123,6 +122,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             OnDeviceRemoved?.Invoke(sender, device);
         }
 
+        // TODO move to its own helper class
         private IPAddress GetBroadcastAddress()
         {
             var address = IPAddress.Broadcast;

@@ -109,38 +109,39 @@ namespace Daqifi.Desktop.Device
         protected void HandleStatusMessageReceived(object sender, MessageEventArgs e)
         {
             MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
+            MessageConsumer.OnMessageReceived += HandleMessageReceived;
 
             var message = e.Message.Data as DaqifiOutMessage;
-            var digitalCount = 8;
-            var analogInputCount = 8;
-            for (var i = 0; i < digitalCount; i++) DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
-            for (var i = 0; i < analogInputCount; i++) DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
 
-            //foreach (var key in message.DevicePn.ToLower().Split('-'))
-            //{
-            //    if (key.StartsWith("ai"))
-            //    {
-            //        var analogInputCount = int.Parse(key.Substring(2));
-            //        for (var i = 0; i < analogInputCount; i++) DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
-            //    }
-
-            //    if (key.StartsWith("ao"))
-            //    {
-            //        var analogOutputCount = int.Parse(key.Substring(2));
-            //        for (var i = 0; i < analogOutputCount; i++) DataChannels.Add(new AnalogChannel(this, "AO" + i, i, ChannelDirection.Output, false));
-            //    }
-
-            //    if (key.StartsWith("dio"))
-            //    {
-            //        var digitalCount = int.Parse(key.Substring(3));
-            //        for (var i = 0; i < digitalCount; i++) DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
-            //    }
-            //}
-
-            MessageConsumer.OnMessageReceived += MessageReceived;
+            AddDigitalChannels(message);
+            AddAnalogInChannels(message);
+            AddAnalogOutChannels(message);
         }
 
-        protected void MessageReceived(object sender, MessageEventArgs e)
+        private void AddAnalogInChannels(DaqifiOutMessage message)
+        {
+            if (message.HasAnalogInPortNum)
+            {
+                for (var i = 0; i < message.AnalogInPortNum; i++)
+                    DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
+            }
+        }
+
+        private void AddDigitalChannels(DaqifiOutMessage message)
+        {
+            if (message.HasDigitalPortNum)
+            {
+                for (var i = 0; i < message.DigitalPortNum; i++)
+                    DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
+            }
+        }
+
+        private void AddAnalogOutChannels(DaqifiOutMessage message)
+        {
+            // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
+        }
+
+        protected void HandleMessageReceived(object sender, MessageEventArgs e)
         {
             var message = e.Message.Data as DaqifiOutMessage;
 
@@ -177,13 +178,13 @@ namespace Daqifi.Desktop.Device
                         break;
                     }
 
-                    channel.ActiveSample = new DataSample(this, channel, timestamp, ScaleSample(message.AnalogInDataList.ElementAt(analogCount)));
+                    channel.ActiveSample = new DataSample(this, channel, timestamp, ScaleAnalogSample(message.AnalogInDataList.ElementAt(analogCount)));
                     analogCount++;
                 }
             }
         }
 
-        private double ScaleSample(double sampleValue)
+        private double ScaleAnalogSample(double sampleValue)
         {
             return sampleValue * (AdcRange * 10.0 + 10.0) / AdcResolution;
         }
