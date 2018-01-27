@@ -7,46 +7,54 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using Daqifi.Desktop.Communication.Protobuf;
 
 namespace Daqifi.Desktop.Device.WiFiDevice
 {
     public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
     {
         #region Private Data
+
         private const string DaqifiFinderQuery = "DAQiFi?\r\n";
         private const string NativeFinderQuery = "Discovery: Who is out there?\r\n";
         private const string PowerEvent = "Power event occurred"; // TODO check if this is still needed
         private readonly byte[] _queryCommandBytes = Encoding.ASCII.GetBytes(DaqifiFinderQuery);
+
         #endregion
 
         #region Properties
+
         public UdpClient Client { get; }
         public IPEndPoint Destination { get; }
+
         #endregion
 
         #region Events
+
         public event OnDeviceFoundHandler OnDeviceFound;
         public event OnDeviceRemovedHandler OnDeviceRemoved;
+
         #endregion
 
         #region Constructor
+
         public DaqifiDeviceFinder(int broadcastPort)
         {
             try
             {
-                //Destination = new IPEndPoint(IPAddress.Broadcast, broadcastPort);
-
                 Destination = new IPEndPoint(GetBroadcastAddress(), broadcastPort);
                 Client = new UdpClient(broadcastPort);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 AppLogger.Error(ex, "Error creating streamingDevice listener");
             }
         }
+
         #endregion
 
         #region AbstractMessageConsumer overrides
+
         public override void Run()
         {
             Client.EnableBroadcast = true;
@@ -58,6 +66,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                 Thread.Sleep(1000);
             }
         }
+
         #endregion
 
         public override void Stop()
@@ -83,23 +92,16 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             {
                 var remoteIpEndPoint = new IPEndPoint(IPAddress.Any, 8000);
                 var receivedBytes = Client.EndReceive(res, ref remoteIpEndPoint);
-
                 var receivedText = Encoding.ASCII.GetString(receivedBytes);
 
-                if (!receivedText.Contains(NativeFinderQuery) &&
-                    !receivedText.Contains(DaqifiFinderQuery) &&
-                    !receivedText.Contains(PowerEvent))
+                if (IsValidDiscoveryMessage(receivedText))
                 {
                     var stream = new MemoryStream(receivedBytes);
                     var message = DaqifiOutMessage.ParseDelimitedFrom(stream);
-                    if (message.HasHostName)
-                    {
-                        // TODO I don't like how the device message creates a device. Breaks single responsibility principle.
-                        var device = new DeviceMessage(message).Device;
-                        NotifyDeviceFound(this, device);
-                    }
-
+                    var device = GetDeviceFromProtobufMessage(message);
+                    NotifyDeviceFound(this, device);
                 }
+
                 Client.BeginReceive(HandleFinderMessageReceived, null);
             }
             catch (ObjectDisposedException)
@@ -111,6 +113,29 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                 AppLogger.Error(ex, "Problem in DaqifiDeviceFinder");
             }
         }
+
+        private bool IsValidDiscoveryMessage(string receivedText)
+        {
+            return !receivedText.Contains(NativeFinderQuery) &&
+                   !receivedText.Contains(DaqifiFinderQuery) &&
+                   !receivedText.Contains(PowerEvent);
+        }
+
+        private IDevice GetDeviceFromProtobufMessage(DaqifiOutMessage message)
+        {
+            var hostName = message.HostName;
+            var macAddress = ProtobufDecoder.GetMacAddressString(message);
+            var ipAddress = ProtobufDecoder.GetIpAddressString(message);
+            var device = new DaqifiStreamingDevice(hostName, macAddress, ipAddress);
+
+            if (message.HasSsid)
+            {
+                device.NetworkConfiguration.Ssid = message.Ssid;
+            }
+
+            return device;
+        }
+
 
         public void NotifyDeviceFound(object sender, IDevice device)
         {
@@ -151,7 +176,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             var broadcastAddress = new byte[address.GetAddressBytes().Length];
             for (var i = 0; i < broadcastAddress.Length; i++)
             {
-                broadcastAddress[i] = (byte)(address.GetAddressBytes()[i] | (subnet.GetAddressBytes()[i] ^ 255));
+                broadcastAddress[i] = (byte) (address.GetAddressBytes()[i] | (subnet.GetAddressBytes()[i] ^ 255));
             }
             return new IPAddress(broadcastAddress);
         }
