@@ -163,7 +163,9 @@
     <Compile Include="Channel\DataSample.cs" />
     <Compile Include="Channel\DigitalChannel.cs" />
     <Compile Include="Commands\CompositeCommand.cs" />
-    <Compile Include="Communication\DaqifiOutMessage.cs" />
+    <Compile Include="Communication\Protobuf\DaqifiOutMessage.cs" />
+    <Compile Include="Communication\Protobuf\IDaqifiOutMessage.cs" />
+    <Compile Include="Communication\Protobuf\ProtobufDecoder.cs" />
     <Compile Include="Configuration\IColorable.cs" />
     <Compile Include="Database\SqlCeBulkInsertProvider.cs" />
     <Compile Include="Device\AbstractStreamingDevice.cs" />
@@ -198,7 +200,6 @@
     <Compile Include="DialogService\IDialogServiceContract.cs" />
     <Compile Include="DialogService\ServiceLocator.cs" />
     <Compile Include="Loggers\IAppLogger.cs" />
-    <Compile Include="Message\DeviceMessage.cs" />
     <Compile Include="Channel\IChannel.cs" />
     <Compile Include="Device\IDevice.cs" />
     <Compile Include="Message\IMessage.cs" />

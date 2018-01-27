@@ -2,6 +2,8 @@
 #pragma warning disable 1591, 0612, 3021
 #region Designer generated code
 
+using System.IO;
+using Daqifi.Desktop.Communication.Protobuf;
 using pb = global::Google.ProtocolBuffers;
 using pbc = global::Google.ProtocolBuffers.Collections;
 using pbd = global::Google.ProtocolBuffers.Descriptors;
@@ -77,8 +79,11 @@ namespace Proto {
   }
 }
 #region Messages
+
+
 [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMessage, DaqifiOutMessage.Builder> {
+public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMessage, DaqifiOutMessage.Builder>, IDaqifiOutMessage
+{
   private DaqifiOutMessage() { }
   private static readonly DaqifiOutMessage defaultInstance = new DaqifiOutMessage().MakeReadOnly();
   private static readonly string[] _daqifiOutMessageFieldNames = new string[] { "analog_in_cal_b", "analog_in_cal_b_priv", "analog_in_cal_m", "analog_in_cal_m_priv", "analog_in_data", "analog_in_data_float", "analog_in_data_ts", "analog_in_port_enabled", "analog_in_port_num", "analog_in_port_num_priv", "analog_in_port_range", "analog_in_port_range_priv", "analog_in_port_rse", "analog_in_port_type", "analog_in_res", "analog_in_res_priv", "analog_out_data", "analog_out_port_num", "analog_out_port_range", "analog_out_port_type", "analog_out_res", "av_ssid", "av_ssid_security_mode", "av_ssid_strength", "batt_status", "device_fw_rev", "device_hw_rev", "device_pn", "device_port", "device_status", "digital_data", "digital_data_ts", "digital_port_dir", "digital_port_num", "digital_port_type", "eui_64", "friendly_device_name", "gateway", "gateway_v6", "host_name", "ip_addr", "ip_addr_v6", "mac_addr", "msg_time_stamp", "net_mask", "primary_dns", "primary_dns_v6", "pwr_status", "secondary_dns", "secondary_dns_v6", "ssid", "sub_pre_length_v6", "temp_status", "timestamp_freq", "wifi_security_mode" };
