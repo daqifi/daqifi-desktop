@@ -7,7 +7,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
-using System.Threading;
 
 namespace Daqifi.Desktop.Device.WiFiDevice
 {
@@ -171,27 +170,9 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             }
         }
 
-        public override void UpdateNetworkConfiguration()
-        {
-            if (IsStreaming) StopStreaming();
-            Thread.Sleep(100);
-            MessageProducer.SendAsync(ScpiMessagePoducer.SetSsid(NetworkConfiguration.Ssid));
-            Thread.Sleep(100);
-            MessageProducer.SendAsync(ScpiMessagePoducer.SetSecurity(SecurityTypes.IndexOf(NetworkConfiguration.SecurityType)));
-            Thread.Sleep(100);
-            MessageProducer.SendAsync(ScpiMessagePoducer.SetPassword(NetworkConfiguration.Password));
-            Thread.Sleep(100);
-            Reboot();
-        }
-
         public override void UpdateFirmware(byte[] data)
         {
             MessageProducer.SendAsync(new RawMessage(data));
-        }
-
-        public override void Reboot()
-        {
-            MessageProducer.SendAsync(ScpiMessagePoducer.Reboot);
         }
 
         public override void SetChannelOutputValue(IChannel channel, double value)

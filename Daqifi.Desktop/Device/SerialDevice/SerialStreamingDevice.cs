@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.IO.Ports;
 using System.Linq;
 using System.Threading;
+using Daqifi.Desktop.Helpers;
 
 namespace Daqifi.Desktop.Device.SerialDevice
 {
@@ -183,19 +184,6 @@ namespace Daqifi.Desktop.Device.SerialDevice
             }
         }
 
-        public override void UpdateNetworkConfiguration()
-        {
-            if (IsStreaming) StopStreaming();
-            Thread.Sleep(100);
-            MessageProducer.SendAsync(ScpiMessagePoducer.SetSsid(NetworkConfiguration.Ssid));
-            Thread.Sleep(100);
-            MessageProducer.SendAsync(ScpiMessagePoducer.SetSecurity(SecurityTypes.IndexOf(NetworkConfiguration.SecurityType)));
-            Thread.Sleep(100);
-            MessageProducer.SendAsync(ScpiMessagePoducer.SetPassword(NetworkConfiguration.Password));
-            Thread.Sleep(100);
-            Reboot();
-        }
-
         public override void UpdateFirmware(byte[] data)
         {
             
@@ -225,11 +213,6 @@ namespace Daqifi.Desktop.Device.SerialDevice
                     MessageProducer.SendAsync(ScpiMessagePoducer.SetDioPortDirection(channel.Index, 1));
                     break;
             }
-        }
-
-        public override void Reboot()
-        {
-            MessageProducer.SendAsync(ScpiMessagePoducer.Reboot);
         }
         #endregion
     }

@@ -31,6 +31,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.ComponentModel.DataAnnotations" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -44,10 +45,13 @@
     <Compile Include="Channel\ChannelDirection.cs" />
     <Compile Include="Channel\ChannelType.cs" />
     <Compile Include="Common\ObservableObject.cs" />
-    <Compile Include="Device\NetworkConfiguration.cs" />
-    <Compile Include="Device\WifiSecurityType.cs" />
+    <Compile Include="Network\NetworkConfiguration.cs" />
+    <Compile Include="Network\WifiMode.cs" />
+    <Compile Include="Network\WifiSecurityType.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <Folder Include="Device\" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -39,6 +39,7 @@
 
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
             <helpers:BooleanToVisibilityConverter x:Key="InvertedBoolToVis" True="Collapsed" False="Visible" />
+            <helpers:EnumDescriptionConverter x:Key="EnumDescription"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
