@@ -178,6 +178,8 @@
     <Compile Include="Device\SerialDevice\SerialDeviceFinder.cs" />
     <Compile Include="Device\HidDevice\HidFirmwareDevice.cs" />
     <Compile Include="Device\HidDevice\HidDeviceFinder.cs" />
+    <Compile Include="Helpers\EnumDescriptionConverter.cs" />
+    <Compile Include="Helpers\EnumExtensions.cs" />
     <Compile Include="Loggers\AppLogger.cs" />
     <Compile Include="Helpers\BooleanConverter.cs" />
     <Compile Include="Helpers\BooleanToVisibilityConverter.cs" />

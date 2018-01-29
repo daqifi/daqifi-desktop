@@ -1,13 +1,15 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.DataModel.Channel;
-using Daqifi.Desktop.DataModel.Device;
+using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Message;
 using Daqifi.Desktop.Message.Consumers;
+using Daqifi.Desktop.Message.MessageTypes;
 using Daqifi.Desktop.Message.Producers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace Daqifi.Desktop.Device
 {
@@ -42,8 +44,9 @@ namespace Daqifi.Desktop.Device
             }
         }
 
-        public List<string> SecurityTypes { get; } = new List<string> { "None (Open Network)", "WEP-40", "WEP-104", "WPA-PSK Phrase", "WPA-PSK Key" };
-        public List<string> ADCRanges { get; } = new List<string> { "+/-5V", "+/-10V" };
+        public List<string> Modes { get; } = new List<string> { "Self-Hosted", "Existing Network"};
+        public List<string> SecurityTypes { get; } = new List<string>();
+        public List<string> AdcRanges { get; } = new List<string> { "+/-5V", "+/-10V" };
 
         public NetworkConfiguration NetworkConfiguration { get; set; } = new NetworkConfiguration();
 
@@ -56,11 +59,11 @@ namespace Daqifi.Desktop.Device
             get => _adcRangeText;
             set 
             {
-                if(value == ADCRanges[0])
+                if(value == AdcRanges[0])
                 {
                     SetAdcRange(5);
                 }
-                else if (value == ADCRanges[1])
+                else if (value == AdcRanges[1])
                 {
                     SetAdcRange(10);
                 }
@@ -69,7 +72,7 @@ namespace Daqifi.Desktop.Device
                     return;
                 }
                 _adcRangeText = value;
-                NotifyPropertyChanged("ADCRange");
+                NotifyPropertyChanged("AdcRange");
             }
         }
 
@@ -96,15 +99,12 @@ namespace Daqifi.Desktop.Device
 
         public abstract void RemoveChannel(IChannel channel);
 
-        public abstract void UpdateNetworkConfiguration();
-
         public abstract void UpdateFirmware(byte[] data);
 
         public abstract void SetChannelOutputValue(IChannel channel, double value);
 
         public abstract void SetChannelDirection(IChannel channel, ChannelDirection direction);
 
-        public abstract void Reboot();
         #endregion
 
         protected void HandleStatusMessageReceived(object sender, MessageEventArgs e)
@@ -117,8 +117,21 @@ namespace Daqifi.Desktop.Device
             AddDigitalChannels(message);
             AddAnalogInChannels(message);
             AddAnalogOutChannels(message);
+            AddNetworkConfiguration(message);
 
             _timestampFrequency = message.TimestampFreq;
+        }
+
+        private void AddNetworkConfiguration(DaqifiOutMessage message)
+        {
+            if (message.HasSsid)
+            {
+                NetworkConfiguration.Ssid = message.Ssid;
+            }
+            if(message.HasWifiSecurityMode)
+            {
+                NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
+            }
         }
 
         private void AddAnalogInChannels(DaqifiOutMessage message)
@@ -217,6 +230,29 @@ namespace Daqifi.Desktop.Device
         private double ScaleAnalogSample(double sampleValue)
         {
             return sampleValue * (AdcRange * 10.0 + 10.0) / AdcResolution;
+        }
+
+        public void UpdateNetworkConfiguration()
+        {
+            if (IsStreaming) StopStreaming();
+            MessageProducer.SendAsync(ScpiMessagePoducer.SetWifiMode(NetworkConfiguration.Mode));
+            Thread.Sleep(100);
+            MessageProducer.SendAsync(ScpiMessagePoducer.SetSsid(NetworkConfiguration.Ssid));
+            Thread.Sleep(100);
+            MessageProducer.SendAsync(ScpiMessagePoducer.SetSecurity(NetworkConfiguration.SecurityType));
+            Thread.Sleep(100);
+            MessageProducer.SendAsync(ScpiMessagePoducer.SetPassword(NetworkConfiguration.Password));
+            Thread.Sleep(100);
+            MessageProducer.SendAsync(ScpiMessagePoducer.ApplyLan());
+            Thread.Sleep(100);
+            MessageProducer.SendAsync(ScpiMessagePoducer.SaveLan());
+            Thread.Sleep(100);
+            Reboot();
+        }
+
+        public void Reboot()
+        {
+            MessageProducer.SendAsync(ScpiMessagePoducer.Reboot);
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using System.Runtime.Remoting.Messaging;
 using System.Text;
+using Daqifi.Desktop.DataModel.Network;
 
 namespace Daqifi.Desktop.Message.MessageTypes
 {
@@ -168,19 +169,34 @@ namespace Daqifi.Desktop.Message.MessageTypes
         #endregion
 
         #region Communication
-        public static IMessage SetSsid(string ssid)
+        public static IMessage SetWifiMode(WifiMode wifiMode)
         {
-            return new ScpiMessage($"SYSTem:COMMunicate:LAN:Ssid {ssid}");
+            return new ScpiMessage($"SYSTem:COMMunicate:LAN:NETType {(int)wifiMode}");
         }
 
-        public static IMessage SetSecurity(int security)
+        public static IMessage SetSsid(string ssid)
         {
-            return new ScpiMessage($"SSYSTem:COMMunicate:LAN:SECurity {security}");
+            return new ScpiMessage($"SYSTem:COMMunicate:LAN:SSID {ssid}");
+        }
+
+        public static IMessage SetSecurity(WifiSecurityType wifiSecurityType)
+        {
+            return new ScpiMessage($"SYSTem:COMMunicate:LAN:SECurity {(int)wifiSecurityType}");
         }
 
         public static IMessage SetPassword(string password)
         {
             return new ScpiMessage($"SYSTem:COMMunicate:LAN:PASs {password}");
+        }
+
+        public static IMessage ApplyLan()
+        {
+            return new ScpiMessage("SYSTem:COMMunicate:LAN:APPLY");
+        }
+
+        public static IMessage SaveLan()
+        {
+            return new ScpiMessage("SYSTem:COMMunicate:LAN:SAVE");
         }
         #endregion
     }
