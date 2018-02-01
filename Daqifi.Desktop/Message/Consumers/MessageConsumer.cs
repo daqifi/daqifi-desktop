@@ -21,7 +21,7 @@ namespace Daqifi.Desktop.Message.Consumers
         #region AbstractMessageConsumer overrides
         public override void Run()
         {
-            var buffer = new byte[256];
+            var buffer = new byte[512];
 
             while (Running)
             {
