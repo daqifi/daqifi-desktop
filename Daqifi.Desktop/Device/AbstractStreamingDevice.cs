@@ -1,4 +1,5 @@
 ﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Communication.Protobuf;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.Loggers;
@@ -84,80 +85,25 @@ namespace Daqifi.Desktop.Device
         public abstract bool Connect();
 
         public abstract bool Disconnect();
-
-        public abstract void InitializeStreaming();
-
-        public abstract void StopStreaming();
-
-        public abstract void InitializeDeviceState();
-
-        public abstract void SetAdcMode(IChannel channel, AdcMode mode);
-
-        public abstract void SetAdcRange(int range);
-
-        public abstract void AddChannel(IChannel channel);
-
-        public abstract void RemoveChannel(IChannel channel);
-
-        public abstract void UpdateFirmware(byte[] data);
-
-        public abstract void SetChannelOutputValue(IChannel channel, double value);
-
-        public abstract void SetChannelDirection(IChannel channel, ChannelDirection direction);
-
         #endregion
 
-        protected void HandleStatusMessageReceived(object sender, MessageEventArgs e)
+        #region Message Handlers
+        private void HandleStatusMessageReceived(object sender, MessageEventArgs e)
         {
             MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
             MessageConsumer.OnMessageReceived += HandleMessageReceived;
 
             var message = e.Message.Data as DaqifiOutMessage;
 
-            AddDigitalChannels(message);
-            AddAnalogInChannels(message);
-            AddAnalogOutChannels(message);
-            AddNetworkConfiguration(message);
+            PopulateDigitalChannels(message);
+            PopulateAnalogInChannels(message);
+            PopulateAnalogOutChannels(message);
+            PopulateNetworkConfiguration(message);
 
             _timestampFrequency = message.TimestampFreq;
         }
 
-        private void AddNetworkConfiguration(DaqifiOutMessage message)
-        {
-            if (message.HasSsid)
-            {
-                NetworkConfiguration.Ssid = message.Ssid;
-            }
-            if(message.HasWifiSecurityMode)
-            {
-                NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
-            }
-        }
-
-        private void AddAnalogInChannels(DaqifiOutMessage message)
-        {
-            if (message.HasAnalogInPortNum)
-            {
-                for (var i = 0; i < message.AnalogInPortNum; i++)
-                    DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
-            }
-        }
-
-        private void AddDigitalChannels(DaqifiOutMessage message)
-        {
-            if (message.HasDigitalPortNum)
-            {
-                for (var i = 0; i < message.DigitalPortNum; i++)
-                    DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
-            }
-        }
-
-        private void AddAnalogOutChannels(DaqifiOutMessage message)
-        {
-            // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
-        }
-
-        protected void HandleMessageReceived(object sender, MessageEventArgs e)
+        private void HandleMessageReceived(object sender, MessageEventArgs e)
         {
             var message = e.Message.Data as DaqifiOutMessage;
 
@@ -189,7 +135,7 @@ namespace Daqifi.Desktop.Device
             }
 
             // Convert clock cycles to a time value
-            var secondsBetweenMessages = numberOfClockCyclesBetweenMessages / (double) _timestampFrequency;
+            var secondsBetweenMessages = numberOfClockCyclesBetweenMessages / (double)_timestampFrequency;
 
             var messageTimestamp = _previousTimestamp.Value.AddMilliseconds(secondsBetweenMessages * 1000.0);
 
@@ -225,6 +171,195 @@ namespace Daqifi.Desktop.Device
             // Updates the previous timestamps
             _previousDeviceTimestamp = message.MsgTimeStamp;
             _previousTimestamp = messageTimestamp;
+        }
+        #endregion
+
+        #region Streaming Methods
+        public void InitializeStreaming()
+        {
+            MessageProducer.SendAsync(ScpiMessagePoducer.StartStreaming(StreamingFrequency));
+            IsStreaming = true;
+        }
+
+        public void StopStreaming()
+        {
+            IsStreaming = false;
+            MessageProducer.SendAsync(ScpiMessagePoducer.StopStreaming);
+            _previousTimestamp = null;
+        }
+
+        protected void TurnOffEcho()
+        {
+            MessageProducer.SendAsync(ScpiMessagePoducer.Echo(-1));
+        }
+        #endregion
+
+        #region Channel Methods
+        public void AddChannel(IChannel newChannel)
+        {
+            switch (newChannel.Type)
+            {
+                case ChannelType.Analog:
+                    var activeAnalogChannels = GetActiveChannels(ChannelType.Analog);
+                    var channelSetByte = 0;
+
+                    //Get Exsiting Channel Set Byte
+                    foreach (var activeChannel in activeAnalogChannels)
+                    {
+                        channelSetByte = channelSetByte | (1 << activeChannel.Index);
+                    }
+
+                    //Add Channel Bit to the Channel Set Byte
+                    channelSetByte = channelSetByte | (1 << newChannel.Index);
+
+                    //Convert to a string
+                    var channelSetString = Convert.ToString(channelSetByte);
+
+                    //Send the command to add the channel
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcChannels(channelSetString));
+                    break;
+                case ChannelType.Digital:
+                    MessageProducer.SendAsync(ScpiMessagePoducer.EnableDioPorts());
+                    break;
+            }
+
+            newChannel.IsActive = true;
+        }
+
+        public void RemoveChannel(IChannel channelToRemove)
+        {
+            switch (channelToRemove.Type)
+            {
+                case ChannelType.Analog:
+                    var activeAnalogChannels = GetActiveChannels(ChannelType.Analog);
+                    var channelSetByte = 0;
+
+                    //Get Exsiting Channel Set Byte
+                    foreach (IChannel activeChannel in activeAnalogChannels)
+                    {
+                        channelSetByte = channelSetByte | (1 << activeChannel.Index);
+                    }
+
+                    //Add Channel Bit to the Channel Set Byte
+                    channelSetByte = channelSetByte | (1 >> channelToRemove.Index);
+
+                    //Convert to a string
+                    var channelSetString = Convert.ToString(channelSetByte);
+
+                    //Send the command to add the channel
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcChannels(channelSetString));
+                    break;
+            }
+        }
+
+        private IEnumerable<IChannel> GetActiveChannels(ChannelType channelType)
+        {
+            switch (channelType)
+            {
+                case ChannelType.Analog:
+                    return DataChannels.Where(channel => channel.Type == ChannelType.Analog && channel.IsActive).ToList();
+                case ChannelType.Digital:
+                    return DataChannels.Where(channel => channel.Type == ChannelType.Digital && channel.IsActive).ToList();
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+        public void SetChannelOutputValue(IChannel channel, double value)
+        {
+            switch (channel.Type)
+            {
+                case ChannelType.Analog:
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetVoltageLevel(channel.Index, value));
+                    break;
+                case ChannelType.Digital:
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetDioPortState(channel.Index, value));
+                    break;
+            }
+        }
+
+        public void SetChannelDirection(IChannel channel, ChannelDirection direction)
+        {
+            switch (direction)
+            {
+                case ChannelDirection.Input:
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetDioPortDirection(channel.Index, 0));
+                    break;
+                case ChannelDirection.Output:
+                    MessageProducer.SendAsync(ScpiMessagePoducer.SetDioPortDirection(channel.Index, 1));
+                    break;
+            }
+        }
+
+        public void SetAdcMode(IChannel channel, AdcMode mode)
+        {
+            switch (mode)
+            {
+                case AdcMode.Differential:
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcMode(channel.Index, 0));
+                    break;
+                case AdcMode.SingleEnded:
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcMode(channel.Index, 1));
+                    break;
+            }
+        }
+
+        public void SetAdcRange(int range)
+        {
+            switch (range)
+            {
+                case 5:
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcRange(0));
+                    AdcRange = 0;
+                    break;
+                case 10:
+                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcRange(1));
+                    AdcRange = 1;
+                    break;
+            }
+        }
+
+        private void PopulateNetworkConfiguration(IDaqifiOutMessage message)
+        {
+            if (message.HasSsid)
+            {
+                NetworkConfiguration.Ssid = message.Ssid;
+            }
+
+            if (message.HasWifiSecurityMode)
+            {
+                NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
+            }
+        }
+
+        private void PopulateAnalogInChannels(IDaqifiOutMessage message)
+        {
+            if (!message.HasAnalogInPortNum) return;
+            for (var i = 0; i < message.AnalogInPortNum; i++)
+            {
+                DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
+            }
+        }
+
+        private void PopulateDigitalChannels(IDaqifiOutMessage message)
+        {
+            if (!message.HasDigitalPortNum) return;
+            for (var i = 0; i < message.DigitalPortNum; i++)
+            {
+                DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
+            }
+        }
+
+        private void PopulateAnalogOutChannels(DaqifiOutMessage message)
+        {
+            // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
+        }
+        #endregion
+
+        public void InitializeDeviceState()
+        {
+            MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
+            MessageProducer.SendAsync(ScpiMessagePoducer.SystemInfo);
         }
 
         private double ScaleAnalogSample(double sampleValue)

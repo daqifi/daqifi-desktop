@@ -11,6 +11,12 @@ namespace Daqifi.Desktop.Message.Consumers
         private bool _isDisposed;
         #endregion
 
+        #region Properties
+
+        public bool IsWifiDevice { get; set; }
+    
+        #endregion
+
         #region Constructors
         public MessageConsumer(Stream stream)
         {
@@ -21,25 +27,32 @@ namespace Daqifi.Desktop.Message.Consumers
         #region AbstractMessageConsumer overrides
         public override void Run()
         {
-            var buffer = new byte[256];
+            var buffer = new byte[512];
 
             while (Running)
             {
                 try
                 {
-                    // TODO this should and used to work but no longer does. Investigate why
-                    //var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
-                    //var protobufMessage = new ProtobufMessage(outMessage);
-                    //var daqMessage = new MessageEventArgs(protobufMessage);
-                    //NotifyMessageReceived(this, daqMessage);
+                    // TODO something is screwed here!!  For some reason Wifi can't use the normal method
+                    // This started with the new firmware, need to figure out why
 
-                    int bytesRead;
-                    while ((bytesRead = DataStream.Read(buffer, 0, buffer.Length)) != 0)
+                    if (IsWifiDevice)
                     {
-                        var receivedBytes = buffer.Take(bytesRead).ToArray();
-                        var stream = new MemoryStream(receivedBytes);
-                        var outMessage = DaqifiOutMessage.ParseDelimitedFrom(stream);
+                        int bytesRead;
+                        while ((bytesRead = DataStream.Read(buffer, 0, buffer.Length)) != 0)
+                        {
+                            var receivedBytes = buffer.Take(bytesRead).ToArray();
+                            var stream = new MemoryStream(receivedBytes);
+                            var outMessage = DaqifiOutMessage.ParseDelimitedFrom(stream);
 
+                            var protobufMessage = new ProtobufMessage(outMessage);
+                            var daqMessage = new MessageEventArgs(protobufMessage);
+                            NotifyMessageReceived(this, daqMessage);
+                        }
+                    }
+                    else
+                    {
+                        var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
                         var protobufMessage = new ProtobufMessage(outMessage);
                         var daqMessage = new MessageEventArgs(protobufMessage);
                         NotifyMessageReceived(this, daqMessage);
