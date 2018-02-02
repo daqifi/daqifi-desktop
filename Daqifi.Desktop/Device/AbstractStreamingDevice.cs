@@ -29,6 +29,7 @@ namespace Daqifi.Desktop.Device
 
         #region Properties
         public AppLogger AppLogger = AppLogger.Instance;
+        private IList<float> _analogInPortRanges;
 
         public int Id { get; set; }
 
@@ -163,7 +164,7 @@ namespace Daqifi.Desktop.Device
                         break;
                     }
 
-                    channel.ActiveSample = new DataSample(this, channel, messageTimestamp, ScaleAnalogSample(message.AnalogInDataList.ElementAt(analogCount)));
+                    channel.ActiveSample = new DataSample(this, channel, messageTimestamp, ScaleAnalogSample(channel as AnalogChannel, message.AnalogInDataList.ElementAt(analogCount)));
                     analogCount++;
                 }
             }
@@ -335,9 +336,21 @@ namespace Daqifi.Desktop.Device
         private void PopulateAnalogInChannels(IDaqifiOutMessage message)
         {
             if (!message.HasAnalogInPortNum) return;
+
+            var analogInPortRanges = message.AnalogInPortRangeList;
+            var analogInCalibrationBValues = message.AnalogInCalBList;
+            var analogInCalibrationMValues = message.AnalogInCalMList;
+            var analogInResolution = message.AnalogInRes;
+
+            if (analogInCalibrationBValues.Count != analogInCalibrationMValues.Count ||
+                analogInCalibrationBValues.Count != message.AnalogInPortNum)
+            {
+                // TODO handle mismatch.  Probably not add any channels and warn the user something went wrong.
+            }
+
             for (var i = 0; i < message.AnalogInPortNum; i++)
             {
-                DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false));
+                DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false, analogInCalibrationBValues[i], analogInCalibrationMValues[i], analogInPortRanges[i], analogInResolution));
             }
         }
 
@@ -362,9 +375,11 @@ namespace Daqifi.Desktop.Device
             MessageProducer.SendAsync(ScpiMessagePoducer.SystemInfo);
         }
 
-        private double ScaleAnalogSample(double sampleValue)
+        private double ScaleAnalogSample(AnalogChannel channel, double sampleValue)
         {
-            return sampleValue * (AdcRange * 10.0 + 10.0) / AdcResolution;
+            //Volts = ( analog_in_data / analog_in_res ) analog_in_port_range * cal_m + cal_b
+            return (sampleValue / channel.Resolution) * channel.PortRange * channel.CalibrationMValue +
+                   channel.CalibrationBValue;
         }
 
         public void UpdateNetworkConfiguration()
