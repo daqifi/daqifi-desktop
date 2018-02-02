@@ -4,6 +4,7 @@ using Daqifi.Desktop.Message.Producers;
 using System;
 using System.Collections.Generic;
 using System.IO.Ports;
+using System.Threading;
 
 namespace Daqifi.Desktop.Device.SerialDevice
 {
@@ -30,8 +31,11 @@ namespace Daqifi.Desktop.Device.SerialDevice
             {
                 Port.Open();
                 MessageProducer = new MessageProducer(Port.BaseStream);
+                Thread.Sleep(100);
                 TurnOffEcho();
+                Thread.Sleep(100);
                 StopStreaming();
+                Thread.Sleep(100);
                 MessageConsumer = new MessageConsumer(Port.BaseStream);
                 MessageConsumer.Start();
                 InitializeDeviceState();
