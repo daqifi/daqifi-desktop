@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows.Input;
+using Daqifi.Desktop.Helpers;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -177,32 +178,40 @@ namespace Daqifi.Desktop.ViewModels
                 using (var context = new LoggingContext())
                 {
                     context.Configuration.AutoDetectChangesEnabled = false;
-                    LoggingSession loggingSession = context.Sessions.Find(session.ID);
+                    var loggingSession = context.Sessions.Find(session.ID);
 
                     if (loggingSession == null) return;
 
-                    var channelNames = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == loggingSession.ID).Select(s => s.ChannelName).Distinct();
                     var samples = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == loggingSession.ID).Select(s => s);
+                    var channelNames = samples.Select(s => s.ChannelName).Distinct().ToArray();
+                    var timestampticks = samples.Select(s => s.TimestampTicks).Distinct().ToArray();
 
-                    var rows = new Dictionary<DateTime, List<double>>();
+                    var rows = GetExportDataStructure(channelNames, timestampticks);
+
                     foreach (var sample in samples)
                     {
-                        //Check if we have already seen this timestamp, if not, add it's key.
-                        var sampleDateTime = new DateTime(sample.TimestampTicks);
-                        if (!rows.Keys.Contains(sampleDateTime)) rows.Add(sampleDateTime,new List<double>());
-                        rows[new DateTime(sample.TimestampTicks)].Add(sample.Value);
+                        rows[sample.TimestampTicks][sample.ChannelName] = sample.Value;
                     }
 
                     //Create the heeader
                     var sb = new StringBuilder();
                     sb.Append("time,").Append(string.Join(",", channelNames.ToArray())).AppendLine();
 
-                    foreach (DateTime row in rows.Keys)
+                    foreach (var timestampTicks in rows.Keys)
                     {
-                        sb.Append(row).Append(",");
-                        foreach (double value in rows[row])
+                        sb.Append(new DateTime(timestampTicks)).Append(",");
+
+                        foreach (var channel in channelNames)
                         {
-                            sb.Append(value).Append(",");
+                            var value = rows[timestampTicks][channel];
+                            if (value == null)
+                            {
+                                sb.Append(",");
+                            }
+                            else
+                            {
+                                sb.Append(value.Value).Append(",");
+                            }
                         }
                         sb.AppendLine();
                     }
@@ -214,6 +223,30 @@ namespace Daqifi.Desktop.ViewModels
             {
                 AppLogger.Error(ex, "Failed in ExportLoggingSession");
             }
+        }
+
+        private Dictionary<long, Dictionary<string, double?>> GetExportDataStructure(string[]channelNames, long[] timestampTicks)
+        {
+            // Define data structure
+            var rows = new Dictionary<long, Dictionary<string, double?>>();
+
+            // Sort the channels in a natural sort order
+            Array.Sort(channelNames, new OrdinalStringComparer());
+
+            // Populate skeleton of data structure
+            foreach (var timestamptick in timestampTicks)
+            {
+                // For each timestamp, create a placeholder for each channel
+                var channelValuesAtTimestamp = new Dictionary<string, double?>();
+                foreach (var channel in channelNames)
+                {
+                    channelValuesAtTimestamp.Add(channel, null);
+                }
+
+                rows.Add(timestamptick, channelValuesAtTimestamp);
+            }
+
+            return rows;
         }
 
         private void ExportAverageSamples(LoggingSession session, string filepath)
