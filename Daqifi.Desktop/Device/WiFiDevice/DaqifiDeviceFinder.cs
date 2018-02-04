@@ -47,7 +47,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Error creating streamingDevice listener");
+                AppLogger.Error(ex, "Error in DaqifiDeviceFinder");
             }
         }
 
@@ -57,13 +57,20 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
         public override void Run()
         {
-            Client.EnableBroadcast = true;
-            Client.BeginReceive(HandleFinderMessageReceived, null);
-
-            while (Running)
+            try
             {
-                Client.Send(_queryCommandBytes, _queryCommandBytes.Length, Destination);
-                Thread.Sleep(1000);
+                Client.EnableBroadcast = true;
+                Client.BeginReceive(HandleFinderMessageReceived, null);
+
+                while (Running)
+                {
+                    Client.Send(_queryCommandBytes, _queryCommandBytes.Length, Destination);
+                    Thread.Sleep(1000);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Error in DaqifiDeviceFinder");
             }
         }
 
