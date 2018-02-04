@@ -41,7 +41,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <ComboBox ItemsSource="{Binding SelectedChannel.ADCModes}" Text="{Binding SelectedChannel.ADCMode}"/>
+                    <ComboBox ItemsSource="{Binding SelectedChannel.AdcModes}" Text="{Binding SelectedChannel.AdcMode}"/>
                 </Grid>
             </GroupBox>
 

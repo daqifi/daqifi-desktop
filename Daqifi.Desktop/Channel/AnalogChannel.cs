@@ -6,34 +6,38 @@ namespace Daqifi.Desktop.Channel
     public class AnalogChannel : AbstractChannel
     {       
         #region Properties
-        public override ChannelType Type
-        {
-            get { return ChannelType.Analog; }
-        }
+        public override ChannelType Type => ChannelType.Analog;
 
-        public override bool IsAnalog
-        {
-            get { return true; }
-        }
+        public override bool IsAnalog => true;
 
-        public override bool IsDigital
-        {
-            get { return false; }
-        }
+        public override bool IsDigital => false;
+
+        public float CalibrationBValue { get; set; }
+
+        public float CalibrationMValue { get; set; }
+
+        public float PortRange { get; set; }
+
+        public uint Resolution { get; set; }
+
         #endregion
 
         #region Constructors
         public AnalogChannel() { }
 
-        public AnalogChannel(IStreamingDevice owner, string name, int channelID, ChannelDirection direction, bool isBidirectional)
+        public AnalogChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional, float calibrationBValue, float calibrationMValue, float portRange, uint resolution)
         {
             _owner = owner;
             Name = name;
-            Index = channelID;
+            Index = channelId;
             IsOutput = direction == ChannelDirection.Output;
             HasAdc = !IsOutput;
             IsBidirectional = isBidirectional;
             ChannelColorBrush = ChannelColorManager.Instance.NewColor();
+            CalibrationBValue = calibrationBValue;
+            CalibrationMValue = calibrationMValue;
+            PortRange = portRange;
+            Resolution = resolution;
         }
         #endregion
 
