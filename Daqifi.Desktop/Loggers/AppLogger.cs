@@ -26,9 +26,19 @@ namespace Daqifi.Desktop.Loggers
 
             // Step 3. Set target properties 
             fileTarget.CreateDirs = true;
-            fileTarget.FileName = "${specialfolder:folder=CommonApplicationData}\\DAQifi\\Logs\\nlog.txt.${shortdate}.log";
+            fileTarget.FileName = "${specialfolder:folder=CommonApplicationData}\\DAQifi\\Logs\\DAQifiAppLog.log";
             fileTarget.Layout = "${longdate} LEVEL=${level:upperCase=true}: ${message}${newline} (${stacktrace}) ${exception:format=tostring} ${newline}";
             fileTarget.KeepFileOpen = false;
+
+            // Setup Archiving
+            fileTarget.ArchiveFileName = "${specialfolder:folder=CommonApplicationData}\\DAQifi\\Logs\\DAQifiAppLog.{#}.log";
+
+            // Archive the log if it gets above 10MB
+            fileTarget.ArchiveAboveSize = 10000000;
+            fileTarget.ArchiveNumbering = ArchiveNumberingMode.Sequence;
+
+            // Keep a maximum of 5 archives
+            fileTarget.MaxArchiveFiles = 5;
 
             // Step 4. Define rules
             var rule = new LoggingRule("*", LogLevel.Debug, fileTarget);
