@@ -28,7 +28,7 @@ namespace Daqifi.Desktop.Logger
         #region Properties
         public PlotModel PlotModel
         {
-            get { return _plotModel; }
+            get => _plotModel;
             set
             {
                 _plotModel = value;
@@ -40,19 +40,19 @@ namespace Daqifi.Desktop.Logger
 
         public Dictionary<string, List<DataPoint>> LoggedPoints
         {
-            get { return _loggedPoints; }
+            get => _loggedPoints;
             private set { _loggedPoints = value; NotifyPropertyChanged("LoggedPoints"); }
         }
 
         public Dictionary<string, LineSeries> LoggedChannels
         {
-            get { return _loggedChannels; }
+            get => _loggedChannels;
             set { _loggedChannels = value; NotifyPropertyChanged("LoggedChannels"); }
         }
 
         public int Precision
         {
-            get { return _precision; }
+            get => _precision;
             set
             {
                 _precision = value;
@@ -64,7 +64,7 @@ namespace Daqifi.Desktop.Logger
 
         public bool ShowingMajorXAxisGrid
         {
-            get { return PlotModel.Axes[0].MajorGridlineThickness > 0; }
+            get => PlotModel.Axes[0].MajorGridlineThickness > 0;
             set
             {
                 PlotModel.Axes[0].MajorGridlineThickness = value ? 1 : 0;
@@ -75,7 +75,7 @@ namespace Daqifi.Desktop.Logger
 
         public bool ShowingMinorXAxisGrid
         {
-            get { return PlotModel.Axes[0].MinorGridlineThickness > 0; }
+            get => PlotModel.Axes[0].MinorGridlineThickness > 0;
             set
             {
                 PlotModel.Axes[0].MinorGridlineThickness = value ? 1 : 0;
@@ -87,7 +87,7 @@ namespace Daqifi.Desktop.Logger
 
         public bool ShowingMajorYAxisGrid
         {
-            get { return PlotModel.Axes[2].MajorGridlineThickness > 0; }
+            get => PlotModel.Axes[2].MajorGridlineThickness > 0;
             set
             {
                 PlotModel.Axes[2].MajorGridlineThickness = value ? 1 : 0;
@@ -98,7 +98,7 @@ namespace Daqifi.Desktop.Logger
 
         public bool ShowingMinorYAxisGrid
         {
-            get { return PlotModel.Axes[2].MinorGridlineThickness > 0; }
+            get => PlotModel.Axes[2].MinorGridlineThickness > 0;
             set
             {
                 PlotModel.Axes[2].MinorGridlineThickness = value ? 1 : 0;
@@ -159,7 +159,7 @@ namespace Daqifi.Desktop.Logger
             LoggedPoints = new Dictionary<string, List<DataPoint>>();
             PlotModel = new PlotModel();
 
-            LinearAxis analogAxis = new LinearAxis
+            var analogAxis = new LinearAxis
             {
                 Position = AxisPosition.Left,
                 TickStyle = TickStyle.None,
@@ -175,7 +175,7 @@ namespace Daqifi.Desktop.Logger
                 Title = "Analog (V)"
             };
 
-            LinearAxis digitalAxis = new LinearAxis
+            var digitalAxis = new LinearAxis
             {
                 Position = AxisPosition.Right,
                 TickStyle = TickStyle.None,
@@ -197,7 +197,7 @@ namespace Daqifi.Desktop.Logger
                 Title = "Digital"
             };
 
-            LinearAxis timeAxis = new LinearAxis
+            var timeAxis = new LinearAxis
             {
                 Position = AxisPosition.Bottom,
                 TickStyle = TickStyle.None,
@@ -213,6 +213,9 @@ namespace Daqifi.Desktop.Logger
             PlotModel.Axes.Add(analogAxis);
             PlotModel.Axes.Add(digitalAxis);
             PlotModel.Axes.Add(timeAxis);
+
+            // We use our own legend so disable theirs
+            PlotModel.IsLegendVisible = false;
 
             CompositionTarget.Rendering += CompositionTargetRendering;
             _stopwatch.Start();
@@ -237,8 +240,8 @@ namespace Daqifi.Desktop.Logger
 
             if (FirstTime == null) FirstTime = new DateTime(dataSample.TimestampTicks);
 
-            double deltaTime = (dataSample.TimestampTicks - FirstTime.Value.Ticks) / 10000.0; //Ticks is 100 nanoseconds
-            double scaledSampleValue = dataSample.Value;
+            var deltaTime = (dataSample.TimestampTicks - FirstTime.Value.Ticks) / 10000.0; //Ticks is 100 nanoseconds
+            var scaledSampleValue = dataSample.Value;
 
             lock (PlotModel.SyncRoot)
             {
@@ -259,6 +262,7 @@ namespace Daqifi.Desktop.Logger
 
             var newLineSeries = new LineSeries()
             {
+                Title = channelName,
                 ItemsSource = newDataPoints,
                 Color = OxyColor.Parse(newColor)
             };

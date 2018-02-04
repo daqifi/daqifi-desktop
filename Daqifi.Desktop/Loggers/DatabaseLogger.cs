@@ -31,7 +31,7 @@ namespace Daqifi.Desktop.Logger
         #region Properties
         public PlotModel PlotModel
         {
-            get { return _plotModel; }
+            get => _plotModel;
             set
             {
                 _plotModel = value;
@@ -239,9 +239,9 @@ namespace Daqifi.Desktop.Logger
                 }
 
                 //Downsample
-                for (int i = 0; i < SessionPoints.Keys.Count; i++ )
+                for (var i = 0; i < SessionPoints.Keys.Count; i++ )
                 {
-                    string channelName = SessionPoints.Keys.ElementAt(i);
+                    var channelName = SessionPoints.Keys.ElementAt(i);
                     //TODO Figure out best way to integrate LTTB
                     //(PlotModel.Series[i] as LineSeries).ItemsSource = LargestTriangleThreeBucket.DownSample(_allSessionPoints[channelName], 1000);
                     (PlotModel.Series[i] as LineSeries).ItemsSource = _allSessionPoints[channelName];
@@ -262,7 +262,7 @@ namespace Daqifi.Desktop.Logger
             stopwatch.Start();
             try
             {
-                using (LoggingContext context = new LoggingContext())
+                using (var context = new LoggingContext())
                 {
                     context.Configuration.AutoDetectChangesEnabled = false;
                     

@@ -344,9 +344,6 @@ namespace Daqifi.Desktop.ViewModels
                 //Configure Default Grid Lines
                 Plotter.ShowingMinorXAxisGrid = false;
                 Plotter.ShowingMinorYAxisGrid = false;
-
-                //TODO do I need on closing events to close files that are currently open
-
             }
             catch (Exception ex)
             {

@@ -114,15 +114,14 @@ namespace Daqifi.Desktop.Logger
 
         public void HandleChannelUpdate(object sender, DataSample sample)
         {
-            if (Active)
-            {
-                sample.LoggingSessionID = Session.ID;
+            if (!Active) return;
 
-                //Log channel value to whatever loggers are being managed
-                foreach (ILogger logger in Loggers)
-                {
-                    logger.Log(sample);
-                }
+            sample.LoggingSessionID = Session.ID;
+
+            //Log channel value to whatever loggers are being managed
+            foreach (var logger in Loggers)
+            {
+                logger.Log(sample);
             }
         }
 
