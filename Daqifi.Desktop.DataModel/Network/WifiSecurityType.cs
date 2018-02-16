@@ -14,10 +14,10 @@ namespace Daqifi.Desktop.DataModel.Network
         [Description("WEP-104")]
         Wep104 = 2,
 
-        [Description("WEP-PSK Phrase")]
-        WpaPskPhrase = 3,
-
         [Description("WEP-PSK Key")]
-        WpaPskKey = 4
+        WpaPskKey = 3,
+
+        [Description("WEP-PSK Pass Phrase")]
+        WpaPskPhrase = 4
     }
 }
