@@ -30,7 +30,7 @@ namespace Proto {
     static DaqifiOutMessage() {
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
-            "ChZEYXFpZmlPdXRNZXNzYWdlLnByb3RvItsKChBEYXFpZmlPdXRNZXNzYWdl", 
+            "ChZEYXFpZmlPdXRNZXNzYWdlLnByb3RvIp4LChBEYXFpZmlPdXRNZXNzYWdl", 
             "EhYKDm1zZ190aW1lX3N0YW1wGAEgASgNEhYKDmFuYWxvZ19pbl9kYXRhGAIg", 
             "AygREhwKFGFuYWxvZ19pbl9kYXRhX2Zsb2F0GAMgAygCEhkKEWFuYWxvZ19p", 
             "bl9kYXRhX3RzGAQgAygNEhQKDGRpZ2l0YWxfZGF0YRgFIAEoDBIXCg9kaWdp", 
@@ -43,31 +43,32 @@ namespace Proto {
             "HgoWYW5hbG9nX2luX3BvcnRfZW5hYmxlZBgWIAEoDBIcChRhbmFsb2dfaW5f", 
             "cG9ydF9yYW5nZRgXIAMoAhIhChlhbmFsb2dfaW5fcG9ydF9yYW5nZV9wcml2", 
             "GBggAygCEhUKDWFuYWxvZ19pbl9yZXMYGSABKA0SGgoSYW5hbG9nX2luX3Jl", 
-            "c19wcml2GBogASgNEhcKD2FuYWxvZ19pbl9jYWxfbRgbIAMoAhIXCg9hbmFs", 
-            "b2dfaW5fY2FsX2IYHCADKAISHAoUYW5hbG9nX2luX2NhbF9tX3ByaXYYHSAD", 
-            "KAISHAoUYW5hbG9nX2luX2NhbF9iX3ByaXYYHiADKAISGAoQZGlnaXRhbF9w", 
-            "b3J0X251bRgfIAEoDRIZChFkaWdpdGFsX3BvcnRfdHlwZRggIAEoDBIYChBk", 
-            "aWdpdGFsX3BvcnRfZGlyGCEgASgMEhsKE2FuYWxvZ19vdXRfcG9ydF9udW0Y", 
-            "IiABKA0SHAoUYW5hbG9nX291dF9wb3J0X3R5cGUYIyABKAwSFgoOYW5hbG9n", 
-            "X291dF9yZXMYJCABKA0SHQoVYW5hbG9nX291dF9wb3J0X3JhbmdlGCUgASgC", 
-            "Eg8KB2lwX2FkZHIYJiABKAwSEAoIbmV0X21hc2sYJyABKAwSDwoHZ2F0ZXdh", 
-            "eRgoIAEoDBITCgtwcmltYXJ5X2RucxgpIAEoDBIVCg1zZWNvbmRhcnlfZG5z", 
-            "GCogASgMEhAKCG1hY19hZGRyGCsgASgMEhIKCmlwX2FkZHJfdjYYLCABKAwS", 
-            "GQoRc3ViX3ByZV9sZW5ndGhfdjYYLSABKAwSEgoKZ2F0ZXdheV92NhguIAEo", 
-            "DBIWCg5wcmltYXJ5X2Ruc192NhgvIAEoDBIYChBzZWNvbmRhcnlfZG5zX3Y2", 
-            "GDAgASgMEg4KBmV1aV82NBgxIAEoDBIRCglob3N0X25hbWUYMiABKAkSEwoL", 
-            "ZGV2aWNlX3BvcnQYMyABKA0SHAoUZnJpZW5kbHlfZGV2aWNlX25hbWUYNCAB", 
-            "KAkSDAoEc3NpZBg1IAEoCRIaChJ3aWZpX3NlY3VyaXR5X21vZGUYNiABKA0S", 
-            "DwoHYXZfc3NpZBg3IAMoCRIYChBhdl9zc2lkX3N0cmVuZ3RoGDggASgMEh0K", 
-            "FWF2X3NzaWRfc2VjdXJpdHlfbW9kZRg5IAEoDBIRCglkZXZpY2VfcG4YOiAB", 
-            "KAkSFQoNZGV2aWNlX2h3X3Jldhg7IAEoCRIVCg1kZXZpY2VfZndfcmV2GDwg", 
-          "ASgJ"));
+            "c19wcml2GBogASgNEh0KFWFuYWxvZ19pbl9pbnRfc2NhbGVfbRgbIAMoAhIi", 
+            "ChphbmFsb2dfaW5faW50X3NjYWxlX21fcHJpdhgcIAMoAhIXCg9hbmFsb2df", 
+            "aW5fY2FsX20YHSADKAISFwoPYW5hbG9nX2luX2NhbF9iGB4gAygCEhwKFGFu", 
+            "YWxvZ19pbl9jYWxfbV9wcml2GB8gAygCEhwKFGFuYWxvZ19pbl9jYWxfYl9w", 
+            "cml2GCAgAygCEhgKEGRpZ2l0YWxfcG9ydF9udW0YISABKA0SGQoRZGlnaXRh", 
+            "bF9wb3J0X3R5cGUYIiABKAwSGAoQZGlnaXRhbF9wb3J0X2RpchgjIAEoDBIb", 
+            "ChNhbmFsb2dfb3V0X3BvcnRfbnVtGCQgASgNEhwKFGFuYWxvZ19vdXRfcG9y", 
+            "dF90eXBlGCUgASgMEhYKDmFuYWxvZ19vdXRfcmVzGCYgASgNEh0KFWFuYWxv", 
+            "Z19vdXRfcG9ydF9yYW5nZRgnIAEoAhIPCgdpcF9hZGRyGCggASgMEhAKCG5l", 
+            "dF9tYXNrGCkgASgMEg8KB2dhdGV3YXkYKiABKAwSEwoLcHJpbWFyeV9kbnMY", 
+            "KyABKAwSFQoNc2Vjb25kYXJ5X2RucxgsIAEoDBIQCghtYWNfYWRkchgtIAEo", 
+            "DBISCgppcF9hZGRyX3Y2GC4gASgMEhkKEXN1Yl9wcmVfbGVuZ3RoX3Y2GC8g", 
+            "ASgMEhIKCmdhdGV3YXlfdjYYMCABKAwSFgoOcHJpbWFyeV9kbnNfdjYYMSAB", 
+            "KAwSGAoQc2Vjb25kYXJ5X2Ruc192NhgyIAEoDBIOCgZldWlfNjQYMyABKAwS", 
+            "EQoJaG9zdF9uYW1lGDQgASgJEhMKC2RldmljZV9wb3J0GDUgASgNEhwKFGZy", 
+            "aWVuZGx5X2RldmljZV9uYW1lGDYgASgJEgwKBHNzaWQYNyABKAkSGgoSd2lm", 
+            "aV9zZWN1cml0eV9tb2RlGDggASgNEg8KB2F2X3NzaWQYOSADKAkSGAoQYXZf", 
+            "c3NpZF9zdHJlbmd0aBg6IAEoDBIdChVhdl9zc2lkX3NlY3VyaXR5X21vZGUY", 
+            "OyABKAwSEQoJZGV2aWNlX3BuGDwgASgJEhUKDWRldmljZV9od19yZXYYPSAB", 
+          "KAkSFQoNZGV2aWNlX2Z3X3Jldhg+IAEoCQ=="));
       pbd::FileDescriptor.InternalDescriptorAssigner assigner = delegate(pbd::FileDescriptor root) {
         descriptor = root;
         internal__static_DaqifiOutMessage__Descriptor = Descriptor.MessageTypes[0];
         internal__static_DaqifiOutMessage__FieldAccessorTable = 
             new pb::FieldAccess.FieldAccessorTable<global::DaqifiOutMessage, global::DaqifiOutMessage.Builder>(internal__static_DaqifiOutMessage__Descriptor,
-                new string[] { "MsgTimeStamp", "AnalogInData", "AnalogInDataFloat", "AnalogInDataTs", "DigitalData", "DigitalDataTs", "AnalogOutData", "DeviceStatus", "PwrStatus", "BattStatus", "TempStatus", "TimestampFreq", "AnalogInPortNum", "AnalogInPortNumPriv", "AnalogInPortType", "AnalogInPortRse", "AnalogInPortEnabled", "AnalogInPortRange", "AnalogInPortRangePriv", "AnalogInRes", "AnalogInResPriv", "AnalogInCalM", "AnalogInCalB", "AnalogInCalMPriv", "AnalogInCalBPriv", "DigitalPortNum", "DigitalPortType", "DigitalPortDir", "AnalogOutPortNum", "AnalogOutPortType", "AnalogOutRes", "AnalogOutPortRange", "IpAddr", "NetMask", "Gateway", "PrimaryDns", "SecondaryDns", "MacAddr", "IpAddrV6", "SubPreLengthV6", "GatewayV6", "PrimaryDnsV6", "SecondaryDnsV6", "Eui64", "HostName", "DevicePort", "FriendlyDeviceName", "Ssid", "WifiSecurityMode", "AvSsid", "AvSsidStrength", "AvSsidSecurityMode", "DevicePn", "DeviceHwRev", "DeviceFwRev", });
+                new string[] { "MsgTimeStamp", "AnalogInData", "AnalogInDataFloat", "AnalogInDataTs", "DigitalData", "DigitalDataTs", "AnalogOutData", "DeviceStatus", "PwrStatus", "BattStatus", "TempStatus", "TimestampFreq", "AnalogInPortNum", "AnalogInPortNumPriv", "AnalogInPortType", "AnalogInPortRse", "AnalogInPortEnabled", "AnalogInPortRange", "AnalogInPortRangePriv", "AnalogInRes", "AnalogInResPriv", "AnalogInIntScaleM", "AnalogInIntScaleMPriv", "AnalogInCalM", "AnalogInCalB", "AnalogInCalMPriv", "AnalogInCalBPriv", "DigitalPortNum", "DigitalPortType", "DigitalPortDir", "AnalogOutPortNum", "AnalogOutPortType", "AnalogOutRes", "AnalogOutPortRange", "IpAddr", "NetMask", "Gateway", "PrimaryDns", "SecondaryDns", "MacAddr", "IpAddrV6", "SubPreLengthV6", "GatewayV6", "PrimaryDnsV6", "SecondaryDnsV6", "Eui64", "HostName", "DevicePort", "FriendlyDeviceName", "Ssid", "WifiSecurityMode", "AvSsid", "AvSsidStrength", "AvSsidSecurityMode", "DevicePn", "DeviceHwRev", "DeviceFwRev", });
         return null;
       };
       pbd::FileDescriptor.InternalBuildGeneratedFileFrom(descriptorData,
@@ -80,14 +81,13 @@ namespace Proto {
 }
 #region Messages
 
-
 [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
 public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMessage, DaqifiOutMessage.Builder>, IDaqifiOutMessage
 {
   private DaqifiOutMessage() { }
   private static readonly DaqifiOutMessage defaultInstance = new DaqifiOutMessage().MakeReadOnly();
-  private static readonly string[] _daqifiOutMessageFieldNames = new string[] { "analog_in_cal_b", "analog_in_cal_b_priv", "analog_in_cal_m", "analog_in_cal_m_priv", "analog_in_data", "analog_in_data_float", "analog_in_data_ts", "analog_in_port_enabled", "analog_in_port_num", "analog_in_port_num_priv", "analog_in_port_range", "analog_in_port_range_priv", "analog_in_port_rse", "analog_in_port_type", "analog_in_res", "analog_in_res_priv", "analog_out_data", "analog_out_port_num", "analog_out_port_range", "analog_out_port_type", "analog_out_res", "av_ssid", "av_ssid_security_mode", "av_ssid_strength", "batt_status", "device_fw_rev", "device_hw_rev", "device_pn", "device_port", "device_status", "digital_data", "digital_data_ts", "digital_port_dir", "digital_port_num", "digital_port_type", "eui_64", "friendly_device_name", "gateway", "gateway_v6", "host_name", "ip_addr", "ip_addr_v6", "mac_addr", "msg_time_stamp", "net_mask", "primary_dns", "primary_dns_v6", "pwr_status", "secondary_dns", "secondary_dns_v6", "ssid", "sub_pre_length_v6", "temp_status", "timestamp_freq", "wifi_security_mode" };
-  private static readonly uint[] _daqifiOutMessageFieldTags = new uint[] { 229, 245, 221, 237, 16, 29, 32, 178, 144, 152, 189, 197, 170, 162, 200, 208, 56, 272, 301, 282, 288, 442, 458, 450, 80, 482, 474, 466, 408, 64, 42, 48, 266, 248, 258, 394, 418, 322, 370, 402, 306, 354, 346, 8, 314, 330, 378, 72, 338, 386, 426, 362, 88, 136, 432 };
+  private static readonly string[] _daqifiOutMessageFieldNames = new string[] { "analog_in_cal_b", "analog_in_cal_b_priv", "analog_in_cal_m", "analog_in_cal_m_priv", "analog_in_data", "analog_in_data_float", "analog_in_data_ts", "analog_in_int_scale_m", "analog_in_int_scale_m_priv", "analog_in_port_enabled", "analog_in_port_num", "analog_in_port_num_priv", "analog_in_port_range", "analog_in_port_range_priv", "analog_in_port_rse", "analog_in_port_type", "analog_in_res", "analog_in_res_priv", "analog_out_data", "analog_out_port_num", "analog_out_port_range", "analog_out_port_type", "analog_out_res", "av_ssid", "av_ssid_security_mode", "av_ssid_strength", "batt_status", "device_fw_rev", "device_hw_rev", "device_pn", "device_port", "device_status", "digital_data", "digital_data_ts", "digital_port_dir", "digital_port_num", "digital_port_type", "eui_64", "friendly_device_name", "gateway", "gateway_v6", "host_name", "ip_addr", "ip_addr_v6", "mac_addr", "msg_time_stamp", "net_mask", "primary_dns", "primary_dns_v6", "pwr_status", "secondary_dns", "secondary_dns_v6", "ssid", "sub_pre_length_v6", "temp_status", "timestamp_freq", "wifi_security_mode" };
+  private static readonly uint[] _daqifiOutMessageFieldTags = new uint[] { 245, 261, 237, 253, 16, 29, 32, 221, 229, 178, 144, 152, 189, 197, 170, 162, 200, 208, 56, 288, 317, 298, 304, 458, 474, 466, 80, 498, 490, 482, 424, 64, 42, 48, 282, 264, 274, 410, 434, 338, 386, 418, 322, 370, 362, 8, 330, 346, 394, 72, 354, 402, 442, 378, 88, 136, 448 };
   public static DaqifiOutMessage DefaultInstance {
     get { return defaultInstance; }
   }
@@ -347,7 +347,31 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return analogInResPriv_; }
   }
   
-  public const int AnalogInCalMFieldNumber = 27;
+  public const int AnalogInIntScaleMFieldNumber = 27;
+  private pbc::PopsicleList<float> analogInIntScaleM_ = new pbc::PopsicleList<float>();
+  public scg::IList<float> AnalogInIntScaleMList {
+    get { return pbc::Lists.AsReadOnly(analogInIntScaleM_); }
+  }
+  public int AnalogInIntScaleMCount {
+    get { return analogInIntScaleM_.Count; }
+  }
+  public float GetAnalogInIntScaleM(int index) {
+    return analogInIntScaleM_[index];
+  }
+  
+  public const int AnalogInIntScaleMPrivFieldNumber = 28;
+  private pbc::PopsicleList<float> analogInIntScaleMPriv_ = new pbc::PopsicleList<float>();
+  public scg::IList<float> AnalogInIntScaleMPrivList {
+    get { return pbc::Lists.AsReadOnly(analogInIntScaleMPriv_); }
+  }
+  public int AnalogInIntScaleMPrivCount {
+    get { return analogInIntScaleMPriv_.Count; }
+  }
+  public float GetAnalogInIntScaleMPriv(int index) {
+    return analogInIntScaleMPriv_[index];
+  }
+  
+  public const int AnalogInCalMFieldNumber = 29;
   private pbc::PopsicleList<float> analogInCalM_ = new pbc::PopsicleList<float>();
   public scg::IList<float> AnalogInCalMList {
     get { return pbc::Lists.AsReadOnly(analogInCalM_); }
@@ -359,7 +383,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     return analogInCalM_[index];
   }
   
-  public const int AnalogInCalBFieldNumber = 28;
+  public const int AnalogInCalBFieldNumber = 30;
   private pbc::PopsicleList<float> analogInCalB_ = new pbc::PopsicleList<float>();
   public scg::IList<float> AnalogInCalBList {
     get { return pbc::Lists.AsReadOnly(analogInCalB_); }
@@ -371,7 +395,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     return analogInCalB_[index];
   }
   
-  public const int AnalogInCalMPrivFieldNumber = 29;
+  public const int AnalogInCalMPrivFieldNumber = 31;
   private pbc::PopsicleList<float> analogInCalMPriv_ = new pbc::PopsicleList<float>();
   public scg::IList<float> AnalogInCalMPrivList {
     get { return pbc::Lists.AsReadOnly(analogInCalMPriv_); }
@@ -383,7 +407,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     return analogInCalMPriv_[index];
   }
   
-  public const int AnalogInCalBPrivFieldNumber = 30;
+  public const int AnalogInCalBPrivFieldNumber = 32;
   private pbc::PopsicleList<float> analogInCalBPriv_ = new pbc::PopsicleList<float>();
   public scg::IList<float> AnalogInCalBPrivList {
     get { return pbc::Lists.AsReadOnly(analogInCalBPriv_); }
@@ -395,7 +419,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     return analogInCalBPriv_[index];
   }
   
-  public const int DigitalPortNumFieldNumber = 31;
+  public const int DigitalPortNumFieldNumber = 33;
   private bool hasDigitalPortNum;
   private uint digitalPortNum_;
   public bool HasDigitalPortNum {
@@ -406,7 +430,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return digitalPortNum_; }
   }
   
-  public const int DigitalPortTypeFieldNumber = 32;
+  public const int DigitalPortTypeFieldNumber = 34;
   private bool hasDigitalPortType;
   private pb::ByteString digitalPortType_ = pb::ByteString.Empty;
   public bool HasDigitalPortType {
@@ -416,7 +440,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return digitalPortType_; }
   }
   
-  public const int DigitalPortDirFieldNumber = 33;
+  public const int DigitalPortDirFieldNumber = 35;
   private bool hasDigitalPortDir;
   private pb::ByteString digitalPortDir_ = pb::ByteString.Empty;
   public bool HasDigitalPortDir {
@@ -426,7 +450,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return digitalPortDir_; }
   }
   
-  public const int AnalogOutPortNumFieldNumber = 34;
+  public const int AnalogOutPortNumFieldNumber = 36;
   private bool hasAnalogOutPortNum;
   private uint analogOutPortNum_;
   public bool HasAnalogOutPortNum {
@@ -437,7 +461,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return analogOutPortNum_; }
   }
   
-  public const int AnalogOutPortTypeFieldNumber = 35;
+  public const int AnalogOutPortTypeFieldNumber = 37;
   private bool hasAnalogOutPortType;
   private pb::ByteString analogOutPortType_ = pb::ByteString.Empty;
   public bool HasAnalogOutPortType {
@@ -447,7 +471,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return analogOutPortType_; }
   }
   
-  public const int AnalogOutResFieldNumber = 36;
+  public const int AnalogOutResFieldNumber = 38;
   private bool hasAnalogOutRes;
   private uint analogOutRes_;
   public bool HasAnalogOutRes {
@@ -458,7 +482,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return analogOutRes_; }
   }
   
-  public const int AnalogOutPortRangeFieldNumber = 37;
+  public const int AnalogOutPortRangeFieldNumber = 39;
   private bool hasAnalogOutPortRange;
   private float analogOutPortRange_;
   public bool HasAnalogOutPortRange {
@@ -468,7 +492,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return analogOutPortRange_; }
   }
   
-  public const int IpAddrFieldNumber = 38;
+  public const int IpAddrFieldNumber = 40;
   private bool hasIpAddr;
   private pb::ByteString ipAddr_ = pb::ByteString.Empty;
   public bool HasIpAddr {
@@ -478,7 +502,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return ipAddr_; }
   }
   
-  public const int NetMaskFieldNumber = 39;
+  public const int NetMaskFieldNumber = 41;
   private bool hasNetMask;
   private pb::ByteString netMask_ = pb::ByteString.Empty;
   public bool HasNetMask {
@@ -488,7 +512,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return netMask_; }
   }
   
-  public const int GatewayFieldNumber = 40;
+  public const int GatewayFieldNumber = 42;
   private bool hasGateway;
   private pb::ByteString gateway_ = pb::ByteString.Empty;
   public bool HasGateway {
@@ -498,7 +522,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return gateway_; }
   }
   
-  public const int PrimaryDnsFieldNumber = 41;
+  public const int PrimaryDnsFieldNumber = 43;
   private bool hasPrimaryDns;
   private pb::ByteString primaryDns_ = pb::ByteString.Empty;
   public bool HasPrimaryDns {
@@ -508,7 +532,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return primaryDns_; }
   }
   
-  public const int SecondaryDnsFieldNumber = 42;
+  public const int SecondaryDnsFieldNumber = 44;
   private bool hasSecondaryDns;
   private pb::ByteString secondaryDns_ = pb::ByteString.Empty;
   public bool HasSecondaryDns {
@@ -518,7 +542,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return secondaryDns_; }
   }
   
-  public const int MacAddrFieldNumber = 43;
+  public const int MacAddrFieldNumber = 45;
   private bool hasMacAddr;
   private pb::ByteString macAddr_ = pb::ByteString.Empty;
   public bool HasMacAddr {
@@ -528,7 +552,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return macAddr_; }
   }
   
-  public const int IpAddrV6FieldNumber = 44;
+  public const int IpAddrV6FieldNumber = 46;
   private bool hasIpAddrV6;
   private pb::ByteString ipAddrV6_ = pb::ByteString.Empty;
   public bool HasIpAddrV6 {
@@ -538,7 +562,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return ipAddrV6_; }
   }
   
-  public const int SubPreLengthV6FieldNumber = 45;
+  public const int SubPreLengthV6FieldNumber = 47;
   private bool hasSubPreLengthV6;
   private pb::ByteString subPreLengthV6_ = pb::ByteString.Empty;
   public bool HasSubPreLengthV6 {
@@ -548,7 +572,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return subPreLengthV6_; }
   }
   
-  public const int GatewayV6FieldNumber = 46;
+  public const int GatewayV6FieldNumber = 48;
   private bool hasGatewayV6;
   private pb::ByteString gatewayV6_ = pb::ByteString.Empty;
   public bool HasGatewayV6 {
@@ -558,7 +582,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return gatewayV6_; }
   }
   
-  public const int PrimaryDnsV6FieldNumber = 47;
+  public const int PrimaryDnsV6FieldNumber = 49;
   private bool hasPrimaryDnsV6;
   private pb::ByteString primaryDnsV6_ = pb::ByteString.Empty;
   public bool HasPrimaryDnsV6 {
@@ -568,7 +592,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return primaryDnsV6_; }
   }
   
-  public const int SecondaryDnsV6FieldNumber = 48;
+  public const int SecondaryDnsV6FieldNumber = 50;
   private bool hasSecondaryDnsV6;
   private pb::ByteString secondaryDnsV6_ = pb::ByteString.Empty;
   public bool HasSecondaryDnsV6 {
@@ -578,7 +602,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return secondaryDnsV6_; }
   }
   
-  public const int Eui64FieldNumber = 49;
+  public const int Eui64FieldNumber = 51;
   private bool hasEui64;
   private pb::ByteString eui64_ = pb::ByteString.Empty;
   public bool HasEui64 {
@@ -588,7 +612,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return eui64_; }
   }
   
-  public const int HostNameFieldNumber = 50;
+  public const int HostNameFieldNumber = 52;
   private bool hasHostName;
   private string hostName_ = "";
   public bool HasHostName {
@@ -598,7 +622,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return hostName_; }
   }
   
-  public const int DevicePortFieldNumber = 51;
+  public const int DevicePortFieldNumber = 53;
   private bool hasDevicePort;
   private uint devicePort_;
   public bool HasDevicePort {
@@ -609,7 +633,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return devicePort_; }
   }
   
-  public const int FriendlyDeviceNameFieldNumber = 52;
+  public const int FriendlyDeviceNameFieldNumber = 54;
   private bool hasFriendlyDeviceName;
   private string friendlyDeviceName_ = "";
   public bool HasFriendlyDeviceName {
@@ -619,7 +643,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return friendlyDeviceName_; }
   }
   
-  public const int SsidFieldNumber = 53;
+  public const int SsidFieldNumber = 55;
   private bool hasSsid;
   private string ssid_ = "";
   public bool HasSsid {
@@ -629,7 +653,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return ssid_; }
   }
   
-  public const int WifiSecurityModeFieldNumber = 54;
+  public const int WifiSecurityModeFieldNumber = 56;
   private bool hasWifiSecurityMode;
   private uint wifiSecurityMode_;
   public bool HasWifiSecurityMode {
@@ -640,7 +664,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return wifiSecurityMode_; }
   }
   
-  public const int AvSsidFieldNumber = 55;
+  public const int AvSsidFieldNumber = 57;
   private pbc::PopsicleList<string> avSsid_ = new pbc::PopsicleList<string>();
   public scg::IList<string> AvSsidList {
     get { return pbc::Lists.AsReadOnly(avSsid_); }
@@ -652,7 +676,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     return avSsid_[index];
   }
   
-  public const int AvSsidStrengthFieldNumber = 56;
+  public const int AvSsidStrengthFieldNumber = 58;
   private bool hasAvSsidStrength;
   private pb::ByteString avSsidStrength_ = pb::ByteString.Empty;
   public bool HasAvSsidStrength {
@@ -662,7 +686,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return avSsidStrength_; }
   }
   
-  public const int AvSsidSecurityModeFieldNumber = 57;
+  public const int AvSsidSecurityModeFieldNumber = 59;
   private bool hasAvSsidSecurityMode;
   private pb::ByteString avSsidSecurityMode_ = pb::ByteString.Empty;
   public bool HasAvSsidSecurityMode {
@@ -672,7 +696,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return avSsidSecurityMode_; }
   }
   
-  public const int DevicePnFieldNumber = 58;
+  public const int DevicePnFieldNumber = 60;
   private bool hasDevicePn;
   private string devicePn_ = "";
   public bool HasDevicePn {
@@ -682,7 +706,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return devicePn_; }
   }
   
-  public const int DeviceHwRevFieldNumber = 59;
+  public const int DeviceHwRevFieldNumber = 61;
   private bool hasDeviceHwRev;
   private string deviceHwRev_ = "";
   public bool HasDeviceHwRev {
@@ -692,7 +716,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return deviceHwRev_; }
   }
   
-  public const int DeviceFwRevFieldNumber = 60;
+  public const int DeviceFwRevFieldNumber = 62;
   private bool hasDeviceFwRev;
   private string deviceFwRev_ = "";
   public bool HasDeviceFwRev {
@@ -712,7 +736,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     CalcSerializedSize();
     string[] field_names = _daqifiOutMessageFieldNames;
     if (hasMsgTimeStamp) {
-      output.WriteUInt32(1, field_names[43], MsgTimeStamp);
+      output.WriteUInt32(1, field_names[45], MsgTimeStamp);
     }
     if (analogInData_.Count > 0) {
       output.WriteSInt32Array(2, field_names[4], analogInData_);
@@ -724,157 +748,163 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       output.WriteUInt32Array(4, field_names[6], analogInDataTs_);
     }
     if (hasDigitalData) {
-      output.WriteBytes(5, field_names[30], DigitalData);
+      output.WriteBytes(5, field_names[32], DigitalData);
     }
     if (digitalDataTs_.Count > 0) {
-      output.WriteUInt32Array(6, field_names[31], digitalDataTs_);
+      output.WriteUInt32Array(6, field_names[33], digitalDataTs_);
     }
     if (analogOutData_.Count > 0) {
-      output.WriteUInt32Array(7, field_names[16], analogOutData_);
+      output.WriteUInt32Array(7, field_names[18], analogOutData_);
     }
     if (hasDeviceStatus) {
-      output.WriteUInt32(8, field_names[29], DeviceStatus);
+      output.WriteUInt32(8, field_names[31], DeviceStatus);
     }
     if (hasPwrStatus) {
-      output.WriteUInt32(9, field_names[47], PwrStatus);
+      output.WriteUInt32(9, field_names[49], PwrStatus);
     }
     if (hasBattStatus) {
-      output.WriteUInt32(10, field_names[24], BattStatus);
+      output.WriteUInt32(10, field_names[26], BattStatus);
     }
     if (hasTempStatus) {
-      output.WriteSInt32(11, field_names[52], TempStatus);
+      output.WriteSInt32(11, field_names[54], TempStatus);
     }
     if (hasTimestampFreq) {
-      output.WriteUInt32(17, field_names[53], TimestampFreq);
+      output.WriteUInt32(17, field_names[55], TimestampFreq);
     }
     if (hasAnalogInPortNum) {
-      output.WriteUInt32(18, field_names[8], AnalogInPortNum);
+      output.WriteUInt32(18, field_names[10], AnalogInPortNum);
     }
     if (hasAnalogInPortNumPriv) {
-      output.WriteUInt32(19, field_names[9], AnalogInPortNumPriv);
+      output.WriteUInt32(19, field_names[11], AnalogInPortNumPriv);
     }
     if (hasAnalogInPortType) {
-      output.WriteBytes(20, field_names[13], AnalogInPortType);
+      output.WriteBytes(20, field_names[15], AnalogInPortType);
     }
     if (hasAnalogInPortRse) {
-      output.WriteBytes(21, field_names[12], AnalogInPortRse);
+      output.WriteBytes(21, field_names[14], AnalogInPortRse);
     }
     if (hasAnalogInPortEnabled) {
-      output.WriteBytes(22, field_names[7], AnalogInPortEnabled);
+      output.WriteBytes(22, field_names[9], AnalogInPortEnabled);
     }
     if (analogInPortRange_.Count > 0) {
-      output.WriteFloatArray(23, field_names[10], analogInPortRange_);
+      output.WriteFloatArray(23, field_names[12], analogInPortRange_);
     }
     if (analogInPortRangePriv_.Count > 0) {
-      output.WriteFloatArray(24, field_names[11], analogInPortRangePriv_);
+      output.WriteFloatArray(24, field_names[13], analogInPortRangePriv_);
     }
     if (hasAnalogInRes) {
-      output.WriteUInt32(25, field_names[14], AnalogInRes);
+      output.WriteUInt32(25, field_names[16], AnalogInRes);
     }
     if (hasAnalogInResPriv) {
-      output.WriteUInt32(26, field_names[15], AnalogInResPriv);
+      output.WriteUInt32(26, field_names[17], AnalogInResPriv);
+    }
+    if (analogInIntScaleM_.Count > 0) {
+      output.WriteFloatArray(27, field_names[7], analogInIntScaleM_);
+    }
+    if (analogInIntScaleMPriv_.Count > 0) {
+      output.WriteFloatArray(28, field_names[8], analogInIntScaleMPriv_);
     }
     if (analogInCalM_.Count > 0) {
-      output.WriteFloatArray(27, field_names[2], analogInCalM_);
+      output.WriteFloatArray(29, field_names[2], analogInCalM_);
     }
     if (analogInCalB_.Count > 0) {
-      output.WriteFloatArray(28, field_names[0], analogInCalB_);
+      output.WriteFloatArray(30, field_names[0], analogInCalB_);
     }
     if (analogInCalMPriv_.Count > 0) {
-      output.WriteFloatArray(29, field_names[3], analogInCalMPriv_);
+      output.WriteFloatArray(31, field_names[3], analogInCalMPriv_);
     }
     if (analogInCalBPriv_.Count > 0) {
-      output.WriteFloatArray(30, field_names[1], analogInCalBPriv_);
+      output.WriteFloatArray(32, field_names[1], analogInCalBPriv_);
     }
     if (hasDigitalPortNum) {
-      output.WriteUInt32(31, field_names[33], DigitalPortNum);
+      output.WriteUInt32(33, field_names[35], DigitalPortNum);
     }
     if (hasDigitalPortType) {
-      output.WriteBytes(32, field_names[34], DigitalPortType);
+      output.WriteBytes(34, field_names[36], DigitalPortType);
     }
     if (hasDigitalPortDir) {
-      output.WriteBytes(33, field_names[32], DigitalPortDir);
+      output.WriteBytes(35, field_names[34], DigitalPortDir);
     }
     if (hasAnalogOutPortNum) {
-      output.WriteUInt32(34, field_names[17], AnalogOutPortNum);
+      output.WriteUInt32(36, field_names[19], AnalogOutPortNum);
     }
     if (hasAnalogOutPortType) {
-      output.WriteBytes(35, field_names[19], AnalogOutPortType);
+      output.WriteBytes(37, field_names[21], AnalogOutPortType);
     }
     if (hasAnalogOutRes) {
-      output.WriteUInt32(36, field_names[20], AnalogOutRes);
+      output.WriteUInt32(38, field_names[22], AnalogOutRes);
     }
     if (hasAnalogOutPortRange) {
-      output.WriteFloat(37, field_names[18], AnalogOutPortRange);
+      output.WriteFloat(39, field_names[20], AnalogOutPortRange);
     }
     if (hasIpAddr) {
-      output.WriteBytes(38, field_names[40], IpAddr);
+      output.WriteBytes(40, field_names[42], IpAddr);
     }
     if (hasNetMask) {
-      output.WriteBytes(39, field_names[44], NetMask);
+      output.WriteBytes(41, field_names[46], NetMask);
     }
     if (hasGateway) {
-      output.WriteBytes(40, field_names[37], Gateway);
+      output.WriteBytes(42, field_names[39], Gateway);
     }
     if (hasPrimaryDns) {
-      output.WriteBytes(41, field_names[45], PrimaryDns);
+      output.WriteBytes(43, field_names[47], PrimaryDns);
     }
     if (hasSecondaryDns) {
-      output.WriteBytes(42, field_names[48], SecondaryDns);
+      output.WriteBytes(44, field_names[50], SecondaryDns);
     }
     if (hasMacAddr) {
-      output.WriteBytes(43, field_names[42], MacAddr);
+      output.WriteBytes(45, field_names[44], MacAddr);
     }
     if (hasIpAddrV6) {
-      output.WriteBytes(44, field_names[41], IpAddrV6);
+      output.WriteBytes(46, field_names[43], IpAddrV6);
     }
     if (hasSubPreLengthV6) {
-      output.WriteBytes(45, field_names[51], SubPreLengthV6);
+      output.WriteBytes(47, field_names[53], SubPreLengthV6);
     }
     if (hasGatewayV6) {
-      output.WriteBytes(46, field_names[38], GatewayV6);
+      output.WriteBytes(48, field_names[40], GatewayV6);
     }
     if (hasPrimaryDnsV6) {
-      output.WriteBytes(47, field_names[46], PrimaryDnsV6);
+      output.WriteBytes(49, field_names[48], PrimaryDnsV6);
     }
     if (hasSecondaryDnsV6) {
-      output.WriteBytes(48, field_names[49], SecondaryDnsV6);
+      output.WriteBytes(50, field_names[51], SecondaryDnsV6);
     }
     if (hasEui64) {
-      output.WriteBytes(49, field_names[35], Eui64);
+      output.WriteBytes(51, field_names[37], Eui64);
     }
     if (hasHostName) {
-      output.WriteString(50, field_names[39], HostName);
+      output.WriteString(52, field_names[41], HostName);
     }
     if (hasDevicePort) {
-      output.WriteUInt32(51, field_names[28], DevicePort);
+      output.WriteUInt32(53, field_names[30], DevicePort);
     }
     if (hasFriendlyDeviceName) {
-      output.WriteString(52, field_names[36], FriendlyDeviceName);
+      output.WriteString(54, field_names[38], FriendlyDeviceName);
     }
     if (hasSsid) {
-      output.WriteString(53, field_names[50], Ssid);
+      output.WriteString(55, field_names[52], Ssid);
     }
     if (hasWifiSecurityMode) {
-      output.WriteUInt32(54, field_names[54], WifiSecurityMode);
+      output.WriteUInt32(56, field_names[56], WifiSecurityMode);
     }
     if (avSsid_.Count > 0) {
-      output.WriteStringArray(55, field_names[21], avSsid_);
+      output.WriteStringArray(57, field_names[23], avSsid_);
     }
     if (hasAvSsidStrength) {
-      output.WriteBytes(56, field_names[23], AvSsidStrength);
+      output.WriteBytes(58, field_names[25], AvSsidStrength);
     }
     if (hasAvSsidSecurityMode) {
-      output.WriteBytes(57, field_names[22], AvSsidSecurityMode);
+      output.WriteBytes(59, field_names[24], AvSsidSecurityMode);
     }
     if (hasDevicePn) {
-      output.WriteString(58, field_names[27], DevicePn);
+      output.WriteString(60, field_names[29], DevicePn);
     }
     if (hasDeviceHwRev) {
-      output.WriteString(59, field_names[26], DeviceHwRev);
+      output.WriteString(61, field_names[28], DeviceHwRev);
     }
     if (hasDeviceFwRev) {
-      output.WriteString(60, field_names[25], DeviceFwRev);
+      output.WriteString(62, field_names[27], DeviceFwRev);
     }
     UnknownFields.WriteTo(output);
   }
@@ -987,6 +1017,18 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     }
     {
       int dataSize = 0;
+      dataSize = 4 * analogInIntScaleM_.Count;
+      size += dataSize;
+      size += 2 * analogInIntScaleM_.Count;
+    }
+    {
+      int dataSize = 0;
+      dataSize = 4 * analogInIntScaleMPriv_.Count;
+      size += dataSize;
+      size += 2 * analogInIntScaleMPriv_.Count;
+    }
+    {
+      int dataSize = 0;
       dataSize = 4 * analogInCalM_.Count;
       size += dataSize;
       size += 2 * analogInCalM_.Count;
@@ -1010,76 +1052,76 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       size += 2 * analogInCalBPriv_.Count;
     }
     if (hasDigitalPortNum) {
-      size += pb::CodedOutputStream.ComputeUInt32Size(31, DigitalPortNum);
+      size += pb::CodedOutputStream.ComputeUInt32Size(33, DigitalPortNum);
     }
     if (hasDigitalPortType) {
-      size += pb::CodedOutputStream.ComputeBytesSize(32, DigitalPortType);
+      size += pb::CodedOutputStream.ComputeBytesSize(34, DigitalPortType);
     }
     if (hasDigitalPortDir) {
-      size += pb::CodedOutputStream.ComputeBytesSize(33, DigitalPortDir);
+      size += pb::CodedOutputStream.ComputeBytesSize(35, DigitalPortDir);
     }
     if (hasAnalogOutPortNum) {
-      size += pb::CodedOutputStream.ComputeUInt32Size(34, AnalogOutPortNum);
+      size += pb::CodedOutputStream.ComputeUInt32Size(36, AnalogOutPortNum);
     }
     if (hasAnalogOutPortType) {
-      size += pb::CodedOutputStream.ComputeBytesSize(35, AnalogOutPortType);
+      size += pb::CodedOutputStream.ComputeBytesSize(37, AnalogOutPortType);
     }
     if (hasAnalogOutRes) {
-      size += pb::CodedOutputStream.ComputeUInt32Size(36, AnalogOutRes);
+      size += pb::CodedOutputStream.ComputeUInt32Size(38, AnalogOutRes);
     }
     if (hasAnalogOutPortRange) {
-      size += pb::CodedOutputStream.ComputeFloatSize(37, AnalogOutPortRange);
+      size += pb::CodedOutputStream.ComputeFloatSize(39, AnalogOutPortRange);
     }
     if (hasIpAddr) {
-      size += pb::CodedOutputStream.ComputeBytesSize(38, IpAddr);
+      size += pb::CodedOutputStream.ComputeBytesSize(40, IpAddr);
     }
     if (hasNetMask) {
-      size += pb::CodedOutputStream.ComputeBytesSize(39, NetMask);
+      size += pb::CodedOutputStream.ComputeBytesSize(41, NetMask);
     }
     if (hasGateway) {
-      size += pb::CodedOutputStream.ComputeBytesSize(40, Gateway);
+      size += pb::CodedOutputStream.ComputeBytesSize(42, Gateway);
     }
     if (hasPrimaryDns) {
-      size += pb::CodedOutputStream.ComputeBytesSize(41, PrimaryDns);
+      size += pb::CodedOutputStream.ComputeBytesSize(43, PrimaryDns);
     }
     if (hasSecondaryDns) {
-      size += pb::CodedOutputStream.ComputeBytesSize(42, SecondaryDns);
+      size += pb::CodedOutputStream.ComputeBytesSize(44, SecondaryDns);
     }
     if (hasMacAddr) {
-      size += pb::CodedOutputStream.ComputeBytesSize(43, MacAddr);
+      size += pb::CodedOutputStream.ComputeBytesSize(45, MacAddr);
     }
     if (hasIpAddrV6) {
-      size += pb::CodedOutputStream.ComputeBytesSize(44, IpAddrV6);
+      size += pb::CodedOutputStream.ComputeBytesSize(46, IpAddrV6);
     }
     if (hasSubPreLengthV6) {
-      size += pb::CodedOutputStream.ComputeBytesSize(45, SubPreLengthV6);
+      size += pb::CodedOutputStream.ComputeBytesSize(47, SubPreLengthV6);
     }
     if (hasGatewayV6) {
-      size += pb::CodedOutputStream.ComputeBytesSize(46, GatewayV6);
+      size += pb::CodedOutputStream.ComputeBytesSize(48, GatewayV6);
     }
     if (hasPrimaryDnsV6) {
-      size += pb::CodedOutputStream.ComputeBytesSize(47, PrimaryDnsV6);
+      size += pb::CodedOutputStream.ComputeBytesSize(49, PrimaryDnsV6);
     }
     if (hasSecondaryDnsV6) {
-      size += pb::CodedOutputStream.ComputeBytesSize(48, SecondaryDnsV6);
+      size += pb::CodedOutputStream.ComputeBytesSize(50, SecondaryDnsV6);
     }
     if (hasEui64) {
-      size += pb::CodedOutputStream.ComputeBytesSize(49, Eui64);
+      size += pb::CodedOutputStream.ComputeBytesSize(51, Eui64);
     }
     if (hasHostName) {
-      size += pb::CodedOutputStream.ComputeStringSize(50, HostName);
+      size += pb::CodedOutputStream.ComputeStringSize(52, HostName);
     }
     if (hasDevicePort) {
-      size += pb::CodedOutputStream.ComputeUInt32Size(51, DevicePort);
+      size += pb::CodedOutputStream.ComputeUInt32Size(53, DevicePort);
     }
     if (hasFriendlyDeviceName) {
-      size += pb::CodedOutputStream.ComputeStringSize(52, FriendlyDeviceName);
+      size += pb::CodedOutputStream.ComputeStringSize(54, FriendlyDeviceName);
     }
     if (hasSsid) {
-      size += pb::CodedOutputStream.ComputeStringSize(53, Ssid);
+      size += pb::CodedOutputStream.ComputeStringSize(55, Ssid);
     }
     if (hasWifiSecurityMode) {
-      size += pb::CodedOutputStream.ComputeUInt32Size(54, WifiSecurityMode);
+      size += pb::CodedOutputStream.ComputeUInt32Size(56, WifiSecurityMode);
     }
     {
       int dataSize = 0;
@@ -1090,19 +1132,19 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       size += 2 * avSsid_.Count;
     }
     if (hasAvSsidStrength) {
-      size += pb::CodedOutputStream.ComputeBytesSize(56, AvSsidStrength);
+      size += pb::CodedOutputStream.ComputeBytesSize(58, AvSsidStrength);
     }
     if (hasAvSsidSecurityMode) {
-      size += pb::CodedOutputStream.ComputeBytesSize(57, AvSsidSecurityMode);
+      size += pb::CodedOutputStream.ComputeBytesSize(59, AvSsidSecurityMode);
     }
     if (hasDevicePn) {
-      size += pb::CodedOutputStream.ComputeStringSize(58, DevicePn);
+      size += pb::CodedOutputStream.ComputeStringSize(60, DevicePn);
     }
     if (hasDeviceHwRev) {
-      size += pb::CodedOutputStream.ComputeStringSize(59, DeviceHwRev);
+      size += pb::CodedOutputStream.ComputeStringSize(61, DeviceHwRev);
     }
     if (hasDeviceFwRev) {
-      size += pb::CodedOutputStream.ComputeStringSize(60, DeviceFwRev);
+      size += pb::CodedOutputStream.ComputeStringSize(62, DeviceFwRev);
     }
     size += UnknownFields.SerializedSize;
     memoizedSerializedSize = size;
@@ -1146,6 +1188,8 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     analogOutData_.MakeReadOnly();
     analogInPortRange_.MakeReadOnly();
     analogInPortRangePriv_.MakeReadOnly();
+    analogInIntScaleM_.MakeReadOnly();
+    analogInIntScaleMPriv_.MakeReadOnly();
     analogInCalM_.MakeReadOnly();
     analogInCalB_.MakeReadOnly();
     analogInCalMPriv_.MakeReadOnly();
@@ -1300,6 +1344,12 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       }
       if (other.HasAnalogInResPriv) {
         AnalogInResPriv = other.AnalogInResPriv;
+      }
+      if (other.analogInIntScaleM_.Count != 0) {
+        result.analogInIntScaleM_.Add(other.analogInIntScaleM_);
+      }
+      if (other.analogInIntScaleMPriv_.Count != 0) {
+        result.analogInIntScaleMPriv_.Add(other.analogInIntScaleMPriv_);
       }
       if (other.analogInCalM_.Count != 0) {
         result.analogInCalM_.Add(other.analogInCalM_);
@@ -1539,141 +1589,151 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
           }
           case 218:
           case 221: {
-            input.ReadFloatArray(tag, field_name, result.analogInCalM_);
+            input.ReadFloatArray(tag, field_name, result.analogInIntScaleM_);
             break;
           }
           case 226:
           case 229: {
-            input.ReadFloatArray(tag, field_name, result.analogInCalB_);
+            input.ReadFloatArray(tag, field_name, result.analogInIntScaleMPriv_);
             break;
           }
           case 234:
           case 237: {
-            input.ReadFloatArray(tag, field_name, result.analogInCalMPriv_);
+            input.ReadFloatArray(tag, field_name, result.analogInCalM_);
             break;
           }
           case 242:
           case 245: {
+            input.ReadFloatArray(tag, field_name, result.analogInCalB_);
+            break;
+          }
+          case 250:
+          case 253: {
+            input.ReadFloatArray(tag, field_name, result.analogInCalMPriv_);
+            break;
+          }
+          case 258:
+          case 261: {
             input.ReadFloatArray(tag, field_name, result.analogInCalBPriv_);
             break;
           }
-          case 248: {
+          case 264: {
             result.hasDigitalPortNum = input.ReadUInt32(ref result.digitalPortNum_);
             break;
           }
-          case 258: {
+          case 274: {
             result.hasDigitalPortType = input.ReadBytes(ref result.digitalPortType_);
             break;
           }
-          case 266: {
+          case 282: {
             result.hasDigitalPortDir = input.ReadBytes(ref result.digitalPortDir_);
             break;
           }
-          case 272: {
+          case 288: {
             result.hasAnalogOutPortNum = input.ReadUInt32(ref result.analogOutPortNum_);
             break;
           }
-          case 282: {
+          case 298: {
             result.hasAnalogOutPortType = input.ReadBytes(ref result.analogOutPortType_);
             break;
           }
-          case 288: {
+          case 304: {
             result.hasAnalogOutRes = input.ReadUInt32(ref result.analogOutRes_);
             break;
           }
-          case 301: {
+          case 317: {
             result.hasAnalogOutPortRange = input.ReadFloat(ref result.analogOutPortRange_);
             break;
           }
-          case 306: {
+          case 322: {
             result.hasIpAddr = input.ReadBytes(ref result.ipAddr_);
             break;
           }
-          case 314: {
+          case 330: {
             result.hasNetMask = input.ReadBytes(ref result.netMask_);
             break;
           }
-          case 322: {
+          case 338: {
             result.hasGateway = input.ReadBytes(ref result.gateway_);
             break;
           }
-          case 330: {
+          case 346: {
             result.hasPrimaryDns = input.ReadBytes(ref result.primaryDns_);
             break;
           }
-          case 338: {
+          case 354: {
             result.hasSecondaryDns = input.ReadBytes(ref result.secondaryDns_);
             break;
           }
-          case 346: {
+          case 362: {
             result.hasMacAddr = input.ReadBytes(ref result.macAddr_);
             break;
           }
-          case 354: {
+          case 370: {
             result.hasIpAddrV6 = input.ReadBytes(ref result.ipAddrV6_);
             break;
           }
-          case 362: {
+          case 378: {
             result.hasSubPreLengthV6 = input.ReadBytes(ref result.subPreLengthV6_);
             break;
           }
-          case 370: {
+          case 386: {
             result.hasGatewayV6 = input.ReadBytes(ref result.gatewayV6_);
             break;
           }
-          case 378: {
+          case 394: {
             result.hasPrimaryDnsV6 = input.ReadBytes(ref result.primaryDnsV6_);
             break;
           }
-          case 386: {
+          case 402: {
             result.hasSecondaryDnsV6 = input.ReadBytes(ref result.secondaryDnsV6_);
             break;
           }
-          case 394: {
+          case 410: {
             result.hasEui64 = input.ReadBytes(ref result.eui64_);
             break;
           }
-          case 402: {
+          case 418: {
             result.hasHostName = input.ReadString(ref result.hostName_);
             break;
           }
-          case 408: {
+          case 424: {
             result.hasDevicePort = input.ReadUInt32(ref result.devicePort_);
             break;
           }
-          case 418: {
+          case 434: {
             result.hasFriendlyDeviceName = input.ReadString(ref result.friendlyDeviceName_);
             break;
           }
-          case 426: {
+          case 442: {
             result.hasSsid = input.ReadString(ref result.ssid_);
             break;
           }
-          case 432: {
+          case 448: {
             result.hasWifiSecurityMode = input.ReadUInt32(ref result.wifiSecurityMode_);
             break;
           }
-          case 442: {
+          case 458: {
             input.ReadStringArray(tag, field_name, result.avSsid_);
             break;
           }
-          case 450: {
+          case 466: {
             result.hasAvSsidStrength = input.ReadBytes(ref result.avSsidStrength_);
             break;
           }
-          case 458: {
+          case 474: {
             result.hasAvSsidSecurityMode = input.ReadBytes(ref result.avSsidSecurityMode_);
             break;
           }
-          case 466: {
+          case 482: {
             result.hasDevicePn = input.ReadString(ref result.devicePn_);
             break;
           }
-          case 474: {
+          case 490: {
             result.hasDeviceHwRev = input.ReadString(ref result.deviceHwRev_);
             break;
           }
-          case 482: {
+          case 498: {
             result.hasDeviceFwRev = input.ReadString(ref result.deviceFwRev_);
             break;
           }
@@ -2211,6 +2271,66 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       PrepareBuilder();
       result.hasAnalogInResPriv = false;
       result.analogInResPriv_ = 0;
+      return this;
+    }
+    
+    public pbc::IPopsicleList<float> AnalogInIntScaleMList {
+      get { return PrepareBuilder().analogInIntScaleM_; }
+    }
+    public int AnalogInIntScaleMCount {
+      get { return result.AnalogInIntScaleMCount; }
+    }
+    public float GetAnalogInIntScaleM(int index) {
+      return result.GetAnalogInIntScaleM(index);
+    }
+    public Builder SetAnalogInIntScaleM(int index, float value) {
+      PrepareBuilder();
+      result.analogInIntScaleM_[index] = value;
+      return this;
+    }
+    public Builder AddAnalogInIntScaleM(float value) {
+      PrepareBuilder();
+      result.analogInIntScaleM_.Add(value);
+      return this;
+    }
+    public Builder AddRangeAnalogInIntScaleM(scg::IEnumerable<float> values) {
+      PrepareBuilder();
+      result.analogInIntScaleM_.Add(values);
+      return this;
+    }
+    public Builder ClearAnalogInIntScaleM() {
+      PrepareBuilder();
+      result.analogInIntScaleM_.Clear();
+      return this;
+    }
+    
+    public pbc::IPopsicleList<float> AnalogInIntScaleMPrivList {
+      get { return PrepareBuilder().analogInIntScaleMPriv_; }
+    }
+    public int AnalogInIntScaleMPrivCount {
+      get { return result.AnalogInIntScaleMPrivCount; }
+    }
+    public float GetAnalogInIntScaleMPriv(int index) {
+      return result.GetAnalogInIntScaleMPriv(index);
+    }
+    public Builder SetAnalogInIntScaleMPriv(int index, float value) {
+      PrepareBuilder();
+      result.analogInIntScaleMPriv_[index] = value;
+      return this;
+    }
+    public Builder AddAnalogInIntScaleMPriv(float value) {
+      PrepareBuilder();
+      result.analogInIntScaleMPriv_.Add(value);
+      return this;
+    }
+    public Builder AddRangeAnalogInIntScaleMPriv(scg::IEnumerable<float> values) {
+      PrepareBuilder();
+      result.analogInIntScaleMPriv_.Add(values);
+      return this;
+    }
+    public Builder ClearAnalogInIntScaleMPriv() {
+      PrepareBuilder();
+      result.analogInIntScaleMPriv_.Clear();
       return this;
     }
     

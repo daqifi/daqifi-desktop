@@ -1,9 +1,5 @@
-﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Google.ProtocolBuffers;
 using Google.ProtocolBuffers.Descriptors;
 
@@ -54,6 +50,10 @@ namespace Daqifi.Desktop.Communication.Protobuf
         uint AnalogInRes { get; }
         bool HasAnalogInResPriv { get; }
         uint AnalogInResPriv { get; }
+        IList<float> AnalogInIntScaleMList { get; }
+        int AnalogInIntScaleMCount { get; }
+        IList<float> AnalogInIntScaleMPrivList { get; }
+        int AnalogInIntScaleMPrivCount { get; }
         IList<float> AnalogInCalMList { get; }
         int AnalogInCalMCount { get; }
         IList<float> AnalogInCalBList { get; }
@@ -122,11 +122,11 @@ namespace Daqifi.Desktop.Communication.Protobuf
         string DeviceHwRev { get; }
         bool HasDeviceFwRev { get; }
         string DeviceFwRev { get; }
+        bool IsInitialized { get; }
+        int SerializedSize { get; }
         MessageDescriptor DescriptorForType { get; }
         IDictionary<FieldDescriptor, object> AllFields { get; }
         UnknownFieldSet UnknownFields { get; }
-        bool IsInitialized { get; }
-        int SerializedSize { get; }
         int GetAnalogInData(int index);
         float GetAnalogInDataFloat(int index);
         uint GetAnalogInDataTs(int index);
@@ -134,11 +134,14 @@ namespace Daqifi.Desktop.Communication.Protobuf
         uint GetAnalogOutData(int index);
         float GetAnalogInPortRange(int index);
         float GetAnalogInPortRangePriv(int index);
+        float GetAnalogInIntScaleM(int index);
+        float GetAnalogInIntScaleMPriv(int index);
         float GetAnalogInCalM(int index);
         float GetAnalogInCalB(int index);
         float GetAnalogInCalMPriv(int index);
         float GetAnalogInCalBPriv(int index);
         string GetAvSsid(int index);
+        void WriteTo(ICodedOutputStream output);
         DaqifiOutMessage.Builder ToBuilder();
         DaqifiOutMessage.Builder CreateBuilderForType();
         bool HasField(FieldDescriptor field);
@@ -149,7 +152,6 @@ namespace Daqifi.Desktop.Communication.Protobuf
         void PrintTo(TextWriter writer);
         bool Equals(object other);
         int GetHashCode();
-        void WriteTo(ICodedOutputStream output);
         ByteString ToByteString();
         byte[] ToByteArray();
         void WriteTo(Stream output);
