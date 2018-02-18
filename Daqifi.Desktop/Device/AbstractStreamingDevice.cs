@@ -377,7 +377,6 @@ namespace Daqifi.Desktop.Device
 
         private double ScaleAnalogSample(AnalogChannel channel, double sampleValue)
         {
-            //Volts = ( analog_in_data / analog_in_res ) analog_in_port_range * cal_m + cal_b
             return (sampleValue / channel.Resolution) * channel.PortRange * channel.CalibrationMValue +
                    channel.CalibrationBValue;
         }
