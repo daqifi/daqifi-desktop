@@ -16,6 +16,8 @@ namespace Daqifi.Desktop.Channel
 
         public float CalibrationMValue { get; set; }
 
+        public float InternalScaleMValue { get; set; }
+
         public float PortRange { get; set; }
 
         public uint Resolution { get; set; }
@@ -25,7 +27,7 @@ namespace Daqifi.Desktop.Channel
         #region Constructors
         public AnalogChannel() { }
 
-        public AnalogChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional, float calibrationBValue, float calibrationMValue, float portRange, uint resolution)
+        public AnalogChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional, float calibrationBValue, float calibrationMValue, float interalScaleMValue, float portRange, uint resolution)
         {
             _owner = owner;
             Name = name;
@@ -36,9 +38,11 @@ namespace Daqifi.Desktop.Channel
             ChannelColorBrush = ChannelColorManager.Instance.NewColor();
             CalibrationBValue = calibrationBValue;
             CalibrationMValue = calibrationMValue;
+            InternalScaleMValue = interalScaleMValue;
             PortRange = portRange;
             Resolution = resolution;
         }
+
         #endregion
 
         #region Object Overrides

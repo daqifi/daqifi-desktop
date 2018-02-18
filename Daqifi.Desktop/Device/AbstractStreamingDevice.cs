@@ -340,6 +340,7 @@ namespace Daqifi.Desktop.Device
             var analogInPortRanges = message.AnalogInPortRangeList;
             var analogInCalibrationBValues = message.AnalogInCalBList;
             var analogInCalibrationMValues = message.AnalogInCalMList;
+            var analogInInternalScaleMValues = message.AnalogInIntScaleMList;
             var analogInResolution = message.AnalogInRes;
 
             if (analogInCalibrationBValues.Count != analogInCalibrationMValues.Count ||
@@ -350,7 +351,7 @@ namespace Daqifi.Desktop.Device
 
             for (var i = 0; i < message.AnalogInPortNum; i++)
             {
-                DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false, analogInCalibrationBValues[i], analogInCalibrationMValues[i], analogInPortRanges[i], analogInResolution));
+                DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false, analogInCalibrationBValues[i], analogInCalibrationMValues[i], analogInInternalScaleMValues[i], analogInPortRanges[i], analogInResolution));
             }
         }
 
@@ -365,6 +366,8 @@ namespace Daqifi.Desktop.Device
 
         private void PopulateAnalogOutChannels(DaqifiOutMessage message)
         {
+            if (!message.HasAnalogOutPortNum) return;
+
             // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
         }
         #endregion
@@ -375,10 +378,10 @@ namespace Daqifi.Desktop.Device
             MessageProducer.SendAsync(ScpiMessagePoducer.SystemInfo);
         }
 
-        private double ScaleAnalogSample(AnalogChannel channel, double sampleValue)
+        private double ScaleAnalogSample(AnalogChannel channel, double analogValue)
         {
-            return (sampleValue / channel.Resolution) * channel.PortRange * channel.CalibrationMValue +
-                   channel.CalibrationBValue;
+            return (analogValue / channel.Resolution) * channel.PortRange * channel.CalibrationMValue *
+                   channel.InternalScaleMValue + channel.CalibrationBValue;
         }
 
         public void UpdateNetworkConfiguration()
