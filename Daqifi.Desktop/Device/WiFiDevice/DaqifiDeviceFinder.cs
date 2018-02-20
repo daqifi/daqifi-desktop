@@ -128,7 +128,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                    !receivedText.Contains(PowerEvent);
         }
 
-        private IDevice GetDeviceFromProtobufMessage(DaqifiOutMessage message)
+        private IDevice GetDeviceFromProtobufMessage(IDaqifiOutMessage message)
         {
             var hostName = message.HostName;
             var macAddress = ProtobufDecoder.GetMacAddressString(message);

@@ -38,10 +38,16 @@ namespace Daqifi.Desktop.Communication.Protobuf
         uint AnalogInPortNumPriv { get; }
         bool HasAnalogInPortType { get; }
         ByteString AnalogInPortType { get; }
+        bool HasAnalogInPortAvRse { get; }
+        ByteString AnalogInPortAvRse { get; }
         bool HasAnalogInPortRse { get; }
         ByteString AnalogInPortRse { get; }
         bool HasAnalogInPortEnabled { get; }
         ByteString AnalogInPortEnabled { get; }
+        IList<float> AnalogInPortAvRangeList { get; }
+        int AnalogInPortAvRangeCount { get; }
+        IList<float> AnalogInPortAvRangePrivList { get; }
+        int AnalogInPortAvRangePrivCount { get; }
         IList<float> AnalogInPortRangeList { get; }
         int AnalogInPortRangeCount { get; }
         IList<float> AnalogInPortRangePrivList { get; }
@@ -74,6 +80,8 @@ namespace Daqifi.Desktop.Communication.Protobuf
         ByteString AnalogOutPortType { get; }
         bool HasAnalogOutRes { get; }
         uint AnalogOutRes { get; }
+        IList<float> AnalogOutPortAvRangeList { get; }
+        int AnalogOutPortAvRangeCount { get; }
         bool HasAnalogOutPortRange { get; }
         float AnalogOutPortRange { get; }
         bool HasIpAddr { get; }
@@ -132,6 +140,8 @@ namespace Daqifi.Desktop.Communication.Protobuf
         uint GetAnalogInDataTs(int index);
         uint GetDigitalDataTs(int index);
         uint GetAnalogOutData(int index);
+        float GetAnalogInPortAvRange(int index);
+        float GetAnalogInPortAvRangePriv(int index);
         float GetAnalogInPortRange(int index);
         float GetAnalogInPortRangePriv(int index);
         float GetAnalogInIntScaleM(int index);
@@ -140,6 +150,7 @@ namespace Daqifi.Desktop.Communication.Protobuf
         float GetAnalogInCalB(int index);
         float GetAnalogInCalMPriv(int index);
         float GetAnalogInCalBPriv(int index);
+        float GetAnalogOutPortAvRange(int index);
         string GetAvSsid(int index);
         void WriteTo(ICodedOutputStream output);
         DaqifiOutMessage.Builder ToBuilder();
