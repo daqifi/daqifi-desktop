@@ -7,5 +7,6 @@ namespace Daqifi.Desktop.Bootloader
     {
         bool LoadFirmware(string filePath);
         void RequestVersion();
+        bool EraseFlash();
     }
 }

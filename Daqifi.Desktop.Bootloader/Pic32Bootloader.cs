@@ -54,6 +54,28 @@ namespace Daqifi.Desktop.Bootloader
             Version = consumer.DecodeVersionResponse(inputReport.Data);
         }
 
+        public void JumpToApplication()
+        {
+            var messageProducer = new Pic32BootloaderMessageProducer();
+            var jumpToApplicationMessage = messageProducer.CreateJumpToApplicationMessage();
+            var outputReport = CreateDeviceOutputReport(jumpToApplicationMessage);
+
+            _hidDevice.WriteReport(outputReport);
+        }
+
+        public bool EraseFlash()
+        {
+            var messageProducer = new Pic32BootloaderMessageProducer();
+            var eraseFlashMessage = messageProducer.CreateEraseFlashMessage();
+            var outputReport = CreateDeviceOutputReport(eraseFlashMessage);
+
+            _hidDevice.WriteReport(outputReport);
+
+            var inputReport = _hidDevice.ReadReport();
+            var consumer = new Pic32BootloaderMessageConsumer();
+            return consumer.DecodeEraseFlashResponse(inputReport.Data);
+        }
+
         /// <summary>
         /// [<SOH>…]<SOH><0x03>[<HEX_RECORD>…]<CRCL><CRCH><EOT>
         /// </summary>
@@ -65,10 +87,15 @@ namespace Daqifi.Desktop.Bootloader
             var messageProducer = new Pic32BootloaderMessageProducer();
             var messageConsumer = new Pic32BootloaderMessageConsumer();
 
-            foreach (var hexRecord in hexRecords)
+            if (!EraseFlash())
+            {
+                throw new InvalidDataException("There was a problem erasing the flash");
+            }
+
+            for(var i = 0; i < hexRecords.Count; i++)
             {
                 // Send a hex record
-                var loadFirmwareMessage = messageProducer.CreateProgramFlashMessage(hexRecord);
+                var loadFirmwareMessage = messageProducer.CreateProgramFlashMessage(hexRecords[i]);
                 var outputReport = CreateDeviceOutputReport(loadFirmwareMessage);
 
                 _hidDevice.WriteReport(outputReport);
@@ -78,6 +105,9 @@ namespace Daqifi.Desktop.Bootloader
 
                 if(!successfulResponse) throw new InvalidDataException("The response from the device was invalid.  Exepcted a program flash response");
             }
+
+            JumpToApplication();
+
             return true;
         }
 

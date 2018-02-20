@@ -52,5 +52,19 @@ namespace Daqifi.Desktop.Bootloader
 
             return true;
         }
+
+        public bool DecodeEraseFlashResponse(byte[] data)
+        {
+            if (data.Length < 2) return false;
+
+            // Check if we start correctly
+            if (data[0] != StartOfHeader) return false;
+
+            // Determine what type of response this is
+            // Erase Flash Response
+            if (data[1] != EraseFlashCommand) return false;
+
+            return true;
+        }
     }
 }
