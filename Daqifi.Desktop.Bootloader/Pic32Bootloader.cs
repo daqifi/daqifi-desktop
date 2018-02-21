@@ -1,6 +1,7 @@
 ﻿using HidLibrary;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -81,7 +82,7 @@ namespace Daqifi.Desktop.Bootloader
         /// </summary>
         /// <param name="filePath"></param>
         /// <returns></returns>
-        public bool LoadFirmware(string filePath)
+        public bool LoadFirmware(string filePath, BackgroundWorker backgroundWorker)
         {
             var hexRecords = GetHexRecordsFromFile(filePath);
             var messageProducer = new Pic32BootloaderMessageProducer();
@@ -94,6 +95,8 @@ namespace Daqifi.Desktop.Bootloader
 
             for(var i = 0; i < hexRecords.Count; i++)
             {
+                backgroundWorker.ReportProgress(i * 100 / hexRecords.Count);
+
                 // Send a hex record
                 var loadFirmwareMessage = messageProducer.CreateProgramFlashMessage(hexRecords[i]);
                 var outputReport = CreateDeviceOutputReport(loadFirmwareMessage);
