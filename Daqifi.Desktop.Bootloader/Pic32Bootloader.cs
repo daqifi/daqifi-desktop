@@ -1,6 +1,7 @@
 ﻿using HidLibrary;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -17,6 +18,10 @@ namespace Daqifi.Desktop.Bootloader
         private string _version;
         private bool _attached;
         private bool _disposed;
+        private ushort _baseAddress;
+        private uint _beginProtectedAddress = 0x1D040000;
+        private uint _endProtectedAddress = 0x1D057FFF;
+
         #endregion
 
         #region Properties
@@ -81,7 +86,7 @@ namespace Daqifi.Desktop.Bootloader
         /// </summary>
         /// <param name="filePath"></param>
         /// <returns></returns>
-        public bool LoadFirmware(string filePath)
+        public bool LoadFirmware(string filePath, BackgroundWorker backgroundWorker)
         {
             var hexRecords = GetHexRecordsFromFile(filePath);
             var messageProducer = new Pic32BootloaderMessageProducer();
@@ -94,6 +99,8 @@ namespace Daqifi.Desktop.Bootloader
 
             for(var i = 0; i < hexRecords.Count; i++)
             {
+                backgroundWorker.ReportProgress(i * 100 / hexRecords.Count);
+
                 // Send a hex record
                 var loadFirmwareMessage = messageProducer.CreateProgramFlashMessage(hexRecords[i]);
                 var outputReport = CreateDeviceOutputReport(loadFirmwareMessage);
@@ -136,10 +143,40 @@ namespace Daqifi.Desktop.Bootloader
                     hexLine.Add(Convert.ToByte(int.Parse(new string(asciiCharacters), NumberStyles.HexNumber)));
                 }
 
+                // Skip if this is in a protected memory range
+                if (IsProtectedHexRecord(hexLine.ToArray())) continue;
+
                 hexRecords.Add(hexLine.ToArray());
             }
 
             return hexRecords;
+        }
+
+        private bool IsProtectedHexRecord(byte[] hexRecord)
+        {
+            var offsetAddressArray = hexRecord.Skip(1).Take(2).ToArray();
+            var recordType = hexRecord[3];
+            var dataArray = hexRecord.Skip(4).Take(hexRecord.Length - 5).ToArray();
+
+            // Set Base Address
+            if (recordType == 0x04)
+            {
+                if (BitConverter.IsLittleEndian) Array.Reverse(dataArray);
+                _baseAddress = BitConverter.ToUInt16(dataArray, 0);
+            }
+            // Data
+            else if (recordType == 0x00)
+            {
+                if (BitConverter.IsLittleEndian) Array.Reverse(offsetAddressArray);
+                var offsetAddress = BitConverter.ToUInt16(offsetAddressArray, 0);
+                var hexRecordAddress = (_baseAddress << 16) | offsetAddress;
+
+                if (hexRecordAddress >= _beginProtectedAddress && hexRecordAddress <= _endProtectedAddress)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         public static byte[] Combine(params byte[][] arrays)

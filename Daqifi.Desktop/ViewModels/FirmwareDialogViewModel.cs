@@ -18,6 +18,7 @@ namespace DAQifi.Desktop.ViewModels
         private Pic32Bootloader _bootloader;
         private string _firmwareFilePath;
         private bool _isFirmwareUploading;
+        private int _uploadFirmwareProgress;
 
         public string Version
         {
@@ -48,6 +49,19 @@ namespace DAQifi.Desktop.ViewModels
                 NotifyPropertyChanged("IsFirmwareUploading");
             }
         }
+
+        public int UploadFirmwareProgress
+        {
+            get => _uploadFirmwareProgress;
+            set
+            {
+                _uploadFirmwareProgress = value;
+                NotifyPropertyChanged("UploadFirmwareProgress");
+                NotifyPropertyChanged("UploadFirmwareProgressText");
+            }
+        }
+
+        public string UploadFirmwareProgressText => ($"Upload Progress: {UploadFirmwareProgress}%");
 
         public ICommand BrowseFirmwarePathCommand { get; private set; }
         private bool CanBrowseFirmwarePath(object o)
@@ -106,7 +120,7 @@ namespace DAQifi.Desktop.ViewModels
                     if (string.IsNullOrWhiteSpace(FirmwareFilePath)) return;
                     if (!File.Exists(FirmwareFilePath)) return;
 
-                    _bootloader.LoadFirmware(FirmwareFilePath);
+                    _bootloader.LoadFirmware(FirmwareFilePath, bw);
                 }
                 catch (Exception ex)
                 {
@@ -117,8 +131,14 @@ namespace DAQifi.Desktop.ViewModels
                     IsFirmwareUploading = false;
                 }
             };
-
+            bw.WorkerReportsProgress = true;
+            bw.ProgressChanged += UploadFirmwareProgressChanged;
             bw.RunWorkerAsync();
+        }
+
+        void UploadFirmwareProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            UploadFirmwareProgress = e.ProgressPercentage;
         }
     }
 }
