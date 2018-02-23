@@ -11,19 +11,12 @@ namespace Daqifi.Desktop.Device.HidDevice
 
         public void Start()
         {
-            ////hidsharp
-            //foreach (var streamingDevice in new HidSharp.HidDeviceLoader().GetDevices()
-            //    .Where(d => d.VendorID == VendorId && d.ProductID == ProductId))
-            //{
-            //    var daqifiDevice = new HidFirmwareDevice(streamingDevice);
-            //    NotifyDeviceFound(this, daqifiDevice);
-            //}
-
-            var devices = HidDevices.Enumerate(VendorId, ProductId);
+            var hidEnumerator = new HidFastReadEnumerator();
+            var devices = hidEnumerator.Enumerate(VendorId, ProductId);
 
             foreach (var device in devices)
             {
-                var daqifiDevice = new HidFirmwareDevice(device);
+                var daqifiDevice = new HidFirmwareDevice(device as HidFastReadDevice);
                 NotifyDeviceFound(this, daqifiDevice);
             }
         }

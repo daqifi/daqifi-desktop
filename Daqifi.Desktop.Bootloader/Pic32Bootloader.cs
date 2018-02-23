@@ -14,9 +14,8 @@ namespace Daqifi.Desktop.Bootloader
         //private const int VendorId = 0x4D8;
         //private const int ProductId = 0x03C;
 
-        private readonly HidDevice _hidDevice;
+        private readonly HidFastReadDevice _hidDevice;
         private string _version;
-        private bool _attached;
         private bool _disposed;
         private ushort _baseAddress;
         private uint _beginProtectedAddress = 0x1D040000;
@@ -37,7 +36,7 @@ namespace Daqifi.Desktop.Bootloader
         #endregion
 
         #region Constructor
-        public Pic32Bootloader(HidDevice hidHidDevice)
+        public Pic32Bootloader(HidFastReadDevice hidHidDevice)
         {
             _hidDevice = hidHidDevice;
             OpenDevice();
@@ -92,10 +91,10 @@ namespace Daqifi.Desktop.Bootloader
             var messageProducer = new Pic32BootloaderMessageProducer();
             var messageConsumer = new Pic32BootloaderMessageConsumer();
 
-            if (!EraseFlash())
-            {
-                throw new InvalidDataException("There was a problem erasing the flash");
-            }
+            //if (!EraseFlash())
+            //{
+            //    throw new InvalidDataException("There was a problem erasing the flash");
+            //}
 
             for(var i = 0; i < hexRecords.Count; i++)
             {
@@ -107,7 +106,7 @@ namespace Daqifi.Desktop.Bootloader
 
                 _hidDevice.WriteReport(outputReport);
 
-                var report = _hidDevice.ReadReport();
+                var report = _hidDevice.FastReadReport();
                 var successfulResponse = messageConsumer.DecodeProgramFlashResponse(report.Data);
 
                 if(!successfulResponse) throw new InvalidDataException("The response from the device was invalid.  Exepcted a program flash response");
@@ -201,37 +200,6 @@ namespace Daqifi.Desktop.Bootloader
             _hidDevice.CloseDevice();
         }
 
-        //private void HandleReportReceived(HidReport report)
-        //{
-        //    var test = report;
-        //}
-
-        //private void HandleVersionReceived(HidReport report)
-        //{
-        //    if (!_attached) return;
-
-        //    var staus = report.ReadStatus;
-
-        //    var deviceData = report.Data;
-        //    var consumer = new Pic32BootloaderMessageConsumer();
-        //    Version = consumer.DecodeVersionResponse(deviceData);
-        //}
-
-        private void HandleProgramFlashResponseReceived(HidReport report)
-        {
-            if (!_attached) return;
-
-            var status = report.ReadStatus;
-            var deviceData = report.Data;
-            var consumer = new Pic32BootloaderMessageConsumer();
-            var success = consumer.DecodeProgramFlashResponse(deviceData);
-
-            if (status != HidDeviceData.ReadStatus.NotConnected)
-            {
-                _hidDevice.ReadReport(HandleProgramFlashResponseReceived);
-            }
-        }
-
         private HidReport CreateDeviceOutputReport(byte[] data)
         {
             if (data.Length > _hidDevice.Capabilities.OutputReportByteLength)
@@ -247,16 +215,6 @@ namespace Daqifi.Desktop.Bootloader
             outputReport.Data = dataBuffer;
 
             return outputReport;
-        }
-
-        private void HandleDeviceRemoved()
-        {
-            _attached = false;
-        }
-
-        private void HandleDeviceInserted()
-        {
-            _attached = true;
         }
         #endregion
 

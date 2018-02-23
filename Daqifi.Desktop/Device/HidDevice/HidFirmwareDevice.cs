@@ -12,11 +12,11 @@ namespace Daqifi.Desktop.Device.HidDevice
     public class HidFirmwareDevice : IFirmwareDevice
     {
 
-        public HidLibrary.HidDevice Device { get; }
+        public HidLibrary.HidFastReadDevice Device { get; }
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        public HidFirmwareDevice(HidLibrary.HidDevice device)
+        public HidFirmwareDevice(HidLibrary.HidFastReadDevice device)
         {
             Device = device;
         }
