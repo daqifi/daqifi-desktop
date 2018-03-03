@@ -106,6 +106,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                     var stream = new MemoryStream(receivedBytes);
                     var message = DaqifiOutMessage.ParseDelimitedFrom(stream);
                     var device = GetDeviceFromProtobufMessage(message);
+                    ((DaqifiStreamingDevice) device).IpAddress = remoteIpEndPoint.Address.ToString();
                     NotifyDeviceFound(this, device);
                 }
 
