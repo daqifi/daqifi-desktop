@@ -13,7 +13,7 @@ namespace Daqifi.Desktop
     public partial class App
     {
         private const string AppName = "DAQifi";
-        private const string Version = "1.0.0";
+        private const string Version = "1.0.1";
         private const string XamarinKey = "699deee1bbdab8013281235f782bc0b49f082df4";
 
         public SplashScreen SplashScreen { get; private set; }
@@ -24,7 +24,7 @@ namespace Daqifi.Desktop
 
             AppDomain.CurrentDomain.SetData("DataDirectory", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DAQifi"));
 
-            //ShowSplashScreen();
+            ShowSplashScreen();
 
             // Initialize call should happen as soon as possible, ideally at app start-up.
             Insights.Initialize(XamarinKey, Version, AppName);
