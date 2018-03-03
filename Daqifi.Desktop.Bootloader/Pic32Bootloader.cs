@@ -96,7 +96,7 @@ namespace Daqifi.Desktop.Bootloader
             //    throw new InvalidDataException("There was a problem erasing the flash");
             //}
 
-            for(var i = 0; i < hexRecords.Count; i++)
+            for (var i = 0; i < hexRecords.Count; i++)
             {
                 backgroundWorker.ReportProgress(i * 100 / hexRecords.Count);
 
