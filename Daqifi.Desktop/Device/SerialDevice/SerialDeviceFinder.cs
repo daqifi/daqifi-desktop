@@ -1,4 +1,6 @@
-﻿using System.IO.Ports;
+﻿using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO.Ports;
 using System.Linq;
 using System.Management;
 
@@ -35,7 +37,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
                 _deviceAddedWatcher.EventArrived += (sender, eventArgs) => RaisePortsChangedIfNecessary();
                 _deviceRemovedWatcher.EventArrived += (sender, eventArgs) => RaisePortsChangedIfNecessary();
             }
-            catch (ManagementException ex)
+            catch (ManagementException)
             {
 
             }
@@ -43,31 +45,58 @@ namespace Daqifi.Desktop.Device.SerialDevice
 
         private void RaisePortsChangedIfNecessary()
         {
-            lock (_serialPorts)
+            var bw = new BackgroundWorker();
+            bw.DoWork += delegate
             {
-                var availableSerialPorts = GetAvailableSerialPorts();
-                var addedPorts = availableSerialPorts.Except(_serialPorts);
-                var removedPorts = _serialPorts.Except(availableSerialPorts);
-
-                foreach (var portName in addedPorts)
+                lock (_serialPorts)
                 {
-                   var device = new SerialStreamingDevice(portName);
-                   NotifyDeviceFound(this,device);
-                }
+                    var availableSerialPorts = GetAvailableDaqifiPorts();
+                    var addedPorts = availableSerialPorts.Except(_serialPorts);
+                    var removedPorts = _serialPorts.Except(availableSerialPorts);
 
-                foreach (var portName in removedPorts)
-                {
-                    var device = new SerialStreamingDevice(portName);
-                    NotifyDeviceRemoved(this, device);
-                }
+                    foreach (var portName in addedPorts)
+                    {
+                        var device = new SerialStreamingDevice(portName);
+                        NotifyDeviceFound(this, device);
+                    }
 
-                _serialPorts = availableSerialPorts;
-            }
+                    foreach (var portName in removedPorts)
+                    {
+                        var device = new SerialStreamingDevice(portName);
+                        NotifyDeviceRemoved(this, device);
+                    }
+
+                    _serialPorts = availableSerialPorts;
+                }
+            };
+
+            bw.RunWorkerAsync();
+            
         }
 
-        public static string[] GetAvailableSerialPorts()
+        public static string[] GetAvailableDaqifiPorts()
         {
-            return SerialPort.GetPortNames();
+            var portNames = new List<string>();
+
+            ManagementObjectCollection collection;
+            using (var searcher = new ManagementObjectSearcher(@"Select * From WIN32_SerialPort"))
+                collection = searcher.Get();
+
+            foreach (var serialDevice in collection)
+            {
+                var deviceId = serialDevice.GetPropertyValue("DeviceID");
+                var pnpDeviceId = serialDevice.GetPropertyValue("PNPDeviceID");
+               
+                var device = UsbDevice.Get((string)pnpDeviceId);
+                var deviceReportedDescription = device.BusReportedDeviceDescription;
+
+                if (deviceReportedDescription.ToLower() == "nyquist")
+                {
+                    portNames.Add((string) deviceId);
+                }
+            }
+
+            return portNames.ToArray();
         }
 
         public void Start()
