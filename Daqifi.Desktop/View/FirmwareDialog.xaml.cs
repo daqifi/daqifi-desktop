@@ -9,5 +9,10 @@
         {
             InitializeComponent();
         }
+
+        private void btnCancel_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            Close();
+        }
     }
 }
