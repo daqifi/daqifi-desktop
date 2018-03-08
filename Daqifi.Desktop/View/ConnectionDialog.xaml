@@ -30,7 +30,7 @@
                                                     <Label Content="{Binding IpAddress}"/>
                                                     <Label Content="{Binding MacAddress}"/>
                                                 </StackPanel>
-                                                <Image Grid.Column="0" Source="../Images/DAQImage.png" Width="50" Height="50"/>
+                                                <Image Grid.Column="0" Source="../Images/device_nq.png" Width="50" Height="50"/>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -61,7 +61,7 @@
                                                 <StackPanel Grid.Column="1" Orientation="Vertical">
                                                     <Label Content="{Binding Port.PortName}"/>
                                                 </StackPanel>
-                                                <Image Grid.Column="0" Source="../Images/DAQImage.png" Width="50" Height="50"/>
+                                                <Image Grid.Column="0" Source="../Images/device_nq.png" Width="50" Height="50"/>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -92,7 +92,7 @@
                                                 <StackPanel Grid.Column="1" Orientation="Vertical">
                                                     <Label Content="DAQifi Device: Firmware"/>
                                                 </StackPanel>
-                                                <Image Grid.Column="0" Source="../Images/DAQImage.png" Width="50" Height="50"/>
+                                                <Image Grid.Column="0" Source="../Images/device_nq.png" Width="50" Height="50"/>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
