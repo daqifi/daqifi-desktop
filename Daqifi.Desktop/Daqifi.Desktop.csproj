@@ -388,12 +388,10 @@
     <Resource Include="Images\WiFiDAQ.ico" />
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Images\DAQImage.png" />
-  </ItemGroup>
-  <ItemGroup>
     <Content Include="Database\amd64\Microsoft.VC90.CRT\msvcr90.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Resource Include="Images\device_nq.png" />
     <Resource Include="Resources\Entypo-license.txt" />
     <Resource Include="Resources\WindowsIcons-license.txt" />
     <Resource Include="Images\DAQifi.png" />
