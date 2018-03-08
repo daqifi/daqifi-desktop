@@ -32,7 +32,7 @@
         </GroupBox>
         
         <DockPanel Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" LastChildFill="True" Margin="5">
-            <Button Content="Cancel" Width="100" Height="30"  Style="{StaticResource SquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+            <Button Click="btnCancel_Click" Content="Cancel" Width="100" Height="30"  Style="{StaticResource SquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
             <Button DockPanel.Dock="Bottom" Content="Upload" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True" Command="{Binding UploadFirmwareCommand}"/>
         </DockPanel>
 
