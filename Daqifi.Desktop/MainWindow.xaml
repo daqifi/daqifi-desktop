@@ -558,7 +558,7 @@
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <Image Grid.Column="0" Source="../Images/device_nq.png" Width="50" Height="50"/>
+                                                    <Image Grid.Column="0" Source="../Images/1Nq.png" Width="50" Height="50"/>
                                                     <Grid Grid.Column="1">
                                                         <Grid.RowDefinitions>
                                                             <RowDefinition Height="Auto"/>
