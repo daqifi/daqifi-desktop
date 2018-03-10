@@ -391,7 +391,10 @@
     <Content Include="Database\amd64\Microsoft.VC90.CRT\msvcr90.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Resource Include="Images\device_nq.png" />
+    <Resource Include="Images\1Nq.png" />
+    <Resource Include="Images\2Nq.png" />
+    <Resource Include="Images\3Nq.png" />
+    <Resource Include="Images\Nq.png" />
     <Resource Include="Resources\Entypo-license.txt" />
     <Resource Include="Resources\WindowsIcons-license.txt" />
     <Resource Include="Images\DAQifi.png" />
