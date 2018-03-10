@@ -5,7 +5,7 @@
         Manufacturer="DAQifi"
         UpgradeCode="ACA4F4E1-6DBB-47C0-A829-84AA1536C147"
         Language="1033"
-        Version="1.0.1.0">
+        Version="1.0.2.0">
 
     <Package Id="*"
              Description="DAQifi Installer"
