@@ -11,15 +11,14 @@ namespace Daqifi.Desktop.Bootloader
     public class Pic32Bootloader : ObservableObject, IBootloader, IDisposable
     {
         #region Private Data
-        //private const int VendorId = 0x4D8;
-        //private const int ProductId = 0x03C;
+        // Memory address range that we omit changing so we can preserve calibration values.
+        private const uint BeginProtectedAddress = 0x1D1E0000;
+        private const uint EndProtectedAddress = 0x1D200000;
 
         private readonly HidFastReadDevice _hidDevice;
         private string _version;
         private bool _disposed;
         private ushort _baseAddress;
-        private uint _beginProtectedAddress = 0x1D040000;
-        private uint _endProtectedAddress = 0x1D057FFF;
 
         #endregion
 
@@ -170,7 +169,7 @@ namespace Daqifi.Desktop.Bootloader
                 var offsetAddress = BitConverter.ToUInt16(offsetAddressArray, 0);
                 var hexRecordAddress = (_baseAddress << 16) | offsetAddress;
 
-                if (hexRecordAddress >= _beginProtectedAddress && hexRecordAddress <= _endProtectedAddress)
+                if (hexRecordAddress >= BeginProtectedAddress && hexRecordAddress <= EndProtectedAddress)
                 {
                     return true;
                 }
