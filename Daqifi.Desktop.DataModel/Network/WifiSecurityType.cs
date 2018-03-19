@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel;
-using System.ComponentModel.DataAnnotations;
 
 namespace Daqifi.Desktop.DataModel.Network
 {
@@ -14,10 +13,10 @@ namespace Daqifi.Desktop.DataModel.Network
         [Description("WEP-104")]
         Wep104 = 2,
 
-        [Description("WEP-PSK Key")]
+        [Description("WPA Key")]
         WpaPskKey = 3,
 
-        [Description("WEP-PSK Pass Phrase")]
+        [Description("WPA Pass Phrase")]
         WpaPskPhrase = 4
     }
 }
