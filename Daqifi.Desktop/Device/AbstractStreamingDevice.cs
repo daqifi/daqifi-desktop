@@ -46,7 +46,6 @@ namespace Daqifi.Desktop.Device
             }
         }
 
-        public List<string> Modes { get; } = new List<string> { "Self-Hosted", "Existing Network"};
         public List<string> SecurityTypes { get; } = new List<string>();
         public List<string> AdcRanges { get; } = new List<string> { "+/-5V", "+/-10V" };
 
@@ -79,7 +78,6 @@ namespace Daqifi.Desktop.Device
         }
 
         public bool IsStreaming { get; set; }
-
         #endregion
 
         #region Abstract Methods
@@ -325,6 +323,19 @@ namespace Daqifi.Desktop.Device
             if (message.HasSsid)
             {
                 NetworkConfiguration.Ssid = message.Ssid;
+            }
+
+            if (message.HasWifiSecurityMode)
+            {
+                NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
+            }
+        }
+
+        private void PopulateWifiMode(IDaqifiOutMessage message)
+        {
+            if (message.HasWifiSecurityMode)
+            {
+                WifiMode = message.WifiSecurityMode;
             }
 
             if (message.HasWifiSecurityMode)
