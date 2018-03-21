@@ -69,6 +69,7 @@
   <ItemGroup>
     <Compile Include="Communication\Protobuf\ProtobugDecoderTests.cs" />
     <Compile Include="Communication\Protobuf\ProtobufTests.cs" />
+    <Compile Include="Exporter\LoggingSessionExporterTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

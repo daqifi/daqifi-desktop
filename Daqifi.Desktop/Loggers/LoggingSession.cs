@@ -19,16 +19,13 @@ namespace Daqifi.Desktop.Logger
         public virtual ICollection<DataSample> DataSamples { get; set; }
         public string Name 
         {
-            get 
-            {
-                return string.IsNullOrWhiteSpace(_name) ? "Session " + ID.ToString() : _name;
-            }
+            get => string.IsNullOrWhiteSpace(_name) ? "Session " + ID.ToString() : _name;
             set 
             {
                 if (_name == value) return;
 
                 _name = value;
-                using (LoggingContext context = new LoggingContext())
+                using (var context = new LoggingContext())
                 {
                     context.Entry(this).State = System.Data.Entity.EntityState.Modified;
                     context.SaveChanges();

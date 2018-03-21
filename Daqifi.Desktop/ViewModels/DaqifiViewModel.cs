@@ -319,15 +319,15 @@ namespace Daqifi.Desktop.ViewModels
 
                 RegisterCommands();
 
-                //Manage connected streamingDevice list
+                // Manage connected streamingDevice list
                 ConnectionManager.Instance.PropertyChanged += UpdateUi;
 
-                //Manage data for plotting
+                // Manage data for plotting
                 LoggingManager.Instance.PropertyChanged += UpdateUi;
                 Plotter = new PlotLogger();
                 LoggingManager.Instance.AddLogger(Plotter);
 
-                //Database logging
+                // Database logging
                 DbLogger = new DatabaseLogger();
                 LoggingManager.Instance.AddLogger(DbLogger);
                 using (var context = new LoggingContext())
@@ -638,8 +638,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void OpenChannelSettings(object o)
         {
-            var item = o as IChannel;
-            if (item == null)
+            if (!(o is IChannel item))
             {
                 AppLogger.Error("Error opening channel settings");
                 return;
@@ -662,8 +661,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void DisplayLoggingSession(object o)
         {
-            var session = o as LoggingSession;
-            if (session == null)
+            if (!(o is LoggingSession session))
             {
                 DbLogger.ClearPlot();
                 return;
@@ -689,8 +687,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void ExportLoggingSession(object o)
         {
-            var session = o as LoggingSession;
-            if (session == null)
+            if (!(o is LoggingSession session))
             {
                 AppLogger.Error("Error exporting logging session");
                 return;
@@ -716,9 +713,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             try
             {
-                var session = o as LoggingSession;
-
-                if (session == null)
+                if (!(o is LoggingSession session))
                 {
                     AppLogger.Error("Error deleting logging session");
                     return;
@@ -808,9 +803,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void RebootSelectedDevice(object o)
         {
-            var deviceToReboot = o as IStreamingDevice;
-
-            if(deviceToReboot == null) return;
+            if(!(o is IStreamingDevice deviceToReboot)) return;
 
             if (deviceToReboot.DataChannels != null)
             {
