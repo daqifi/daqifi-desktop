@@ -1,8 +1,13 @@
-﻿namespace Daqifi.Desktop.DataModel.Network
+﻿using System.ComponentModel;
+
+namespace Daqifi.Desktop.DataModel.Network
 {
     public enum WifiMode
     {
-        SelfHosted,
-        ExistingNetwork
+        [Description("Self Hosted")]
+        SelfHosted = 4,
+
+        [Description("Existing Network")]
+        ExistingNetwork = 1
     }
 }
