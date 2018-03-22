@@ -108,6 +108,7 @@ namespace Daqifi.Desktop.Message.MessageTypes
 
         public static IMessage BatteryLevel => new ScpiMessage("SYSTem:BAT:LEVel?");
 
+        public static IMessage DeviceOn => new ScpiMessage("SYSTem:POWer:STATe 1");
         #endregion
 
         #region Streaming Commands
