@@ -140,18 +140,40 @@ namespace Daqifi.Desktop.Device
 
             var messageTimestamp = _previousTimestamp.Value.AddMilliseconds(secondsBetweenMessages * 1000.0);
 
-            //Update digital channel information
+            // Update digital channel information
             var digitalCount = 0;
             var analogCount = 0;
+
+            // DI 1-8
+            var digitalData1 = new byte();
+
+            // DI 9-16
+            var digitalData2 = new byte();
+
+            var hasDigitalData = message.HasDigitalData;
+
+            if (hasDigitalData)
+            {
+                digitalData1 = message.DigitalData.ElementAt(0);
+                digitalData2 = message.DigitalData.ElementAt(1);
+            }
             foreach (var channel in DataChannels)
             {
                 if (channel.Direction != ChannelDirection.Input) continue;
 
-                if (channel.Type == ChannelType.Digital)
+                if (channel.Type == ChannelType.Digital && hasDigitalData)
                 {
                     if (channel.IsActive)
                     {
-                        var bit = (message.DigitalData.ElementAt(0) & (1 << digitalCount)) != 0;
+                        bool bit;
+                        if (digitalCount < 8)
+                        {
+                            bit = (digitalData1 & (1 << digitalCount)) != 0;
+                        }
+                        else
+                        {
+                            bit = (digitalData2 & (1 << digitalCount % 8)) != 0;
+                        }
                         channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
                     }
                     digitalCount++;
@@ -204,20 +226,20 @@ namespace Daqifi.Desktop.Device
                     var activeAnalogChannels = GetActiveChannels(ChannelType.Analog);
                     var channelSetByte = 0;
 
-                    //Get Exsiting Channel Set Byte
+                    // Get Exsiting Channel Set Byte
                     foreach (var activeChannel in activeAnalogChannels)
                     {
                         channelSetByte = channelSetByte | (1 << activeChannel.Index);
                     }
 
-                    //Add Channel Bit to the Channel Set Byte
+                    // Add Channel Bit to the Channel Set Byte
                     channelSetByte = channelSetByte | (1 << newChannel.Index);
 
-                    //Convert to a string
+                    // Convert to a string
                     var channelSetString = Convert.ToString(channelSetByte);
 
-                    //Send the command to add the channel
-                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcChannels(channelSetString));
+                    // Send the command to add the channel
+                    MessageProducer.SendAsync(ScpiMessagePoducer.EnableAdcChannels(channelSetString));
                     break;
                 case ChannelType.Digital:
                     MessageProducer.SendAsync(ScpiMessagePoducer.EnableDioPorts());
@@ -248,7 +270,7 @@ namespace Daqifi.Desktop.Device
                     var channelSetString = Convert.ToString(channelSetByte);
 
                     //Send the command to add the channel
-                    MessageProducer.SendAsync(ScpiMessagePoducer.ConfigureAdcChannels(channelSetString));
+                    MessageProducer.SendAsync(ScpiMessagePoducer.EnableAdcChannels(channelSetString));
                     break;
             }
         }

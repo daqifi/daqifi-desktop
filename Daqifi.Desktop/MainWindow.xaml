@@ -8,7 +8,7 @@
         xmlns:Service="clr-namespace:Daqifi.Desktop.DialogService"
         xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         Service:DialogService.IsRegisteredView="True"
-        Title="DAQifi v1.0.2" Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
+        Title="DAQifi v1.0.3 Beta" Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
     <Window.DataContext>
         <vm:DaqifiViewModel/>
     </Window.DataContext>

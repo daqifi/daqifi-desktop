@@ -25,7 +25,7 @@ namespace Daqifi.Desktop.Channel
         #region Constructors
         public DataSample() { }
 
-        public DataSample(AbstractStreamingDevice streamingDevice, IChannel channel, DateTime timestamp, double value)
+        public DataSample(IDevice streamingDevice, IChannel channel, DateTime timestamp, double value)
         {
             DeviceName = streamingDevice.Name;
             ChannelName = channel.Name;
