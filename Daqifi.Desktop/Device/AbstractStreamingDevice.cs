@@ -329,18 +329,10 @@ namespace Daqifi.Desktop.Device
             {
                 NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
             }
-        }
 
-        private void PopulateWifiMode(IDaqifiOutMessage message)
-        {
-            if (message.HasWifiSecurityMode)
+            if (message.HasWifiInfMode)
             {
-                WifiMode = message.WifiSecurityMode;
-            }
-
-            if (message.HasWifiSecurityMode)
-            {
-                NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
+                NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
             }
         }
 
