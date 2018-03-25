@@ -108,6 +108,7 @@ namespace Daqifi.Desktop.Message.MessageTypes
 
         public static IMessage BatteryLevel => new ScpiMessage("SYSTem:BAT:LEVel?");
 
+        public static IMessage DeviceOn => new ScpiMessage("SYSTem:POWer:STATe 1");
         #endregion
 
         #region Streaming Commands
@@ -132,9 +133,14 @@ namespace Daqifi.Desktop.Message.MessageTypes
             return new ScpiMessage($"CONFigure:ADC:RANGe {range}");
         }
 
-        public static IMessage ConfigureAdcChannels(string channelSetString)
+        //public static IMessage ConfigureAdcChannels(string channelSetString)
+        //{
+        //    return new ScpiMessage($"CONFigure:ADC:CHANnel {channelSetString}");
+        //}
+
+        public static IMessage EnableAdcChannels(string channelSetString)
         {
-            return new ScpiMessage($"CONFigure:ADC:CHANnel {channelSetString}");
+            return new ScpiMessage($"ENAble:VOLTage:DC {channelSetString}");
         }
 
         public static IMessage SetVoltageLevel(int channel, double value)

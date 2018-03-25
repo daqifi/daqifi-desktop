@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO.Ports;
 using System.Threading;
+using Daqifi.Desktop.Message.MessageTypes;
 
 namespace Daqifi.Desktop.Device.SerialDevice
 {
@@ -37,6 +38,8 @@ namespace Daqifi.Desktop.Device.SerialDevice
                 Thread.Sleep(100);
                 StopStreaming();
                 Thread.Sleep(100);
+                TurnDeviceOn();
+                Thread.Sleep(100);
                 MessageConsumer = new MessageConsumer(Port.BaseStream);
                 MessageConsumer.Start();
                 InitializeDeviceState();
@@ -62,6 +65,11 @@ namespace Daqifi.Desktop.Device.SerialDevice
             {
                 return false;
             }
+        }
+
+        private void TurnDeviceOn()
+        {
+            MessageProducer.SendAsync(ScpiMessagePoducer.DeviceOn);
         }
         #endregion
     }

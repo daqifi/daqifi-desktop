@@ -2,7 +2,6 @@
 #pragma warning disable 1591, 0612, 3021
 #region Designer generated code
 
-using Daqifi.Desktop.Communication.Protobuf;
 using pb = global::Google.ProtocolBuffers;
 using pbc = global::Google.ProtocolBuffers.Collections;
 using pbd = global::Google.ProtocolBuffers.Descriptors;
@@ -29,7 +28,7 @@ namespace Proto {
     static DaqifiOutMessage() {
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
-            "ChZEYXFpZmlPdXRNZXNzYWdlLnByb3RvIqYMChBEYXFpZmlPdXRNZXNzYWdl", 
+            "ChZEYXFpZmlPdXRNZXNzYWdlLnByb3RvIoENChBEYXFpZmlPdXRNZXNzYWdl", 
             "EhYKDm1zZ190aW1lX3N0YW1wGAEgASgNEhYKDmFuYWxvZ19pbl9kYXRhGAIg", 
             "AygREhwKFGFuYWxvZ19pbl9kYXRhX2Zsb2F0GAMgAygCEhkKEWFuYWxvZ19p", 
             "bl9kYXRhX3RzGAQgAygNEhQKDGRpZ2l0YWxfZGF0YRgFIAEoDBIXCg9kaWdp", 
@@ -60,17 +59,19 @@ namespace Proto {
             "IAEoDBISCgpnYXRld2F5X3Y2GDMgASgMEhYKDnByaW1hcnlfZG5zX3Y2GDQg", 
             "ASgMEhgKEHNlY29uZGFyeV9kbnNfdjYYNSABKAwSDgoGZXVpXzY0GDYgASgM", 
             "EhEKCWhvc3RfbmFtZRg3IAEoCRITCgtkZXZpY2VfcG9ydBg4IAEoDRIcChRm", 
-            "cmllbmRseV9kZXZpY2VfbmFtZRg5IAEoCRIMCgRzc2lkGDogASgJEhoKEndp", 
-            "Zmlfc2VjdXJpdHlfbW9kZRg7IAEoDRIPCgdhdl9zc2lkGDwgAygJEhgKEGF2", 
-            "X3NzaWRfc3RyZW5ndGgYPSABKAwSHQoVYXZfc3NpZF9zZWN1cml0eV9tb2Rl", 
-            "GD4gASgMEhEKCWRldmljZV9wbhg/IAEoCRIVCg1kZXZpY2VfaHdfcmV2GEAg", 
-          "ASgJEhUKDWRldmljZV9md19yZXYYQSABKAk="));
+            "cmllbmRseV9kZXZpY2VfbmFtZRg5IAEoCRIMCgRzc2lkGDogASgJEhUKDXNz", 
+            "aWRfc3RyZW5ndGgYOyABKA0SGgoSd2lmaV9zZWN1cml0eV9tb2RlGDwgASgN", 
+            "EhUKDXdpZmlfaW5mX21vZGUYPSABKA0SDwoHYXZfc3NpZBg+IAMoCRIYChBh", 
+            "dl9zc2lkX3N0cmVuZ3RoGD8gAygNEh0KFWF2X3dpZmlfc2VjdXJpdHlfbW9k", 
+            "ZRhAIAMoDRIYChBhdl93aWZpX2luZl9tb2RlGEEgAygNEhEKCWRldmljZV9w", 
+            "bhhCIAEoCRIVCg1kZXZpY2VfaHdfcmV2GEMgASgJEhUKDWRldmljZV9md19y", 
+          "ZXYYRCABKAkSEQoJZGV2aWNlX3NuGEUgASgE"));
       pbd::FileDescriptor.InternalDescriptorAssigner assigner = delegate(pbd::FileDescriptor root) {
         descriptor = root;
         internal__static_DaqifiOutMessage__Descriptor = Descriptor.MessageTypes[0];
         internal__static_DaqifiOutMessage__FieldAccessorTable = 
             new pb::FieldAccess.FieldAccessorTable<global::DaqifiOutMessage, global::DaqifiOutMessage.Builder>(internal__static_DaqifiOutMessage__Descriptor,
-                new string[] { "MsgTimeStamp", "AnalogInData", "AnalogInDataFloat", "AnalogInDataTs", "DigitalData", "DigitalDataTs", "AnalogOutData", "DeviceStatus", "PwrStatus", "BattStatus", "TempStatus", "TimestampFreq", "AnalogInPortNum", "AnalogInPortNumPriv", "AnalogInPortType", "AnalogInPortAvRse", "AnalogInPortRse", "AnalogInPortEnabled", "AnalogInPortAvRange", "AnalogInPortAvRangePriv", "AnalogInPortRange", "AnalogInPortRangePriv", "AnalogInRes", "AnalogInResPriv", "AnalogInIntScaleM", "AnalogInIntScaleMPriv", "AnalogInCalM", "AnalogInCalB", "AnalogInCalMPriv", "AnalogInCalBPriv", "DigitalPortNum", "DigitalPortType", "DigitalPortDir", "AnalogOutPortNum", "AnalogOutPortType", "AnalogOutRes", "AnalogOutPortAvRange", "AnalogOutPortRange", "IpAddr", "NetMask", "Gateway", "PrimaryDns", "SecondaryDns", "MacAddr", "IpAddrV6", "SubPreLengthV6", "GatewayV6", "PrimaryDnsV6", "SecondaryDnsV6", "Eui64", "HostName", "DevicePort", "FriendlyDeviceName", "Ssid", "WifiSecurityMode", "AvSsid", "AvSsidStrength", "AvSsidSecurityMode", "DevicePn", "DeviceHwRev", "DeviceFwRev", });
+                new string[] { "MsgTimeStamp", "AnalogInData", "AnalogInDataFloat", "AnalogInDataTs", "DigitalData", "DigitalDataTs", "AnalogOutData", "DeviceStatus", "PwrStatus", "BattStatus", "TempStatus", "TimestampFreq", "AnalogInPortNum", "AnalogInPortNumPriv", "AnalogInPortType", "AnalogInPortAvRse", "AnalogInPortRse", "AnalogInPortEnabled", "AnalogInPortAvRange", "AnalogInPortAvRangePriv", "AnalogInPortRange", "AnalogInPortRangePriv", "AnalogInRes", "AnalogInResPriv", "AnalogInIntScaleM", "AnalogInIntScaleMPriv", "AnalogInCalM", "AnalogInCalB", "AnalogInCalMPriv", "AnalogInCalBPriv", "DigitalPortNum", "DigitalPortType", "DigitalPortDir", "AnalogOutPortNum", "AnalogOutPortType", "AnalogOutRes", "AnalogOutPortAvRange", "AnalogOutPortRange", "IpAddr", "NetMask", "Gateway", "PrimaryDns", "SecondaryDns", "MacAddr", "IpAddrV6", "SubPreLengthV6", "GatewayV6", "PrimaryDnsV6", "SecondaryDnsV6", "Eui64", "HostName", "DevicePort", "FriendlyDeviceName", "Ssid", "SsidStrength", "WifiSecurityMode", "WifiInfMode", "AvSsid", "AvSsidStrength", "AvWifiSecurityMode", "AvWifiInfMode", "DevicePn", "DeviceHwRev", "DeviceFwRev", "DeviceSn", });
         return null;
       };
       pbd::FileDescriptor.InternalBuildGeneratedFileFrom(descriptorData,
@@ -83,11 +84,12 @@ namespace Proto {
 }
 #region Messages
 [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMessage, DaqifiOutMessage.Builder>, IDaqifiOutMessage {
+public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMessage, DaqifiOutMessage.Builder>, IDaqifiOutMessage
+{
   private DaqifiOutMessage() { }
   private static readonly DaqifiOutMessage defaultInstance = new DaqifiOutMessage().MakeReadOnly();
-  private static readonly string[] _daqifiOutMessageFieldNames = new string[] { "analog_in_cal_b", "analog_in_cal_b_priv", "analog_in_cal_m", "analog_in_cal_m_priv", "analog_in_data", "analog_in_data_float", "analog_in_data_ts", "analog_in_int_scale_m", "analog_in_int_scale_m_priv", "analog_in_port_av_range", "analog_in_port_av_range_priv", "analog_in_port_av_rse", "analog_in_port_enabled", "analog_in_port_num", "analog_in_port_num_priv", "analog_in_port_range", "analog_in_port_range_priv", "analog_in_port_rse", "analog_in_port_type", "analog_in_res", "analog_in_res_priv", "analog_out_data", "analog_out_port_av_range", "analog_out_port_num", "analog_out_port_range", "analog_out_port_type", "analog_out_res", "av_ssid", "av_ssid_security_mode", "av_ssid_strength", "batt_status", "device_fw_rev", "device_hw_rev", "device_pn", "device_port", "device_status", "digital_data", "digital_data_ts", "digital_port_dir", "digital_port_num", "digital_port_type", "eui_64", "friendly_device_name", "gateway", "gateway_v6", "host_name", "ip_addr", "ip_addr_v6", "mac_addr", "msg_time_stamp", "net_mask", "primary_dns", "primary_dns_v6", "pwr_status", "secondary_dns", "secondary_dns_v6", "ssid", "sub_pre_length_v6", "temp_status", "timestamp_freq", "wifi_security_mode" };
-  private static readonly uint[] _daqifiOutMessageFieldTags = new uint[] { 261, 277, 253, 269, 16, 29, 32, 237, 245, 189, 197, 162, 178, 136, 144, 205, 213, 170, 154, 216, 224, 56, 333, 304, 341, 314, 320, 482, 498, 490, 80, 522, 514, 506, 448, 64, 42, 48, 298, 280, 290, 434, 458, 362, 410, 442, 346, 394, 386, 8, 354, 370, 418, 72, 378, 426, 466, 402, 88, 128, 472 };
+  private static readonly string[] _daqifiOutMessageFieldNames = new string[] { "analog_in_cal_b", "analog_in_cal_b_priv", "analog_in_cal_m", "analog_in_cal_m_priv", "analog_in_data", "analog_in_data_float", "analog_in_data_ts", "analog_in_int_scale_m", "analog_in_int_scale_m_priv", "analog_in_port_av_range", "analog_in_port_av_range_priv", "analog_in_port_av_rse", "analog_in_port_enabled", "analog_in_port_num", "analog_in_port_num_priv", "analog_in_port_range", "analog_in_port_range_priv", "analog_in_port_rse", "analog_in_port_type", "analog_in_res", "analog_in_res_priv", "analog_out_data", "analog_out_port_av_range", "analog_out_port_num", "analog_out_port_range", "analog_out_port_type", "analog_out_res", "av_ssid", "av_ssid_strength", "av_wifi_inf_mode", "av_wifi_security_mode", "batt_status", "device_fw_rev", "device_hw_rev", "device_pn", "device_port", "device_sn", "device_status", "digital_data", "digital_data_ts", "digital_port_dir", "digital_port_num", "digital_port_type", "eui_64", "friendly_device_name", "gateway", "gateway_v6", "host_name", "ip_addr", "ip_addr_v6", "mac_addr", "msg_time_stamp", "net_mask", "primary_dns", "primary_dns_v6", "pwr_status", "secondary_dns", "secondary_dns_v6", "ssid", "ssid_strength", "sub_pre_length_v6", "temp_status", "timestamp_freq", "wifi_inf_mode", "wifi_security_mode" };
+  private static readonly uint[] _daqifiOutMessageFieldTags = new uint[] { 261, 277, 253, 269, 16, 29, 32, 237, 245, 189, 197, 162, 178, 136, 144, 205, 213, 170, 154, 216, 224, 56, 333, 304, 341, 314, 320, 498, 504, 520, 512, 80, 546, 538, 530, 448, 552, 64, 42, 48, 298, 280, 290, 434, 458, 362, 410, 442, 346, 394, 386, 8, 354, 370, 418, 72, 378, 426, 466, 472, 402, 88, 128, 488, 480 };
   public static DaqifiOutMessage DefaultInstance {
     get { return defaultInstance; }
   }
@@ -699,7 +701,18 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return ssid_; }
   }
   
-  public const int WifiSecurityModeFieldNumber = 59;
+  public const int SsidStrengthFieldNumber = 59;
+  private bool hasSsidStrength;
+  private uint ssidStrength_;
+  public bool HasSsidStrength {
+    get { return hasSsidStrength; }
+  }
+  [global::System.CLSCompliant(false)]
+  public uint SsidStrength {
+    get { return ssidStrength_; }
+  }
+  
+  public const int WifiSecurityModeFieldNumber = 60;
   private bool hasWifiSecurityMode;
   private uint wifiSecurityMode_;
   public bool HasWifiSecurityMode {
@@ -710,7 +723,18 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return wifiSecurityMode_; }
   }
   
-  public const int AvSsidFieldNumber = 60;
+  public const int WifiInfModeFieldNumber = 61;
+  private bool hasWifiInfMode;
+  private uint wifiInfMode_;
+  public bool HasWifiInfMode {
+    get { return hasWifiInfMode; }
+  }
+  [global::System.CLSCompliant(false)]
+  public uint WifiInfMode {
+    get { return wifiInfMode_; }
+  }
+  
+  public const int AvSsidFieldNumber = 62;
   private pbc::PopsicleList<string> avSsid_ = new pbc::PopsicleList<string>();
   public scg::IList<string> AvSsidList {
     get { return pbc::Lists.AsReadOnly(avSsid_); }
@@ -722,27 +746,49 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     return avSsid_[index];
   }
   
-  public const int AvSsidStrengthFieldNumber = 61;
-  private bool hasAvSsidStrength;
-  private pb::ByteString avSsidStrength_ = pb::ByteString.Empty;
-  public bool HasAvSsidStrength {
-    get { return hasAvSsidStrength; }
+  public const int AvSsidStrengthFieldNumber = 63;
+  private pbc::PopsicleList<uint> avSsidStrength_ = new pbc::PopsicleList<uint>();
+  [global::System.CLSCompliant(false)]
+  public scg::IList<uint> AvSsidStrengthList {
+    get { return pbc::Lists.AsReadOnly(avSsidStrength_); }
   }
-  public pb::ByteString AvSsidStrength {
-    get { return avSsidStrength_; }
+  public int AvSsidStrengthCount {
+    get { return avSsidStrength_.Count; }
   }
-  
-  public const int AvSsidSecurityModeFieldNumber = 62;
-  private bool hasAvSsidSecurityMode;
-  private pb::ByteString avSsidSecurityMode_ = pb::ByteString.Empty;
-  public bool HasAvSsidSecurityMode {
-    get { return hasAvSsidSecurityMode; }
-  }
-  public pb::ByteString AvSsidSecurityMode {
-    get { return avSsidSecurityMode_; }
+  [global::System.CLSCompliant(false)]
+  public uint GetAvSsidStrength(int index) {
+    return avSsidStrength_[index];
   }
   
-  public const int DevicePnFieldNumber = 63;
+  public const int AvWifiSecurityModeFieldNumber = 64;
+  private pbc::PopsicleList<uint> avWifiSecurityMode_ = new pbc::PopsicleList<uint>();
+  [global::System.CLSCompliant(false)]
+  public scg::IList<uint> AvWifiSecurityModeList {
+    get { return pbc::Lists.AsReadOnly(avWifiSecurityMode_); }
+  }
+  public int AvWifiSecurityModeCount {
+    get { return avWifiSecurityMode_.Count; }
+  }
+  [global::System.CLSCompliant(false)]
+  public uint GetAvWifiSecurityMode(int index) {
+    return avWifiSecurityMode_[index];
+  }
+  
+  public const int AvWifiInfModeFieldNumber = 65;
+  private pbc::PopsicleList<uint> avWifiInfMode_ = new pbc::PopsicleList<uint>();
+  [global::System.CLSCompliant(false)]
+  public scg::IList<uint> AvWifiInfModeList {
+    get { return pbc::Lists.AsReadOnly(avWifiInfMode_); }
+  }
+  public int AvWifiInfModeCount {
+    get { return avWifiInfMode_.Count; }
+  }
+  [global::System.CLSCompliant(false)]
+  public uint GetAvWifiInfMode(int index) {
+    return avWifiInfMode_[index];
+  }
+  
+  public const int DevicePnFieldNumber = 66;
   private bool hasDevicePn;
   private string devicePn_ = "";
   public bool HasDevicePn {
@@ -752,7 +798,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return devicePn_; }
   }
   
-  public const int DeviceHwRevFieldNumber = 64;
+  public const int DeviceHwRevFieldNumber = 67;
   private bool hasDeviceHwRev;
   private string deviceHwRev_ = "";
   public bool HasDeviceHwRev {
@@ -762,7 +808,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     get { return deviceHwRev_; }
   }
   
-  public const int DeviceFwRevFieldNumber = 65;
+  public const int DeviceFwRevFieldNumber = 68;
   private bool hasDeviceFwRev;
   private string deviceFwRev_ = "";
   public bool HasDeviceFwRev {
@@ -770,6 +816,17 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
   }
   public string DeviceFwRev {
     get { return deviceFwRev_; }
+  }
+  
+  public const int DeviceSnFieldNumber = 69;
+  private bool hasDeviceSn;
+  private ulong deviceSn_;
+  public bool HasDeviceSn {
+    get { return hasDeviceSn; }
+  }
+  [global::System.CLSCompliant(false)]
+  public ulong DeviceSn {
+    get { return deviceSn_; }
   }
   
   public override bool IsInitialized {
@@ -782,7 +839,7 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     CalcSerializedSize();
     string[] field_names = _daqifiOutMessageFieldNames;
     if (hasMsgTimeStamp) {
-      output.WriteUInt32(1, field_names[49], MsgTimeStamp);
+      output.WriteUInt32(1, field_names[51], MsgTimeStamp);
     }
     if (analogInData_.Count > 0) {
       output.WriteSInt32Array(2, field_names[4], analogInData_);
@@ -794,28 +851,28 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       output.WriteUInt32Array(4, field_names[6], analogInDataTs_);
     }
     if (hasDigitalData) {
-      output.WriteBytes(5, field_names[36], DigitalData);
+      output.WriteBytes(5, field_names[38], DigitalData);
     }
     if (digitalDataTs_.Count > 0) {
-      output.WriteUInt32Array(6, field_names[37], digitalDataTs_);
+      output.WriteUInt32Array(6, field_names[39], digitalDataTs_);
     }
     if (analogOutData_.Count > 0) {
       output.WriteUInt32Array(7, field_names[21], analogOutData_);
     }
     if (hasDeviceStatus) {
-      output.WriteUInt32(8, field_names[35], DeviceStatus);
+      output.WriteUInt32(8, field_names[37], DeviceStatus);
     }
     if (hasPwrStatus) {
-      output.WriteUInt32(9, field_names[53], PwrStatus);
+      output.WriteUInt32(9, field_names[55], PwrStatus);
     }
     if (hasBattStatus) {
-      output.WriteUInt32(10, field_names[30], BattStatus);
+      output.WriteUInt32(10, field_names[31], BattStatus);
     }
     if (hasTempStatus) {
-      output.WriteSInt32(11, field_names[58], TempStatus);
+      output.WriteSInt32(11, field_names[61], TempStatus);
     }
     if (hasTimestampFreq) {
-      output.WriteUInt32(16, field_names[59], TimestampFreq);
+      output.WriteUInt32(16, field_names[62], TimestampFreq);
     }
     if (hasAnalogInPortNum) {
       output.WriteUInt32(17, field_names[13], AnalogInPortNum);
@@ -872,13 +929,13 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       output.WriteFloatArray(34, field_names[1], analogInCalBPriv_);
     }
     if (hasDigitalPortNum) {
-      output.WriteUInt32(35, field_names[39], DigitalPortNum);
+      output.WriteUInt32(35, field_names[41], DigitalPortNum);
     }
     if (hasDigitalPortType) {
-      output.WriteBytes(36, field_names[40], DigitalPortType);
+      output.WriteBytes(36, field_names[42], DigitalPortType);
     }
     if (hasDigitalPortDir) {
-      output.WriteBytes(37, field_names[38], DigitalPortDir);
+      output.WriteBytes(37, field_names[40], DigitalPortDir);
     }
     if (hasAnalogOutPortNum) {
       output.WriteUInt32(38, field_names[23], AnalogOutPortNum);
@@ -896,73 +953,85 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       output.WriteFloat(42, field_names[24], AnalogOutPortRange);
     }
     if (hasIpAddr) {
-      output.WriteBytes(43, field_names[46], IpAddr);
+      output.WriteBytes(43, field_names[48], IpAddr);
     }
     if (hasNetMask) {
-      output.WriteBytes(44, field_names[50], NetMask);
+      output.WriteBytes(44, field_names[52], NetMask);
     }
     if (hasGateway) {
-      output.WriteBytes(45, field_names[43], Gateway);
+      output.WriteBytes(45, field_names[45], Gateway);
     }
     if (hasPrimaryDns) {
-      output.WriteBytes(46, field_names[51], PrimaryDns);
+      output.WriteBytes(46, field_names[53], PrimaryDns);
     }
     if (hasSecondaryDns) {
-      output.WriteBytes(47, field_names[54], SecondaryDns);
+      output.WriteBytes(47, field_names[56], SecondaryDns);
     }
     if (hasMacAddr) {
-      output.WriteBytes(48, field_names[48], MacAddr);
+      output.WriteBytes(48, field_names[50], MacAddr);
     }
     if (hasIpAddrV6) {
-      output.WriteBytes(49, field_names[47], IpAddrV6);
+      output.WriteBytes(49, field_names[49], IpAddrV6);
     }
     if (hasSubPreLengthV6) {
-      output.WriteBytes(50, field_names[57], SubPreLengthV6);
+      output.WriteBytes(50, field_names[60], SubPreLengthV6);
     }
     if (hasGatewayV6) {
-      output.WriteBytes(51, field_names[44], GatewayV6);
+      output.WriteBytes(51, field_names[46], GatewayV6);
     }
     if (hasPrimaryDnsV6) {
-      output.WriteBytes(52, field_names[52], PrimaryDnsV6);
+      output.WriteBytes(52, field_names[54], PrimaryDnsV6);
     }
     if (hasSecondaryDnsV6) {
-      output.WriteBytes(53, field_names[55], SecondaryDnsV6);
+      output.WriteBytes(53, field_names[57], SecondaryDnsV6);
     }
     if (hasEui64) {
-      output.WriteBytes(54, field_names[41], Eui64);
+      output.WriteBytes(54, field_names[43], Eui64);
     }
     if (hasHostName) {
-      output.WriteString(55, field_names[45], HostName);
+      output.WriteString(55, field_names[47], HostName);
     }
     if (hasDevicePort) {
-      output.WriteUInt32(56, field_names[34], DevicePort);
+      output.WriteUInt32(56, field_names[35], DevicePort);
     }
     if (hasFriendlyDeviceName) {
-      output.WriteString(57, field_names[42], FriendlyDeviceName);
+      output.WriteString(57, field_names[44], FriendlyDeviceName);
     }
     if (hasSsid) {
-      output.WriteString(58, field_names[56], Ssid);
+      output.WriteString(58, field_names[58], Ssid);
+    }
+    if (hasSsidStrength) {
+      output.WriteUInt32(59, field_names[59], SsidStrength);
     }
     if (hasWifiSecurityMode) {
-      output.WriteUInt32(59, field_names[60], WifiSecurityMode);
+      output.WriteUInt32(60, field_names[64], WifiSecurityMode);
+    }
+    if (hasWifiInfMode) {
+      output.WriteUInt32(61, field_names[63], WifiInfMode);
     }
     if (avSsid_.Count > 0) {
-      output.WriteStringArray(60, field_names[27], avSsid_);
+      output.WriteStringArray(62, field_names[27], avSsid_);
     }
-    if (hasAvSsidStrength) {
-      output.WriteBytes(61, field_names[29], AvSsidStrength);
+    if (avSsidStrength_.Count > 0) {
+      output.WriteUInt32Array(63, field_names[28], avSsidStrength_);
     }
-    if (hasAvSsidSecurityMode) {
-      output.WriteBytes(62, field_names[28], AvSsidSecurityMode);
+    if (avWifiSecurityMode_.Count > 0) {
+      output.WriteUInt32Array(64, field_names[30], avWifiSecurityMode_);
+    }
+    if (avWifiInfMode_.Count > 0) {
+      output.WriteUInt32Array(65, field_names[29], avWifiInfMode_);
     }
     if (hasDevicePn) {
-      output.WriteString(63, field_names[33], DevicePn);
+      output.WriteString(66, field_names[34], DevicePn);
     }
     if (hasDeviceHwRev) {
-      output.WriteString(64, field_names[32], DeviceHwRev);
+      output.WriteString(67, field_names[33], DeviceHwRev);
     }
     if (hasDeviceFwRev) {
-      output.WriteString(65, field_names[31], DeviceFwRev);
+      output.WriteString(68, field_names[32], DeviceFwRev);
+    }
+    if (hasDeviceSn) {
+      output.WriteUInt64(69, field_names[36], DeviceSn);
     }
     UnknownFields.WriteTo(output);
   }
@@ -1199,8 +1268,14 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     if (hasSsid) {
       size += pb::CodedOutputStream.ComputeStringSize(58, Ssid);
     }
+    if (hasSsidStrength) {
+      size += pb::CodedOutputStream.ComputeUInt32Size(59, SsidStrength);
+    }
     if (hasWifiSecurityMode) {
-      size += pb::CodedOutputStream.ComputeUInt32Size(59, WifiSecurityMode);
+      size += pb::CodedOutputStream.ComputeUInt32Size(60, WifiSecurityMode);
+    }
+    if (hasWifiInfMode) {
+      size += pb::CodedOutputStream.ComputeUInt32Size(61, WifiInfMode);
     }
     {
       int dataSize = 0;
@@ -1210,20 +1285,41 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       size += dataSize;
       size += 2 * avSsid_.Count;
     }
-    if (hasAvSsidStrength) {
-      size += pb::CodedOutputStream.ComputeBytesSize(61, AvSsidStrength);
+    {
+      int dataSize = 0;
+      foreach (uint element in AvSsidStrengthList) {
+        dataSize += pb::CodedOutputStream.ComputeUInt32SizeNoTag(element);
+      }
+      size += dataSize;
+      size += 2 * avSsidStrength_.Count;
     }
-    if (hasAvSsidSecurityMode) {
-      size += pb::CodedOutputStream.ComputeBytesSize(62, AvSsidSecurityMode);
+    {
+      int dataSize = 0;
+      foreach (uint element in AvWifiSecurityModeList) {
+        dataSize += pb::CodedOutputStream.ComputeUInt32SizeNoTag(element);
+      }
+      size += dataSize;
+      size += 2 * avWifiSecurityMode_.Count;
+    }
+    {
+      int dataSize = 0;
+      foreach (uint element in AvWifiInfModeList) {
+        dataSize += pb::CodedOutputStream.ComputeUInt32SizeNoTag(element);
+      }
+      size += dataSize;
+      size += 2 * avWifiInfMode_.Count;
     }
     if (hasDevicePn) {
-      size += pb::CodedOutputStream.ComputeStringSize(63, DevicePn);
+      size += pb::CodedOutputStream.ComputeStringSize(66, DevicePn);
     }
     if (hasDeviceHwRev) {
-      size += pb::CodedOutputStream.ComputeStringSize(64, DeviceHwRev);
+      size += pb::CodedOutputStream.ComputeStringSize(67, DeviceHwRev);
     }
     if (hasDeviceFwRev) {
-      size += pb::CodedOutputStream.ComputeStringSize(65, DeviceFwRev);
+      size += pb::CodedOutputStream.ComputeStringSize(68, DeviceFwRev);
+    }
+    if (hasDeviceSn) {
+      size += pb::CodedOutputStream.ComputeUInt64Size(69, DeviceSn);
     }
     size += UnknownFields.SerializedSize;
     memoizedSerializedSize = size;
@@ -1277,6 +1373,9 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
     analogInCalBPriv_.MakeReadOnly();
     analogOutPortAvRange_.MakeReadOnly();
     avSsid_.MakeReadOnly();
+    avSsidStrength_.MakeReadOnly();
+    avWifiSecurityMode_.MakeReadOnly();
+    avWifiInfMode_.MakeReadOnly();
     return this;
   }
   
@@ -1526,17 +1625,26 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       if (other.HasSsid) {
         Ssid = other.Ssid;
       }
+      if (other.HasSsidStrength) {
+        SsidStrength = other.SsidStrength;
+      }
       if (other.HasWifiSecurityMode) {
         WifiSecurityMode = other.WifiSecurityMode;
+      }
+      if (other.HasWifiInfMode) {
+        WifiInfMode = other.WifiInfMode;
       }
       if (other.avSsid_.Count != 0) {
         result.avSsid_.Add(other.avSsid_);
       }
-      if (other.HasAvSsidStrength) {
-        AvSsidStrength = other.AvSsidStrength;
+      if (other.avSsidStrength_.Count != 0) {
+        result.avSsidStrength_.Add(other.avSsidStrength_);
       }
-      if (other.HasAvSsidSecurityMode) {
-        AvSsidSecurityMode = other.AvSsidSecurityMode;
+      if (other.avWifiSecurityMode_.Count != 0) {
+        result.avWifiSecurityMode_.Add(other.avWifiSecurityMode_);
+      }
+      if (other.avWifiInfMode_.Count != 0) {
+        result.avWifiInfMode_.Add(other.avWifiInfMode_);
       }
       if (other.HasDevicePn) {
         DevicePn = other.DevicePn;
@@ -1546,6 +1654,9 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       }
       if (other.HasDeviceFwRev) {
         DeviceFwRev = other.DeviceFwRev;
+      }
+      if (other.HasDeviceSn) {
+        DeviceSn = other.DeviceSn;
       }
       this.MergeUnknownFields(other.UnknownFields);
       return this;
@@ -1823,31 +1934,50 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
             break;
           }
           case 472: {
+            result.hasSsidStrength = input.ReadUInt32(ref result.ssidStrength_);
+            break;
+          }
+          case 480: {
             result.hasWifiSecurityMode = input.ReadUInt32(ref result.wifiSecurityMode_);
             break;
           }
-          case 482: {
-            input.ReadStringArray(tag, field_name, result.avSsid_);
-            break;
-          }
-          case 490: {
-            result.hasAvSsidStrength = input.ReadBytes(ref result.avSsidStrength_);
+          case 488: {
+            result.hasWifiInfMode = input.ReadUInt32(ref result.wifiInfMode_);
             break;
           }
           case 498: {
-            result.hasAvSsidSecurityMode = input.ReadBytes(ref result.avSsidSecurityMode_);
+            input.ReadStringArray(tag, field_name, result.avSsid_);
             break;
           }
-          case 506: {
+          case 506:
+          case 504: {
+            input.ReadUInt32Array(tag, field_name, result.avSsidStrength_);
+            break;
+          }
+          case 514:
+          case 512: {
+            input.ReadUInt32Array(tag, field_name, result.avWifiSecurityMode_);
+            break;
+          }
+          case 522:
+          case 520: {
+            input.ReadUInt32Array(tag, field_name, result.avWifiInfMode_);
+            break;
+          }
+          case 530: {
             result.hasDevicePn = input.ReadString(ref result.devicePn_);
             break;
           }
-          case 514: {
+          case 538: {
             result.hasDeviceHwRev = input.ReadString(ref result.deviceHwRev_);
             break;
           }
-          case 522: {
+          case 546: {
             result.hasDeviceFwRev = input.ReadString(ref result.deviceFwRev_);
+            break;
+          }
+          case 552: {
+            result.hasDeviceSn = input.ReadUInt64(ref result.deviceSn_);
             break;
           }
         }
@@ -3164,6 +3294,28 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       return this;
     }
     
+    public bool HasSsidStrength {
+      get { return result.hasSsidStrength; }
+    }
+    [global::System.CLSCompliant(false)]
+    public uint SsidStrength {
+      get { return result.SsidStrength; }
+      set { SetSsidStrength(value); }
+    }
+    [global::System.CLSCompliant(false)]
+    public Builder SetSsidStrength(uint value) {
+      PrepareBuilder();
+      result.hasSsidStrength = true;
+      result.ssidStrength_ = value;
+      return this;
+    }
+    public Builder ClearSsidStrength() {
+      PrepareBuilder();
+      result.hasSsidStrength = false;
+      result.ssidStrength_ = 0;
+      return this;
+    }
+    
     public bool HasWifiSecurityMode {
       get { return result.hasWifiSecurityMode; }
     }
@@ -3183,6 +3335,28 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       PrepareBuilder();
       result.hasWifiSecurityMode = false;
       result.wifiSecurityMode_ = 0;
+      return this;
+    }
+    
+    public bool HasWifiInfMode {
+      get { return result.hasWifiInfMode; }
+    }
+    [global::System.CLSCompliant(false)]
+    public uint WifiInfMode {
+      get { return result.WifiInfMode; }
+      set { SetWifiInfMode(value); }
+    }
+    [global::System.CLSCompliant(false)]
+    public Builder SetWifiInfMode(uint value) {
+      PrepareBuilder();
+      result.hasWifiInfMode = true;
+      result.wifiInfMode_ = value;
+      return this;
+    }
+    public Builder ClearWifiInfMode() {
+      PrepareBuilder();
+      result.hasWifiInfMode = false;
+      result.wifiInfMode_ = 0;
       return this;
     }
     
@@ -3218,45 +3392,108 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       return this;
     }
     
-    public bool HasAvSsidStrength {
-      get { return result.hasAvSsidStrength; }
+    [global::System.CLSCompliant(false)]
+    public pbc::IPopsicleList<uint> AvSsidStrengthList {
+      get { return PrepareBuilder().avSsidStrength_; }
     }
-    public pb::ByteString AvSsidStrength {
-      get { return result.AvSsidStrength; }
-      set { SetAvSsidStrength(value); }
+    public int AvSsidStrengthCount {
+      get { return result.AvSsidStrengthCount; }
     }
-    public Builder SetAvSsidStrength(pb::ByteString value) {
-      pb::ThrowHelper.ThrowIfNull(value, "value");
+    [global::System.CLSCompliant(false)]
+    public uint GetAvSsidStrength(int index) {
+      return result.GetAvSsidStrength(index);
+    }
+    [global::System.CLSCompliant(false)]
+    public Builder SetAvSsidStrength(int index, uint value) {
       PrepareBuilder();
-      result.hasAvSsidStrength = true;
-      result.avSsidStrength_ = value;
+      result.avSsidStrength_[index] = value;
+      return this;
+    }
+    [global::System.CLSCompliant(false)]
+    public Builder AddAvSsidStrength(uint value) {
+      PrepareBuilder();
+      result.avSsidStrength_.Add(value);
+      return this;
+    }
+    [global::System.CLSCompliant(false)]
+    public Builder AddRangeAvSsidStrength(scg::IEnumerable<uint> values) {
+      PrepareBuilder();
+      result.avSsidStrength_.Add(values);
       return this;
     }
     public Builder ClearAvSsidStrength() {
       PrepareBuilder();
-      result.hasAvSsidStrength = false;
-      result.avSsidStrength_ = pb::ByteString.Empty;
+      result.avSsidStrength_.Clear();
       return this;
     }
     
-    public bool HasAvSsidSecurityMode {
-      get { return result.hasAvSsidSecurityMode; }
+    [global::System.CLSCompliant(false)]
+    public pbc::IPopsicleList<uint> AvWifiSecurityModeList {
+      get { return PrepareBuilder().avWifiSecurityMode_; }
     }
-    public pb::ByteString AvSsidSecurityMode {
-      get { return result.AvSsidSecurityMode; }
-      set { SetAvSsidSecurityMode(value); }
+    public int AvWifiSecurityModeCount {
+      get { return result.AvWifiSecurityModeCount; }
     }
-    public Builder SetAvSsidSecurityMode(pb::ByteString value) {
-      pb::ThrowHelper.ThrowIfNull(value, "value");
+    [global::System.CLSCompliant(false)]
+    public uint GetAvWifiSecurityMode(int index) {
+      return result.GetAvWifiSecurityMode(index);
+    }
+    [global::System.CLSCompliant(false)]
+    public Builder SetAvWifiSecurityMode(int index, uint value) {
       PrepareBuilder();
-      result.hasAvSsidSecurityMode = true;
-      result.avSsidSecurityMode_ = value;
+      result.avWifiSecurityMode_[index] = value;
       return this;
     }
-    public Builder ClearAvSsidSecurityMode() {
+    [global::System.CLSCompliant(false)]
+    public Builder AddAvWifiSecurityMode(uint value) {
       PrepareBuilder();
-      result.hasAvSsidSecurityMode = false;
-      result.avSsidSecurityMode_ = pb::ByteString.Empty;
+      result.avWifiSecurityMode_.Add(value);
+      return this;
+    }
+    [global::System.CLSCompliant(false)]
+    public Builder AddRangeAvWifiSecurityMode(scg::IEnumerable<uint> values) {
+      PrepareBuilder();
+      result.avWifiSecurityMode_.Add(values);
+      return this;
+    }
+    public Builder ClearAvWifiSecurityMode() {
+      PrepareBuilder();
+      result.avWifiSecurityMode_.Clear();
+      return this;
+    }
+    
+    [global::System.CLSCompliant(false)]
+    public pbc::IPopsicleList<uint> AvWifiInfModeList {
+      get { return PrepareBuilder().avWifiInfMode_; }
+    }
+    public int AvWifiInfModeCount {
+      get { return result.AvWifiInfModeCount; }
+    }
+    [global::System.CLSCompliant(false)]
+    public uint GetAvWifiInfMode(int index) {
+      return result.GetAvWifiInfMode(index);
+    }
+    [global::System.CLSCompliant(false)]
+    public Builder SetAvWifiInfMode(int index, uint value) {
+      PrepareBuilder();
+      result.avWifiInfMode_[index] = value;
+      return this;
+    }
+    [global::System.CLSCompliant(false)]
+    public Builder AddAvWifiInfMode(uint value) {
+      PrepareBuilder();
+      result.avWifiInfMode_.Add(value);
+      return this;
+    }
+    [global::System.CLSCompliant(false)]
+    public Builder AddRangeAvWifiInfMode(scg::IEnumerable<uint> values) {
+      PrepareBuilder();
+      result.avWifiInfMode_.Add(values);
+      return this;
+    }
+    public Builder ClearAvWifiInfMode() {
+      PrepareBuilder();
+      result.avWifiInfMode_.Clear();
       return this;
     }
     
@@ -3320,6 +3557,28 @@ public sealed partial class DaqifiOutMessage : pb::GeneratedMessage<DaqifiOutMes
       PrepareBuilder();
       result.hasDeviceFwRev = false;
       result.deviceFwRev_ = "";
+      return this;
+    }
+    
+    public bool HasDeviceSn {
+      get { return result.hasDeviceSn; }
+    }
+    [global::System.CLSCompliant(false)]
+    public ulong DeviceSn {
+      get { return result.DeviceSn; }
+      set { SetDeviceSn(value); }
+    }
+    [global::System.CLSCompliant(false)]
+    public Builder SetDeviceSn(ulong value) {
+      PrepareBuilder();
+      result.hasDeviceSn = true;
+      result.deviceSn_ = value;
+      return this;
+    }
+    public Builder ClearDeviceSn() {
+      PrepareBuilder();
+      result.hasDeviceSn = false;
+      result.deviceSn_ = 0UL;
       return this;
     }
   }
