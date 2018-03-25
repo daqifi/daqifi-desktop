@@ -1,13 +1,15 @@
 ﻿namespace Daqifi.Desktop.Message.MessageTypes
 {
-    public class ProtobufMessage : AbstractMessage
+    public class ProtobufMessage : IMessage
     {
+        public object Data { get; set; }
+
         public ProtobufMessage(DaqifiOutMessage message)
         {
             Data = message;
         }
 
-        public override byte[] GetBytes()
+        public byte[] GetBytes()
         {
             return ((DaqifiOutMessage)Data).ToByteArray();
         }

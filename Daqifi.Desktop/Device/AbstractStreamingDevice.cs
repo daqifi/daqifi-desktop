@@ -1,5 +1,4 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Communication.Protobuf;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.Loggers;
@@ -89,10 +88,16 @@ namespace Daqifi.Desktop.Device
         #region Message Handlers
         private void HandleStatusMessageReceived(object sender, MessageEventArgs e)
         {
+            var message = e.Message.Data as DaqifiOutMessage;
+            if (!IsValidStatusMessage(message))
+            {
+                MessageProducer.SendAsync(ScpiMessagePoducer.SystemInfo);
+                return;
+            }
+
+            // Change the message handler
             MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
             MessageConsumer.OnMessageReceived += HandleMessageReceived;
-
-            var message = e.Message.Data as DaqifiOutMessage;
 
             PopulateDigitalChannels(message);
             PopulateAnalogInChannels(message);
@@ -100,6 +105,11 @@ namespace Daqifi.Desktop.Device
             PopulateNetworkConfiguration(message);
 
             _timestampFrequency = message.TimestampFreq;
+        }
+
+        private bool IsValidStatusMessage(IDaqifiOutMessage message)
+        {
+            return (message.HasDigitalPortNum || message.HasAnalogInPortNum || message.HasAnalogOutPortNum);
         }
 
         private void HandleMessageReceived(object sender, MessageEventArgs e)
