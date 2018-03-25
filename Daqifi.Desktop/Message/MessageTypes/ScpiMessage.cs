@@ -2,14 +2,16 @@
 
 namespace Daqifi.Desktop.Message.MessageTypes
 {
-    public class ScpiMessage : AbstractMessage
+    public class ScpiMessage : IMessage
     {
+        public object Data { get; set; }
+
         public ScpiMessage(string command)
         {
             Data = command;
         }
 
-        public override byte[] GetBytes()
+        public byte[] GetBytes()
         {
             return Encoding.ASCII.GetBytes((string)Data + "\r\n");
         }

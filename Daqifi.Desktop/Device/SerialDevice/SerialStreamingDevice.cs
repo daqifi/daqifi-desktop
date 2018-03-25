@@ -1,11 +1,11 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Message.Consumers;
+using Daqifi.Desktop.Message.MessageTypes;
 using Daqifi.Desktop.Message.Producers;
 using System;
 using System.Collections.Generic;
 using System.IO.Ports;
 using System.Threading;
-using Daqifi.Desktop.Message.MessageTypes;
 
 namespace Daqifi.Desktop.Device.SerialDevice
 {

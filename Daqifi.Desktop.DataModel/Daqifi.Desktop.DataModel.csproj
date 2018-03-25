@@ -44,6 +44,7 @@
     <Compile Include="Channel\AdcMode.cs" />
     <Compile Include="Channel\ChannelDirection.cs" />
     <Compile Include="Channel\ChannelType.cs" />
+    <Compile Include="Channel\MaterialColors.cs" />
     <Compile Include="Common\ObservableObject.cs" />
     <Compile Include="Network\NetworkConfiguration.cs" />
     <Compile Include="Network\WifiMode.cs" />
