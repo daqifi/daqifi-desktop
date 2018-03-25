@@ -1,22 +1,20 @@
 ﻿using Daqifi.Desktop.Commands;
-using Daqifi.Desktop.Helpers;
+using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
-using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data.Entity;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Windows.Input;
-using Daqifi.Desktop.Exporter;
 
 namespace Daqifi.Desktop.ViewModels
 {
     public class ExportDialogViewModel : ObservableObject
     {
         #region Private Variables
-        private readonly ICollection<LoggingSession> _sessions;
+        private readonly List<int> _sessionsIds;
         private string _exportFilePath;
         private bool _exportAllSelected = true;
         private bool _exportAverageSelected;
@@ -84,17 +82,17 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region Constructor
-        public ExportDialogViewModel(LoggingSession session)
+        public ExportDialogViewModel(int sessionId)
         {
-            _sessions = new List<LoggingSession>() { session };
-            ExportSessionCommand = new DelegateCommand(ExportSingleSession, CanExportSession);
+            _sessionsIds = new List<int>() {sessionId};
+            ExportSessionCommand = new DelegateCommand(ExportLoggingSessions, CanExportSession);
             BrowseExportPathCommand = new DelegateCommand(BrowseExportPath, CanBrowseExportPath);
         }
 
-        public ExportDialogViewModel(ICollection<LoggingSession> sessions)
+        public ExportDialogViewModel(IEnumerable<LoggingSession> sessions)
         {
-            _sessions = sessions;
-            ExportSessionCommand = new DelegateCommand(ExportAllSessions, CanExportSession);
+            _sessionsIds = sessions.Select(s => s.ID).ToList();
+            ExportSessionCommand = new DelegateCommand(ExportLoggingSessions, CanExportSession);
             BrowseExportPathCommand = new DelegateCommand(BrowseExportDirectory, CanBrowseExportPath);
         }
         #endregion
@@ -127,47 +125,26 @@ namespace Daqifi.Desktop.ViewModels
             ExportFilePath = dialog.SelectedPath;
         }
 
-        private void ExportSingleSession(object o)
+        private void ExportLoggingSessions(object o)
         {
             if (string.IsNullOrWhiteSpace(ExportFilePath)) return;
 
             var bw = new BackgroundWorker();
             bw.DoWork += delegate
             {
-                foreach (var session in _sessions)
+                foreach (var sessionId in _sessionsIds)
                 {
-                    var filepath = ExportFilePath;
+                    var loggingSession = GetLoggingSessionFromId(sessionId);
+
+                    var filepath = _sessionsIds.Count > 1 ? Path.Combine(ExportFilePath, $"{loggingSession.Name}.csv") : ExportFilePath;
+
                     if (ExportAllSelected)
                     {
-                        ExportAllSamples(session, filepath);
+                        ExportAllSamples(loggingSession, filepath);
                     }
                     else if (ExportAverageSelected)
                     {
-                        ExportAverageSamples(session, filepath);
-                    }
-                }
-            };
-
-            bw.RunWorkerAsync();
-        }
-
-        private void ExportAllSessions(object o)
-        {
-            if (string.IsNullOrWhiteSpace(ExportFilePath)) return;
-
-            var bw = new BackgroundWorker();
-            bw.DoWork += delegate
-            {
-                foreach (var session in _sessions)
-                {
-                    var filepath = ExportFilePath + "\\" + session.Name + ".csv";
-                    if (ExportAllSelected)
-                    {
-                        ExportAllSamples(session, filepath);
-                    }
-                    else if (ExportAverageSelected)
-                    {
-                        ExportAverageSamples(session, filepath);
+                        ExportAverageSamples(loggingSession, filepath);
                     }
                 }
             };
@@ -185,6 +162,20 @@ namespace Daqifi.Desktop.ViewModels
         {
             var loggingSessionExporter = new LoggingSessionExporter();
             loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity);
+        }
+
+        private LoggingSession GetLoggingSessionFromId(int sessionId)
+        {
+            using (var context = new LoggingContext())
+            {
+                context.Configuration.AutoDetectChangesEnabled = false;
+
+                var loggingSession = context.Sessions.Where(s => s.ID == sessionId)
+                    .Include(s => s.DataSamples)
+                    .FirstOrDefault();
+
+                return loggingSession;
+            }
         }
         #endregion
     }

@@ -19,7 +19,7 @@ namespace Daqifi.Desktop.Logger
 
         public List<IChannel> SubscribedChannels
         {
-            get { return _subscribedChannels; }
+            get => _subscribedChannels;
             private set
             {
                 _subscribedChannels = value;
@@ -29,17 +29,17 @@ namespace Daqifi.Desktop.Logger
 
         public bool Active
         {
-            get { return _active; }
+            get => _active;
             set
             {
                 //Set up the current logging session
                 if(!_active)
                 {
                     //Check if database has a previouse section
-                    using (LoggingContext context = new LoggingContext())
+                    using (var context = new LoggingContext())
                     {
                         var ids = (from s in context.Sessions.AsNoTracking() select s.ID).ToList();
-                        int newId = 0;
+                        var newId = 0;
                         if(ids.Count > 0) newId = ids.Max() + 1;
                         Session = new LoggingSession(newId);
                         context.Sessions.Add(Session);
@@ -62,7 +62,7 @@ namespace Daqifi.Desktop.Logger
 
         public List<LoggingSession> LoggingSessions
         {
-            get { return _loggingSessions; }
+            get => _loggingSessions;
             set
             {
                 _loggingSessions = value;
@@ -80,13 +80,8 @@ namespace Daqifi.Desktop.Logger
             SubscribedChannels = new List<IChannel>();
         }
 
-        public static LoggingManager Instance
-        {
-            get 
-            {
-                return instance;
-            }
-        }
+        public static LoggingManager Instance => instance;
+
         #endregion
 
         #region Channel Subscription

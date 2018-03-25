@@ -332,13 +332,13 @@ namespace Daqifi.Desktop.ViewModels
                 LoggingManager.Instance.AddLogger(DbLogger);
                 using (var context = new LoggingContext())
                 {
-                    var previouseSessions = new List<LoggingSession>();
-                    var previouseSampleSessions = (from s in context.Sessions select s).ToList();
-                    foreach (var session in previouseSampleSessions)
+                    var savedLoggingSessions = new List<LoggingSession>();
+                    var previousSampleSessions = (from s in context.Sessions select s).ToList();
+                    foreach (var session in previousSampleSessions)
                     {
-                        if (!previouseSessions.Contains(session)) previouseSessions.Add(session);
+                        if (!savedLoggingSessions.Contains(session)) savedLoggingSessions.Add(session);
                     }
-                    LoggingManager.Instance.LoggingSessions = previouseSessions;
+                    LoggingManager.Instance.LoggingSessions = savedLoggingSessions;
                 }
 
                 //Configure Default Grid Lines
@@ -693,7 +693,7 @@ namespace Daqifi.Desktop.ViewModels
                 return;
             }
 
-            var exportDialogViewModel = new ExportDialogViewModel(session);
+            var exportDialogViewModel = new ExportDialogViewModel(session.ID);
             _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
         }
 

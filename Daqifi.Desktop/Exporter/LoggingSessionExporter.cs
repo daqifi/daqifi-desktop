@@ -13,57 +13,57 @@ namespace Daqifi.Desktop.Exporter
     {
         public AppLogger AppLogger = AppLogger.Instance;
 
-        public void ExportLoggingSession(LoggingSession session, string filepath)
+        public void ExportLoggingSession(LoggingSession loggingSession, string filepath)
         {
             try
             {
-                using (var context = new LoggingContext())
+                var channelNames = loggingSession.DataSamples.Select(s => s.ChannelName).Distinct().ToArray();
+                var timestampticks = loggingSession.DataSamples.Select(s => s.TimestampTicks).Distinct().ToArray();
+
+                if (channelNames.Length == 0 || timestampticks.Length == 0) return;
+
+                var rows = GetExportDataStructure(channelNames, timestampticks);
+
+                foreach (var sample in loggingSession.DataSamples)
                 {
-                    context.Configuration.AutoDetectChangesEnabled = false;
-                    var loggingSession = context.Sessions.Find(session.ID);
+                    rows[sample.TimestampTicks][sample.ChannelName] = sample.Value;
+                }
 
-                    if (loggingSession == null) return;
+                // Create the heeader
+                var sb = new StringBuilder();
+                sb.Append("time,").Append(string.Join(",", channelNames.ToArray())).AppendLine();
 
-                    var channelNames = loggingSession.DataSamples.Select(s => s.ChannelName).Distinct().ToArray();
-                    var timestampticks = loggingSession.DataSamples.Select(s => s.TimestampTicks).Distinct().ToArray();
+                var lastChannelName = channelNames.Last();
 
-                    var rows = GetExportDataStructure(channelNames, timestampticks);
+                // For each time period
+                foreach (var timestampTicks in rows.Keys)
+                {
+                    sb.Append(new DateTime(timestampTicks)).Append(",");
 
-                    foreach (var sample in loggingSession.DataSamples)
+                    // Get all the channels
+                    foreach (var channel in channelNames)
                     {
-                        rows[sample.TimestampTicks][sample.ChannelName] = sample.Value;
-                    }
-
-                    //Create the heeader
-                    var sb = new StringBuilder();
-                    sb.Append("time,").Append(string.Join(",", channelNames.ToArray())).AppendLine();
-
-                    foreach (var timestampTicks in rows.Keys)
-                    {
-                        sb.Append(new DateTime(timestampTicks)).Append(",");
-
-                        foreach (var channel in channelNames)
+                        var value = rows[timestampTicks][channel];
+                    
+                        if (value != null)
                         {
-                            var value = rows[timestampTicks][channel];
-                            if (value == null)
-                            {
-                                sb.Append(",");
-                            }
-                            else
-                            {
-                                sb.Append(value.Value).Append(",");
-                            }
+                            sb.Append(value.Value);
                         }
-                        sb.AppendLine();
+
+                        if (!channel.Equals(lastChannelName))
+                        {
+                            sb.Append(",");
+                        }
                     }
 
-                    Directory.CreateDirectory(Path.GetDirectoryName(filepath));
+                    sb.AppendLine();
+
                     File.WriteAllText(filepath, sb.ToString());
                 }
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Failed in ExportLoggingSession");
+                AppLogger.Error(ex, "Exception in ExportLoggingSession");
             }
         }
 
@@ -89,7 +89,7 @@ namespace Daqifi.Desktop.Exporter
                         rows[new DateTime(sample.TimestampTicks)].Add(sample.Value);
                     }
 
-                    //Create the heeader
+                    // Create the header
                     var sb = new StringBuilder();
                     sb.Append("time,").Append(string.Join(",", channelNames.ToArray())).AppendLine();
 
@@ -110,7 +110,7 @@ namespace Daqifi.Desktop.Exporter
 
                         if (count % averageQuantity == 0)
                         {
-                            //Average and write to file
+                            // Average and write to file
                             sb.Append(row).Append(",");
                             foreach (var value in tempTotals)
                             {
