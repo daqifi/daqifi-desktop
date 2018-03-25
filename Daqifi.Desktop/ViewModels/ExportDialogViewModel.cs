@@ -1,21 +1,20 @@
 ﻿using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
-using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data.Entity;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Windows.Input;
-using Daqifi.Desktop.Helpers;
 
 namespace Daqifi.Desktop.ViewModels
 {
     public class ExportDialogViewModel : ObservableObject
     {
         #region Private Variables
-        private readonly ICollection<LoggingSession> _sessions;
+        private readonly List<int> _sessionsIds;
         private string _exportFilePath;
         private bool _exportAllSelected = true;
         private bool _exportAverageSelected;
@@ -27,7 +26,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public string ExportFilePath
         {
-            get { return _exportFilePath; }
+            get => _exportFilePath;
             set 
             { 
                 _exportFilePath = value;
@@ -38,7 +37,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public bool ExportAllSelected
         {
-            get { return _exportAllSelected; }
+            get => _exportAllSelected;
             set
             {
                 _exportAllSelected = value;
@@ -48,7 +47,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public bool ExportAverageSelected
         {
-            get { return _exportAverageSelected; }
+            get => _exportAverageSelected;
             set
             {
                 _exportAverageSelected = value;
@@ -58,7 +57,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public int AverageQuantity
         {
-            get { return _averageQuantity; }
+            get => _averageQuantity;
             set
             {
                 _averageQuantity = value;
@@ -83,19 +82,22 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region Constructor
-        public ExportDialogViewModel(LoggingSession session)
+        public ExportDialogViewModel(int sessionId)
         {
-            _sessions = new List<LoggingSession>() { session };
-            ExportSessionCommand = new DelegateCommand(ExportSingleSession, CanExportSession);
+            _sessionsIds = new List<int>() {sessionId};
+            ExportSessionCommand = new DelegateCommand(ExportLoggingSessions, CanExportSession);
             BrowseExportPathCommand = new DelegateCommand(BrowseExportPath, CanBrowseExportPath);
         }
 
-        public ExportDialogViewModel(ICollection<LoggingSession> sessions)
+        public ExportDialogViewModel(IEnumerable<LoggingSession> sessions)
         {
-            _sessions = sessions;
-            ExportSessionCommand = new DelegateCommand(ExportAllSessions, CanExportSession);
+            _sessionsIds = sessions.Select(s => s.ID).ToList();
+            ExportSessionCommand = new DelegateCommand(ExportLoggingSessions, CanExportSession);
             BrowseExportPathCommand = new DelegateCommand(BrowseExportDirectory, CanBrowseExportPath);
         }
+        #endregion
+
+        #region Private Methods
 
         private void BrowseExportPath(object o)
         {
@@ -123,47 +125,26 @@ namespace Daqifi.Desktop.ViewModels
             ExportFilePath = dialog.SelectedPath;
         }
 
-        private void ExportSingleSession(object o)
+        private void ExportLoggingSessions(object o)
         {
             if (string.IsNullOrWhiteSpace(ExportFilePath)) return;
 
             var bw = new BackgroundWorker();
             bw.DoWork += delegate
             {
-                foreach (var session in _sessions)
+                foreach (var sessionId in _sessionsIds)
                 {
-                    var filepath = ExportFilePath;
+                    var loggingSession = GetLoggingSessionFromId(sessionId);
+
+                    var filepath = _sessionsIds.Count > 1 ? Path.Combine(ExportFilePath, $"{loggingSession.Name}.csv") : ExportFilePath;
+
                     if (ExportAllSelected)
                     {
-                        ExportAllSamples(session, filepath);
+                        ExportAllSamples(loggingSession, filepath);
                     }
                     else if (ExportAverageSelected)
                     {
-                        ExportAverageSamples(session, filepath);
-                    }
-                }
-            };
-
-            bw.RunWorkerAsync();
-        }
-
-        private void ExportAllSessions(object o)
-        {
-            if (string.IsNullOrWhiteSpace(ExportFilePath)) return;
-
-            var bw = new BackgroundWorker();
-            bw.DoWork += delegate
-            {
-                foreach (var session in _sessions)
-                {
-                    var filepath = ExportFilePath + "\\" + session.Name + ".csv";
-                    if (ExportAllSelected)
-                    {
-                        ExportAllSamples(session, filepath);
-                    }
-                    else if (ExportAverageSelected)
-                    {
-                        ExportAverageSamples(session, filepath);
+                        ExportAverageSamples(loggingSession, filepath);
                     }
                 }
             };
@@ -173,141 +154,27 @@ namespace Daqifi.Desktop.ViewModels
 
         private void ExportAllSamples(LoggingSession session, string filepath)
         {
-            try
-            {
-                using (var context = new LoggingContext())
-                {
-                    context.Configuration.AutoDetectChangesEnabled = false;
-                    var loggingSession = context.Sessions.Find(session.ID);
-
-                    if (loggingSession == null) return;
-
-                    var samples = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == loggingSession.ID).Select(s => s);
-                    var channelNames = samples.Select(s => s.ChannelName).Distinct().ToArray();
-                    var timestampticks = samples.Select(s => s.TimestampTicks).Distinct().ToArray();
-
-                    var rows = GetExportDataStructure(channelNames, timestampticks);
-
-                    foreach (var sample in samples)
-                    {
-                        rows[sample.TimestampTicks][sample.ChannelName] = sample.Value;
-                    }
-
-                    //Create the heeader
-                    var sb = new StringBuilder();
-                    sb.Append("time,").Append(string.Join(",", channelNames.ToArray())).AppendLine();
-
-                    foreach (var timestampTicks in rows.Keys)
-                    {
-                        sb.Append(new DateTime(timestampTicks)).Append(",");
-
-                        foreach (var channel in channelNames)
-                        {
-                            var value = rows[timestampTicks][channel];
-                            if (value == null)
-                            {
-                                sb.Append(",");
-                            }
-                            else
-                            {
-                                sb.Append(value.Value).Append(",");
-                            }
-                        }
-                        sb.AppendLine();
-                    }
-
-                    File.WriteAllText(filepath, sb.ToString());
-                }
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Error(ex, "Failed in ExportLoggingSession");
-            }
-        }
-
-        private Dictionary<long, Dictionary<string, double?>> GetExportDataStructure(string[]channelNames, long[] timestampTicks)
-        {
-            // Define data structure
-            var rows = new Dictionary<long, Dictionary<string, double?>>();
-
-            // Sort the channels in a natural sort order
-            Array.Sort(channelNames, new OrdinalStringComparer());
-
-            // Populate skeleton of data structure
-            foreach (var timestamptick in timestampTicks)
-            {
-                // For each timestamp, create a placeholder for each channel
-                var channelValuesAtTimestamp = new Dictionary<string, double?>();
-                foreach (var channel in channelNames)
-                {
-                    channelValuesAtTimestamp.Add(channel, null);
-                }
-
-                rows.Add(timestamptick, channelValuesAtTimestamp);
-            }
-
-            return rows;
+            var loggingSessionExporter = new LoggingSessionExporter();
+            loggingSessionExporter.ExportLoggingSession(session, filepath);
         }
 
         private void ExportAverageSamples(LoggingSession session, string filepath)
         {
-            try
+            var loggingSessionExporter = new LoggingSessionExporter();
+            loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity);
+        }
+
+        private LoggingSession GetLoggingSessionFromId(int sessionId)
+        {
+            using (var context = new LoggingContext())
             {
-                using (var context = new LoggingContext())
-                {
-                    context.Configuration.AutoDetectChangesEnabled = false;
-                    var loggingSession = context.Sessions.Find(session.ID);
-                    var channelNames = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == loggingSession.ID).Select(s => s.ChannelName).Distinct();
-                    var samples = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == loggingSession.ID).Select(s => s);
+                context.Configuration.AutoDetectChangesEnabled = false;
 
-                    var rows = new Dictionary<DateTime, List<double>>();
-                    foreach (var sample in samples)
-                    {
-                        if (!rows.Keys.Contains(new DateTime(sample.TimestampTicks)))
-                        {
-                            rows.Add(new DateTime(sample.TimestampTicks), new List<double>());
-                        }
+                var loggingSession = context.Sessions.Where(s => s.ID == sessionId)
+                    .Include(s => s.DataSamples)
+                    .FirstOrDefault();
 
-                        rows[new DateTime(sample.TimestampTicks)].Add(sample.Value);
-                    }
-
-                    //Create the heeader
-                    var sb = new StringBuilder();
-                    sb.Append("time,").Append(string.Join(",", channelNames.ToArray())).AppendLine();
-
-                    int count = 0;
-                    var tempTotals = new List<double>();
-
-                    foreach (var row in rows.Keys)
-                    {
-                        int channelNumber = 0;
-                        foreach (double value in rows[row])
-                        {
-                            if (tempTotals.Count - 1 < channelNumber) tempTotals.Add(0);
-                            tempTotals[channelNumber] += value;
-                            channelNumber++;
-                        }
-
-                        count++;
-
-                        if (count % AverageQuantity == 0)
-                        {
-                            //Average and write to file
-                            sb.Append(row).Append(",");
-                            foreach (double value in tempTotals)
-                            {
-                                sb.Append(value / AverageQuantity).Append(",");
-                            }
-                            sb.AppendLine();
-                            tempTotals.Clear();
-                        }
-                    }
-                    File.WriteAllText(filepath, sb.ToString());
-                }
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Error(ex, "Failed in ExportLoggingSession");
+                return loggingSession;
             }
         }
         #endregion

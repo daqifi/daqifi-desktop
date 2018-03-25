@@ -179,6 +179,7 @@
     <Compile Include="Device\HidDevice\HidFirmwareDevice.cs" />
     <Compile Include="Device\HidDevice\HidDeviceFinder.cs" />
     <Compile Include="Device\SerialDevice\UsbDevice.cs" />
+    <Compile Include="Exporter\LoggingSessionExporter.cs" />
     <Compile Include="Helpers\EnumDescriptionConverter.cs" />
     <Compile Include="Helpers\EnumExtensions.cs" />
     <Compile Include="Helpers\OrdinalStringComparer.cs" />
