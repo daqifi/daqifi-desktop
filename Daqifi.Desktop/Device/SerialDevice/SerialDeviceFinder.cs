@@ -50,7 +50,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
             {
                 lock (_serialPorts)
                 {
-                    var availableSerialPorts = GetAvailableDaqifiPorts();
+                    var availableSerialPorts = SerialDeviceHelper.GetAvailableDaqifiPorts();
                     var addedPorts = availableSerialPorts.Except(_serialPorts);
                     var removedPorts = _serialPorts.Except(availableSerialPorts);
 
@@ -72,31 +72,6 @@ namespace Daqifi.Desktop.Device.SerialDevice
 
             bw.RunWorkerAsync();
             
-        }
-
-        public static string[] GetAvailableDaqifiPorts()
-        {
-            var portNames = new List<string>();
-
-            ManagementObjectCollection collection;
-            using (var searcher = new ManagementObjectSearcher(@"Select * From WIN32_SerialPort"))
-                collection = searcher.Get();
-
-            foreach (var serialDevice in collection)
-            {
-                var deviceId = serialDevice.GetPropertyValue("DeviceID");
-                var pnpDeviceId = serialDevice.GetPropertyValue("PNPDeviceID");
-               
-                var device = UsbDevice.Get((string)pnpDeviceId);
-                var deviceReportedDescription = device.BusReportedDeviceDescription;
-
-                if (deviceReportedDescription.ToLower() == "nyquist")
-                {
-                    portNames.Add((string) deviceId);
-                }
-            }
-
-            return portNames.ToArray();
         }
 
         public void Start()

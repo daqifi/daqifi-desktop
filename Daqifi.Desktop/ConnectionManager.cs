@@ -2,6 +2,11 @@
 using Daqifi.Desktop.Loggers;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
+using System.Management;
+using System.Windows;
+using Daqifi.Desktop.Device.SerialDevice;
 
 namespace Daqifi.Desktop
 {
@@ -9,15 +14,15 @@ namespace Daqifi.Desktop
     {
         #region Private Variables
         private DAQifiConnectionStatus _connectionStatus = DAQifiConnectionStatus.Disconnected;
-        private string _connectionStatusString = "Disconnected";
         private List<IStreamingDevice> _connectedDevices;
         private bool _isDisconnected = true;
+        private ManagementEventWatcher _deviceRemovedWatcher;
         #endregion
 
         #region Properties
         public DAQifiConnectionStatus ConnectionStatus
         {
-            get { return _connectionStatus; }
+            get => _connectionStatus;
             set
             {
                 _connectionStatus = value;
@@ -28,11 +33,7 @@ namespace Daqifi.Desktop
             }
         }
 
-        public string ConnectionStatusString
-        {
-            get => _connectionStatusString;
-            set { _connectionStatusString = value; }
-        }
+        public string ConnectionStatusString { get; set; } = "Disconnected";
 
         public List<IStreamingDevice> ConnectedDevices
         {
@@ -46,7 +47,7 @@ namespace Daqifi.Desktop
 
         public bool IsDisconnected
         {
-            get { return _isDisconnected; }
+            get => _isDisconnected;
             set 
             { 
                 if(value != _isDisconnected)
@@ -64,6 +65,12 @@ namespace Daqifi.Desktop
         private ConnectionManager()
         {
             ConnectedDevices = new List<IStreamingDevice>();
+
+            var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
+
+            _deviceRemovedWatcher = new ManagementEventWatcher(deviceRemovedQuery);
+            _deviceRemovedWatcher.EventArrived += (sender, eventArgs) => CheckIfSerialDeviceWasRemoved();
+            _deviceRemovedWatcher.Start();
         }
 
         public static ConnectionManager Instance => instance;
@@ -133,6 +140,40 @@ namespace Daqifi.Desktop
                     ConnectionStatusString = "Error";
                     break;
             }
+        }
+
+        private void CheckIfSerialDeviceWasRemoved()
+        {
+            var bw = new BackgroundWorker();
+            bw.DoWork += delegate
+            {
+                var availableSerialPorts = SerialDeviceHelper.GetAvailableDaqifiPorts();
+                var devicesToRemove = new List<SerialStreamingDevice>();
+
+                // Get a list of devices to remove
+                foreach (var device in ConnectedDevices)
+                {
+                    if (!(device is SerialStreamingDevice)) continue;
+                    var serialDevice = device as SerialStreamingDevice;
+
+                    // Check if the device has been removed
+                    if (!availableSerialPorts.Contains(serialDevice.Port.PortName))
+                    {
+                        devicesToRemove.Add(serialDevice);
+                    }
+                }
+
+                // Remove the devices
+                foreach (var serialDevice in devicesToRemove)
+                {
+                    Application.Current.Dispatcher.Invoke(delegate
+                    {
+                        Disconnect(serialDevice);
+                    });
+                }
+            };
+
+            bw.RunWorkerAsync();
         }
     }
 

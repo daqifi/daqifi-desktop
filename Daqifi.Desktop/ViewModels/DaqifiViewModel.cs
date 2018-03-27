@@ -344,6 +344,8 @@ namespace Daqifi.Desktop.ViewModels
                 //Configure Default Grid Lines
                 Plotter.ShowingMinorXAxisGrid = false;
                 Plotter.ShowingMinorYAxisGrid = false;
+
+
             }
             catch (Exception ex)
             {

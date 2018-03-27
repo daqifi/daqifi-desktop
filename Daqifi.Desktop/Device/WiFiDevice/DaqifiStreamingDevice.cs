@@ -21,8 +21,6 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             Name = name;
             MacAddress = macAddress;
             IpAddress = ipAddress;
-
-            DataChannels = new List<IChannel>();
             IsStreaming = false;
         }
         #endregion
