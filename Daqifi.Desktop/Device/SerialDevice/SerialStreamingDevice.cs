@@ -1,9 +1,7 @@
-﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Message.Consumers;
+﻿using Daqifi.Desktop.Message.Consumers;
 using Daqifi.Desktop.Message.MessageTypes;
 using Daqifi.Desktop.Message.Producers;
 using System;
-using System.Collections.Generic;
 using System.IO.Ports;
 using System.Threading;
 
@@ -20,9 +18,8 @@ namespace Daqifi.Desktop.Device.SerialDevice
         {
             Name = portName;
             Port = new SerialPort(portName);
-
-            DataChannels = new List<IChannel>();
         }
+
         #endregion
 
         #region Override Methods
@@ -67,6 +64,9 @@ namespace Daqifi.Desktop.Device.SerialDevice
             }
         }
 
+        #endregion
+
+        #region Private Methods
         private void TurnDeviceOn()
         {
             MessageProducer.SendAsync(ScpiMessagePoducer.DeviceOn);

@@ -52,7 +52,7 @@ namespace Daqifi.Desktop.Device
 
         public IMessageConsumer MessageConsumer { get; set; }
         public IMessageProducer MessageProducer { get; set; }
-        public List<IChannel> DataChannels { get; set; }
+        public List<IChannel> DataChannels { get; set; } = new List<IChannel>();
 
         public string AdcRangeText
         {
@@ -439,6 +439,7 @@ namespace Daqifi.Desktop.Device
 
         public void Reboot()
         {
+            MessageConsumer.Stop();
             MessageProducer.SendAsync(ScpiMessagePoducer.Reboot);
         }
     }
