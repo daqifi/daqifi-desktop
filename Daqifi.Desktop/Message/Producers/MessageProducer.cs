@@ -3,8 +3,10 @@ using System.Threading.Tasks;
 
 namespace Daqifi.Desktop.Message.Producers
 {
-    public class MessageProducer : AbstractMessageProducer
+    public class MessageProducer : IMessageProducer
     {
+        public Stream DataStream { get; protected set; }
+
         #region Constructor
         public MessageProducer(Stream stream)
         {
@@ -13,7 +15,7 @@ namespace Daqifi.Desktop.Message.Producers
         #endregion
 
         #region AbstractMessageProducer overrides
-        public override async Task SendAsync(IMessage message)
+        public void Send(IMessage message)
         {
             var serializedMessage = message.GetBytes();
             //await DataStream.WriteAsync(serializedMessage, 0, serializedMessage.Length);
