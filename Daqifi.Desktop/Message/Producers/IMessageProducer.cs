@@ -4,6 +4,6 @@ namespace Daqifi.Desktop.Message.Producers
 {
     public interface IMessageProducer
     {
-        Task SendAsync(IMessage message);
+        void Send(IMessage message);
     }
 }

@@ -69,7 +69,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
         #region Private Methods
         private void TurnDeviceOn()
         {
-            MessageProducer.SendAsync(ScpiMessagePoducer.DeviceOn);
+            MessageProducer.Send(ScpiMessagePoducer.DeviceOn);
         }
         #endregion
     }

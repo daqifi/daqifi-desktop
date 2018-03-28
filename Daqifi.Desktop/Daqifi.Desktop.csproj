@@ -196,7 +196,6 @@
     <Compile Include="Loggers\LoggingManager.cs" />
     <Compile Include="Message\Consumers\AbstractMessageConsumer.cs" />
     <Compile Include="Message\MessageTypes\ScpiMessage.cs" />
-    <Compile Include="Message\Producers\AbstractMessageProducer.cs" />
     <Compile Include="Commands\DelegateCommand.cs" />
     <Compile Include="Device\WiFiDevice\DaqifiStreamingDevice.cs" />
     <Compile Include="Device\WiFiDevice\DaqifiDeviceFinder.cs" />
