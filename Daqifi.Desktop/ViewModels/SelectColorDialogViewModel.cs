@@ -50,7 +50,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             if (!((IEnumerable)selectedItems).Cast<Brush>().Any()) return;
 
-            Brush selectedColor = ((IEnumerable)selectedItems).Cast<Brush>().ElementAt(0);
+            var selectedColor = ((IEnumerable)selectedItems).Cast<Brush>().ElementAt(0);
             _colorObject.SetColor(selectedColor);
         }
         #endregion

@@ -1,11 +1,10 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.DataModel.Channel;
-using Daqifi.Desktop.Message;
+using Daqifi.Desktop.Message.Consumers;
+using Daqifi.Desktop.Message.Producers;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using Daqifi.Desktop.Message.Consumers;
-using Daqifi.Desktop.Message.Producers;
 
 namespace Daqifi.Desktop.Device.HidDevice
 {
