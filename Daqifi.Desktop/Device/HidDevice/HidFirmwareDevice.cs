@@ -15,6 +15,8 @@ namespace Daqifi.Desktop.Device.HidDevice
 
         public event PropertyChangedEventHandler PropertyChanged;
 
+        public string Name { get; set; }
+
         public HidFirmwareDevice(HidLibrary.HidFastReadDevice device)
         {
             Device = device;
@@ -36,7 +38,6 @@ namespace Daqifi.Desktop.Device.HidDevice
 
         #region Not Implemented Device Property and Methods
         public int Id { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-        public string Name { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
         public string AdcRangeText { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
         public int StreamingFrequency { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
         public IMessageConsumer MessageConsumer { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
