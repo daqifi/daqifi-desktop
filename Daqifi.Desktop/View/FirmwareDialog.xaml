@@ -9,43 +9,64 @@
         dialogService:DialogService.IsRegisteredView="True"
         Title="Firmware Settings" Height="300" Width="500" GlowBrush="{DynamicResource AccentColorBrush}">
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
         
-        <GroupBox Grid.Row="0" Header="Bootloader Version">
-            <Label Content="{Binding Version}"/>
-        </GroupBox>
-
-        <GroupBox Grid.Row="1" Header="Update Firmware">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="85"/>
-                </Grid.ColumnDefinitions>
-                <TextBox Grid.Column="0" Height="30" VerticalAlignment="Top" Margin="5" Text="{Binding FirmwareFilePath, Mode=OneWay}"/>
-                <Button Grid.Column="1" Content="Browse" Width="75" Height="30" Margin="5" VerticalAlignment="Top" Style="{StaticResource SquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True" Command="{Binding BrowseFirmwarePathCommand}"/>
-                
-            </Grid>
-        </GroupBox>
-        
-        <DockPanel Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" LastChildFill="True" Margin="5">
-            <Button Click="btnCancel_Click" Content="Cancel" Width="100" Height="30"  Style="{StaticResource SquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
-            <Button DockPanel.Dock="Bottom" Content="Upload" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True" Command="{Binding UploadFirmwareCommand}"/>
-        </DockPanel>
-
-        <Grid Grid.RowSpan="3" Background="#ccffffff" Visibility="{Binding IsFirmwareUploading,  Converter={StaticResource BoolToVis}}" >
+        <!-- Before Upload -->
+        <Grid Visibility="{Binding IsUploadComplete, Converter={StaticResource InvertedBoolToVis}}">
             <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
-            <controls:MetroProgressBar Grid.Row="1" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadFirmwareProgress}" />
-            <Label Grid.Row="2" Content="Loading Firmware... (this may take several minutes)"  HorizontalAlignment="Center" />
-            <Label Grid.Row="3" Content="{Binding UploadFirmwareProgressText}"  HorizontalAlignment="Center" />
+
+            <GroupBox Grid.Row="0" Header="Bootloader Version">
+                <Label Content="{Binding Version}"/>
+            </GroupBox>
+
+            <GroupBox Grid.Row="1" Header="Update Firmware">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="85"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Height="30" VerticalAlignment="Top" Margin="5" Text="{Binding FirmwareFilePath, Mode=OneWay}"/>
+                    <Button Grid.Column="1" Content="Browse" Width="75" Height="30" Margin="5" VerticalAlignment="Top" Style="{StaticResource SquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True" Command="{Binding BrowseFirmwarePathCommand}"/>
+                </Grid>
+            </GroupBox>
+
+            <Label Visibility="{Binding HasErrorOccured, Converter={StaticResource BoolToVis}}" Grid.Row="2" Content="Sorry, something went wrong uploading the firmware.  :(" HorizontalContentAlignment="Center" Foreground="Red"/>
+
+            <DockPanel Grid.Row="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" LastChildFill="True" Margin="5">
+                <Button Click="btnCancel_Click" Content="Cancel" Width="100" Height="30"  Style="{StaticResource SquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+                <Button DockPanel.Dock="Bottom" Content="Upload" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True" Command="{Binding UploadFirmwareCommand}"/>
+            </DockPanel>
+
+            <Grid Grid.RowSpan="4" Background="#ccffffff" Visibility="{Binding IsFirmwareUploading, Converter={StaticResource BoolToVis}}" >
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <controls:MetroProgressBar Grid.Row="1" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadFirmwareProgress}" />
+                <Label Grid.Row="2" Content="Loading Firmware... (this may take several minutes)."  HorizontalAlignment="Center" />
+                <Label Grid.Row="3" Content="{Binding UploadFirmwareProgressText}"  HorizontalAlignment="Center" />
+            </Grid>
+        </Grid>
+
+        <Grid Visibility="{Binding IsUploadComplete, Converter={StaticResource BoolToVis}}">
+            <Grid Grid.RowSpan="3">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Label Grid.Row="2" Content="Upload Complete"  HorizontalAlignment="Center" />
+                <DockPanel Grid.Row="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" LastChildFill="True" Margin="5">
+                    <Button Click="btnOk_Click" Content="OK"  DockPanel.Dock="Bottom" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+                </DockPanel>
+            </Grid>
         </Grid>
     </Grid>
 </controls:MetroWindow>

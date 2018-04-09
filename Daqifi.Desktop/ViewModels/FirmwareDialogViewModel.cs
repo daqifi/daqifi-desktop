@@ -1,23 +1,23 @@
 ﻿using Daqifi.Desktop.Bootloader;
 using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.Loggers;
 using System;
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
-using Daqifi.Desktop.Device;
-using Daqifi.Desktop.Device.HidDevice;
 using ObservableObject = Daqifi.Desktop.ObservableObject;
 
 namespace DAQifi.Desktop.ViewModels
 {
     public class FirmwareDialogViewModel : ObservableObject
     {
+        private readonly Pic32Bootloader _bootloader;
         private string _version;
-        private HidFirmwareDevice _hidFirmwareDevice;
-        private Pic32Bootloader _bootloader;
         private string _firmwareFilePath;
         private bool _isFirmwareUploading;
+        private bool _isUploadComplete;
+        private bool _hasErrorOccured;
         private int _uploadFirmwareProgress;
 
         public string Version
@@ -50,6 +50,26 @@ namespace DAQifi.Desktop.ViewModels
             }
         }
 
+        public bool IsUploadComplete
+        {
+            get => _isUploadComplete;
+            set
+            {
+                _isUploadComplete = value;
+                NotifyPropertyChanged("IsUploadComplete");
+            }
+        }
+
+        public bool HasErrorOccured
+        {
+            get => _hasErrorOccured;
+            set
+            {
+                _hasErrorOccured = value;
+                NotifyPropertyChanged("HasErrorOccured");
+            }
+        }
+
         public int UploadFirmwareProgress
         {
             get => _uploadFirmwareProgress;
@@ -77,8 +97,7 @@ namespace DAQifi.Desktop.ViewModels
 
         public FirmwareDialogViewModel(HidFirmwareDevice hidFirmwareDevice)
         {
-            _hidFirmwareDevice = hidFirmwareDevice;
-            _bootloader = new Pic32Bootloader(_hidFirmwareDevice.Device);
+            _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
             _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
             _bootloader.RequestVersion();
 
@@ -114,31 +133,36 @@ namespace DAQifi.Desktop.ViewModels
             var bw = new BackgroundWorker();
             bw.DoWork += delegate
             {
-                try
-                {
-                    IsFirmwareUploading = true;
-                    if (string.IsNullOrWhiteSpace(FirmwareFilePath)) return;
-                    if (!File.Exists(FirmwareFilePath)) return;
+                IsFirmwareUploading = true;
+                if (string.IsNullOrWhiteSpace(FirmwareFilePath)) return;
+                if (!File.Exists(FirmwareFilePath)) return;
 
-                    _bootloader.LoadFirmware(FirmwareFilePath, bw);
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Instance.Error(ex, "Problem Uploading Firmware");
-                }
-                finally
-                {
-                    IsFirmwareUploading = false;
-                }
+                _bootloader.LoadFirmware(FirmwareFilePath, bw);
             };
             bw.WorkerReportsProgress = true;
             bw.ProgressChanged += UploadFirmwareProgressChanged;
+            bw.RunWorkerCompleted += HandleUploadCompleted;
             bw.RunWorkerAsync();
+
         }
 
         void UploadFirmwareProgressChanged(object sender, ProgressChangedEventArgs e)
         {
             UploadFirmwareProgress = e.ProgressPercentage;
+        }
+
+        private void HandleUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            IsFirmwareUploading = false;
+            if (e.Error != null)
+            {
+                AppLogger.Instance.Error(e.Error, "Problem Uploading Firmware");
+                HasErrorOccured = true;
+            }
+            else
+            {
+                IsUploadComplete = true;
+            }
         }
     }
 }

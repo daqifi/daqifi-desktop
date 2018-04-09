@@ -1,11 +1,10 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.DataModel.Channel;
-using Daqifi.Desktop.Message;
+using Daqifi.Desktop.Message.Consumers;
+using Daqifi.Desktop.Message.Producers;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using Daqifi.Desktop.Message.Consumers;
-using Daqifi.Desktop.Message.Producers;
 
 namespace Daqifi.Desktop.Device.HidDevice
 {
@@ -15,6 +14,8 @@ namespace Daqifi.Desktop.Device.HidDevice
         public HidLibrary.HidFastReadDevice Device { get; }
 
         public event PropertyChangedEventHandler PropertyChanged;
+
+        public string Name { get; set; }
 
         public HidFirmwareDevice(HidLibrary.HidFastReadDevice device)
         {
@@ -37,7 +38,6 @@ namespace Daqifi.Desktop.Device.HidDevice
 
         #region Not Implemented Device Property and Methods
         public int Id { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
-        public string Name { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
         public string AdcRangeText { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
         public int StreamingFrequency { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
         public IMessageConsumer MessageConsumer { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }

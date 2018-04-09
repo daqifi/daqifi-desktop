@@ -90,7 +90,7 @@
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="1" Orientation="Vertical">
-                                                    <Label Content="DAQifi Device: Firmware"/>
+                                                    <Label Content="DAQifi Device (Firmware Mode)"/>
                                                 </StackPanel>
                                                 <Image Grid.Column="0" Source="../Images/Nq.png" Width="50" Height="50"/>
                                             </Grid>

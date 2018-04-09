@@ -144,14 +144,11 @@ namespace Daqifi.Desktop.ViewModels
 
         private void ConnectHid(object selectedItems)
         {
-            _hidDeviceFinder.Stop();
+            //_hidDeviceFinder.Stop();
 
             var selectedDevices = ((IEnumerable)selectedItems).Cast<HidFirmwareDevice>();
             var hidDevice = selectedDevices.FirstOrDefault();
             if (hidDevice == null) return;
-
-            //var view = ServiceLocator.GetInstance<SomeDialogView>();
-            //view.ShowDialog();
 
             var firmwareDialogViewModel = new FirmwareDialogViewModel(hidDevice);
             _dialogService.ShowDialog<FirmwareDialog>(this, firmwareDialogViewModel);
@@ -161,9 +158,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void HandleWifiDeviceFound(object sender, IDevice device)
         {
-            var wifiDevice = device as DaqifiStreamingDevice;
-
-            if (wifiDevice == null) return;
+            if (!(device is DaqifiStreamingDevice wifiDevice)) return;
 
             if(AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress) == null)
             {
@@ -177,9 +172,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void HandleWifiDeviceRemoved(object sender, IDevice device)
         {
-            var wifiDevice = device as DaqifiStreamingDevice;
-
-            if (wifiDevice == null) return;
+            if (!(device is DaqifiStreamingDevice wifiDevice)) return;
 
             var matchingDevice = AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress);
             if (matchingDevice != null)
@@ -193,9 +186,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void HandleSerialDeviceFound(object sender, IDevice device)
         {
-            var serialDevice = device as SerialStreamingDevice;
-
-            if (serialDevice == null) return;
+            if (!(device is SerialStreamingDevice serialDevice)) return;
 
             if (AvailableSerialDevices.FirstOrDefault(d => d.Port == serialDevice.Port) == null)
             {
@@ -209,9 +200,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void HandleSerialDeviceRemoved(object sender, IDevice device)
         {
-            var serialDevice = device as SerialStreamingDevice;
-
-            if (serialDevice == null) return;
+            if (!(device is SerialStreamingDevice serialDevice)) return;
 
             var matchingDevice = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == serialDevice.Port.PortName);
             if (matchingDevice != null)
@@ -225,9 +214,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void HandleHidDeviceFound(object sender, IDevice device)
         {
-            var hidDevice = device as HidFirmwareDevice;
-
-            if (hidDevice == null) return;
+            if (!(device is HidFirmwareDevice hidDevice)) return;
 
             Application.Current.Dispatcher.Invoke(() =>
             {
@@ -238,9 +225,13 @@ namespace Daqifi.Desktop.ViewModels
 
         private void HandleHidDeviceRemoved(object sender, IDevice device)
         {
-            var hidDevice = device as HidFirmwareDevice;
+            if (!(device is HidFirmwareDevice hidDevice)) return;
 
-            if (hidDevice == null) return;
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                AvailableHidDevices.Remove(hidDevice);
+                if (AvailableHidDevices.Count == 0) HasNoHidDevices = true;
+            });
         }
 
         public void Close()

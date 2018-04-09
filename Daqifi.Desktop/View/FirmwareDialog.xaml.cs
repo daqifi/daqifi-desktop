@@ -14,5 +14,10 @@
         {
             Close();
         }
+
+        private void btnOk_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            Close();
+        }
     }
 }
