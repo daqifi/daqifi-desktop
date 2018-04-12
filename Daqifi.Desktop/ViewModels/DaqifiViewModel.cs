@@ -7,6 +7,7 @@ using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.View;
+using GalaSoft.MvvmLight;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
 using Microsoft.Win32;
@@ -21,7 +22,7 @@ using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class DaqifiViewModel : ObservableObject
+    public class DaqifiViewModel : ViewModelBase
     {
         #region Private Variables
         private bool _isBusy;
@@ -57,8 +58,8 @@ namespace Daqifi.Desktop.ViewModels
             set 
             {
                 _viewWindowState = value;
-                NotifyPropertyChanged("FlyoutWidth");
-                NotifyPropertyChanged("FlyoutHeight");
+                RaisePropertyChanged("FlyoutWidth");
+                RaisePropertyChanged("FlyoutHeight");
             }
         }
 
@@ -71,7 +72,7 @@ namespace Daqifi.Desktop.ViewModels
             private set
             {
                 _isBusy = value;
-                NotifyPropertyChanged("IsBusy");
+                RaisePropertyChanged();
             }
         }
 
@@ -81,7 +82,7 @@ namespace Daqifi.Desktop.ViewModels
             private set
             {
                 _isLoggedDataBusy = value;
-                NotifyPropertyChanged("IsLoggedDataBusy");
+                RaisePropertyChanged();
             }
         }
 
@@ -116,7 +117,7 @@ namespace Daqifi.Desktop.ViewModels
             private set
             {
                 _canToggleLogging = value;
-                NotifyPropertyChanged("CanToggleLogging");
+                RaisePropertyChanged();
             }
         }
 
@@ -126,7 +127,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isDeviceSettingsOpen = value;
-                NotifyPropertyChanged("IsDeviceSettingsOpen");
+                RaisePropertyChanged();
             }
         }
 
@@ -136,7 +137,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isLoggingSessionSettingsOpen = value;
-                NotifyPropertyChanged("IsLoggingSessionSettingsOpen");
+                RaisePropertyChanged();
             }
         }
 
@@ -146,7 +147,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isChannelSettingsOpen = value;
-                NotifyPropertyChanged("IsChannelSettingsOpen");
+                RaisePropertyChanged();
             }
         }
 
@@ -156,7 +157,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isLiveGraphSettingsOpen = value;
-                NotifyPropertyChanged("IsLiveGraphSettingsOpen");
+                RaisePropertyChanged();
             }
         }
 
@@ -166,8 +167,8 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _width = value;
-                NotifyPropertyChanged("Width");
-                NotifyPropertyChanged("FlyoutWidth");
+                RaisePropertyChanged();
+                RaisePropertyChanged("FlyoutWidth");
             }
         }
 
@@ -177,8 +178,8 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _height = value;
-                NotifyPropertyChanged("Height");
-                NotifyPropertyChanged("FlyoutHeight");
+                RaisePropertyChanged();
+                RaisePropertyChanged("FlyoutHeight");
             }
         }
 
@@ -188,7 +189,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _firmwareFilePath = value;
-                NotifyPropertyChanged("FirmwareFilePath");
+                RaisePropertyChanged();
             }
         }
 
@@ -199,7 +200,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _selectedIndex = value;
                 CloseFlyouts();
-                NotifyPropertyChanged("SelectedIndex");
+                RaisePropertyChanged();
             }
         }
 
@@ -219,7 +220,7 @@ namespace Daqifi.Desktop.ViewModels
 
                 SelectedDevice.StreamingFrequency = value;
                 _selectedStreamingFrequency = SelectedDevice.StreamingFrequency;
-                NotifyPropertyChanged("SelectedStreamingFrequency");
+                RaisePropertyChanged();
             }
         }
 
@@ -265,7 +266,7 @@ namespace Daqifi.Desktop.ViewModels
             set 
             { 
                 _selectedDevice = value;
-                NotifyPropertyChanged("SelectedDevice");
+                RaisePropertyChanged();
             }
         }
 
@@ -275,7 +276,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _selectedChannel = value;
-                NotifyPropertyChanged("SelectedChannel");
+                RaisePropertyChanged();
             }
         }
 
@@ -285,7 +286,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _selectedLoggingSession = value;
-                NotifyPropertyChanged("SelectedLoggingSession");
+                RaisePropertyChanged();
             }
         }
 
@@ -303,7 +304,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _loggedDataBusyReason = value;
-                NotifyPropertyChanged("LoggedDataBusyReason");
+                RaisePropertyChanged();
             }
         }
         #endregion
@@ -739,7 +740,7 @@ namespace Daqifi.Desktop.ViewModels
                         {
                             LoggingSessions.Remove(session);
                         });
-                        NotifyPropertyChanged("LoggingSessions");
+                        RaisePropertyChanged("LoggingSessions");
                     }
                     finally
                     {
@@ -787,7 +788,7 @@ namespace Daqifi.Desktop.ViewModels
                                 LoggingSessions.Remove(session);
                             });
                         }
-                        NotifyPropertyChanged("LoggingSessions");
+                        RaisePropertyChanged("LoggingSessions");
                     }
                     finally
                     {

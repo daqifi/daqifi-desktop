@@ -2,15 +2,14 @@
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.Loggers;
-using System;
+using GalaSoft.MvvmLight;
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
-using ObservableObject = Daqifi.Desktop.ObservableObject;
 
 namespace DAQifi.Desktop.ViewModels
 {
-    public class FirmwareDialogViewModel : ObservableObject
+    public class FirmwareDialogViewModel : ViewModelBase
     {
         private readonly Pic32Bootloader _bootloader;
         private string _version;
@@ -26,7 +25,7 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _version = value;
-                NotifyPropertyChanged("Version");
+                RaisePropertyChanged();
             }
         }
 
@@ -36,7 +35,7 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _firmwareFilePath = value;
-                NotifyPropertyChanged("FirmwareFilePath");
+                RaisePropertyChanged();
             }
         }
 
@@ -46,7 +45,7 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _isFirmwareUploading = value;
-                NotifyPropertyChanged("IsFirmwareUploading");
+                RaisePropertyChanged();
             }
         }
 
@@ -56,7 +55,7 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _isUploadComplete = value;
-                NotifyPropertyChanged("IsUploadComplete");
+                RaisePropertyChanged();
             }
         }
 
@@ -66,7 +65,7 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _hasErrorOccured = value;
-                NotifyPropertyChanged("HasErrorOccured");
+                RaisePropertyChanged();
             }
         }
 
@@ -76,8 +75,8 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _uploadFirmwareProgress = value;
-                NotifyPropertyChanged("UploadFirmwareProgress");
-                NotifyPropertyChanged("UploadFirmwareProgressText");
+                RaisePropertyChanged();
+                RaisePropertyChanged("UploadFirmwareProgressText");
             }
         }
 

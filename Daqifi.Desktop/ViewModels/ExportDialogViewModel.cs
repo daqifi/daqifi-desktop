@@ -2,6 +2,7 @@
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
+using GalaSoft.MvvmLight;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data.Entity;
@@ -11,7 +12,7 @@ using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class ExportDialogViewModel : ObservableObject
+    public class ExportDialogViewModel : ViewModelBase
     {
         #region Private Variables
         private readonly List<int> _sessionsIds;
@@ -30,7 +31,7 @@ namespace Daqifi.Desktop.ViewModels
             set 
             { 
                 _exportFilePath = value;
-                NotifyPropertyChanged("ExportFilePath");
+                RaisePropertyChanged();
                 CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -41,7 +42,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _exportAllSelected = value;
-                NotifyPropertyChanged("ExportAllSelected");
+                RaisePropertyChanged();
             }
         }
 
@@ -51,7 +52,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _exportAverageSelected = value;
-                NotifyPropertyChanged("ExportAverageSelected");
+                RaisePropertyChanged();
             }
         }
 
@@ -61,7 +62,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _averageQuantity = value;
-                NotifyPropertyChanged("AverageQuantity");
+                RaisePropertyChanged();
             }
 
         }

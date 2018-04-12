@@ -1,8 +1,9 @@
 ﻿using Daqifi.Desktop.Loggers;
+using GalaSoft.MvvmLight;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class ErrorDialogViewModel : ObservableObject
+    public class ErrorDialogViewModel : ViewModelBase
     {
         #region Private Variables
         private string _errorMessage;
@@ -13,11 +14,11 @@ namespace Daqifi.Desktop.ViewModels
 
         public string ErrorMessage
         {
-            get { return _errorMessage;}
+            get => _errorMessage;
             set
             {
                 _errorMessage=value;
-                NotifyPropertyChanged("ErrorMessage");
+                RaisePropertyChanged();
             }
         }
 
@@ -26,7 +27,7 @@ namespace Daqifi.Desktop.ViewModels
         #region Constructor
         public ErrorDialogViewModel(string errorMessage)
         {
-           ErrorMessage= errorMessage;
+            ErrorMessage = errorMessage;
         }
         #endregion
     }
