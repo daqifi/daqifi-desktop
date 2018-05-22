@@ -590,14 +590,16 @@ namespace Daqifi.Desktop.ViewModels
 
         private void DisconnectDevice(object o)
         {
-            var deviceToRemove = o as IStreamingDevice;
-            foreach(var channel in deviceToRemove.DataChannels)
+            if (!(o is IStreamingDevice deviceToRemove)) return;
+
+            foreach (var channel in deviceToRemove.DataChannels)
             {
                 if (channel.IsActive)
                 {
                     LoggingManager.Instance.Unsubscribe(channel);
                 }
             }
+
             ConnectionManager.Instance.Disconnect(deviceToRemove);
         }
 

@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.IO.Ports;
 using System.Linq;
 using System.Management;
@@ -10,7 +9,6 @@ namespace Daqifi.Desktop.Device.SerialDevice
     {
         #region Private Data
         private string[] _serialPorts = { };
-        private SerialPort _serialPort;
         private static ManagementEventWatcher _deviceAddedWatcher;
         private static ManagementEventWatcher _deviceRemovedWatcher;
         public event OnDeviceFoundHandler OnDeviceFound;

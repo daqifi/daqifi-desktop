@@ -15,7 +15,6 @@ namespace Daqifi.Desktop.Device.HidDevice
         private const int ProductId = 0x03C;
         public event OnDeviceFoundHandler OnDeviceFound;
         public event OnDeviceRemovedHandler OnDeviceRemoved;
-
         
         public HidDeviceFinder()
         {

@@ -44,37 +44,37 @@ namespace Daqifi.Desktop.Logger
         #endregion
 
         #region Command Properties
-        public ICommand ZoomOutXCommand { get; private set; }
+        public ICommand ZoomOutXCommand { get; }
         private bool CanZoomOutX(object o)
         {
             return true;
         }
 
-        public ICommand ZoomInXCommand { get; private set; }
+        public ICommand ZoomInXCommand { get; }
         private bool CanZoomInX(object o)
         {
             return true;
         }
 
-        public ICommand ZoomOutYCommand { get; private set; }
+        public ICommand ZoomOutYCommand { get; }
         private bool CanZoomOutY(object o)
         {
             return true;
         }
 
-        public ICommand ZoomInYCommand { get; private set; }
+        public ICommand ZoomInYCommand { get; }
         private bool CanZoomInY(object o)
         {
             return true;
         }
 
-        public ICommand SaveGraphCommand { get; private set; }
+        public ICommand SaveGraphCommand { get; }
         private bool CanSaveGraph(object o)
         {
             return true;
         }
 
-        public ICommand ResetZoomCommand { get; private set; }
+        public ICommand ResetZoomCommand { get; }
         private bool CanResetZoom(object o)
         {
             return true;
@@ -222,7 +222,6 @@ namespace Daqifi.Desktop.Logger
                     context.Configuration.AutoDetectChangesEnabled = false;
                     var samples = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == session.ID).Select(s => s);
 
-                    double deltaTime;
                     foreach (var sample in samples)
                     {                       
                         if (!SessionChannels.Keys.Contains(sample.ChannelName))
@@ -231,7 +230,7 @@ namespace Daqifi.Desktop.Logger
                         }
 
                         if (_firstTime == null) _firstTime = new DateTime(sample.TimestampTicks);
-                        deltaTime = (sample.TimestampTicks - _firstTime.Value.Ticks) / 10000.0; //Ticks is 100 nanoseconds
+                        var deltaTime = (sample.TimestampTicks - _firstTime.Value.Ticks) / 10000.0;
 
                         //Add new datapoint
                         _allSessionPoints[sample.ChannelName].Add(new DataPoint(deltaTime, sample.Value));

@@ -82,13 +82,13 @@ namespace DAQifi.Desktop.ViewModels
 
         public string UploadFirmwareProgressText => ($"Upload Progress: {UploadFirmwareProgress}%");
 
-        public ICommand BrowseFirmwarePathCommand { get; private set; }
+        public ICommand BrowseFirmwarePathCommand { get; }
         private bool CanBrowseFirmwarePath(object o)
         {
             return true;
         }
 
-        public ICommand UploadFirmwareCommand { get; private set; }
+        public ICommand UploadFirmwareCommand { get; }
         private bool CanUploadFirmware(object o)
         {
             return true;

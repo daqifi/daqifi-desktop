@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace Daqifi.Desktop.Helpers
 {
@@ -13,7 +10,7 @@ namespace Daqifi.Desktop.Helpers
     /// </summary> 
     public class OrdinalStringComparer : IComparer<string>
     {
-        private bool _ignoreCase = true;
+        private readonly bool _ignoreCase = true;
 
         /// <summary> 
         /// Creates an instance of <c>OrdinalStringComparer</c> for case-insensitive string comparison. 
@@ -59,23 +56,21 @@ namespace Daqifi.Desktop.Helpers
             var comparisonMode =
                 _ignoreCase ? StringComparison.CurrentCultureIgnoreCase : StringComparison.CurrentCulture;
 
-            string[] splitX = Regex.Split(x.Replace(" ", ""), "([0-9]+)");
-            string[] splitY = Regex.Split(y.Replace(" ", ""), "([0-9]+)");
+            var splitX = Regex.Split(x.Replace(" ", ""), "([0-9]+)");
+            var splitY = Regex.Split(y.Replace(" ", ""), "([0-9]+)");
 
-            int comparer = 0;
+            var comparer = 0;
 
-            for (int i = 0; comparer == 0 && i < splitX.Length; i++)
+            for (var i = 0; comparer == 0 && i < splitX.Length; i++)
             {
                 if (splitY.Length <= i)
                 {
                     comparer = 1; // x > y 
                 }
 
-                int numericX = -1;
-                int numericY = -1;
-                if (int.TryParse(splitX[i], out numericX))
+                if (int.TryParse(splitX[i], out var numericX))
                 {
-                    if (int.TryParse(splitY[i], out numericY))
+                    if (int.TryParse(splitY[i], out var numericY))
                     {
                         comparer = numericX - numericY;
                     }
@@ -86,7 +81,7 @@ namespace Daqifi.Desktop.Helpers
                 }
                 else
                 {
-                    comparer = String.Compare(splitX[i], splitY[i], comparisonMode);
+                    comparer = string.Compare(splitX[i], splitY[i], comparisonMode);
                 }
             }
 

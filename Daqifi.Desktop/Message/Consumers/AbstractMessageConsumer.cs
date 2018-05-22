@@ -18,7 +18,7 @@ namespace Daqifi.Desktop.Message.Consumers
         public bool Running
         {
             get => _running;
-            set { _running = value; }
+            set => _running = value;
         }
 
         public Stream DataStream { get; set; }

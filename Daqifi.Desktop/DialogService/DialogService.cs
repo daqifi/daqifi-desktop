@@ -25,10 +25,7 @@ namespace Daqifi.Desktop.DialogService
         /// <summary>
         /// Gets the registered views.
         /// </summary>
-        public ReadOnlyCollection<FrameworkElement> Views
-        {
-            get { return new ReadOnlyCollection<FrameworkElement>(_views.ToList()); }
-        }
+        public ReadOnlyCollection<FrameworkElement> Views => new ReadOnlyCollection<FrameworkElement>(_views.ToList());
 
 
         /// <summary>

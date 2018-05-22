@@ -72,8 +72,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
         public override bool Equals(object obj)
         {
-            var other = obj as DaqifiStreamingDevice;
-            if (other == null) return false;
+            if (!(obj is DaqifiStreamingDevice other)) return false;
             if (Name != other.Name) return false;
             if (IpAddress != other.IpAddress) return false;
             if (MacAddress != other.MacAddress) return false;

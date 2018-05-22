@@ -1,8 +1,4 @@
-﻿using System;
-using System.Data;
-using System.Linq;
-
-namespace Daqifi.Desktop.Bootloader
+﻿namespace Daqifi.Desktop.Bootloader
 {
     public class Pic32BootloaderMessageConsumer
     {

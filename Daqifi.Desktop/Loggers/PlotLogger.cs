@@ -109,37 +109,37 @@ namespace Daqifi.Desktop.Logger
         #endregion
 
         #region Command Properties
-        public ICommand ZoomInXCommand { get; private set; }
+        public ICommand ZoomInXCommand { get; }
         private bool CanZoomInX(object o)
         {
             return true;
         }
 
-        public ICommand ZoomOutXCommand { get; private set; }
+        public ICommand ZoomOutXCommand { get; }
         private bool CanZoomOutX(object o)
         {
             return true;
         }
 
-        public ICommand ZoomInYCommand { get; private set; }
+        public ICommand ZoomInYCommand { get; }
         private bool CanZoomInY(object o)
         {
             return true;
         }
 
-        public ICommand ZoomOutYCommand { get; private set; }
+        public ICommand ZoomOutYCommand { get; }
         private bool CanZoomOutY(object o)
         {
             return true;
         }
 
-        public ICommand SaveLiveGraphCommand { get; private set; }
+        public ICommand SaveLiveGraphCommand { get; }
         private bool CanSaveLiveGraph(object o)
         {
             return true;
         }
 
-        public ICommand ResetZoomLiveGraphCommand { get; private set; }
+        public ICommand ResetZoomLiveGraphCommand { get; }
         private bool CanResetZoomLiveGraph(object o)
         {
             return true;

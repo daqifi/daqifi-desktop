@@ -8,7 +8,7 @@ namespace Daqifi.Desktop.Loggers
     public class AppLogger : IAppLogger
     {
         #region Private Data
-        private NLog.Logger _logger = LogManager.GetCurrentClassLogger();
+        private readonly NLog.Logger _logger = LogManager.GetCurrentClassLogger();
         #endregion
 
         #region Singleton Constructor / Initalization

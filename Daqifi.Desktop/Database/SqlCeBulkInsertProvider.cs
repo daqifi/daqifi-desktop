@@ -18,10 +18,7 @@ namespace Daqifi.Desktop
             return new SqlCeConnection(ConnectionString);
         }
 
-        protected override string ConnectionString
-        {
-            get { return DbConnection.ConnectionString; }
-        }
+        protected override string ConnectionString => DbConnection.ConnectionString;
 
         /// <summary>
         /// Get sql grography object from well known text

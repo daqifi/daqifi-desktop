@@ -69,13 +69,13 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region Command Properties
-        public ICommand BrowseExportPathCommand { get; private set; }
+        public ICommand BrowseExportPathCommand { get; }
         private bool CanBrowseExportPath(object o)
         {
             return true;
         }
 
-        public ICommand ExportSessionCommand { get; private set; }
+        public ICommand ExportSessionCommand { get; }
         private bool CanExportSession(object o)
         {
             return true;

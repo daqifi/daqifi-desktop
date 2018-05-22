@@ -19,7 +19,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
         public static UsbDevice Get(string pnpDeviceId)
         {
             if (pnpDeviceId == null)
-                throw new ArgumentNullException("pnpDeviceId");
+                throw new ArgumentNullException(nameof(pnpDeviceId));
 
             var hDevInfo = SetupDiGetClassDevs(IntPtr.Zero, pnpDeviceId, IntPtr.Zero, Digcf.DigcfAllclasses | Digcf.DigcfDeviceinterface);
             if (hDevInfo == (IntPtr)InvalidHandleValue)

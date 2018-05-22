@@ -166,14 +166,8 @@ namespace Daqifi.Desktop.Commands
         /// </example>
         public event EventHandler CanExecuteChanged
         {
-            add
-            {
-                WeakEventHandlerManager.AddWeakReferenceHandler(ref _canExecuteChangedHandlers, value, 2);
-            }
-            remove
-            {
-                WeakEventHandlerManager.RemoveWeakReferenceHandler(_canExecuteChangedHandlers, value);
-            }
+            add => WeakEventHandlerManager.AddWeakReferenceHandler(ref _canExecuteChangedHandlers, value, 2);
+            remove => WeakEventHandlerManager.RemoveWeakReferenceHandler(_canExecuteChangedHandlers, value);
         }
 
         /// <summary>
