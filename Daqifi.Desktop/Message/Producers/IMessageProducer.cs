@@ -1,6 +1,4 @@
-﻿using System.Threading.Tasks;
-
-namespace Daqifi.Desktop.Message.Producers
+﻿namespace Daqifi.Desktop.Message.Producers
 {
     public interface IMessageProducer
     {

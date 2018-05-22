@@ -1,6 +1,4 @@
-﻿
-using System.ComponentModel;
-using System.Threading.Tasks;
+﻿using System.ComponentModel;
 
 namespace Daqifi.Desktop.Bootloader
 {

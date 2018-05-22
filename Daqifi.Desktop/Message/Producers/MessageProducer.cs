@@ -1,5 +1,4 @@
 ﻿using System.IO;
-using System.Threading.Tasks;
 
 namespace Daqifi.Desktop.Message.Producers
 {

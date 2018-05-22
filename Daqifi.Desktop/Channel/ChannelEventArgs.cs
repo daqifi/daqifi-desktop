@@ -3,7 +3,7 @@
     public class ChannelEventArgs
     {
         #region Properties
-        public AbstractChannel Channel { get; private set; }
+        public AbstractChannel Channel { get; }
 
         #endregion
 

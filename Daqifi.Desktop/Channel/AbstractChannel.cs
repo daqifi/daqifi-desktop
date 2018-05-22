@@ -54,7 +54,7 @@ namespace Daqifi.Desktop.Channel
         [NotMapped]
         public List<string> AdcModes { get; } = new List<string> { "Single-Ended", "Differential" };
 
-        public abstract DataModel.Channel.ChannelType Type { get; }
+        public abstract ChannelType Type { get; }
 
         [NotMapped]
         public ChannelDirection Direction
@@ -193,13 +193,16 @@ namespace Daqifi.Desktop.Channel
         {
             get => _scaledExpression;
             set
-             {
+            {
                 _scaledExpression = value;
 
                 if (string.IsNullOrWhiteSpace(_scaledExpression)) return;
 
-                Expression = new Expression(_scaledExpression, EvaluateOptions.IgnoreCase);
-                Expression.Parameters["x"] = 1;
+                Expression = new Expression(_scaledExpression, EvaluateOptions.IgnoreCase)
+                {
+                    Parameters = {["x"] = 1}
+                };
+
                 try
                 {
                     Expression.Evaluate();
@@ -264,10 +267,7 @@ namespace Daqifi.Desktop.Channel
         #region Object overrides
         public override bool Equals(object obj)
         {
-            if (obj == null) return false;
-
-            var channel = obj as AbstractChannel;
-            if (channel == null) return false;
+            if (!(obj is AbstractChannel channel)) return false;
 
             return channel.Name == Name;
         }

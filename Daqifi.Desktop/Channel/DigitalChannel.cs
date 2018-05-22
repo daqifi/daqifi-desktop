@@ -6,20 +6,12 @@ namespace Daqifi.Desktop.Channel
     public class DigitalChannel : AbstractChannel
     {
         #region Properties
-        public override ChannelType Type
-        {
-            get { return ChannelType.Digital; }
-        }
+        public override ChannelType Type => ChannelType.Digital;
 
-        public override bool IsAnalog
-        {
-            get { return false; }
-        }
+        public override bool IsAnalog => false;
 
-        public override bool IsDigital
-        {
-            get { return true; }
-        }
+        public override bool IsDigital => true;
+
         #endregion
 
         #region Constructors

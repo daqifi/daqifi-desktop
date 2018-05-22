@@ -10,7 +10,7 @@ namespace Daqifi.Desktop.Message
         #endregion
 
         #region Properties
-        public IMessage Message { get; private set; }
+        public IMessage Message { get; }
 
         #endregion
 

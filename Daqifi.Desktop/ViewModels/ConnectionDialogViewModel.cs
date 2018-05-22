@@ -7,6 +7,7 @@ using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Loggers;
 using DAQifi.Desktop.View;
 using DAQifi.Desktop.ViewModels;
+using GalaSoft.MvvmLight;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -15,7 +16,7 @@ using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class ConnectionDialogViewModel : ObservableObject
+    public class ConnectionDialogViewModel : ViewModelBase
     {
         #region Private Variables
         private DaqifiDeviceFinder _wifiFinder;
@@ -41,7 +42,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _hasNoWiFiDevices = value;
-                NotifyPropertyChanged("HasNoWiFiDevices");
+                RaisePropertyChanged();
             }
         }
 
@@ -51,7 +52,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _hasNoSerialDevices = value;
-                NotifyPropertyChanged("HasNoSerialDevices");
+                RaisePropertyChanged();
             }
         }
 
@@ -61,7 +62,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _hasNoHidDevices = value;
-                NotifyPropertyChanged("HasNoHidDevices");
+                RaisePropertyChanged();
             }
         }
         #endregion

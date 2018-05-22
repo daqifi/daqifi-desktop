@@ -3,6 +3,7 @@ using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
+using GalaSoft.MvvmLight;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -11,7 +12,7 @@ using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class AddChannelDialogViewModel : ObservableObject
+    public class AddChannelDialogViewModel : ViewModelBase
     {
         #region Private Variables
         private IStreamingDevice _selectedDevice;
@@ -30,7 +31,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _selectedDevice = value;
                 GetAvailableChannels(_selectedDevice);
-                NotifyPropertyChanged("SelectedDevice");
+                RaisePropertyChanged();
             }
         }
         #endregion
@@ -38,7 +39,7 @@ namespace Daqifi.Desktop.ViewModels
         #region Constructor
         public AddChannelDialogViewModel()
         {
-            foreach (IStreamingDevice device in ConnectionManager.Instance.ConnectedDevices)
+            foreach (var device in ConnectionManager.Instance.ConnectedDevices)
             {
                 AvailableDevices.Add(device);
             }
@@ -57,10 +58,7 @@ namespace Daqifi.Desktop.ViewModels
         }
 
         #region Command Delegatges
-        public ICommand AddChannelCommand
-        {
-            get { return new DelegateCommand(OnSelectedChannelExecute, OnSelectedChannelCanExecute); }
-        }
+        public ICommand AddChannelCommand => new DelegateCommand(OnSelectedChannelExecute, OnSelectedChannelCanExecute);
 
         private bool OnSelectedChannelCanExecute(object selectedItems)
         {
@@ -70,7 +68,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void OnSelectedChannelExecute(object selectedItems)
         {
-            var selectedChannels = ((IEnumerable)selectedItems).Cast<IChannel>();
+            var selectedChannels = ((IEnumerable)selectedItems).Cast<IChannel>().ToList();
 
             if(!selectedChannels.Any())
             {
