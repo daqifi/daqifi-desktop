@@ -30,13 +30,16 @@ namespace Daqifi.Desktop.Bootloader.Test
         {
             // SOH RC CRCL CRCH EOT
             // StartOfHeader = 0x01 (1)
-            // EraseFlash 
-            var correctValue = new byte[] {};
+            // EraseFlashCommand = 0x02 (2)
+            // CrcLow = 0x42 (66)
+            // CrcHigh = 0x20 (32)
+            // EndOfTransmission = 0x04 (4)
+            var correctValue = new byte[] {1, 2, 66, 32, 4};
 
             var messageProducer = new Pic32BootloaderMessageProducer();
             var actualValue = messageProducer.CreateEraseFlashMessage();
 
-            Assert.Fail();
+            CollectionAssert.AreEqual(correctValue, actualValue);
         }
 
         [TestMethod]
@@ -50,26 +53,26 @@ namespace Daqifi.Desktop.Bootloader.Test
             Assert.Fail();
         }
 
-        [TestMethod]
         public void CreateReadCrcMessage_ReturnsCorrectValue()
         {
-            // SOH EOT
-            var correctValue = new byte[] { };
-
-            var messageProducer = new Pic32BootloaderMessageProducer();
-
-            Assert.Fail();
+            // TODO
         }
 
         [TestMethod]
         public void CreateJumpToApplicationMessage_ReturnsCorrectValue()
         {
-            // SOH EOT
-            var correctValue = new byte[] { };
+            // SOH RC CRCL CRCH EOT
+            // StartOfHeader = 0x01 (1)
+            // JumptToAppCommand = 0x05 (5)
+            // CrcLow = 0xA5 (66)
+            // CrcHigh = 0x50 (32)
+            // EndOfTransmission = 0x04 (4)
+            var correctValue = new byte[] { 1, 5, 165, 80, 4 };
 
             var messageProducer = new Pic32BootloaderMessageProducer();
+            var actualValue = messageProducer.CreateJumpToApplicationMessage();
 
-            Assert.Fail();
+            CollectionAssert.AreEqual(correctValue, actualValue);
         }
     }
 }
