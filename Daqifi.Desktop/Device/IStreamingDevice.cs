@@ -1,8 +1,8 @@
-﻿using System.Collections.Generic;
-using Daqifi.Desktop.Channel;
+﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.DataModel.Channel;
-using Daqifi.Desktop.Message.Consumers;
-using Daqifi.Desktop.Message.Producers;
+using Daqifi.Desktop.IO.Messages.Consumers;
+using Daqifi.Desktop.IO.Messages.Producers;
+using System.Collections.Generic;
 
 namespace Daqifi.Desktop.Device
 {

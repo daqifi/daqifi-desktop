@@ -1,7 +1,7 @@
 ﻿using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
-using Daqifi.Desktop.Loggers;
 using GalaSoft.MvvmLight;
 using System.Collections.Generic;
 using System.ComponentModel;

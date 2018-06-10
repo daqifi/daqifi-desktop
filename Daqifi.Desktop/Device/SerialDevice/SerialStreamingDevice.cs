@@ -1,6 +1,5 @@
-﻿using Daqifi.Desktop.Message.Consumers;
-using Daqifi.Desktop.Message.MessageTypes;
-using Daqifi.Desktop.Message.Producers;
+﻿using Daqifi.Desktop.IO.Messages.Consumers;
+using Daqifi.Desktop.IO.Messages.Producers;
 using System;
 using System.IO.Ports;
 using System.Threading;

@@ -1,7 +1,7 @@
 ﻿using Daqifi.Desktop.Bootloader;
 using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device.HidDevice;
-using Daqifi.Desktop.Loggers;
 using GalaSoft.MvvmLight;
 using System.ComponentModel;
 using System.IO;

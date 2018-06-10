@@ -1,5 +1,5 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Loggers;
+using Daqifi.Desktop.Common.Loggers;
 using System;
 using System.Data.Entity;
 

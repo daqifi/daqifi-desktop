@@ -1,10 +1,10 @@
 ﻿using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Device.WiFiDevice;
 using Daqifi.Desktop.DialogService;
-using Daqifi.Desktop.Loggers;
 using DAQifi.Desktop.View;
 using DAQifi.Desktop.ViewModels;
 using GalaSoft.MvvmLight;

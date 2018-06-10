@@ -1,11 +1,11 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
-using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.View;
 using GalaSoft.MvvmLight;
 using MahApps.Metro.Controls;
@@ -350,7 +350,7 @@ namespace Daqifi.Desktop.ViewModels
             }
             catch (Exception ex)
             {
-                AppLogger.Instance.Error(ex, "DAQifiViewModel");
+                AppLogger.Error(ex, "DAQifiViewModel");
             }
         }
 
