@@ -74,7 +74,6 @@
   <ItemGroup>
     <Compile Include="Messages\Decoders\ProtobugDecoderTests.cs" />
     <Compile Include="Messages\MessageTypes\DaqifiOutMessageTests.cs" />
-    <Compile Include="UnitTest1.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

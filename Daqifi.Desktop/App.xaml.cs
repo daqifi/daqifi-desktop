@@ -3,7 +3,6 @@ using Daqifi.Desktop.WindowViewModelMapping;
 using System;
 using System.IO;
 using System.Windows;
-using Xamarin;
 
 namespace Daqifi.Desktop
 {
@@ -12,10 +11,6 @@ namespace Daqifi.Desktop
     /// </summary>
     public partial class App
     {
-        private const string AppName = "DAQifi";
-        private const string Version = "1.0.4";
-        private const string XamarinKey = "699deee1bbdab8013281235f782bc0b49f082df4";
-
         public SplashScreen SplashScreen { get; private set; }
 
         protected override void OnStartup(StartupEventArgs e)
@@ -25,9 +20,6 @@ namespace Daqifi.Desktop
             AppDomain.CurrentDomain.SetData("DataDirectory", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DAQifi"));
 
             ShowSplashScreen();
-
-            // Initialize call should happen as soon as possible, ideally at app start-up.
-            Insights.Initialize(XamarinKey, Version, AppName);
 
             // Configure service locator
             ServiceLocator.RegisterSingleton<IDialogService, DialogService.DialogService>();

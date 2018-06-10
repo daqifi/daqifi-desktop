@@ -5,7 +5,7 @@
         Manufacturer="DAQifi"
         UpgradeCode="ACA4F4E1-6DBB-47C0-A829-84AA1536C147"
         Language="1033"
-        Version="1.0.4.0">
+        Version="1.0.5.0">
 
     <Package Id="*"
              Description="DAQifi Installer"
@@ -109,11 +109,23 @@
       <Component Id="Daqifi.Desktop.Bootloader" Guid="C23982B1-AADC-40BA-8CB5-0C2300CB8F9E">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\Daqifi.Desktop.Bootloader.dll"/>
       </Component>
+      <Component Id="Daqifi.Desktop.Common" Guid="B260F639-1DF0-4CAB-A106-8C3B8080503C">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Daqifi.Desktop.Common.dll"/>
+      </Component>
       <Component Id="Daqifi.Desktop.DataLayer" Guid="69FF3151-04DF-4370-8C03-CEEE1A1325B2">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\Daqifi.Desktop.DataModel.dll"/>
       </Component>
+      <Component Id="Daqifi.Desktop.IO" Guid="83249671-76C3-4CB2-A28E-6E0077300ADE">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Daqifi.Desktop.IO.dll"/>
+      </Component>
       
       <!-- 3rd Party DLLs-->
+      <Component Id="CommonServiceLocator" Guid="6A362E50-2B3D-47D1-AB1D-1A6AD75DDF58">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\CommonServiceLocator.dll"/>
+      </Component>
+      <Component Id="ControlzEx" Guid="28DA203F-2A18-4C7B-9DB9-C04779540A6C">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\ControlzEx.dll"/>
+      </Component>
       <Component Id="EntityFramework" Guid="4ED9C890-16AE-4221-8BFF-6FA9C969231F">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.dll"/>
       </Component>
@@ -131,6 +143,15 @@
       </Component>
       <Component Id="EntityFrameworkSqlServerCompact" Guid="121327B4-4D93-46AC-ABCF-D29932A51D73">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\EntityFramework.SqlServerCompact.dll"/>
+      </Component>
+      <Component Id="GalaSoftMvvmLight" Guid="842B0D4D-9C0E-4280-BE64-37ED2610A764">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\GalaSoft.MvvmLight.dll"/>
+      </Component>
+      <Component Id="GalaSoftMvvmLightExtras" Guid="A316503E-52FB-4D03-B35E-4C85B2B35ECA">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\GalaSoft.MvvmLight.Extras.dll"/>
+      </Component>
+      <Component Id="GalaSoftMvvmLightPlatform" Guid="CD9956FA-F4D4-453C-B99B-7A87D93CB421">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\GalaSoft.MvvmLight.Platform.dll"/>
       </Component>
       <Component Id="GoogleProtoBuf" Guid="E52D39BA-60E9-4FAE-B601-6C92BF0FD4DF">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\Google.ProtocolBuffers.dll"/>
@@ -197,9 +218,6 @@
       </Component>
       <Component Id="SystemWindowsInteractivity" Guid="5154E02B-5671-4DC7-9AC4-29437F13CD76">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Windows.Interactivity.dll"/>
-      </Component>
-       <Component Id="XamarinInsights" Guid="DD20EE01-175E-495F-B63A-4060F8C0807E">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Xamarin.Insights.dll"/>
       </Component>
     </ComponentGroup>
   </Fragment>
