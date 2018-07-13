@@ -1,12 +1,12 @@
-﻿using Daqifi.Desktop.Device;
-using Daqifi.Desktop.Loggers;
+﻿using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Device.SerialDevice;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Management;
 using System.Windows;
-using Daqifi.Desktop.Device.SerialDevice;
 
 namespace Daqifi.Desktop
 {

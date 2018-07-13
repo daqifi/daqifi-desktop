@@ -1,6 +1,5 @@
-﻿using Daqifi.Desktop.Message.Consumers;
-using Daqifi.Desktop.Message.MessageTypes;
-using Daqifi.Desktop.Message.Producers;
+﻿using Daqifi.Desktop.IO.Messages.Consumers;
+using Daqifi.Desktop.IO.Messages.Producers;
 using System;
 using System.IO.Ports;
 using System.Threading;
@@ -64,13 +63,6 @@ namespace Daqifi.Desktop.Device.SerialDevice
             }
         }
 
-        #endregion
-
-        #region Private Methods
-        private void TurnDeviceOn()
-        {
-            MessageProducer.Send(ScpiMessagePoducer.DeviceOn);
-        }
         #endregion
     }
 }

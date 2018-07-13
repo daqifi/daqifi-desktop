@@ -115,7 +115,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="NLog, Version=4.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
-      <HintPath>..\packages\NLog.4.4.12\lib\net45\NLog.dll</HintPath>
+      <HintPath>..\packages\NLog.4.5.6\lib\net45\NLog.dll</HintPath>
     </Reference>
     <Reference Include="OxyPlot">
       <HintPath>..\packages\OxyPlot.Core.2014.1.546\lib\portable-net4+sl4+wp71+win8\OxyPlot.dll</HintPath>
@@ -126,8 +126,8 @@
     <Reference Include="OxyPlot.Xps">
       <HintPath>..\packages\OxyPlot.Wpf.2014.1.546\lib\net45\OxyPlot.Xps.dll</HintPath>
     </Reference>
-    <Reference Include="protobuf-net, Version=2.3.7.0, Culture=neutral, PublicKeyToken=257b51d87d2e4d67, processorArchitecture=MSIL">
-      <HintPath>..\packages\protobuf-net.2.3.7\lib\net40\protobuf-net.dll</HintPath>
+    <Reference Include="protobuf-net, Version=2.3.9.0, Culture=neutral, PublicKeyToken=257b51d87d2e4d67, processorArchitecture=MSIL">
+      <HintPath>..\packages\protobuf-net.2.3.9\lib\net40\protobuf-net.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
@@ -142,11 +142,13 @@
       <HintPath>Database\System.Data.SqlServerCe.Entity.dll</HintPath>
     </Reference>
     <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" />
     <Reference Include="System.Management" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.ServiceModel" />
-    <Reference Include="System.ValueTuple, Version=4.0.2.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.ValueTuple.4.4.0\lib\net461\System.ValueTuple.dll</HintPath>
+    <Reference Include="System.Transactions" />
+    <Reference Include="System.ValueTuple, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.ValueTuple.4.5.0\lib\net461\System.ValueTuple.dll</HintPath>
     </Reference>
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Windows.Interactivity, Version=4.5.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
@@ -163,10 +165,6 @@
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
-    <Reference Include="Xamarin.Insights, Version=1.11.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Xamarin.Insights.1.11.4\lib\net40\Xamarin.Insights.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
@@ -180,9 +178,6 @@
     <Compile Include="Channel\DataSample.cs" />
     <Compile Include="Channel\DigitalChannel.cs" />
     <Compile Include="Commands\CompositeCommand.cs" />
-    <Compile Include="Communication\Protobuf\DaqifiOutMessage.cs" />
-    <Compile Include="Communication\Protobuf\IDaqifiOutMessage.cs" />
-    <Compile Include="Communication\Protobuf\ProtobufDecoder.cs" />
     <Compile Include="Configuration\IColorable.cs" />
     <Compile Include="Database\SqlCeBulkInsertProvider.cs" />
     <Compile Include="Device\AbstractStreamingDevice.cs" />
@@ -201,7 +196,6 @@
     <Compile Include="Helpers\EnumDescriptionConverter.cs" />
     <Compile Include="Helpers\EnumExtensions.cs" />
     <Compile Include="Helpers\OrdinalStringComparer.cs" />
-    <Compile Include="Loggers\AppLogger.cs" />
     <Compile Include="Helpers\BooleanConverter.cs" />
     <Compile Include="Helpers\BooleanToVisibilityConverter.cs" />
     <Compile Include="LargestTriangleThreeBucket.cs" />
@@ -211,8 +205,6 @@
     <Compile Include="Loggers\LoggingSession.cs" />
     <Compile Include="Loggers\PlotLogger.cs" />
     <Compile Include="Loggers\LoggingManager.cs" />
-    <Compile Include="Message\Consumers\AbstractMessageConsumer.cs" />
-    <Compile Include="Message\MessageTypes\ScpiMessage.cs" />
     <Compile Include="Commands\DelegateCommand.cs" />
     <Compile Include="Device\WiFiDevice\DaqifiStreamingDevice.cs" />
     <Compile Include="Device\WiFiDevice\DaqifiDeviceFinder.cs" />
@@ -220,15 +212,8 @@
     <Compile Include="DialogService\IDialogService.cs" />
     <Compile Include="DialogService\IDialogServiceContract.cs" />
     <Compile Include="DialogService\ServiceLocator.cs" />
-    <Compile Include="Loggers\IAppLogger.cs" />
     <Compile Include="Channel\IChannel.cs" />
     <Compile Include="Device\IDevice.cs" />
-    <Compile Include="Message\IMessage.cs" />
-    <Compile Include="Message\Consumers\IMessageConsumer.cs" />
-    <Compile Include="Message\Producers\IMessageProducer.cs" />
-    <Compile Include="Message\MessageEventArgs.cs" />
-    <Compile Include="Message\MessageTypes\RawMessage.cs" />
-    <Compile Include="Message\MessageTypes\ScpiMessagePoducer.cs" />
     <Compile Include="Migrations\201712291614345_InitialMigration.cs" />
     <Compile Include="Migrations\201712291614345_InitialMigration.Designer.cs">
       <DependentUpon>201712291614345_InitialMigration.cs</DependentUpon>
@@ -237,9 +222,6 @@
     <Compile Include="Models\DaqifiBoardConfig.cs" />
     <Compile Include="Models\DaqifiSettings.cs" />
     <Compile Include="ObservableObject.cs" />
-    <Compile Include="Message\MessageTypes\ProtobufMessage.cs" />
-    <Compile Include="Message\Consumers\MessageConsumer.cs" />
-    <Compile Include="Message\Producers\MessageProducer.cs" />
     <Compile Include="ViewModels\AddChannelDialogViewModel.cs" />
     <Compile Include="ViewModels\ConnectionDialogViewModel.cs" />
     <Compile Include="ViewModels\ErrorDialogViewModel.cs" />
@@ -472,9 +454,17 @@
       <Project>{e1b7fa13-2ad8-4b9f-983e-0ea88c3a1062}</Project>
       <Name>Daqifi.Desktop.Bootloader</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj">
+      <Project>{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}</Project>
+      <Name>Daqifi.Desktop.Common</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj">
       <Project>{8E553D17-C0B1-447F-B4A2-0F11903CAA49}</Project>
       <Name>Daqifi.Desktop.DataModel</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Daqifi.Desktop.IO\Daqifi.Desktop.IO.csproj">
+      <Project>{EC3CD2DE-4816-4568-98B8-9CC258DF7CA1}</Project>
+      <Name>Daqifi.Desktop.IO</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

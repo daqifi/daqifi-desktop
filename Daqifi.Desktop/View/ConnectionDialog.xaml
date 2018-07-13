@@ -71,6 +71,22 @@
                     </Border>
                 </Grid>
             </TabItem>
+            <TabItem Header="Manual USB" controls:ControlsHelper.HeaderFontSize="18">
+                <Grid>
+                    <Border>
+                        <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
+                            <!-- Connect Button -->
+                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}" Command="{Binding ConnectManualSerialCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+
+                            <!-- Manual COM Port -->
+                            <StackPanel>
+                                <Label Content="COM Port"/>
+                                <TextBox Text="{Binding ManualPortName}"/>
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
             <TabItem Header="Firmware" controls:ControlsHelper.HeaderFontSize="18">
                 <Grid>
                     <controls:ProgressRing IsActive="{Binding HasNoHidDevices}" />

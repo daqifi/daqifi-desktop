@@ -1,8 +1,8 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
-using Daqifi.Desktop.Loggers;
 using GalaSoft.MvvmLight;
 using System.Collections;
 using System.Collections.ObjectModel;

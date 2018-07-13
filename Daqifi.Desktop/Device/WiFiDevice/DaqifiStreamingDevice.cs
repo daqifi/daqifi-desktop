@@ -1,8 +1,7 @@
-﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Message.Consumers;
-using Daqifi.Desktop.Message.Producers;
+﻿using Daqifi.Desktop.DataModel.Device;
+using Daqifi.Desktop.IO.Messages.Consumers;
+using Daqifi.Desktop.IO.Messages.Producers;
 using System;
-using System.Collections.Generic;
 using System.Net.Sockets;
 
 namespace Daqifi.Desktop.Device.WiFiDevice
@@ -10,19 +9,24 @@ namespace Daqifi.Desktop.Device.WiFiDevice
     public class DaqifiStreamingDevice : AbstractStreamingDevice
     {
         #region Properties
+
         public TcpClient Client { get; set; }
         public string IpAddress { get; set; }
         public string MacAddress { get; set; }
+        public bool IsPowerOn { get; set; }
+
         #endregion
 
         #region Constructor
-        public DaqifiStreamingDevice(string name, string macAddress, string ipAddress)
+        public DaqifiStreamingDevice(DeviceInfo deviceInfo)
         {
-            Name = name;
-            MacAddress = macAddress;
-            IpAddress = ipAddress;
+            Name = deviceInfo.DeviceName;
+            IpAddress = deviceInfo.IpAddress;
+            MacAddress = deviceInfo.MacAddress;
+            IsPowerOn = deviceInfo.IsPowerOn;
             IsStreaming = false;
         }
+
         #endregion
 
         #region Override Methods
@@ -32,6 +36,12 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             {
                 Client = new TcpClient(IpAddress, 9760);
                 MessageProducer = new MessageProducer(Client.GetStream());
+
+                if (!IsPowerOn)
+                {
+                    TurnDeviceOn();
+                }
+
                 TurnOffEcho();
                 StopStreaming();
                 MessageConsumer = new MessageConsumer(Client.GetStream());
@@ -54,6 +64,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                 StopStreaming();
                 MessageConsumer.Stop();
                 Client.Close();
+                Client.Dispose();
                 return true;
             }
             catch (Exception ex)

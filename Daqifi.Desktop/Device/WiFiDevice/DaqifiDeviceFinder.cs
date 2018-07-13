@@ -1,5 +1,7 @@
-﻿using Daqifi.Desktop.Message;
-using Daqifi.Desktop.Message.Consumers;
+﻿using Daqifi.Desktop.DataModel.Device;
+using Daqifi.Desktop.IO.Messages.Consumers;
+using Daqifi.Desktop.IO.Messages.Decoders;
+using Daqifi.Desktop.IO.Messages.MessageTypes;
 using System;
 using System.IO;
 using System.Net;
@@ -7,7 +9,6 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
-using Daqifi.Desktop.Communication.Protobuf;
 
 namespace Daqifi.Desktop.Device.WiFiDevice
 {
@@ -131,10 +132,20 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
         private IDevice GetDeviceFromProtobufMessage(IDaqifiOutMessage message)
         {
-            var hostName = message.HostName;
+            var deviceName = message.HostName;
             var macAddress = ProtobufDecoder.GetMacAddressString(message);
             var ipAddress = ProtobufDecoder.GetIpAddressString(message);
-            var device = new DaqifiStreamingDevice(hostName, macAddress, ipAddress);
+            var isPowerOn = message.PwrStatus == 1;
+
+            var deviceInfo = new DeviceInfo
+            {
+                DeviceName = deviceName,
+                IpAddress = ipAddress,
+                MacAddress = macAddress,
+                IsPowerOn = isPowerOn
+            };
+
+            var device = new DaqifiStreamingDevice(deviceInfo);
 
             if (message.HasSsid)
             {

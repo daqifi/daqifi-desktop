@@ -1,6 +1,6 @@
-﻿using Daqifi.Desktop.Helpers;
+﻿using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
-using Daqifi.Desktop.Loggers;
 using System;
 using System.Collections.Generic;
 using System.IO;

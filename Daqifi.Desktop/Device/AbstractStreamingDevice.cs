@@ -1,11 +1,11 @@
 ﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.DataModel.Network;
-using Daqifi.Desktop.Loggers;
-using Daqifi.Desktop.Message;
-using Daqifi.Desktop.Message.Consumers;
-using Daqifi.Desktop.Message.MessageTypes;
-using Daqifi.Desktop.Message.Producers;
+using Daqifi.Desktop.IO.Messages;
+using Daqifi.Desktop.IO.Messages.Consumers;
+using Daqifi.Desktop.IO.Messages.MessageTypes;
+using Daqifi.Desktop.IO.Messages.Producers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -222,6 +222,11 @@ namespace Daqifi.Desktop.Device
         protected void TurnOffEcho()
         {
             MessageProducer.Send(ScpiMessagePoducer.Echo(-1));
+        }
+
+        protected void TurnDeviceOn()
+        {
+            MessageProducer.Send(ScpiMessagePoducer.DeviceOn);
         }
         #endregion
 

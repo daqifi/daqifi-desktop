@@ -1,7 +1,7 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DataModel.Channel;
-using Daqifi.Desktop.Loggers;
 using EntityFramework.BulkInsert;
 using EntityFramework.BulkInsert.Extensions;
 using OxyPlot;

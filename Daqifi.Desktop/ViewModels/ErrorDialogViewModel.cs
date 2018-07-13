@@ -1,4 +1,4 @@
-﻿using Daqifi.Desktop.Loggers;
+﻿using Daqifi.Desktop.Common.Loggers;
 using GalaSoft.MvvmLight;
 
 namespace Daqifi.Desktop.ViewModels

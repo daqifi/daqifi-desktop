@@ -1,9 +1,9 @@
 ﻿using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Common.Loggers;
 using System;
-using Daqifi.Desktop.Loggers;
 
 namespace Daqifi.Desktop
-{   
+{
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>

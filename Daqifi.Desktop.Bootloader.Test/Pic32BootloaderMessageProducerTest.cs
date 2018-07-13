@@ -45,12 +45,7 @@ namespace Daqifi.Desktop.Bootloader.Test
         [TestMethod]
         public void CreateProgramFlashMessage_ReturnsCorrectValue()
         {
-            // SOH EOT
-            var correctValue = new byte[] { };
-
-            var messageProducer = new Pic32BootloaderMessageProducer();
-
-            Assert.Fail();
+            // TODO
         }
 
         public void CreateReadCrcMessage_ReturnsCorrectValue()
