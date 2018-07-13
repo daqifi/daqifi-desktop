@@ -43,7 +43,7 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
         public virtual void Stop()
         {
             _running = false;
-            _consumerThread.Join(500);
+            _consumerThread.Join(1000);
         }
 
         public void NotifyMessageReceived(object sender, MessageEventArgs e)

@@ -46,13 +46,12 @@
     <Compile Include="Channel\ChannelType.cs" />
     <Compile Include="Channel\MaterialColors.cs" />
     <Compile Include="Common\ObservableObject.cs" />
+    <Compile Include="Device\DeviceInfo.cs" />
     <Compile Include="Network\NetworkConfiguration.cs" />
     <Compile Include="Network\WifiMode.cs" />
     <Compile Include="Network\WifiSecurityType.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Device\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

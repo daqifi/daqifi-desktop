@@ -65,6 +65,8 @@ namespace Daqifi.Desktop.ViewModels
                 RaisePropertyChanged();
             }
         }
+
+        public string ManualPortName { get; set; }
         #endregion
 
         #region Constructor
@@ -99,6 +101,8 @@ namespace Daqifi.Desktop.ViewModels
 
         public ICommand ConnectSerialCommand => new DelegateCommand(ConnectSerial, CanConnectSerial);
 
+        public ICommand ConnectManualSerialCommand => new DelegateCommand(ConnectManualSerial, CanConnectManualSerial);
+
         public ICommand ConnectHidCommand => new DelegateCommand(ConnectHid, CanConnectHid);
 
         private bool OnConnectSelectedItemsCanExecute(object selectedItems)
@@ -107,6 +111,11 @@ namespace Daqifi.Desktop.ViewModels
         }
 
         private bool CanConnectSerial(object selectedItems)
+        {
+            return true;
+        }
+
+        private bool CanConnectManualSerial(object selectedItems)
         {
             return true;
         }
@@ -141,6 +150,14 @@ namespace Daqifi.Desktop.ViewModels
             {
                 ConnectionManager.Instance.Connect(device);
             }
+        }
+
+        private void ConnectManualSerial(object _)
+        {
+            if (string.IsNullOrWhiteSpace(ManualPortName)) return;
+
+            var device = new SerialStreamingDevice(ManualPortName);
+            ConnectionManager.Instance.Connect(device);
         }
 
         private void ConnectHid(object selectedItems)

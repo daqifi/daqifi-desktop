@@ -1,7 +1,7 @@
-﻿using System;
+﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
+using System;
 using System.IO;
 using System.Linq;
-using Daqifi.Desktop.IO.Messages.MessageTypes;
 
 namespace Daqifi.Desktop.IO.Messages.Consumers
 {

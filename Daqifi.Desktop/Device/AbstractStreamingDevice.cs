@@ -223,6 +223,11 @@ namespace Daqifi.Desktop.Device
         {
             MessageProducer.Send(ScpiMessagePoducer.Echo(-1));
         }
+
+        protected void TurnDeviceOn()
+        {
+            MessageProducer.Send(ScpiMessagePoducer.DeviceOn);
+        }
         #endregion
 
         #region Channel Methods
