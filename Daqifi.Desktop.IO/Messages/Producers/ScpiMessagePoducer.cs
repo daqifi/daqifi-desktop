@@ -181,7 +181,7 @@ namespace Daqifi.Desktop.IO.Messages.Producers
 
         public static IMessage SetSsid(string ssid)
         {
-            return new ScpiMessage($"SYSTem:COMMunicate:LAN:SSID {ssid}");
+            return new ScpiMessage($"SYSTem:COMMunicate:LAN:SSID \"{ssid}\"");
         }
 
         public static IMessage SetSecurity(WifiSecurityType wifiSecurityType)
@@ -191,7 +191,7 @@ namespace Daqifi.Desktop.IO.Messages.Producers
 
         public static IMessage SetPassword(string password)
         {
-            return new ScpiMessage($"SYSTem:COMMunicate:LAN:PASs {password}");
+            return new ScpiMessage($"SYSTem:COMMunicate:LAN:PASs \"{password}\"");
         }
 
         public static IMessage ApplyLan()
