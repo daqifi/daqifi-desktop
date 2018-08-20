@@ -30,6 +30,7 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
         #endregion
 
         #region IMessageConsumer overrides
+
         public void Start()
         {
             _running = true;
@@ -52,6 +53,7 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
         }
 
         public abstract void Run();
+
         #endregion
     }
 }

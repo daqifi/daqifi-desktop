@@ -36,17 +36,17 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             {
                 Client = new TcpClient(IpAddress, 9760);
                 MessageProducer = new MessageProducer(Client.GetStream());
-
-                if (!IsPowerOn)
-                {
-                    TurnDeviceOn();
-                }
+                MessageProducer.Start();
 
                 TurnOffEcho();
                 StopStreaming();
+                TurnDeviceOn();
+
                 MessageConsumer = new MessageConsumer(Client.GetStream());
                 ((MessageConsumer)MessageConsumer).IsWifiDevice = true;
+                ((MessageConsumer)MessageConsumer).ClearBuffer();
                 MessageConsumer.Start();
+
                 InitializeDeviceState();
                 return true;
             }
@@ -62,6 +62,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             try
             {
                 StopStreaming();
+                MessageProducer.Stop();
                 MessageConsumer.Stop();
                 Client.Close();
                 Client.Dispose();

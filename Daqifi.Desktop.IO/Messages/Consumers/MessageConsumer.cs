@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace Daqifi.Desktop.IO.Messages.Consumers
 {
@@ -33,30 +34,10 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
             {
                 try
                 {
-                    // TODO something is screwed here!!  For some reason Wifi can't use the normal method
-                    // This started with the new firmware, need to figure out why
-
-                    if (IsWifiDevice)
-                    {
-                        int bytesRead;
-                        while ((bytesRead = DataStream.Read(buffer, 0, buffer.Length)) != 0)
-                        {
-                            var receivedBytes = buffer.Take(bytesRead).ToArray();
-                            var stream = new MemoryStream(receivedBytes);
-                            var outMessage = DaqifiOutMessage.ParseDelimitedFrom(stream);
-
-                            var protobufMessage = new ProtobufMessage(outMessage);
-                            var daqMessage = new MessageEventArgs(protobufMessage);
-                            NotifyMessageReceived(this, daqMessage);
-                        }
-                    }
-                    else
-                    {
-                        var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
-                        var protobufMessage = new ProtobufMessage(outMessage);
-                        var daqMessage = new MessageEventArgs(protobufMessage);
-                        NotifyMessageReceived(this, daqMessage);
-                    }
+                    var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
+                    var protobufMessage = new ProtobufMessage(outMessage);
+                    var daqMessage = new MessageEventArgs(protobufMessage);
+                    NotifyMessageReceived(this, daqMessage);
                 }
                 catch (Exception ex)
                 {
@@ -64,7 +45,8 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
                     {
                         return;
                     }
-                    AppLogger.Error(ex, "Failed in AbstractMessageConsumer Run");
+
+                    AppLogger.Error(ex, "Failed in Message Consumer Run");
                 }
             }
         }
@@ -82,6 +64,13 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
                 AppLogger.Error(ex, "Failed in AbstractMessageConsumer Stop");
             }   
         }
+
+        public void ClearBuffer()
+        {
+            var buffer = new byte[1024];
+            var bytesRead = DataStream.Read(buffer, 0, buffer.Length) != 0;
+        }
+
         #endregion
     }
 }

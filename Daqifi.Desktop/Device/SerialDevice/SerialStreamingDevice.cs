@@ -2,7 +2,6 @@
 using Daqifi.Desktop.IO.Messages.Producers;
 using System;
 using System.IO.Ports;
-using System.Threading;
 
 namespace Daqifi.Desktop.Device.SerialDevice
 {
@@ -29,13 +28,10 @@ namespace Daqifi.Desktop.Device.SerialDevice
                 Port.Open();
                 Port.DtrEnable = true;
                 MessageProducer = new MessageProducer(Port.BaseStream);
-                Thread.Sleep(100);
+                MessageProducer.Start();
                 TurnOffEcho();
-                Thread.Sleep(100);
                 StopStreaming();
-                Thread.Sleep(100);
                 TurnDeviceOn();
-                Thread.Sleep(100);
                 MessageConsumer = new MessageConsumer(Port.BaseStream);
                 MessageConsumer.Start();
                 InitializeDeviceState();
@@ -51,6 +47,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
         {
             try
             {
+                MessageProducer.Stop();
                 MessageConsumer.Stop();
                 StopStreaming();
                 Port.DtrEnable = false;

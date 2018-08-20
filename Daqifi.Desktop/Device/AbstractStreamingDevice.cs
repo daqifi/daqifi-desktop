@@ -428,17 +428,11 @@ namespace Daqifi.Desktop.Device
         {
             if (IsStreaming) StopStreaming();
             MessageProducer.Send(ScpiMessagePoducer.SetWifiMode(NetworkConfiguration.Mode));
-            Thread.Sleep(100);
             MessageProducer.Send(ScpiMessagePoducer.SetSsid(NetworkConfiguration.Ssid));
-            Thread.Sleep(100);
             MessageProducer.Send(ScpiMessagePoducer.SetSecurity(NetworkConfiguration.SecurityType));
-            Thread.Sleep(100);
             MessageProducer.Send(ScpiMessagePoducer.SetPassword(NetworkConfiguration.Password));
-            Thread.Sleep(100);
             MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
-            Thread.Sleep(100);
             MessageProducer.Send(ScpiMessagePoducer.SaveLan());
-            Thread.Sleep(100);
             ConnectionManager.Instance.Reboot(this);
         }
 
