@@ -1,9 +1,8 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.IO.Messages.MessageTypes;
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
-using System.Linq;
 using System.Threading;
 
 namespace Daqifi.Desktop.IO.Messages.Producers
@@ -11,7 +10,7 @@ namespace Daqifi.Desktop.IO.Messages.Producers
     public class MessageProducer : IMessageProducer
     {
         private Thread _producerThread;
-        private readonly Queue<IMessage> _messageQueue = new Queue<IMessage>();
+        private ConcurrentQueue<IMessage> _messageQueue;
         private bool _isRunning;
 
         public Stream DataStream { get; protected set; }
@@ -25,6 +24,7 @@ namespace Daqifi.Desktop.IO.Messages.Producers
 
         public void Start()
         {
+            _messageQueue = new ConcurrentQueue<IMessage>();
             _isRunning = true;
             _producerThread = new Thread(Run) { IsBackground = true };
             _producerThread.Start();
@@ -34,7 +34,15 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         {
             _isRunning = false;
             _producerThread.Join(1000);
-            _messageQueue.Clear();
+        }
+
+        public void StopSafely()
+        {
+            while (!_messageQueue.IsEmpty)
+            {
+                // Wait for the queue to empty
+            }
+            Stop();
         }
 
         public void Send(IMessage message)
@@ -49,9 +57,10 @@ namespace Daqifi.Desktop.IO.Messages.Producers
                 try
                 {
                     Thread.Sleep(100);
-                    if (!_messageQueue.Any()) continue;
+                    if (_messageQueue.IsEmpty) continue;
 
-                    var message = _messageQueue.Dequeue();
+                    if(!_messageQueue.TryDequeue(out var message)) continue;
+
                     var serializedMessage = message.GetBytes();
                     DataStream.Write(serializedMessage, 0, serializedMessage.Length);
                 }

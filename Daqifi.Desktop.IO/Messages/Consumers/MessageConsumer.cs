@@ -28,8 +28,6 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
         #region AbstractMessageConsumer overrides
         public override void Run()
         {
-            var buffer = new byte[1024];
-
             while (Running)
             {
                 try
@@ -45,7 +43,6 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
                     {
                         return;
                     }
-
                     AppLogger.Error(ex, "Failed in Message Consumer Run");
                 }
             }
@@ -56,7 +53,6 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
             try
             {
                 _isDisposed = true;
-                DataStream.Close();
                 base.Stop();
             }
             catch (Exception ex)

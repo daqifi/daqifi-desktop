@@ -6,6 +6,7 @@ namespace Daqifi.Desktop.IO.Messages.Producers
     {
         void Start();
         void Stop();
+        void StopSafely();
         void Send(IMessage message);
     }
 }
