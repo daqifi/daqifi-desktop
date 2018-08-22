@@ -9,7 +9,6 @@ using Daqifi.Desktop.IO.Messages.Producers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 
 namespace Daqifi.Desktop.Device
 {
@@ -418,7 +417,7 @@ namespace Daqifi.Desktop.Device
             MessageProducer.Send(ScpiMessagePoducer.SystemInfo);
         }
 
-        private double ScaleAnalogSample(AnalogChannel channel, double analogValue)
+        private static double ScaleAnalogSample(AnalogChannel channel, double analogValue)
         {
             return (analogValue / channel.Resolution) * channel.PortRange * channel.CalibrationMValue *
                    channel.InternalScaleMValue + channel.CalibrationBValue;
@@ -428,23 +427,18 @@ namespace Daqifi.Desktop.Device
         {
             if (IsStreaming) StopStreaming();
             MessageProducer.Send(ScpiMessagePoducer.SetWifiMode(NetworkConfiguration.Mode));
-            Thread.Sleep(100);
             MessageProducer.Send(ScpiMessagePoducer.SetSsid(NetworkConfiguration.Ssid));
-            Thread.Sleep(100);
             MessageProducer.Send(ScpiMessagePoducer.SetSecurity(NetworkConfiguration.SecurityType));
-            Thread.Sleep(100);
             MessageProducer.Send(ScpiMessagePoducer.SetPassword(NetworkConfiguration.Password));
-            Thread.Sleep(100);
             MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
-            Thread.Sleep(100);
             MessageProducer.Send(ScpiMessagePoducer.SaveLan());
-            Thread.Sleep(100);
             ConnectionManager.Instance.Reboot(this);
         }
 
         public void Reboot()
         {
             MessageProducer.Send(ScpiMessagePoducer.Reboot);
+            MessageProducer.StopSafely();
             MessageConsumer.Stop();
         }
     }
