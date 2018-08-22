@@ -17,9 +17,11 @@ namespace Daqifi.Desktop
         {
             base.OnStartup(e);
 
-            AppDomain.CurrentDomain.SetData("DataDirectory", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DAQifi"));
-
             ShowSplashScreen();
+
+            var daqifiDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DAQifi");
+            Directory.CreateDirectory(daqifiDataDirectory);
+            AppDomain.CurrentDomain.SetData("DataDirectory", daqifiDataDirectory);
 
             // Configure service locator
             ServiceLocator.RegisterSingleton<IDialogService, DialogService.DialogService>();
