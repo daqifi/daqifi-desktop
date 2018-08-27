@@ -90,6 +90,28 @@ namespace Daqifi.Desktop.IO.Test.Messages.Producers
             CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
         }
 
+        [TestMethod]
+        public void SetProtobufStreamFormatCommand_ReturnsCorrectCommand()
+        {
+            var actualCommand = ScpiMessagePoducer.SetProtobufStreamFormat;
+            var actualCommandRawData = actualCommand.GetBytes();
+            const string expectedCommandText = "SYSTem:STReam:FORmat 0";
+            var expectedCommandRawData = GetBytes(expectedCommandText);
+
+            CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
+        }
+
+        [TestMethod]
+        public void SetJsonStreamFormatCommand_ReturnsCorrectCommand()
+        {
+            var actualCommand = ScpiMessagePoducer.SetJsonStreamFormat;
+            var actualCommandRawData = actualCommand.GetBytes();
+            const string expectedCommandText = "SYSTem:STReam:FORmat 1";
+            var expectedCommandRawData = GetBytes(expectedCommandText);
+
+            CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
+        }
+
         #endregion
 
         #region ADC Commands

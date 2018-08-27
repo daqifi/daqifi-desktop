@@ -227,6 +227,11 @@ namespace Daqifi.Desktop.Device
         {
             MessageProducer.Send(ScpiMessagePoducer.DeviceOn);
         }
+
+        protected void SetProtobufMessageFormat()
+        {
+            MessageProducer.Send(ScpiMessagePoducer.SetProtobufStreamFormat);
+        }
         #endregion
 
         #region Channel Methods

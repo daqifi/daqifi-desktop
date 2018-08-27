@@ -41,6 +41,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                 TurnOffEcho();
                 StopStreaming();
                 TurnDeviceOn();
+                SetProtobufMessageFormat();
 
                 MessageConsumer = new MessageConsumer(Client.GetStream());
                 ((MessageConsumer)MessageConsumer).IsWifiDevice = true;
