@@ -82,7 +82,6 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         //// Streaming
         //{.pattern = "SYSTem:StreamData?", .callback = SCPI_IsStreaming, },
 
-        //{.pattern = "SYSTem:STReam:FORmat", .callback = SCPI_SetStreamFormat, }, // 0 = pb = default, 1 = text (json)
         //{.pattern = "SYSTem:STReam:FORmat?", .callback = SCPI_GetStreamFormat, },
 
         //// Testing
@@ -118,6 +117,10 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         }
 
         public static IMessage StopStreaming => new ScpiMessage("SYSTem:StopStreamData");
+
+        public static IMessage SetProtobufStreamFormat => new ScpiMessage("SYSTem:STReam:FORmat 0");
+
+        public static IMessage SetJsonStreamFormat => new ScpiMessage("SYSTem:STReam:FORmat 1");
 
         #endregion
 

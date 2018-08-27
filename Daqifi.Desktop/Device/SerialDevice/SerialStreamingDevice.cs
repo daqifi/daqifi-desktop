@@ -29,9 +29,12 @@ namespace Daqifi.Desktop.Device.SerialDevice
                 Port.DtrEnable = true;
                 MessageProducer = new MessageProducer(Port.BaseStream);
                 MessageProducer.Start();
+
                 TurnOffEcho();
                 StopStreaming();
                 TurnDeviceOn();
+                SetProtobufMessageFormat();
+
                 MessageConsumer = new MessageConsumer(Port.BaseStream);
                 MessageConsumer.Start();
                 InitializeDeviceState();
