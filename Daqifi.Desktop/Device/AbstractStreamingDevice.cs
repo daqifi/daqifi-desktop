@@ -263,7 +263,15 @@ namespace Daqifi.Desktop.Device
                     break;
             }
 
-            newChannel.IsActive = true;
+            var channel = DataChannels.FirstOrDefault(c => Equals(c, newChannel));
+            if (channel == null)
+            {
+                AppLogger.Error($"There was a problem adding channel: {newChannel.Name}");
+            }
+            else
+            {
+                channel.IsActive = true;
+            }
         }
 
         public void RemoveChannel(IChannel channelToRemove)
@@ -275,7 +283,7 @@ namespace Daqifi.Desktop.Device
                     var channelSetByte = 0;
 
                     //Get Exsiting Channel Set Byte
-                    foreach (IChannel activeChannel in activeAnalogChannels)
+                    foreach (var activeChannel in activeAnalogChannels)
                     {
                         channelSetByte = channelSetByte | (1 << activeChannel.Index);
                     }
@@ -289,6 +297,16 @@ namespace Daqifi.Desktop.Device
                     //Send the command to add the channel
                     MessageProducer.Send(ScpiMessagePoducer.EnableAdcChannels(channelSetString));
                     break;
+            }
+
+            var channel = DataChannels.FirstOrDefault(c => Equals(c, channelToRemove));
+            if (channel == null)
+            {
+                AppLogger.Error($"There was a problem removing channel: {channelToRemove.Name}");
+            }
+            else
+            {
+                channel.IsActive = false;
             }
         }
 
