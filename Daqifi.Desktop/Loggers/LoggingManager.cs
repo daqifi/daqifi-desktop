@@ -1,6 +1,7 @@
 ﻿using Daqifi.Desktop.Channel;
 using System.Collections.Generic;
 using System.Linq;
+using Daqifi.Desktop.Device;
 
 namespace Daqifi.Desktop.Logger
 {
@@ -87,23 +88,24 @@ namespace Daqifi.Desktop.Logger
         #region Channel Subscription
         public void Subscribe(IChannel channel)
         {
-            if(!SubscribedChannels.Contains(channel))
-            {
-                channel.OnChannelUpdated += HandleChannelUpdate;
-                SubscribedChannels.Add(channel);
-                NotifyPropertyChanged("SubscribedChannels");
-            }
+            // Don't subscribe a channel that is already subscribed
+            if (SubscribedChannels.Contains(channel)) return;
+
+            channel.IsActive = true;
+            channel.OnChannelUpdated += HandleChannelUpdate;
+            SubscribedChannels.Add(channel);
+            NotifyPropertyChanged("SubscribedChannels");
         }
 
         public void Unsubscribe(IChannel channel)
         {
-            if (SubscribedChannels.Contains(channel))
-            {
-                channel.IsActive = false;
-                channel.OnChannelUpdated -= HandleChannelUpdate;
-                SubscribedChannels.Remove(channel);
-                NotifyPropertyChanged("SubscribedChannels");
-            }
+            // Don't unsubscribe a channel that isn't subscribed
+            if (!SubscribedChannels.Contains(channel)) return;
+
+            channel.IsActive = false;
+            channel.OnChannelUpdated -= HandleChannelUpdate;
+            SubscribedChannels.Remove(channel);
+            NotifyPropertyChanged("SubscribedChannels");
         }
         #endregion
 

@@ -235,12 +235,20 @@ namespace Daqifi.Desktop.Device
         #endregion
 
         #region Channel Methods
-        public void AddChannel(IChannel newChannel)
+        public void AddChannel(IChannel channelToAdd)
         {
-            switch (newChannel.Type)
+            var channel = DataChannels.FirstOrDefault(c => Equals(c, channelToAdd));
+            if (channel == null)
+            {
+                AppLogger.Error($"There was a problem adding channel: {channelToAdd.Name}.  " +
+                                $"Trying to add a channel that does not belong to the device: {Name}");
+                return;
+            }
+            
+            switch (channel.Type)
             {
                 case ChannelType.Analog:
-                    var activeAnalogChannels = GetActiveChannels(ChannelType.Analog);
+                    var activeAnalogChannels = GetActiveAnalogChannels();
                     var channelSetByte = 0;
 
                     // Get Exsiting Channel Set Byte
@@ -250,7 +258,7 @@ namespace Daqifi.Desktop.Device
                     }
 
                     // Add Channel Bit to the Channel Set Byte
-                    channelSetByte = channelSetByte | (1 << newChannel.Index);
+                    channelSetByte = channelSetByte | (1 << channel.Index);
 
                     // Convert to a string
                     var channelSetString = Convert.ToString(channelSetByte);
@@ -263,7 +271,7 @@ namespace Daqifi.Desktop.Device
                     break;
             }
 
-            newChannel.IsActive = true;
+            channel.IsActive = true;
         }
 
         public void RemoveChannel(IChannel channelToRemove)
@@ -271,11 +279,11 @@ namespace Daqifi.Desktop.Device
             switch (channelToRemove.Type)
             {
                 case ChannelType.Analog:
-                    var activeAnalogChannels = GetActiveChannels(ChannelType.Analog);
+                    var activeAnalogChannels = GetActiveAnalogChannels();
                     var channelSetByte = 0;
 
                     //Get Exsiting Channel Set Byte
-                    foreach (IChannel activeChannel in activeAnalogChannels)
+                    foreach (var activeChannel in activeAnalogChannels)
                     {
                         channelSetByte = channelSetByte | (1 << activeChannel.Index);
                     }
@@ -290,19 +298,21 @@ namespace Daqifi.Desktop.Device
                     MessageProducer.Send(ScpiMessagePoducer.EnableAdcChannels(channelSetString));
                     break;
             }
+
+            var channel = DataChannels.FirstOrDefault(c => Equals(c, channelToRemove));
+            if (channel == null)
+            {
+                AppLogger.Error($"There was a problem removing channel: {channelToRemove.Name}");
+            }
+            else
+            {
+                channel.IsActive = false;
+            }
         }
 
-        private IEnumerable<IChannel> GetActiveChannels(ChannelType channelType)
+        private IEnumerable<IChannel> GetActiveAnalogChannels()
         {
-            switch (channelType)
-            {
-                case ChannelType.Analog:
-                    return DataChannels.Where(channel => channel.Type == ChannelType.Analog && channel.IsActive).ToList();
-                case ChannelType.Digital:
-                    return DataChannels.Where(channel => channel.Type == ChannelType.Digital && channel.IsActive).ToList();
-                default:
-                    throw new NotImplementedException();
-            }
+            return DataChannels.Where(channel => channel.Type == ChannelType.Analog && channel.IsActive).ToList();
         }
 
         public void SetChannelOutputValue(IChannel channel, double value)

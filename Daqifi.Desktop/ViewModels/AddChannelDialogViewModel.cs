@@ -79,7 +79,6 @@ namespace Daqifi.Desktop.ViewModels
             {
                 SelectedDevice.AddChannel(channel);
                 LoggingManager.Instance.Subscribe(channel);
-                Thread.Sleep(100);
             }
         }
         #endregion

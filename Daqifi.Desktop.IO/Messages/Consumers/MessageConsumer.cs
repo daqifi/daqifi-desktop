@@ -1,8 +1,6 @@
 ﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
 using System;
 using System.IO;
-using System.Linq;
-using System.Threading;
 
 namespace Daqifi.Desktop.IO.Messages.Consumers
 {

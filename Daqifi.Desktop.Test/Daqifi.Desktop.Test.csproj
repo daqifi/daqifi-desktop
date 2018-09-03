@@ -77,6 +77,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Device\AbstractStreamingDeviceTests.cs" />
+    <Compile Include="Device\DummyAbstractStreamingDevice.cs" />
     <Compile Include="Exporter\LoggingSessionExporterTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -87,6 +89,10 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj">
+      <Project>{8E553D17-C0B1-447F-B4A2-0F11903CAA49}</Project>
+      <Name>Daqifi.Desktop.DataModel</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Daqifi.Desktop.IO\Daqifi.Desktop.IO.csproj">
       <Project>{EC3CD2DE-4816-4568-98B8-9CC258DF7CA1}</Project>
       <Name>Daqifi.Desktop.IO</Name>
