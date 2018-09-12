@@ -90,10 +90,10 @@ namespace Daqifi.Desktop.Bootloader
             var messageProducer = new Pic32BootloaderMessageProducer();
             var messageConsumer = new Pic32BootloaderMessageConsumer();
 
-            //if (!EraseFlash())
-            //{
-            //    throw new InvalidDataException("There was a problem erasing the flash");
-            //}
+            if (!EraseFlash())
+            {
+                throw new InvalidDataException("There was a problem erasing the flash");
+            }
 
             for (var i = 0; i < hexRecords.Count; i++)
             {
