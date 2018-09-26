@@ -2,13 +2,15 @@
 using NLog.Config;
 using NLog.Targets;
 using System;
+using Bugsnag;
 
 namespace Daqifi.Desktop.Common.Loggers
 {
     public class AppLogger : IAppLogger
     {
         #region Private Data
-        private readonly NLog.Logger _logger = LogManager.GetCurrentClassLogger();
+        private readonly Logger _logger = LogManager.GetCurrentClassLogger();
+        private readonly Bugsnag.Client _client;
         #endregion
 
         #region Singleton Constructor / Initalization
@@ -46,6 +48,9 @@ namespace Daqifi.Desktop.Common.Loggers
 
             // Step 5. Activate the configuration
             LogManager.Configuration = config;
+
+            var configuration = new Bugsnag.Configuration("899ecd666668c33e02cc5adc651a11b8");
+            _client = new Bugsnag.Client(configuration);
         }
 
         #endregion
@@ -54,21 +59,25 @@ namespace Daqifi.Desktop.Common.Loggers
         public void Information(string message)
         {
             _logger.Info(message);
+            _client.Notify(new Exception(message), Severity.Info);
         }
 
         public void Warning(string message)
         {
             _logger.Warn(message);
+            _client.Notify(new Exception(message), Severity.Warning);
         }
 
         public void Error(string message)
         {
             _logger.Error(message);
+            _client.Notify(new Exception(message), Severity.Error);
         }
 
         public void Error(Exception ex, string message)
         {
             _logger.Error(ex, message);
+            _client.Notify(ex, Severity.Error);
         }
         #endregion
     }

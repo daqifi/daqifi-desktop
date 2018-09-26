@@ -5,7 +5,7 @@
         Manufacturer="DAQifi"
         UpgradeCode="ACA4F4E1-6DBB-47C0-A829-84AA1536C147"
         Language="1033"
-        Version="1.0.6.0">
+        Version="1.0.7.0">
 
     <Package Id="*"
              Description="DAQifi Installer"
@@ -120,6 +120,9 @@
       </Component>
       
       <!-- 3rd Party DLLs-->
+      <Component Id="Bugsnag" Guid="268D998C-F962-4CD4-9BA5-7DFE673BF1C2">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Bugsnag.dll"/>
+      </Component>
       <Component Id="CommonServiceLocator" Guid="6A362E50-2B3D-47D1-AB1D-1A6AD75DDF58">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\CommonServiceLocator.dll"/>
       </Component>
