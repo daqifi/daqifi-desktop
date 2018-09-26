@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace Daqifi.Desktop.Bootloader
 {
@@ -44,7 +45,21 @@ namespace Daqifi.Desktop.Bootloader
 
         #region IBootloader Methods
 
+        private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
+        private const string VersionErrorMessage = "Error communicating with device.  \nPlease disconnect / connect USB from your computer and try again.";
         public void RequestVersion()
+        {
+            ThreadPool.QueueUserWorkItem(RequestVersionDoWork);
+
+            var result = WaitHandle.WaitAny(new WaitHandle[] { _resetEvent }, 10 * 1000);
+
+            if (result == WaitHandle.WaitTimeout)
+            {
+                Version = VersionErrorMessage;
+            }
+        }
+
+        private void RequestVersionDoWork(object stateInfo)
         {
             var messageProducer = new Pic32BootloaderMessageProducer();
             var requestVersionMessage = messageProducer.CreateRequestVersionMessage();
@@ -54,7 +69,10 @@ namespace Daqifi.Desktop.Bootloader
 
             var inputReport = _hidDevice.ReadReport();
             var consumer = new Pic32BootloaderMessageConsumer();
-            Version = consumer.DecodeVersionResponse(inputReport.Data);
+            var version = consumer.DecodeVersionResponse(inputReport.Data);
+            Version = version.ToLower().Equals("error") ? VersionErrorMessage : version;
+            
+            _resetEvent.Set();
         }
 
         public void JumpToApplication()
