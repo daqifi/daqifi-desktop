@@ -4,7 +4,7 @@
         xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         xmlns:dialogService="clr-namespace:Daqifi.Desktop.DialogService"
         dialogService:DialogService.IsRegisteredView="True"              
-        Title="Connect Device" ResizeMode="NoResize" Height="300" Width="300" Closing="MetroWindow_Closing" GlowBrush="{DynamicResource AccentColorBrush}" >
+        Title="Connect Device" ResizeMode="NoResize" Height="300" Width="450" Closing="MetroWindow_Closing" GlowBrush="{DynamicResource AccentColorBrush}" >
     <Grid>
         <TabControl>
             <TabItem Header="WiFi" controls:ControlsHelper.HeaderFontSize="18">
@@ -36,6 +36,22 @@
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
                             </ListView>
+                        </DockPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Manual WiFi" controls:ControlsHelper.HeaderFontSize="18">
+                <Grid>
+                    <Border>
+                        <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
+                            <!-- Connect Button -->
+                            <Button DockPanel.Dock="Bottom" Command="{Binding ConnectManualWifiCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+
+                            <!-- Manual IP Address -->
+                            <StackPanel>
+                                <Label Content="IP Address"/>
+                                <TextBox Text="{Binding ManualIpAddress}"/>
+                            </StackPanel>
                         </DockPanel>
                     </Border>
                 </Grid>

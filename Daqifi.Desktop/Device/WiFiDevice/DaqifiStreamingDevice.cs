@@ -34,7 +34,18 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         {
             try
             {
-                Client = new TcpClient(IpAddress, 9760);
+                //Client = new TcpClient(IpAddress, 9760);
+
+                Client = new TcpClient();
+                var result = Client.BeginConnect(IpAddress, 9760, null, null);
+                var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
+
+                if (!success)
+                {
+                    AppLogger.Error("Timeout connecting to DAQiFi Device.");
+                    return false;
+                }
+
                 MessageProducer = new MessageProducer(Client.GetStream());
                 MessageProducer.Start();
 
@@ -53,7 +64,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Problem with connectiong to DAQiFi Device.");
+                AppLogger.Error(ex, "Problem with connecting to DAQiFi Device.");
                 return false;
             }
         }

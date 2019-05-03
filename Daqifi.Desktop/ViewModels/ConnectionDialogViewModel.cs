@@ -13,6 +13,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
+using Daqifi.Desktop.DataModel.Device;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -67,6 +68,8 @@ namespace Daqifi.Desktop.ViewModels
         }
 
         public string ManualPortName { get; set; }
+
+        public string ManualIpAddress { get; set; }
         #endregion
 
         #region Constructor
@@ -103,6 +106,8 @@ namespace Daqifi.Desktop.ViewModels
 
         public ICommand ConnectManualSerialCommand => new DelegateCommand(ConnectManualSerial, CanConnectManualSerial);
 
+        public ICommand ConnectManualWifiCommand => new DelegateCommand(ConnectManualWifi, CanConnectManualWifi);
+
         public ICommand ConnectHidCommand => new DelegateCommand(ConnectHid, CanConnectHid);
 
         private bool OnConnectSelectedItemsCanExecute(object selectedItems)
@@ -111,6 +116,11 @@ namespace Daqifi.Desktop.ViewModels
         }
 
         private bool CanConnectSerial(object selectedItems)
+        {
+            return true;
+        }
+
+        private bool CanConnectManualWifi(object selectedItems)
         {
             return true;
         }
@@ -157,6 +167,20 @@ namespace Daqifi.Desktop.ViewModels
             if (string.IsNullOrWhiteSpace(ManualPortName)) return;
 
             var device = new SerialStreamingDevice(ManualPortName);
+            ConnectionManager.Instance.Connect(device);
+        }
+
+        private void ConnectManualWifi(object _)
+        {
+            if (string.IsNullOrWhiteSpace(ManualIpAddress)) return;
+
+            var deviceInfo = new DeviceInfo
+            {
+                IpAddress = ManualIpAddress,
+                DeviceName = "Manual IP Device"
+            };
+
+            var device = new DaqifiStreamingDevice(deviceInfo);
             ConnectionManager.Instance.Connect(device);
         }
 
