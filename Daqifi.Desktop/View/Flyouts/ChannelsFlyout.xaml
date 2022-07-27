@@ -19,7 +19,7 @@
             </GroupBox>
             <GroupBox Header="Scaling">
                 <StackPanel>
-                    <Controls:ToggleSwitch IsChecked="{Binding SelectedChannel.IsScalingActive, Mode=TwoWay}" OffLabel="Off" OnLabel="On" HorizontalAlignment="Center"/>
+                    <Controls:ToggleSwitch IsOn="{Binding SelectedChannel.IsScalingActive, Mode=TwoWay}" OffContent="Off" OnContent="On" HorizontalAlignment="Center"/>
                     <StackPanel Visibility="{Binding Path=SelectedChannel.IsScalingActive, Converter={StaticResource BoolToVis}}" >
                         <Label Content="Not a valid scaling expression!" Visibility="{Binding Path=SelectedChannel.HasValidExpression, Converter={StaticResource InvertedBoolToVis}}" Foreground="Orange" HorizontalAlignment="Center"/>
                         <TextBox Text="{Binding SelectedChannel.ScaleExpression, Delay=500, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Height="50" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
@@ -66,7 +66,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <Controls:ToggleSwitch Grid.Row="0" IsChecked="{Binding SelectedChannel.IsOutput, Mode=TwoWay}" OffLabel="Input" OnLabel="Output" HorizontalAlignment="Center"/>
+                    <Controls:ToggleSwitch Grid.Row="0" IsOn="{Binding SelectedChannel.IsOutput, Mode=TwoWay}" OffContent="Input" OnContent="Output" HorizontalAlignment="Center"/>
                 </Grid>
             </GroupBox>
 
@@ -78,7 +78,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-                        <Controls:ToggleSwitch Grid.Row="0" IsChecked="{Binding SelectedChannel.IsDigitalOn, Mode=TwoWay}" OffLabel="On" OnLabel="Off" HorizontalAlignment="Center"/>
+                        <Controls:ToggleSwitch Grid.Row="0" IsOn="{Binding SelectedChannel.IsDigitalOn, Mode=TwoWay}" OffContent="On" OnContent="Off" HorizontalAlignment="Center"/>
                     </Grid>
                 </GroupBox>
             </Grid>

@@ -29,13 +29,13 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <Label Grid.Row="0" Grid.Column="0" Content="Major X-Axis" VerticalAlignment="Center"/>
-                <Controls:ToggleSwitch Grid.Row="0" Grid.Column="1" IsChecked="{Binding Plotter.ShowingMajorXAxisGrid, Mode=TwoWay}" OffLabel="Off" OnLabel="On" HorizontalAlignment="Left"/>
+                <Controls:ToggleSwitch Grid.Row="0" Grid.Column="1" IsOn="{Binding Plotter.ShowingMajorXAxisGrid, Mode=TwoWay}" OffContent="Off" OnContent="On" HorizontalAlignment="Left"/>
                 <Label Grid.Row="1" Grid.Column="0" Content="Minor X-Axis" VerticalAlignment="Center"/>
-                <Controls:ToggleSwitch Grid.Row="1" Grid.Column="1" IsChecked="{Binding Plotter.ShowingMinorXAxisGrid, Mode=TwoWay}" OffLabel="Off" OnLabel="On" HorizontalAlignment="Left"/>
+                <Controls:ToggleSwitch Grid.Row="1" Grid.Column="1" IsOn="{Binding Plotter.ShowingMinorXAxisGrid, Mode=TwoWay}" OffContent="Off" OnContent="On" HorizontalAlignment="Left"/>
                 <Label Grid.Row="2" Grid.Column="0" Content="Major Y-Axis" VerticalAlignment="Center"/>
-                <Controls:ToggleSwitch Grid.Row="2" Grid.Column="1" IsChecked="{Binding Plotter.ShowingMajorYAxisGrid, Mode=TwoWay}" OffLabel="Off" OnLabel="On" HorizontalAlignment="Left"/>
+                <Controls:ToggleSwitch Grid.Row="2" Grid.Column="1" IsOn="{Binding Plotter.ShowingMajorYAxisGrid, Mode=TwoWay}" OffContent="Off" OnContent="On" HorizontalAlignment="Left"/>
                 <Label Grid.Row="3" Grid.Column="0" Content="Minor Y-Axis" VerticalAlignment="Center"/>
-                <Controls:ToggleSwitch Grid.Row="3" Grid.Column="1" IsChecked="{Binding Plotter.ShowingMinorYAxisGrid, Mode=TwoWay}" OffLabel="Off" OnLabel="On" HorizontalAlignment="Left"/>
+                <Controls:ToggleSwitch Grid.Row="3" Grid.Column="1" IsOn="{Binding Plotter.ShowingMinorYAxisGrid, Mode=TwoWay}" OffContent="Off" OnContent="On" HorizontalAlignment="Left"/>
             </Grid>
         </GroupBox>
         <GroupBox Grid.Column="0" Grid.Row="0" Header="Graph Precision">

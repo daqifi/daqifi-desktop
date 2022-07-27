@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:oxy="http://oxyplot.org/wpf"
-        xmlns:i="http://schemas.microsoft.com/expression/2010/interactivity"
+        xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
         xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
         xmlns:flyouts="clr-namespace:Daqifi.Desktop.View.Flyouts"
         xmlns:Service="clr-namespace:Daqifi.Desktop.DialogService"
@@ -128,7 +128,7 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Controls:ToggleSwitch Grid.Column="2" IsChecked="{Binding IsLogging, Mode=TwoWay}" IsEnabled="{Binding CanToggleLogging, Mode=OneWay}" OffLabel="Logging Off" OnLabel="Logging On" HorizontalAlignment="Right"/>
+                        <Controls:ToggleSwitch Grid.Column="2" IsOn="{Binding IsLogging, Mode=TwoWay}" IsEnabled="{Binding CanToggleLogging, Mode=OneWay}" OffContent="Logging Off" OnContent="Logging On" HorizontalAlignment="Right"/>
                     </Grid>
                     <oxy:PlotView x:Name="DataLog" Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Model="{Binding Plotter.PlotModel}" Margin="5,5,20,5" TabIndex="0" />
 

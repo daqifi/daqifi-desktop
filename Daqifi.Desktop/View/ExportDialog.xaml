@@ -44,8 +44,8 @@
         </GroupBox>
         
         <DockPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Grid.RowSpan="3"  HorizontalAlignment="Right" VerticalAlignment="Bottom">
-            <Button Name="btnCancel" Click="btnCancel_Click" Content="Cancel" Width="100" Height="30"  Style="{StaticResource SquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
-            <Button Name="btnExport" Click="btnExport_Click" Content="Export"  Command="{Binding ExportSessionCommand}"  Width="100" Height="30" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+            <Button Name="btnCancel" Click="btnCancel_Click" Content="Cancel" Width="100" Height="30"  Style="{StaticResource SquareButtonStyle}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+            <Button Name="btnExport" Click="btnExport_Click" Content="Export"  Command="{Binding ExportSessionCommand}"  Width="100" Height="30" Style="{StaticResource AccentedSquareButtonStyle}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
         </DockPanel>
     </Grid>
 </controls:MetroWindow>

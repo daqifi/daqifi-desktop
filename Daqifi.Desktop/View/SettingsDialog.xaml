@@ -25,7 +25,7 @@
         </GroupBox>
 
         <DockPanel Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="5">
-            <Button Content="Close" Width="100" Height="30" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True" Click="Close_Click"/>
+            <Button Content="Close" Width="100" Height="30" Style="{StaticResource AccentedSquareButtonStyle}" controls:ControlsHelper.ContentCharacterCasing="Normal" Click="Close_Click"/>
         </DockPanel>
     </Grid>
 </controls:MetroWindow>

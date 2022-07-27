@@ -17,6 +17,6 @@
 
         <TextBox Grid.Column="1" Text="{Binding ErrorMessage}" VerticalAlignment="Center" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Foreground="Black"/>
 
-        <Button Name="btnOk" Grid.Column="0" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Click="btnOk_Click" Content="Ok" Width="100" Height="30"  Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+        <Button Name="btnOk" Grid.Column="0" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Click="btnOk_Click" Content="Ok" Width="100" Height="30"  Style="{StaticResource AccentedSquareButtonStyle}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
     </Grid>
 </controls:MetroWindow>
