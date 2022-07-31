@@ -30,15 +30,15 @@
                         <ColumnDefinition Width="85"/>
                     </Grid.ColumnDefinitions>
                     <TextBox Grid.Column="0" Height="30" VerticalAlignment="Top" Margin="5" Text="{Binding FirmwareFilePath, Mode=OneWay}"/>
-                    <Button Grid.Column="1" Content="Browse" Width="75" Height="30" Margin="5" VerticalAlignment="Top" Style="{StaticResource SquareButtonStyle}" controls:ControlsHelper.ContentCharacterCasing="Normal" Command="{Binding BrowseFirmwarePathCommand}"/>
+                    <Button Grid.Column="1" Content="Browse" Width="75" Height="30" Margin="5" VerticalAlignment="Top" Style="{StaticResource  MahApps.Styles.Button.Square}" controls:ControlsHelper.ContentCharacterCasing="Normal" Command="{Binding BrowseFirmwarePathCommand}"/>
                 </Grid>
             </GroupBox>
 
             <Label Visibility="{Binding HasErrorOccured, Converter={StaticResource BoolToVis}}" Grid.Row="2" Content="Sorry, something went wrong uploading the firmware.  :(" HorizontalContentAlignment="Center" Foreground="Red"/>
 
             <DockPanel Grid.Row="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" LastChildFill="True" Margin="5">
-                <Button Click="btnCancel_Click" Content="Cancel" Width="100" Height="30"  Style="{StaticResource SquareButtonStyle}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
-                <Button DockPanel.Dock="Bottom" Content="Upload" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ControlsHelper.ContentCharacterCasing="Normal" Command="{Binding UploadFirmwareCommand}"/>
+                <Button Click="btnCancel_Click" Content="Cancel" Width="100" Height="30"  Style="{StaticResource  MahApps.Styles.Button.Square}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                <Button DockPanel.Dock="Bottom" Content="Upload" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal" Command="{Binding UploadFirmwareCommand}"/>
             </DockPanel>
 
             <Grid Grid.RowSpan="4" Background="#ccffffff" Visibility="{Binding IsFirmwareUploading, Converter={StaticResource BoolToVis}}" >
@@ -64,7 +64,7 @@
                 </Grid.RowDefinitions>
                 <Label Grid.Row="2" Content="Upload Complete"  HorizontalAlignment="Center" />
                 <DockPanel Grid.Row="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" LastChildFill="True" Margin="5">
-                    <Button Click="btnOk_Click" Content="OK"  DockPanel.Dock="Bottom" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                    <Button Click="btnOk_Click" Content="OK"  DockPanel.Dock="Bottom" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
                 </DockPanel>
             </Grid>
         </Grid>

@@ -7,6 +7,7 @@
         xmlns:flyouts="clr-namespace:Daqifi.Desktop.View.Flyouts"
         xmlns:Service="clr-namespace:Daqifi.Desktop.DialogService"
         xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         Service:DialogService.IsRegisteredView="True"
         Title="DAQifi v1.0.9" Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
     <Window.DataContext>
@@ -18,11 +19,7 @@
             <Button Command="{Binding ShowDAQifiSettingsDialogCommand}">
                 <Button.Content>
                     <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="20" Height="20" Fill="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}">
-                            <Rectangle.OpacityMask>
-                                <VisualBrush Stretch="Fill" Visual="{StaticResource appbar_settings}" />
-                            </Rectangle.OpacityMask>
-                        </Rectangle>
+                        <iconPacks:PackIconMaterial Kind="Cog" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" />
                         <TextBlock Margin="4 0 0 0" VerticalAlignment="Center" Text="settings" />
                     </StackPanel>
                 </Button.Content>
@@ -30,11 +27,7 @@
             <Button Command="{Binding OpenHelpCommand}">
                 <Button.Content>
                     <StackPanel Orientation="Horizontal">
-                        <Rectangle Width="20" Height="20" Fill="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=Foreground}">
-                            <Rectangle.OpacityMask>
-                                <VisualBrush Stretch="Fill" Visual="{StaticResource help}" />
-                            </Rectangle.OpacityMask>
-                        </Rectangle>
+                        <iconPacks:PackIconMaterial Kind="HelpCircleOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                         <TextBlock Margin="4 0 0 0" VerticalAlignment="Center" Text="help" />
                     </StackPanel>
                 </Button.Content>
@@ -102,11 +95,7 @@
                     <Label>
                         <Label.Content>
                             <StackPanel Width="75" Margin="0,10,0,10">
-                                <Rectangle Width="30" Height="30">
-                                    <Rectangle.Fill>
-                                        <VisualBrush Visual="{StaticResource appbar_graph_line}" Stretch="Fill"/>
-                                    </Rectangle.Fill>
-                                </Rectangle>
+                                <iconPacks:PackIconMaterial Kind="ChartLine" HorizontalAlignment="Center" Height="30" Width="30"/>
                                 <TextBlock TextWrapping="WrapWithOverflow" Text="Live Graph" TextAlignment="Center" IsEnabled="False"/>
                             </StackPanel>
                         </Label.Content>
@@ -135,11 +124,7 @@
                     <DockPanel Grid.Column="0" Grid.Row="0" HorizontalAlignment="Right" Margin="5,5,20,5">
                         <Button Command="{Binding Plotter.SaveLiveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
                             <Button.Content>
-                                <Rectangle Width="15" Height="15">
-                                    <Rectangle.Fill>
-                                        <VisualBrush Visual="{StaticResource appbar_image}" Stretch="Fill"/>
-                                    </Rectangle.Fill>
-                                </Rectangle>
+                                <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                             </Button.Content>
                         </Button>
                     </DockPanel>
@@ -148,60 +133,36 @@
 
                         <Button Command="{Binding Plotter.ZoomOutXCommand}" ToolTip="Zoom Out (Time)"  Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
                             <Button.Content>
-                                <Rectangle Width="15" Height="15">
-                                    <Rectangle.Fill>
-                                        <VisualBrush Visual="{StaticResource appbar_magnify_minus}" Stretch="Fill"/>
-                                    </Rectangle.Fill>
-                                </Rectangle>
+                                <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                             </Button.Content>
                         </Button>
 
                         <Button Command="{Binding Plotter.ZoomInXCommand}" ToolTip="Zoom In (Time)" Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
                             <Button.Content>
-                                <Rectangle Width="15" Height="15">
-                                    <Rectangle.Fill>
-                                        <VisualBrush Visual="{StaticResource appbar_magnify_add}" Stretch="Fill"/>
-                                    </Rectangle.Fill>
-                                </Rectangle>
+                                <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                             </Button.Content>
                         </Button>
 
                         <Button Command="{Binding Plotter.ResetZoomLiveGraphCommand}" ToolTip="Reset Zoom" Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
                             <Button.Content>
-                                <Rectangle Width="15" Height="15">
-                                    <Rectangle.Fill>
-                                        <VisualBrush Visual="{StaticResource appbar_crosshair}" Stretch="Fill"/>
-                                    </Rectangle.Fill>
-                                </Rectangle>
+                                <iconPacks:PackIconMaterial Kind="Crosshairs" HorizontalAlignment="Center" Height="15" Width="15"/>
                             </Button.Content>
                         </Button>
 
                         <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
                             <Button Command="{Binding Plotter.ZoomInYCommand}" ToolTip="Zoom In (Analog)" Style="{StaticResource FadeButton}">
                                 <Button.Content>
-                                    <Rectangle Width="15" Height="15">
-                                        <Rectangle.Fill>
-                                            <VisualBrush Visual="{StaticResource appbar_magnify_add}" Stretch="Fill"/>
-                                        </Rectangle.Fill>
-                                    </Rectangle>
+                                    <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                                 </Button.Content>
                             </Button>
                             <Button Command="{Binding Plotter.ZoomOutYCommand}" ToolTip="Zoom Out (Analog)" Style="{StaticResource FadeButton}">
                                 <Button.Content>
-                                    <Rectangle Width="15" Height="15">
-                                        <Rectangle.Fill>
-                                            <VisualBrush Visual="{StaticResource appbar_magnify_minus}" Stretch="Fill"/>
-                                        </Rectangle.Fill>
-                                    </Rectangle>
+                                    <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                                 </Button.Content>
                             </Button>
                             <Button Command="{Binding OpenLiveGraphSettingsCommand}" ToolTip="Settings" Style="{StaticResource FadeButton}">
                                 <Button.Content>
-                                    <Rectangle Width="15" Height="15">
-                                        <Rectangle.Fill>
-                                            <VisualBrush Visual="{StaticResource appbar_settings}" Stretch="Fill"/>
-                                        </Rectangle.Fill>
-                                    </Rectangle>
+                                    <iconPacks:PackIconMaterial Kind="Cog" HorizontalAlignment="Center" Height="15" Width="15"/>
                                 </Button.Content>
                             </Button>
 
@@ -234,11 +195,7 @@
                     <Label>
                         <Label.Content>
                             <StackPanel Width="75" Margin="0,10,0,10">
-                                <Rectangle Width="30" Height="30">
-                                    <Rectangle.Fill>
-                                        <VisualBrush Visual="{StaticResource appbar_list}" Stretch="Fill"/>
-                                    </Rectangle.Fill>
-                                </Rectangle>
+                                <iconPacks:PackIconMaterial Kind="DatabaseOutline" HorizontalAlignment="Center" Height="30" Width="30"/>
                                 <TextBlock TextWrapping="Wrap" Text="Logged Data" TextAlignment="Center" IsEnabled="False"/>
                             </StackPanel>
                         </Label.Content>
@@ -255,60 +212,34 @@
                         <oxy:PlotView Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0" LegendFontSize="14"/>
                         <DockPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top">
                             <Button Command="{Binding DbLogger.SaveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
-                                <Button.Content>
-                                    <Rectangle Width="15" Height="15">
-                                        <Rectangle.Fill>
-                                            <VisualBrush Visual="{StaticResource appbar_image}" Stretch="Fill"/>
-                                        </Rectangle.Fill>
-                                    </Rectangle>
-                                </Button.Content>
+                                <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                             </Button>
                         </DockPanel>
                         <DockPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
                             <Button Command="{Binding DbLogger.ZoomOutXCommand}" ToolTip="Zoom Out (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
                                 <Button.Content>
-                                    <Rectangle Width="15" Height="15">
-                                        <Rectangle.Fill>
-                                            <VisualBrush Visual="{StaticResource appbar_magnify_minus}" Stretch="Fill"/>
-                                        </Rectangle.Fill>
-                                    </Rectangle>
+                                    <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                                 </Button.Content>
                             </Button>
                             <Button Command="{Binding DbLogger.ZoomInXCommand}" ToolTip="Zoom In (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
                                 <Button.Content>
-                                    <Rectangle Width="15" Height="15">
-                                        <Rectangle.Fill>
-                                            <VisualBrush Visual="{StaticResource appbar_magnify_add}" Stretch="Fill"/>
-                                        </Rectangle.Fill>
-                                    </Rectangle>
+                                    <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                                 </Button.Content>
                             </Button>
                             <StackPanel>
                                 <Button Command="{Binding DbLogger.ZoomInYCommand}" ToolTip="Zoom In (Analog)" Style="{StaticResource FadeButton}">
                                     <Button.Content>
-                                        <Rectangle Width="15" Height="15">
-                                            <Rectangle.Fill>
-                                                <VisualBrush Visual="{StaticResource appbar_magnify_add}" Stretch="Fill"/>
-                                            </Rectangle.Fill>
-                                        </Rectangle>
+                                        <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                                     </Button.Content>
                                 </Button>
                                 <Button Command="{Binding DbLogger.ZoomOutYCommand}" ToolTip="Zoom Out (Analog)" Style="{StaticResource FadeButton}">
                                     <Button.Content>
-                                        <Rectangle Width="15" Height="15">
-                                            <Rectangle.Fill>
-                                                <VisualBrush Visual="{StaticResource appbar_magnify_minus}" Stretch="Fill"/>
-                                            </Rectangle.Fill>
-                                        </Rectangle>
+                                        <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                                     </Button.Content>
                                 </Button>
                                 <Button Command="{Binding DbLogger.ResetZoomCommand }" CommandParameter="{Binding}" Style="{StaticResource FadeButton}" ToolTip="Reset Zoom" VerticalAlignment="Bottom" >
                                     <Button.Content>
-                                        <Rectangle Width="15" Height="15">
-                                            <Rectangle.Fill>
-                                                <VisualBrush Visual="{StaticResource appbar_crosshair}" Stretch="Fill"/>
-                                            </Rectangle.Fill>
-                                        </Rectangle>
+                                        <iconPacks:PackIconMaterial Kind="Crosshairs" HorizontalAlignment="Center" Height="15" Width="15"/>
                                     </Button.Content>
                                 </Button>
                             </StackPanel>
@@ -340,33 +271,21 @@
                                                         <!-- Delete Logging Session -->
                                                         <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteLoggingSessionCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Delete" Padding="5">
                                                             <Button.Content>
-                                                                <Rectangle Width="20" Height="20">
-                                                                    <Rectangle.Fill>
-                                                                        <VisualBrush Visual="{StaticResource appbar_delete}" Stretch="Fill"/>
-                                                                    </Rectangle.Fill>
-                                                                </Rectangle>
+                                                                <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                             </Button.Content>
                                                         </Button>
 
                                                         <!-- Export Logging Session -->
                                                         <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.ExportLoggingSessionCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Export" Padding="5">
                                                             <Button.Content>
-                                                                <Rectangle Width="20" Height="20">
-                                                                    <Rectangle.Fill>
-                                                                        <VisualBrush Visual="{StaticResource appbar_disk_download}" Stretch="Fill"/>
-                                                                    </Rectangle.Fill>
-                                                                </Rectangle>
+                                                                <iconPacks:PackIconMaterial Kind="DownloadCircleOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                             </Button.Content>
                                                         </Button>
 
                                                         <!-- Logging Session Settings -->
                                                         <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.OpenLoggingSessionSettingsCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Settings">
                                                             <Button.Content>
-                                                                <Rectangle Width="20" Height="20">
-                                                                    <Rectangle.Fill>
-                                                                        <VisualBrush Visual="{StaticResource appbar_settings}" Stretch="Fill"/>
-                                                                    </Rectangle.Fill>
-                                                                </Rectangle>
+                                                                <iconPacks:PackIconMaterial Kind="Cog" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                             </Button.Content>
                                                         </Button>
                                                         <Label Content="{Binding SessionStart}" DockPanel.Dock="Right" HorizontalContentAlignment="Right"/>
@@ -380,22 +299,14 @@
                                         <!-- Delete All Logging Session -->
                                         <Button Name="DeleteAllLoggingSessionsButton"  DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteAllLoggingSessionCommand}" Background="#88FFFFFF" ToolTip="Delete All" Padding="5">
                                             <Button.Content>
-                                                <Rectangle Width="20" Height="20">
-                                                    <Rectangle.Fill>
-                                                        <VisualBrush Visual="{StaticResource appbar_delete}" Stretch="Fill"/>
-                                                    </Rectangle.Fill>
-                                                </Rectangle>
+                                                <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                                             </Button.Content>
                                         </Button>
                                         
                                         <!-- Export All Logging Session -->
                                         <Button Name="ExportAllLoggingSessionsButton" DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.ExportAllLoggingSessionCommand}" Background="#88FFFFFF" ToolTip="Export All" Padding="5">
                                             <Button.Content>
-                                                <Rectangle Width="20" Height="20">
-                                                    <Rectangle.Fill>
-                                                        <VisualBrush Visual="{StaticResource appbar_disk_download}" Stretch="Fill"/>
-                                                    </Rectangle.Fill>
-                                                </Rectangle>
+                                                <iconPacks:PackIconMaterial Kind="DownloadCircleOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                                             </Button.Content>
                                         </Button>
                                     </DockPanel>
@@ -436,11 +347,7 @@
                     <Label>
                         <Label.Content>
                             <StackPanel Width="75" Margin="0,10,0,10">
-                                <Rectangle Width="30" Height="30">
-                                    <Rectangle.Fill>
-                                        <VisualBrush Visual="{StaticResource appbar_radar}" Stretch="Fill"/>
-                                    </Rectangle.Fill>
-                                </Rectangle>
+                                <iconPacks:PackIconMaterial Kind="HexagonMultipleOutline" HorizontalAlignment="Center" Height="30" Width="30"/>
                                 <TextBlock TextWrapping="WrapWithOverflow" Text="Channels" TextAlignment="Center" IsEnabled="False"/>
                             </StackPanel>
                         </Label.Content>
@@ -469,20 +376,12 @@
                                                     
                                                     <Button Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveChannelList, Path=DataContext.OpenChannelSettingsCommand}" CommandParameter="{Binding}" ToolTip="Channel Settings">
                                                         <Button.Content>
-                                                            <Rectangle Width="20" Height="20">
-                                                                <Rectangle.Fill>
-                                                                    <VisualBrush Visual="{StaticResource appbar_settings}" Stretch="Fill"/>
-                                                                </Rectangle.Fill>
-                                                            </Rectangle>
+                                                            <iconPacks:PackIconMaterial Kind="Cog" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                         </Button.Content>
                                                     </Button>
                                                     <Button Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveChannelList, Path=DataContext.RemoveChannelCommand}" CommandParameter="{Binding}" ToolTip="Delete Channel">
                                                         <Button.Content>
-                                                            <Rectangle Width="20" Height="20">
-                                                                <Rectangle.Fill>
-                                                                    <VisualBrush Visual="{StaticResource appbar_delete}" Stretch="Fill"/>
-                                                                </Rectangle.Fill>
-                                                            </Rectangle>
+                                                            <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                         </Button.Content>
                                                     </Button>
                                                 </Grid>
@@ -503,11 +402,7 @@
                                 <!-- Add Channel Button -->
                                 <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="50" Height="50" Command="{Binding ShowAddChannelDialogCommand}" Style="{DynamicResource MetroCircleButtonStyle}" Margin="10" Background="#CC119EDA" >
                                     <Button.Content>
-                                        <Rectangle Width="20" Height="20">
-                                            <Rectangle.Fill>
-                                                <VisualBrush Visual="{StaticResource appbar_add_white}" Stretch="Fill"/>
-                                            </Rectangle.Fill>
-                                        </Rectangle>
+                                        <iconPacks:PackIconMaterial Kind="Plus" HorizontalAlignment="Center" Height="20" Width="20" Foreground="White"/>
                                     </Button.Content>
                                     <Button.BitmapEffect>
                                         <DropShadowBitmapEffect Color="Black" Direction="270" Softness="1" ShadowDepth="15" Opacity="0.25" />
@@ -531,11 +426,7 @@
                     <Label>
                         <Label.Content>
                             <StackPanel Width="75" Margin="0,10,0,10">
-                                <Rectangle Width="30" Height="30">
-                                    <Rectangle.Fill>
-                                        <VisualBrush Visual="{StaticResource appbar_hardware_cpu}" Stretch="Fill"/>
-                                    </Rectangle.Fill>
-                                </Rectangle>
+                                <iconPacks:PackIconMaterial Kind="Chip" HorizontalAlignment="Center" Height="30" Width="30"/>
                                 <TextBlock TextWrapping="WrapWithOverflow" Text="Devices" TextAlignment="Center" IsEnabled="False"/>
                             </StackPanel>
                         </Label.Content>
@@ -576,29 +467,17 @@
                                                         <Label Grid.Row="2" Grid.Column="0" Content="{Binding MacAddress}"/>
                                                         <Button Grid.RowSpan="3" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.OpenDeviceSettingsCommand}" CommandParameter="{Binding}" ToolTip="Device Settings">
                                                             <Button.Content>
-                                                                <Rectangle Width="20" Height="20">
-                                                                    <Rectangle.Fill>
-                                                                        <VisualBrush Visual="{StaticResource appbar_settings}" Stretch="Fill"/>
-                                                                    </Rectangle.Fill>
-                                                                </Rectangle>
+                                                                <iconPacks:PackIconMaterial Kind="Cog" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                             </Button.Content>
                                                         </Button>
                                                         <Button Grid.RowSpan="3" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.DisconnectDeviceCommand}" CommandParameter="{Binding}" ToolTip="Disconnect From Device">
                                                             <Button.Content>
-                                                                <Rectangle Width="20" Height="20">
-                                                                    <Rectangle.Fill>
-                                                                        <VisualBrush Visual="{StaticResource appbar_delete}" Stretch="Fill"/>
-                                                                    </Rectangle.Fill>
-                                                                </Rectangle>
+                                                                <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                             </Button.Content>
                                                         </Button>
                                                         <Button Grid.RowSpan="3" Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.RebootSelectedDeviceCommand}" CommandParameter="{Binding}" ToolTip="Reboot Device">
                                                             <Button.Content>
-                                                                <Rectangle Width="20" Height="20">
-                                                                    <Rectangle.Fill>
-                                                                        <VisualBrush Visual="{StaticResource appbar_power}" Stretch="Fill"/>
-                                                                    </Rectangle.Fill>
-                                                                </Rectangle>
+                                                                <iconPacks:PackIconMaterial Kind="Power" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                             </Button.Content>
                                                         </Button>
                                                     </Grid>
@@ -620,11 +499,7 @@
                                 <!-- Add Device Button -->
                                 <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="50" Height="50" Command="{Binding ShowConnectionDialogCommand}" Style="{DynamicResource MetroCircleButtonStyle}" Margin="10" Background="#CC119EDA" >
                                     <Button.Content>
-                                        <Rectangle Width="20" Height="20">
-                                            <Rectangle.Fill>
-                                                <VisualBrush Visual="{StaticResource appbar_add_white}" Stretch="Fill"/>
-                                            </Rectangle.Fill>
-                                        </Rectangle>
+                                        <iconPacks:PackIconMaterial Kind="Plus" HorizontalAlignment="Center" Height="20" Width="20 " Foreground="White"/>
                                     </Button.Content>
                                     <Button.BitmapEffect>
                                         <DropShadowBitmapEffect Color="Black" Direction="270" Softness="1" ShadowDepth="15" Opacity="0.25" />
