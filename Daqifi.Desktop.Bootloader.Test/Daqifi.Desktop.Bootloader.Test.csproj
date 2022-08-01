@@ -63,12 +63,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Daqifi.Desktop.Bootloader\Daqifi.Desktop.Bootloader.csproj">
-      <Project>{E1B7FA13-2AD8-4B9F-983E-0EA88C3A1062}</Project>
-      <Name>Daqifi.Desktop.Bootloader</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>

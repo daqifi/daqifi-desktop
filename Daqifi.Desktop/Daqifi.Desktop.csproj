@@ -1,22 +1,8 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="..\packages\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.0.4.336902\build\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.props" Condition="Exists('..\packages\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.0.4.336902\build\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.props')" />
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}</ProjectGuid>
+    <TargetFramework>net461</TargetFramework>
     <OutputType>WinExe</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Daqifi.Desktop</RootNamespace>
     <AssemblyName>DAQifi Desktop</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
-    <WarningLevel>4</WarningLevel>
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
-    <TargetFrameworkProfile />
     <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Disk</InstallFrom>
@@ -32,349 +18,34 @@
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>x86</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+    <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>Images\WiFiDAQ.ico</ApplicationIcon>
   </PropertyGroup>
-  <PropertyGroup />
   <ItemGroup>
-    <Reference Include="Bugsnag, Version=2.2.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Bugsnag.2.2.0\lib\net45\Bugsnag.dll</HintPath>
-    </Reference>
-    <Reference Include="CommonServiceLocator, Version=2.0.3.0, Culture=neutral, PublicKeyToken=489b6accfaf20ef0, processorArchitecture=MSIL">
-      <HintPath>..\packages\CommonServiceLocator.2.0.3\lib\net45\CommonServiceLocator.dll</HintPath>
-    </Reference>
-    <Reference Include="ControlzEx, Version=4.0.0.0, Culture=neutral, PublicKeyToken=69f1c32f803d307e, processorArchitecture=MSIL">
-      <HintPath>..\packages\ControlzEx.4.4.0\lib\net45\ControlzEx.dll</HintPath>
-    </Reference>
-    <Reference Include="EntityFramework, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <HintPath>..\packages\EntityFramework.6.2.0\lib\net45\EntityFramework.dll</HintPath>
-    </Reference>
-    <Reference Include="EntityFramework.BulkInsert">
-      <HintPath>..\packages\EntityFramework.BulkInsert-ef6.6.0.2.8\lib\Net45\EntityFramework.BulkInsert.dll</HintPath>
-    </Reference>
-    <Reference Include="EntityFramework.BulkInsert.SqlServerCe">
-      <HintPath>..\packages\EntityFramework.BulkInsert.SqlServerCe.6.0.2\lib\net45\EntityFramework.BulkInsert.SqlServerCe.dll</HintPath>
-    </Reference>
-    <Reference Include="EntityFramework.MappingAPI, Version=6.1.0.9, Culture=neutral, PublicKeyToken=7ee2e825d201459e, processorArchitecture=MSIL">
-      <HintPath>..\packages\EntityFramework.MappingAPI.6.1.0.9\lib\net45\EntityFramework.MappingAPI.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="EntityFramework.SqlServer, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <HintPath>..\packages\EntityFramework.6.2.0\lib\net45\EntityFramework.SqlServer.dll</HintPath>
-    </Reference>
-    <Reference Include="EntityFramework.SqlServerCompact, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <HintPath>..\packages\EntityFramework.SqlServerCompact.PrivateDeployment.6.2.0.1\lib\net45\EntityFramework.SqlServerCompact.dll</HintPath>
-    </Reference>
-    <Reference Include="GalaSoft.MvvmLight, Version=5.4.1.0, Culture=neutral, PublicKeyToken=e7570ab207bcb616, processorArchitecture=MSIL">
-      <HintPath>..\packages\MvvmLightLibs.5.4.1\lib\net45\GalaSoft.MvvmLight.dll</HintPath>
-    </Reference>
-    <Reference Include="GalaSoft.MvvmLight.Extras, Version=5.4.1.0, Culture=neutral, PublicKeyToken=669f0b5e8f868abf, processorArchitecture=MSIL">
-      <HintPath>..\packages\MvvmLightLibs.5.4.1\lib\net45\GalaSoft.MvvmLight.Extras.dll</HintPath>
-    </Reference>
-    <Reference Include="GalaSoft.MvvmLight.Platform, Version=5.4.1.0, Culture=neutral, PublicKeyToken=5f873c45e98af8a1, processorArchitecture=MSIL">
-      <HintPath>..\packages\MvvmLightLibs.5.4.1\lib\net45\GalaSoft.MvvmLight.Platform.dll</HintPath>
-    </Reference>
-    <Reference Include="Google.ProtocolBuffers, Version=2.4.1.555, Culture=neutral, PublicKeyToken=55f7125234beb589, processorArchitecture=MSIL">
-      <HintPath>..\packages\Google.ProtocolBuffers.2.4.1.555\lib\net40\Google.ProtocolBuffers.dll</HintPath>
-    </Reference>
-    <Reference Include="Google.ProtocolBuffers.Serialization, Version=2.4.1.555, Culture=neutral, PublicKeyToken=55f7125234beb589, processorArchitecture=MSIL">
-      <HintPath>..\packages\Google.ProtocolBuffers.2.4.1.555\lib\net40\Google.ProtocolBuffers.Serialization.dll</HintPath>
-    </Reference>
-    <Reference Include="HidLibrary, Version=3.2.46.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\hidlibrary.3.2.46.0\lib\HidLibrary.dll</HintPath>
-    </Reference>
-    <Reference Include="LoadingIndicators.WPF, Version=0.0.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\LoadingIndicators.WPF.0.0.1\lib\LoadingIndicators.WPF.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="MahApps.Metro, Version=2.0.0.0, Culture=neutral, PublicKeyToken=51482d6f650b2b3f, processorArchitecture=MSIL">
-      <HintPath>..\packages\MahApps.Metro.2.4.9\lib\net46\MahApps.Metro.dll</HintPath>
-    </Reference>
-    <Reference Include="MahApps.Metro.IconPacks.Core, Version=4.0.0.0, Culture=neutral, PublicKeyToken=0c0d510f9915137a, processorArchitecture=MSIL">
-      <HintPath>..\packages\MahApps.Metro.IconPacks.Material.4.11.0\lib\net46\MahApps.Metro.IconPacks.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="MahApps.Metro.IconPacks.Material, Version=4.0.0.0, Culture=neutral, PublicKeyToken=0c0d510f9915137a, processorArchitecture=MSIL">
-      <HintPath>..\packages\MahApps.Metro.IconPacks.Material.4.11.0\lib\net46\MahApps.Metro.IconPacks.Material.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Xaml.Behaviors, Version=1.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\Microsoft.Xaml.Behaviors.Wpf.1.1.39\lib\net45\Microsoft.Xaml.Behaviors.dll</HintPath>
-    </Reference>
-    <Reference Include="MoreLinq, Version=2.8.21218.0, Culture=neutral, PublicKeyToken=384d532d7e88985d, processorArchitecture=MSIL">
-      <HintPath>..\packages\morelinq.2.8.0\lib\net40\MoreLinq.dll</HintPath>
-    </Reference>
-    <Reference Include="NCalc, Version=1.3.8.0, Culture=neutral, PublicKeyToken=973cde3f1cafed03, processorArchitecture=MSIL">
-      <HintPath>..\packages\ncalc.1.3.8\lib\NCalc.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="NLog, Version=4.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
-      <HintPath>..\packages\NLog.4.5.6\lib\net45\NLog.dll</HintPath>
-    </Reference>
-    <Reference Include="OxyPlot">
-      <HintPath>..\packages\OxyPlot.Core.2014.1.546\lib\portable-net4+sl4+wp71+win8\OxyPlot.dll</HintPath>
-    </Reference>
-    <Reference Include="OxyPlot.Wpf">
-      <HintPath>..\packages\OxyPlot.Wpf.2014.1.546\lib\net45\OxyPlot.Wpf.dll</HintPath>
-    </Reference>
-    <Reference Include="OxyPlot.Xps">
-      <HintPath>..\packages\OxyPlot.Wpf.2014.1.546\lib\net45\OxyPlot.Xps.dll</HintPath>
-    </Reference>
-    <Reference Include="protobuf-net, Version=2.3.0.0, Culture=neutral, PublicKeyToken=257b51d87d2e4d67, processorArchitecture=MSIL">
-      <HintPath>..\packages\protobuf-net.2.3.17\lib\net40\protobuf-net.dll</HintPath>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.ComponentModel.DataAnnotations" />
     <Reference Include="System.Configuration" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Data.SqlServerCe, Version=4.0.0.1, Culture=neutral, PublicKeyToken=89845dcd8080cc91, processorArchitecture=MSIL">
-      <HintPath>..\packages\EntityFramework.SqlServerCompact.PrivateDeployment.6.2.0.1\lib\net45\System.Data.SqlServerCe.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="System.Data.SqlServerCe.Entity, Version=4.0.0.1, Culture=neutral, PublicKeyToken=89845dcd8080cc91, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>Database\System.Data.SqlServerCe.Entity.dll</HintPath>
     </Reference>
-    <Reference Include="System.Drawing" />
     <Reference Include="System.IO.Compression" />
-    <Reference Include="System.Management" />
-    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.ServiceModel" />
     <Reference Include="System.Transactions" />
-    <Reference Include="System.ValueTuple, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.ValueTuple.4.5.0\lib\net461\System.ValueTuple.dll</HintPath>
-    </Reference>
     <Reference Include="System.Web" />
     <Reference Include="System.Web.Extensions" />
-    <Reference Include="System.Windows.Forms" />
-    <Reference Include="System.Xml" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="System.Xaml">
-      <RequiredTargetFramework>4.0</RequiredTargetFramework>
-    </Reference>
-    <Reference Include="WindowsBase" />
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
   </ItemGroup>
   <ItemGroup>
-    <ApplicationDefinition Include="App.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </ApplicationDefinition>
-    <Compile Include="Channel\AbstractChannel.cs" />
-    <Compile Include="Channel\AnalogChannel.cs" />
-    <Compile Include="Channel\ChannelColorManager.cs" />
-    <Compile Include="Channel\ChannelEventArgs.cs" />
-    <Compile Include="Channel\DataSample.cs" />
-    <Compile Include="Channel\DigitalChannel.cs" />
-    <Compile Include="Commands\CompositeCommand.cs" />
-    <Compile Include="Configuration\IColorable.cs" />
-    <Compile Include="Database\SqlCeBulkInsertProvider.cs" />
-    <Compile Include="Device\AbstractStreamingDevice.cs" />
-    <Compile Include="Device\IDeviceFinder.cs" />
-    <Compile Include="Commands\HostCommands.cs" />
-    <Compile Include="Commands\IActiveAware.cs" />
-    <Compile Include="Device\IFirmwareDevice.cs" />
-    <Compile Include="Device\IStreamingDevice.cs" />
-    <Compile Include="Device\SerialDevice\SerialDeviceHelper.cs" />
-    <Compile Include="Device\SerialDevice\SerialStreamingDevice.cs" />
-    <Compile Include="Device\SerialDevice\SerialDeviceFinder.cs" />
-    <Compile Include="Device\HidDevice\HidFirmwareDevice.cs" />
-    <Compile Include="Device\HidDevice\HidDeviceFinder.cs" />
-    <Compile Include="Device\SerialDevice\UsbDevice.cs" />
-    <Compile Include="Exporter\LoggingSessionExporter.cs" />
-    <Compile Include="Helpers\EnumDescriptionConverter.cs" />
-    <Compile Include="Helpers\EnumExtensions.cs" />
-    <Compile Include="Helpers\OrdinalStringComparer.cs" />
-    <Compile Include="Helpers\BooleanConverter.cs" />
-    <Compile Include="Helpers\BooleanToVisibilityConverter.cs" />
-    <Compile Include="LargestTriangleThreeBucket.cs" />
-    <Compile Include="Loggers\DatabaseLogger.cs" />
-    <Compile Include="Loggers\ILogger.cs" />
-    <Compile Include="Loggers\LoggingContext.cs" />
-    <Compile Include="Loggers\LoggingSession.cs" />
-    <Compile Include="Loggers\PlotLogger.cs" />
-    <Compile Include="Loggers\LoggingManager.cs" />
-    <Compile Include="Commands\DelegateCommand.cs" />
-    <Compile Include="Device\WiFiDevice\DaqifiStreamingDevice.cs" />
-    <Compile Include="Device\WiFiDevice\DaqifiDeviceFinder.cs" />
-    <Compile Include="DialogService\DialogService.cs" />
-    <Compile Include="DialogService\IDialogService.cs" />
-    <Compile Include="DialogService\IDialogServiceContract.cs" />
-    <Compile Include="DialogService\ServiceLocator.cs" />
-    <Compile Include="Channel\IChannel.cs" />
-    <Compile Include="Device\IDevice.cs" />
-    <Compile Include="Migrations\201712291614345_InitialMigration.cs" />
-    <Compile Include="Migrations\201712291614345_InitialMigration.Designer.cs">
-      <DependentUpon>201712291614345_InitialMigration.cs</DependentUpon>
-    </Compile>
-    <Compile Include="Migrations\Configuration.cs" />
-    <Compile Include="Models\DaqifiBoardConfig.cs" />
-    <Compile Include="Models\DaqifiSettings.cs" />
-    <Compile Include="ObservableObject.cs" />
-    <Compile Include="ViewModels\AddChannelDialogViewModel.cs" />
-    <Compile Include="ViewModels\ConnectionDialogViewModel.cs" />
-    <Compile Include="ViewModels\ErrorDialogViewModel.cs" />
-    <Compile Include="ViewModels\ExportDialogViewModel.cs" />
-    <Compile Include="ViewModels\FirmwareDialogViewModel.cs" />
-    <Compile Include="ViewModels\SelectColorDialogViewModel.cs" />
-    <Compile Include="ViewModels\DaqifiViewModel.cs" />
-    <Compile Include="ViewModels\SettingsViewModel.cs" />
-    <Compile Include="View\AddChannelDialog.xaml.cs">
-      <DependentUpon>AddChannelDialog.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="View\ConnectionDialog.xaml.cs">
-      <DependentUpon>ConnectionDialog.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="View\ErrorDialog.xaml.cs">
-      <DependentUpon>ErrorDialog.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="View\ExportDialog.xaml.cs">
-      <DependentUpon>ExportDialog.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="View\FirmwareDialog.xaml.cs">
-      <DependentUpon>FirmwareDialog.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="View\Flyouts\ChannelsFlyout.xaml.cs">
-      <DependentUpon>ChannelsFlyout.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="View\Flyouts\DevicesFlyout.xaml.cs">
-      <DependentUpon>DevicesFlyout.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="View\Flyouts\LiveGraphFlyout.xaml.cs">
-      <DependentUpon>LiveGraphFlyout.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="View\Flyouts\LoggedSessionFlyout.xaml.cs">
-      <DependentUpon>LoggedSessionFlyout.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="View\SelectColorDialog.xaml.cs">
-      <DependentUpon>SelectColorDialog.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Commands\WeakEventHandler.cs" />
-    <Compile Include="View\SettingsDialog.xaml.cs">
-      <DependentUpon>SettingsDialog.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="WindowViewModelMapping\IWindowViewModelMappings.cs" />
-    <Compile Include="WindowViewModelMapping\IWindowViewModelMappingsContract.cs" />
-    <Compile Include="WindowViewModelMapping\WindowViewModelMappings.cs" />
-    <Page Include="MainWindow.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Compile Include="App.xaml.cs">
-      <DependentUpon>App.xaml</DependentUpon>
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="ConnectionManager.cs" />
-    <Compile Include="MainWindow.xaml.cs">
-      <DependentUpon>MainWindow.xaml</DependentUpon>
-      <SubType>Code</SubType>
-    </Compile>
-    <Page Include="View\AddChannelDialog.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="View\ConnectionDialog.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="View\ErrorDialog.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="View\ExportDialog.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="View\FirmwareDialog.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="View\Flyouts\ChannelsFlyout.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="View\Flyouts\DevicesFlyout.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="View\Flyouts\LiveGraphFlyout.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="View\Flyouts\LoggedSessionFlyout.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="View\SelectColorDialog.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="View\SettingsDialog.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="Properties\AssemblyInfo.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="Properties\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>Resources.resx</DependentUpon>
-    </Compile>
-    <Compile Include="Properties\Settings.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Settings.settings</DependentUpon>
-      <DesignTimeSharedInput>True</DesignTimeSharedInput>
-    </Compile>
-    <EmbeddedResource Include="Migrations\201712291614345_InitialMigration.resx">
-      <DependentUpon>201712291614345_InitialMigration.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Properties\Resources.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-    </EmbeddedResource>
-    <None Include="Database\amd64\Microsoft.VC90.CRT\Microsoft.VC90.CRT.manifest">
+    <None Update="Database\amd64\Microsoft.VC90.CRT\Microsoft.VC90.CRT.manifest">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Include="Database\x86\Microsoft.VC90.CRT\Microsoft.VC90.CRT.manifest">
+    <None Update="Database\x86\Microsoft.VC90.CRT\Microsoft.VC90.CRT.manifest">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Include="packages.config" />
-    <None Include="Properties\Settings.settings">
-      <Generator>SettingsSingleFileGenerator</Generator>
-      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
     <AppDesigner Include="Properties\" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="App.config">
-      <SubType>Designer</SubType>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Images\Configuration.png" />
@@ -450,22 +121,10 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Daqifi.Desktop.Bootloader\Daqifi.Desktop.Bootloader.csproj">
-      <Project>{e1b7fa13-2ad8-4b9f-983e-0ea88c3a1062}</Project>
-      <Name>Daqifi.Desktop.Bootloader</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj">
-      <Project>{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}</Project>
-      <Name>Daqifi.Desktop.Common</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj">
-      <Project>{8E553D17-C0B1-447F-B4A2-0F11903CAA49}</Project>
-      <Name>Daqifi.Desktop.DataModel</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Daqifi.Desktop.IO\Daqifi.Desktop.IO.csproj">
-      <Project>{EC3CD2DE-4816-4568-98B8-9CC258DF7CA1}</Project>
-      <Name>Daqifi.Desktop.IO</Name>
-    </ProjectReference>
+    <ProjectReference Include="..\Daqifi.Desktop.Bootloader\Daqifi.Desktop.Bootloader.csproj" />
+    <ProjectReference Include="..\Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj" />
+    <ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj" />
+    <ProjectReference Include="..\Daqifi.Desktop.IO\Daqifi.Desktop.IO.csproj" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.6.1">
@@ -487,26 +146,49 @@
     <Analyzer Include="..\packages\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.0.4.336902\analyzers\dotnet\cs\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.dll" />
     <Analyzer Include="..\packages\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.0.4.336902\analyzers\dotnet\cs\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.CodeFixes.dll" />
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Enable NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\packages\Baseclass.Contrib.Nuget.Output.2.4.1\build\net40\Baseclass.Contrib.Nuget.Output.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Baseclass.Contrib.Nuget.Output.2.4.1\build\net40\Baseclass.Contrib.Nuget.Output.targets'))" />
-    <Error Condition="!Exists('..\packages\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.0.4.336902\build\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.0.4.336902\build\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.props'))" />
-  </Target>
+  <ItemGroup>
+    <PackageReference Include="Baseclass.Contrib.Nuget.Output" Version="2.4.1" />
+    <PackageReference Include="Bugsnag" Version="2.2.0" />
+    <PackageReference Include="CommonServiceLocator" Version="2.0.3" />
+    <PackageReference Include="ControlzEx" Version="4.4.0" />
+    <PackageReference Include="EntityFramework" Version="6.2.0" />
+    <PackageReference Include="EntityFramework.BulkInsert-ef6" Version="6.0.2.8" />
+    <PackageReference Include="EntityFramework.BulkInsert.SqlServerCe" Version="6.0.2" />
+    <PackageReference Include="EntityFramework.MappingAPI" Version="6.1.0.9" />
+    <PackageReference Include="EntityFramework.SqlServerCompact" Version="6.2.0" />
+    <PackageReference Include="EntityFramework.SqlServerCompact.PrivateDeployment" Version="6.2.0.1" />
+    <PackageReference Include="Google.ProtocolBuffers" Version="2.4.1.555" />
+    <PackageReference Include="hidlibrary" Version="3.2.46.0" />
+    <PackageReference Include="LoadingIndicators.WPF" Version="0.0.1" />
+    <PackageReference Include="MahApps.Metro" Version="2.4.9" />
+    <PackageReference Include="MahApps.Metro.IconPacks.Material" Version="4.11.0" />
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Include="Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers" Version="0.4.336902" />
+    <PackageReference Include="Microsoft.SqlServer.Compact" Version="4.0.8876.1" />
+    <PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.39" />
+    <PackageReference Include="morelinq" Version="2.8.0" />
+    <PackageReference Include="MvvmLightLibs" Version="5.4.1" />
+    <PackageReference Include="ncalc" Version="1.3.8" />
+    <PackageReference Include="NLog" Version="4.5.6" />
+    <PackageReference Include="OxyPlot.Core" Version="2014.1.546" />
+    <PackageReference Include="OxyPlot.Wpf" Version="2014.1.546" />
+    <PackageReference Include="protobuf-net" Version="2.3.17" />
+    <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
+    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
+    <PackageReference Include="System.Management" Version="6.0.0" />
+    <PackageReference Include="System.ValueTuple" Version="4.5.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Loggers\CsvLogger.cs" />
+    <Compile Remove="ViewModels\PlottingViewModel.cs" />
+    <Compile Remove="ViewModels\PlotViewModel.cs" />
+    <Compile Remove="ViewModels\ViewModelLocator.cs" />
+    <Compile Remove="WiFiDAQOutMessage.cs" />
+  </ItemGroup>
   <PropertyGroup>
     <PostBuildEvent>if not exist "$(TargetDir)x86" md "$(TargetDir)x86"
     xcopy /s /y "$(SolutionDir)packages\Microsoft.SqlServer.Compact.4.0.8876.1\NativeBinaries\x86\*.*" "$(TargetDir)x86"
     if not exist "$(TargetDir)amd64" md "$(TargetDir)amd64"
     xcopy /s /y "$(SolutionDir)packages\Microsoft.SqlServer.Compact.4.0.8876.1\NativeBinaries\amd64\*.*" "$(TargetDir)amd64"</PostBuildEvent>
   </PropertyGroup>
-  <Import Project="..\packages\Baseclass.Contrib.Nuget.Output.2.4.1\build\net40\Baseclass.Contrib.Nuget.Output.targets" Condition="Exists('..\packages\Baseclass.Contrib.Nuget.Output.2.4.1\build\net40\Baseclass.Contrib.Nuget.Output.targets')" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
 </Project>
