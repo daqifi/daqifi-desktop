@@ -20,7 +20,7 @@
     <Analyzer Include="..\packages\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.0.4.336902\analyzers\dotnet\cs\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.CodeFixes.dll" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Bugsnag" Version="2.2.0" />
+    <PackageReference Include="Bugsnag" Version="3.1.0" />
     <PackageReference Include="Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers" Version="0.4.336902" />
     <PackageReference Include="NLog" Version="4.5.6" />
   </ItemGroup>
