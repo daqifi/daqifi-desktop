@@ -169,8 +169,8 @@
     <PackageReference Include="MvvmLightLibs" Version="5.4.1" />
     <PackageReference Include="ncalc" Version="1.3.8" />
     <PackageReference Include="NLog" Version="4.5.6" />
-    <PackageReference Include="OxyPlot.Core" Version="2014.1.546" />
-    <PackageReference Include="OxyPlot.Wpf" Version="2014.1.546" />
+    <PackageReference Include="OxyPlot.Core" Version="2.1.0" />
+    <PackageReference Include="OxyPlot.Wpf" Version="2.1.0" />
     <PackageReference Include="protobuf-net" Version="2.3.17" />
     <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />

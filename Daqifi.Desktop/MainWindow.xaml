@@ -209,7 +209,7 @@
                     
                     <!-- Logged Data Plot-->
                     <Grid Grid.Row="0">
-                        <oxy:PlotView Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0" LegendFontSize="14"/>
+                        <oxy:PlotView Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
                         <DockPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top">
                             <Button Command="{Binding DbLogger.SaveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
                                 <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
