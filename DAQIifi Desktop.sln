@@ -1,27 +1,27 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27130.2027
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32630.192
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop", "Daqifi.Desktop\Daqifi.Desktop.csproj", "{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop", "Daqifi.Desktop\Daqifi.Desktop.csproj", "{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.Bootloader", "Daqifi.Desktop.Bootloader\Daqifi.Desktop.Bootloader.csproj", "{E1B7FA13-2AD8-4B9F-983E-0EA88C3A1062}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.Bootloader", "Daqifi.Desktop.Bootloader\Daqifi.Desktop.Bootloader.csproj", "{E1B7FA13-2AD8-4B9F-983E-0EA88C3A1062}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.Bootloader.Test", "Daqifi.Desktop.Bootloader.Test\Daqifi.Desktop.Bootloader.Test.csproj", "{7FA43845-475E-4006-BBB5-DB0BBC28A54F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.Bootloader.Test", "Daqifi.Desktop.Bootloader.Test\Daqifi.Desktop.Bootloader.Test.csproj", "{7FA43845-475E-4006-BBB5-DB0BBC28A54F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.DataModel", "Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj", "{8E553D17-C0B1-447F-B4A2-0F11903CAA49}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.DataModel", "Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj", "{8E553D17-C0B1-447F-B4A2-0F11903CAA49}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.Test", "Daqifi.Desktop.Test\Daqifi.Desktop.Test.csproj", "{4FB2B70A-A69A-465E-ADB5-5369E5E2C015}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.Test", "Daqifi.Desktop.Test\Daqifi.Desktop.Test.csproj", "{4FB2B70A-A69A-465E-ADB5-5369E5E2C015}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.IO", "Daqifi.Desktop.IO\Daqifi.Desktop.IO.csproj", "{EC3CD2DE-4816-4568-98B8-9CC258DF7CA1}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.IO", "Daqifi.Desktop.IO\Daqifi.Desktop.IO.csproj", "{EC3CD2DE-4816-4568-98B8-9CC258DF7CA1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.Common", "Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj", "{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.Common", "Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj", "{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.Common.Test", "Daqifi.Desktop.Common.Test\Daqifi.Desktop.Common.Test.csproj", "{DF1457A3-FE50-4260-8F0D-A30099514470}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.Common.Test", "Daqifi.Desktop.Common.Test\Daqifi.Desktop.Common.Test.csproj", "{DF1457A3-FE50-4260-8F0D-A30099514470}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.DataModel.Test", "Daqifi.Desktop.DataModel.Test\Daqifi.Desktop.DataModel.Test.csproj", "{51BC8A31-1E5D-4C31-9E5B-8D956FCA41C7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.DataModel.Test", "Daqifi.Desktop.DataModel.Test\Daqifi.Desktop.DataModel.Test.csproj", "{51BC8A31-1E5D-4C31-9E5B-8D956FCA41C7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Daqifi.Desktop.IO.Test", "Daqifi.Desktop.IO.Test\Daqifi.Desktop.IO.Test.csproj", "{25E8B88D-35BB-4A3D-8F32-B913D7887B0C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.IO.Test", "Daqifi.Desktop.IO.Test\Daqifi.Desktop.IO.Test.csproj", "{25E8B88D-35BB-4A3D-8F32-B913D7887B0C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

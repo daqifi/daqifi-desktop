@@ -150,11 +150,11 @@
     <PackageReference Include="Baseclass.Contrib.Nuget.Output" Version="2.4.1" />
     <PackageReference Include="Bugsnag" Version="2.2.0" />
     <PackageReference Include="CommonServiceLocator" Version="2.0.3" />
-    <PackageReference Include="EntityFramework" Version="6.2.0" />
+    <PackageReference Include="EntityFramework" Version="6.4.4" />
     <PackageReference Include="EntityFramework.BulkInsert-ef6" Version="6.0.2.8" />
     <PackageReference Include="EntityFramework.BulkInsert.SqlServerCe" Version="6.0.2" />
     <PackageReference Include="EntityFramework.MappingAPI" Version="6.1.0.9" />
-    <PackageReference Include="EntityFramework.SqlServerCompact" Version="6.2.0" />
+    <PackageReference Include="EntityFramework.SqlServerCompact" Version="6.4.4" />
     <PackageReference Include="EntityFramework.SqlServerCompact.PrivateDeployment" Version="6.2.0.1" />
     <PackageReference Include="Google.ProtocolBuffers" Version="2.4.1.555" />
     <PackageReference Include="hidlibrary" Version="3.2.46.0" />
