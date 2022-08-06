@@ -150,7 +150,6 @@
     <Analyzer Include="..\packages\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.Analyzers.0.4.336902\analyzers\dotnet\cs\Microsoft.DotNet.UpgradeAssistant.Extensions.Default.CodeFixes.dll" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Baseclass.Contrib.Nuget.Output" Version="2.4.1" />
     <PackageReference Include="Bugsnag" Version="3.1.0" />
     <PackageReference Include="EntityFramework" Version="6.4.4" />
     <PackageReference Include="EntityFramework.BulkInsert-ef6" Version="6.0.2.8" />
@@ -173,7 +172,7 @@
     <PackageReference Include="NLog" Version="5.0.1" />
     <PackageReference Include="OxyPlot.Core" Version="2.1.0" />
     <PackageReference Include="OxyPlot.Wpf" Version="2.1.0" />
-    <PackageReference Include="protobuf-net" Version="2.3.17" />
+    <PackageReference Include="protobuf-net" Version="2.4.7" />
     <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
     <PackageReference Include="System.Management" Version="6.0.0" />
