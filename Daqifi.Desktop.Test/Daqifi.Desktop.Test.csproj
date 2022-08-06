@@ -4,10 +4,6 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System.Configuration" />
-    <Reference Include="System.ServiceModel" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj" />
     <ProjectReference Include="..\Daqifi.Desktop.IO\Daqifi.Desktop.IO.csproj" />
     <ProjectReference Include="..\Daqifi.Desktop\Daqifi.Desktop.csproj" />
@@ -27,5 +23,9 @@
     <PackageReference Include="protobuf-net" Version="2.4.7" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
     <PackageReference Include="System.ValueTuple" Version="4.5.0" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="5.0.0" />
+    <PackageReference Include="System.ServiceModel.Duplex" Version="4.8.1" />
+    <PackageReference Include="System.ServiceModel.NetTcp" Version="4.8.1" />
+    <PackageReference Include="System.ServiceModel.Federation" Version="4.8.1" />
   </ItemGroup>
 </Project>
