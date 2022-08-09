@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net461</TargetFramework>
+    <TargetFramework>net48</TargetFramework>
     <OutputType>WinExe</OutputType>
     <AssemblyName>DAQifi Desktop</AssemblyName>
     <PublishUrl>publish\</PublishUrl>
@@ -149,6 +149,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Bugsnag" Version="3.1.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.0.0" />
     <PackageReference Include="EntityFramework" Version="6.4.4" />
     <PackageReference Include="EntityFramework.BulkInsert-ef6" Version="6.0.2.8" />
     <PackageReference Include="EntityFramework.BulkInsert.SqlServerCe" Version="6.0.2" />
