@@ -1,0 +1,130 @@
+﻿<Controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.SummaryFlyout"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="600"
+             Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsLogSummaryOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right"
+             Header="Log Summary">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0">
+            <GroupBox Header="Settings">
+                <Grid Margin="15">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="75"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid.RowDefinitions>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                    </Grid.RowDefinitions>
+                    
+                    <Label Grid.Row="0" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Log Session" />
+                    <Label Grid.Row="0" Grid.Column="1"
+                             Content="{Binding SelectedLoggingSession.Name}" FontSize="16" HorizontalContentAlignment="Center"/>
+
+                    <Label Grid.Row="1" Grid.Column="0"
+                           Content="Sample Size" FontSize="16" FontWeight="Bold" Margin="5"/>
+                    <Controls:NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding SummaryLogger.SampleSize}" Minimum="1" Interval="1" Width="150" HorizontalAlignment="Left" ></Controls:NumericUpDown>
+
+                    <Label Grid.Row="2" Grid.Column="0"
+                           Content="Status" FontSize="16" FontWeight="Bold" Margin="5"/>
+                    <Controls:ToggleSwitch Grid.Row="2" Grid.Column="1"
+                                           Command="{Binding SummaryLogger.ToggleEnabledCommand}"
+                                           IsOn="{Binding SummaryLogger.Enabled, Mode=OneWay}" OffContent="Stopped" OnContent="Running" HorizontalAlignment="Left"/>
+                    <Button Grid.Row="2" Grid.Column="2" Content="Reset"  Command="{Binding SummaryLogger.ResetCommand}"/>
+                </Grid>
+            </GroupBox>
+            <GroupBox MaxHeight="300" Header="Results" VerticalAlignment="Stretch" VerticalContentAlignment="Stretch">
+                <ScrollViewer VerticalAlignment="Stretch" VerticalContentAlignment="Stretch" VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="75"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Grid.RowDefinitions>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                            <RowDefinition/>
+                        </Grid.RowDefinitions>
+
+                        <Label Grid.Row="0" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Updated" />
+                        <Label Grid.Row="0" Grid.Column="1"
+                               FontSize="16"
+                           Content="{Binding SummaryLogger.LastUpdate}" HorizontalContentAlignment="Right"/>
+
+                        <Label Grid.Row="1" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Devices" />
+                        <Label Grid.Row="1" Grid.Column="1"
+                               FontSize="16"
+                           Content="{Binding SummaryLogger.Devices}" HorizontalContentAlignment="Right"/>
+
+                        <Label Grid.Row="2" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Channels" />
+                        <Label Grid.Row="2" Grid.Column="1"
+                               FontSize="16"
+                           Content="{Binding SummaryLogger.Channels}" HorizontalContentAlignment="Right"/>
+
+                        <Label Grid.Row="3" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Sample Rate" />
+                        <Label Grid.Row="3" Grid.Column="1"
+                           FontSize="16"
+                           Content="{Binding SummaryLogger.SampleRate}" HorizontalContentAlignment="Right"/>
+                        <Label Grid.Row="3" Grid.Column="2"
+                           FontSize="16" FontWeight="Bold" Content="Hz" />
+
+                        <Label Grid.Row="4" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Min Delta" />
+                        <Label Grid.Row="4" Grid.Column="1"
+                               FontSize="16"
+                               Content="{Binding SummaryLogger.MinDelta}" HorizontalContentAlignment="Right"/>
+
+                        <Label Grid.Row="5" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Max Delta" />
+                        <Label Grid.Row="5" Grid.Column="1"
+                               FontSize="16"
+                               Content="{Binding SummaryLogger.MaxDelta}" HorizontalContentAlignment="Right"/>
+
+                        <Label Grid.Row="6" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Avg Value" />
+                        <Label Grid.Row="6" Grid.Column="1"
+                               FontSize="16"
+                               Content="{Binding SummaryLogger.AverageValue}" HorizontalContentAlignment="Right"/>
+
+                        <Label Grid.Row="7" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Min Value" />
+                        <Label Grid.Row="7" Grid.Column="1"
+                               FontSize="16"
+                               Content="{Binding SummaryLogger.MinValue}" HorizontalContentAlignment="Right"/>
+
+                        <Label Grid.Row="8" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Max Value" />
+                        <Label Grid.Row="8" Grid.Column="1"
+                               FontSize="16"
+                               Content="{Binding SummaryLogger.MaxValue}" HorizontalContentAlignment="Right"/>
+                    </Grid>
+                </ScrollViewer>
+            </GroupBox>
+        </StackPanel>
+    </Grid>
+</Controls:Flyout>

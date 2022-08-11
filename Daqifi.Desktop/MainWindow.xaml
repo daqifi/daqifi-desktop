@@ -8,6 +8,7 @@
         xmlns:Service="clr-namespace:Daqifi.Desktop.DialogService"
         xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
         Service:DialogService.IsRegisteredView="True"
         Title="DAQifi v1.0.9" Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
     <Window.DataContext>
@@ -82,7 +83,10 @@
 
             <!-- Logging Session Settings Flyout-->
             <flyouts:LoggedSessionFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
-            
+
+            <!-- Logging Session Settings Flyout-->
+            <flyouts:SummaryFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+
         </Controls:FlyoutsControl>
     </Controls:MetroWindow.Flyouts>
     
@@ -131,6 +135,12 @@
 
                     <DockPanel Grid.Column="0" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom">
 
+                        <Button Margin="0,0,25,0" Command="{Binding OpenLogSummaryCommand}" ToolTip="Debug"  Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
+                            <Button.Content>
+                                <iconPacks:PackIconMaterial Kind="BugOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                            </Button.Content>
+                        </Button>
+                        
                         <Button Command="{Binding Plotter.ZoomOutXCommand}" ToolTip="Zoom Out (Time)"  Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
                             <Button.Content>
                                 <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>

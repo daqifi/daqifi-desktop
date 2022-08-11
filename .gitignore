@@ -21,3 +21,4 @@ obj
 AnalysisReport.sarif
 debug.log
 upgrade-assistant.clef
+.vs/
