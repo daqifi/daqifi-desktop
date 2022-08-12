@@ -100,8 +100,6 @@ namespace Daqifi.Desktop.Logger
             }
         }
 
-        private int _loggingSession;
-
         private int _sampleSize;
 
         private bool _enabled;
@@ -123,15 +121,6 @@ namespace Daqifi.Desktop.Logger
         #endregion
 
         #region "Properties"
-        /// <summary>
-        /// The log session to track
-        /// </summary>
-        public int LoggingSession
-        {
-            get => _loggingSession;
-            set { _loggingSession = value; NotifyPropertyChanged("LoggingSession"); }
-        }
-
         /// <summary>
         /// Indicates whether the logger is accepting data
         /// </summary>
@@ -300,11 +289,6 @@ namespace Daqifi.Desktop.Logger
 
             lock(_buffer)
             {
-                if (dataSample.LoggingSessionID != _loggingSession)
-                {
-                    return;
-                }
-
                 if (_buffer.SampleCount == 0)
                 {
                     _buffer.FirstSampleTicks = dataSample.TimestampTicks;
