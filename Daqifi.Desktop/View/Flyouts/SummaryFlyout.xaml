@@ -116,6 +116,12 @@
                                FontSize="16"
                                Content="{Binding SummaryLogger.MaxDelta}" HorizontalContentAlignment="Right"/>
 
+                        <Label Grid.Row="5" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Statuses" />
+                        <Label Grid.Row="5" Grid.Column="1"
+                               FontSize="16"
+                               Content="{Binding SummaryLogger.StatusList}" HorizontalContentAlignment="Right"/>
+
                         <!--
                         <Label Grid.Row="5" Grid.Column="0"
                            FontSize="16" FontWeight="Bold" Content="Latency (ms)" />

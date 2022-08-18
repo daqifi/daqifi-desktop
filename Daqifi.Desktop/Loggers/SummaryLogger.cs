@@ -217,6 +217,7 @@ namespace Daqifi.Desktop.Logger
             public SummaryBuffer()
             {
                 Channels = new Dictionary<string, ChannelBuffer>(64);
+                StatusList = new HashSet<int>();
             }
 
             /// <summary>
@@ -265,6 +266,16 @@ namespace Daqifi.Desktop.Logger
             public double AverageLatencyTicks { get; set; }
 
             /// <summary>
+            /// The statuses seen
+            /// </summary>
+            public HashSet<int> StatusList { get; set; }
+
+            /// <summary>
+            /// Indicates whether the device timestamp rolled over in this sample set
+            /// </summary>
+            public bool HasRollover { get; set; }
+
+            /// <summary>
             /// The channels seen
             /// </summary>
             public Dictionary<string, ChannelBuffer> Channels { get; set; }
@@ -280,6 +291,7 @@ namespace Daqifi.Desktop.Logger
                 MaxLatencyTicks = 0;
                 MinLatencyTicks = 0;
                 AverageLatencyTicks = 0;
+                StatusList.Clear();
                 foreach (var pair in Channels)
                 {
                     pair.Value.Reset();
@@ -445,6 +457,29 @@ namespace Daqifi.Desktop.Logger
             }
         }
 
+        public string StatusList
+        {
+            get
+            {
+                var builder = new StringBuilder();
+                foreach (var status in _current.StatusList)
+                {
+                    builder.AppendFormat("%d, ", status);
+                }
+
+                if (_current.HasRollover)
+                {
+                    builder.Append("Rollover: Y");
+                }
+                else
+                {
+                    builder.Append("Rollover: N");
+                }
+
+                return builder.ToString();
+            }
+        }
+
         #endregion
 
         #region "Command Properties"
@@ -540,6 +575,9 @@ namespace Daqifi.Desktop.Logger
 
             lock (_buffer)
             {
+                _buffer.StatusList.Add(dataSample.DeviceStatus);
+                _buffer.HasRollover = dataSample.Rollover;
+
                 var latency = dataSample.AppTicks - dataSample.TimestampTicks;
                 if (_buffer.SampleCount == 0)
                 {
@@ -608,6 +646,7 @@ namespace Daqifi.Desktop.Logger
             NotifyPropertyChanged("MaxLatency");
             NotifyPropertyChanged("MinLatency");
             NotifyPropertyChanged("AverageLatency");
+            NotifyPropertyChanged("StatusList");
             NotifyPropertyChanged("Channels");
         }
 

@@ -19,5 +19,6 @@ namespace Daqifi.Desktop.Device
         public int BatteryStatus { get; set; }
         public int TempStatus { get; set; }
         public int TargetFrequency { get; set; }
+        public bool Rollover { get; set; }
     }
 }

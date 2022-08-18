@@ -137,7 +137,8 @@ namespace Daqifi.Desktop.Device
             // Get timestamp difference (i.e. number of clock cycles between messages)
             // Check for rollover scenario
             uint numberOfClockCyclesBetweenMessages;
-            if (_previousDeviceTimestamp > message.MsgTimeStamp)
+            var rollover = _previousDeviceTimestamp > message.MsgTimeStamp;
+            if (rollover)
             {
                 var numberOfCyclesToMax = uint.MaxValue - _previousDeviceTimestamp.Value;
                 numberOfClockCyclesBetweenMessages = numberOfCyclesToMax + message.MsgTimeStamp;
@@ -234,6 +235,7 @@ namespace Daqifi.Desktop.Device
                 deviceMessage.PowerStatus = (int)message.PwrStatus;
                 deviceMessage.TempStatus = (int)message.TempStatus;
                 deviceMessage.TargetFrequency = (int)message.TimestampFreq;
+                deviceMessage.Rollover = rollover;
 
                 Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
 
