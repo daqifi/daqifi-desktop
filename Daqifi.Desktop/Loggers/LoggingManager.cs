@@ -109,9 +109,33 @@ namespace Daqifi.Desktop.Logger
         }
         #endregion
 
+        public void HandleDeviceMessage(object sender, DeviceMessage sample)
+        {
+            if (!Active)
+            {
+                return;
+            }
+
+            sample.LoggingSessionID = Session.ID;
+
+            //Log channel value to whatever loggers are being managed
+            foreach (var logger in Loggers)
+            {
+                logger.Log(sample);
+            }
+        }
+
         public void HandleChannelUpdate(object sender, DataSample sample)
         {
-            if (!Active) return;
+            if (!Active)
+            {
+                return;
+            }
+
+            if (sample == null)
+            {
+                return;
+            }
 
             sample.LoggingSessionID = Session.ID;
 

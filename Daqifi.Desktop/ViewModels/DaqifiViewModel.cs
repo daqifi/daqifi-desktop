@@ -28,6 +28,7 @@ namespace Daqifi.Desktop.ViewModels
         private bool _isBusy;
         private bool _isLoggedDataBusy;
         private bool _isDeviceSettingsOpen;
+        private bool _isLogSummaryOpen;
         private bool _isChannelSettingsOpen;
         private bool _isLoggingSessionSettingsOpen;
         private bool _isLiveGraphSettingsOpen;
@@ -137,6 +138,16 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isLoggingSessionSettingsOpen = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public bool IsLogSummaryOpen
+        {
+            get => _isLogSummaryOpen;
+            set
+            {
+                _isLogSummaryOpen = value;
                 RaisePropertyChanged();
             }
         }
@@ -297,6 +308,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public PlotLogger Plotter { get; }
         public DatabaseLogger DbLogger { get; }
+        public SummaryLogger SummaryLogger { get; }
 
         public string LoggedDataBusyReason
         {
@@ -331,6 +343,11 @@ namespace Daqifi.Desktop.ViewModels
                 // Database logging
                 DbLogger = new DatabaseLogger();
                 LoggingManager.Instance.AddLogger(DbLogger);
+
+                // Summary Logger
+                SummaryLogger = new SummaryLogger();
+                LoggingManager.Instance.AddLogger(SummaryLogger);
+
                 using (var context = new LoggingContext())
                 {
                     var savedLoggingSessions = new List<LoggingSession>();
@@ -363,6 +380,7 @@ namespace Daqifi.Desktop.ViewModels
             OpenLiveGraphSettingsCommand = new DelegateCommand(OpenLiveGraphSettings, CanOpenLiveGraphSettings);
             OpenDeviceSettingsCommand = new DelegateCommand(OpenDeviceSettings, CanOpenDeviceSettings);
             OpenChannelSettingsCommand = new DelegateCommand(OpenChannelSettings, CanOpenChannelSettings);
+            OpenLogSummaryCommand = new DelegateCommand(OpenLogSummary, CanOpenLogSummary);
             OpenLoggingSessionSettingsCommand = new DelegateCommand(OpenLoggingSessionSettings, CanOpenLoggingSessionSettings);
             ShowDAQifiSettingsDialogCommand = new DelegateCommand(ShowDAQifiSettingsDialog, CanShowDAQifiSettingsDialog);
             DisconnectDeviceCommand = new DelegateCommand(DisconnectDevice, CanDisconnectDevice);
@@ -457,6 +475,12 @@ namespace Daqifi.Desktop.ViewModels
 
         public ICommand OpenChannelSettingsCommand { get; private set; }
         private bool CanOpenChannelSettings(object o)
+        {
+            return true;
+        }
+
+        public ICommand OpenLogSummaryCommand { get; private set; }
+        private bool CanOpenLogSummary(object o)
         {
             return true;
         }
@@ -652,6 +676,12 @@ namespace Daqifi.Desktop.ViewModels
             CloseFlyouts();
             SelectedChannel = item;
             IsChannelSettingsOpen = true;
+        }
+
+        private void OpenLogSummary(object o)
+        {
+            CloseFlyouts();
+            IsLogSummaryOpen = true;
         }
 
         private void OpenLoggingSessionSettings(object o)
@@ -876,6 +906,7 @@ namespace Daqifi.Desktop.ViewModels
             IsChannelSettingsOpen = false;
             IsLoggingSessionSettingsOpen = false;
             IsLiveGraphSettingsOpen = false;
+            IsLogSummaryOpen = false;
         }
     }
 }

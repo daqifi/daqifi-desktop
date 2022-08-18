@@ -2,6 +2,7 @@
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DataModel.Channel;
+using Daqifi.Desktop.Device;
 using EntityFramework.BulkInsert;
 using EntityFramework.BulkInsert.Extensions;
 using OxyPlot;
@@ -165,6 +166,15 @@ namespace Daqifi.Desktop.Logger
         public void Log(DataSample dataSample)
         {
             _buffer.Add(dataSample);
+        }
+
+        /// <summary>
+        /// Consumes a device message
+        /// </summary>
+        /// <param name="dataSample"></param>
+        public void Log(DeviceMessage dataSample)
+        {
+            // No-op
         }
 
         #region Private Data

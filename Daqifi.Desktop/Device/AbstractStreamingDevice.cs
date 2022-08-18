@@ -9,6 +9,7 @@ using Daqifi.Desktop.IO.Messages.Producers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Extensions.ObjectPool;
 
 namespace Daqifi.Desktop.Device
 {
@@ -23,6 +24,10 @@ namespace Daqifi.Desktop.Device
         private int _streamingFrequency = 1;
         private uint _timestampFrequency;
         private uint? _previousDeviceTimestamp;
+
+        private ObjectPool<DataSample> _samplePool;
+        private ObjectPool<DeviceMessage> _deviceMessagePool;
+
         #endregion
 
         #region Properties
@@ -164,9 +169,21 @@ namespace Daqifi.Desktop.Device
                 digitalData1 = message.DigitalData.ElementAt(0);
                 digitalData2 = message.DigitalData.ElementAt(1);
             }
+
             foreach (var channel in DataChannels)
             {
-                if (channel.Direction != ChannelDirection.Input) continue;
+                if (channel.Direction != ChannelDirection.Input)
+                {
+                    continue;
+                }
+
+                var sample =_samplePool.Get();
+
+                sample.DeviceName = Name;
+                sample.ChannelName = channel.Name;
+                sample.Type = channel.Type;
+                sample.Color = channel.ChannelColorBrush.ToString();
+                sample.TimestampTicks = messageTimestamp.Ticks;
 
                 if (channel.Type == ChannelType.Digital && hasDigitalData)
                 {
@@ -181,7 +198,8 @@ namespace Daqifi.Desktop.Device
                         {
                             bit = (digitalData2 & (1 << digitalCount % 8)) != 0;
                         }
-                        channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
+
+                        sample.Value = Convert.ToInt32(bit);
                     }
                     digitalCount++;
                 }
@@ -193,10 +211,35 @@ namespace Daqifi.Desktop.Device
                         break;
                     }
 
-                    channel.ActiveSample = new DataSample(this, channel, messageTimestamp, ScaleAnalogSample(channel as AnalogChannel, message.AnalogInDataList.ElementAt(analogCount)));
+                    sample.Value = ScaleAnalogSample(channel as AnalogChannel, message.AnalogInDataList.ElementAt(analogCount));
                     analogCount++;
                 }
+
+                if (channel.ActiveSample != null)
+                {
+                    _samplePool.Return(channel.ActiveSample);
+                }
+                channel.ActiveSample = sample;
             }
+
+            {
+                var deviceMessage = _deviceMessagePool.Get();
+                deviceMessage.DeviceName = Name;
+                deviceMessage.AnalogChannelCount = analogCount;
+                deviceMessage.DigitalChannelCount = digitalCount;
+                deviceMessage.TimestampTicks = messageTimestamp.Ticks;
+                deviceMessage.AppTicks = DateTime.Now.Ticks;
+                deviceMessage.DeviceStatus = (int)message.DeviceStatus;
+                deviceMessage.BatteryStatus = (int)message.BattStatus;
+                deviceMessage.PowerStatus = (int)message.PwrStatus;
+                deviceMessage.TempStatus = (int)message.TempStatus;
+                deviceMessage.TargetFrequency = (int)message.TimestampFreq;
+
+                Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
+
+                _deviceMessagePool.Return(deviceMessage);
+            }
+            
 
             // Updates the previous timestamps
             _previousDeviceTimestamp = message.MsgTimeStamp;
@@ -209,6 +252,8 @@ namespace Daqifi.Desktop.Device
         {
             MessageProducer.Send(ScpiMessagePoducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
+            _samplePool = ObjectPool.Create<DataSample>();
+            _deviceMessagePool = ObjectPool.Create<DeviceMessage>();
         }
 
         public void StopStreaming()
@@ -216,6 +261,15 @@ namespace Daqifi.Desktop.Device
             IsStreaming = false;
             MessageProducer.Send(ScpiMessagePoducer.StopStreaming);
             _previousTimestamp = null;
+
+            foreach (var channel in DataChannels)
+            {
+                if (channel.ActiveSample != null)
+                {
+                    _samplePool.Return(channel.ActiveSample);
+                    channel.ActiveSample = null;
+                }
+            }
         }
 
         protected void TurnOffEcho()

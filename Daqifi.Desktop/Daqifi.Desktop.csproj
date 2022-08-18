@@ -110,6 +110,9 @@
     <Reference Include="MahApps.Metro, Version=1.6.5.1, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\MahApps.Metro.1.6.5\lib\net46\MahApps.Metro.dll</HintPath>
     </Reference>
+    <Reference Include="Microsoft.Extensions.ObjectPool, Version=6.0.8.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Extensions.ObjectPool.6.0.8\lib\net461\Microsoft.Extensions.ObjectPool.dll</HintPath>
+    </Reference>
     <Reference Include="MoreLinq, Version=2.8.21218.0, Culture=neutral, PublicKeyToken=384d532d7e88985d, processorArchitecture=MSIL">
       <HintPath>..\packages\morelinq.2.8.0\lib\net40\MoreLinq.dll</HintPath>
     </Reference>
@@ -184,6 +187,7 @@
     <Compile Include="Configuration\IColorable.cs" />
     <Compile Include="Database\SqlCeBulkInsertProvider.cs" />
     <Compile Include="Device\AbstractStreamingDevice.cs" />
+    <Compile Include="Device\DeviceMessage.cs" />
     <Compile Include="Device\IDeviceFinder.cs" />
     <Compile Include="Commands\HostCommands.cs" />
     <Compile Include="Commands\IActiveAware.cs" />
@@ -217,6 +221,7 @@
     <Compile Include="DialogService\ServiceLocator.cs" />
     <Compile Include="Channel\IChannel.cs" />
     <Compile Include="Device\IDevice.cs" />
+    <Compile Include="Loggers\SummaryLogger.cs" />
     <Compile Include="Migrations\201712291614345_InitialMigration.cs" />
     <Compile Include="Migrations\201712291614345_InitialMigration.Designer.cs">
       <DependentUpon>201712291614345_InitialMigration.cs</DependentUpon>
@@ -259,6 +264,9 @@
     </Compile>
     <Compile Include="View\Flyouts\LoggedSessionFlyout.xaml.cs">
       <DependentUpon>LoggedSessionFlyout.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="View\Flyouts\SummaryFlyout.xaml.cs">
+      <DependentUpon>SummaryFlyout.xaml</DependentUpon>
     </Compile>
     <Compile Include="View\SelectColorDialog.xaml.cs">
       <DependentUpon>SelectColorDialog.xaml</DependentUpon>
@@ -324,6 +332,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="View\Flyouts\LoggedSessionFlyout.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="View\Flyouts\SummaryFlyout.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
