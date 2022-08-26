@@ -71,7 +71,8 @@ namespace Daqifi.Desktop.Logger
             {
                 get
                 {
-                    return _current.AverageDeltaTicks > 0 ? 1.0 / TimeSpan.FromTicks((long)_current.AverageDeltaTicks).TotalSeconds : 0.0;
+                    var delta = new TimeSpan(_current.FirstSampleTicks - _current.LastSampleTicks);
+                    return delta.Ticks > 0 ? _current.SampleCount / delta.TotalSeconds : 0.0;
                 }
             }
 
@@ -82,7 +83,7 @@ namespace Daqifi.Desktop.Logger
             {
                 get
                 {
-                    return new TimeSpan(_current.MaxDeltaTicks).TotalMilliseconds;
+                    return _current.MaxDeltaTicks;
                 }
             }
 
@@ -93,7 +94,7 @@ namespace Daqifi.Desktop.Logger
             {
                 get
                 {
-                    return new TimeSpan((long)_current.AverageDeltaTicks).TotalMilliseconds;
+                    return _current.AverageDeltaTicks;
                 }
             }
 
@@ -104,7 +105,7 @@ namespace Daqifi.Desktop.Logger
             {
                 get
                 {
-                    return new TimeSpan(_current.MinDeltaTicks).TotalMilliseconds;
+                    return _current.MinDeltaTicks;
                 }
             }
 
@@ -367,7 +368,8 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return Math.Abs(_current.AverageDeltaTicks) > 1E-8 ? 1.0 / TimeSpan.FromTicks((long)_current.AverageDeltaTicks).TotalSeconds : 0.0;
+                var delta = new TimeSpan(_current.FirstSampleTicks - _current.LastSampleTicks);
+                return delta.Ticks > 0 ? _current.SampleCount / delta.TotalSeconds : 0.0;
             }
         }
 
@@ -378,7 +380,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan(_current.MaxDeltaTicks).TotalMilliseconds;
+                return _current.MaxDeltaTicks;
             }
         }
 
@@ -389,7 +391,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan(_current.MinDeltaTicks).TotalMilliseconds;
+                return _current.MinDeltaTicks;
             }
         }
 
@@ -400,7 +402,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan((long)_current.AverageDeltaTicks).TotalMilliseconds;
+                return _current.AverageDeltaTicks;
             }
         }
 
@@ -411,7 +413,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan(_current.MaxLatencyTicks).TotalMilliseconds;
+                return _current.MaxLatencyTicks;
             }
         }
 
@@ -422,7 +424,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan(_current.MinLatencyTicks).TotalMilliseconds;
+                return _current.MinLatencyTicks;
             }
         }
 
@@ -433,7 +435,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan((long)_current.AverageLatencyTicks).TotalMilliseconds;
+                return _current.AverageLatencyTicks;
             }
         }
 

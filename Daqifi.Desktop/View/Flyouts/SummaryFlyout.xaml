@@ -92,7 +92,7 @@
                             HorizontalContentAlignment="Right"/>
 
                         <Label Grid.Row="2" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Time (ms)" />
+                           FontSize="16" FontWeight="Bold" Content="Time" />
                         <Label Grid.Row="2" Grid.Column="2"
                            FontSize="16"
                            Content="{Binding SummaryLogger.ElapsedTime}"
@@ -105,7 +105,7 @@
                            Content="{Binding SummaryLogger.SampleRate}" HorizontalContentAlignment="Right"/>
 
                         <Label Grid.Row="4" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Delta (ms)" />
+                           FontSize="16" FontWeight="Bold" Content="Delta" />
                         <Label Grid.Row="4" Grid.Column="1"
                                FontSize="16"
                                Content="{Binding SummaryLogger.MinDelta}" HorizontalContentAlignment="Right"/>
@@ -124,7 +124,7 @@
 
                         <!--
                         <Label Grid.Row="5" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Latency (ms)" />
+                           FontSize="16" FontWeight="Bold" Content="Latency" />
                         <Label Grid.Row="5" Grid.Column="1"
                                FontSize="16"
                                Content="{Binding SummaryLogger.MinLatency}" HorizontalContentAlignment="Right"/>
@@ -170,7 +170,7 @@
                                        Content="{Binding SampleCount}" HorizontalContentAlignment="Right" />
 
                                     <Label Grid.Row="1" Grid.Column="0"
-                                        FontSize="16" FontWeight="Bold" Content="Delta (ms)" />
+                                        FontSize="16" FontWeight="Bold" Content="Delta" />
                                     <Label Grid.Row="1" Grid.Column="1"
                                        FontSize="16"
                                        Content="{Binding MinDelta}" HorizontalContentAlignment="Right" />
