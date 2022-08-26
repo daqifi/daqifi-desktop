@@ -134,12 +134,10 @@
 
                     <DockPanel Grid.Column="0" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom">
 
-                        <Button Margin="0,0,25,0" Command="{Binding OpenLogSummaryCommand}" ToolTip="Debug"  Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
-                            <Rectangle Width="15" Height="15">
-                                <Rectangle.Fill>
-                                    <VisualBrush Visual="{StaticResource appbar_bug}" Stretch="Fill"/>
-                                </Rectangle.Fill>
-                            </Rectangle>
+                        <Button Command="{Binding OpenLogSummaryCommand}" ToolTip="Debug"  Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
+                            <Button.Content>
+                                <iconPacks:PackIconMaterial Kind="Bug" HorizontalAlignment="Center" Height="15" Width="15"/>
+                            </Button.Content>
                         </Button>
 
                         <Button Command="{Binding Plotter.ZoomOutXCommand}" ToolTip="Zoom Out (Time)"  Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
