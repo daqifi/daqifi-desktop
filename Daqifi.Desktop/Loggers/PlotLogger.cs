@@ -1,6 +1,7 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.DataModel.Channel;
+using Daqifi.Desktop.Device;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
@@ -253,6 +254,15 @@ namespace Daqifi.Desktop.Logger
             }
 
             NotifyPropertyChanged("LoggedPoints");
+        }
+
+        /// <summary>
+        /// Consumes a device message
+        /// </summary>
+        /// <param name="dataSample"></param>
+        public void Log(DeviceMessage dataSample)
+        {
+            // No-op
         }
 
         private void AddChannelSeries(string channelName, ChannelType channelType, string newColor)

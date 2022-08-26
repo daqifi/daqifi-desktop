@@ -82,7 +82,10 @@
 
             <!-- Logging Session Settings Flyout-->
             <flyouts:LoggedSessionFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
-            
+
+            <!-- Summary Logger Flyout-->
+            <flyouts:SummaryFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+
         </Controls:FlyoutsControl>
     </Controls:MetroWindow.Flyouts>
     
@@ -130,6 +133,14 @@
                     </DockPanel>
 
                     <DockPanel Grid.Column="0" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+
+                        <Button Margin="0,0,25,0" Command="{Binding OpenLogSummaryCommand}" ToolTip="Debug"  Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
+                            <Rectangle Width="15" Height="15">
+                                <Rectangle.Fill>
+                                    <VisualBrush Visual="{StaticResource appbar_bug}" Stretch="Fill"/>
+                                </Rectangle.Fill>
+                            </Rectangle>
+                        </Button>
 
                         <Button Command="{Binding Plotter.ZoomOutXCommand}" ToolTip="Zoom Out (Time)"  Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
                             <Button.Content>
