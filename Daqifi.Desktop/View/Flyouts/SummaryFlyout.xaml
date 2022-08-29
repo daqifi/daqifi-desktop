@@ -153,6 +153,7 @@
                                         <RowDefinition />
                                         <RowDefinition />
                                         <RowDefinition />
+                                        <RowDefinition />
                                     </Grid.RowDefinitions>
 
                                     <Label Grid.Row="0" Grid.Column="0"
@@ -192,6 +193,12 @@
                                     <Label Grid.Row="2" Grid.Column="3"
                                        FontSize="16"
                                        Content="{Binding MaxValue}" HorizontalContentAlignment="Right" />
+
+                                    <Label Grid.Row="3" Grid.Column="0"
+                                       FontSize="16" FontWeight="Bold" Content="Sample Rate (hz)" />
+                                    <Label Grid.Row="3" Grid.Column="2"
+                                       FontSize="16"
+                                       Content="{Binding SampleRate}" HorizontalContentAlignment="Right"/>
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>

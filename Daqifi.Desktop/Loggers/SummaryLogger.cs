@@ -71,7 +71,7 @@ namespace Daqifi.Desktop.Logger
             {
                 get
                 {
-                    var delta = new TimeSpan(_current.FirstSampleTicks - _current.LastSampleTicks);
+                    var delta = new TimeSpan(_current.LastSampleTicks - _current.FirstSampleTicks);
                     return delta.Ticks > 0 ? _current.SampleCount / delta.TotalSeconds : 0.0;
                 }
             }
@@ -368,7 +368,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                var delta = new TimeSpan(_current.FirstSampleTicks - _current.LastSampleTicks);
+                var delta = new TimeSpan(_current.LastSampleTicks - _current.FirstSampleTicks);
                 return delta.Ticks > 0 ? _current.SampleCount / delta.TotalSeconds : 0.0;
             }
         }
