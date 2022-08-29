@@ -18,4 +18,7 @@
 /DAQIifi Desktop.sln.DotSettings.user
 bin
 obj
+AnalysisReport.sarif
+debug.log
+upgrade-assistant.clef
 .vs/

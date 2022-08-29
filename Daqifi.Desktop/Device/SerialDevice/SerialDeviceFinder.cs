@@ -26,7 +26,10 @@ namespace Daqifi.Desktop.Device.SerialDevice
         {
             try
             {
+                // EventType 2 is Device Arrival
                 var deviceAddedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 2");
+
+                // EventType 3 is Device Removal
                 var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
 
                 _deviceAddedWatcher = new ManagementEventWatcher(deviceAddedQuery);

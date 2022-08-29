@@ -7,7 +7,6 @@ using GalaSoft.MvvmLight;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Threading;
 using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels

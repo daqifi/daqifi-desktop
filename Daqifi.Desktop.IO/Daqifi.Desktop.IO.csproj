@@ -1,79 +1,19 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{EC3CD2DE-4816-4568-98B8-9CC258DF7CA1}</ProjectGuid>
+    <TargetFramework>net48</TargetFramework>
     <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Daqifi.Desktop.IO</RootNamespace>
-    <AssemblyName>Daqifi.Desktop.IO</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <AutoGenerateBindingRedirects>True</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Google.ProtocolBuffers, Version=2.4.1.555, Culture=neutral, PublicKeyToken=55f7125234beb589, processorArchitecture=MSIL">
-      <HintPath>..\packages\Google.ProtocolBuffers.2.4.1.555\lib\net40\Google.ProtocolBuffers.dll</HintPath>
-    </Reference>
-    <Reference Include="Google.ProtocolBuffers.Serialization, Version=2.4.1.555, Culture=neutral, PublicKeyToken=55f7125234beb589, processorArchitecture=MSIL">
-      <HintPath>..\packages\Google.ProtocolBuffers.2.4.1.555\lib\net40\Google.ProtocolBuffers.Serialization.dll</HintPath>
-    </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Xml" />
+    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Messages\Consumers\AbstractMessageConsumer.cs" />
-    <Compile Include="Messages\Consumers\IMessageConsumer.cs" />
-    <Compile Include="Messages\Consumers\MessageConsumer.cs" />
-    <Compile Include="Messages\MessageEventArgs.cs" />
-    <Compile Include="Messages\MessageTypes\DaqifiOutMessage.cs" />
-    <Compile Include="Messages\MessageTypes\IDaqifiOutMessage.cs" />
-    <Compile Include="Messages\MessageTypes\IMessage.cs" />
-    <Compile Include="Messages\Decoders\ProtobufDecoder.cs" />
-    <Compile Include="Messages\MessageTypes\ProtobufMessage.cs" />
-    <Compile Include="Messages\MessageTypes\RawMessage.cs" />
-    <Compile Include="Messages\MessageTypes\ScpiMessage.cs" />
-    <Compile Include="Messages\Producers\IMessageProducer.cs" />
-    <Compile Include="Messages\Producers\MessageProducer.cs" />
-    <Compile Include="Messages\Producers\ScpiMessagePoducer.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
+    <ProjectReference Include="..\Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj" />
+    <ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
+    <PackageReference Include="Google.ProtocolBuffers" Version="2.4.1.555" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj">
-      <Project>{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}</Project>
-      <Name>Daqifi.Desktop.Common</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj">
-      <Project>{8E553D17-C0B1-447F-B4A2-0F11903CAA49}</Project>
-      <Name>Daqifi.Desktop.DataModel</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

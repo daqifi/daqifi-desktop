@@ -8,7 +8,7 @@
         <Border>
             <DockPanel Name="AddChannelUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
                 <!-- Add Channel Button -->
-                <Button Name="btnAdd" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=ChannelList, Path=SelectedItems}" Command="{Binding AddChannelCommand}" Click="btnAdd_Click" Content="Add" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+                <Button Name="btnAdd" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=ChannelList, Path=SelectedItems}" Command="{Binding AddChannelCommand}" Click="btnAdd_Click" Content="Add" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                 <!-- Device Selector -->
                 <DockPanel DockPanel.Dock="Top" LastChildFill="True">
