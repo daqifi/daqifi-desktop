@@ -146,13 +146,17 @@ namespace Daqifi.Desktop.Logger
                 Title = "Time (ms)"
             };
 
+            OxyPlot.Legends.Legend legend = new OxyPlot.Legends.Legend
+            {
+                LegendOrientation = OxyPlot.Legends.LegendOrientation.Vertical,
+                LegendPlacement = OxyPlot.Legends.LegendPlacement.Outside
+            };
+
             PlotModel.Axes.Add(analogAxis);
             PlotModel.Axes.Add(digitalAxis);
             PlotModel.Axes.Add(timeAxis);
-
             PlotModel.IsLegendVisible = true;
-            PlotModel.LegendOrientation = LegendOrientation.Vertical;
-            PlotModel.LegendPlacement = LegendPlacement.Outside;
+            PlotModel.Legends.Add(legend);
 
             var consumerThread = new Thread(Consumer) {IsBackground = true};
             consumerThread.Start();
@@ -339,10 +343,7 @@ namespace Daqifi.Desktop.Logger
                 if (result == false) return;
 
                 string filePath = dialog.FileName;
-                using (var stream = File.Create(filePath))
-                {
-                    OxyPlot.Wpf.PngExporter.Export(PlotModel, stream, 1920, 1080, OxyColors.White);
-                }
+                OxyPlot.Wpf.PngExporter.Export(PlotModel, filePath, 1920, 1080);
             }
             catch(Exception ex)
             {

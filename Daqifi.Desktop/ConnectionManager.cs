@@ -66,6 +66,7 @@ namespace Daqifi.Desktop
         {
             ConnectedDevices = new List<IStreamingDevice>();
 
+            // EventType 3 is Device Removal
             var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
 
             _deviceRemovedWatcher = new ManagementEventWatcher(deviceRemovedQuery);

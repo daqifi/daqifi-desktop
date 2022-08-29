@@ -8,7 +8,7 @@
         <Border>
             <DockPanel Name="AddChannelUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
                 <!-- Select Color Button -->
-                <Button Name="btnSelect" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=ColorList, Path=SelectedItems}" Command="{Binding SelectColorCommand}" Click="btnSelect_Click" Content="Select" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource AccentedSquareButtonStyle}" controls:ButtonHelper.PreserveTextCase="True"/>
+                <Button Name="btnSelect" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=ColorList, Path=SelectedItems}" Command="{Binding SelectColorCommand}" Click="btnSelect_Click" Content="Select" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                 <!-- Colors -->
                 <ListBox Name="ColorList" ItemsSource="{Binding AvailableColors}" SelectionMode="Single" Margin="5" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">

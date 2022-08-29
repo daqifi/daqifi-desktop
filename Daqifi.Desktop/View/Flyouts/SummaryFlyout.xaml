@@ -44,9 +44,8 @@
                 <Label Grid.Row="2" Grid.Column="0"
                            Content="Status" FontSize="16" FontWeight="Bold" Margin="5"/>
                 <Controls:ToggleSwitch Grid.Row="2" Grid.Column="1"
-                                           CheckedCommand="{Binding SummaryLogger.ToggleEnabledCommand}"
-                                           UnCheckedCommand="{Binding SummaryLogger.ToggleEnabledCommand}"
-                                           IsChecked="{Binding SummaryLogger.Enabled, Mode=OneWay}" OffLabel="Stopped" OnLabel="Running" HorizontalAlignment="Left"/>
+                                           Command="{Binding SummaryLogger.ToggleEnabledCommand}"
+                                           IsOn="{Binding SummaryLogger.Enabled, Mode=OneWay}" OffContent="Stopped" OnContent="Running" HorizontalAlignment="Left"/>
                 <Button Grid.Row="2" Grid.Column="2" Content="Reset"  Command="{Binding SummaryLogger.ResetCommand}"/>
             </Grid>
         </GroupBox>
