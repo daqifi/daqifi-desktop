@@ -4,19 +4,19 @@ Windows desktop application (.NET) that is used to communicate with DAQifi hardw
 
 ## Tech Stack
 
-- .NET 4.5
+- .NET 4.8
 - WPF
 
 ## Dependencies
 
-- EntityFramework (ORM)
-- Google Protocol Buffers (read incoming data from DAQifi hardware)
+- EntityFramework (ORM) for SQL Server Compact
+- Google Protocol Buffers (communication with DAQifi hardware)
 - MahApps (UI components)
 - Oxyplot (for graphing)
 
 ## CI/CD
 
-Coming soon
+Coming soon (Requires .NET6 to build with GitHub Actions)
 
 ## Documentation
 
@@ -34,3 +34,7 @@ DatabaseLogger->>DatabaseLogger:Add to Buffer
 DatabaseLogger->>DatabaseLogger:ConsumerThread
 DatabaseLogger->>Database:Bulk Insert Buffer
 ```
+
+## Installer
+
+- Uses [Wix Toolset](https://wixtoolset.org/)
