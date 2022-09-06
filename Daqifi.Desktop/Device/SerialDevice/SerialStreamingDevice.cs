@@ -42,6 +42,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
             }
             catch (Exception ex)
             {
+                AppLogger.Error(ex, "Failed to connect SerialStreamingDevice");
                 return false;
             }
         }

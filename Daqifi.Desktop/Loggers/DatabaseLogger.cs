@@ -12,7 +12,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Windows.Input;
@@ -24,6 +23,7 @@ namespace Daqifi.Desktop.Logger
         #region Private Data
         private readonly Dictionary<string, List<DataPoint>> _allSessionPoints = new Dictionary<string, List<DataPoint>>();
         private readonly BlockingCollection<DataSample> _buffer = new BlockingCollection<DataSample>();
+
         private PlotModel _plotModel;
         private DateTime? _firstTime;
         public AppLogger AppLogger = AppLogger.Instance;
@@ -198,10 +198,10 @@ namespace Daqifi.Desktop.Logger
 
                     using (var context = new LoggingContext())
                     {
-                        //Remove the samples from the collection
+                        // Remove the samples from the collection
                         for (var i = 0; i < bufferCount; i++)
                         {
-                            if (_buffer.TryTake(out DataSample sample)) samples.Add(sample);
+                            if (_buffer.TryTake(out var sample)) samples.Add(sample);
                         }
                         context.BulkInsert(samples);
                         samples.Clear();

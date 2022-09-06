@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Daqifi.Desktop.Device;
+using System;
 
 namespace Daqifi.Desktop.Logger
 {
@@ -138,8 +139,8 @@ namespace Daqifi.Desktop.Logger
             }
 
             sample.LoggingSessionID = Session.ID;
-
-            //Log channel value to whatever loggers are being managed
+            
+            // Log channel value to whatever loggers are being managed
             foreach (var logger in Loggers)
             {
                 logger.Log(sample);

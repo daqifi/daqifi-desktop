@@ -3,8 +3,10 @@ using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
 
 namespace Daqifi.Desktop.Exporter
@@ -38,7 +40,7 @@ namespace Daqifi.Desktop.Exporter
                 // For each time period
                 foreach (var timestampTicks in rows.Keys)
                 {
-                    sb.Append(new DateTime(timestampTicks)).Append(",");
+                    sb.Append(new DateTime(timestampTicks).ToString("O")).Append(",");
 
                     // Get all the channels
                     foreach (var channel in channelNames)
@@ -57,8 +59,8 @@ namespace Daqifi.Desktop.Exporter
                     }
 
                     sb.AppendLine();
-
-                    File.WriteAllText(filepath, sb.ToString());
+                    File.AppendAllText(filepath, sb.ToString());
+                    sb.Clear();
                 }
             }
             catch (Exception ex)
