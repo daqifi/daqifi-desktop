@@ -3,17 +3,15 @@ using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Runtime.Serialization;
 using System.Text;
 
 namespace Daqifi.Desktop.Exporter
 {
     public class LoggingSessionExporter
     {
-        public AppLogger AppLogger = AppLogger.Instance;
+        private AppLogger AppLogger = AppLogger.Instance;
 
         public void ExportLoggingSession(LoggingSession loggingSession, string filepath)
         {
@@ -140,7 +138,7 @@ namespace Daqifi.Desktop.Exporter
             Array.Sort(channelNames, new OrdinalStringComparer());
 
             // Populate skeleton of data structure
-            foreach (var timestamptick in timestampTicks)
+            foreach (var timestampTick in timestampTicks)
             {
                 // For each timestamp, create a placeholder for each channel
                 var channelValuesAtTimestamp = new Dictionary<string, double?>();
@@ -149,7 +147,7 @@ namespace Daqifi.Desktop.Exporter
                     channelValuesAtTimestamp.Add(channel, null);
                 }
 
-                rows.Add(timestamptick, channelValuesAtTimestamp);
+                rows.Add(timestampTick, channelValuesAtTimestamp);
             }
 
             return rows;
