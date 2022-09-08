@@ -11,7 +11,7 @@ namespace Daqifi.Desktop.Exporter
 {
     public class LoggingSessionExporter
     {
-        public AppLogger AppLogger = AppLogger.Instance;
+        private AppLogger AppLogger = AppLogger.Instance;
 
         public void ExportLoggingSession(LoggingSession loggingSession, string filepath)
         {
@@ -38,7 +38,7 @@ namespace Daqifi.Desktop.Exporter
                 // For each time period
                 foreach (var timestampTicks in rows.Keys)
                 {
-                    sb.Append(new DateTime(timestampTicks)).Append(",");
+                    sb.Append(new DateTime(timestampTicks).ToString("O")).Append(",");
 
                     // Get all the channels
                     foreach (var channel in channelNames)
@@ -57,8 +57,8 @@ namespace Daqifi.Desktop.Exporter
                     }
 
                     sb.AppendLine();
-
-                    File.WriteAllText(filepath, sb.ToString());
+                    File.AppendAllText(filepath, sb.ToString());
+                    sb.Clear();
                 }
             }
             catch (Exception ex)
@@ -138,7 +138,7 @@ namespace Daqifi.Desktop.Exporter
             Array.Sort(channelNames, new OrdinalStringComparer());
 
             // Populate skeleton of data structure
-            foreach (var timestamptick in timestampTicks)
+            foreach (var timestampTick in timestampTicks)
             {
                 // For each timestamp, create a placeholder for each channel
                 var channelValuesAtTimestamp = new Dictionary<string, double?>();
@@ -147,7 +147,7 @@ namespace Daqifi.Desktop.Exporter
                     channelValuesAtTimestamp.Add(channel, null);
                 }
 
-                rows.Add(timestamptick, channelValuesAtTimestamp);
+                rows.Add(timestampTick, channelValuesAtTimestamp);
             }
 
             return rows;

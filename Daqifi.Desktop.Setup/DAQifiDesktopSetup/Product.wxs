@@ -5,7 +5,7 @@
         Manufacturer="DAQifi"
         UpgradeCode="ACA4F4E1-6DBB-47C0-A829-84AA1536C147"
         Language="1033"
-        Version="1.0.9.0">
+        Version="1.0.10.0">
 
     <Package Id="*"
              Description="DAQifi Installer"
@@ -33,6 +33,8 @@
     <Feature Id="ProductFeature" Title="DAQifiDesktop_Setup" Level="1" Display="expand">
       <ComponentRef Id="UninstallProgramMenuItems"/>
       <ComponentGroupRef Id="ProductComponents" />
+      <ComponentGroupRef Id="X86Components" />
+      <ComponentGroupRef Id="amd64Components" />
     </Feature>
 
     <!-- GUI Parameters -->
@@ -72,7 +74,11 @@
       <!-- Install Folder -->
       <Directory Id="ProgramFilesFolder">
         <Directory Id="DAQifiFolder" Name="DAQifi">
-          <Directory Id="INSTALLFOLDER" Name="DAQifi Desktop" />
+          <Directory Id="INSTALLFOLDER" Name="DAQifi Desktop" >
+            <Directory Id="AMD64FOLDER" Name="amd64" />
+            <Directory Id="X86FOLDER" Name="x86" />
+            <Directory Id="DATABASEFOLDER" Name="Database" />
+          </Directory>
         </Directory>
       </Directory>
     </Directory>
@@ -171,6 +177,33 @@
       <Component Id="MahApps" Guid="D2955D07-F5C2-499E-A2B3-280746E1F4EF">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\MahApps.Metro.dll"/>
       </Component>
+      <Component Id="MahAppsIconPacksCore" Guid="50BA5D68-4824-493C-9C65-66DC33A2BF57">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\MahApps.Metro.IconPacks.Core.dll"/>
+      </Component>
+      <Component Id="MahAppsIconPacksMaterial" Guid="F3E73214-AB5D-40A0-9EB4-10E5A46774FE">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\MahApps.Metro.IconPacks.Material.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsObjectPool" Guid="55928926-96EA-4648-AD81-048DE42273B9">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Microsoft.Extensions.ObjectPool.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityModelLogging" Guid="51E1C8FA-6357-4892-8B69-FB415FBB41C6">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Microsoft.IdentityModel.Logging.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityModelProtocolsWsTrust" Guid="182A7037-5506-4F36-80CF-38A144D68534">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Microsoft.IdentityModel.Protocols.WsTrust.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityModelTokens" Guid="1F07722A-99DD-4AE9-BA2E-50F7D13F8BDE">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Microsoft.IdentityModel.Tokens.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityModelTokensSaml" Guid="4361D2AB-9390-4895-A8F2-3591D8EA0EEE">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Microsoft.IdentityModel.Tokens.Saml.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityModelXml" Guid="5F75FFBE-728D-4D23-94B3-6C36B999E4C5">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Microsoft.IdentityModel.Xml.dll"/>
+      </Component>
+      <Component Id="MicrosoftXamlBehaviors" Guid="29C5C050-CD4A-4B7D-9444-8F4A8C933160">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\Microsoft.Xaml.Behaviors.dll"/>
+      </Component>
       <Component Id="MoreLinq" Guid="DF6EF103-114E-4FAA-84F1-9B7627F917EB">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\MoreLinq.dll"/>
       </Component>
@@ -186,41 +219,117 @@
       <Component Id="OxyPlotWPF" Guid="C6336DE5-711C-43A0-A581-39505E66CD9A">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\OxyPlot.WPF.dll"/>
       </Component>
-      <Component Id="OxyPlotXps" Guid="BB45351B-02CB-4082-A202-3F0A63E75AC4">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\OxyPlot.Xps.dll"/>
+      <Component Id="OxyPlotWPFShared" Guid="7A238EA5-FA9E-4A62-BF7F-E21C50C61190">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\OxyPlot.Wpf.Shared.dll"/>
       </Component>
       <Component Id="ProtobufNet" Guid="29C75437-029D-4EBD-BE76-D6256744F17A">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\protobuf-net.dll"/>
       </Component>
-      <Component Id="sqlceca40" Guid="8CA53811-0B5F-467B-BA22-91E882F63414">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceca40.dll"/>
+      <Component Id="ProtobufNetCore" Guid="99D4EE67-91D1-478B-B493-C58031C1BC69">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\protobuf-net.Core.dll"/>
       </Component>
-      <Component Id="sqlcecompact40" Guid="681F8E06-FBCE-48B8-9FB1-E6C49CE483DA">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlcecompact40.dll"/>
+      <Component Id="SystemBuffers" Guid="65ED384D-770B-4750-B5AF-180055E78CDE">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Buffers.dll"/>
       </Component>
-      <Component Id="sqlceer40EN" Guid="FC7935C7-83F8-4409-A435-D72B9BE57BEB">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceer40EN.dll"/>
+      <Component Id="SystemCodeDom" Guid="2F3609C0-E737-4DD6-888D-AC36D3BE7475">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.CodeDom.dll"/>
       </Component>
-      <Component Id="sqlceme40" Guid="E6EC4E89-5DA9-48E1-A7E1-421EDA404672">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceme40.dll"/>
+      <Component Id="SystemCollectionsImmutable" Guid="BB979B12-AA1F-4F95-A924-C4952200F48A">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Collections.Immutable.dll"/>
       </Component>
-      <Component Id="sqlceqp40" Guid="68F42531-63E8-4D2A-8047-E77C553F6F47">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceqp40.dll"/>
+      <Component Id="SystemComponentModelAnnotations" Guid="FD295A80-9216-428D-AF38-42775AE7B115">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.ComponentModel.Annotations.dll"/>
       </Component>
-      <Component Id="sqlcese40" Guid="3073A38C-C8AC-4B83-A917-B4270CBB63AE">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlcese40.dll"/>
+      <Component Id="SystemConfigurationManager" Guid="DAD854A3-C421-42F6-A273-F988C7422219">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Configuration.ConfigurationManager.dll"/>
       </Component>
       <Component Id="SystemDataSQLServerCe" Guid="CEA751DC-66CF-4193-888F-F85C3F3E12E5">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\System.Data.SqlServerCe.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Data.SqlServerCe.dll"/>
       </Component>
       <Component Id="SystemDataSQLServerCeEntity" Guid="41704D1B-9562-4DCB-A295-C844869B2A58">
-        <File Source="$(var.Daqifi.Desktop.TargetDir)\Database\System.Data.SqlServerCe.Entity.dll"/>
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Data.SqlServerCe.Entity.dll"/>
+      </Component>
+      <Component Id="SystemMemory" Guid="D3B409C0-27D7-41FF-82A4-499ABD914A8B">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Memory.dll"/>
+      </Component>
+      <Component Id="SystemNumericsVectors" Guid="93C3A1A0-2A44-4305-BF66-FD1D31146B6E">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Numerics.Vectors.dll"/>
+      </Component>
+      <Component Id="SystemRuntimeCompilerServicesUnsafe" Guid="A6FF7B17-58E4-4206-887C-5FFD3D7AD8B4">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Runtime.CompilerServices.Unsafe.dll"/>
+      </Component>
+      <Component Id="SystemSecurityAccessControll" Guid="6CF80349-8859-4654-BEAD-B01F72B928A9">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Security.AccessControl.dll"/>
+      </Component>
+      <Component Id="SystemSecurityPermissions" Guid="7A1A9D96-123D-4007-A9B4-5A7D6F109E17">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Security.Permissions.dll"/>
+      </Component>
+      <Component Id="SystemSecurityPrincipalWindows" Guid="CE97EA99-628B-4DB5-A79F-D43004C70028">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Security.Principal.Windows.dll"/>
+      </Component>
+      <Component Id="SystemServiceModelDuplex" Guid="80415050-636E-4B3B-8988-FD1B7C2C6602">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.ServiceModel.Duplex.dll"/>
+      </Component>
+      <Component Id="SystemServiceModelFederation" Guid="64399642-645C-4688-A7BB-420B38B71BBA">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.ServiceModel.Federation.dll"/>
+      </Component>
+      <Component Id="SystemServiceModelHttp" Guid="4BB435D8-322D-45F5-95C6-B30291A9C587">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.ServiceModel.Http.dll"/>
+      </Component>
+      <Component Id="SystemServiceModelNetTcp" Guid="D9C2F47F-49C8-4177-A6E4-D7A9B46C31C3">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.ServiceModel.NetTcp.dll"/>
+      </Component>
+      <Component Id="SystemServiceModelPrimitives" Guid="599114BE-E951-45EB-85D8-0591112A2330">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.ServiceModel.Primitives.dll"/>
+      </Component>
+      <Component Id="SystemServiceModelSecurity" Guid="1FC03E3F-47DA-4D16-929C-F0CA6E0BB7A9">
+        <File Source="$(var.Daqifi.Desktop.TargetDir)\System.ServiceModel.Security.dll"/>
       </Component>
       <Component Id="SystemValueTuple" Guid="9F8DAB16-FBCA-4F08-A883-4A8689B744CC">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\System.ValueTuple.dll"/>
       </Component>
       <Component Id="SystemWindowsInteractivity" Guid="5154E02B-5671-4DC7-9AC4-29437F13CD76">
         <File Source="$(var.Daqifi.Desktop.TargetDir)\System.Windows.Interactivity.dll"/>
+      </Component>
+    </ComponentGroup>
+    <ComponentGroup Id="X86Components" Directory="X86FOLDER">
+      <Component Id="sqlceca40x86" Guid="8CA53811-0B5F-467B-BA22-91E882F63414">
+        <File Id="sqlceca40x86File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceca40.dll"/>
+      </Component>
+      <Component Id="sqlcecompact40x86" Guid="681F8E06-FBCE-48B8-9FB1-E6C49CE483DA">
+        <File Id="sqlcecompact40x86File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlcecompact40.dll"/>
+      </Component>
+      <Component Id="sqlceer40ENx86" Guid="FC7935C7-83F8-4409-A435-D72B9BE57BEB">
+        <File Id="sqlceer40ENx86File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceer40EN.dll"/>
+      </Component>
+      <Component Id="sqlceme40x86" Guid="E6EC4E89-5DA9-48E1-A7E1-421EDA404672">
+        <File Id="sqlceme40x86File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceme40.dll"/>
+      </Component>
+      <Component Id="sqlceqp40x86" Guid="68F42531-63E8-4D2A-8047-E77C553F6F47">
+        <File Id="sqlceqp40x86File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlceqp40.dll"/>
+      </Component>
+      <Component Id="sqlcese40x86" Guid="3073A38C-C8AC-4B83-A917-B4270CBB63AE">
+        <File Id="sqlcese40x86File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\x86\sqlcese40.dll"/>
+      </Component>
+    </ComponentGroup>
+    <ComponentGroup Id="amd64Components" Directory="AMD64FOLDER">
+      <Component Id="sqlceca40amd64" Guid="EF5BB741-336B-4C50-A204-7724F6B643B3">
+        <File Id="sqlceca40amd64File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\amd64\sqlceca40.dll"/>
+      </Component>
+      <Component Id="sqlcecompact40amd64" Guid="90088064-8194-4D34-A6A0-1B37B262CFD5">
+        <File Id="sqlcecompact40amd64File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\amd64\sqlcecompact40.dll"/>
+      </Component>
+      <Component Id="sqlceer40ENamd64" Guid="E6B0ADB4-27B7-4524-867E-3FC95BF8766E">
+        <File Id="sqlceer40ENamd64File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\amd64\sqlceer40EN.dll"/>
+      </Component>
+      <Component Id="sqlceme40amd64" Guid="CD98F003-4B92-44B6-B367-A6BBFE1EF7AF">
+        <File Id="sqlceme40amd64File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\amd64\sqlceme40.dll"/>
+      </Component>
+      <Component Id="sqlceqp40amd64" Guid="A1BEA2C6-2951-42BB-AF75-CD6CD188BD72">
+        <File Id="sqlceqp40amd64File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\amd64\sqlceqp40.dll"/>
+      </Component>
+      <Component Id="sqlcese40amd64" Guid="53AE1036-DC9B-41C9-B86E-244F2E37329B">
+        <File Id="sqlcese40amd64File" Source="$(var.Daqifi.Desktop.TargetDir)\Database\amd64\sqlcese40.dll"/>
       </Component>
     </ComponentGroup>
   </Fragment>

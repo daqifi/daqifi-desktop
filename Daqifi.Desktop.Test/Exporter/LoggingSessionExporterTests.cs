@@ -60,8 +60,8 @@ namespace Daqifi.Desktop.Test.Exporter
             exporter.ExportLoggingSession(loggingSession, exportFilePath);
 
             var expectedOutput = "time,Channel 1,Channel 2,Channel 3\r\n";
-            expectedOutput += "2/9/2018 1:03:30 AM,0.01,0.02,0.03\r\n";
-            expectedOutput += "2/9/2018 1:03:31 AM,0.04,0.05,0.06\r\n";
+            expectedOutput += "2018-02-09T01:03:30.0000000,0.01,0.02,0.03\r\n";
+            expectedOutput += "2018-02-09T01:03:31.0000000,0.04,0.05,0.06\r\n";
 
             var actualOutput = File.ReadAllText(exportFilePath);
 
@@ -86,8 +86,8 @@ namespace Daqifi.Desktop.Test.Exporter
             exporter.ExportLoggingSession(loggingSession, exportFilePath);
 
             var expectedOutput = "time,Channel 1,Channel 2,Channel 3\r\n";
-            expectedOutput += "2/9/2018 1:03:30 AM,0.01,0.02,0.03\r\n";
-            expectedOutput += "2/9/2018 1:03:31 AM,0.04,,0.06\r\n";
+            expectedOutput += "2018-02-09T01:03:30.0000000,0.01,0.02,0.03\r\n";
+            expectedOutput += "2018-02-09T01:03:31.0000000,0.04,,0.06\r\n";
 
             var actualOutput = File.ReadAllText(exportFilePath);
 

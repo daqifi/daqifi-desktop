@@ -177,10 +177,16 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="Loggers\CsvLogger.cs" />
+    <Compile Remove="Migrations\201712291614345_InitialMigration.cs" />
+    <Compile Remove="Migrations\Configuration.cs" />
     <Compile Remove="ViewModels\PlottingViewModel.cs" />
     <Compile Remove="ViewModels\PlotViewModel.cs" />
     <Compile Remove="ViewModels\ViewModelLocator.cs" />
     <Compile Remove="WiFiDAQOutMessage.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Migrations\201712291614345_InitialMigration.cs" />
+    <EmbeddedResource Include="Migrations\Configuration.cs" />
   </ItemGroup>
   <PropertyGroup />
 </Project>
