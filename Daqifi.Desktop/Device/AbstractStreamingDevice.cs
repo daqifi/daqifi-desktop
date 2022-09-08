@@ -176,8 +176,8 @@ namespace Daqifi.Desktop.Device
 
             if (hasDigitalData)
             {
-                digitalData1 = message.DigitalData.ElementAt(0);
-                digitalData2 = message.DigitalData.ElementAt(1);
+                digitalData1 = message.DigitalData.ElementAtOrDefault(0);
+                digitalData2 = message.DigitalData.ElementAtOrDefault(1);
             }
 
             foreach (var channel in DataChannels)
@@ -221,6 +221,26 @@ namespace Daqifi.Desktop.Device
                 }
             }
 
+            {
+                var deviceMessage = new DeviceMessage()
+                {
+                    DeviceName = Name,
+                    AnalogChannelCount = analogCount,
+                    DigitalChannelCount = digitalCount,
+                    TimestampTicks = messageTimestamp.Ticks,
+                    AppTicks = DateTime.Now.Ticks,
+                    DeviceStatus = (int)message.DeviceStatus,
+                    BatteryStatus = (int)message.BattStatus,
+                    PowerStatus = (int)message.PwrStatus,
+                    TempStatus = (int)message.TempStatus,
+                    TargetFrequency = (int)message.TimestampFreq,
+                    Rollover = rollover,
+                };
+                
+
+                Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
+            }
+
             // Updates the previous timestamps
             _previousDeviceTimestamp = message.MsgTimeStamp;
             _previousTimestamp = messageTimestamp;
@@ -246,7 +266,6 @@ namespace Daqifi.Desktop.Device
             {
                 if (channel.ActiveSample != null)
                 {
-                    _samplePool.Return(channel.ActiveSample);
                     channel.ActiveSample = null;
                 }
             }
@@ -437,9 +456,23 @@ namespace Daqifi.Desktop.Device
                 // TODO handle mismatch.  Probably not add any channels and warn the user something went wrong.
             }
 
+            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) => {
+                if (list.Count>idx)
+                {
+                    return list[idx];
+                }
+
+                return def;
+            };
+
             for (var i = 0; i < message.AnalogInPortNum; i++)
             {
-                DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false, analogInCalibrationBValues[i], analogInCalibrationMValues[i], analogInInternalScaleMValues[i], analogInPortRanges[i], analogInResolution));
+                DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false,
+                    getWithDefault(analogInCalibrationBValues, i, 0.0f),
+                    getWithDefault(analogInCalibrationMValues, i, 1.0f),
+                    getWithDefault(analogInInternalScaleMValues, i, 1.0f),
+                    getWithDefault(analogInPortRanges, i, 1.0f),
+                    analogInResolution));
             }
         }
 

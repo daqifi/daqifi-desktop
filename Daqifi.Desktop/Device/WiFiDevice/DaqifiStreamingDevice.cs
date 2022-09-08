@@ -54,11 +54,15 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                 TurnDeviceOn();
                 SetProtobufMessageFormat();
 
-                MessageConsumer = new MessageConsumer(Client.GetStream());
+                var stream = Client.GetStream();
+                MessageConsumer = new MessageConsumer(stream);
                 ((MessageConsumer)MessageConsumer).IsWifiDevice = true;
-                ((MessageConsumer)MessageConsumer).ClearBuffer();
-                MessageConsumer.Start();
+                if (stream.DataAvailable)
+                {
+                    ((MessageConsumer)MessageConsumer).ClearBuffer();
+                }
 
+                MessageConsumer.Start();
                 InitializeDeviceState();
                 return true;
             }

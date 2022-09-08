@@ -466,7 +466,7 @@ namespace Daqifi.Desktop.Logger
                 var builder = new StringBuilder();
                 foreach (var status in _current.StatusList)
                 {
-                    builder.AppendFormat("%d, ", status);
+                    builder.AppendFormat("{0}, ", status);
                 }
 
                 if (_current.HasRollover)
