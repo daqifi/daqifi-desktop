@@ -583,7 +583,7 @@ namespace Daqifi.Desktop.Logger
                 var latency = dataSample.AppTicks - dataSample.TimestampTicks;
                 if (_buffer.SampleCount == 0)
                 {
-                    _buffer.FirstSampleTicks = dataSample.TimestampTicks;
+                    _buffer.FirstSampleTicks = dataSample.AppTicks;
                     _buffer.MinLatencyTicks = latency;
                     _buffer.MaxLatencyTicks = latency;
                 }
@@ -596,7 +596,7 @@ namespace Daqifi.Desktop.Logger
 
                 if (_buffer.SampleCount > 0)
                 {
-                    var elapsed = dataSample.TimestampTicks - _buffer.LastSampleTicks;
+                    var elapsed = dataSample.AppTicks - _buffer.LastSampleTicks;
                     if (_buffer.SampleCount == 1)
                     {
                         _buffer.MinDeltaTicks = elapsed;
@@ -610,7 +610,7 @@ namespace Daqifi.Desktop.Logger
 
                     _buffer.AverageDeltaTicks += elapsed / (double)(_sampleSize - 1);
                 }
-                _buffer.LastSampleTicks = dataSample.TimestampTicks;
+                _buffer.LastSampleTicks = dataSample.AppTicks;
 
                 ++_buffer.SampleCount;
                 if (_buffer.SampleCount == _sampleSize)
