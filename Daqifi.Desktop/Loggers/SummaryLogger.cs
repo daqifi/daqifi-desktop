@@ -71,7 +71,9 @@ namespace Daqifi.Desktop.Logger
             {
                 get
                 {
-                    return _current.AverageDeltaTicks > 0 ? 1.0 / TimeSpan.FromTicks((long)_current.AverageDeltaTicks).TotalSeconds : 0.0;
+                    // FirstSampleTicks is measured from the end of the sample, so we need to drop the first sample
+                    var delta = new TimeSpan(_current.LastSampleTicks - _current.FirstSampleTicks);
+                    return delta.Ticks > 0 ? (_current.SampleCount - 1) / delta.TotalSeconds : 0.0;
                 }
             }
 
@@ -82,7 +84,7 @@ namespace Daqifi.Desktop.Logger
             {
                 get
                 {
-                    return new TimeSpan(_current.MaxDeltaTicks).TotalMilliseconds;
+                    return _current.MaxDeltaTicks;
                 }
             }
 
@@ -93,7 +95,7 @@ namespace Daqifi.Desktop.Logger
             {
                 get
                 {
-                    return new TimeSpan((long)_current.AverageDeltaTicks).TotalMilliseconds;
+                    return _current.AverageDeltaTicks;
                 }
             }
 
@@ -104,7 +106,7 @@ namespace Daqifi.Desktop.Logger
             {
                 get
                 {
-                    return new TimeSpan(_current.MinDeltaTicks).TotalMilliseconds;
+                    return _current.MinDeltaTicks;
                 }
             }
 
@@ -367,7 +369,9 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return Math.Abs(_current.AverageDeltaTicks) > 1E-8 ? 1.0 / TimeSpan.FromTicks((long)_current.AverageDeltaTicks).TotalSeconds : 0.0;
+                // FirstSampleTicks is measured from the end of the sample, so we need to drop the first sample
+                var delta = new TimeSpan(_current.LastSampleTicks - _current.FirstSampleTicks);
+                return delta.Ticks > 0 ? (_current.SampleCount - 1) / delta.TotalSeconds : 0.0;
             }
         }
 
@@ -378,7 +382,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan(_current.MaxDeltaTicks).TotalMilliseconds;
+                return _current.MaxDeltaTicks;
             }
         }
 
@@ -389,7 +393,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan(_current.MinDeltaTicks).TotalMilliseconds;
+                return _current.MinDeltaTicks;
             }
         }
 
@@ -400,7 +404,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan((long)_current.AverageDeltaTicks).TotalMilliseconds;
+                return _current.AverageDeltaTicks;
             }
         }
 
@@ -411,7 +415,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan(_current.MaxLatencyTicks).TotalMilliseconds;
+                return _current.MaxLatencyTicks;
             }
         }
 
@@ -422,7 +426,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan(_current.MinLatencyTicks).TotalMilliseconds;
+                return _current.MinLatencyTicks;
             }
         }
 
@@ -433,7 +437,7 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
-                return new TimeSpan((long)_current.AverageLatencyTicks).TotalMilliseconds;
+                return _current.AverageLatencyTicks;
             }
         }
 
@@ -464,7 +468,7 @@ namespace Daqifi.Desktop.Logger
                 var builder = new StringBuilder();
                 foreach (var status in _current.StatusList)
                 {
-                    builder.AppendFormat("%d, ", status);
+                    builder.AppendFormat("{0}, ", status);
                 }
 
                 if (_current.HasRollover)
@@ -581,7 +585,7 @@ namespace Daqifi.Desktop.Logger
                 var latency = dataSample.AppTicks - dataSample.TimestampTicks;
                 if (_buffer.SampleCount == 0)
                 {
-                    _buffer.FirstSampleTicks = dataSample.TimestampTicks;
+                    _buffer.FirstSampleTicks = dataSample.AppTicks;
                     _buffer.MinLatencyTicks = latency;
                     _buffer.MaxLatencyTicks = latency;
                 }
@@ -594,7 +598,7 @@ namespace Daqifi.Desktop.Logger
 
                 if (_buffer.SampleCount > 0)
                 {
-                    var elapsed = dataSample.TimestampTicks - _buffer.LastSampleTicks;
+                    var elapsed = dataSample.AppTicks - _buffer.LastSampleTicks;
                     if (_buffer.SampleCount == 1)
                     {
                         _buffer.MinDeltaTicks = elapsed;
@@ -608,7 +612,7 @@ namespace Daqifi.Desktop.Logger
 
                     _buffer.AverageDeltaTicks += elapsed / (double)(_sampleSize - 1);
                 }
-                _buffer.LastSampleTicks = dataSample.TimestampTicks;
+                _buffer.LastSampleTicks = dataSample.AppTicks;
 
                 ++_buffer.SampleCount;
                 if (_buffer.SampleCount == _sampleSize)

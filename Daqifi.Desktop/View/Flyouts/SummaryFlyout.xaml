@@ -73,67 +73,66 @@
                             <RowDefinition/>
                             <RowDefinition/>
                             <RowDefinition/>
+                            <RowDefinition/>
                         </Grid.RowDefinitions>
 
-                        <Label Grid.Row="0" Grid.Column="1"
-                           FontSize="16" FontWeight="Bold" Content="Min" />
-                        <Label Grid.Row="0" Grid.Column="2"
-                           FontSize="16" FontWeight="Bold" Content="Avg" />
-                        <Label Grid.Row="0" Grid.Column="3"
-                           FontSize="16" FontWeight="Bold" Content="Max" />
-
-                        <Label Grid.Row="1" Grid.Column="0"
+                        <Label Grid.Row="0" Grid.Column="0"
                            FontSize="16" FontWeight="Bold" Content="Updated" />
-                        <Label Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
+                        <Label Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3"
                             FontSize="16"
                             Content="{Binding SummaryLogger.LastUpdate}"
                             ContentStringFormat="HH:mm:ss.fffffff"
-                            HorizontalContentAlignment="Right"/>
+                            HorizontalContentAlignment="Left"/>
 
-                        <Label Grid.Row="2" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Time (ms)" />
-                        <Label Grid.Row="2" Grid.Column="2"
+                        <Label Grid.Row="1" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Elapsed Time (ms)" />
+                        <Label Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
                            FontSize="16"
                            Content="{Binding SummaryLogger.ElapsedTime}"
-                           HorizontalContentAlignment="Right" />
+                           HorizontalContentAlignment="Left" />
+
+                        <Label Grid.Row="2" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Sample Rate (hz)" />
+                        <Label Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3"
+                           FontSize="16"
+                           Content="{Binding SummaryLogger.SampleRate}" HorizontalContentAlignment="Center"/>
 
                         <Label Grid.Row="3" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Sample Rate (hz)" />
-                        <Label Grid.Row="3" Grid.Column="2"
-                           FontSize="16"
-                           Content="{Binding SummaryLogger.SampleRate}" HorizontalContentAlignment="Right"/>
-
-                        <Label Grid.Row="4" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Delta (ms)" />
-                        <Label Grid.Row="4" Grid.Column="1"
-                               FontSize="16"
-                               Content="{Binding SummaryLogger.MinDelta}" HorizontalContentAlignment="Right"/>
-                        <Label Grid.Row="4" Grid.Column="2"
-                               FontSize="16"
-                               Content="{Binding SummaryLogger.AverageDelta}" HorizontalContentAlignment="Right"/>
-                        <Label Grid.Row="4" Grid.Column="3"
-                               FontSize="16"
-                               Content="{Binding SummaryLogger.MaxDelta}" HorizontalContentAlignment="Right"/>
-
-                        <Label Grid.Row="5" Grid.Column="0"
                            FontSize="16" FontWeight="Bold" Content="Statuses" />
-                        <Label Grid.Row="5" Grid.Column="1"
+                        <Label Grid.Row="3" Grid.Column="1"
                                FontSize="16"
                                Content="{Binding SummaryLogger.StatusList}" HorizontalContentAlignment="Right"/>
 
-                        <!--
+                        <Label Grid.Row="4" Grid.Column="1"
+                           FontSize="16" FontWeight="Bold" Content="Min" />
+                        <Label Grid.Row="4" Grid.Column="2"
+                           FontSize="16" FontWeight="Bold" Content="Avg" />
+                        <Label Grid.Row="4" Grid.Column="3"
+                           FontSize="16" FontWeight="Bold" Content="Max" />
+
                         <Label Grid.Row="5" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Latency (ms)" />
+                           FontSize="16" FontWeight="Bold" Content="Delta (ticks)" />
                         <Label Grid.Row="5" Grid.Column="1"
                                FontSize="16"
-                               Content="{Binding SummaryLogger.MinLatency}" HorizontalContentAlignment="Right"/>
+                               Content="{Binding SummaryLogger.MinDelta}" HorizontalContentAlignment="Right"/>
                         <Label Grid.Row="5" Grid.Column="2"
                                FontSize="16"
-                               Content="{Binding SummaryLogger.AverageLatency}" HorizontalContentAlignment="Right"/>
+                               Content="{Binding SummaryLogger.AverageDelta}" HorizontalContentAlignment="Right"/>
                         <Label Grid.Row="5" Grid.Column="3"
                                FontSize="16"
+                               Content="{Binding SummaryLogger.MaxDelta}" HorizontalContentAlignment="Right"/>
+
+                        <Label Grid.Row="6" Grid.Column="0"
+                           FontSize="16" FontWeight="Bold" Content="Latency (ticks)" />
+                        <Label Grid.Row="6" Grid.Column="1"
+                               FontSize="16"
+                               Content="{Binding SummaryLogger.MinLatency}" HorizontalContentAlignment="Right"/>
+                        <Label Grid.Row="6" Grid.Column="2"
+                               FontSize="16"
+                               Content="{Binding SummaryLogger.AverageLatency}" HorizontalContentAlignment="Right"/>
+                        <Label Grid.Row="6" Grid.Column="3"
+                               FontSize="16"
                                Content="{Binding SummaryLogger.MaxLatency}" HorizontalContentAlignment="Right"/>
-                        -->
                     </Grid>
                 </GroupBox>
                 <GroupBox Header="Channels" Grid.Row="1">
@@ -152,43 +151,54 @@
                                         <RowDefinition />
                                         <RowDefinition />
                                         <RowDefinition />
+                                        <RowDefinition />
                                     </Grid.RowDefinitions>
 
                                     <Label Grid.Row="0" Grid.Column="0"
                                        FontSize="16"
                                        Content="{Binding Name}" HorizontalContentAlignment="Left" />
 
-                                    <Label Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                    <Label Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="1"
                                        FontSize="16"
                                        Content="{Binding LastUpdate}"
                                        ContentStringFormat="HH:mm:ss.fffffff"
                                        HorizontalContentAlignment="Left" />
 
+                                    <Label Grid.Row="0" Grid.Column="2"
+                                       FontSize="16"
+                                       Content="Count" HorizontalContentAlignment="Right" />
+                                    
                                     <Label Grid.Row="0" Grid.Column="3"
                                        FontSize="16"
                                        Content="{Binding SampleCount}" HorizontalContentAlignment="Right" />
 
                                     <Label Grid.Row="1" Grid.Column="0"
-                                        FontSize="16" FontWeight="Bold" Content="Delta (ms)" />
-                                    <Label Grid.Row="1" Grid.Column="1"
-                                       FontSize="16"
-                                       Content="{Binding MinDelta}" HorizontalContentAlignment="Right" />
+                                       FontSize="16" FontWeight="Bold" Content="Sample Rate (hz)" />
                                     <Label Grid.Row="1" Grid.Column="2"
                                        FontSize="16"
+                                       Content="{Binding SampleRate}" HorizontalContentAlignment="Right"/>
+                                    
+                                    <Label Grid.Row="2" Grid.Column="0"
+                                        FontSize="16" FontWeight="Bold" Content="Delta" />
+                                    <Label Grid.Row="2" Grid.Column="1"
+                                       FontSize="16"
+                                       Content="{Binding MinDelta}" HorizontalContentAlignment="Right" />
+                                    <Label Grid.Row="2" Grid.Column="2"
+                                       FontSize="16"
                                        Content="{Binding AverageDelta}" HorizontalContentAlignment="Right" />
-                                    <Label Grid.Row="1" Grid.Column="3"
+                                    <Label Grid.Row="2" Grid.Column="3"
                                        FontSize="16"
                                        Content="{Binding MaxDelta}" HorizontalContentAlignment="Right" />
 
-                                    <Label Grid.Row="2" Grid.Column="0"
+                                    <Label Grid.Row="3" Grid.Column="0"
                                         FontSize="16" FontWeight="Bold" Content="Value" />
-                                    <Label Grid.Row="2" Grid.Column="1"
+                                    <Label Grid.Row="3" Grid.Column="1"
                                         FontSize="16"
                                         Content="{Binding MinValue}" HorizontalContentAlignment="Right" />
-                                    <Label Grid.Row="2" Grid.Column="2"
+                                    <Label Grid.Row="3" Grid.Column="2"
                                        FontSize="16"
                                        Content="{Binding AverageValue}" HorizontalContentAlignment="Right" />
-                                    <Label Grid.Row="2" Grid.Column="3"
+                                    <Label Grid.Row="3" Grid.Column="3"
                                        FontSize="16"
                                        Content="{Binding MaxValue}" HorizontalContentAlignment="Right" />
                                 </Grid>
