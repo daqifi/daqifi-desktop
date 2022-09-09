@@ -1,6 +1,6 @@
-# DAQifi Desktop
+# DAQiFi Desktop
 
-Windows desktop application (.NET) that is used to communicate with DAQifi hardware.
+Windows desktop application (.NET) that is used to communicate with DAQiFi hardware.
 
 ## Tech Stack
 
@@ -10,7 +10,7 @@ Windows desktop application (.NET) that is used to communicate with DAQifi hardw
 ## Dependencies
 
 - EntityFramework (ORM)
-- Google Protocol Buffers (read incoming data from DAQifi hardware)
+- Google Protocol Buffers (read incoming data from DAQiFi hardware)
 - MahApps (UI components)
 - Oxyplot (for graphing)
 
@@ -22,7 +22,7 @@ Coming soon
 
 ```mermaid
 sequenceDiagram
-DAQifiHardware->>IStreamingDevice: Protobuf Message
+DAQiFiHardware->>IStreamingDevice: Protobuf Message
 IStreamingDevice->>MessageConsumer: Protobuf Message
 MessageConsumer->>MessageConsumer: Decode Message
 MessageConsumer->>IDevice:OnMessageReceived()
