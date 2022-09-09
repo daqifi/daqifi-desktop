@@ -71,8 +71,9 @@ namespace Daqifi.Desktop.Logger
             {
                 get
                 {
+                    // FirstSampleTicks is measured from the end of the sample, so we need to drop the first sample
                     var delta = new TimeSpan(_current.LastSampleTicks - _current.FirstSampleTicks);
-                    return delta.Ticks > 0 ? _current.SampleCount / delta.TotalSeconds : 0.0;
+                    return delta.Ticks > 0 ? (_current.SampleCount - 1) / delta.TotalSeconds : 0.0;
                 }
             }
 
@@ -368,8 +369,9 @@ namespace Daqifi.Desktop.Logger
         {
             get
             {
+                // FirstSampleTicks is measured from the end of the sample, so we need to drop the first sample
                 var delta = new TimeSpan(_current.LastSampleTicks - _current.FirstSampleTicks);
-                return delta.Ticks > 0 ? _current.SampleCount / delta.TotalSeconds : 0.0;
+                return delta.Ticks > 0 ? (_current.SampleCount - 1) / delta.TotalSeconds : 0.0;
             }
         }
 
