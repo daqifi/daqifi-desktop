@@ -17,48 +17,56 @@ namespace Daqifi.Desktop.Exporter
         {
             try
             {
-                var channelNames = loggingSession.DataSamples.Select(s => s.ChannelName).Distinct().ToArray();
-                var timestampticks = loggingSession.DataSamples.Select(s => s.TimestampTicks).Distinct().ToArray();
+                var channelNames = loggingSession.DataSamples.Select(s => s.ChannelName).Distinct().ToList();
+                var hasTimeStamps = loggingSession.DataSamples.Select(s => s.TimestampTicks).Distinct().Any();
+                var samplesCount = loggingSession.DataSamples.Count;
 
-                if (channelNames.Length == 0 || timestampticks.Length == 0) return;
+                if (channelNames.Count == 0 || !hasTimeStamps) return;
+                
+                channelNames.Sort(new OrdinalStringComparer());
 
-                var rows = GetExportDataStructure(channelNames, timestampticks);
-
-                foreach (var sample in loggingSession.DataSamples)
-                {
-                    rows[sample.TimestampTicks][sample.ChannelName] = sample.Value;
-                }
-
-                // Create the heeader
+                // Create the header
                 var sb = new StringBuilder();
                 sb.Append("time,").Append(string.Join(",", channelNames.ToArray())).AppendLine();
+                File.WriteAllText(filepath, sb.ToString());
+                sb.Clear();
 
-                var lastChannelName = channelNames.Last();
-
-                // For each time period
-                foreach (var timestampTicks in rows.Keys)
+                var count = 0;
+                var pageSize = 10000 * channelNames.Count;
+                while (count < samplesCount)
                 {
-                    sb.Append(new DateTime(timestampTicks).ToString("O")).Append(",");
+                    var pagedSampleDictionary = loggingSession.DataSamples
+                        .Select(s => new { s.TimestampTicks, s.ChannelName, s.Value })
+                        .OrderBy(s => s.TimestampTicks)
+                        .Skip(count)
+                        .Take(pageSize)
+                        .GroupBy(s => s.TimestampTicks)
+                        .ToDictionary(s => s.Key, s => s.ToList());
 
-                    // Get all the channels
-                    foreach (var channel in channelNames)
+                    foreach (var timestamp in pagedSampleDictionary.Keys)
                     {
-                        var value = rows[timestampTicks][channel];
-                    
-                        if (value != null)
+                        sb.Append(new DateTime(timestamp).ToString("O"));
+
+                        // Create the template for samples dictionary
+                        var sampleDictionary = channelNames.ToDictionary<string, string, double?>(channelName => channelName, channelName => null);
+                        var samples = pagedSampleDictionary[timestamp];
+
+                        foreach (var sample in samples)
                         {
-                            sb.Append(value.Value);
+                            sampleDictionary[sample.ChannelName] = sample.Value;
                         }
 
-                        if (!channel.Equals(lastChannelName))
+                        foreach (var sample in sampleDictionary)
                         {
                             sb.Append(",");
+                            sb.Append(sample.Value);
                         }
-                    }
 
-                    sb.AppendLine();
-                    File.AppendAllText(filepath, sb.ToString());
-                    sb.Clear();
+                        sb.AppendLine();
+                        File.AppendAllText(filepath, sb.ToString());
+                        sb.Clear();
+                    }
+                    count += pageSize;
                 }
             }
             catch (Exception ex)
@@ -127,30 +135,6 @@ namespace Daqifi.Desktop.Exporter
             {
                 AppLogger.Error(ex, "Failed in ExportLoggingSession");
             }
-        }
-
-        private Dictionary<long, Dictionary<string, double?>> GetExportDataStructure(string[] channelNames, long[] timestampTicks)
-        {
-            // Define data structure
-            var rows = new Dictionary<long, Dictionary<string, double?>>();
-
-            // Sort the channels in a natural sort order
-            Array.Sort(channelNames, new OrdinalStringComparer());
-
-            // Populate skeleton of data structure
-            foreach (var timestampTick in timestampTicks)
-            {
-                // For each timestamp, create a placeholder for each channel
-                var channelValuesAtTimestamp = new Dictionary<string, double?>();
-                foreach (var channel in channelNames)
-                {
-                    channelValuesAtTimestamp.Add(channel, null);
-                }
-
-                rows.Add(timestampTick, channelValuesAtTimestamp);
-            }
-
-            return rows;
         }
     }
 }
