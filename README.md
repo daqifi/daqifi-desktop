@@ -6,10 +6,11 @@ Windows desktop application (.NET) that is used to communicate with DAQifi hardw
 
 - .NET 4.8
 - WPF
+- SqlServerSe
 
 ## Dependencies
 
-- EntityFramework (ORM) for SQL Server Compact
+- EntityFramework (ORM)
 - Google Protocol Buffers (communication with DAQifi hardware)
 - MahApps (UI components)
 - Oxyplot (for graphing)
@@ -19,6 +20,8 @@ Windows desktop application (.NET) that is used to communicate with DAQifi hardw
 Coming soon (Requires .NET6 to build with GitHub Actions)
 
 ## Documentation
+
+How data goes from device to the database.
 
 ```mermaid
 sequenceDiagram
@@ -38,3 +41,4 @@ DatabaseLogger->>Database:Bulk Insert Buffer
 ## Installer
 
 - Uses [Wix Toolset](https://wixtoolset.org/)
+- Separate solution `Daqifi.Desktop.Setup`
