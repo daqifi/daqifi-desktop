@@ -1,5 +1,7 @@
 # DAQiFi Desktop
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/17c5dfe7f1fd490f933ca85c14c23e57)](https://app.codacy.com/gh/daqifi/daqifi-desktop?utm_source=github.com&utm_medium=referral&utm_content=daqifi/daqifi-desktop&utm_campaign=Badge_Grade_Settings)
+
 Windows desktop application (.NET) that is used to communicate with DAQiFi hardware.
 
 ## Tech Stack
