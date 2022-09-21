@@ -4,8 +4,9 @@ Windows desktop application (.NET) that is used to communicate with DAQiFi hardw
 
 ## Tech Stack
 
-- .NET 4.5
+- .NET 4.8
 - WPF
+- SqlServerSe
 
 ## Dependencies
 
@@ -16,9 +17,11 @@ Windows desktop application (.NET) that is used to communicate with DAQiFi hardw
 
 ## CI/CD
 
-Coming soon
+Coming soon (Requires .NET6 to build with GitHub Actions)
 
 ## Documentation
+
+How data goes from device to the database.
 
 ```mermaid
 sequenceDiagram
@@ -34,3 +37,8 @@ DatabaseLogger->>DatabaseLogger:Add to Buffer
 DatabaseLogger->>DatabaseLogger:ConsumerThread
 DatabaseLogger->>Database:Bulk Insert Buffer
 ```
+
+## Installer
+
+- Uses [Wix Toolset](https://wixtoolset.org/)
+- Separate solution `Daqifi.Desktop.Setup`

@@ -11,11 +11,14 @@ using OxyPlot.Series;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data.Entity;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Windows.Input;
+using Bugsnag.Payload;
+using Daqifi.Desktop.Helpers;
+using Exception = System.Exception;
 
 namespace Daqifi.Desktop.Logger
 {
@@ -24,6 +27,8 @@ namespace Daqifi.Desktop.Logger
         #region Private Data
         private readonly Dictionary<string, List<DataPoint>> _allSessionPoints = new Dictionary<string, List<DataPoint>>();
         private readonly BlockingCollection<DataSample> _buffer = new BlockingCollection<DataSample>();
+        private readonly Dictionary<string, List<DataPoint>> _sessionPoints = new Dictionary<string, List<DataPoint>>();
+
         private PlotModel _plotModel;
         private DateTime? _firstTime;
         public AppLogger AppLogger = AppLogger.Instance;
@@ -39,9 +44,6 @@ namespace Daqifi.Desktop.Logger
                 NotifyPropertyChanged("PlotModel");
             }
         }
-
-        public Dictionary<string, List<DataPoint>> SessionPoints = new Dictionary<string, List<DataPoint>>();
-        public Dictionary<string, LineSeries> SessionChannels = new Dictionary<string, LineSeries>();
         #endregion
 
         #region Command Properties
@@ -198,10 +200,10 @@ namespace Daqifi.Desktop.Logger
 
                     using (var context = new LoggingContext())
                     {
-                        //Remove the samples from the collection
+                        // Remove the samples from the collection
                         for (var i = 0; i < bufferCount; i++)
                         {
-                            if (_buffer.TryTake(out DataSample sample)) samples.Add(sample);
+                            if (_buffer.TryTake(out var sample)) samples.Add(sample);
                         }
                         context.BulkInsert(samples);
                         samples.Clear();
@@ -218,10 +220,11 @@ namespace Daqifi.Desktop.Logger
         public void ClearPlot()
         {
             _firstTime = null;
-            SessionChannels.Clear();
-            SessionPoints.Clear();
+            _sessionPoints.Clear();
             _allSessionPoints.Clear();
             PlotModel.Series.Clear();
+            PlotModel.Title = string.Empty;
+            PlotModel.Subtitle = string.Empty;
             PlotModel.InvalidatePlot(true);
         }
 
@@ -230,31 +233,66 @@ namespace Daqifi.Desktop.Logger
             try
             {
                 ClearPlot();
+                PlotModel.Title = session.Name;
 
                 using (var context = new LoggingContext())
                 {
                     context.Configuration.AutoDetectChangesEnabled = false;
-                    var samples = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == session.ID).Select(s => s);
 
+                    var samples = context.Samples.AsNoTracking()
+                        .Where(s => s.LoggingSessionID == session.ID)
+                        .Select(s => new {s.ChannelName, s.Type, s.Color, s.TimestampTicks, s.Value});
+
+                    var samplesCount = context.Samples
+                        .AsNoTracking()
+                        .Count(s => s.LoggingSessionID == session.ID);
+                    const int dataPointsToShow = 1000000;
+                    
+                    if (samplesCount > 1000000)
+                    {
+                        PlotModel.Subtitle += $"\nOnly showing {dataPointsToShow:n0} out of {samplesCount:n0} data points";
+                    }
+                    
+                    var channelNames = samples
+                        .Select(s => s.ChannelName)
+                        .Distinct()
+                        .ToList();
+                    
+                    channelNames.Sort(new OrdinalStringComparer());
+                    foreach (var channelName in channelNames)
+                    {
+                        var channel = samples
+                            .Select(s=> new {s.ChannelName, s.Type, s.Color})
+                            .FirstOrDefault(s => s.ChannelName == channelName);
+
+                        if (channel != null)
+                        {
+                            AddChannelSeries(channel.ChannelName, channel.Type, channel.Color);
+                        }
+                    }
+
+                    var dataSampleCount = 0;
                     foreach (var sample in samples)
                     {                       
-                        if (!SessionChannels.Keys.Contains(sample.ChannelName))
-                        {
-                            AddChannelSeries(sample.ChannelName, sample.Type, sample.Color);
-                        }
-
                         if (_firstTime == null) _firstTime = new DateTime(sample.TimestampTicks);
                         var deltaTime = (sample.TimestampTicks - _firstTime.Value.Ticks) / 10000.0;
 
-                        //Add new datapoint
+                        // Add new datapoint
                         _allSessionPoints[sample.ChannelName].Add(new DataPoint(deltaTime, sample.Value));
+
+                        dataSampleCount++;
+
+                        if (dataSampleCount >= dataPointsToShow)
+                        {
+                            break;
+                        }
                     }
                 }
 
-                //Downsample
-                for (var i = 0; i < SessionPoints.Keys.Count; i++ )
+                // Downsample
+                for (var i = 0; i < _sessionPoints.Keys.Count; i++ )
                 {
-                    var channelName = SessionPoints.Keys.ElementAt(i);
+                    var channelName = _sessionPoints.Keys.ElementAt(i);
                     //TODO Figure out best way to integrate LTTB
                     //(PlotModel.Series[i] as LineSeries).ItemsSource = LargestTriangleThreeBucket.DownSample(_allSessionPoints[channelName], 1000);
                     (PlotModel.Series[i] as LineSeries).ItemsSource = _allSessionPoints[channelName];
@@ -280,7 +318,7 @@ namespace Daqifi.Desktop.Logger
                     context.Configuration.AutoDetectChangesEnabled = false;
                     
                     var loggingSession = context.Sessions.Find(session.ID);
-                    //This will cascade delete and delete all corresponding data samples
+                    // This will cascade delete and delete all corresponding data samples
                     context.Sessions.Remove(loggingSession);
                     context.ChangeTracker.DetectChanges();
                     context.SaveChanges();
@@ -301,13 +339,13 @@ namespace Daqifi.Desktop.Logger
 
         private void AddChannelSeries(string channelName, ChannelType type, string color)
         {
-            SessionPoints.Add(channelName, new List<DataPoint>());
+            _sessionPoints.Add(channelName, new List<DataPoint>());
             _allSessionPoints.Add(channelName, new List<DataPoint>());
 
             var newLineSeries = new LineSeries()
             {
                 Title = channelName,
-                ItemsSource = SessionPoints.Last().Value,
+                ItemsSource = _sessionPoints.Last().Value,
                 Color = OxyColor.Parse(color)
             };
 
@@ -321,7 +359,6 @@ namespace Daqifi.Desktop.Logger
                     break;
             }
 
-            SessionChannels.Add(channelName, newLineSeries);
             PlotModel.Series.Add(newLineSeries);
             NotifyPropertyChanged("PlotModel");
         }

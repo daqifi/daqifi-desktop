@@ -171,7 +171,8 @@ namespace Daqifi.Desktop.ViewModels
             {
                 context.Configuration.AutoDetectChangesEnabled = false;
 
-                var loggingSession = context.Sessions.Where(s => s.ID == sessionId)
+                var loggingSession = context.Sessions
+                    .Where(s => s.ID == sessionId)
                     .Include(s => s.DataSamples)
                     .FirstOrDefault();
 

@@ -8,6 +8,7 @@ using Daqifi.Desktop.IO.Messages.MessageTypes;
 using Daqifi.Desktop.IO.Messages.Producers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using Microsoft.Extensions.ObjectPool;
 
@@ -25,14 +26,13 @@ namespace Daqifi.Desktop.Device
         private uint _timestampFrequency;
         private uint? _previousDeviceTimestamp;
 
-        private ObjectPool<DataSample> _samplePool;
-        private ObjectPool<DeviceMessage> _deviceMessagePool;
+        private ObjectPool<DataSample> _samplePool = ObjectPool.Create<DataSample>();
+        private ObjectPool<DeviceMessage> _deviceMessagePool = ObjectPool.Create<DeviceMessage>();
 
         #endregion
 
         #region Properties
         public AppLogger AppLogger = AppLogger.Instance;
-        private IList<float> _analogInPortRanges;
 
         public int Id { get; set; }
 
@@ -93,7 +93,7 @@ namespace Daqifi.Desktop.Device
         private void HandleStatusMessageReceived(object sender, MessageEventArgs e)
         {
             var message = e.Message.Data as DaqifiOutMessage;
-            if (!IsValidStatusMessage(message))
+            if (message == null || !IsValidStatusMessage(message))
             {
                 MessageProducer.Send(ScpiMessagePoducer.SystemInfo);
                 return;
@@ -120,9 +120,15 @@ namespace Daqifi.Desktop.Device
         {
             var message = e.Message.Data as DaqifiOutMessage;
 
+            if (message == null)
+            {
+                AppLogger.Warning("Issue decoding protobuf message");
+                return;
+            }
+
             if (!message.HasMsgTimeStamp)
             {
-                AppLogger.Warning("Message did not contain a timestamp.  Will ignore message");
+                AppLogger.Warning("Protobuf message did not contain a timestamp. Will ignore message");
                 return;
             }
 
@@ -140,6 +146,9 @@ namespace Daqifi.Desktop.Device
             var rollover = _previousDeviceTimestamp > message.MsgTimeStamp;
             if (rollover)
             {
+                Debug.WriteLine("Rollover");
+                Debug.WriteLine("previous: " + _previousDeviceTimestamp);
+                Debug.WriteLine("current: " + message.MsgTimeStamp);
                 var numberOfCyclesToMax = uint.MaxValue - _previousDeviceTimestamp.Value;
                 numberOfClockCyclesBetweenMessages = numberOfCyclesToMax + message.MsgTimeStamp;
             }
@@ -167,81 +176,70 @@ namespace Daqifi.Desktop.Device
 
             if (hasDigitalData)
             {
-                digitalData1 = message.DigitalData.ElementAt(0);
-                digitalData2 = message.DigitalData.ElementAt(1);
+                digitalData1 = message.DigitalData.ElementAtOrDefault(0);
+                digitalData2 = message.DigitalData.ElementAtOrDefault(1);
             }
 
             foreach (var channel in DataChannels)
             {
+                if (!channel.IsActive)
+                {
+                    continue;
+                }
+
                 if (channel.Direction != ChannelDirection.Input)
                 {
                     continue;
                 }
 
-                var sample =_samplePool.Get();
-
-                sample.DeviceName = Name;
-                sample.ChannelName = channel.Name;
-                sample.Type = channel.Type;
-                sample.Color = channel.ChannelColorBrush.ToString();
-                sample.TimestampTicks = messageTimestamp.Ticks;
-
                 if (channel.Type == ChannelType.Digital && hasDigitalData)
                 {
-                    if (channel.IsActive)
+                    bool bit;
+                    if (digitalCount < 8)
                     {
-                        bool bit;
-                        if (digitalCount < 8)
-                        {
-                            bit = (digitalData1 & (1 << digitalCount)) != 0;
-                        }
-                        else
-                        {
-                            bit = (digitalData2 & (1 << digitalCount % 8)) != 0;
-                        }
-
-                        sample.Value = Convert.ToInt32(bit);
+                        bit = (digitalData1 & (1 << digitalCount)) != 0;
                     }
+                    else
+                    {
+                        bit = (digitalData2 & (1 << digitalCount % 8)) != 0;
+                    }
+                    
+                    channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
                     digitalCount++;
                 }
-                else if (channel.Type == ChannelType.Analog && channel.IsActive)
+                else if (channel.Type == ChannelType.Analog)
                 {
                     if (analogCount > message.AnalogInDataList.Count - 1)
                     {
-                        AppLogger.Error("Trying to access at least one more analog channel than we actually recieved.  This might happen if recently added an analog channel but not yet receiving data from it yet.");
+                        AppLogger.Error("Trying to access at least one more analog channel than we actually received. This might happen if recently added an analog channel but not yet receiving data from it yet.");
                         break;
                     }
 
-                    sample.Value = ScaleAnalogSample(channel as AnalogChannel, message.AnalogInDataList.ElementAt(analogCount));
+                    var sample = new DataSample(this, channel, messageTimestamp, ScaleAnalogSample(channel as AnalogChannel, message.AnalogInDataList.ElementAt(analogCount)));
+                    channel.ActiveSample = sample;
                     analogCount++;
                 }
-
-                if (channel.ActiveSample != null)
-                {
-                    _samplePool.Return(channel.ActiveSample);
-                }
-                channel.ActiveSample = sample;
             }
 
             {
-                var deviceMessage = _deviceMessagePool.Get();
-                deviceMessage.DeviceName = Name;
-                deviceMessage.AnalogChannelCount = analogCount;
-                deviceMessage.DigitalChannelCount = digitalCount;
-                deviceMessage.TimestampTicks = messageTimestamp.Ticks;
-                deviceMessage.AppTicks = DateTime.Now.Ticks;
-                deviceMessage.DeviceStatus = (int)message.DeviceStatus;
-                deviceMessage.BatteryStatus = (int)message.BattStatus;
-                deviceMessage.PowerStatus = (int)message.PwrStatus;
-                deviceMessage.TempStatus = (int)message.TempStatus;
-                deviceMessage.TargetFrequency = (int)message.TimestampFreq;
-                deviceMessage.Rollover = rollover;
+                var deviceMessage = new DeviceMessage()
+                {
+                    DeviceName = Name,
+                    AnalogChannelCount = analogCount,
+                    DigitalChannelCount = digitalCount,
+                    TimestampTicks = messageTimestamp.Ticks,
+                    AppTicks = DateTime.Now.Ticks,
+                    DeviceStatus = (int)message.DeviceStatus,
+                    BatteryStatus = (int)message.BattStatus,
+                    PowerStatus = (int)message.PwrStatus,
+                    TempStatus = (int)message.TempStatus,
+                    TargetFrequency = (int)message.TimestampFreq,
+                    Rollover = rollover,
+                };
+                
 
                 Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
-
-                _deviceMessagePool.Return(deviceMessage);
             }
-            
 
             // Updates the previous timestamps
             _previousDeviceTimestamp = message.MsgTimeStamp;
@@ -268,7 +266,6 @@ namespace Daqifi.Desktop.Device
             {
                 if (channel.ActiveSample != null)
                 {
-                    _samplePool.Return(channel.ActiveSample);
                     channel.ActiveSample = null;
                 }
             }
@@ -459,9 +456,23 @@ namespace Daqifi.Desktop.Device
                 // TODO handle mismatch.  Probably not add any channels and warn the user something went wrong.
             }
 
+            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) => {
+                if (list.Count>idx)
+                {
+                    return list[idx];
+                }
+
+                return def;
+            };
+
             for (var i = 0; i < message.AnalogInPortNum; i++)
             {
-                DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false, analogInCalibrationBValues[i], analogInCalibrationMValues[i], analogInInternalScaleMValues[i], analogInPortRanges[i], analogInResolution));
+                DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false,
+                    getWithDefault(analogInCalibrationBValues, i, 0.0f),
+                    getWithDefault(analogInCalibrationMValues, i, 1.0f),
+                    getWithDefault(analogInInternalScaleMValues, i, 1.0f),
+                    getWithDefault(analogInPortRanges, i, 1.0f),
+                    analogInResolution));
             }
         }
 
