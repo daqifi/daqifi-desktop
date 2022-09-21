@@ -11,12 +11,10 @@ using OxyPlot.Series;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Data.Entity;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Windows.Input;
-using Bugsnag.Payload;
 using Daqifi.Desktop.Helpers;
 using Exception = System.Exception;
 

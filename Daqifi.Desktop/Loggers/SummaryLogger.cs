@@ -4,9 +4,7 @@ using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Input;
 
 namespace Daqifi.Desktop.Logger
@@ -21,9 +19,9 @@ namespace Daqifi.Desktop.Logger
 
         public class ChannelSummary
         {
-            private ChannelBuffer _current;
+            private readonly ChannelBuffer _current;
 
-            private string _name;
+            private readonly string _name;
 
             internal ChannelSummary(string name, ChannelBuffer current)
             {
@@ -34,35 +32,17 @@ namespace Daqifi.Desktop.Logger
             /// <summary>
             /// The frequency sample rate
             /// </summary>
-            public string Name
-            {
-                get
-                {
-                    return _name;
-                }
-            }
+            public string Name => _name;
 
             /// <summary>
             /// The number of samples seen
             /// </summary>
-            public int SampleCount
-            {
-                get
-                {
-                    return _current.SampleCount;
-                }
-            }
+            public int SampleCount => _current.SampleCount;
 
             /// <summary>
             /// The time of the last sample
             /// </summary>
-            public DateTime LastUpdate
-            {
-                get
-                {
-                    return new DateTime(_current.LastSampleTicks);
-                }
-            }
+            public DateTime LastUpdate => new DateTime(_current.LastSampleTicks);
 
             /// <summary>
             /// The frequency sample rate
@@ -80,68 +60,32 @@ namespace Daqifi.Desktop.Logger
             /// <summary>
             /// The maximum time between samples
             /// </summary>
-            public double MaxDelta
-            {
-                get
-                {
-                    return _current.MaxDeltaTicks;
-                }
-            }
+            public double MaxDelta => _current.MaxDeltaTicks;
 
             /// <summary>
             /// The average time between samples
             /// </summary>
-            public double AverageDelta
-            {
-                get
-                {
-                    return _current.AverageDeltaTicks;
-                }
-            }
+            public double AverageDelta => _current.AverageDeltaTicks;
 
             /// <summary>
             /// The minimum time between samples
             /// </summary>
-            public double MinDelta
-            {
-                get
-                {
-                    return _current.MinDeltaTicks;
-                }
-            }
+            public double MinDelta => _current.MinDeltaTicks;
 
             /// <summary>
             /// The maximum time between samples
             /// </summary>
-            public double MaxValue
-            {
-                get
-                {
-                    return _current.MaxValue;
-                }
-            }
+            public double MaxValue => _current.MaxValue;
 
             /// <summary>
             /// The minimum time between samples
             /// </summary>
-            public double MinValue
-            {
-                get
-                {
-                    return _current.MinValue;
-                }
-            }
+            public double MinValue => _current.MinValue;
 
             /// <summary>
             /// The minimum time between samples
             /// </summary>
-            public double AverageValue
-            {
-                get
-                {
-                    return _current.AverageValue;
-                }
-            }
+            public double AverageValue => _current.AverageValue;
         }
 
         internal class ChannelBuffer
@@ -378,68 +322,32 @@ namespace Daqifi.Desktop.Logger
         /// <summary>
         /// The maximum time between samples
         /// </summary>
-        public double MaxDelta
-        {
-            get
-            {
-                return _current.MaxDeltaTicks;
-            }
-        }
+        public double MaxDelta => _current.MaxDeltaTicks;
 
         /// <summary>
         /// The minimum time between samples
         /// </summary>
-        public double MinDelta
-        {
-            get
-            {
-                return _current.MinDeltaTicks;
-            }
-        }
+        public double MinDelta => _current.MinDeltaTicks;
 
         /// <summary>
         /// The average time between samples
         /// </summary>
-        public double AverageDelta
-        {
-            get
-            {
-                return _current.AverageDeltaTicks;
-            }
-        }
+        public double AverageDelta => _current.AverageDeltaTicks;
 
         /// <summary>
         /// The maximum time between samples
         /// </summary>
-        public double MaxLatency
-        {
-            get
-            {
-                return _current.MaxLatencyTicks;
-            }
-        }
+        public double MaxLatency => _current.MaxLatencyTicks;
 
         /// <summary>
         /// The minimum time between samples
         /// </summary>
-        public double MinLatency
-        {
-            get
-            {
-                return _current.MinLatencyTicks;
-            }
-        }
+        public double MinLatency => _current.MinLatencyTicks;
 
         /// <summary>
         /// The minimum time between samples
         /// </summary>
-        public double AverageLatency
-        {
-            get
-            {
-                return _current.AverageLatencyTicks;
-            }
-        }
+        public double AverageLatency => _current.AverageLatencyTicks;
 
         /// <summary>
         /// Display info for the channels

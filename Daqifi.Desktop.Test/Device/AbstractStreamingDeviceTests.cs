@@ -97,7 +97,7 @@ namespace Daqifi.Desktop.Test.Device
 
         private static IMessage GetMessageFromAddingSingleChannel(int channelIndex, ChannelType channelType)
         {
-            // Mock out a message procducer
+            // Mock out a message producer
             IMessage message = null;
             var mockedMessageProducer = new Mock<IMessageProducer>();
             mockedMessageProducer.Setup(p => p.Send(It.IsAny<IMessage>()))
@@ -109,7 +109,7 @@ namespace Daqifi.Desktop.Test.Device
             mockedChannel.Setup(c => c.Type).Returns(channelType);
             mockedChannel.Setup(c => c.Index).Returns(channelIndex);
 
-            // Initalize a streaming device with the message producer
+            // Initialize a streaming device with the message producer
             var device = new DummyAbstractStreamingDevice
             {
                 MessageProducer = mockedMessageProducer.Object,
@@ -126,7 +126,7 @@ namespace Daqifi.Desktop.Test.Device
 
         private static IMessage GetMessagesFromAddingMultipleChannels(int[] channelIndices)
         {
-            // Mock out a message procducer
+            // Mock out a message producer
             IMessage message = null;
             var mockedMessageProducer = new Mock<IMessageProducer>();
             mockedMessageProducer.Setup(p => p.Send(It.IsAny<IMessage>()))
@@ -143,7 +143,7 @@ namespace Daqifi.Desktop.Test.Device
                 mockedChannels.Add(mockedChannel);
             }
 
-            // Initalize a streaming device with the message producer
+            // Initialize a streaming device with the message producer
             var device = new DummyAbstractStreamingDevice
             {
                 MessageProducer = mockedMessageProducer.Object,

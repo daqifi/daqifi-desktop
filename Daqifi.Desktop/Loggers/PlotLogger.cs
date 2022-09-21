@@ -270,7 +270,7 @@ namespace Daqifi.Desktop.Logger
             var newDataPoints = new List<DataPoint>();
             LoggedPoints.Add(channelName, newDataPoints);
 
-            var newLineSeries = new LineSeries()
+            var newLineSeries = new LineSeries
             {
                 Title = channelName,
                 ItemsSource = newDataPoints,

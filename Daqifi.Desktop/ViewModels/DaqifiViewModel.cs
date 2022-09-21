@@ -254,8 +254,8 @@ namespace Daqifi.Desktop.ViewModels
                if(ViewWindowState== WindowState.Maximized)
                {
                    return SystemParameters.WorkArea.Width - _sidePanelWidth;
-               }
-                return _width - _sidePanelWidth; 
+               } 
+               return _width - _sidePanelWidth; 
             }
         }
 

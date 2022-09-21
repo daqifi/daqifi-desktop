@@ -15,8 +15,8 @@ namespace Daqifi.Desktop.Test.Exporter
         private const string ExportFileName = "testExportFile.csv";
         private const string TestDirectoryPath = @"C:\ProgramData\DAQifi\Tests";
 
-        private DateTime _firstTime = new DateTime(2018,2,9,1,3,30);
-        private DateTime _secondTime = new DateTime(2018, 2, 9, 1, 3, 31);
+        private readonly DateTime _firstTime = new DateTime(2018,2,9,1,3,30);
+        private readonly DateTime _secondTime = new DateTime(2018, 2, 9, 1, 3, 31);
 
         private List<IChannel> _channels;
         private List<DataSample> _dataSamples;
@@ -26,21 +26,21 @@ namespace Daqifi.Desktop.Test.Exporter
         {
             Directory.CreateDirectory(TestDirectoryPath);
 
-            _channels = new List<IChannel>()
+            _channels = new List<IChannel>
             {
-                new DigitalChannel() {ID = 1, Name = "Channel 1"},
-                new DigitalChannel() {ID = 2, Name = "Channel 2"},
-                new DigitalChannel() {ID = 2, Name = "Channel 3"},
+                new DigitalChannel {ID = 1, Name = "Channel 1"},
+                new DigitalChannel {ID = 2, Name = "Channel 2"},
+                new DigitalChannel {ID = 2, Name = "Channel 3"}
             };
 
-            _dataSamples = new List<DataSample>()
+            _dataSamples = new List<DataSample>
             {
-                new DataSample() {ID = 1, LoggingSessionID = 1, ChannelName = "Channel 1", TimestampTicks = _firstTime.Ticks ,Value = 0.01},
-                new DataSample() {ID = 2, LoggingSessionID = 1, ChannelName = "Channel 2", TimestampTicks = _firstTime.Ticks, Value = 0.02},
-                new DataSample() {ID = 3, LoggingSessionID = 1, ChannelName = "Channel 3", TimestampTicks = _firstTime.Ticks, Value = 0.03},
-                new DataSample() {ID = 4, LoggingSessionID = 1, ChannelName = "Channel 1", TimestampTicks = _secondTime.Ticks, Value = 0.04},
-                new DataSample() {ID = 5, LoggingSessionID = 1, ChannelName = "Channel 2", TimestampTicks = _secondTime.Ticks, Value = 0.05},
-                new DataSample() {ID = 6, LoggingSessionID = 1, ChannelName = "Channel 3", TimestampTicks = _secondTime.Ticks, Value = 0.06},
+                new DataSample {ID = 1, LoggingSessionID = 1, ChannelName = "Channel 1", TimestampTicks = _firstTime.Ticks ,Value = 0.01},
+                new DataSample {ID = 2, LoggingSessionID = 1, ChannelName = "Channel 2", TimestampTicks = _firstTime.Ticks, Value = 0.02},
+                new DataSample {ID = 3, LoggingSessionID = 1, ChannelName = "Channel 3", TimestampTicks = _firstTime.Ticks, Value = 0.03},
+                new DataSample {ID = 4, LoggingSessionID = 1, ChannelName = "Channel 1", TimestampTicks = _secondTime.Ticks, Value = 0.04},
+                new DataSample {ID = 5, LoggingSessionID = 1, ChannelName = "Channel 2", TimestampTicks = _secondTime.Ticks, Value = 0.05},
+                new DataSample {ID = 6, LoggingSessionID = 1, ChannelName = "Channel 3", TimestampTicks = _secondTime.Ticks, Value = 0.06}
             };
         }
 

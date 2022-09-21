@@ -16,11 +16,12 @@ namespace Daqifi.Desktop
         private DAQifiConnectionStatus _connectionStatus = DAQifiConnectionStatus.Disconnected;
         private List<IStreamingDevice> _connectedDevices;
         private bool _isDisconnected = true;
-        private ManagementEventWatcher _deviceRemovedWatcher;
+        private readonly ManagementEventWatcher _deviceRemovedWatcher;
         #endregion
 
         #region Properties
-        public DAQifiConnectionStatus ConnectionStatus
+
+        private DAQifiConnectionStatus ConnectionStatus
         {
             get => _connectionStatus;
             set
@@ -138,6 +139,9 @@ namespace Daqifi.Desktop
                     ConnectionStatusString = "Connected";
                     break;
                 case DAQifiConnectionStatus.Error:
+                    ConnectionStatusString = "Error";
+                    break;
+                default:
                     ConnectionStatusString = "Error";
                     break;
             }
