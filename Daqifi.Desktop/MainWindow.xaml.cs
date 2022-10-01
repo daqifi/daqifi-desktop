@@ -9,7 +9,7 @@ namespace Daqifi.Desktop
     /// </summary>
     public partial class MainWindow
     {
-        public AppLogger AppLogger = AppLogger.Instance;
+        private readonly AppLogger _appLogger = AppLogger.Instance;
 
         #region Constructor / Initialization
         public MainWindow()
@@ -26,7 +26,7 @@ namespace Daqifi.Desktop
             }
             catch(Exception ex)
             {
-                AppLogger.Error(ex, "Error in MainWindow");
+                _appLogger.Error(ex, "Error in MainWindow");
             }  
         }
         #endregion

@@ -10,7 +10,7 @@ namespace Daqifi.Desktop.Common.Loggers
     {
         #region Private Data
         private readonly Logger _logger = LogManager.GetCurrentClassLogger();
-        private readonly Bugsnag.Client _client;
+        private readonly Client _client;
         #endregion
 
         #region Singleton Constructor / Initalization
@@ -49,8 +49,8 @@ namespace Daqifi.Desktop.Common.Loggers
             // Step 5. Activate the configuration
             LogManager.Configuration = config;
 
-            var configuration = new Bugsnag.Configuration("899ecd666668c33e02cc5adc651a11b8");
-            _client = new Bugsnag.Client(configuration);
+            var configuration = new Configuration("899ecd666668c33e02cc5adc651a11b8");
+            _client = new Client(configuration);
         }
 
         #endregion

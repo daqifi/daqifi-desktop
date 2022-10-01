@@ -130,7 +130,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
         private enum Digcf : uint
         {
             DigcfAllclasses = 0x00000004,
-            DigcfDeviceinterface = 0x00000010,
+            DigcfDeviceinterface = 0x00000010
         }
 
         [DllImport("setupapi.dll", SetLastError = true)]

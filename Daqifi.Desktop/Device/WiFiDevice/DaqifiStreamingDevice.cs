@@ -86,7 +86,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Problem with Disconnectiong from DAQifi Device.");
+                AppLogger.Error(ex, "Problem with Disconnecting from DAQifi Device.");
                 return false;
             }
         }

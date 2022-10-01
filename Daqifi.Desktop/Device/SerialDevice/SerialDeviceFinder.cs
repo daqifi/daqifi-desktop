@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel;
-using System.IO.Ports;
 using System.Linq;
 using System.Management;
 

@@ -18,7 +18,7 @@ namespace Daqifi.Desktop.Device.HidDevice
         
         public HidDeviceFinder()
         {
-            _hidDeviceFinderWorker = new BackgroundWorker() {WorkerSupportsCancellation = true};
+            _hidDeviceFinderWorker = new BackgroundWorker {WorkerSupportsCancellation = true};
 
             _hidDeviceFinderWorker.DoWork += delegate
             {

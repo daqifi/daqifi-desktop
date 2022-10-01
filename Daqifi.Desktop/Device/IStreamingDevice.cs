@@ -18,7 +18,7 @@ namespace Daqifi.Desktop.Device
         void StopStreaming();
 
         /// <summary>
-        /// Sends a command to get any intialization data from the streamingDevice that might be needed
+        /// Sends a command to get any initialization data from the streamingDevice that might be needed
         /// </summary>
         void InitializeDeviceState();
 
@@ -36,12 +36,12 @@ namespace Daqifi.Desktop.Device
         void SetAdcRange(int range);
 
         /// <summary>
-        /// Sends a command to active a channel on the streamingDevice
+        /// Sends a command to activate a channel on the streamingDevice
         /// </summary>
         void AddChannel(IChannel channel);
 
         /// <summary>
-        /// Sends a command to deactive a channel on the streamingDevice
+        /// Sends a command to deactivate a channel on the streamingDevice
         /// </summary>
         void RemoveChannel(IChannel channel);
 
