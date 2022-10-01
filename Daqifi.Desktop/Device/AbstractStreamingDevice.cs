@@ -18,12 +18,12 @@ namespace Daqifi.Desktop.Device
     {
         #region Private Data
 
+        private const double TickPeriod = 20E-9f;
         protected static DateTime? _previousTimestamp;
         private string _adcRangeText;
         protected readonly double AdcResolution = 131072;
         protected double AdcRange = 1;
         private int _streamingFrequency = 1;
-        private uint _timestampFrequency;
         private uint? _previousDeviceTimestamp;
 
         private ObjectPool<DataSample> _samplePool = ObjectPool.Create<DataSample>();
@@ -107,8 +107,6 @@ namespace Daqifi.Desktop.Device
             PopulateAnalogInChannels(message);
             PopulateAnalogOutChannels(message);
             PopulateNetworkConfiguration(message);
-
-            _timestampFrequency = message.TimestampFreq;
         }
 
         private bool IsValidStatusMessage(IDaqifiOutMessage message)
@@ -118,9 +116,12 @@ namespace Daqifi.Desktop.Device
 
         private void HandleMessageReceived(object sender, MessageEventArgs e)
         {
-            var message = e.Message.Data as DaqifiOutMessage;
-
-            if (message == null)
+            if (!IsStreaming)
+            {
+                return;
+            }
+            
+            if (!(e.Message.Data is DaqifiOutMessage message))
             {
                 AppLogger.Warning("Issue decoding protobuf message");
                 return;
@@ -146,9 +147,6 @@ namespace Daqifi.Desktop.Device
             var rollover = _previousDeviceTimestamp > message.MsgTimeStamp;
             if (rollover)
             {
-                Debug.WriteLine("Rollover");
-                Debug.WriteLine("previous: " + _previousDeviceTimestamp);
-                Debug.WriteLine("current: " + message.MsgTimeStamp);
                 var numberOfCyclesToMax = uint.MaxValue - _previousDeviceTimestamp.Value;
                 numberOfClockCyclesBetweenMessages = numberOfCyclesToMax + message.MsgTimeStamp;
             }
@@ -158,10 +156,18 @@ namespace Daqifi.Desktop.Device
             }
 
             // Convert clock cycles to a time value
-            var secondsBetweenMessages = numberOfClockCyclesBetweenMessages / (double)_timestampFrequency;
+            var secondsBetweenMessages = numberOfClockCyclesBetweenMessages * TickPeriod;
 
-            var messageTimestamp = _previousTimestamp.Value.AddMilliseconds(secondsBetweenMessages * 1000.0);
-
+            // Check the time difference and decide if that's reasonable or we simply got data out of order
+            // If out of order, this isn't actually a rollover.
+            if (rollover && secondsBetweenMessages > 10)
+            {
+                numberOfClockCyclesBetweenMessages = _previousDeviceTimestamp.Value - message.MsgTimeStamp;
+                secondsBetweenMessages = numberOfClockCyclesBetweenMessages * TickPeriod * -1;
+            }
+            
+            var messageTimestamp = _previousTimestamp.Value.AddSeconds(secondsBetweenMessages);
+            
             // Update digital channel information
             var digitalCount = 0;
             var analogCount = 0;
@@ -173,7 +179,6 @@ namespace Daqifi.Desktop.Device
             var digitalData2 = new byte();
 
             var hasDigitalData = message.HasDigitalData;
-
             if (hasDigitalData)
             {
                 digitalData1 = message.DigitalData.ElementAtOrDefault(0);
@@ -250,6 +255,7 @@ namespace Daqifi.Desktop.Device
         #region Streaming Methods
         public void InitializeStreaming()
         {
+            _previousTimestamp = null;
             MessageProducer.Send(ScpiMessagePoducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
             _samplePool = ObjectPool.Create<DataSample>();
