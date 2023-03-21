@@ -14,5 +14,10 @@ namespace Daqifi.Desktop.Test.Device
         {
             throw new System.NotImplementedException();
         }
+
+        public override bool Write(string command)
+        {
+            throw new System.NotImplementedException();
+        }
     }
 }

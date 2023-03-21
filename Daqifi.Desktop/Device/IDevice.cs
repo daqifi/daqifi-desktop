@@ -20,6 +20,13 @@ namespace Daqifi.Desktop.Device
         /// <returns>True if successfully disconnected</returns>
         bool Disconnect();
 
+
+        /// <summary>
+        /// Write to the streamingDevice.
+        /// </summary>
+        /// <returns>True if successfully connected</returns>
+        //bool Write(string command);
+
         /// <summary>
         /// Reboots the streamingDevice
         /// </summary>

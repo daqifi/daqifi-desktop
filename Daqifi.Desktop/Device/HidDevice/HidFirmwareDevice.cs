@@ -29,6 +29,11 @@ namespace Daqifi.Desktop.Device.HidDevice
             return true;
         }
 
+        public bool Write(string command)
+        {
+            return true;
+        }
+
         public bool Disconnect()
         {
             //_device.CloseDevice();

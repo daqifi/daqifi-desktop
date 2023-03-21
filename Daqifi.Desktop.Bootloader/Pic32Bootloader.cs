@@ -126,7 +126,10 @@ namespace Daqifi.Desktop.Bootloader
                 var report = _hidDevice.FastReadReport();
                 var successfulResponse = messageConsumer.DecodeProgramFlashResponse(report.Data);
 
-                if(!successfulResponse) throw new InvalidDataException("The response from the device was invalid.  Exepcted a program flash response");
+                if (!successfulResponse)
+                {
+                    throw new InvalidDataException("The response from the device was invalid.  Expected a program flash response");
+                }
             }
 
             JumpToApplication();

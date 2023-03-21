@@ -5,8 +5,8 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              xmlns:networkDataModel="clr-namespace:Daqifi.Desktop.DataModel.Network;assembly=Daqifi.Desktop.DataModel"
-             xmlns:sys="clr-namespace:System;assembly=mscorlib"
-             mc:Ignorable="d" 
+             xmlns:sys="clr-namespace:System;assembly=mscorlib" xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
+                 mc:Ignorable="d" 
              d:DesignHeight="600" d:DesignWidth="600"
              Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsDeviceSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right" Header="Device Settings">
     <Controls:Flyout.Resources>
@@ -106,7 +106,9 @@
                 </Grid.RowDefinitions>
                 <TextBox Grid.Column="0" Text="{Binding FirmwareFilePath, Mode=TwoWay}" />
                 <Button Grid.Column="1" Content="Browse"  Command="{Binding BrowseForFirmwareCommand}"/>
-                <Button Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Width="50" Content="Update" Command="{Binding UploadFirmwareCommand}" />
+                <controls:MetroProgressBar Grid.Column="0" Grid.Row="1" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadFirmwareProgress}" />
+                <Button Grid.Column="1" Grid.Row="1" Grid.ColumnSpan="2" Width="50" Content="Update" 
+                        Command="{Binding UploadFirmwareCommand}" />
             </Grid>
         </GroupBox>
     </Grid>

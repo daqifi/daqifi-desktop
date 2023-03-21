@@ -1,9 +1,11 @@
-﻿using Daqifi.Desktop.Channel;
+﻿using Daqifi.Desktop.Bootloader;
+using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.View;
@@ -16,9 +18,15 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Collections;
+using System.Diagnostics;
+using Daqifi.Desktop.Device.SerialDevice;
+using System.Threading;
+using System.Windows.Interop;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -48,6 +56,227 @@ namespace Daqifi.Desktop.ViewModels
         private bool _canToggleLogging;
         private string _loggedDataBusyReason;
         private string _firmwareFilePath;
+        //private readonly Pic32Bootloader _bootloader;
+        private Pic32Bootloader _bootloader;
+        private string _version;
+        
+        private bool _isFirmwareUploading;
+        private bool _isUploadComplete;
+        private bool _hasErrorOccured;
+        private int _uploadFirmwareProgress;
+
+        private HidDeviceFinder _hidDeviceFinder;
+        private bool _hasNoHidDevices = true;
+
+        private ConnectionDialogViewModel _connectionDialogViewModel;
+
+        public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = new ObservableCollection<HidFirmwareDevice>();
+        public bool HasNoHidDevices
+        {
+            get => _hasNoHidDevices;
+            set
+            {
+                _hasNoHidDevices = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public void StartConnectionFinders()
+        {
+            _hidDeviceFinder = new HidDeviceFinder();
+            _hidDeviceFinder.OnDeviceFound += HandleHidDeviceFound;
+            _hidDeviceFinder.OnDeviceRemoved += HandleHidDeviceRemoved;
+            _hidDeviceFinder.Start();
+        }
+
+        public void Close()
+        {
+            _hidDeviceFinder?.Stop();
+        }
+
+        private HidFirmwareDevice ConnectHid(object selectedItems)
+        {
+            // Read variable
+            HidFirmwareDevice hidDevice = null;
+            var selectedDevices = ((IEnumerable)selectedItems).Cast<HidFirmwareDevice>();
+            hidDevice = selectedDevices.FirstOrDefault();
+            return hidDevice;
+        }
+
+        private void HandleHidDeviceFound(object sender, IDevice device)
+        {
+            if (!(device is HidFirmwareDevice hidDevice))
+            {
+                return;
+            }
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                AvailableHidDevices.Add(hidDevice);
+                if (HasNoHidDevices) HasNoHidDevices = false;
+            });
+        }
+
+        private void HandleHidDeviceRemoved(object sender, IDevice device)
+        {
+            if (!(device is HidFirmwareDevice hidDevice)) return;
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                AvailableHidDevices.Remove(hidDevice);
+                if (AvailableHidDevices.Count == 0) HasNoHidDevices = true;
+            });
+        }
+
+        public string Version
+        {
+            get => _version;
+            set
+            {
+                _version = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public string FirmwareFilePath
+        {
+            get => _firmwareFilePath;
+            set
+            {
+                _firmwareFilePath = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public bool IsFirmwareUploading
+        {
+            get => _isFirmwareUploading;
+            set
+            {
+                _isFirmwareUploading = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public bool IsUploadComplete
+        {
+            get => _isUploadComplete;
+            set
+            {
+                _isUploadComplete = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public bool HasErrorOccured
+        {
+            get => _hasErrorOccured;
+            set
+            {
+                _hasErrorOccured = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public int UploadFirmwareProgress
+        {
+            get => _uploadFirmwareProgress;
+            set
+            {
+                _uploadFirmwareProgress = value;
+                RaisePropertyChanged();
+                RaisePropertyChanged("UploadFirmwareProgressText");
+            }
+        }
+
+        public string UploadFirmwareProgressText => ($"Upload Progress: {UploadFirmwareProgress}%");   
+
+        public ICommand UploadFirmwareCommand { get; set; }
+        private bool CanUploadFirmware(object o)
+        {
+            return true;
+        }
+
+        public void UploadFirmware(object o)
+        {
+            // Check if the available port is opened:
+            ObservableCollection<SerialStreamingDevice>  _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
+            SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
+            SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
+            
+            SerialStreamingDevice port = manualserialdevice;
+            // Check if serial ports auto/manual are not null
+            if (port == null) { port = autodaqifiport; }
+            if (port != null)
+            {
+                // Send the Daqifi command "Force Boot"
+                string command = "SYSTem:FORceBoot\r\n";
+                
+                if (port.Write(command))
+                {
+                    // Once the Daqifi resets, the COM serial port is closed,
+                    // and the HID port for managing the bootloader must be found
+                    StartConnectionFinders();
+
+                    // Update the variable 'HasNoHidDevices' in a backbround task
+                    var bw2 = new BackgroundWorker();
+                    bw2.DoWork += delegate
+                    {
+                        while (HasNoHidDevices == true)
+                        {
+                            Thread.Sleep(2000);
+                            if (HasNoHidDevices == false)
+                            {
+                                // Connect HID if it was found before              
+                                HidFirmwareDevice hidFirmwareDevice = ConnectHid(AvailableHidDevices);
+                                if (hidFirmwareDevice != null)
+                                {
+                                    _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
+                                    _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
+                                    _bootloader.RequestVersion();
+
+                                    var bw = new BackgroundWorker();
+                                    bw.DoWork += delegate
+                                    {
+                                        IsFirmwareUploading = true;
+                                        if (string.IsNullOrWhiteSpace(FirmwareFilePath))
+                                        {
+                                            return;
+                                        }
+                                        if (!File.Exists(FirmwareFilePath))
+                                        {
+                                            return;
+                                        }
+
+
+                                        if (_bootloader != null)
+                                        {
+                                            _bootloader.LoadFirmware(FirmwareFilePath, bw);
+                                        }
+
+                                    };
+                                    bw.WorkerReportsProgress = true;
+                                    bw.ProgressChanged += UploadFirmwareProgressChanged;
+                                    bw.RunWorkerCompleted += HandleUploadCompleted;
+                                    bw.RunWorkerAsync();
+                                }
+                            }
+                        }
+                    };
+                    bw2.RunWorkerAsync();
+                }
+                else
+                {
+                    string msg = "Error writing to COM port";
+                    AppLogger.Error(msg);
+                }                                        
+            }
+            else
+            {
+                string msg = "Error serial COM port detection";
+                AppLogger.Error(msg);           
+            }          
+        }
         #endregion
 
         #region Properties
@@ -191,16 +420,6 @@ namespace Daqifi.Desktop.ViewModels
                 _height = value;
                 RaisePropertyChanged();
                 RaisePropertyChanged("FlyoutHeight");
-            }
-        }
-
-        public string FirmwareFilePath
-        {
-            get => _firmwareFilePath;
-            set
-            {
-                _firmwareFilePath = value;
-                RaisePropertyChanged();
             }
         }
 
@@ -371,6 +590,14 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
+        private void OnHidDevicePropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == "Version")
+            {
+                Version = _bootloader.Version;
+            }
+        }
+
         public void RegisterCommands()
         {
             ShowConnectionDialogCommand = new DelegateCommand(ShowConnectionDialog, CanShowConnectionDialog);
@@ -394,6 +621,7 @@ namespace Daqifi.Desktop.ViewModels
             RebootSelectedDeviceCommand = new DelegateCommand(RebootSelectedDevice, CanRebootSelectedDevice);
             OpenHelpCommand = new DelegateCommand(OpenHelp, CanOpenHelp);
             BrowseForFirmwareCommand = new DelegateCommand(BrowseForFirmware, CanBrowseForFirmware);
+            UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
             HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
         }
         #endregion
@@ -563,14 +791,34 @@ namespace Daqifi.Desktop.ViewModels
         {
             return true;
         }
+
+        void UploadFirmwareProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            UploadFirmwareProgress = e.ProgressPercentage;
+        }
+
+        private void HandleUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            IsFirmwareUploading = false;
+            if (e.Error != null)
+            {
+                AppLogger.Instance.Error(e.Error, "Problem Uploading Firmware");
+                HasErrorOccured = true;
+            }
+            else
+            {
+                IsUploadComplete = true;
+            }
+        }
+
         #endregion
 
         #region Command Methods
         private void ShowConnectionDialog(object o)
         {
-            var connectionDialogViewModel = new ConnectionDialogViewModel();
-            connectionDialogViewModel.StartConnectionFinders();
-            _dialogService.ShowDialog<ConnectionDialog>(this, connectionDialogViewModel);
+            _connectionDialogViewModel = new ConnectionDialogViewModel();
+            _connectionDialogViewModel.StartConnectionFinders();
+            _dialogService.ShowDialog<ConnectionDialog>(this, _connectionDialogViewModel);          
         }
 
         private void ShowAddChannelDialog(object o)
@@ -649,6 +897,7 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
+        
         private void OpenLiveGraphSettings(object o)
         {
             CloseFlyouts();

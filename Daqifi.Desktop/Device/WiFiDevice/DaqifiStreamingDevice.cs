@@ -73,6 +73,11 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             }
         }
 
+        public override bool Write(string command)
+        {
+            return true;
+        }
+
         public override bool Disconnect()
         {
             try
