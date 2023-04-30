@@ -23,10 +23,8 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Collections;
-using System.Diagnostics;
 using Daqifi.Desktop.Device.SerialDevice;
 using System.Threading;
-using System.Windows.Interop;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -56,7 +54,6 @@ namespace Daqifi.Desktop.ViewModels
         private bool _canToggleLogging;
         private string _loggedDataBusyReason;
         private string _firmwareFilePath;
-        //private readonly Pic32Bootloader _bootloader;
         private Pic32Bootloader _bootloader;
         private string _version;
         
@@ -897,7 +894,6 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-        
         private void OpenLiveGraphSettings(object o)
         {
             CloseFlyouts();
