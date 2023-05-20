@@ -21,7 +21,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
                 var device = UsbDevice.Get((string)pnpDeviceId);
                 var deviceReportedDescription = device.BusReportedDeviceDescription;
 
-                if (deviceReportedDescription.ToLower() == "nyquist")
+                if ((deviceReportedDescription != null) && (deviceReportedDescription.ToLower() == "nyquist"))
                 {
                     portNames.Add((string)deviceId);
                 }

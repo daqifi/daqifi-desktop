@@ -69,6 +69,8 @@ namespace Daqifi.Desktop.ViewModels
 
         public string ManualPortName { get; set; }
 
+        public SerialStreamingDevice ManualSerialDevice { get; set; }
+
         public string ManualIpAddress { get; set; }
         #endregion
 
@@ -166,8 +168,8 @@ namespace Daqifi.Desktop.ViewModels
         {
             if (string.IsNullOrWhiteSpace(ManualPortName)) return;
 
-            var device = new SerialStreamingDevice(ManualPortName);
-            ConnectionManager.Instance.Connect(device);
+            ManualSerialDevice = new SerialStreamingDevice(ManualPortName);
+            ConnectionManager.Instance.Connect(ManualSerialDevice);
         }
 
         private void ConnectManualWifi(object _)
@@ -256,7 +258,10 @@ namespace Daqifi.Desktop.ViewModels
 
         private void HandleHidDeviceFound(object sender, IDevice device)
         {
-            if (!(device is HidFirmwareDevice hidDevice)) return;
+            if (!(device is HidFirmwareDevice hidDevice))
+            {
+                return;
+            }
 
             Application.Current.Dispatcher.Invoke(() =>
             {
