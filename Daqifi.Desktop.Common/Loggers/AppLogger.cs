@@ -3,6 +3,7 @@ using NLog.Config;
 using NLog.Targets;
 using System;
 using Bugsnag;
+using System.Reflection;
 
 namespace Daqifi.Desktop.Common.Loggers
 {
@@ -49,7 +50,11 @@ namespace Daqifi.Desktop.Common.Loggers
             // Step 5. Activate the configuration
             LogManager.Configuration = config;
 
-            var configuration = new Configuration("899ecd666668c33e02cc5adc651a11b8");
+            var configuration = new Configuration("899ecd666668c33e02cc5adc651a11b8")
+            {
+                AppVersion = Assembly.GetEntryAssembly().GetName().Version.ToString()
+
+            };
             _client = new Client(configuration);
         }
 
