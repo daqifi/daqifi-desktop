@@ -47,6 +47,21 @@ namespace Daqifi.Desktop.Device.SerialDevice
             }
         }
 
+        public override bool Write(string command)
+        {
+            try
+            {
+                Port.WriteTimeout = 1000;
+                Port.Write(command);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Failed to write in SerialStreamingDevice");
+                return false;
+            }
+        }
+
         public override bool Disconnect()
         {
             try
