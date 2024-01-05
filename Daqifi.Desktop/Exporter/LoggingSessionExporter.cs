@@ -6,12 +6,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Daqifi.Desktop.Models;
 
 namespace Daqifi.Desktop.Exporter
 {
     public class LoggingSessionExporter
     {
         private AppLogger AppLogger = AppLogger.Instance;
+        private readonly string Delimiter = DaqifiSettings.Instance.CsvDelimiter;
 
         public void ExportLoggingSession(LoggingSession loggingSession, string filepath)
         {
@@ -27,7 +29,7 @@ namespace Daqifi.Desktop.Exporter
 
                 // Create the header
                 var sb = new StringBuilder();
-                sb.Append("time,").Append(string.Join(",", channelNames.ToArray())).AppendLine();
+                sb.Append("time").Append(Delimiter).Append(string.Join(Delimiter, channelNames.ToArray())).AppendLine();
                 File.WriteAllText(filepath, sb.ToString());
                 sb.Clear();
 
@@ -58,7 +60,7 @@ namespace Daqifi.Desktop.Exporter
 
                         foreach (var sample in sampleDictionary)
                         {
-                            sb.Append(",");
+                            sb.Append(Delimiter);
                             sb.Append(sample.Value);
                         }
 
@@ -99,7 +101,7 @@ namespace Daqifi.Desktop.Exporter
 
                     // Create the header
                     var sb = new StringBuilder();
-                    sb.Append("time,").Append(string.Join(",", channelNames.ToArray())).AppendLine();
+                    sb.Append("time").Append(Delimiter).Append(string.Join(Delimiter, channelNames.ToArray())).AppendLine();
 
                     var count = 0;
                     var tempTotals = new List<double>();
@@ -119,10 +121,10 @@ namespace Daqifi.Desktop.Exporter
                         if (count % averageQuantity == 0)
                         {
                             // Average and write to file
-                            sb.Append(row).Append(",");
+                            sb.Append(row).Append(Delimiter);
                             foreach (var value in tempTotals)
                             {
-                                sb.Append(value / averageQuantity).Append(",");
+                                sb.Append(value / averageQuantity).Append(Delimiter);
                             }
                             sb.AppendLine();
                             tempTotals.Clear();
