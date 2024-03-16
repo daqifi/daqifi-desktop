@@ -19,11 +19,15 @@ Windows desktop application (.NET) that is used to communicate with DAQiFi hardw
 
 ## CI/CD
 
-Coming soon (Requires .NET6 to build with GitHub Actions)
+None yet as this Requires `.NET6` to build with GitHub Actions.
+
+## Observability
+
+Exceptions are sent to [BugSnag](https://app.bugsnag.com/daqifi/daqifi-desktop/)
 
 ## Documentation
 
-How data goes from device to the database.
+How data goes from the device to the database.
 
 ```mermaid
 sequenceDiagram
