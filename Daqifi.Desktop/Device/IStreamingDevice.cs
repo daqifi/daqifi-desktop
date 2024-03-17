@@ -3,11 +3,15 @@ using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using System.Collections.Generic;
+using Daqifi.Desktop.DataModel.Network;
 
 namespace Daqifi.Desktop.Device
 {
     public interface IStreamingDevice : IDevice
     {
+        string DevicePartNumber { get; }
+        NetworkConfiguration NetworkConfiguration { get; }
+        List<string> AdcRanges { get; }
         string AdcRangeText { get; set; }
         int StreamingFrequency { get; set; }
         IMessageConsumer MessageConsumer { get; set; }

@@ -1,5 +1,6 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
 using System;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Xml.Linq;
 
@@ -9,11 +10,24 @@ namespace Daqifi.Desktop.Models
     {
         #region Private Data
         private bool _canReportErrors;
+        private string _csvDelimiter;
         private static readonly string AppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
         private static readonly string SettingsXmlPath = AppDirectory + "\\DAQifiConfiguration.xml";
         #endregion
 
         #region Properties
+        public ObservableCollection<string> CsvDelimiterOptions { get; } = new ObservableCollection<string> { ",", ";" };
+
+        public string CsvDelimiter
+        {
+            get => _csvDelimiter;
+            set
+            {
+                _csvDelimiter = value;
+                SaveSettings();
+            }
+        }
+        
         public bool CanReportErrors
         {
             get => _canReportErrors;
@@ -54,21 +68,29 @@ namespace Daqifi.Desktop.Models
 
                 var xml = XElement.Load(SettingsXmlPath);
 
-                if (xml.Element("CanReportErrors") == null) return;
-                if (bool.TryParse(xml.Element("CanReportErrors").Value, out bool temp))
+                if (xml.Element("CanReportErrors") != null)
                 {
-                    _canReportErrors = temp;
+                    if (bool.TryParse(xml.Element("CanReportErrors").Value, out bool temp))
+                    {
+                        _canReportErrors = temp;
+                    }
+                }
+                
+                if (xml.Element("CsvDelimiter") != null)
+                {
+                    _csvDelimiter = xml.Element("CsvDelimiter").Value;
                 }
             }
             catch(Exception ex)
             {
-                AppLogger.Instance.Error(ex, "Problem Loading DAQifi Settings");
+                AppLogger.Instance.Error(ex, "Problem Loading DAQiFi Settings");
             }
         }
 
         private void LoadDefaultValues()
         {
             CanReportErrors = true;
+            CsvDelimiter = ",";
             SaveSettings();
         }
 
@@ -78,11 +100,12 @@ namespace Daqifi.Desktop.Models
             {
                 var xml = new XElement("DAQifiSettings");
                 xml.Add(new XElement("CanReportErrors", CanReportErrors));
+                xml.Add(new XElement("CsvDelimiter", CsvDelimiter));
                 xml.Save(SettingsXmlPath);
             }
             catch (Exception ex)
             {
-                AppLogger.Instance.Error(ex, "Problem Saving DAQifi Settings");
+                AppLogger.Instance.Error(ex, "Problem Saving DAQiFi Settings");
             }
         }
         #endregion
