@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         mc:Ignorable="d"
-        Title="DAQifi Settings" ResizeMode="NoResize" Height="400" Width="400" GlowBrush="{DynamicResource AccentColorBrush}">
+        Title="DAQiFi Settings" ResizeMode="NoResize" Height="400" Width="400" GlowBrush="{DynamicResource AccentColorBrush}">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -14,12 +14,27 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <GroupBox Grid.Row="1" Header="Report Errors">
+        <GroupBox Grid.Row="1">
             <StackPanel>
+                <TextBlock>
+                    <Run FontWeight="Bold">
+                        Export Settings
+                    </Run>
+                </TextBlock>
+                <StackPanel Orientation="Horizontal" Margin="15">
+                    <TextBlock Text="CSV Delimiter" TextWrapping="WrapWithOverflow" Margin="0,0,10,0"/>
+                    <ComboBox Width="50" ItemsSource="{Binding CsvDelimiterOptions}" SelectedItem="{Binding CsvDelimiter}"/>
+                </StackPanel>
+                <Separator Margin="10,0,0,10"></Separator>
+                <TextBlock>
+                    <Run FontWeight="Bold">
+                        Anonymous Feedback
+                    </Run>
+                </TextBlock>
                 <TextBlock Text="Help us improve your experience by providing anonymous data.  No information is collected that could be used to either identify or contact you." TextWrapping="WrapWithOverflow"/>
                 <DockPanel Margin="15">
                     <CheckBox IsChecked="{Binding CanReportErrors}"/>
-                    <TextBlock  Text="Report errors and usage data" TextWrapping="WrapWithOverflow"/>
+                    <TextBlock Text="Report errors and usage data" TextWrapping="WrapWithOverflow"/>
                 </DockPanel>
             </StackPanel>
         </GroupBox>
