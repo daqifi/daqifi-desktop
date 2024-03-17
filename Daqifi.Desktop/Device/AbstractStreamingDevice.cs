@@ -8,7 +8,6 @@ using Daqifi.Desktop.IO.Messages.MessageTypes;
 using Daqifi.Desktop.IO.Messages.Producers;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using Microsoft.Extensions.ObjectPool;
 
@@ -16,10 +15,11 @@ namespace Daqifi.Desktop.Device
 {
     public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevice
     {
-        #region Private Data
-
+        private const string _5Volt = "+/-5V";
+        private const string _10Volt = "+/-10V";
+        private const string Nq1PartNumber = "Nq1";
         private const double TickPeriod = 20E-9f;
-        protected static DateTime? _previousTimestamp;
+        private static DateTime? _previousTimestamp;
         private string _adcRangeText;
         protected readonly double AdcResolution = 131072;
         protected double AdcRange = 1;
@@ -28,8 +28,7 @@ namespace Daqifi.Desktop.Device
 
         private ObjectPool<DataSample> _samplePool = ObjectPool.Create<DataSample>();
         private ObjectPool<DeviceMessage> _deviceMessagePool = ObjectPool.Create<DeviceMessage>();
-
-        #endregion
+        
 
         #region Properties
         public AppLogger AppLogger = AppLogger.Instance;
@@ -37,6 +36,8 @@ namespace Daqifi.Desktop.Device
         public int Id { get; set; }
 
         public string Name { get; set; }
+
+        public string DevicePartNumber { get; private set; } = string.Empty;
 
         public int StreamingFrequency
         {
@@ -50,7 +51,7 @@ namespace Daqifi.Desktop.Device
         }
 
         public List<string> SecurityTypes { get; } = new List<string>();
-        public List<string> AdcRanges { get; } = new List<string> { "+/-5V", "+/-10V" };
+        public List<string> AdcRanges { get; } = new List<string>();
 
         public NetworkConfiguration NetworkConfiguration { get; set; } = new NetworkConfiguration();
 
@@ -63,17 +64,21 @@ namespace Daqifi.Desktop.Device
             get => _adcRangeText;
             set 
             {
-                if(value == AdcRanges[0])
-                {
-                    SetAdcRange(5);
-                }
-                else if (value == AdcRanges[1])
-                {
-                    SetAdcRange(10);
-                }
-                else
+                if (value == _adcRangeText)
                 {
                     return;
+                }
+                
+                switch (value)
+                {
+                    case _5Volt:
+                        SetAdcRange(5);
+                        break;
+                    case _10Volt:
+                        SetAdcRange(10);
+                        break;
+                    default:
+                        return;
                 }
                 _adcRangeText = value;
                 NotifyPropertyChanged("AdcRange");
@@ -105,10 +110,10 @@ namespace Daqifi.Desktop.Device
             MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
             MessageConsumer.OnMessageReceived += HandleMessageReceived;
 
+            HydrateDeviceMetadata(message);
             PopulateDigitalChannels(message);
             PopulateAnalogInChannels(message);
             PopulateAnalogOutChannels(message);
-            PopulateNetworkConfiguration(message);
         }
 
         private bool IsValidStatusMessage(IDaqifiOutMessage message)
@@ -430,27 +435,18 @@ namespace Daqifi.Desktop.Device
             }
         }
 
-        private void PopulateNetworkConfiguration(IDaqifiOutMessage message)
-        {
-            if (message.HasSsid)
-            {
-                NetworkConfiguration.Ssid = message.Ssid;
-            }
-
-            if (message.HasWifiSecurityMode)
-            {
-                NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
-            }
-
-            if (message.HasWifiInfMode)
-            {
-                NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
-            }
-        }
-
         private void PopulateAnalogInChannels(IDaqifiOutMessage message)
         {
             if (!message.HasAnalogInPortNum) return;
+
+            if (!string.IsNullOrWhiteSpace(DevicePartNumber))
+            {
+                AdcRanges.Clear();
+                if (DevicePartNumber == Nq1PartNumber)
+                {
+                    AdcRanges.Add(_5Volt);
+                }
+            }
 
             var analogInPortRanges = message.AnalogInPortRangeList;
             var analogInCalibrationBValues = message.AnalogInCalBList;
@@ -481,6 +477,34 @@ namespace Daqifi.Desktop.Device
                     getWithDefault(analogInInternalScaleMValues, i, 1.0f),
                     getWithDefault(analogInPortRanges, i, 1.0f),
                     analogInResolution));
+            }
+        }
+
+        private void HydrateDeviceMetadata(IDaqifiOutMessage message)
+        {
+            if (message.HasSsid)
+            {
+                NetworkConfiguration.Ssid = message.Ssid;
+            }
+
+            if (message.HasWifiSecurityMode)
+            {
+                NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
+            }
+
+            if (message.HasWifiInfMode)
+            {
+                NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
+            }
+            
+            if (message.HasDevicePn)
+            {
+                DevicePartNumber = message.DevicePn;
+            }
+
+            if ((int)message.GetAnalogInPortRange(0) == 5)
+            {
+                _adcRangeText = _5Volt;
             }
         }
 
