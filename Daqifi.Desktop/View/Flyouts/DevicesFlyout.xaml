@@ -4,11 +4,16 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
              xmlns:networkDataModel="clr-namespace:Daqifi.Desktop.DataModel.Network;assembly=Daqifi.Desktop.DataModel"
              xmlns:sys="clr-namespace:System;assembly=mscorlib" xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
                  mc:Ignorable="d" 
              d:DesignHeight="600" d:DesignWidth="600"
              Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsDeviceSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right" Header="Device Settings">
+    <controls:Flyout.DataContext>
+        <vm:DaqifiViewModel/>
+    </controls:Flyout.DataContext>
+    
     <Controls:Flyout.Resources>
         <ObjectDataProvider MethodName="GetValues" ObjectType="{x:Type sys:Enum}" x:Key="WifiModes">
             <ObjectDataProvider.MethodParameters>
@@ -31,16 +36,20 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-
-        <!-- Frequency Configuration-->
-        <GroupBox Grid.Column="0" Grid.Row="0" Header="Sampling Frequency (Hz)">
+        
+        <!-- Device Information -->
+        <GroupBox Grid.Column="0" Grid.Row="0" Header="Device Information">
             <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <TextBox Grid.Row="0" Text="{Binding ElementName=FrequencySlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
-                <Slider Grid.Row="1" Name="FrequencySlider" HorizontalAlignment="Stretch" Minimum="1" Maximum="1000" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding SelectedStreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
+                <Label Grid.Column="0" Grid.Row="0" Content="Model Number:"/>
+                <Label Grid.Column="1" Grid.Row="0" Content="{Binding SelectedDevice.DevicePartNumber}"/>
             </Grid>
         </GroupBox>
 
@@ -83,9 +92,21 @@
                 </DockPanel>
             </Grid>
         </GroupBox>
+        
+        <!-- Frequency Configuration-->
+        <GroupBox Grid.Column="1" Grid.Row="0" Header="Sampling Frequency (Hz)">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBox Grid.Row="0" Text="{Binding ElementName=FrequencySlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
+                <Slider Grid.Row="1" Name="FrequencySlider" HorizontalAlignment="Stretch" Minimum="1" Maximum="1000" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding SelectedStreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
+            </Grid>
+        </GroupBox>
 
         <!-- ADC Range -->
-        <GroupBox Grid.Column="1" Grid.Row="0" Header="ADC Range">
+        <GroupBox Grid.Column="1" Grid.Row="1" Header="ADC Range">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -104,10 +125,10 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <TextBox Grid.Column="0" Text="{Binding FirmwareFilePath, Mode=TwoWay}" />
-                <Button Grid.Column="1" Content="Browse"  Command="{Binding BrowseForFirmwareCommand}"/>
+                <TextBox Grid.Row="0" Grid.Column="0" Text="{Binding FirmwareFilePath, Mode=TwoWay}" />
+                <Button Grid.Row="0" Grid.Column="1" Content="Browse"  Command="{Binding BrowseForFirmwareCommand}"/>
                 <controls:MetroProgressBar Grid.Column="0" Grid.Row="1" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadFirmwareProgress}" />
-                <Button Grid.Column="1" Grid.Row="1" Grid.ColumnSpan="2" Width="50" Content="Update" 
+                <Button Grid.Column="1" Grid.Row="1" Width="50" Content="Update" 
                         Command="{Binding UploadFirmwareCommand}" />
             </Grid>
         </GroupBox>
