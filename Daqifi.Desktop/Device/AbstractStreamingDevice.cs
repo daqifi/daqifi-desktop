@@ -501,8 +501,8 @@ namespace Daqifi.Desktop.Device
             {
                 DevicePartNumber = message.DevicePn;
             }
-
-            if ((int)message.GetAnalogInPortRange(0) == 5)
+            
+            if (message.AnalogInPortRangeCount > 0 && (int)message.GetAnalogInPortRange(0) == 5)
             {
                 _adcRangeText = _5Volt;
             }
