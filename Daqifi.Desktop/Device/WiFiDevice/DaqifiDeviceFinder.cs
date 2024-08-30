@@ -44,7 +44,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             try
             {
                 Destination = new IPEndPoint(GetBroadcastAddress(), broadcastPort);
-                Client = new UdpClient(broadcastPort);
+                Client = new UdpClient(broadcastPort + 1);
             }
             catch (Exception ex)
             {
