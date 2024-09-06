@@ -24,8 +24,8 @@ We use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) (a
 Use one of the following prefixes in your PR Title:
 
 - `feat:` New feature
-- `fix:` Fixing a bug 
-- `docs:` Updating documentation 
+- `fix:` Fixing a bug
+- `docs:` Updating documentation
 - `deps:` Updating dependencies
 - `chore:` Miscellaneous items (code refactor)
 
