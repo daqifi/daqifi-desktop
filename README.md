@@ -48,3 +48,7 @@ DatabaseLogger->>Database:Bulk Insert Buffer
 
 - Uses [Wix Toolset](https://wixtoolset.org/)
 - Separate solution `Daqifi.Desktop.Setup`
+
+## Contribution
+
+Please read [Contributing Guidelines](CONTRIBUTING.md) before contributing.
