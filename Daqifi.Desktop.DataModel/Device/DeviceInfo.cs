@@ -9,5 +9,7 @@
         public string MacAddress { get; set; }
 
         public bool IsPowerOn { get; set; }
+
+        public string DeviceSerialNo { get; set; }
     }
 }

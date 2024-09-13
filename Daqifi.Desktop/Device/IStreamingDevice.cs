@@ -13,6 +13,8 @@ namespace Daqifi.Desktop.Device
         NetworkConfiguration NetworkConfiguration { get; }
         List<string> AdcRanges { get; }
         string AdcRangeText { get; set; }
+        string MacAddress { get; set; }
+        string DeviceSerialNo { get; set; }
         int StreamingFrequency { get; set; }
         IMessageConsumer MessageConsumer { get; set; }
         IMessageProducer MessageProducer { get; set; }

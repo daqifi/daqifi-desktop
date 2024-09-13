@@ -14,6 +14,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         public string IpAddress { get; set; }
         public string MacAddress { get; set; }
         public bool IsPowerOn { get; set; }
+        public string DeviceSerialNo { get; set; }
 
         #endregion
 
@@ -21,6 +22,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         public DaqifiStreamingDevice(DeviceInfo deviceInfo)
         {
             Name = deviceInfo.DeviceName;
+            DeviceSerialNo= deviceInfo.DeviceSerialNo;
             IpAddress = deviceInfo.IpAddress;
             MacAddress = deviceInfo.MacAddress;
             IsPowerOn = deviceInfo.IsPowerOn;

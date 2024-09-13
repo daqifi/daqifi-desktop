@@ -136,13 +136,16 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             var macAddress = ProtobufDecoder.GetMacAddressString(message);
             var ipAddress = ProtobufDecoder.GetIpAddressString(message);
             var isPowerOn = message.PwrStatus == 1;
+            var device_sn= message.DeviceSn;
 
             var deviceInfo = new DeviceInfo
             {
                 DeviceName = deviceName,
                 IpAddress = ipAddress,
                 MacAddress = macAddress,
-                IsPowerOn = isPowerOn
+                IsPowerOn = isPowerOn,
+                DeviceSerialNo= device_sn.ToString()
+
             };
 
             var device = new DaqifiStreamingDevice(deviceInfo);

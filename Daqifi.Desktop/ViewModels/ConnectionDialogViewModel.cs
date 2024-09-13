@@ -147,8 +147,11 @@ namespace Daqifi.Desktop.ViewModels
             _wifiFinder.Stop();
 
             var selectedDevices = ((IEnumerable)selectedItems).Cast<IStreamingDevice>();
+      
+
             foreach (var device in selectedDevices)
             {
+               //var data=device.mac
                 ConnectionManager.Instance.Connect(device);
             }            
         }

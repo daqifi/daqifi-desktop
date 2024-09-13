@@ -25,15 +25,26 @@ using System.Windows.Input;
 using System.Collections;
 using Daqifi.Desktop.Device.SerialDevice;
 using System.Threading;
+using Daqifi.Desktop.Models;
 
 namespace Daqifi.Desktop.ViewModels
 {
     public class DaqifiViewModel : ViewModelBase
     {
+        #region INotifyPropertyChanged Methods
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        protected void NotifyPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+        #endregion
+
         #region Private Variables
         private bool _isBusy;
         private bool _isLoggedDataBusy;
         private bool _isDeviceSettingsOpen;
+        private bool _isProfileSettingsOpen;
         private bool _isLogSummaryOpen;
         private bool _isChannelSettingsOpen;
         private bool _isLoggingSessionSettingsOpen;
@@ -48,7 +59,9 @@ namespace Daqifi.Desktop.ViewModels
         public WindowState _viewWindowState;
         private readonly IDialogService _dialogService;
         private IStreamingDevice _selectedDevice;
+        private IStreamingDevice _updateProfileSelectedDevice;
         private IChannel _selectedChannel;
+        private Profile _selectedProfile;
         private LoggingSession _selectedLoggingSession;
         private bool _isLogging;
         private bool _canToggleLogging;
@@ -56,7 +69,7 @@ namespace Daqifi.Desktop.ViewModels
         private string _firmwareFilePath;
         private Pic32Bootloader _bootloader;
         private string _version;
-        
+
         private bool _isFirmwareUploading;
         private bool _isUploadComplete;
         private bool _hasErrorOccured;
@@ -186,7 +199,7 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-        public string UploadFirmwareProgressText => ($"Upload Progress: {UploadFirmwareProgress}%");   
+        public string UploadFirmwareProgressText => ($"Upload Progress: {UploadFirmwareProgress}%");
 
         public ICommand UploadFirmwareCommand { get; set; }
         private bool CanUploadFirmware(object o)
@@ -197,10 +210,10 @@ namespace Daqifi.Desktop.ViewModels
         public void UploadFirmware(object o)
         {
             // Check if the available port is opened:
-            ObservableCollection<SerialStreamingDevice>  _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
+            ObservableCollection<SerialStreamingDevice> _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
             SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
             SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
-            
+
             SerialStreamingDevice port = manualserialdevice;
             // Check if serial ports auto/manual are not null
             if (port == null) { port = autodaqifiport; }
@@ -208,7 +221,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 // Send the Daqifi command "Force Boot"
                 string command = "SYSTem:FORceBoot\r\n";
-                
+
                 if (port.Write(command))
                 {
                     // Once the Daqifi resets, the COM serial port is closed,
@@ -266,13 +279,13 @@ namespace Daqifi.Desktop.ViewModels
                 {
                     string msg = "Error writing to COM port";
                     AppLogger.Error(msg);
-                }                                        
+                }
             }
             else
             {
                 string msg = "Error serial COM port detection";
-                AppLogger.Error(msg);           
-            }          
+                AppLogger.Error(msg);
+            }
         }
         #endregion
 
@@ -282,7 +295,7 @@ namespace Daqifi.Desktop.ViewModels
         public WindowState ViewWindowState
         {
             get => _viewWindowState;
-            set 
+            set
             {
                 _viewWindowState = value;
                 RaisePropertyChanged("FlyoutWidth");
@@ -354,6 +367,15 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isDeviceSettingsOpen = value;
+                RaisePropertyChanged();
+            }
+        }
+        public bool IsProfileSettingsOpen
+        {
+            get => _isProfileSettingsOpen;
+            set
+            {
+                _isProfileSettingsOpen = value;
                 RaisePropertyChanged();
             }
         }
@@ -437,7 +459,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 if (value < 1) return;
-                
+
                 if (LoggingManager.Instance.Active)
                 {
                     var errorDialogViewModel = new ErrorDialogViewModel("Cannot change sampling frequency while logging.");
@@ -465,33 +487,33 @@ namespace Daqifi.Desktop.ViewModels
 
         public double FlyoutWidth
         {
-            get 
+            get
             {
-               if(ViewWindowState== WindowState.Maximized)
-               {
-                   return SystemParameters.WorkArea.Width - _sidePanelWidth;
-               } 
-               return _width - _sidePanelWidth; 
+                if (ViewWindowState == WindowState.Maximized)
+                {
+                    return SystemParameters.WorkArea.Width - _sidePanelWidth;
+                }
+                return _width - _sidePanelWidth;
             }
         }
 
         public double FlyoutHeight
         {
-            get 
+            get
             {
                 if (ViewWindowState == WindowState.Maximized)
                 {
                     return SystemParameters.WorkArea.Height - _topToolbarHeight;
                 }
-                return _height - _topToolbarHeight; 
+                return _height - _topToolbarHeight;
             }
         }
 
         public IStreamingDevice SelectedDevice
         {
             get => _selectedDevice;
-            set 
-            { 
+            set
+            {
                 _selectedDevice = value;
                 RaisePropertyChanged();
             }
@@ -506,6 +528,32 @@ namespace Daqifi.Desktop.ViewModels
                 RaisePropertyChanged();
             }
         }
+        public Profile SelectedProfile
+        {
+            get => _selectedProfile;
+            set
+            {
+                _selectedProfile = value;
+                RaisePropertyChanged();
+                if (_selectedProfile != null)
+                {
+                    SetSelectedProfile();
+                }
+            }
+        }
+
+        private void SetSelectedProfile()
+        {
+            try
+            {
+
+            }
+            catch (Exception ex)
+            {
+
+                AppLogger.Error(ex, "Error Setting Selected profile");
+            }
+        }
 
         public LoggingSession SelectedLoggingSession
         {
@@ -518,6 +566,7 @@ namespace Daqifi.Desktop.ViewModels
         }
 
         public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = new ObservableCollection<IStreamingDevice>();
+        public ObservableCollection<Profile> profiles { get; } = new ObservableCollection<Profile>();
         public ObservableCollection<IChannel> ActiveChannels { get; } = new ObservableCollection<IChannel>();
         public ObservableCollection<IChannel> ActiveInputChannels { get; } = new ObservableCollection<IChannel>();
         public ObservableCollection<LoggingSession> LoggingSessions { get; } = new ObservableCollection<LoggingSession>();
@@ -538,7 +587,7 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region Constructor
-        public DaqifiViewModel() : this(ServiceLocator.Resolve<IDialogService>()){ }
+        public DaqifiViewModel() : this(ServiceLocator.Resolve<IDialogService>()) { }
 
         public DaqifiViewModel(IDialogService dialogService)
         {
@@ -559,6 +608,11 @@ namespace Daqifi.Desktop.ViewModels
                 // Database logging
                 DbLogger = new DatabaseLogger();
                 LoggingManager.Instance.AddLogger(DbLogger);
+
+                //Xml profiles load
+                ObservableCollection<Daqifi.Desktop.Models.Profile> observableProfileList = new ObservableCollection<Daqifi.Desktop.Models.Profile>(LoggingManager.Instance.LoadProfilesFromXml());
+                // profiles = observableProfileList;
+                GetUpdateProfileAvailableDevice();
 
                 // Summary Logger
                 SummaryLogger = new SummaryLogger();
@@ -597,13 +651,17 @@ namespace Daqifi.Desktop.ViewModels
 
         public void RegisterCommands()
         {
+            ShowAddProfileDialogCommand = new DelegateCommand(ShowAddProfileDialog, CanShowAddProfileDialog);
             ShowConnectionDialogCommand = new DelegateCommand(ShowConnectionDialog, CanShowConnectionDialog);
             ShowAddChannelDialogCommand = new DelegateCommand(ShowAddChannelDialog, CanShowAddChannelDialog);
             ShowSelectColorDialogCommand = new DelegateCommand(ShowSelectColorDialog, CanShowSelectColorDialogCommand);
+            RemoveProfileCommand = new DelegateCommand(RemoveProfile, CanRemoveProfileCommand);
             RemoveChannelCommand = new DelegateCommand(RemoveChannel, CanRemoveChannelCommand);
             OpenLiveGraphSettingsCommand = new DelegateCommand(OpenLiveGraphSettings, CanOpenLiveGraphSettings);
             OpenDeviceSettingsCommand = new DelegateCommand(OpenDeviceSettings, CanOpenDeviceSettings);
             OpenChannelSettingsCommand = new DelegateCommand(OpenChannelSettings, CanOpenChannelSettings);
+            OpenProfileSettingsCommand = new DelegateCommand(OpenProfileSettings, CanOpenProfileSettings);
+            IsprofileActiveCommand = new DelegateCommand(GetSelectedProfileActive, CanIsprofileActive);
             OpenLogSummaryCommand = new DelegateCommand(OpenLogSummary, CanOpenLogSummary);
             OpenLoggingSessionSettingsCommand = new DelegateCommand(OpenLoggingSessionSettings, CanOpenLoggingSessionSettings);
             ShowDAQifiSettingsDialogCommand = new DelegateCommand(ShowDAQifiSettingsDialog, CanShowDAQifiSettingsDialog);
@@ -621,9 +679,16 @@ namespace Daqifi.Desktop.ViewModels
             UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
             HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
         }
+
+
         #endregion
-        
+
         #region Command Properties
+        public ICommand ShowAddProfileDialogCommand { get; private set; }
+        private bool CanShowAddProfileDialog(object o)
+        {
+            return true;
+        }
         public ICommand ShowConnectionDialogCommand { get; private set; }
         private bool CanShowConnectionDialog(object o)
         {
@@ -637,7 +702,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 var errorDialogViewModel = new ErrorDialogViewModel("Cannot add channel while logging.");
                 _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                
+
                 return false;
             }
             return true;
@@ -651,6 +716,11 @@ namespace Daqifi.Desktop.ViewModels
 
         public ICommand ShowDAQifiSettingsDialogCommand { get; private set; }
         private bool CanShowDAQifiSettingsDialog(object o)
+        {
+            return true;
+        }
+        public ICommand RemoveProfileCommand { get; private set; }
+        private bool CanRemoveProfileCommand(object o)
         {
             return true;
         }
@@ -700,6 +770,16 @@ namespace Daqifi.Desktop.ViewModels
 
         public ICommand OpenChannelSettingsCommand { get; private set; }
         private bool CanOpenChannelSettings(object o)
+        {
+            return true;
+        }
+        public ICommand IsprofileActiveCommand { get; private set; }
+        private bool CanOpenProfileSettings(object o)
+        {
+            return true;
+        }
+        public ICommand OpenProfileSettingsCommand { get; private set; }
+        private bool CanIsprofileActive(object o)
         {
             return true;
         }
@@ -815,15 +895,18 @@ namespace Daqifi.Desktop.ViewModels
         {
             _connectionDialogViewModel = new ConnectionDialogViewModel();
             _connectionDialogViewModel.StartConnectionFinders();
-            _dialogService.ShowDialog<ConnectionDialog>(this, _connectionDialogViewModel);          
+            _dialogService.ShowDialog<ConnectionDialog>(this, _connectionDialogViewModel);
         }
-
+        private void ShowAddProfileDialog(object o)
+        {
+            var addProfileDialogViewModel = new AddProfileDialogViewModel();
+            _dialogService.ShowDialog<AddprofileDialog>(this, addProfileDialogViewModel);
+        }
         private void ShowAddChannelDialog(object o)
         {
             var addChannelDialogViewModel = new AddChannelDialogViewModel();
             _dialogService.ShowDialog<AddChannelDialog>(this, addChannelDialogViewModel);
         }
-
         private void ShowSelectColorDialog(object o)
         {
             var item = o as IColorable;
@@ -832,31 +915,28 @@ namespace Daqifi.Desktop.ViewModels
             var selectColorDialogViewModel = new SelectColorDialogViewModel(item);
             _dialogService.ShowDialog<SelectColorDialog>(this, selectColorDialogViewModel);
         }
-
         private void ShowDAQifiSettingsDialog(object o)
         {
             var settingsViewModel = new SettingsViewModel();
             _dialogService.ShowDialog<SettingsDialog>(this, settingsViewModel);
         }
-
         private void RemoveChannel(object o)
         {
             var channelToRemove = o as IChannel;
 
             foreach (var device in ConnectionManager.Instance.ConnectedDevices)
             {
-               foreach (var channel in device.DataChannels)
-               {
-                   if (channel==channelToRemove)
-                   {
-                       LoggingManager.Instance.Unsubscribe(channel);
-                       device.RemoveChannel(channel);
-                       return;
-                   }
-               }
+                foreach (var channel in device.DataChannels)
+                {
+                    if (channel == channelToRemove)
+                    {
+                        LoggingManager.Instance.Unsubscribe(channel);
+                        device.RemoveChannel(channel);
+                        return;
+                    }
+                }
             }
         }
-
         private void DisconnectDevice(object o)
         {
             if (!(o is IStreamingDevice deviceToRemove)) return;
@@ -871,35 +951,30 @@ namespace Daqifi.Desktop.ViewModels
 
             ConnectionManager.Instance.Disconnect(deviceToRemove);
         }
-
         public void Shutdown(object o)
         {
-            foreach(var device in ConnectedDevices)
+            foreach (var device in ConnectedDevices)
             {
                 device.Disconnect();
             }
         }
-
         public void UpdateNetworkConfiguration(object o)
         {
             SelectedDevice.UpdateNetworkConfiguration();
         }
-
         public void BrowseForFirmware(object o)
         {
-            var openFileDialog = new OpenFileDialog {Filter = "Firmware Files (*.hex)|*.hex"};
+            var openFileDialog = new OpenFileDialog { Filter = "Firmware Files (*.hex)|*.hex" };
             if (openFileDialog.ShowDialog() == true)
             {
                 FirmwareFilePath = openFileDialog.FileName;
             }
         }
-
         private void OpenLiveGraphSettings(object o)
         {
             CloseFlyouts();
             IsLiveGraphSettingsOpen = true;
         }
-
         private void OpenDeviceSettings(object o)
         {
             var item = o as IStreamingDevice;
@@ -909,14 +984,13 @@ namespace Daqifi.Desktop.ViewModels
             SelectedDevice = item;
             IsDeviceSettingsOpen = true;
         }
-
         private void OpenChannelSettings(object o)
         {
             if (!(o is IChannel item))
             {
                 AppLogger.Error("Error opening channel settings");
                 return;
-            } 
+            }
 
             CloseFlyouts();
             SelectedChannel = item;
@@ -999,7 +1073,7 @@ namespace Daqifi.Desktop.ViewModels
                     return;
                 }
 
-                var result = await ShowMessage("Delete Confirmation", "Are you sure you want to delete " + session.Name +"?" , MessageDialogStyle.AffirmativeAndNegative).ConfigureAwait(false);
+                var result = await ShowMessage("Delete Confirmation", "Are you sure you want to delete " + session.Name + "?", MessageDialogStyle.AffirmativeAndNegative).ConfigureAwait(false);
                 if (result != MessageDialogResult.Affirmative)
                 {
                     return;
@@ -1056,7 +1130,7 @@ namespace Daqifi.Desktop.ViewModels
                 {
                     try
                     {
-                        while(LoggingSessions.Count > 0)
+                        while (LoggingSessions.Count > 0)
                         {
                             var session = LoggingSessions.ElementAt(0);
                             DbLogger.DeleteLoggingSession(session);
@@ -1083,7 +1157,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void RebootSelectedDevice(object o)
         {
-            if(!(o is IStreamingDevice deviceToReboot)) return;
+            if (!(o is IStreamingDevice deviceToReboot)) return;
 
             if (deviceToReboot.DataChannels != null)
             {
@@ -1109,19 +1183,32 @@ namespace Daqifi.Desktop.ViewModels
         {
             switch (args.PropertyName)
             {
+                case "SubscribedProfiles":
+
+                    if (LoggingManager.Instance.SubscribedProfiles.Count == 0)
+                        profiles.Clear();
+                    foreach (Profile connectedProfiles in LoggingManager.Instance.SubscribedProfiles)
+                    {
+                        if (!profiles.Where(x => x.ProfileId == connectedProfiles.ProfileId).Any())
+                        {
+                            profiles.Add(connectedProfiles);
+                        }
+                    }
+                    break;
                 case "ConnectedDevices":
                     ConnectedDevices.Clear();
                     foreach (var connectedDevice in ConnectionManager.Instance.ConnectedDevices)
                     {
                         ConnectedDevices.Add(connectedDevice);
                     }
+                    GetUpdateProfileAvailableDevice();
                     break;
                 case "SubscribedChannels":
                     ActiveChannels.Clear();
                     ActiveInputChannels.Clear();
                     foreach (var channel in LoggingManager.Instance.SubscribedChannels)
                     {
-                        if(!channel.IsOutput)
+                        if (!channel.IsOutput)
                         {
                             ActiveInputChannels.Add(channel);
                         }
@@ -1138,20 +1225,179 @@ namespace Daqifi.Desktop.ViewModels
             }
             CanToggleLogging = ActiveChannels.Count > 0;
         }
-
         public async Task<MessageDialogResult> ShowMessage(string title, string message, MessageDialogStyle dialogStyle)
         {
             var metroWindow = Application.Current.MainWindow as MetroWindow;
             return await metroWindow.ShowMessageAsync(title, message, dialogStyle, metroWindow.MetroDialogOptions);
         }
-
         public void CloseFlyouts()
         {
+            IsProfileSettingsOpen = false;
             IsDeviceSettingsOpen = false;
             IsChannelSettingsOpen = false;
             IsLoggingSessionSettingsOpen = false;
             IsLiveGraphSettingsOpen = false;
             IsLogSummaryOpen = false;
         }
+        #region update profile flyout 
+        public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
+        public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
+
+        public void GetUpdateProfileAvailableDevice()
+        {
+            foreach (var device in ConnectionManager.Instance.ConnectedDevices)
+            {
+                AvailableDevices.Add(device);
+            }
+        }
+        private void RemoveProfile(object o)
+        {
+            var ProfileToRemove = o as Profile;
+            if (LoggingManager.Instance.Active)
+            {
+                var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while logging");
+                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                return;
+            }
+            if (ProfileToRemove.IsProfileActive)
+            {
+                var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while profile is active");
+                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                return;
+            }
+            LoggingManager.Instance.UnsubscribeProfile(ProfileToRemove);
+            profiles.Remove(ProfileToRemove);
+            return;
+        }
+        private void OpenProfileSettings(object obj)
+        {
+            if (!(obj is Profile item))
+            {
+                AppLogger.Error("Error opening channel settings");
+                return;
+            }
+            CloseFlyouts();
+            if (LoggingManager.Instance.Active)
+            {
+                var errorDialogViewModel = new ErrorDialogViewModel("Cannot edit profile while logging");
+                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                return;
+            }
+            if (item.IsProfileActive)
+            {
+                var errorDialogViewModel = new ErrorDialogViewModel("Cannot edit profile while profile is active");
+                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                return;
+            }
+            SelectedProfile = item;
+            LoggingManager.Instance.SelectedProfile = item;
+            LoggingManager.Instance.Flag = false;
+            LoggingManager.Instance.SelectedProfileChannels.Clear();
+
+            foreach (var SelectedChannels in SelectedProfile.Devices[0].Channels)
+            {
+                if (SelectedChannels.IsChannelActive)
+                {
+                    LoggingManager.Instance.SelectedProfileChannels.Add(SelectedChannels);
+                }
+            }
+            LoggingManager.Instance.callPropertyChange();
+            IsProfileSettingsOpen = true;
+        }
+        public IStreamingDevice UpdateProfileSelectedDevice
+        {
+            get => _updateProfileSelectedDevice;
+            set
+            {
+                _updateProfileSelectedDevice = value;
+                GetAvailableChannels(_updateProfileSelectedDevice);
+                RaisePropertyChanged();
+            }
+        }
+
+
+        public void GetAvailableChannels(IStreamingDevice device)
+        {
+            AvailableChannels.Clear();
+
+            foreach (var channel in device.DataChannels)
+            {
+                /*if (!channel.IsActive)*/
+                AvailableChannels.Add(channel);
+            }
+        }
+
+        private void GetSelectedProfileActive(object obj)
+        {
+            if (!(obj is Profile item))
+            {
+                AppLogger.Error("Error opening channel settings");
+                return;
+            }
+            if (profiles != null)
+            {
+                var activeProfiles = profiles.Where(x => x.IsProfileActive).ToList();
+                if (activeProfiles != null && activeProfiles.Count > 0)
+                {
+                    foreach (var profile in activeProfiles)
+                    {
+                        if (profile.Devices[0].DeviceSerialNo == item.Devices[0].DeviceSerialNo)
+                            break;
+                        else
+                        {
+                            var errorDialogViewModel = new ErrorDialogViewModel("Cannot select profile with diffrent device in it.");
+                            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                            return;
+                        }
+                    }
+                }
+            }
+            var connecteddevice = ConnectedDevices.Where(x => x.DeviceSerialNo == item.Devices[0].DeviceSerialNo).FirstOrDefault();
+            if (connecteddevice != null)
+            {
+                if (LoggingManager.Instance.Active)
+                {
+                    var errorDialogViewModel = new ErrorDialogViewModel("Cannot select profile  while logging.");
+                    _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                    return;
+                }
+                else
+                {
+                    SelectedDevice = connecteddevice;
+                    UpdateProfileSelectedDevice = SelectedDevice;
+                    SelectedStreamingFrequency = item.Devices[0].SamplingFrequency;
+
+                    if (item.IsProfileActive)
+                    {
+                        foreach (var channel in item.Devices[0].Channels)
+                        {
+                            var profileChannel = AvailableChannels.Where(x => x.Name.ToString() == channel.Name.Trim() && x.TypeString.ToString() == channel.Type.Trim() && channel.IsChannelActive).FirstOrDefault();
+                            if (profileChannel != null)
+                                LoggingManager.Instance.Unsubscribe(profileChannel);
+                        }
+                        item.IsProfileActive = false;
+                    }
+                    else
+                    {
+                        foreach (var channel in item.Devices[0].Channels)
+                        {
+                            var profileChannel = AvailableChannels.Where(x => x.Name.ToString() == channel.Name.Trim() && x.TypeString.ToString() == channel.Type.Trim() && channel.IsChannelActive).FirstOrDefault();
+                            if (profileChannel != null)
+                                LoggingManager.Instance.Subscribe(profileChannel);
+                        }
+                        item.IsProfileActive = true;
+                    }
+                }
+            }
+            else
+            {
+                var errorDialogViewModel = new ErrorDialogViewModel("No connected device for selected profile");
+                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                return;
+            }
+
+
+        }
+        #endregion
     }
 }

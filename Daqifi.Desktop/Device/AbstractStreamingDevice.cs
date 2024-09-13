@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.ObjectPool;
+using Daqifi.Desktop.IO.Messages.Decoders;
 
 namespace Daqifi.Desktop.Device
 {
@@ -36,8 +37,11 @@ namespace Daqifi.Desktop.Device
         public int Id { get; set; }
 
         public string Name { get; set; }
+        public string MacAddress {  get; set; }
 
         public string DevicePartNumber { get; private set; } = string.Empty;
+
+        public string DeviceSerialNo { get; set; }=string.Empty;
 
         public int StreamingFrequency
         {
@@ -146,6 +150,7 @@ namespace Daqifi.Desktop.Device
                 // The board only sends relative timestamps based on a timestamp clock frequency
                 _previousTimestamp = DateTime.Now;
                 _previousDeviceTimestamp = message.MsgTimeStamp;
+                
             }
 
             // Get timestamp difference (i.e. number of clock cycles between messages)
@@ -501,7 +506,11 @@ namespace Daqifi.Desktop.Device
             {
                 DevicePartNumber = message.DevicePn;
             }
-            
+            if (message.HasDeviceSn)
+                DeviceSerialNo=message.DeviceSn.ToString();
+            if(message.HasMacAddr)
+                MacAddress= ProtobufDecoder.GetMacAddressString(message);
+
             if (message.AnalogInPortRangeCount > 0 && (int)message.GetAnalogInPortRange(0) == 5)
             {
                 _adcRangeText = _5Volt;
