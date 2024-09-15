@@ -13,6 +13,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         public TcpClient Client { get; set; }
         public string IpAddress { get; set; }
         public string MacAddress { get; set; }
+        public int Port { get; set; }
         public bool IsPowerOn { get; set; }
         public string DeviceSerialNo { get; set; }
 
@@ -25,6 +26,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             DeviceSerialNo= deviceInfo.DeviceSerialNo;
             IpAddress = deviceInfo.IpAddress;
             MacAddress = deviceInfo.MacAddress;
+            Port = (int)deviceInfo.Port;
             IsPowerOn = deviceInfo.IsPowerOn;
             IsStreaming = false;
         }
@@ -36,10 +38,8 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         {
             try
             {
-                //Client = new TcpClient(IpAddress, 9760);
-
                 Client = new TcpClient();
-                var result = Client.BeginConnect(IpAddress, 9760, null, null);
+                var result = Client.BeginConnect(IpAddress, Port, null, null);
                 var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
 
                 if (!success)
