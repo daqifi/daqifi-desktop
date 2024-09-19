@@ -610,7 +610,7 @@
                                 </Border>
 
                                 <!-- Add profile Button -->
-                                <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="50" Height="50" Command="{Binding ShowAddProfileDialogCommand}" Style="{DynamicResource MetroCircleButtonStyle}" Margin="10" Background="#CC119EDA" >
+                                <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="50" Height="50" Command="{Binding ShowAddProfileConfirmationDialogCommand}" Style="{DynamicResource MetroCircleButtonStyle}" Margin="10" Background="#CC119EDA" >
                                     <Button.Content>
                                         <iconPacks:PackIconMaterial Kind="Plus" HorizontalAlignment="Center" Height="20" Width="20" Foreground="White"/>
                                     </Button.Content>

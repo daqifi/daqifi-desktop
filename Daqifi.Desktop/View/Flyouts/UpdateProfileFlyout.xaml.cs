@@ -1,4 +1,5 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Models;
@@ -43,7 +44,9 @@ namespace Daqifi.Desktop.View.Flyouts
         {
             try
             {
+
                 UpdatedProfileChannelList.SelectedItems.Clear();
+                SelectedDevice.SelectedItems.Clear();
                 foreach (var channel in LoggingManager.Instance.SelectedProfileChannels)
                 {
                     if (channel.IsChannelActive == true)  // Assuming IsChannelActive is a string
@@ -51,14 +54,18 @@ namespace Daqifi.Desktop.View.Flyouts
                         UpdatedProfileChannelList.SelectedItems.Add(channel);
                     }
                 }
+                foreach (var device in LoggingManager.Instance.SelectedProfileDevices)
+                {
+
+                    SelectedDevice.SelectedItems.Add(device);
+
+                }
             }
             catch (Exception ex)
             {
 
                 AppLogger.Error(ex, "Error in updating ui of profile flyout");
             }
-
-
         }
         private void ListViewItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -66,16 +73,61 @@ namespace Daqifi.Desktop.View.Flyouts
             {
                 if (LoggingManager.Instance.SelectedProfile != null)
                 {
-                    
-
                     var item = sender as ListViewItem;
                     if (item.DataContext is ProfileChannel channel && channel != null)
                     {
-                        var data = LoggingManager.Instance.SelectedProfile.Devices[0].Channels.Where(x => x.Name == channel.Name).FirstOrDefault();
-                        if (item != null && item.IsSelected)
-                            data.IsChannelActive = false;
+                        foreach (var device in LoggingManager.Instance.SelectedProfile.Devices)
+                        {
+                            foreach (var Channel in device.Channels)
+                            {
+                                if (Channel.Name == channel.Name)
+                                {
+                                    if (item != null && item.IsSelected)
+                                        Channel.IsChannelActive = false;
+                                    else
+                                        Channel.IsChannelActive = true;
+                                }
+                            }
+                        }
+                        // var data = LoggingManager.Instance.SelectedProfile.Devices[0].Channels.Where(x => x.Name == channel.Name).FirstOrDefault();
+
+                    }
+                    if (item.DataContext is ProfileDevice selecteddevice && selecteddevice != null)
+                    {
+                        var data = LoggingManager.Instance.SelectedProfile.Devices.Where(x => x.DeviceSerialNo == selecteddevice.DeviceSerialNo).FirstOrDefault();
+
+                        if (data != null)
+                        {
+                            if (LoggingManager.Instance.SelectedProfile.Devices.Count == 1)
+                            {
+                                SelectedDevice.SelectedIndex= 0;
+                                return;
+                            }
+                            else
+                                LoggingManager.Instance.SelectedProfile.Devices.Remove(data);
+                        }
                         else
-                            data.IsChannelActive = true;
+                        {
+                            LoggingManager.Instance.SelectedProfile.Devices.Add(data);
+                        }
+                    }
+                    if (item.DataContext is IStreamingDevice connecteddevice && connecteddevice != null)
+                    {
+                        var data = LoggingManager.Instance.SelectedProfile.Devices.Where(x => x.DeviceSerialNo == connecteddevice.DeviceSerialNo).FirstOrDefault();
+                        if (data == null)
+                        {
+                            var Adddevicedata = new ProfileDevice()
+                            {
+                                DeviceName = connecteddevice.Name,
+                                DevicePartName = connecteddevice.DevicePartNumber,
+                                DeviceSerialNo = connecteddevice.DeviceSerialNo,
+                                MACAddress = connecteddevice.MacAddress,
+                                Channels = LoggingManager.Instance.SelectedProfile.Devices[0].Channels,
+                                SamplingFrequency = LoggingManager.Instance.SelectedProfile.Devices[0].SamplingFrequency
+                            };
+                            LoggingManager.Instance.SelectedProfile.Devices.Add(Adddevicedata);
+                            AvilableDevices.SelectedItem = -1;
+                        }
                     }
                     LoggingManager.Instance.UpdateProfileInXml(LoggingManager.Instance.SelectedProfile);
                 }
@@ -95,14 +147,12 @@ namespace Daqifi.Desktop.View.Flyouts
             }
         }
 
-
         private void UpdatedProfileNameLblChanged(object sender, TextChangedEventArgs e)
         {
             try
             {
                 if (LoggingManager.Instance.SelectedProfile != null)
                 {
-                  
 
                     if (sender is TextBox profilename && !string.IsNullOrWhiteSpace(profilename.Text))
                         LoggingManager.Instance.SelectedProfile.Name = profilename.Text;
@@ -125,10 +175,14 @@ namespace Daqifi.Desktop.View.Flyouts
             {
                 if (LoggingManager.Instance.SelectedProfile != null)
                 {
-                   
+
 
                     if (sender is Slider freq && freq.Value != 0)
-                        LoggingManager.Instance.SelectedProfile.Devices[0].SamplingFrequency = Convert.ToInt32(freq.Value);
+                        foreach (var item in LoggingManager.Instance.SelectedProfile.Devices)
+                        {
+                            item.SamplingFrequency = Convert.ToInt32(freq.Value);
+                        }
+
 
                     LoggingManager.Instance.UpdateProfileInXml(LoggingManager.Instance.SelectedProfile);
                 }

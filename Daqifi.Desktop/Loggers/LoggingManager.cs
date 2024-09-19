@@ -14,7 +14,6 @@ namespace Daqifi.Desktop.Logger
     public class LoggingManager : ObservableObject
     {
         #region Private Variables
-
         private List<IChannel> _subscribedChannels;
         private List<LoggingSession> _loggingSessions;
         private List<Profile> _subscribedProfiles;
@@ -36,8 +35,6 @@ namespace Daqifi.Desktop.Logger
                 NotifyPropertyChanged("SubscribedChannels");
             }
         }
-
-       
 
         public bool Active
         {
@@ -98,6 +95,8 @@ namespace Daqifi.Desktop.Logger
         #endregion
 
         #region Profile Subscription
+
+        #region Profile feature Properties
         public List<Profile> SubscribedProfiles
         {
             get => _subscribedProfiles;
@@ -115,7 +114,7 @@ namespace Daqifi.Desktop.Logger
             {
                 _selectedProfile = value;
                 NotifyPropertyChanged("SelectedProfile");
-               
+
             }
         }
         private bool _flag;
@@ -139,6 +138,19 @@ namespace Daqifi.Desktop.Logger
                 NotifyPropertyChanged("SelectedProfileChannels");
             }
         }
+        private ObservableCollection<ProfileDevice> _SelectedProfileDevices = new ObservableCollection<ProfileDevice>();
+        public ObservableCollection<ProfileDevice> SelectedProfileDevices
+        {
+            get => _SelectedProfileDevices;
+            set
+            {
+                _SelectedProfileDevices = value;
+                NotifyPropertyChanged("SelectedProfileChannels");
+            }
+        }
+        #endregion
+
+
         public void SubscribeProfile(Profile profile)
         {
             try

@@ -19,11 +19,48 @@
                 <TextBox x:Name="UpdatedProfileNameLbl" TextChanged="UpdatedProfileNameLblChanged" Text="{Binding SelectedProfile.Name}" Height="30" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
             </GroupBox>
            
-            <GroupBox Header="Selected Device">
-                <TextBox x:Name="UpdatedProfileDeviceNameLbl" Text="{Binding SelectedProfile.Devices[0].DeviceName}" Tag="{Binding SelectedProfile.Devices[0].DeviceSerialNo}" IsEnabled="False" Height="30" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
+            <GroupBox Header="Selected Profile Devices">
+                <!--<TextBox x:Name="UpdatedProfileDeviceNameLbl" Text="{Binding SelectedProfile.Devices[0].DeviceName}" Tag="{Binding SelectedProfile.Devices[0].DeviceSerialNo}" IsEnabled="False" Height="30" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>-->
+                <ListView Name="SelectedDevice" SelectionMode="Multiple"  ItemsSource="{Binding SelectedProfile.Devices}" >
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="ListViewItem_PreviewMouseLeftButtonDown" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <Border >
+                                <StackPanel Orientation="Horizontal">
+                                    <Label Content="{Binding DeviceName}"/>
+                                    <Label Content="{Binding DeviceSerialNo}"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </GroupBox>
+            <GroupBox Header="Connected Devices">
+                <!--<TextBox x:Name="UpdatedProfileDeviceNameLbl" Text="{Binding SelectedProfile.Devices[0].DeviceName}" Tag="{Binding SelectedProfile.Devices[0].DeviceSerialNo}" IsEnabled="False" Height="30" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>-->
+                <ListView Name="AvilableDevices" SelectionMode="Single"  ItemsSource="{Binding ConnectedDevices}" >
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="ListViewItem_PreviewMouseLeftButtonDown" />
+                        </Style>
+                    </ListView.ItemContainerStyle>
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <Border >
+                                <StackPanel Orientation="Horizontal">
+                                    <Label Content="{Binding Name}"/>
+                                    <Label Content="{Binding DeviceSerialNo}"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
             </GroupBox>
 
-            <GroupBox Header="Selected Device">
+            <GroupBox Header="Selected Profile Device Frequency">
                 <DockPanel DockPanel.Dock="Top" Margin="5" LastChildFill="True">
                     <Label Content="Frequency:" DockPanel.Dock="Left"/>
                     <TextBox  Text="{Binding ElementName=UpdatedProfileSamplingFrequencyLbl, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
@@ -36,7 +73,7 @@
 
         <StackPanel Grid.Column="1">
 
-            <GroupBox Header="Selected Channels">
+            <GroupBox Header="Selected Profile Channels">
                 <Grid Margin="5">
                     <ListView Name="UpdatedProfileChannelList" Height="160" SelectionChanged="UpdatedProfileChannelListSelectionChanged"  ItemsSource="{Binding SelectedProfile.Devices[0].Channels}"   SelectionMode="Multiple"   Margin="5" Background="Transparent" BorderThickness="0">
                         <ListView.ItemContainerStyle>

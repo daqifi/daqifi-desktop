@@ -1,4 +1,5 @@
-﻿using Daqifi.Desktop.Channel;
+﻿using Bugsnag.Payload;
+using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
@@ -20,27 +21,25 @@ namespace Daqifi.Desktop.ViewModels
     {
         #region Private Variables
         private IStreamingDevice _selectedDevice;
-        private string _profileName;
+        private string _profileName = "Daqifi_profile";
         private readonly IDialogService _dialogService;
         private int _selectedStreamingFrequency;
         #endregion
 
         #region Properties
         public AppLogger AppLogger = AppLogger.Instance;
-
         public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
         public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
-
-        public IStreamingDevice SelectedDevice
-        {
-            get => _selectedDevice;
-            set
-            {
-                _selectedDevice = value;
-                GetAvailableChannels(_selectedDevice);
-                RaisePropertyChanged();
-            }
-        }
+        //public IStreamingDevice SelectedDevice
+        //{
+        //    get => _selectedDevice;
+        //    set
+        //    {
+        //        _selectedDevice = value;
+        //        GetAvailableChannels(_selectedDevice);
+        //        RaisePropertyChanged();
+        //    }
+        //}
         public string ProfileName
         {
             get => _profileName;
@@ -73,7 +72,15 @@ namespace Daqifi.Desktop.ViewModels
             {
                 AvailableDevices.Add(device);
             }
-            if (AvailableDevices.Count > 0) SelectedDevice = AvailableDevices.ElementAt(0);
+            if (AvailableDevices.Count > 0)
+            {
+                foreach (var device in AvailableDevices)
+                {
+                    if (device != null)
+                        GetAvailableChannels(device);
+                }
+            }
+
         }
         #endregion
 
@@ -81,14 +88,13 @@ namespace Daqifi.Desktop.ViewModels
         {
             try
             {
-                AvailableChannels.Clear();
                 foreach (var channel in device.DataChannels)
                 {
-                    /*if (!channel.IsActive)*/
-                    AvailableChannels.Add(channel);
+                    if (!AvailableChannels.Any(x => x.Name == channel.Name))
+                        AvailableChannels.Add(channel);
                 }
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
                 AppLogger.Error(ex, "Error in getting Available Channels");
             }
@@ -99,96 +105,105 @@ namespace Daqifi.Desktop.ViewModels
         #region Command Delegatges
         public ICommand AddProfileCommand => new DelegateCommand(OnSelectedProfileExecute, OnSelectedProfileCanExecute);
 
-        private bool OnSelectedProfileCanExecute(object selectedItems)
+        private bool OnSelectedProfileCanExecute(object parameter)
         {
             //TODO might use this later could not find a good way to raise can execute change
             return true;
         }
-
-        private void OnSelectedProfileExecute(object selectedItems)
+        AddProfileModel addProfileModel;
+        private void OnSelectedProfileExecute(object parameter)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(ProfileName))
                 {
-                    // _dialogService.ShowDialog<ErrorDialog>(this, new ErrorDialogViewModel("Profile name is required."));
                     return;
                 }
-                if (AvailableDevices == null || AvailableDevices.Count == 0)
-                {
-                    // _dialogService.ShowDialog<ErrorDialog>(this, new ErrorDialogViewModel("Available devices are required."));
-                    return;
-                }
-                if (SelectedDevice?.DataChannels?.Count == 0)
-                {
-                    // _dialogService.ShowDialog<ErrorDialog>(this, new ErrorDialogViewModel("Selected device must have data channels."));
-                    return;
-                }
+
                 if (SelectedStreamingFrequency == 0)
                 {
-                    // _dialogService.ShowDialog<ErrorDialog>(this, new ErrorDialogViewModel("Streaming frequency must be greater than 0."));
                     return;
                 }
 
-                // Get selected channels
-                var selectedChannels = ((IEnumerable)selectedItems).Cast<IChannel>().ToList();
-                if (!selectedChannels.Any())
-                    return;
-
-                if (SelectedDevice != null && SelectedDevice.DataChannels.Count > 0)
+                // Cast parameter to object array
+                var parameters = parameter as object[];
+                if (parameters == null || parameters.Length < 2)
                 {
-                    // Initialize the profile and device objects
-                    var addProfileModel = new AddProfileModel
-                    {
-                        ProfileList = new List<Profile>
-            {
-                new Profile
+                    return;
+                }
+
+                // Get selected channels and devices from parameters
+                var selectedChannels = ((IEnumerable)parameters[0]).Cast<IChannel>().ToList();
+                var selectedDevices = ((IEnumerable)parameters[1]).Cast<IStreamingDevice>().ToList();
+
+                if (!selectedChannels.Any() || !selectedDevices.Any())
+                {
+                    return;
+                }
+
+                // Initialize the AddProfileModel
+                var addProfileModel = new AddProfileModel
+                {
+                    ProfileList = new List<Profile>()
+                };
+
+                // Create a new profile and populate its devices
+                var newProfile = new Profile
                 {
                     Name = ProfileName,
                     ProfileId = Guid.NewGuid(),
                     CreatedOn = DateTime.Now,
-                    Devices = new ObservableCollection<ProfileDevice>
+                    Devices = new ObservableCollection<ProfileDevice>()
+                };
+
+                foreach (var selectedDevice in selectedDevices)
+                {
+                    if (selectedDevice != null && selectedDevice.DataChannels.Count > 0)
                     {
-                        new ProfileDevice
+                        var device = new ProfileDevice
                         {
-                            MACAddress = SelectedDevice.MacAddress,
-                            DeviceName = SelectedDevice.Name,
-                            DevicePartName = SelectedDevice.DevicePartNumber,
-                            DeviceSerialNo = SelectedDevice.DeviceSerialNo,
+                            MACAddress = selectedDevice.MacAddress,
+                            DeviceName = selectedDevice.Name,
+                            DevicePartName = selectedDevice.DevicePartNumber,
+                            DeviceSerialNo = selectedDevice.DeviceSerialNo,
                             SamplingFrequency = SelectedStreamingFrequency,
                             Channels = new List<ProfileChannel>()
-                        }
-                    }
-                }
-            }
-                    };
-
-                    // Add all channels from SelectedDevice.DataChannels
-                    foreach (var dataChannel in SelectedDevice.DataChannels)
-                    {
-                        // Check if this channel is in the selected channels list
-                        var isSelected = selectedChannels.Any(sc => sc.Name == dataChannel.Name);
-
-                        var profileChannel = new ProfileChannel
-                        {
-                            Name = dataChannel.Name,
-                            Type = dataChannel.TypeString.ToString(),
-                            IsChannelActive = isSelected ? true : false // Set IsChannelActive based on whether it's selected or not
                         };
 
-                        // Add the channel to the profile
-                        addProfileModel.ProfileList[0].Devices[0].Channels.Add(profileChannel);
-                    }
+                        // Add the selected channels to the device
+                        foreach (var dataChannel in selectedDevice.DataChannels)
+                        {
+                            // Check if this channel is selected
+                            var isSelected = selectedChannels.Any(sc => sc.Name == dataChannel.Name);
 
-                    // Subscribe the profile (logging or any additional operations)
-                    LoggingManager.Instance.SubscribeProfile(addProfileModel.ProfileList[0]);
+                            var profileChannel = new ProfileChannel
+                            {
+                                Name = dataChannel.Name,
+                                Type = dataChannel.TypeString.ToString(),
+                                IsChannelActive = isSelected // Set IsChannelActive based on selection
+                            };
+
+                            // Add the channel to the device's channels list
+                            device.Channels.Add(profileChannel);
+                        }
+
+                        // Add the device to the profile's devices collection
+                        newProfile.Devices.Add(device);
+                    }
                 }
+
+                // Add the profile to the ProfileList
+                addProfileModel.ProfileList.Add(newProfile);
+
+                // Log or perform further operations with the profile
+                LoggingManager.Instance.SubscribeProfile(newProfile);
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
-                AppLogger.Error(ex, "Error in getting on selected profile execute");
+                AppLogger.Error(ex, "Error in OnSelectedProfileExecute");
             }
         }
+
 
         #endregion
     }

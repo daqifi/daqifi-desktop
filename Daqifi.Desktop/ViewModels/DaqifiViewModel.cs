@@ -26,6 +26,7 @@ using System.Collections;
 using Daqifi.Desktop.Device.SerialDevice;
 using System.Threading;
 using Daqifi.Desktop.Models;
+using System.Web.Profile;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -537,23 +538,23 @@ namespace Daqifi.Desktop.ViewModels
                 RaisePropertyChanged();
                 if (_selectedProfile != null)
                 {
-                    SetSelectedProfile();
+                   // SetSelectedProfile();
                 }
             }
         }
 
-        private void SetSelectedProfile()
-        {
-            try
-            {
+        //private void SetSelectedProfile()
+        //{
+        //    try
+        //    {
 
-            }
-            catch (Exception ex)
-            {
+        //    }
+        //    catch (Exception ex)
+        //    {
 
-                AppLogger.Error(ex, "Error Setting Selected profile");
-            }
-        }
+        //        AppLogger.Error(ex, "Error Setting Selected profile");
+        //    }
+        //}
 
         public LoggingSession SelectedLoggingSession
         {
@@ -651,6 +652,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public void RegisterCommands()
         {
+            ShowAddProfileConfirmationDialogCommand = new DelegateCommand(ShowAddProfileConfirmation, CanShowAddProfileConfirmationDialogCommand);
             ShowAddProfileDialogCommand = new DelegateCommand(ShowAddProfileDialog, CanShowAddProfileDialog);
             ShowConnectionDialogCommand = new DelegateCommand(ShowConnectionDialog, CanShowConnectionDialog);
             ShowAddChannelDialogCommand = new DelegateCommand(ShowAddChannelDialog, CanShowAddChannelDialog);
@@ -686,6 +688,11 @@ namespace Daqifi.Desktop.ViewModels
         #region Command Properties
         public ICommand ShowAddProfileDialogCommand { get; private set; }
         private bool CanShowAddProfileDialog(object o)
+        {
+            return true;
+        }
+        public ICommand ShowAddProfileConfirmationDialogCommand { get; private set; }
+        private bool CanShowAddProfileConfirmationDialogCommand(object o)
         {
             return true;
         }
@@ -897,11 +904,7 @@ namespace Daqifi.Desktop.ViewModels
             _connectionDialogViewModel.StartConnectionFinders();
             _dialogService.ShowDialog<ConnectionDialog>(this, _connectionDialogViewModel);
         }
-        private void ShowAddProfileDialog(object o)
-        {
-            var addProfileDialogViewModel = new AddProfileDialogViewModel();
-            _dialogService.ShowDialog<AddprofileDialog>(this, addProfileDialogViewModel);
-        }
+
         private void ShowAddChannelDialog(object o)
         {
             var addChannelDialogViewModel = new AddChannelDialogViewModel();
@@ -1002,7 +1005,6 @@ namespace Daqifi.Desktop.ViewModels
             CloseFlyouts();
             IsLogSummaryOpen = true;
         }
-
         private void OpenLoggingSessionSettings(object o)
         {
             var item = o as LoggingSession;
@@ -1012,7 +1014,6 @@ namespace Daqifi.Desktop.ViewModels
             SelectedLoggingSession = item;
             IsLoggingSessionSettingsOpen = true;
         }
-
         private void DisplayLoggingSession(object o)
         {
             if (!(o is LoggingSession session))
@@ -1038,7 +1039,6 @@ namespace Daqifi.Desktop.ViewModels
 
             bw.RunWorkerAsync();
         }
-
         private void ExportLoggingSession(object o)
         {
             if (!(o is LoggingSession session))
@@ -1050,7 +1050,6 @@ namespace Daqifi.Desktop.ViewModels
             var exportDialogViewModel = new ExportDialogViewModel(session.ID);
             _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
         }
-
         private void ExportAllLoggingSession(object o)
         {
             if (LoggingSessions == null)
@@ -1062,7 +1061,6 @@ namespace Daqifi.Desktop.ViewModels
             var exportDialogViewModel = new ExportDialogViewModel(LoggingSessions);
             _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
         }
-
         private async void DeleteLoggingSession(object o)
         {
             try
@@ -1106,7 +1104,6 @@ namespace Daqifi.Desktop.ViewModels
                 AppLogger.Error(ex, "Error Deleting Logging Session");
             }
         }
-
         private async void DeleteAllLoggingSession(object o)
         {
             try
@@ -1154,7 +1151,6 @@ namespace Daqifi.Desktop.ViewModels
                 AppLogger.Error(ex, "Error Deleting All Logging Session");
             }
         }
-
         private void RebootSelectedDevice(object o)
         {
             if (!(o is IStreamingDevice deviceToReboot)) return;
@@ -1172,7 +1168,6 @@ namespace Daqifi.Desktop.ViewModels
 
             ConnectionManager.Instance.Reboot(deviceToReboot);
         }
-
         private void OpenHelp(object o)
         {
             System.Diagnostics.Process.Start("https://www.daqifi.com/support");
@@ -1242,6 +1237,32 @@ namespace Daqifi.Desktop.ViewModels
         #region update profile flyout 
         public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
         public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
+        public void ShowAddProfileDialog(object o)
+        {
+            try
+            {
+                var addProfileDialogViewModel = new AddProfileDialogViewModel();
+                _dialogService.ShowDialog<AddprofileDialog>(this, addProfileDialogViewModel);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Error opening add profile dialog");
+            }
+
+        }
+        private void ShowAddProfileConfirmation(object o)
+        {
+            try
+            {
+                var addProfileConfirmationDialogViewModel = new AddProfileConfirmationDialogViewModel();
+                _dialogService.ShowDialog<AddProfileConfirmationDialog>(this, addProfileConfirmationDialogViewModel);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Error opening confirmation dialog");
+            }
+
+        }
 
         public void GetUpdateProfileAvailableDevice()
         {
@@ -1260,6 +1281,12 @@ namespace Daqifi.Desktop.ViewModels
                 return;
             }
             if (ProfileToRemove.IsProfileActive)
+            {
+                var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while profile is active");
+                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                return;
+            }
+            if(profiles.Any(x=>x.IsProfileActive))
             {
                 var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while profile is active");
                 _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
@@ -1293,13 +1320,19 @@ namespace Daqifi.Desktop.ViewModels
             LoggingManager.Instance.SelectedProfile = item;
             LoggingManager.Instance.Flag = false;
             LoggingManager.Instance.SelectedProfileChannels.Clear();
+            LoggingManager.Instance.SelectedProfileDevices.Clear();
 
-            foreach (var SelectedChannels in SelectedProfile.Devices[0].Channels)
+            foreach (var selectedDevice in SelectedProfile.Devices)
             {
-                if (SelectedChannels.IsChannelActive)
+                LoggingManager.Instance.SelectedProfileDevices.Add(selectedDevice);
+                foreach (var selectedchannel in selectedDevice.Channels)
                 {
-                    LoggingManager.Instance.SelectedProfileChannels.Add(SelectedChannels);
+                    if (selectedchannel.IsChannelActive && !LoggingManager.Instance.SelectedProfileChannels.Any(x => x.Name == selectedchannel.Name))
+                    {
+                        LoggingManager.Instance.SelectedProfileChannels.Add(selectedchannel);
+                    }
                 }
+
             }
             LoggingManager.Instance.callPropertyChange();
             IsProfileSettingsOpen = true;
@@ -1326,6 +1359,72 @@ namespace Daqifi.Desktop.ViewModels
                 AvailableChannels.Add(channel);
             }
         }
+        public void SaveExistingSetting()
+        {
+            try
+            {
+                // Initialize the AddProfileModel
+                var addProfileModel = new AddProfileModel
+                {
+                    ProfileList = new List<Profile>()
+                };
+                // Create a new profile and populate its devices
+                var newProfile = new Profile
+                {
+                    
+                Name ="Daqifi_lastSessionProfile",
+                    ProfileId = Guid.NewGuid(),
+                    CreatedOn = DateTime.Now,
+                    Devices = new ObservableCollection<ProfileDevice>()
+                };
+
+                foreach (var selectedDevice in ConnectedDevices)
+                {
+                    if (selectedDevice != null && selectedDevice.DataChannels.Count > 0)
+                    {
+                        var device = new ProfileDevice
+                        {
+                            MACAddress = selectedDevice.MacAddress,
+                            DeviceName = selectedDevice.Name,
+                            DevicePartName = selectedDevice.DevicePartNumber,
+                            DeviceSerialNo = selectedDevice.DeviceSerialNo,
+                            SamplingFrequency = SelectedStreamingFrequency,
+                            Channels = new List<ProfileChannel>()
+                        };
+
+                        // Add the selected channels to the device
+                        foreach (var dataChannel in selectedDevice.DataChannels)
+                        {
+                            // Check if this channel is selected
+                            var isSelected = ActiveChannels.Any(sc => sc.Name == dataChannel.Name);
+
+                            var profileChannel = new ProfileChannel
+                            {
+                                Name = dataChannel.Name,
+                                Type = dataChannel.TypeString.ToString(),
+                                IsChannelActive = isSelected // Set IsChannelActive based on selection
+                            };
+
+                            // Add the channel to the device's channels list
+                            device.Channels.Add(profileChannel);
+                        }
+
+                        // Add the device to the profile's devices collection
+                        newProfile.Devices.Add(device);
+                    }
+                }
+
+                // Add the profile to the ProfileList
+                addProfileModel.ProfileList.Add(newProfile);
+
+                // Log or perform further operations with the profile
+                LoggingManager.Instance.SubscribeProfile(newProfile);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Error opening confirmation dialog");
+            }
+        }
 
         private void GetSelectedProfileActive(object obj)
         {
@@ -1336,68 +1435,67 @@ namespace Daqifi.Desktop.ViewModels
             }
             if (profiles != null)
             {
-                var activeProfiles = profiles.Where(x => x.IsProfileActive).ToList();
-                if (activeProfiles != null && activeProfiles.Count > 0)
+               
+
+                var connecteddevice = ConnectedDevices.Where(connectedDevice => item.Devices.Any(itemDevice => itemDevice.DeviceSerialNo == connectedDevice.DeviceSerialNo)).ToList();
+                if (connecteddevice == null || connecteddevice.Count == 0)
                 {
-                    foreach (var profile in activeProfiles)
-                    {
-                        if (profile.Devices[0].DeviceSerialNo == item.Devices[0].DeviceSerialNo)
-                            break;
-                        else
-                        {
-                            var errorDialogViewModel = new ErrorDialogViewModel("Cannot select profile with diffrent device in it.");
-                            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                            return;
-                        }
-                    }
-                }
-            }
-            var connecteddevice = ConnectedDevices.Where(x => x.DeviceSerialNo == item.Devices[0].DeviceSerialNo).FirstOrDefault();
-            if (connecteddevice != null)
-            {
-                if (LoggingManager.Instance.Active)
-                {
-                    var errorDialogViewModel = new ErrorDialogViewModel("Cannot select profile  while logging.");
+                    var errorDialogViewModel = new ErrorDialogViewModel("profile connot be active , there is no connected devices in it.");
                     _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
                     return;
                 }
-                else
+                if (connecteddevice != null)
                 {
-                    SelectedDevice = connecteddevice;
-                    UpdateProfileSelectedDevice = SelectedDevice;
-                    SelectedStreamingFrequency = item.Devices[0].SamplingFrequency;
-
-                    if (item.IsProfileActive)
+                    if (LoggingManager.Instance.Active)
                     {
-                        foreach (var channel in item.Devices[0].Channels)
-                        {
-                            var profileChannel = AvailableChannels.Where(x => x.Name.ToString() == channel.Name.Trim() && x.TypeString.ToString() == channel.Type.Trim() && channel.IsChannelActive).FirstOrDefault();
-                            if (profileChannel != null)
-                                LoggingManager.Instance.Unsubscribe(profileChannel);
-                        }
-                        item.IsProfileActive = false;
+                        var errorDialogViewModel = new ErrorDialogViewModel(" profile cannot be active while logging.");
+                        _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                        return;
                     }
                     else
                     {
-                        foreach (var channel in item.Devices[0].Channels)
+                        foreach (var connectedDevice in connecteddevice)
                         {
-                            var profileChannel = AvailableChannels.Where(x => x.Name.ToString() == channel.Name.Trim() && x.TypeString.ToString() == channel.Type.Trim() && channel.IsChannelActive).FirstOrDefault();
-                            if (profileChannel != null)
-                                LoggingManager.Instance.Subscribe(profileChannel);
+                            SelectedDevice = connectedDevice;
+                            UpdateProfileSelectedDevice = SelectedDevice;
+                            SelectedStreamingFrequency = item.Devices[0].SamplingFrequency;
+                            if (item.IsProfileActive)
+                            {
+                                item.IsProfileActive = false;
+                                foreach (var channel in item.Devices[0].Channels)
+                                {
+                                    var profileChannel = AvailableChannels.Where(x => x.Name.ToString() == channel.Name.Trim() && x.TypeString.ToString() == channel.Type.Trim() && channel.IsChannelActive).FirstOrDefault();
+                                    if (profileChannel != null)
+                                        LoggingManager.Instance.Unsubscribe(profileChannel);
+                                }
+                                
+                            }
+                            else
+                            {
+                                item.IsProfileActive = true;
+                                foreach (var channel in item.Devices[0].Channels)
+                                {
+                                    var profileChannel = AvailableChannels.Where(x => x.Name.ToString() == channel.Name.Trim() && x.TypeString.ToString() == channel.Type.Trim() && channel.IsChannelActive).FirstOrDefault();
+                                    if (profileChannel != null)
+                                        LoggingManager.Instance.Subscribe(profileChannel);
+                                }
+                                
+                            }
                         }
-                        item.IsProfileActive = true;
+
+
                     }
                 }
-            }
-            else
-            {
-                var errorDialogViewModel = new ErrorDialogViewModel("No connected device for selected profile");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                return;
-            }
+                else
+                {
+                    var errorDialogViewModel = new ErrorDialogViewModel("No connected device for selected profile");
+                    _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                    return;
+                }
 
 
+            }
+            #endregion
         }
-        #endregion
     }
 }

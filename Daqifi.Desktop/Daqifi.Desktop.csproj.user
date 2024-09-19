@@ -11,6 +11,9 @@
     <VerifyUploadedFiles>false</VerifyUploadedFiles>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Update="View\AddProfileConfirmationDialog.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Update="View\AddprofileDialog.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -19,6 +22,9 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <Page Update="View\AddProfileConfirmationDialog.xaml">
+      <SubType>Designer</SubType>
+    </Page>
     <Page Update="View\AddprofileDialog.xaml">
       <SubType>Designer</SubType>
     </Page>

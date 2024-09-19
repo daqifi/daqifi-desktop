@@ -4,15 +4,28 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Daqifi.Desktop.View"
+        xmlns:locals="clr-namespace:Daqifi.Desktop.Helpers"
         mc:Ignorable="d"
         xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         Title="Add Profile" ResizeMode="NoResize" Height="400" Width="500"
                       GlowBrush="{DynamicResource AccentColorBrush}">
+    <controls:MetroWindow.Resources>
+        <locals:MyMultiValueConverter x:Key="MyMultiValueConverter"/>
+    </controls:MetroWindow.Resources>
+    
     <Grid>
         <Border>
-            <DockPanel Name="AddChannelUI" HorizontalAlignment="Stretch"  VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
+            <DockPanel Name="AddProfileUI" HorizontalAlignment="Stretch"  VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
                 <!-- Add Channel Button -->
-                <Button Name="btnAdd" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=ChannelList, Path=SelectedItems}" Command="{Binding AddProfileCommand}" Click="btn_addprofile" Content="Add" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                <Button Name="btnAdd" DockPanel.Dock="Bottom"  Command="{Binding AddProfileCommand}" Click="btn_addprofile" Content="Add" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent}" controls:ControlsHelper.ContentCharacterCasing="Normal">
+                    <Button.CommandParameter>
+                        <MultiBinding Converter="{StaticResource MyMultiValueConverter}" >
+                            <Binding ElementName="ChannelList" Path="SelectedItems"/>
+                            <Binding ElementName="SelectedDevice" Path="SelectedItems"/>
+                           
+                        </MultiBinding>
+                    </Button.CommandParameter>
+                </Button>
 
                 <DockPanel DockPanel.Dock="Top" Margin="5"  LastChildFill="True">
                     <Label Content="Name:" DockPanel.Dock="Left"/>
@@ -21,9 +34,9 @@
 
                 <!-- Device Selector -->
                 <DockPanel DockPanel.Dock="Top" Margin="5" LastChildFill="True">
-                    <Label Content="Device:" DockPanel.Dock="Left"/>
-                    <ComboBox Name="SelectedDevice" ItemsSource="{Binding AvailableDevices}" SelectedItem="{Binding SelectedDevice}">
-                        <ComboBox.ItemTemplate>
+                    <Label Content="Devices:" DockPanel.Dock="Left"/>
+                    <ListView Name="SelectedDevice" SelectionMode="Multiple" Loaded="SelectedDevice_Loaded" ItemsSource="{Binding AvailableDevices}" PreviewMouseDown="SelectedDevice_PreviewMouseDown">
+                        <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Border >
                                     <StackPanel Orientation="Vertical">
@@ -33,8 +46,8 @@
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
+                        </ListView.ItemTemplate>
+                    </ListView>
                 </DockPanel>
                 
                 <!--frequency slider-->
