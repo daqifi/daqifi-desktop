@@ -501,16 +501,18 @@ namespace Daqifi.Desktop.Device
             {
                 NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
             }
-            
             if (message.HasDevicePn)
             {
                 DevicePartNumber = message.DevicePn;
             }
             if (message.HasDeviceSn)
+            {
                 DeviceSerialNo=message.DeviceSn.ToString();
+            }
             if(message.HasMacAddr)
+            {
                 MacAddress= ProtobufDecoder.GetMacAddressString(message);
-
+            }
             if (message.AnalogInPortRangeCount > 0 && (int)message.GetAnalogInPortRange(0) == 5)
             {
                 _adcRangeText = _5Volt;

@@ -18,7 +18,7 @@ namespace Daqifi.Desktop.Logger
         private List<LoggingSession> _loggingSessions;
         private List<Profile> _subscribedProfiles;
         private bool _active;
-        public AppLogger AppLogger = AppLogger.Instance;
+        private AppLogger AppLogger = AppLogger.Instance;
         private static string ProfileAppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
         private static readonly string ProfileSettingsXmlPath = ProfileAppDirectory + "\\DAQifiProfilesConfiguration.xml";
         #endregion
@@ -41,10 +41,8 @@ namespace Daqifi.Desktop.Logger
             get => _active;
             set
             {
-                //Set up the current logging session
                 if (!_active)
                 {
-                    //Check if database has a previouse section
                     using (var context = new LoggingContext())
                     {
                         var ids = (from s in context.Sessions.AsNoTracking() select s.ID).ToList();
@@ -57,7 +55,6 @@ namespace Daqifi.Desktop.Logger
                 }
                 else
                 {
-                    //Logging session is ending
                     if (LoggingSessions == null) LoggingSessions = new List<LoggingSession>();
                     LoggingSessions.Add(Session);
                     NotifyPropertyChanged("LoggingSessions");
@@ -176,30 +173,20 @@ namespace Daqifi.Desktop.Logger
         {
             try
             {
-                // Ensure the file exists before attempting to update
                 if (!File.Exists(ProfileSettingsXmlPath))
                 {
                     AppLogger.Error("Profile settings XML file does not exist.");
                     return;
                 }
-
-                // Load the XML document
                 XDocument doc = XDocument.Load(ProfileSettingsXmlPath);
-
-                // Find the profile by ProfileId
                 var profileToUpdate = doc.Descendants("Profile")
                                          .FirstOrDefault(p => (Guid)p.Element("ProfileID") == profile.ProfileId);
-
                 if (profileToUpdate != null)
                 {
-                    // Update the profile fields
                     profileToUpdate.Element("Name")?.SetValue(profile.Name);
                     profileToUpdate.Element("CreatedOn")?.SetValue(profile.CreatedOn);
-
-                    // Update devices
                     var devicesElement = profileToUpdate.Element("Devices");
-                    devicesElement?.RemoveAll();  // Clear existing devices
-
+                    devicesElement?.RemoveAll();
                     foreach (var device in profile.Devices)
                     {
                         XElement deviceElement = new XElement("Device",
@@ -220,10 +207,7 @@ namespace Daqifi.Desktop.Logger
 
                         devicesElement?.Add(deviceElement);
                     }
-
-                    // Save the updated document
                     doc.Save(ProfileSettingsXmlPath);
-                    //AppLogger.Info($"Profile '{profile.Name}' has been updated successfully.");
                 }
                 else
                 {
@@ -240,28 +224,20 @@ namespace Daqifi.Desktop.Logger
         {
             try
             {
-                // Ensure the directory exists
                 if (!Directory.Exists(ProfileAppDirectory))
                 {
                     Directory.CreateDirectory(ProfileAppDirectory);
                 }
-
-                // Ensure the file exists, create an empty structure if it doesn't
                 if (!File.Exists(ProfileSettingsXmlPath))
                 {
-                    // Create the initial structure if the file doesn't exist
                     XDocument newDoc = new XDocument(
                         new XElement("Profiles")
                     );
                     newDoc.Save(ProfileSettingsXmlPath);
                 }
-
-                // Load the XML document
                 XDocument doc = XDocument.Load(ProfileSettingsXmlPath);
-
                 if (AddProfileFlag)
                 {
-                    // Add the profile information to the XML file
                     XElement newProfile = new XElement("Profile",
                         new XElement("Name", profile.Name),
                         new XElement("ProfileID", profile.ProfileId),
@@ -291,14 +267,11 @@ namespace Daqifi.Desktop.Logger
                 }
                 else
                 {
-                    // Logic for removing the profile (e.g., by profile name)
                     var profileToRemove = doc.Descendants("Profile")
                                              .FirstOrDefault(p => (Guid)p.Element("ProfileID") == profile.ProfileId);
                     profileToRemove?.Remove();
                     SubscribedProfiles.Remove(profile);
                 }
-
-                // Save the updated document
                 doc.Save(ProfileSettingsXmlPath);
             }
             catch (Exception ex)
@@ -347,8 +320,6 @@ namespace Daqifi.Desktop.Logger
                 AppLogger.Error(ex, "Error Loading Profiles from XML");
             }
             SubscribedProfiles = profiles;
-            //if (SubscribedProfiles != null && SubscribedProfiles.Count > 0)
-            //    NotifyPropertyChanged("SubscribedProfiles");
             return profiles;
         }
 
@@ -356,7 +327,7 @@ namespace Daqifi.Desktop.Logger
         {
             try
             {
-                // Don't unsubscribe a channel that isn't subscribed
+               
                 if (!SubscribedProfiles.Where(x => x.ProfileId == profile.ProfileId).Any()) return;
                 AddAndRemoveProfileXml(profile, false);
                 SubscribedProfiles.Remove(profile);
@@ -374,7 +345,7 @@ namespace Daqifi.Desktop.Logger
         #region Channel Subscription
         public void Subscribe(IChannel channel)
         {
-            // Don't subscribe a channel that is already subscribed
+            
             if (SubscribedChannels.Contains(channel)) return;
 
             channel.IsActive = true;

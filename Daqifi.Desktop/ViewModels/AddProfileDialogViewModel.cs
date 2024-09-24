@@ -8,6 +8,7 @@ using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Models;
 using Daqifi.Desktop.View;
 using GalaSoft.MvvmLight;
+using NLog.Time;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -21,40 +22,67 @@ namespace Daqifi.Desktop.ViewModels
     {
         #region Private Variables
         private IStreamingDevice _selectedDevice;
-        private string _profileName = "Daqifi_profile";
+        private string _profileName = "DaqifiProfile";
         private readonly IDialogService _dialogService;
         private int _selectedStreamingFrequency;
         #endregion
 
         #region Properties
-        public AppLogger AppLogger = AppLogger.Instance;
-        public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
-        public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
-        //public IStreamingDevice SelectedDevice
-        //{
-        //    get => _selectedDevice;
-        //    set
-        //    {
-        //        _selectedDevice = value;
-        //        GetAvailableChannels(_selectedDevice);
-        //        RaisePropertyChanged();
-        //    }
-        //}
+        private AppLogger AppLogger = AppLogger.Instance;
+
+
+        private ObservableCollection<IStreamingDevice> _availableDevices = new ObservableCollection<IStreamingDevice>();
+        public ObservableCollection<IStreamingDevice> AvailableDevices
+        {
+            get => _availableDevices;
+            set
+            {
+                _availableDevices = value;
+                //checkAddProfileButton();
+                RaisePropertyChanged();
+            }
+        }
+
+        private ObservableCollection<IChannel> _availableChannels = new ObservableCollection<IChannel>();
+        public ObservableCollection<IChannel> AvailableChannels
+        {
+            get => _availableChannels;
+            set
+            {
+                _availableChannels = value;
+               // checkAddProfileButton();
+                RaisePropertyChanged();
+            }
+        }
         public string ProfileName
         {
             get => _profileName;
             set
             {
                 _profileName = value;
+               // checkAddProfileButton();
                 RaisePropertyChanged();
             }
         }
+        private bool _canAddProfile = false;
+
+        public bool canAddProfile
+        {
+            get => _canAddProfile;
+            set
+            {
+                _canAddProfile = value;
+                RaisePropertyChanged();
+            }
+        }
+
         public int SelectedStreamingFrequency
         {
             get => _selectedStreamingFrequency;
             set
             {
                 if (value < 1) return;
+                ///checkAddProfileButton();
                 _selectedStreamingFrequency = value;
                 RaisePropertyChanged();
             }
@@ -84,6 +112,23 @@ namespace Daqifi.Desktop.ViewModels
         }
         #endregion
 
+        public void checkAddProfileButton()
+        {
+            try
+            {
+                if(!string.IsNullOrWhiteSpace(ProfileName)&&ProfileName.Length!=0)canAddProfile=true;
+                else canAddProfile = false;
+
+                if(SelectedStreamingFrequency>1) canAddProfile = true;
+                else canAddProfile = false;
+
+            }
+            catch (System.Exception ex)
+            {
+
+                AppLogger.Error(ex, "Error in adding profile ");
+            }
+        }
         public void GetAvailableChannels(IStreamingDevice device)
         {
             try
@@ -110,6 +155,7 @@ namespace Daqifi.Desktop.ViewModels
             //TODO might use this later could not find a good way to raise can execute change
             return true;
         }
+
         AddProfileModel addProfileModel;
         private void OnSelectedProfileExecute(object parameter)
         {
@@ -125,14 +171,12 @@ namespace Daqifi.Desktop.ViewModels
                     return;
                 }
 
-                // Cast parameter to object array
                 var parameters = parameter as object[];
                 if (parameters == null || parameters.Length < 2)
                 {
                     return;
                 }
 
-                // Get selected channels and devices from parameters
                 var selectedChannels = ((IEnumerable)parameters[0]).Cast<IChannel>().ToList();
                 var selectedDevices = ((IEnumerable)parameters[1]).Cast<IStreamingDevice>().ToList();
 
@@ -141,13 +185,11 @@ namespace Daqifi.Desktop.ViewModels
                     return;
                 }
 
-                // Initialize the AddProfileModel
                 var addProfileModel = new AddProfileModel
                 {
                     ProfileList = new List<Profile>()
                 };
 
-                // Create a new profile and populate its devices
                 var newProfile = new Profile
                 {
                     Name = ProfileName,
@@ -169,33 +211,21 @@ namespace Daqifi.Desktop.ViewModels
                             SamplingFrequency = SelectedStreamingFrequency,
                             Channels = new List<ProfileChannel>()
                         };
-
-                        // Add the selected channels to the device
                         foreach (var dataChannel in selectedDevice.DataChannels)
                         {
-                            // Check if this channel is selected
                             var isSelected = selectedChannels.Any(sc => sc.Name == dataChannel.Name);
-
                             var profileChannel = new ProfileChannel
                             {
                                 Name = dataChannel.Name,
                                 Type = dataChannel.TypeString.ToString(),
-                                IsChannelActive = isSelected // Set IsChannelActive based on selection
+                                IsChannelActive = isSelected
                             };
-
-                            // Add the channel to the device's channels list
                             device.Channels.Add(profileChannel);
                         }
-
-                        // Add the device to the profile's devices collection
                         newProfile.Devices.Add(device);
                     }
                 }
-
-                // Add the profile to the ProfileList
                 addProfileModel.ProfileList.Add(newProfile);
-
-                // Log or perform further operations with the profile
                 LoggingManager.Instance.SubscribeProfile(newProfile);
             }
             catch (System.Exception ex)
@@ -203,8 +233,6 @@ namespace Daqifi.Desktop.ViewModels
                 AppLogger.Error(ex, "Error in OnSelectedProfileExecute");
             }
         }
-
-
         #endregion
     }
 }

@@ -4,10 +4,16 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
-                  xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks" xmlns:viewmodels="clr-namespace:Daqifi.Desktop.ViewModels" d:DataContext="{d:DesignInstance Type=viewmodels:DaqifiViewModel}"
-                 mc:Ignorable="d" 
-             d:DesignHeight="600" d:DesignWidth="600"
-             Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsProfileSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right" Header="Profile Settings">
+             xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+             xmlns:viewmodels="clr-namespace:Daqifi.Desktop.ViewModels"
+              d:DataContext="{d:DesignInstance Type=viewmodels:DaqifiViewModel}"
+             mc:Ignorable="d" 
+             d:DesignHeight="600" 
+             d:DesignWidth="600"
+             Width="{Binding FlyoutWidth}"
+             Height="{Binding FlyoutHeight}" 
+             IsOpen="{Binding IsProfileSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+             Position="Right" Header="Profile Settings">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
@@ -15,12 +21,13 @@
         </Grid.ColumnDefinitions>
 
         <StackPanel Grid.Column="0">
+            <!--Profile Name-->
             <GroupBox Header="Profile Name">
                 <TextBox x:Name="UpdatedProfileNameLbl" TextChanged="UpdatedProfileNameLblChanged" Text="{Binding SelectedProfile.Name}" Height="30" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
             </GroupBox>
-           
+
+            <!--Selected Profile Devices-->
             <GroupBox Header="Selected Profile Devices">
-                <!--<TextBox x:Name="UpdatedProfileDeviceNameLbl" Text="{Binding SelectedProfile.Devices[0].DeviceName}" Tag="{Binding SelectedProfile.Devices[0].DeviceSerialNo}" IsEnabled="False" Height="30" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>-->
                 <ListView Name="SelectedDevice" SelectionMode="Multiple"  ItemsSource="{Binding SelectedProfile.Devices}" >
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
@@ -39,8 +46,9 @@
                     </ListView.ItemTemplate>
                 </ListView>
             </GroupBox>
+
+            <!--Connected Devices-->
             <GroupBox Header="Connected Devices">
-                <!--<TextBox x:Name="UpdatedProfileDeviceNameLbl" Text="{Binding SelectedProfile.Devices[0].DeviceName}" Tag="{Binding SelectedProfile.Devices[0].DeviceSerialNo}" IsEnabled="False" Height="30" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>-->
                 <ListView Name="AvilableDevices" SelectionMode="Single"  ItemsSource="{Binding ConnectedDevices}" >
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
@@ -60,19 +68,10 @@
                 </ListView>
             </GroupBox>
 
-            <GroupBox Header="Selected Profile Device Frequency">
-                <DockPanel DockPanel.Dock="Top" Margin="5" LastChildFill="True">
-                    <Label Content="Frequency:" DockPanel.Dock="Left"/>
-                    <TextBox  Text="{Binding ElementName=UpdatedProfileSamplingFrequencyLbl, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
-                    <Slider x:Name="UpdatedProfileSamplingFrequencyLbl" ValueChanged ="UpdatedProfileSamplingFrequencyLblvalueChanged"  HorizontalAlignment="Stretch" Minimum="0" Maximum="1000" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding  SelectedProfile.Devices[0].SamplingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
-                </DockPanel>
-            </GroupBox>
-
 
         </StackPanel>
-
         <StackPanel Grid.Column="1">
-
+            <!--Selected Profile Channels-->
             <GroupBox Header="Selected Profile Channels">
                 <Grid Margin="5">
                     <ListView Name="UpdatedProfileChannelList" Height="160" SelectionChanged="UpdatedProfileChannelListSelectionChanged"  ItemsSource="{Binding SelectedProfile.Devices[0].Channels}"   SelectionMode="Multiple"   Margin="5" Background="Transparent" BorderThickness="0">
@@ -94,17 +93,31 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-
-
                 </Grid>
             </GroupBox>
 
-        </StackPanel>
-        <!--<Button Grid.Column="0" Grid.ColumnSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center" Command="{Binding ElementName=ActiveProfileList, Path=DataContext.IsprofileActiveCommand}" CommandParameter="{Binding}" ToolTip="Active Profile">
+            <!--Selected Profile Device Frequency-->
+            <GroupBox Header="Selected Profile Device Frequency">
 
-            <Button.Content>
-                Save
-            </Button.Content>
-        </Button>-->
+                <ListView Height="250" Name="SelectedDeviceFrequency" SelectionMode="Multiple"  ItemsSource="{Binding SelectedProfile.Devices}">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <DockPanel DockPanel.Dock="Top" Margin="0" LastChildFill="True">
+                                <StackPanel>
+                                    <Label Content="Frequency:" DockPanel.Dock="Left"/>
+                                    <Label Content="{Binding DeviceSerialNo}"/>
+                                    <Label Content="{Binding DeviceName}"/>
+                                </StackPanel>
+                                <TextBox Text="{Binding SamplingFrequency}"   HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
+                                <Slider Margin="5,0,0,0" Tag="{Binding DeviceSerialNo}" ValueChanged ="UpdatedProfileSamplingFrequencyLblvalueChanged"  HorizontalAlignment="Stretch" Minimum="0" Maximum="1000" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding SamplingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+
+
+            </GroupBox>
+        </StackPanel>
     </Grid>
 </Controls:Flyout>

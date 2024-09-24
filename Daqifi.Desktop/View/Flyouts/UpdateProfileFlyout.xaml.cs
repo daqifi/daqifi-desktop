@@ -38,7 +38,7 @@ namespace Daqifi.Desktop.View.Flyouts
             LoggingManager.Instance.PropertyChanged -= UpdateChannelUi;
             LoggingManager.Instance.PropertyChanged += UpdateChannelUi;
         }
-        public AppLogger AppLogger = AppLogger.Instance;
+        private AppLogger AppLogger = AppLogger.Instance;
 
         private void UpdateChannelUi(object sender, PropertyChangedEventArgs e)
         {
@@ -89,7 +89,6 @@ namespace Daqifi.Desktop.View.Flyouts
                                 }
                             }
                         }
-                        // var data = LoggingManager.Instance.SelectedProfile.Devices[0].Channels.Where(x => x.Name == channel.Name).FirstOrDefault();
 
                     }
                     if (item.DataContext is ProfileDevice selecteddevice && selecteddevice != null)
@@ -100,7 +99,7 @@ namespace Daqifi.Desktop.View.Flyouts
                         {
                             if (LoggingManager.Instance.SelectedProfile.Devices.Count == 1)
                             {
-                                SelectedDevice.SelectedIndex= 0;
+                                SelectedDevice.SelectedIndex = 0;
                                 return;
                             }
                             else
@@ -177,10 +176,17 @@ namespace Daqifi.Desktop.View.Flyouts
                 {
 
 
-                    if (sender is Slider freq && freq.Value != 0)
+                    if (sender is Slider freq && freq.Value != 0&&freq.Parent is DockPanel dockpanel && dockpanel.Children[1] is TextBox textbox)
                         foreach (var item in LoggingManager.Instance.SelectedProfile.Devices)
                         {
-                            item.SamplingFrequency = Convert.ToInt32(freq.Value);
+                            if (item != null)
+                            {
+                                if (!string.IsNullOrWhiteSpace(item.DeviceSerialNo) && item.DeviceSerialNo == freq.Tag)
+                                {
+                                    item.SamplingFrequency = Convert.ToInt32(freq.Value);
+                                    textbox.Text = item.SamplingFrequency.ToString();
+                                }
+                            }
                         }
 
 

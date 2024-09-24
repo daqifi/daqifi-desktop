@@ -26,7 +26,8 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region Properties
-        public AppLogger AppLogger = AppLogger.Instance;
+        private  AppLogger AppLogger = AppLogger.Instance;
+
         public DaqifiViewModel _daqifiViewModel;
         public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
         public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
@@ -38,7 +39,6 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _selectedDevice = value;
-                //GetAvailableChannels(_selectedDevice);
                 RaisePropertyChanged();
             }
         }
@@ -104,11 +104,6 @@ namespace Daqifi.Desktop.ViewModels
                     }
                 }
             }
-            //foreach (var device in ConnectionManager.Instance.ConnectedDevices)
-            //{
-            //    AvailableDevices.Add(device);
-            //}
-            //if (AvailableDevices.Count > 0) SelectedDevice = AvailableDevices.ElementAt(0);
         }
         #endregion
         #region Command Delegatges

@@ -17,32 +17,29 @@
         <Border>
             <DockPanel Name="AddProfileUI" HorizontalAlignment="Stretch"  VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
                 <!-- Add Channel Button -->
-                <Button Name="btnAdd" DockPanel.Dock="Bottom"  Command="{Binding AddProfileCommand}" Click="btn_addprofile" Content="Add" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent}" controls:ControlsHelper.ContentCharacterCasing="Normal">
+                <Button Name="btnAdd" DockPanel.Dock="Bottom" IsEnabled="{Binding canAddProfile}"  Command="{Binding AddProfileCommand}" Click="btn_addprofile" Content="Add" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent}" controls:ControlsHelper.ContentCharacterCasing="Normal">
                     <Button.CommandParameter>
                         <MultiBinding Converter="{StaticResource MyMultiValueConverter}" >
                             <Binding ElementName="ChannelList" Path="SelectedItems"/>
                             <Binding ElementName="SelectedDevice" Path="SelectedItems"/>
-                           
                         </MultiBinding>
                     </Button.CommandParameter>
                 </Button>
 
                 <DockPanel DockPanel.Dock="Top" Margin="5"  LastChildFill="True">
                     <Label Content="Name:" DockPanel.Dock="Left"/>
-                    <TextBox Text="{Binding ProfileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" MaxLength="50"/>
+                    <TextBox Name="ProfileName" Text="{Binding ProfileName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" TextChanged="ProfileName_TextChanged" MaxLength="50"/>
                 </DockPanel>
 
                 <!-- Device Selector -->
                 <DockPanel DockPanel.Dock="Top" Margin="5" LastChildFill="True">
                     <Label Content="Devices:" DockPanel.Dock="Left"/>
-                    <ListView Name="SelectedDevice" SelectionMode="Multiple" Loaded="SelectedDevice_Loaded" ItemsSource="{Binding AvailableDevices}" PreviewMouseDown="SelectedDevice_PreviewMouseDown">
+                    <ListView Name="SelectedDevice" SelectionMode="Multiple" SelectionChanged="SelectedDevice_SelectionChanged" Loaded="SelectedDevice_Loaded" ItemsSource="{Binding AvailableDevices}" PreviewMouseDown="SelectedDevice_PreviewMouseDown">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Border >
                                     <StackPanel Orientation="Vertical">
                                         <Label Content="{Binding Name}"/>
-                                        <!--<Label Content="{Binding IPAddress}"/>
-                                        <Label Content="{Binding MACAddress}"/>-->
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
@@ -54,13 +51,13 @@
                 <DockPanel DockPanel.Dock="Top" Margin="5" LastChildFill="True">
                     <Label Content="Frequency:" DockPanel.Dock="Left"/>
                     <TextBox  Text="{Binding ElementName=FrequencySlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
-                    <Slider  Name="FrequencySlider" HorizontalAlignment="Stretch" Minimum="0" Maximum="1000" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding SelectedStreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Slider  Name="FrequencySlider" ValueChanged="FrequencySlider_ValueChanged" HorizontalAlignment="Stretch" Minimum="1" Maximum="1000" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding SelectedStreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
                 </DockPanel>
 
 
                 <!-- Channel List -->
                 <Grid Margin="5">
-                    <ListView Name="ChannelList" ItemsSource="{Binding AvailableChannels}" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
+                    <ListView Name="ChannelList" ItemsSource="{Binding AvailableChannels}" SelectionChanged="ChannelList_SelectionChanged" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Border >
@@ -74,8 +71,6 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-
-
                 </Grid>
             </DockPanel>
         </Border>

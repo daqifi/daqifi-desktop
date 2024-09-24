@@ -31,8 +31,7 @@ namespace Daqifi.Desktop.ViewModels
 
         #region Properties
 
-        public AppLogger AppLogger = AppLogger.Instance;
-
+        private AppLogger AppLogger = AppLogger.Instance;
         public ObservableCollection<DaqifiStreamingDevice> AvailableWiFiDevices { get; } = new ObservableCollection<DaqifiStreamingDevice>();
         public ObservableCollection<SerialStreamingDevice> AvailableSerialDevices { get; } = new ObservableCollection<SerialStreamingDevice>();
         public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = new ObservableCollection<HidFirmwareDevice>();
@@ -151,7 +150,6 @@ namespace Daqifi.Desktop.ViewModels
 
             foreach (var device in selectedDevices)
             {
-               //var data=device.mac
                 ConnectionManager.Instance.Connect(device);
             }            
         }

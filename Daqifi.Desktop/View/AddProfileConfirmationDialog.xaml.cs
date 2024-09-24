@@ -21,9 +21,7 @@ namespace Daqifi.Desktop.View
     {
         public AddProfileConfirmationDialog()
         {
-            InitializeComponent();
-           // this.DataContext=
-            
+            InitializeComponent();       
         }
 
         private void ExixtingProfileBtn_Click(object sender, RoutedEventArgs e)
