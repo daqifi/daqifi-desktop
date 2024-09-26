@@ -107,7 +107,9 @@ namespace Daqifi.Desktop.View.Flyouts
                                 return;
                             }
                             else
+                            {
                                 LoggingManager.Instance.SelectedProfile.Devices.Remove(data);
+                            }
                         }
                         else
                         {
@@ -158,7 +160,9 @@ namespace Daqifi.Desktop.View.Flyouts
                 {
 
                     if (sender is TextBox profilename && !string.IsNullOrWhiteSpace(profilename.Text))
+                    {
                         LoggingManager.Instance.SelectedProfile.Name = profilename.Text;
+                    }
 
                     LoggingManager.Instance.UpdateProfileInXml(LoggingManager.Instance.SelectedProfile);
                 }
@@ -180,7 +184,8 @@ namespace Daqifi.Desktop.View.Flyouts
                 {
 
 
-                    if (sender is Slider freq && freq.Value != 0&&freq.Parent is DockPanel dockpanel && dockpanel.Children[1] is TextBox textbox)
+                    if (sender is Slider freq && freq.Value != 0 && freq.Parent is DockPanel dockpanel && dockpanel.Children[1] is TextBox textbox)
+                    {
                         foreach (var item in LoggingManager.Instance.SelectedProfile.Devices)
                         {
                             if (item != null)
@@ -192,6 +197,7 @@ namespace Daqifi.Desktop.View.Flyouts
                                 }
                             }
                         }
+                    }
 
 
                     LoggingManager.Instance.UpdateProfileInXml(LoggingManager.Instance.SelectedProfile);
