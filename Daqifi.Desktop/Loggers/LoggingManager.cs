@@ -152,7 +152,7 @@ namespace Daqifi.Desktop.Logger
         {
             try
             {
-                if (SubscribedProfiles.Contains(profile)) return;
+                if (SubscribedProfiles.Contains(profile)) { return; }
                 AddAndRemoveProfileXml(profile, true);
                 SubscribedProfiles.Add(profile);
                 NotifyPropertyChanged("SubscribedProfiles");
@@ -327,8 +327,8 @@ namespace Daqifi.Desktop.Logger
         {
             try
             {
-               
-                if (!SubscribedProfiles.Where(x => x.ProfileId == profile.ProfileId).Any()) return;
+
+                if (!SubscribedProfiles.Where(x => x.ProfileId == profile.ProfileId).Any()) { return; }
                 AddAndRemoveProfileXml(profile, false);
                 SubscribedProfiles.Remove(profile);
                 NotifyPropertyChanged("SubscribedProfiles");

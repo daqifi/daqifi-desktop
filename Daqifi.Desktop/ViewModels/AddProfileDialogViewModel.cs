@@ -105,7 +105,9 @@ namespace Daqifi.Desktop.ViewModels
                 foreach (var device in AvailableDevices)
                 {
                     if (device != null)
+                    {
                         GetAvailableChannels(device);
+                    }
                 }
             }
 
@@ -116,11 +118,17 @@ namespace Daqifi.Desktop.ViewModels
         {
             try
             {
-                if(!string.IsNullOrWhiteSpace(ProfileName)&&ProfileName.Length!=0)canAddProfile=true;
-                else canAddProfile = false;
+                if (!string.IsNullOrWhiteSpace(ProfileName) && ProfileName.Length != 0)
+                {
+                    canAddProfile = true;
+                }
+                else { canAddProfile = false; }
 
-                if(SelectedStreamingFrequency>1) canAddProfile = true;
-                else canAddProfile = false;
+                if (SelectedStreamingFrequency > 1)
+                {
+                    canAddProfile = true;
+                }
+                else { canAddProfile = false; }
 
             }
             catch (System.Exception ex)
@@ -136,7 +144,9 @@ namespace Daqifi.Desktop.ViewModels
                 foreach (var channel in device.DataChannels)
                 {
                     if (!AvailableChannels.Any(x => x.Name == channel.Name))
+                    {
                         AvailableChannels.Add(channel);
+                    }
                 }
             }
             catch (System.Exception ex)

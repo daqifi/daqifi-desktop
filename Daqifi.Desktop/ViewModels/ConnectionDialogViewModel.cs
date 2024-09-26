@@ -31,7 +31,7 @@ namespace Daqifi.Desktop.ViewModels
 
         #region Properties
 
-        private AppLogger AppLogger = AppLogger.Instance;
+        private readonly AppLogger AppLogger = AppLogger.Instance;
         public ObservableCollection<DaqifiStreamingDevice> AvailableWiFiDevices { get; } = new ObservableCollection<DaqifiStreamingDevice>();
         public ObservableCollection<SerialStreamingDevice> AvailableSerialDevices { get; } = new ObservableCollection<SerialStreamingDevice>();
         public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = new ObservableCollection<HidFirmwareDevice>();

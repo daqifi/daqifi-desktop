@@ -83,9 +83,13 @@ namespace Daqifi.Desktop.View.Flyouts
                                 if (Channel.Name == channel.Name)
                                 {
                                     if (item != null && item.IsSelected)
+                                    {
                                         Channel.IsChannelActive = false;
+                                    }
                                     else
+                                    {
                                         Channel.IsChannelActive = true;
+                                    }
                                 }
                             }
                         }

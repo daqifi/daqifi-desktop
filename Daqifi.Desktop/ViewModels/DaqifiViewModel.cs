@@ -537,25 +537,11 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _selectedProfile = value;
                 RaisePropertyChanged();
-                if (_selectedProfile != null)
-                {
-                    // SetSelectedProfile();
-                }
+               
             }
         }
 
-        //private void SetSelectedProfile()
-        //{
-        //    try
-        //    {
-
-        //    }
-        //    catch (Exception ex)
-        //    {
-
-        //        AppLogger.Error(ex, "Error Setting Selected profile");
-        //    }
-        //}
+     
 
         public LoggingSession SelectedLoggingSession
         {

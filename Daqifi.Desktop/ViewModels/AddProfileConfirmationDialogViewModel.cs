@@ -74,7 +74,7 @@ namespace Daqifi.Desktop.ViewModels
             get => _selectedStreamingFrequency;
             set
             {
-                if (value < 1) return;
+                if (value < 1) { return; }
                 _selectedStreamingFrequency = value;
                 RaisePropertyChanged();
             }
@@ -99,8 +99,8 @@ namespace Daqifi.Desktop.ViewModels
                     _daqifiViewModel = daqifiViewModel;
                     if (_daqifiViewModel != null)
                     {
-                        if(_daqifiViewModel.ActiveChannels != null&& _daqifiViewModel.ActiveChannels.Count>0) SaveProfileExisting =Visibility.Visible;
-                        else SaveProfileExisting = Visibility.Collapsed;
+                        if (_daqifiViewModel.ActiveChannels != null && _daqifiViewModel.ActiveChannels.Count > 0) { SaveProfileExisting = Visibility.Visible; }
+                        else { SaveProfileExisting = Visibility.Collapsed; }
                     }
                 }
             }
