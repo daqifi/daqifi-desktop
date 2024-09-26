@@ -18,7 +18,7 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region Properties
-        private AppLogger AppLogger = AppLogger.Instance;
+        private readonly AppLogger AppLogger = AppLogger.Instance;
 
         public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
         public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();

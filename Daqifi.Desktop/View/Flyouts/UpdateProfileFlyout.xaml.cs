@@ -28,7 +28,7 @@ namespace Daqifi.Desktop.View.Flyouts
     /// </summary>
     public partial class UpdateProfileFlyout
     {
-        private bool _isInitializing = true;
+        private readonly bool _isInitializing = true;
         private readonly IDialogService _dialogService;
         public UpdateProfileFlyout() : this(ServiceLocator.Resolve<IDialogService>()) { }
         public UpdateProfileFlyout(IDialogService dialogService)
@@ -38,7 +38,7 @@ namespace Daqifi.Desktop.View.Flyouts
             LoggingManager.Instance.PropertyChanged -= UpdateChannelUi;
             LoggingManager.Instance.PropertyChanged += UpdateChannelUi;
         }
-        private AppLogger AppLogger = AppLogger.Instance;
+        private readonly AppLogger AppLogger = AppLogger.Instance;
 
         private void UpdateChannelUi(object sender, PropertyChangedEventArgs e)
         {

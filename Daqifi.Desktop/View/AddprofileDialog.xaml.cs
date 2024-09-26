@@ -25,7 +25,7 @@ namespace Daqifi.Desktop.View
         {
             InitializeComponent();
         }
-        private AppLogger AppLogger = AppLogger.Instance;
+        private readonly AppLogger AppLogger = AppLogger.Instance;
 
         private void btn_addprofile(object sender, RoutedEventArgs e)
         {

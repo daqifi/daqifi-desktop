@@ -34,12 +34,7 @@ namespace Daqifi.Desktop.ViewModels
     public class DaqifiViewModel : ViewModelBase
     {
         #region INotifyPropertyChanged Methods
-        public event PropertyChangedEventHandler PropertyChanged;
 
-        protected void NotifyPropertyChanged(string propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
         #endregion
 
         #region Private Variables

@@ -18,7 +18,7 @@ namespace Daqifi.Desktop.Logger
         private List<LoggingSession> _loggingSessions;
         private List<Profile> _subscribedProfiles;
         private bool _active;
-        private AppLogger AppLogger = AppLogger.Instance;
+        private readonly AppLogger AppLogger = AppLogger.Instance;
         private static string ProfileAppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
         private static readonly string ProfileSettingsXmlPath = ProfileAppDirectory + "\\DAQifiProfilesConfiguration.xml";
         #endregion

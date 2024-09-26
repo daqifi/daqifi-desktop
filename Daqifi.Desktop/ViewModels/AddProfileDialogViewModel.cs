@@ -28,7 +28,7 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region Properties
-        private AppLogger AppLogger = AppLogger.Instance;
+        private readonly AppLogger AppLogger = AppLogger.Instance;
 
 
         private ObservableCollection<IStreamingDevice> _availableDevices = new ObservableCollection<IStreamingDevice>();
@@ -166,7 +166,7 @@ namespace Daqifi.Desktop.ViewModels
             return true;
         }
 
-        AddProfileModel addProfileModel;
+       
         private void OnSelectedProfileExecute(object parameter)
         {
             try
