@@ -81,7 +81,7 @@ namespace Daqifi.Desktop.ViewModels
             get => _selectedStreamingFrequency;
             set
             {
-                if (value < 1) return;
+                if (value < 1) { return; }
                 ///checkAddProfileButton();
                 _selectedStreamingFrequency = value;
                 RaisePropertyChanged();
