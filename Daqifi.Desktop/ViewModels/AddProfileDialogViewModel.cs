@@ -38,7 +38,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _availableDevices = value;
-               
+
                 RaisePropertyChanged();
             }
         }
@@ -50,7 +50,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _availableChannels = value;
-               
+
                 RaisePropertyChanged();
             }
         }
@@ -60,7 +60,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _profileName = value;
-               
+
                 RaisePropertyChanged();
             }
         }
@@ -162,10 +162,14 @@ namespace Daqifi.Desktop.ViewModels
 
         private bool OnSelectedProfileCanExecute(object parameter)
         {
-            return true;
+            if (parameter != null)
+            {
+                return true;
+            }
+            return false;
         }
 
-       
+
         private void OnSelectedProfileExecute(object parameter)
         {
             try

@@ -20,13 +20,13 @@ namespace Daqifi.Desktop.ViewModels
     {
         #region Private Variables
         private IStreamingDevice _selectedDevice;
-        private string _profileName="Hello";
+        private string _profileName = "Hello";
         private readonly IDialogService _dialogService;
         private int _selectedStreamingFrequency;
         #endregion
 
         #region Properties
-        private readonly  AppLogger AppLogger = AppLogger.Instance;
+        private readonly AppLogger AppLogger = AppLogger.Instance;
 
         private readonly DaqifiViewModel _daqifiViewModel;
         public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
@@ -55,7 +55,7 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-      
+
 
 
         public string ProfileName
@@ -112,18 +112,28 @@ namespace Daqifi.Desktop.ViewModels
 
         private bool OnSelectedProfileCanExecute(object selectedItems)
         {
-            return true;
+            if (selectedItems != null)
+            {
+                return true;
+            }
+            return false;
         }
 
         private void AddNewProfileExecute(object selectedItems)
         {
-            _daqifiViewModel.ShowAddProfileDialog(null);
+            if (selectedItems != null)
+            {
+                _daqifiViewModel.ShowAddProfileDialog(null);
+            }
 
         }
         private void SaveExistingProfileExecute(object selectedItems)
         {
+            if (selectedItems != null)
+            {
+                _daqifiViewModel.SaveExistingSetting();
+            }
 
-            _daqifiViewModel.SaveExistingSetting();
         }
 
         #endregion
