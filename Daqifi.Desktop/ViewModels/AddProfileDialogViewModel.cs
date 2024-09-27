@@ -64,7 +64,7 @@ namespace Daqifi.Desktop.ViewModels
                 RaisePropertyChanged();
             }
         }
-        private bool _canAddProfile = false;
+        private bool _canAddProfile;
 
         public bool canAddProfile
         {

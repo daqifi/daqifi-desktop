@@ -21,7 +21,7 @@ namespace Daqifi.Desktop.ViewModels
         #region Private Variables
         private IStreamingDevice _selectedDevice;
         private string _profileName = "Hello";
-        private readonly IDialogService _dialogService;
+//private readonly IDialogService _dialogService;
         private int _selectedStreamingFrequency;
         #endregion
 
@@ -89,8 +89,8 @@ namespace Daqifi.Desktop.ViewModels
 
         public AddProfileConfirmationDialogViewModel(IDialogService dialogService)
         {
-
-            _dialogService = dialogService;
+            IDialogService _dialogService=dialogService;
+           
             if (_dialogService != null && _dialogService.Views.Count > 0 && _dialogService.Views[0] is Daqifi.Desktop.MainWindow mainWindow)
             {
                 if (mainWindow.DataContext is DaqifiViewModel daqifiViewModel)

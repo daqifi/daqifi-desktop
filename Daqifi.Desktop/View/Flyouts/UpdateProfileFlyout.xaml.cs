@@ -118,10 +118,11 @@ namespace Daqifi.Desktop.View.Flyouts
                     }
                     if (item.DataContext is IStreamingDevice connecteddevice && connecteddevice != null)
                     {
-                        var data = LoggingManager.Instance.SelectedProfile.Devices.Where(x => x.DeviceSerialNo == connecteddevice.DeviceSerialNo).FirstOrDefault();
+                        var data = LoggingManager.Instance.SelectedProfile.Devices
+     .FirstOrDefault(x => x.DeviceSerialNo == connecteddevice.DeviceSerialNo);
                         if (data == null)
                         {
-                            var Adddevicedata = new ProfileDevice()
+                            var adddevicedata = new ProfileDevice
                             {
                                 DeviceName = connecteddevice.Name,
                                 DevicePartName = connecteddevice.DevicePartNumber,
@@ -130,7 +131,7 @@ namespace Daqifi.Desktop.View.Flyouts
                                 Channels = LoggingManager.Instance.SelectedProfile.Devices[0].Channels,
                                 SamplingFrequency = LoggingManager.Instance.SelectedProfile.Devices[0].SamplingFrequency
                             };
-                            LoggingManager.Instance.SelectedProfile.Devices.Add(Adddevicedata);
+                            LoggingManager.Instance.SelectedProfile.Devices.Add(adddevicedata);
                             AvilableDevices.SelectedItem = -1;
                         }
                     }

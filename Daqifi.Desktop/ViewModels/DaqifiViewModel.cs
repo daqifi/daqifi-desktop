@@ -131,7 +131,7 @@ namespace Daqifi.Desktop.ViewModels
             Application.Current.Dispatcher.Invoke(() =>
             {
                 AvailableHidDevices.Remove(hidDevice);
-                if (AvailableHidDevices.Count == 0) HasNoHidDevices = true;
+                if (AvailableHidDevices.Count == 0) { HasNoHidDevices = true; }
             });
         }
 
