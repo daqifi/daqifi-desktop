@@ -31,9 +31,6 @@ namespace Daqifi.Desktop.View
         {
             Close();
         }
-
-      
-
         private void SelectedDevice_Loaded(object sender, RoutedEventArgs e)
         {
             SelectedDevice.SelectedIndex = 0;

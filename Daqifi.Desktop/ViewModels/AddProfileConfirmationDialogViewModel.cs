@@ -20,14 +20,10 @@ namespace Daqifi.Desktop.ViewModels
     {
         #region Private Variables
         private IStreamingDevice _selectedDevice;
-        private string _profileName = "Hello";
-//private readonly IDialogService _dialogService;
         private int _selectedStreamingFrequency;
         #endregion
 
         #region Properties
-        private readonly AppLogger AppLogger = AppLogger.Instance;
-
         private readonly DaqifiViewModel _daqifiViewModel;
         public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
         public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
@@ -42,8 +38,6 @@ namespace Daqifi.Desktop.ViewModels
                 RaisePropertyChanged();
             }
         }
-
-
         private Visibility _saveProfileExisting = Visibility.Collapsed;
         public Visibility SaveProfileExisting
         {
@@ -54,21 +48,6 @@ namespace Daqifi.Desktop.ViewModels
                 RaisePropertyChanged();
             }
         }
-
-
-
-
-        public string ProfileName
-        {
-            get => _profileName;
-            set
-            {
-                _profileName = value;
-                RaisePropertyChanged();
-            }
-        }
-
-
         public int SelectedStreamingFrequency
         {
             get => _selectedStreamingFrequency;
@@ -79,10 +58,7 @@ namespace Daqifi.Desktop.ViewModels
                 RaisePropertyChanged();
             }
         }
-
-
         #endregion
-
 
         #region Constructor
         public AddProfileConfirmationDialogViewModel() : this(ServiceLocator.Resolve<IDialogService>()) { }
@@ -106,6 +82,7 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
         #endregion
+
         #region Command Delegatges
         public ICommand AddNewProfileCommand => new DelegateCommand(AddNewProfileExecute, OnSelectedProfileCanExecute);
         public ICommand ExistingProfileCommand => new DelegateCommand(SaveExistingProfileExecute, OnSelectedProfileCanExecute);
@@ -133,11 +110,9 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _daqifiViewModel.SaveExistingSetting();
             }
-
         }
 
         #endregion
-
 
     }
 }

@@ -28,7 +28,9 @@ namespace Daqifi.Desktop
             {
                 _appLogger.Error(ex, "Error in MainWindow");
             }  
+           
         }
         #endregion
     }
+
 }

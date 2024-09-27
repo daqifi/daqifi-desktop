@@ -28,8 +28,11 @@ namespace Daqifi.Desktop.View.Flyouts
     /// </summary>
     public partial class UpdateProfileFlyout
     {
-        private readonly bool _isInitializing = true;
+        #region Private variables
         private readonly IDialogService _dialogService;
+        private readonly AppLogger AppLogger = AppLogger.Instance;
+        #endregion
+
         public UpdateProfileFlyout() : this(ServiceLocator.Resolve<IDialogService>()) { }
         public UpdateProfileFlyout(IDialogService dialogService)
         {
@@ -38,32 +41,27 @@ namespace Daqifi.Desktop.View.Flyouts
             LoggingManager.Instance.PropertyChanged -= UpdateChannelUi;
             LoggingManager.Instance.PropertyChanged += UpdateChannelUi;
         }
-        private readonly AppLogger AppLogger = AppLogger.Instance;
 
         private void UpdateChannelUi(object sender, PropertyChangedEventArgs e)
         {
             try
             {
-
                 UpdatedProfileChannelList.SelectedItems.Clear();
                 SelectedDevice.SelectedItems.Clear();
                 foreach (var channel in LoggingManager.Instance.SelectedProfileChannels)
                 {
-                    if (channel.IsChannelActive == true)  // Assuming IsChannelActive is a string
+                    if (channel.IsChannelActive == true) 
                     {
                         UpdatedProfileChannelList.SelectedItems.Add(channel);
                     }
                 }
                 foreach (var device in LoggingManager.Instance.SelectedProfileDevices)
                 {
-
                     SelectedDevice.SelectedItems.Add(device);
-
                 }
             }
             catch (Exception ex)
             {
-
                 AppLogger.Error(ex, "Error in updating ui of profile flyout");
             }
         }
@@ -119,7 +117,7 @@ namespace Daqifi.Desktop.View.Flyouts
                     if (item.DataContext is IStreamingDevice connecteddevice && connecteddevice != null)
                     {
                         var data = LoggingManager.Instance.SelectedProfile.Devices
-     .FirstOrDefault(x => x.DeviceSerialNo == connecteddevice.DeviceSerialNo);
+                          .FirstOrDefault(x => x.DeviceSerialNo == connecteddevice.DeviceSerialNo);
                         if (data == null)
                         {
                             var adddevicedata = new ProfileDevice
@@ -140,12 +138,10 @@ namespace Daqifi.Desktop.View.Flyouts
             }
             catch (Exception ex)
             {
-
                 AppLogger.Error(ex, "Error editing profile channels");
             }
 
         }
-       
         private void UpdatedProfileNameLblChanged(object sender, TextChangedEventArgs e)
         {
             try
@@ -157,19 +153,14 @@ namespace Daqifi.Desktop.View.Flyouts
                     {
                         LoggingManager.Instance.SelectedProfile.Name = profilename.Text;
                     }
-
                     LoggingManager.Instance.UpdateProfileInXml(LoggingManager.Instance.SelectedProfile);
                 }
             }
             catch (Exception ex)
             {
-
                 AppLogger.Error(ex, "Error editing profile Name");
             }
-
-
         }
-
         private void UpdatedProfileSamplingFrequencyLblvalueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             try
@@ -192,8 +183,6 @@ namespace Daqifi.Desktop.View.Flyouts
                             }
                         }
                     }
-
-
                     LoggingManager.Instance.UpdateProfileInXml(LoggingManager.Instance.SelectedProfile);
                 }
             }
@@ -201,8 +190,6 @@ namespace Daqifi.Desktop.View.Flyouts
             {
                 AppLogger.Error(ex, "Error editing profile device frequency");
             }
-
-
         }
     }
 }

@@ -21,7 +21,6 @@ namespace Daqifi.Desktop.ViewModels
     public class AddProfileDialogViewModel : ViewModelBase
     {
         #region Private Variables
-        private IStreamingDevice _selectedDevice;
         private string _profileName = "DaqifiProfile";
         private readonly IDialogService _dialogService;
         private int _selectedStreamingFrequency;
