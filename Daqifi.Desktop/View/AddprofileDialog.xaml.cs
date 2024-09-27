@@ -32,18 +32,7 @@ namespace Daqifi.Desktop.View
             Close();
         }
 
-        private void SelectedDevice_PreviewMouseDown(object sender, MouseButtonEventArgs e)
-        {
-            try
-            {
-                var data = SelectedDevice.SelectedItems;
-            }
-            catch (Exception ex)
-            {
-
-                AppLogger.Error(ex, "Error in updating ui of profile flyout");
-            }
-        }
+      
 
         private void SelectedDevice_Loaded(object sender, RoutedEventArgs e)
         {

@@ -144,14 +144,7 @@ namespace Daqifi.Desktop.View.Flyouts
             }
 
         }
-        private void UpdatedProfileChannelListSelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_isInitializing)
-            {
-                return;
-            }
-        }
-
+       
         private void UpdatedProfileNameLblChanged(object sender, TextChangedEventArgs e)
         {
             try

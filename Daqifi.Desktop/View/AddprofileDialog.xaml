@@ -34,7 +34,7 @@
                 <!-- Device Selector -->
                 <DockPanel DockPanel.Dock="Top" Margin="5" LastChildFill="True">
                     <Label Content="Devices:" DockPanel.Dock="Left"/>
-                    <ListView Name="SelectedDevice" SelectionMode="Multiple" SelectionChanged="SelectedDevice_SelectionChanged" Loaded="SelectedDevice_Loaded" ItemsSource="{Binding AvailableDevices}" PreviewMouseDown="SelectedDevice_PreviewMouseDown">
+                    <ListView Name="SelectedDevice" SelectionMode="Multiple" SelectionChanged="SelectedDevice_SelectionChanged" Loaded="SelectedDevice_Loaded" ItemsSource="{Binding AvailableDevices}">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Border >

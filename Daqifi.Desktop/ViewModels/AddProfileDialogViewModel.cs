@@ -38,7 +38,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _availableDevices = value;
-                //checkAddProfileButton();
+               
                 RaisePropertyChanged();
             }
         }
@@ -50,7 +50,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _availableChannels = value;
-               // checkAddProfileButton();
+               
                 RaisePropertyChanged();
             }
         }
@@ -60,7 +60,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _profileName = value;
-               // checkAddProfileButton();
+               
                 RaisePropertyChanged();
             }
         }
@@ -162,7 +162,6 @@ namespace Daqifi.Desktop.ViewModels
 
         private bool OnSelectedProfileCanExecute(object parameter)
         {
-            //TODO might use this later could not find a good way to raise can execute change
             return true;
         }
 

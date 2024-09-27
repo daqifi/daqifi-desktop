@@ -10,12 +10,12 @@ using System.Threading.Tasks;
 
 namespace Daqifi.Desktop.Models
 {
-    public class AddProfileModel
+    public class AddProfileModel:ObservableObject
     {
         public List<Profile> ProfileList { get; set; }
     }
 
-    public class Profile : INotifyPropertyChanged
+    public class Profile : ObservableObject
     {
         private string name;
         private Guid profileId;
@@ -29,7 +29,7 @@ namespace Daqifi.Desktop.Models
             set
             {
                 name = value;
-                RaisePropertyChanged(nameof(Name));
+                NotifyPropertyChanged(nameof(Name));
             }
         }
         public DateTime CreatedOn
@@ -38,7 +38,7 @@ namespace Daqifi.Desktop.Models
             set
             {
                 createdOn = value;
-                RaisePropertyChanged(nameof(CreatedOn));
+                NotifyPropertyChanged(nameof(CreatedOn));
             }
         }
 
@@ -48,7 +48,7 @@ namespace Daqifi.Desktop.Models
             set
             {
                 profileId = value;
-                RaisePropertyChanged(nameof(ProfileId));
+                NotifyPropertyChanged(nameof(ProfileId));
             }
         }
 
@@ -58,7 +58,7 @@ namespace Daqifi.Desktop.Models
             set
             {
                 isProfileActive = value;
-                RaisePropertyChanged(nameof(IsProfileActive));
+                NotifyPropertyChanged(nameof(IsProfileActive));
             }
         }
 
@@ -68,19 +68,14 @@ namespace Daqifi.Desktop.Models
             set
             {
                 devices = value;
-                RaisePropertyChanged(nameof(Devices));
+                NotifyPropertyChanged(nameof(Devices));
             }
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        protected void RaisePropertyChanged(string propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
+       
     }
 
-    public class ProfileDevice : INotifyPropertyChanged
+    public class ProfileDevice : ObservableObject
     {
         private string deviceName;
         private string devicePartName;
@@ -95,7 +90,7 @@ namespace Daqifi.Desktop.Models
             set
             {
                 deviceName = value;
-                RaisePropertyChanged(nameof(DeviceName));
+                NotifyPropertyChanged(nameof(DeviceName));
             }
         }
 
@@ -105,7 +100,7 @@ namespace Daqifi.Desktop.Models
             set
             {
                 devicePartName = value;
-                RaisePropertyChanged(nameof(DevicePartName));
+                NotifyPropertyChanged(nameof(DevicePartName));
             }
         }
 
@@ -115,7 +110,7 @@ namespace Daqifi.Desktop.Models
             set
             {
                 deviceSerialNo = value;
-                RaisePropertyChanged(nameof(DeviceSerialNo));
+                NotifyPropertyChanged(nameof(DeviceSerialNo));
             }
         }
 
@@ -125,7 +120,7 @@ namespace Daqifi.Desktop.Models
             set
             {
                 macAddress = value;
-                RaisePropertyChanged(nameof(MACAddress));
+                NotifyPropertyChanged(nameof(MACAddress));
             }
         }
 
@@ -135,7 +130,7 @@ namespace Daqifi.Desktop.Models
             set
             {
                 samplingFrequency = value;
-                RaisePropertyChanged(nameof(SamplingFrequency));
+                NotifyPropertyChanged(nameof(SamplingFrequency));
             }
         }
 
@@ -145,19 +140,14 @@ namespace Daqifi.Desktop.Models
             set
             {
                 channels = value;
-                RaisePropertyChanged(nameof(Channels));
+                NotifyPropertyChanged(nameof(Channels));
             }
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
 
-        protected void RaisePropertyChanged(string propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
     }
 
-    public class ProfileChannel : INotifyPropertyChanged
+    public class ProfileChannel : ObservableObject
     {
         private string name;
 
@@ -167,7 +157,7 @@ namespace Daqifi.Desktop.Models
             set
             {
                 name = value;
-                RaisePropertyChanged(nameof(Name));
+                NotifyPropertyChanged(nameof(Name));
             }
         }
         private string type;
@@ -178,7 +168,7 @@ namespace Daqifi.Desktop.Models
             set
             {
                 type = value;
-                RaisePropertyChanged(nameof(Type));
+                NotifyPropertyChanged(nameof(Type));
             }
         }
 
@@ -190,16 +180,11 @@ namespace Daqifi.Desktop.Models
             set
             {
                 isChannelActive = value;
-                RaisePropertyChanged(nameof(IsChannelActive));
+                NotifyPropertyChanged(nameof(IsChannelActive));
             }
         }
 
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        protected void RaisePropertyChanged(string propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
+       
     }
 
 }

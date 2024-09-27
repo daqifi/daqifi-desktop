@@ -21,7 +21,7 @@ namespace Daqifi.Desktop.ViewModels
         #region Private Variables
         private IStreamingDevice _selectedDevice;
         private string _profileName="Hello";
-        private IDialogService _dialogService;
+        private readonly IDialogService _dialogService;
         private int _selectedStreamingFrequency;
         #endregion
 

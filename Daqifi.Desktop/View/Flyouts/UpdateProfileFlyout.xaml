@@ -74,7 +74,7 @@
             <!--Selected Profile Channels-->
             <GroupBox Header="Selected Profile Channels">
                 <Grid Margin="5">
-                    <ListView Name="UpdatedProfileChannelList" Height="160" SelectionChanged="UpdatedProfileChannelListSelectionChanged"  ItemsSource="{Binding SelectedProfile.Devices[0].Channels}"   SelectionMode="Multiple"   Margin="5" Background="Transparent" BorderThickness="0">
+                    <ListView Name="UpdatedProfileChannelList" Height="160"   ItemsSource="{Binding SelectedProfile.Devices[0].Channels}"   SelectionMode="Multiple"   Margin="5" Background="Transparent" BorderThickness="0">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <EventSetter Event="PreviewMouseLeftButtonDown" Handler="ListViewItem_PreviewMouseLeftButtonDown" />
