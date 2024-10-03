@@ -37,12 +37,15 @@ namespace Daqifi.Desktop.View
         }
         private void UpdateAddButtonState()
         {
-            
-            bool isDeviceSelected = SelectedDevice.SelectedItems.Count > 0;
-            bool isChannelSelected = ChannelList.SelectedItems.Count > 0;
-            bool isProfileName = !string.IsNullOrWhiteSpace(ProfileName.Text);
-            bool isFrequenctSelected = FrequencySlider.Value > 1;
-            btnAdd.IsEnabled = isDeviceSelected && isChannelSelected&& isFrequenctSelected&& isProfileName;
+            if (SelectedDevice.ItemsSource!=null&& ChannelList.ItemsSource != null)
+            {
+                bool isDeviceSelected = SelectedDevice.SelectedItems.Count > 0;
+                bool isChannelSelected = ChannelList.SelectedItems.Count > 0;
+                bool isProfileName = !string.IsNullOrWhiteSpace(ProfileName.Text);
+                bool isFrequenctSelected = FrequencySlider.Value > 1;
+                btnAdd.IsEnabled = isDeviceSelected && isChannelSelected && isFrequenctSelected && isProfileName;
+            }
+           
         }
 
         private void SelectedDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -21,6 +21,7 @@ namespace Daqifi.Desktop.ViewModels
         #region Private Variables
         private IStreamingDevice _selectedDevice;
         private int _selectedStreamingFrequency;
+        private readonly IDialogService _dialogService;
         #endregion
 
         #region Properties
@@ -65,7 +66,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public AddProfileConfirmationDialogViewModel(IDialogService dialogService)
         {
-            IDialogService _dialogService=dialogService;
+            _dialogService=dialogService;
            
             if (_dialogService != null && _dialogService.Views.Count > 0 && _dialogService.Views[0] is Daqifi.Desktop.MainWindow mainWindow)
             {
@@ -75,8 +76,14 @@ namespace Daqifi.Desktop.ViewModels
                     _daqifiViewModel = daqifiViewModel;
                     if (_daqifiViewModel != null)
                     {
-                        if (_daqifiViewModel.ActiveChannels != null && _daqifiViewModel.ActiveChannels.Count > 0) { SaveProfileExisting = Visibility.Visible; }
-                        else { SaveProfileExisting = Visibility.Collapsed; }
+                        if (_daqifiViewModel.ActiveChannels != null && _daqifiViewModel.ActiveChannels.Count > 0)
+                        { 
+                            SaveProfileExisting = Visibility.Visible;
+                        }
+                        else 
+                        { 
+                            SaveProfileExisting = Visibility.Collapsed;
+                        }
                     }
                 }
             }
@@ -87,29 +94,24 @@ namespace Daqifi.Desktop.ViewModels
         public ICommand AddNewProfileCommand => new DelegateCommand(AddNewProfileExecute, OnSelectedProfileCanExecute);
         public ICommand ExistingProfileCommand => new DelegateCommand(SaveExistingProfileExecute, OnSelectedProfileCanExecute);
 
-        private bool OnSelectedProfileCanExecute(object selectedItems)
+        private bool OnSelectedProfileCanExecute(object o)
         {
-            if (selectedItems != null)
-            {
                 return true;
-            }
-            return false;
+            
         }
 
-        private void AddNewProfileExecute(object selectedItems)
+        private void AddNewProfileExecute(object o)
         {
-            if (selectedItems != null)
-            {
+           
                 _daqifiViewModel.ShowAddProfileDialog(null);
-            }
+            
 
         }
-        private void SaveExistingProfileExecute(object selectedItems)
+        private void SaveExistingProfileExecute(object o)
         {
-            if (selectedItems != null)
-            {
+          
                 _daqifiViewModel.SaveExistingSetting();
-            }
+            
         }
 
         #endregion

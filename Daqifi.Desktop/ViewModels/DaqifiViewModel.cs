@@ -33,10 +33,6 @@ namespace Daqifi.Desktop.ViewModels
 {
     public class DaqifiViewModel : ViewModelBase
     {
-        #region INotifyPropertyChanged Methods
-
-        #endregion
-
         #region Private Variables
         private bool _isBusy;
         private bool _isLoggedDataBusy;
@@ -66,75 +62,29 @@ namespace Daqifi.Desktop.ViewModels
         private string _firmwareFilePath;
         private Pic32Bootloader _bootloader;
         private string _version;
-
         private bool _isFirmwareUploading;
         private bool _isUploadComplete;
         private bool _hasErrorOccured;
         private int _uploadFirmwareProgress;
-
         private HidDeviceFinder _hidDeviceFinder;
         private bool _hasNoHidDevices = true;
-
         private ConnectionDialogViewModel _connectionDialogViewModel;
+        #endregion
 
+        #region Properties
+      
         public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = new ObservableCollection<HidFirmwareDevice>();
-        public bool HasNoHidDevices
-        {
-            get => _hasNoHidDevices;
-            set
-            {
-                _hasNoHidDevices = value;
-                RaisePropertyChanged();
-            }
-        }
+        public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = new ObservableCollection<IStreamingDevice>();
+        public ObservableCollection<Profile> profiles { get; } = new ObservableCollection<Profile>();
+        public ObservableCollection<IChannel> ActiveChannels { get; } = new ObservableCollection<IChannel>();
+        public ObservableCollection<IChannel> ActiveInputChannels { get; } = new ObservableCollection<IChannel>();
+        public ObservableCollection<LoggingSession> LoggingSessions { get; } = new ObservableCollection<LoggingSession>();
 
-        public void StartConnectionFinders()
-        {
-            _hidDeviceFinder = new HidDeviceFinder();
-            _hidDeviceFinder.OnDeviceFound += HandleHidDeviceFound;
-            _hidDeviceFinder.OnDeviceRemoved += HandleHidDeviceRemoved;
-            _hidDeviceFinder.Start();
-        }
-
-        public void Close()
-        {
-            _hidDeviceFinder?.Stop();
-        }
-
-        private HidFirmwareDevice ConnectHid(object selectedItems)
-        {
-            // Read variable
-            HidFirmwareDevice hidDevice = null;
-            var selectedDevices = ((IEnumerable)selectedItems).Cast<HidFirmwareDevice>();
-            hidDevice = selectedDevices.FirstOrDefault();
-            return hidDevice;
-        }
-
-        private void HandleHidDeviceFound(object sender, IDevice device)
-        {
-            if (!(device is HidFirmwareDevice hidDevice))
-            {
-                return;
-            }
-
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                AvailableHidDevices.Add(hidDevice);
-                if (HasNoHidDevices) HasNoHidDevices = false;
-            });
-        }
-
-        private void HandleHidDeviceRemoved(object sender, IDevice device)
-        {
-            if (!(device is HidFirmwareDevice hidDevice)) return;
-
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                AvailableHidDevices.Remove(hidDevice);
-                if (AvailableHidDevices.Count == 0) { HasNoHidDevices = true; }
-            });
-        }
-
+        public PlotLogger Plotter { get; }
+        public DatabaseLogger DbLogger { get; }
+        public SummaryLogger SummaryLogger { get; }
+        public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
+        public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
         public string Version
         {
             get => _version;
@@ -197,112 +147,25 @@ namespace Daqifi.Desktop.ViewModels
         }
 
         public string UploadFirmwareProgressText => ($"Upload Progress: {UploadFirmwareProgress}%");
-
-        public ICommand UploadFirmwareCommand { get; set; }
-        private bool CanUploadFirmware(object o)
+        public bool HasNoHidDevices
         {
-            return true;
-        }
-
-        public void UploadFirmware(object o)
-        {
-            // Check if the available port is opened:
-            ObservableCollection<SerialStreamingDevice> _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
-            SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
-            SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
-
-            SerialStreamingDevice port = manualserialdevice;
-            // Check if serial ports auto/manual are not null
-            if (port == null) { port = autodaqifiport; }
-            if (port != null)
-            {
-                // Send the Daqifi command "Force Boot"
-                string command = "SYSTem:FORceBoot\r\n";
-
-                if (port.Write(command))
-                {
-                    // Once the Daqifi resets, the COM serial port is closed,
-                    // and the HID port for managing the bootloader must be found
-                    StartConnectionFinders();
-
-                    // Update the variable 'HasNoHidDevices' in a backbround task
-                    var bw2 = new BackgroundWorker();
-                    bw2.DoWork += delegate
-                    {
-                        while (HasNoHidDevices == true)
-                        {
-                            Thread.Sleep(2000);
-                            if (HasNoHidDevices == false)
-                            {
-                                // Connect HID if it was found before              
-                                HidFirmwareDevice hidFirmwareDevice = ConnectHid(AvailableHidDevices);
-                                if (hidFirmwareDevice != null)
-                                {
-                                    _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
-                                    _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
-                                    _bootloader.RequestVersion();
-
-                                    var bw = new BackgroundWorker();
-                                    bw.DoWork += delegate
-                                    {
-                                        IsFirmwareUploading = true;
-                                        if (string.IsNullOrWhiteSpace(FirmwareFilePath))
-                                        {
-                                            return;
-                                        }
-                                        if (!File.Exists(FirmwareFilePath))
-                                        {
-                                            return;
-                                        }
-
-
-                                        if (_bootloader != null)
-                                        {
-                                            _bootloader.LoadFirmware(FirmwareFilePath, bw);
-                                        }
-
-                                    };
-                                    bw.WorkerReportsProgress = true;
-                                    bw.ProgressChanged += UploadFirmwareProgressChanged;
-                                    bw.RunWorkerCompleted += HandleUploadCompleted;
-                                    bw.RunWorkerAsync();
-                                }
-                            }
-                        }
-                    };
-                    bw2.RunWorkerAsync();
-                }
-                else
-                {
-                    string msg = "Error writing to COM port";
-                    AppLogger.Error(msg);
-                }
-            }
-            else
-            {
-                string msg = "Error serial COM port detection";
-                AppLogger.Error(msg);
-            }
-        }
-        #endregion
-
-        #region Properties
-        private AppLogger AppLogger = AppLogger.Instance;
-
-        public WindowState ViewWindowState
-        {
-            get => _viewWindowState;
+            get => _hasNoHidDevices;
             set
             {
-                _viewWindowState = value;
-                RaisePropertyChanged("FlyoutWidth");
-                RaisePropertyChanged("FlyoutHeight");
+                _hasNoHidDevices = value;
+                RaisePropertyChanged();
             }
         }
-
-        /// <summary>
-        /// Used to indicate that the program is GUI.  A modal progress ring will be presented to the user. 
-        /// </summary>
+        public IStreamingDevice UpdateProfileSelectedDevice
+        {
+            get => _updateProfileSelectedDevice;
+            set
+            {
+                _updateProfileSelectedDevice = value;
+                GetAvailableChannels(_updateProfileSelectedDevice);
+                RaisePropertyChanged();
+            }
+        }
         public bool IsBusy
         {
             get => _isBusy;
@@ -532,11 +395,11 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _selectedProfile = value;
                 RaisePropertyChanged();
-               
+
             }
         }
 
-     
+
 
         public LoggingSession SelectedLoggingSession
         {
@@ -548,15 +411,7 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-        public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = new ObservableCollection<IStreamingDevice>();
-        public ObservableCollection<Profile> profiles { get; } = new ObservableCollection<Profile>();
-        public ObservableCollection<IChannel> ActiveChannels { get; } = new ObservableCollection<IChannel>();
-        public ObservableCollection<IChannel> ActiveInputChannels { get; } = new ObservableCollection<IChannel>();
-        public ObservableCollection<LoggingSession> LoggingSessions { get; } = new ObservableCollection<LoggingSession>();
 
-        public PlotLogger Plotter { get; }
-        public DatabaseLogger DbLogger { get; }
-        public SummaryLogger SummaryLogger { get; }
 
         public string LoggedDataBusyReason
         {
@@ -565,6 +420,18 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _loggedDataBusyReason = value;
                 RaisePropertyChanged();
+            }
+        }
+        private AppLogger AppLogger = AppLogger.Instance;
+
+        public WindowState ViewWindowState
+        {
+            get => _viewWindowState;
+            set
+            {
+                _viewWindowState = value;
+                RaisePropertyChanged("FlyoutWidth");
+                RaisePropertyChanged("FlyoutHeight");
             }
         }
         #endregion
@@ -593,8 +460,11 @@ namespace Daqifi.Desktop.ViewModels
                 LoggingManager.Instance.AddLogger(DbLogger);
 
                 //Xml profiles load
+
+                LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
                 ObservableCollection<Daqifi.Desktop.Models.Profile> observableProfileList = new ObservableCollection<Daqifi.Desktop.Models.Profile>(LoggingManager.Instance.LoadProfilesFromXml());
-                // profiles = observableProfileList;
+
+               
                 GetUpdateProfileAvailableDevice();
 
                 // Summary Logger
@@ -668,6 +538,7 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region Command Properties
+        public ICommand UploadFirmwareCommand { get; set; }
         public ICommand ShowAddProfileDialogCommand { get; private set; }
         private bool CanShowAddProfileDialog(object o)
         {
@@ -880,6 +751,91 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region Command Methods
+        private bool CanUploadFirmware(object o)
+        {
+            return true;
+        }
+
+        public void UploadFirmware(object o)
+        {
+            // Check if the available port is opened:
+            ObservableCollection<SerialStreamingDevice> _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
+            SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
+            SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
+
+            SerialStreamingDevice port = manualserialdevice;
+            // Check if serial ports auto/manual are not null
+            if (port == null) { port = autodaqifiport; }
+            if (port != null)
+            {
+                // Send the Daqifi command "Force Boot"
+                string command = "SYSTem:FORceBoot\r\n";
+
+                if (port.Write(command))
+                {
+                    // Once the Daqifi resets, the COM serial port is closed,
+                    // and the HID port for managing the bootloader must be found
+                    StartConnectionFinders();
+
+                    // Update the variable 'HasNoHidDevices' in a backbround task
+                    var bw2 = new BackgroundWorker();
+                    bw2.DoWork += delegate
+                    {
+                        while (HasNoHidDevices == true)
+                        {
+                            Thread.Sleep(2000);
+                            if (HasNoHidDevices == false)
+                            {
+                                // Connect HID if it was found before              
+                                HidFirmwareDevice hidFirmwareDevice = ConnectHid(AvailableHidDevices);
+                                if (hidFirmwareDevice != null)
+                                {
+                                    _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
+                                    _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
+                                    _bootloader.RequestVersion();
+
+                                    var bw = new BackgroundWorker();
+                                    bw.DoWork += delegate
+                                    {
+                                        IsFirmwareUploading = true;
+                                        if (string.IsNullOrWhiteSpace(FirmwareFilePath))
+                                        {
+                                            return;
+                                        }
+                                        if (!File.Exists(FirmwareFilePath))
+                                        {
+                                            return;
+                                        }
+
+
+                                        if (_bootloader != null)
+                                        {
+                                            _bootloader.LoadFirmware(FirmwareFilePath, bw);
+                                        }
+
+                                    };
+                                    bw.WorkerReportsProgress = true;
+                                    bw.ProgressChanged += UploadFirmwareProgressChanged;
+                                    bw.RunWorkerCompleted += HandleUploadCompleted;
+                                    bw.RunWorkerAsync();
+                                }
+                            }
+                        }
+                    };
+                    bw2.RunWorkerAsync();
+                }
+                else
+                {
+                    string msg = "Error writing to COM port";
+                    AppLogger.Error(msg);
+                }
+            }
+            else
+            {
+                string msg = "Error serial COM port detection";
+                AppLogger.Error(msg);
+            }
+        }
         private void ShowConnectionDialog(object o)
         {
             _connectionDialogViewModel = new ConnectionDialogViewModel();
@@ -1156,6 +1112,53 @@ namespace Daqifi.Desktop.ViewModels
         }
         #endregion
 
+        #region Methods
+        public void StartConnectionFinders()
+        {
+            _hidDeviceFinder = new HidDeviceFinder();
+            _hidDeviceFinder.OnDeviceFound += HandleHidDeviceFound;
+            _hidDeviceFinder.OnDeviceRemoved += HandleHidDeviceRemoved;
+            _hidDeviceFinder.Start();
+        }
+
+        public void Close()
+        {
+            _hidDeviceFinder?.Stop();
+        }
+
+        private HidFirmwareDevice ConnectHid(object selectedItems)
+        {
+            // Read variable
+            HidFirmwareDevice hidDevice = null;
+            var selectedDevices = ((IEnumerable)selectedItems).Cast<HidFirmwareDevice>();
+            hidDevice = selectedDevices.FirstOrDefault();
+            return hidDevice;
+        }
+
+        private void HandleHidDeviceFound(object sender, IDevice device)
+        {
+            if (!(device is HidFirmwareDevice hidDevice))
+            {
+                return;
+            }
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                AvailableHidDevices.Add(hidDevice);
+                if (HasNoHidDevices) HasNoHidDevices = false;
+            });
+        }
+
+        private void HandleHidDeviceRemoved(object sender, IDevice device)
+        {
+            if (!(device is HidFirmwareDevice hidDevice)) return;
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                AvailableHidDevices.Remove(hidDevice);
+                if (AvailableHidDevices.Count == 0) { HasNoHidDevices = true; }
+            });
+        }
         public void UpdateUi(object sender, PropertyChangedEventArgs args)
         {
             switch (args.PropertyName)
@@ -1217,24 +1220,6 @@ namespace Daqifi.Desktop.ViewModels
             IsLogSummaryOpen = false;
         }
 
-
-        #region update profile flyout 
-
-        #region Properties
-        public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
-        public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
-        public IStreamingDevice UpdateProfileSelectedDevice
-        {
-            get => _updateProfileSelectedDevice;
-            set
-            {
-                _updateProfileSelectedDevice = value;
-                GetAvailableChannels(_updateProfileSelectedDevice);
-                RaisePropertyChanged();
-            }
-        }
-        #endregion
-
         #region update profile methods
         /// <summary>
         /// Show add profile dialog
@@ -1254,7 +1239,6 @@ namespace Daqifi.Desktop.ViewModels
 
         }
 
-
         /// <summary>
         /// show save profile confirmation for new setting or save current settings
         /// </summary>
@@ -1263,6 +1247,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             try
             {
+                LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
                 var addProfileConfirmationDialogViewModel = new AddProfileConfirmationDialogViewModel();
                 _dialogService.ShowDialog<AddProfileConfirmationDialog>(this, addProfileConfirmationDialogViewModel);
             }
@@ -1448,16 +1433,14 @@ namespace Daqifi.Desktop.ViewModels
                 }
                 if (profiles != null)
                 {
-
-
-                    var connecteddevice = ConnectedDevices.Where(connectedDevice => item.Devices.Any(itemDevice => itemDevice.DeviceSerialNo == connectedDevice.DeviceSerialNo)).ToList();
-                    if (connecteddevice == null || connecteddevice.Count == 0)
+                    var connectedDevices = ConnectedDevices.Where(connectedDevice => item.Devices.Any(itemDevice => itemDevice.DeviceSerialNo == connectedDevice.DeviceSerialNo)).ToList();
+                    if (connectedDevices == null || connectedDevices.Count == 0)
                     {
                         var errorDialogViewModel = new ErrorDialogViewModel("profile connot be active , there is no connected devices in it.");
                         _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
                         return;
                     }
-                    if (connecteddevice != null)
+                    if (connectedDevices != null)
                     {
                         if (LoggingManager.Instance.Active)
                         {
@@ -1467,7 +1450,7 @@ namespace Daqifi.Desktop.ViewModels
                         }
                         else
                         {
-                            foreach (var connectedDevice in connecteddevice)
+                            foreach (var connectedDevice in connectedDevices)
                             {
                                 SelectedDevice = connectedDevice;
                                 UpdateProfileSelectedDevice = SelectedDevice;
@@ -1475,24 +1458,30 @@ namespace Daqifi.Desktop.ViewModels
                                 connectedDevice.StreamingFrequency = item.Devices.Where(device => device.DeviceSerialNo == connectedDevice.DeviceSerialNo).FirstOrDefault().SamplingFrequency;
                                 if (item.IsProfileActive)
                                 {
-                                    item.IsProfileActive = false;
+                                    
                                     foreach (var channel in item.Devices[0].Channels)
                                     {
                                         var profileChannel = AvailableChannels.Where(x => x.Name.ToString() == channel.Name.Trim() && x.TypeString.ToString() == channel.Type.Trim() && channel.IsChannelActive).FirstOrDefault();
                                         if (profileChannel != null)
+                                        {
                                             LoggingManager.Instance.Unsubscribe(profileChannel);
+                                        }
                                     }
+                                    item.IsProfileActive = false;
 
                                 }
                                 else
                                 {
-                                    item.IsProfileActive = true;
+                                   
                                     foreach (var channel in item.Devices[0].Channels)
                                     {
                                         var profileChannel = AvailableChannels.Where(x => x.Name.ToString() == channel.Name.Trim() && x.TypeString.ToString() == channel.Type.Trim() && channel.IsChannelActive).FirstOrDefault();
                                         if (profileChannel != null)
+                                        {
                                             LoggingManager.Instance.Subscribe(profileChannel);
+                                        }
                                     }
+                                    item.IsProfileActive = true;
 
                                 }
                             }
@@ -1521,5 +1510,6 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #endregion
+       
     }
 }

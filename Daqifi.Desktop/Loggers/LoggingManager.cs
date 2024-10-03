@@ -220,7 +220,7 @@ namespace Daqifi.Desktop.Logger
             }
         }
 
-        private void AddAndRemoveProfileXml(Profile profile, bool AddProfileFlag)
+        public void AddAndRemoveProfileXml(Profile profile, bool AddProfileFlag)
         {
             try
             {
@@ -236,41 +236,46 @@ namespace Daqifi.Desktop.Logger
                     newDoc.Save(ProfileSettingsXmlPath);
                 }
                 XDocument doc = XDocument.Load(ProfileSettingsXmlPath);
-                if (AddProfileFlag)
+                if (profile != null)
                 {
-                    XElement newProfile = new XElement("Profile",
-                        new XElement("Name", profile.Name),
-                        new XElement("ProfileID", profile.ProfileId),
-                        new XElement("CreatedOn", profile.CreatedOn),
-                        new XElement("Devices",
-                            from device in profile.Devices
-                            select new XElement("Device",
-                                new XElement("DeviceName", device.DeviceName),
-                                new XElement("DevicePartNumber", device.DevicePartName),
-                                new XElement("MACAddress", device.MACAddress),
-                                new XElement("DeviceSerialNo", device.DeviceSerialNo),
-                                new XElement("Channels",
-                                    from channel in device.Channels
-                                    select new XElement("Channel",
-                                        new XElement("Name", channel.Name),
-                                        new XElement("Type",channel.Type),   
-                                        new XElement("IsActive", channel.IsChannelActive)
 
-                                    )
-                                ),
-                                new XElement("SamplingFrequency", device.SamplingFrequency)
+
+                    if (AddProfileFlag)
+                    {
+                        XElement newProfile = new XElement("Profile",
+                            new XElement("Name", profile.Name),
+                            new XElement("ProfileID", profile.ProfileId),
+                            new XElement("CreatedOn", profile.CreatedOn),
+                            new XElement("Devices",
+                                from device in profile.Devices
+                                select new XElement("Device",
+                                    new XElement("DeviceName", device.DeviceName),
+                                    new XElement("DevicePartNumber", device.DevicePartName),
+                                    new XElement("MACAddress", device.MACAddress),
+                                    new XElement("DeviceSerialNo", device.DeviceSerialNo),
+                                    new XElement("Channels",
+                                        from channel in device.Channels
+                                        select new XElement("Channel",
+                                            new XElement("Name", channel.Name),
+                                            new XElement("Type", channel.Type),
+                                            new XElement("IsActive", channel.IsChannelActive)
+
+                                        )
+                                    ),
+                                    new XElement("SamplingFrequency", device.SamplingFrequency)
+                                )
                             )
-                        )
-                    );
+                        );
 
-                    doc.Root?.Add(newProfile);
-                }
-                else
-                {
-                    var profileToRemove = doc.Descendants("Profile")
-                                             .FirstOrDefault(p => (Guid)p.Element("ProfileID") == profile.ProfileId);
-                    profileToRemove?.Remove();
-                    SubscribedProfiles.Remove(profile);
+                        doc.Root?.Add(newProfile);
+                    }
+                    else
+                    {
+                        var profileToRemove = doc.Descendants("Profile")
+                                                 .FirstOrDefault(p => (Guid)p.Element("ProfileID") == profile.ProfileId);
+                        profileToRemove?.Remove();
+                        SubscribedProfiles.Remove(profile);
+                    }
                 }
                 doc.Save(ProfileSettingsXmlPath);
             }

@@ -63,7 +63,7 @@ namespace Daqifi.Desktop.ViewModels
                 RaisePropertyChanged();
             }
         }
-        private bool _canAddProfile;
+        private bool _canAddProfile=false;
 
         public bool canAddProfile
         {
@@ -159,13 +159,9 @@ namespace Daqifi.Desktop.ViewModels
         #region Command Delegatges
         public ICommand AddProfileCommand => new DelegateCommand(OnSelectedProfileExecute, OnSelectedProfileCanExecute);
 
-        private bool OnSelectedProfileCanExecute(object parameter)
+        private bool OnSelectedProfileCanExecute(object o)
         {
-            if (parameter != null)
-            {
                 return true;
-            }
-            return false;
         }
 
 

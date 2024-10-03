@@ -15,7 +15,7 @@
     
     <Grid>
         <Border>
-            <DockPanel Name="AddProfileUI" HorizontalAlignment="Stretch"  VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
+            <DockPanel Name="AddProfile" HorizontalAlignment="Stretch"  VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
                 <!-- Add Channel Button -->
                 <Button Name="btnAdd" DockPanel.Dock="Bottom" IsEnabled="{Binding canAddProfile}"  Command="{Binding AddProfileCommand}" Click="btn_addprofile" Content="Add" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent}" controls:ControlsHelper.ContentCharacterCasing="Normal">
                     <Button.CommandParameter>
@@ -34,7 +34,7 @@
                 <!-- Device Selector -->
                 <DockPanel DockPanel.Dock="Top" Margin="5" LastChildFill="True">
                     <Label Content="Devices:" DockPanel.Dock="Left"/>
-                    <ListView Name="SelectedDevice" SelectionMode="Multiple" SelectionChanged="SelectedDevice_SelectionChanged" Loaded="SelectedDevice_Loaded" ItemsSource="{Binding AvailableDevices}">
+                    <ListView Name="SelectedDevice" SelectedIndex="-1" SelectionMode="Multiple" SelectionChanged="SelectedDevice_SelectionChanged" Loaded="SelectedDevice_Loaded" ItemsSource="{Binding AvailableDevices}">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Border >
