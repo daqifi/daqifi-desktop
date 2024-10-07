@@ -42,7 +42,7 @@ namespace Daqifi.Desktop.View
                 bool isDeviceSelected = SelectedDevice.SelectedItems.Count > 0;
                 bool isChannelSelected = ChannelList.SelectedItems.Count > 0;
                 bool isProfileName = !string.IsNullOrWhiteSpace(ProfileName.Text);
-                bool isFrequenctSelected = FrequencySlider.Value > 1;
+                bool isFrequenctSelected = FrequencySlider.Value > 0;
                 btnAdd.IsEnabled = isDeviceSelected && isChannelSelected && isFrequenctSelected && isProfileName;
             }
            

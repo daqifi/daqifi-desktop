@@ -63,7 +63,7 @@ namespace Daqifi.Desktop.ViewModels
                 RaisePropertyChanged();
             }
         }
-        private bool _canAddProfile=false;
+        private bool _canAddProfile;
 
         public bool canAddProfile
         {
@@ -123,7 +123,7 @@ namespace Daqifi.Desktop.ViewModels
                 }
                 else { canAddProfile = false; }
 
-                if (SelectedStreamingFrequency > 1)
+                if (SelectedStreamingFrequency > 0)
                 {
                     canAddProfile = true;
                 }

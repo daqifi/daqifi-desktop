@@ -9,7 +9,7 @@
         xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         Service:DialogService.IsRegisteredView="True"
-        Title="DAQiFi v1.1.0" Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
+        Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
     <Window.DataContext>
         <vm:DaqifiViewModel/>
     </Window.DataContext>
@@ -30,6 +30,28 @@
                         <iconPacks:PackIconMaterial Kind="HelpCircleOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                         <TextBlock Margin="4 0 0 0" VerticalAlignment="Center" Text="help" />
                     </StackPanel>
+                </Button.Content>
+            </Button>
+            <Button Command="{Binding NotificationCommand}">
+                <Button.Content>
+                    <Grid>
+                        <iconPacks:PackIconMaterial Kind="BellOutline" VerticalAlignment="Center" HorizontalAlignment="Center" Height="20" Width="20"/>
+                        <Border Background="Red" 
+                       HorizontalAlignment="Right" 
+                       VerticalAlignment="Top" 
+                       Width="10" 
+                       Height="10" 
+                       CornerRadius="7.5" 
+                       Margin="5 0 0 0"
+                       Visibility="{Binding NotificationCount, Converter={StaticResource intToVisibility}}">
+                            <TextBlock Text="{Binding NotificationCount}" 
+                              VerticalAlignment="Center" 
+                              HorizontalAlignment="Center" 
+                              FontSize="8" 
+                              FontWeight="Bold" 
+                              Foreground="White"/>
+                        </Border>
+                    </Grid>
                 </Button.Content>
             </Button>
         </Controls:WindowCommands>
@@ -71,6 +93,47 @@
 
     <Controls:MetroWindow.Flyouts>
         <Controls:FlyoutsControl VerticalAlignment="Bottom">
+            <!--Application Version Update Flyout -->
+            <!--<Controls:Flyout Background="Black"  x:Name="NotificationFlyout" Header="Notifications" Position="Right" IsOpen="False" Theme="Light">
+                <StackPanel Margin="5">-->
+                    <!-- List of notifications -->
+                    <!--<ListBox  ItemsSource="{Binding notificationlist}">
+                        <ListBox.Resources>
+                            <Style TargetType="ListBoxItem">
+                                <Style.Resources>
+                                    
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"
+                       Color="Transparent" />
+                                    
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}"
+                       Color="Transparent" />
+                                   
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
+                       Color="Black" />
+                                </Style.Resources>
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            </Style>
+                        </ListBox.Resources>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Vertical">
+                                    <TextBlock Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" MaxWidth="150"/>
+                                    <TextBlock>
+<TextBlock>
+<Hyperlink NavigateUri="{Binding Link}" RequestNavigate="Hyperlink_RequestNavigate">
+<Run Text="here" />
+</Hyperlink>
+</TextBlock>
+</TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>-->
+                   
+                <!--</StackPanel>
+            </Controls:Flyout>-->
+            <flyouts:NotificationsFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+
             <!-- Live Graph Flyout -->
             <flyouts:LiveGraphFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
 
@@ -562,11 +625,11 @@
                                                             <Ellipse.Style>
                                                                 <Style TargetType="Ellipse">
                                                                     <Setter Property="Fill" Value="IndianRed"/>
-                                                                   
+
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding IsProfileActive}" Value="True">
                                                                             <Setter Property="Fill" Value="LightGreen"/>
-                                                                           
+
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
@@ -576,7 +639,7 @@
                                                         <!-- Name Label -->
                                                         <Label Content="{Binding Name}" FontWeight="DemiBold" FontSize="16" Padding="5,0,0,0"/>
                                                         <Label Content="{Binding CreatedOn}" FontWeight="DemiBold" Foreground="LightGray" FontSize="10" Padding="20,5,0,0"/>
-                                                        
+
                                                     </StackPanel>
                                                     <Button Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveProfileList, Path=DataContext.OpenProfileSettingsCommand}" CommandParameter="{Binding}" ToolTip="Profile Settings">
                                                         <Button.Content>

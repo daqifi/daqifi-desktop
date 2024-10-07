@@ -8,6 +8,7 @@ using Daqifi.Desktop.Common.Loggers;
 using System.IO;
 using System.Xml.Linq;
 using System.Collections.ObjectModel;
+using Daqifi.Desktop.UpdateVersion;
 
 namespace Daqifi.Desktop.Logger
 {
@@ -162,12 +163,12 @@ namespace Daqifi.Desktop.Logger
 
                 AppLogger.Error(ex, $"Error Subscribe Profile");
             }
-            
+
         }
         public void callPropertyChange()
         {
             NotifyPropertyChanged("SelectedProfileChannels");
-            
+
         }
         public void UpdateProfileInXml(Profile profile)
         {
@@ -313,7 +314,7 @@ namespace Daqifi.Desktop.Logger
                             {
                                 Name = (string)c.Element("Name"),
                                 Type = (string)c.Element("Type"),
-                                IsChannelActive=(bool)c.Element("IsActive")
+                                IsChannelActive = (bool)c.Element("IsActive")
                             }).ToList()
                         }).ToList())
                     }).ToList();
@@ -343,14 +344,14 @@ namespace Daqifi.Desktop.Logger
 
                 AppLogger.Error(ex, $"Error Unsubscribe Profile");
             }
-           
+
         }
         #endregion
 
         #region Channel Subscription
         public void Subscribe(IChannel channel)
         {
-            
+
             if (SubscribedChannels.Contains(channel)) return;
 
             channel.IsActive = true;
@@ -411,6 +412,13 @@ namespace Daqifi.Desktop.Logger
         public void AddLogger(ILogger logger)
         {
             Loggers.Add(logger);
+        }
+
+        public async void CheckApplicationVersion(VersionNotification versionNotification)
+        {
+            await versionNotification.CheckForUpdatesAsync();
+            NotifyPropertyChanged("NotificationCount");
+            NotifyPropertyChanged("VersionNumber");
         }
     }
 }
