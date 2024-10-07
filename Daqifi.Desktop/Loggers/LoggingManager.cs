@@ -9,6 +9,7 @@ using System.IO;
 using System.Xml.Linq;
 using System.Collections.ObjectModel;
 using Daqifi.Desktop.UpdateVersion;
+using System.Threading.Tasks;
 
 namespace Daqifi.Desktop.Logger
 {
@@ -414,7 +415,7 @@ namespace Daqifi.Desktop.Logger
             Loggers.Add(logger);
         }
 
-        public async void CheckApplicationVersion(VersionNotification versionNotification)
+        public  async Task CheckApplicationVersion(VersionNotification versionNotification)
         {
             await versionNotification.CheckForUpdatesAsync();
             NotifyPropertyChanged("NotificationCount");

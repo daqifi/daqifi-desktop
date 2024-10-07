@@ -43,16 +43,7 @@ namespace Daqifi.Desktop
             e.Handled = true;
 
         }
-
-        private void Button_Click(object sender, System.Windows.RoutedEventArgs e)
-        {
-           // NotificationFlyout.IsOpen = true;  
-        }
-
-        private void Notification_Button_Click(object sender, System.Windows.RoutedEventArgs e)
-        {
-
-        }
+       
     }
 
 }

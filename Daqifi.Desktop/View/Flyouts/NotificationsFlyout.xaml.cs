@@ -26,10 +26,7 @@ namespace Daqifi.Desktop.View.Flyouts
             InitializeComponent();
         }
 
-        private void TextBlock_Initialized(object sender, EventArgs e)
-        {
-
-        }
+      
         private void Hyperlink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
         {
             Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
