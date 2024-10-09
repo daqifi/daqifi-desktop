@@ -232,9 +232,9 @@ namespace Daqifi.Desktop.IO.Test.Messages.Producers
         [TestMethod]
         public void SetSecurityCommand_ReturnsCorrectCommand()
         {
-            var actualCommand = ScpiMessagePoducer.SetSecurity(WifiSecurityType.WpaPskKey);
+            var actualCommand = ScpiMessagePoducer.SetSecurity(WifiSecurityType.WpaPskPhrase);
             var actualCommandRawData = actualCommand.GetBytes();
-            var expectedCommandText = $"SYSTem:COMMunicate:LAN:SECurity {(int)WifiSecurityType.WpaPskKey}";
+            var expectedCommandText = $"SYSTem:COMMunicate:LAN:SECurity {(int)WifiSecurityType.WpaPskPhrase}";
             var expectedCommandRawData = GetBytes(expectedCommandText);
 
             CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
