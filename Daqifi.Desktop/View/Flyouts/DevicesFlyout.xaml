@@ -101,7 +101,7 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <TextBox Grid.Row="0" Text="{Binding ElementName=FrequencySlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
-                <Slider Grid.Row="1" Name="FrequencySlider" HorizontalAlignment="Stretch" Minimum="1" Maximum="1000" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding SelectedStreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
+                <Slider Grid.Row="1" Name="FrequencySlider" HorizontalAlignment="Stretch" Minimum="1" Maximum="1000" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding SelectedDevice.StreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
             </Grid>
         </GroupBox>
 

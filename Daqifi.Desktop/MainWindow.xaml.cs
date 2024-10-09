@@ -1,6 +1,8 @@
 ﻿using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using System;
+using System.Diagnostics;
+using System.Reflection;
 
 namespace Daqifi.Desktop
 {
@@ -18,6 +20,9 @@ namespace Daqifi.Desktop
             {
                 InitializeComponent();
 
+                var version = Assembly.GetExecutingAssembly().GetName().Version;
+                this.Title = $"DAQiFi v{version.Major}.{version.Minor}.{version.Build}";
+
                 Closing += (sender, e) =>
                 {
                     if (HostCommands.ShutdownCommand.CanExecute(e))
@@ -28,7 +33,17 @@ namespace Daqifi.Desktop
             {
                 _appLogger.Error(ex, "Error in MainWindow");
             }  
+           
         }
         #endregion
+
+        private void Hyperlink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+        {
+            Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+            e.Handled = true;
+
+        }
+       
     }
+
 }

@@ -9,7 +9,7 @@
         xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         Service:DialogService.IsRegisteredView="True"
-        Title="DAQiFi v1.1.0" Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
+        Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
     <Window.DataContext>
         <vm:DaqifiViewModel/>
     </Window.DataContext>
@@ -30,6 +30,28 @@
                         <iconPacks:PackIconMaterial Kind="HelpCircleOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                         <TextBlock Margin="4 0 0 0" VerticalAlignment="Center" Text="help" />
                     </StackPanel>
+                </Button.Content>
+            </Button>
+            <Button Command="{Binding NotificationCommand}">
+                <Button.Content>
+                    <Grid>
+                        <iconPacks:PackIconMaterial Kind="BellOutline" VerticalAlignment="Center" HorizontalAlignment="Center" Height="20" Width="20"/>
+                        <Border Background="Red" 
+                       HorizontalAlignment="Right" 
+                       VerticalAlignment="Top" 
+                       Width="10" 
+                       Height="10" 
+                       CornerRadius="7.5" 
+                       Margin="5 0 0 0"
+                       Visibility="{Binding NotificationCount, Converter={StaticResource intToVisibility}}">
+                            <TextBlock Text="{Binding NotificationCount}" 
+                              VerticalAlignment="Center" 
+                              HorizontalAlignment="Center" 
+                              FontSize="8" 
+                              FontWeight="Bold" 
+                              Foreground="White"/>
+                        </Border>
+                    </Grid>
                 </Button.Content>
             </Button>
         </Controls:WindowCommands>
@@ -68,9 +90,50 @@
         </Style>
 
     </Window.Resources>
-    
+
     <Controls:MetroWindow.Flyouts>
         <Controls:FlyoutsControl VerticalAlignment="Bottom">
+            <!--Application Version Update Flyout -->
+            <!--<Controls:Flyout Background="Black"  x:Name="NotificationFlyout" Header="Notifications" Position="Right" IsOpen="False" Theme="Light">
+                <StackPanel Margin="5">-->
+                    <!-- List of notifications -->
+                    <!--<ListBox  ItemsSource="{Binding notificationlist}">
+                        <ListBox.Resources>
+                            <Style TargetType="ListBoxItem">
+                                <Style.Resources>
+                                    
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"
+                       Color="Transparent" />
+                                    
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}"
+                       Color="Transparent" />
+                                   
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
+                       Color="Black" />
+                                </Style.Resources>
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            </Style>
+                        </ListBox.Resources>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Vertical">
+                                    <TextBlock Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" MaxWidth="150"/>
+                                    <TextBlock>
+<TextBlock>
+<Hyperlink NavigateUri="{Binding Link}" RequestNavigate="Hyperlink_RequestNavigate">
+<Run Text="here" />
+</Hyperlink>
+</TextBlock>
+</TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>-->
+                   
+                <!--</StackPanel>
+            </Controls:Flyout>-->
+            <flyouts:NotificationsFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+
             <!-- Live Graph Flyout -->
             <flyouts:LiveGraphFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
 
@@ -80,6 +143,9 @@
             <!-- Channel Settings Flyout -->
             <flyouts:ChannelsFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
 
+            <!-- Channel Settings Flyout -->
+            <flyouts:UpdateProfileFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+
             <!-- Logging Session Settings Flyout-->
             <flyouts:LoggedSessionFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
 
@@ -88,10 +154,10 @@
 
         </Controls:FlyoutsControl>
     </Controls:MetroWindow.Flyouts>
-    
+
     <Grid>
         <TabControl TabStripPlacement="Left" SelectedIndex="{Binding SelectedIndex}">
-            
+
             <!-- Live Graph -->
             <TabItem>
                 <TabItem.Header>
@@ -178,7 +244,7 @@
                         </StackPanel>
                     </DockPanel>
 
-                        <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList" Width="150" ItemsSource="{Binding ActiveInputChannels}" Background="Transparent" BorderThickness="0">
+                    <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList" Width="150" ItemsSource="{Binding ActiveInputChannels}" Background="Transparent" BorderThickness="0">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <DockPanel Margin="5" Height="40" LastChildFill="True" HorizontalAlignment="Left">
@@ -194,7 +260,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                     </Grid>
-                    
+
                 </Grid>
             </TabItem>
 
@@ -215,7 +281,7 @@
                         <RowDefinition Height="2*"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    
+
                     <!-- Logged Data Plot-->
                     <Grid Grid.Row="0">
                         <oxy:PlotView Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
@@ -264,7 +330,7 @@
                                         <RowDefinition Height="*"/>
                                         <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
-                                    
+
                                     <ListView Name="LoggingSessionList"  Grid.Row="0" ItemsSource="{Binding LoggingSessions}" Background="Transparent" BorderThickness="0">
                                         <i:Interaction.Triggers>
                                             <i:EventTrigger EventName="SelectionChanged">
@@ -304,14 +370,14 @@
                                         </ListView.ItemTemplate>
                                     </ListView>
                                     <DockPanel Grid.Row="1" LastChildFill="False">
-                                        
+
                                         <!-- Delete All Logging Session -->
                                         <Button Name="DeleteAllLoggingSessionsButton"  DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteAllLoggingSessionCommand}" Background="#88FFFFFF" ToolTip="Delete All" Padding="5">
                                             <Button.Content>
                                                 <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                                             </Button.Content>
                                         </Button>
-                                        
+
                                         <!-- Export All Logging Session -->
                                         <Button Name="ExportAllLoggingSessionsButton" DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.ExportAllLoggingSessionCommand}" Background="#88FFFFFF" ToolTip="Export All" Padding="5">
                                             <Button.Content>
@@ -382,7 +448,7 @@
                                                         <Label Content="{Binding Name}" FontSize="16" Padding="5,0,0,0"/>
                                                         <Label Content="{Binding TypeString}" Padding="5,0,0,0"/>
                                                     </StackPanel>
-                                                    
+
                                                     <Button Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveChannelList, Path=DataContext.OpenChannelSettingsCommand}" CommandParameter="{Binding}" ToolTip="Channel Settings">
                                                         <Button.Content>
                                                             <iconPacks:PackIconMaterial Kind="Cog" HorizontalAlignment="Center" Height="20" Width="20"/>
@@ -428,7 +494,7 @@
                     </ContentPresenter.ContentTemplate>
                 </ContentPresenter>
             </TabItem>
-            
+
             <!-- Devices -->
             <TabItem>
                 <TabItem.Header>
@@ -525,6 +591,117 @@
                     </ContentPresenter.ContentTemplate>
                 </ContentPresenter>
             </TabItem>
+
+            <!--profile-->
+            <TabItem>
+                <TabItem.Header>
+                    <Label>
+                        <Label.Content>
+                            <StackPanel Width="75" Margin="0,10,0,10">
+                                <iconPacks:PackIconMaterial Kind="FaceWomanProfile" HorizontalAlignment="Center" Height="30" Width="30"/>
+                                <TextBlock TextWrapping="WrapWithOverflow" Text="Profiles" TextAlignment="Center" IsEnabled="False"/>
+                            </StackPanel>
+                        </Label.Content>
+                    </Label>
+                </TabItem.Header>
+                <ContentPresenter Content="{Binding}">
+                    <ContentPresenter.ContentTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <ListView Name="ActiveProfileList" ItemsSource="{Binding profiles}" Background="Transparent" BorderThickness="0" SelectedItem="{Binding SelectedProfile, Mode=OneWayToSource}">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Height="50">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Orientation="Horizontal">
+                                                        <Ellipse Width="16" Height="16" VerticalAlignment="Center" Margin="5,5,5,0">
+                                                            <Ellipse.Style>
+                                                                <Style TargetType="Ellipse">
+                                                                    <Setter Property="Fill" Value="IndianRed"/>
+
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsProfileActive}" Value="True">
+                                                                            <Setter Property="Fill" Value="LightGreen"/>
+
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Ellipse.Style>
+                                                        </Ellipse>
+
+                                                        <!-- Name Label -->
+                                                        <Label Content="{Binding Name}" FontWeight="DemiBold" FontSize="16" Padding="5,0,0,0"/>
+                                                        <Label Content="{Binding CreatedOn}" FontWeight="DemiBold" Foreground="LightGray" FontSize="10" Padding="20,5,0,0"/>
+
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveProfileList, Path=DataContext.OpenProfileSettingsCommand}" CommandParameter="{Binding}" ToolTip="Profile Settings">
+                                                        <Button.Content>
+                                                            <iconPacks:PackIconMaterial Kind="Cog" HorizontalAlignment="Center" Height="20" Width="20"/>
+                                                        </Button.Content>
+                                                    </Button>
+                                                    <Button  Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveProfileList, Path=DataContext.RemoveProfileCommand}" CommandParameter="{Binding}" ToolTip="Delete Profile">
+                                                        <Button.Content>
+                                                            <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
+                                                        </Button.Content>
+                                                    </Button>
+                                                    <Button  Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveProfileList, Path=DataContext.IsprofileActiveCommand}" CommandParameter="{Binding}"  ToolTip="Active Profile">
+                                                        <!--<Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Foreground" Value="IndianRed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsProfileActive}" Value="True">
+                                                                        <Setter Property="Foreground" Value="LightGreen"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>-->
+                                                        <Button.Content>
+                                                            <iconPacks:PackIconMaterial Kind="CheckCircle" HorizontalAlignment="Center" Height="20" Width="20"/>
+                                                        </Button.Content>
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                                <Border Name="EmptyActiveProfileListLabel" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                    <Label HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalAlignment="Stretch" VerticalContentAlignment="Center">
+                                        <Label.Content>
+                                            <StackPanel Orientation="Vertical" Width="150" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <Label Content="No Profiles Data" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                                            </StackPanel>
+                                        </Label.Content>
+                                    </Label>
+                                </Border>
+
+                                <!-- Add profile Button -->
+                                <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="50" Height="50" Command="{Binding ShowAddProfileConfirmationDialogCommand}" Style="{DynamicResource MetroCircleButtonStyle}" Margin="10" Background="#CC119EDA" >
+                                    <Button.Content>
+                                        <iconPacks:PackIconMaterial Kind="Plus" HorizontalAlignment="Center" Height="20" Width="20" Foreground="White"/>
+                                    </Button.Content>
+                                    <Button.BitmapEffect>
+                                        <DropShadowBitmapEffect Color="Black" Direction="270" Softness="1" ShadowDepth="15" Opacity="0.25" />
+                                    </Button.BitmapEffect>
+                                </Button>
+                            </Grid>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding profiles.Count}" Value="0">
+                                    <Setter TargetName="ActiveProfileList" Property="Visibility" Value="Collapsed"/>
+                                    <Setter TargetName="EmptyActiveProfileListLabel" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </ContentPresenter.ContentTemplate>
+                </ContentPresenter>
+            </TabItem>
+
         </TabControl>
         <Grid Background="Black" Opacity="0.5" Visibility="{Binding IsBusy, FallbackValue=Hidden, Converter={StaticResource BoolToVis}}">
             <Controls:ProgressRing IsActive="{Binding IsBusy, Mode=OneWay}"/>

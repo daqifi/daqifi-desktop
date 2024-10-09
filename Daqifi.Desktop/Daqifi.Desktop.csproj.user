@@ -10,4 +10,26 @@
     <FallbackCulture>en-US</FallbackCulture>
     <VerifyUploadedFiles>false</VerifyUploadedFiles>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Update="View\AddProfileConfirmationDialog.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="View\AddprofileDialog.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="View\Flyouts\UpdateProfileFlyout.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <Page Update="View\AddProfileConfirmationDialog.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Update="View\AddprofileDialog.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Update="View\Flyouts\UpdateProfileFlyout.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
 </Project>
