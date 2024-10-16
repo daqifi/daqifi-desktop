@@ -25,10 +25,14 @@ namespace Daqifi.Desktop.Helpers
 
         object IValueConverter.Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
+
             var myEnum = (Enum)value;
             var description = GetEnumDescription(myEnum);
             return description;
         }
+        
+
+
 
         object IValueConverter.ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
