@@ -933,6 +933,8 @@ namespace Daqifi.Desktop.ViewModels
         }
         private void DisconnectDevice(object o)
         {
+
+
             if (!(o is IStreamingDevice deviceToRemove)) { return; }
 
             foreach (var channel in deviceToRemove.DataChannels)
@@ -944,6 +946,10 @@ namespace Daqifi.Desktop.ViewModels
             }
 
             ConnectionManager.Instance.Disconnect(deviceToRemove);
+            var errorDialogViewModel = new ErrorDialogViewModel("Device disconnected succssfully");
+            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+
+
         }
         public void Shutdown(object o)
         {
@@ -1272,6 +1278,18 @@ namespace Daqifi.Desktop.ViewModels
                         }
                     }
                     break;
+                case "NotifyConnection":
+                    var DeviceConnection = ConnectionManager.Instance.NotifyConnection;
+                    if (DeviceConnection)
+                    {
+                        var errorDialogViewModel = new ErrorDialogViewModel("Device disconnected..");
+                        if (errorDialogViewModel != null)
+                        {
+                            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                        }
+                        ConnectionManager.Instance.NotifyConnection = false;
+                    }
+                    break;
             }
             CanToggleLogging = ActiveChannels.Count > 0;
         }
@@ -1518,7 +1536,7 @@ namespace Daqifi.Desktop.ViewModels
                         return;
                     }
                 }
-               
+
                 if (profiles != null)
                 {
                     var connectedDevices = ConnectedDevices.Where(connectedDevice => item.Devices.Any(itemDevice => itemDevice.DeviceSerialNo == connectedDevice.DeviceSerialNo)).ToList();
