@@ -89,27 +89,27 @@ namespace Daqifi.Desktop.IO.Test.Messages.MessageTypes
             };
 
             Stream stream = new MemoryStream(systemInfoResponse);
-            var protobufMessage = DaqifiOutMessage.ParseDelimitedFrom(stream);
+            var protobufMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
 
-            Assert.IsTrue(protobufMessage.HasHostName);
+            Assert.IsTrue(protobufMessage.HostName != null);
             Assert.AreEqual("NYQUIST", protobufMessage.HostName);
 
-            Assert.IsTrue(protobufMessage.HasWifiSecurityMode);
+            Assert.IsTrue(protobufMessage.WifiSecurityMode != null);
             Assert.AreEqual((uint)4, protobufMessage.WifiSecurityMode);
 
-            Assert.IsTrue(protobufMessage.HasDevicePort);
+            Assert.IsTrue(protobufMessage.DevicePort != null);
             Assert.AreEqual((uint)9760, protobufMessage.DevicePort);
 
-            Assert.IsTrue(protobufMessage.HasSsid);
+            Assert.IsTrue(protobufMessage.Ssid != null);
             Assert.AreEqual("CenturyLink0624", protobufMessage.Ssid);
 
-            Assert.IsTrue(protobufMessage.HasIpAddr);
+            Assert.IsTrue(protobufMessage.IpAddr.Length > 0);
             Assert.AreEqual("192.168.0.45", new IPAddress(protobufMessage.IpAddr.ToByteArray()).ToString());
 
-            Assert.IsTrue(protobufMessage.HasDevicePn);
+            Assert.IsTrue(protobufMessage.DevicePn != null);
             Assert.AreEqual("Nq1", protobufMessage.DevicePn);
 
-            Assert.IsTrue(protobufMessage.HasDeviceFwRev);
+            Assert.IsTrue(protobufMessage.DeviceFwRev != null);
             Assert.AreEqual("1.0.3", protobufMessage.DeviceFwRev);
         }
     }

@@ -1,5 +1,5 @@
 ﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
-using Google.ProtocolBuffers;
+using Google.Protobuf;
 using System;
 using System.IO;
 
@@ -33,7 +33,7 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
                 {
                     if (DataStream != null)
                     {
-                        var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
+                        var outMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(DataStream);
                         var protobufMessage = new ProtobufMessage(outMessage);
                         var daqMessage = new MessageEventArgs(protobufMessage);
                         NotifyMessageReceived(this, daqMessage);
@@ -41,7 +41,7 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
                 }
                 catch (InvalidProtocolBufferException ex)
                 {
-                   
+
                     AppLogger.Error(ex, "Protocol buffer parsing error: {0}");
                     if (_isDisposed)
                     {
@@ -50,7 +50,7 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
                 }
                 catch (IOException ex) when (ex.Message.Contains("aborted because of either a thread exit or an application request"))
                 {
-                   
+
                     AppLogger.Error(ex, "I/O operation aborted: {0}");
                     if (_isDisposed)
                     {
@@ -59,7 +59,7 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
                 }
                 catch (IOException ex)
                 {
-                  
+
                     AppLogger.Error(ex, "IO error while reading from the transport: {0}");
                     if (_isDisposed)
                     {
@@ -68,7 +68,7 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
                 }
                 catch (Exception ex)
                 {
-                  
+
                     AppLogger.Error(ex, "Failed in Message Consumer Run: {0}");
                     if (_isDisposed)
                     {

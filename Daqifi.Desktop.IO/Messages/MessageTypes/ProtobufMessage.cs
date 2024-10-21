@@ -1,4 +1,6 @@
-﻿namespace Daqifi.Desktop.IO.Messages.MessageTypes
+﻿using Google.Protobuf;
+
+namespace Daqifi.Desktop.IO.Messages.MessageTypes
 {
     public class ProtobufMessage : IMessage
     {
