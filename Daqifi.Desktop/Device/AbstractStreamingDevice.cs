@@ -29,7 +29,7 @@ namespace Daqifi.Desktop.Device
 
         private ObjectPool<DataSample> _samplePool = ObjectPool.Create<DataSample>();
         private ObjectPool<DeviceMessage> _deviceMessagePool = ObjectPool.Create<DeviceMessage>();
-        
+
 
         #region Properties
         public AppLogger AppLogger = AppLogger.Instance;
@@ -37,11 +37,11 @@ namespace Daqifi.Desktop.Device
         public int Id { get; set; }
 
         public string Name { get; set; }
-        public string MacAddress {  get; set; }
+        public string MacAddress { get; set; }
 
         public string DevicePartNumber { get; private set; } = string.Empty;
 
-        public string DeviceSerialNo { get; set; }=string.Empty;
+        public string DeviceSerialNo { get; set; } = string.Empty;
 
         public int StreamingFrequency
         {
@@ -66,13 +66,13 @@ namespace Daqifi.Desktop.Device
         public string AdcRangeText
         {
             get => _adcRangeText;
-            set 
+            set
             {
                 if (value == _adcRangeText)
                 {
                     return;
                 }
-                
+
                 switch (value)
                 {
                     case _5Volt:
@@ -122,7 +122,7 @@ namespace Daqifi.Desktop.Device
 
         private bool IsValidStatusMessage(DaqifiOutMessage message)
         {
-            return (message.DigitalPortNum !=null || message.AnalogInPortNum !=null|| message.AnalogOutPortNum !=null);
+            return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
         }
 
         private void HandleMessageReceived(object sender, MessageEventArgs e)
@@ -131,14 +131,14 @@ namespace Daqifi.Desktop.Device
             {
                 return;
             }
-            
+
             if (!(e.Message.Data is DaqifiOutMessage message))
             {
                 AppLogger.Warning("Issue decoding protobuf message");
                 return;
             }
 
-            if (message.MsgTimeStamp != null)
+            if (message.MsgTimeStamp == 0)
             {
                 AppLogger.Warning("Protobuf message did not contain a timestamp. Will ignore message");
                 return;
@@ -150,7 +150,7 @@ namespace Daqifi.Desktop.Device
                 // The board only sends relative timestamps based on a timestamp clock frequency
                 _previousTimestamp = DateTime.Now;
                 _previousDeviceTimestamp = message.MsgTimeStamp;
-                
+
             }
 
             // Get timestamp difference (i.e. number of clock cycles between messages)
@@ -177,9 +177,9 @@ namespace Daqifi.Desktop.Device
                 numberOfClockCyclesBetweenMessages = _previousDeviceTimestamp.Value - message.MsgTimeStamp;
                 secondsBetweenMessages = numberOfClockCyclesBetweenMessages * TickPeriod * -1;
             }
-            
+
             var messageTimestamp = _previousTimestamp.Value.AddSeconds(secondsBetweenMessages);
-            
+
             // Update digital channel information
             var digitalCount = 0;
             var analogCount = 0;
@@ -191,7 +191,7 @@ namespace Daqifi.Desktop.Device
             var digitalData2 = new byte();
 
             var hasDigitalData = message.DigitalData;
-            if (hasDigitalData != null)
+            if (hasDigitalData.Length > 0)
             {
                 digitalData1 = message.DigitalData.ElementAtOrDefault(0);
                 digitalData2 = message.DigitalData.ElementAtOrDefault(1);
@@ -209,7 +209,7 @@ namespace Daqifi.Desktop.Device
                     continue;
                 }
 
-                if (channel.Type == ChannelType.Digital && hasDigitalData != null)
+                if (channel.Type == ChannelType.Digital && hasDigitalData.Length > 0)
                 {
                     bool bit;
                     if (digitalCount < 8)
@@ -220,7 +220,7 @@ namespace Daqifi.Desktop.Device
                     {
                         bit = (digitalData2 & (1 << digitalCount % 8)) != 0;
                     }
-                    
+
                     channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
                     digitalCount++;
                 }
@@ -253,7 +253,7 @@ namespace Daqifi.Desktop.Device
                     TargetFrequency = (int)message.TimestampFreq,
                     Rollover = rollover,
                 };
-                
+
 
                 Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
             }
@@ -315,7 +315,7 @@ namespace Daqifi.Desktop.Device
                                 $"Trying to add a channel that does not belong to the device: {Name}");
                 return;
             }
-            
+
             switch (channel.Type)
             {
                 case ChannelType.Analog:
@@ -442,7 +442,7 @@ namespace Daqifi.Desktop.Device
 
         private void PopulateAnalogInChannels(DaqifiOutMessage message)
         {
-            if (message.AnalogInPortNum ==null) return;
+            if (message.AnalogInPortNum == 0) return;
 
             if (!string.IsNullOrWhiteSpace(DevicePartNumber))
             {
@@ -465,8 +465,9 @@ namespace Daqifi.Desktop.Device
                 // TODO handle mismatch.  Probably not add any channels and warn the user something went wrong.
             }
 
-            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) => {
-                if (list.Count>idx)
+            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) =>
+            {
+                if (list.Count > idx)
                 {
                     return list[idx];
                 }
@@ -487,33 +488,33 @@ namespace Daqifi.Desktop.Device
 
         private void HydrateDeviceMetadata(DaqifiOutMessage message)
         {
-            if (message.Ssid !=null)
+            if (!string.IsNullOrWhiteSpace(message.Ssid))
             {
                 NetworkConfiguration.Ssid = message.Ssid;
             }
 
-            if (message.WifiSecurityMode !=null)
+            if (message.WifiSecurityMode != 0)
             {
                 NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
             }
 
-            if (message.WifiInfMode !=null)
+            if (message.WifiInfMode != 0)
             {
                 NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
             }
-            if (message.DevicePn !=null)
+            if (!string.IsNullOrWhiteSpace(message.DevicePn))
             {
                 DevicePartNumber = message.DevicePn;
             }
-            if (message.DeviceSn !=null)
+            if (message.DeviceSn != 0)
             {
-                DeviceSerialNo=message.DeviceSn.ToString();
+                DeviceSerialNo = message.DeviceSn.ToString();
             }
-            if(message.MacAddr !=null)
+            if (message.MacAddr.Length > 0)
             {
-                MacAddress= ProtobufDecoder.GetMacAddressString(message);
+                MacAddress = ProtobufDecoder.GetMacAddressString(message);
             }
-            if (message.AnalogInPortRange != null && (int)message.AnalogInPortRange[0] == 5)
+            if (message.AnalogInPortRange.Count > 0 && (int)message.AnalogInPortRange[0] == 5)
             {
                 _adcRangeText = _5Volt;
             }
@@ -521,8 +522,8 @@ namespace Daqifi.Desktop.Device
 
         private void PopulateDigitalChannels(DaqifiOutMessage message)
         {
-            
-            if (message.DigitalPortNum == null) return;
+
+            if (message.DigitalPortNum == 0) return;
 
             for (var i = 0; i < message.DigitalPortNum; i++)
             {
@@ -532,7 +533,7 @@ namespace Daqifi.Desktop.Device
 
         private void PopulateAnalogOutChannels(DaqifiOutMessage message)
         {
-            if (message.AnalogOutPortNum == null) return;
+            if (message.AnalogOutPortNum == 0) return;
 
             // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
         }
