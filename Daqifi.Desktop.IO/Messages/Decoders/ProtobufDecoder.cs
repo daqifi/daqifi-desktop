@@ -1,15 +1,20 @@
-﻿using System;
-using Daqifi.Desktop.IO.Messages.MessageTypes;
+﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace Daqifi.Desktop.IO.Messages.Decoders
 {
     public static class ProtobufDecoder
     {
-        public static string GetIpAddressString(IDaqifiOutMessage protobufMessage)
+
+        public static string GetIpAddressString(DaqifiOutMessage protobufMessage)
         {
             var ipAddressString = string.Empty;
 
-            if (!protobufMessage.HasIpAddr) return ipAddressString;
+            if (protobufMessage.IpAddr != null) return ipAddressString;
 
             var ipAddressBytes = protobufMessage.IpAddr.ToByteArray();
             for (var i = 0; i < ipAddressBytes.Length; i++)
@@ -27,11 +32,11 @@ namespace Daqifi.Desktop.IO.Messages.Decoders
             return ipAddressString;
         }
 
-        public static string GetMacAddressString(IDaqifiOutMessage protobufMessage)
+        public static string GetMacAddressString(DaqifiOutMessage protobufMessage)
         {
             var macAddress = string.Empty;
 
-            if (!protobufMessage.HasMacAddr) return macAddress;
+            if (protobufMessage.MacAddr.Length < 0) return macAddress;
 
             macAddress = BitConverter.ToString(protobufMessage.MacAddr.ToByteArray());
 

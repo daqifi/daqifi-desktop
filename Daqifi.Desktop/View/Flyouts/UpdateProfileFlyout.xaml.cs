@@ -3,23 +3,10 @@ using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Models;
-using Daqifi.Desktop.ViewModels;
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace Daqifi.Desktop.View.Flyouts
 {
@@ -71,7 +58,7 @@ namespace Daqifi.Desktop.View.Flyouts
             {
                 if (LoggingManager.Instance.SelectedProfile != null)
                 {
-                    var item = sender as ListViewItem;
+                    var item = sender as System.Windows.Controls.ListViewItem;
                     if (item.DataContext is ProfileChannel channel && channel != null)
                     {
                         foreach (var device in LoggingManager.Instance.SelectedProfile.Devices)
@@ -149,7 +136,7 @@ namespace Daqifi.Desktop.View.Flyouts
                 if (LoggingManager.Instance.SelectedProfile != null)
                 {
 
-                    if (sender is TextBox profilename && !string.IsNullOrWhiteSpace(profilename.Text))
+                    if (sender is System.Windows.Controls.TextBox profilename && !string.IsNullOrWhiteSpace(profilename.Text))
                     {
                         LoggingManager.Instance.SelectedProfile.Name = profilename.Text;
                     }
@@ -169,7 +156,7 @@ namespace Daqifi.Desktop.View.Flyouts
                 {
 
 
-                    if (sender is Slider freq && freq.Value != 0 && freq.Parent is DockPanel dockpanel && dockpanel.Children[1] is TextBox textbox)
+                    if (sender is Slider freq && freq.Value != 0 && freq.Parent is DockPanel dockpanel && dockpanel.Children[1] is System.Windows.Controls.TextBox textbox)
                     {
                         foreach (var item in LoggingManager.Instance.SelectedProfile.Devices)
                         {

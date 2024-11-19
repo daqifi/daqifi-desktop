@@ -1,5 +1,8 @@
 ﻿using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.DialogService;
+using Daqifi.Desktop.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Diagnostics;
 using System.Reflection;
@@ -29,11 +32,12 @@ namespace Daqifi.Desktop
                         HostCommands.ShutdownCommand.Execute(e);
                 };
             }
-            catch(Exception ex)
-            {
+            catch (Exception ex)
+            {  
                 _appLogger.Error(ex, "Error in MainWindow");
-            }  
-           
+            }
+
+           this.DataContext =new  DaqifiViewModel();
         }
         #endregion
 
@@ -43,7 +47,7 @@ namespace Daqifi.Desktop
             e.Handled = true;
 
         }
-       
+
     }
 
 }

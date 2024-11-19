@@ -1,11 +1,10 @@
 namespace Daqifi.Desktop.Migrations
 {
     using System;
-    using System.Data.Entity;
-    using System.Data.Entity.Migrations;
+    
     using System.Linq;
 
-    internal sealed class Configuration : DbMigrationsConfiguration<Daqifi.Desktop.Logger.LoggingContext>
+    internal sealed class Configuration 
     {
         public Configuration()
         {

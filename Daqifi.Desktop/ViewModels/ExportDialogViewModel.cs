@@ -2,17 +2,16 @@
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
-using GalaSoft.MvvmLight;
-using System.Collections.Generic;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
-using System.Data.Entity;
+
 using System.IO;
-using System.Linq;
 using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class ExportDialogViewModel : ViewModelBase
+    public class ExportDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
     {
         #region Private Variables
         private readonly List<int> _sessionsIds;
@@ -24,14 +23,13 @@ namespace Daqifi.Desktop.ViewModels
 
         #region Properties
         public AppLogger AppLogger = AppLogger.Instance;
-
         public string ExportFilePath
         {
             get => _exportFilePath;
-            set 
-            { 
+            set
+            {
                 _exportFilePath = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
                 CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -42,7 +40,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _exportAllSelected = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -52,7 +50,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _exportAverageSelected = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -62,7 +60,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _averageQuantity = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
 
         }
@@ -83,8 +81,11 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region Constructor
+
+        private readonly IDbContextFactory<LoggingContext> _loggingContext;
         public ExportDialogViewModel(int sessionId)
         {
+            _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
             _sessionsIds = new List<int>() {sessionId};
             ExportSessionCommand = new DelegateCommand(ExportLoggingSessions, CanExportSession);
             BrowseExportPathCommand = new DelegateCommand(BrowseExportPath, CanBrowseExportPath);
@@ -117,11 +118,11 @@ namespace Daqifi.Desktop.ViewModels
 
         private void BrowseExportDirectory(object o)
         {
-            var dialog = new System.Windows.Forms.FolderBrowserDialog();
+            var dialog = new FolderBrowserDialog();
 
             var result = dialog.ShowDialog();
 
-            if (result == System.Windows.Forms.DialogResult.Cancel) return;
+            if (result == DialogResult.Cancel) return;
 
             ExportFilePath = dialog.SelectedPath;
         }
@@ -167,15 +168,13 @@ namespace Daqifi.Desktop.ViewModels
 
         private LoggingSession GetLoggingSessionFromId(int sessionId)
         {
-            using (var context = new LoggingContext())
+            using (var context = _loggingContext.CreateDbContext())
             {
-                context.Configuration.AutoDetectChangesEnabled = false;
+                context.ChangeTracker.AutoDetectChangesEnabled = false;
 
                 var loggingSession = context.Sessions
-                    .Where(s => s.ID == sessionId)
-                    .Include(s => s.DataSamples)
-                    .FirstOrDefault();
-
+                   .Include(s => s.DataSamples)
+                   .FirstOrDefault(s => s.ID == sessionId);
                 return loggingSession;
             }
         }

@@ -1,12 +1,11 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 using Daqifi.Desktop.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Daqifi.Desktop.Exporter
 {
@@ -14,7 +13,11 @@ namespace Daqifi.Desktop.Exporter
     {
         private AppLogger AppLogger = AppLogger.Instance;
         private readonly string Delimiter = DaqifiSettings.Instance.CsvDelimiter;
-
+        private readonly IDbContextFactory<LoggingContext> _loggingContext;
+        public LoggingSessionExporter()
+        {
+            _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+        }
         public void ExportLoggingSession(LoggingSession loggingSession, string filepath)
         {
             try
@@ -24,7 +27,7 @@ namespace Daqifi.Desktop.Exporter
                 var samplesCount = loggingSession.DataSamples.Count;
 
                 if (channelNames.Count == 0 || !hasTimeStamps) return;
-                
+
                 channelNames.Sort(new OrdinalStringComparer());
 
                 // Create the header
@@ -81,9 +84,9 @@ namespace Daqifi.Desktop.Exporter
         {
             try
             {
-                using (var context = new LoggingContext())
+                using (var context = _loggingContext.CreateDbContext())
                 {
-                    context.Configuration.AutoDetectChangesEnabled = false;
+                    context.ChangeTracker.AutoDetectChangesEnabled = false;
                     var loggingSession = context.Sessions.Find(session.ID);
                     var channelNames = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == loggingSession.ID).Select(s => s.ChannelName).Distinct();
                     var samples = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == loggingSession.ID).Select(s => s);

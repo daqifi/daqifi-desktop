@@ -195,7 +195,7 @@ namespace Daqifi.Desktop
                 }
                 foreach (var serialDevice in devicesToRemove)
                 {
-                    Application.Current.Dispatcher.Invoke(delegate
+                    System.Windows.Application.Current.Dispatcher.Invoke(delegate
                     {
                         Disconnect(serialDevice);
                     });
@@ -204,7 +204,7 @@ namespace Daqifi.Desktop
                 {
                     if (!NotifyConnection)
                     {
-                        Application.Current.Dispatcher.Invoke(delegate
+                      System.Windows.Application.Current.Dispatcher.Invoke(delegate
                         {
                             foreach (var channel in serialDevice.DataChannels)
                             {

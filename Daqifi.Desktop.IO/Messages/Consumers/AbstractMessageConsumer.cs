@@ -1,9 +1,12 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
-using System.IO;
-using System.Threading;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace Daqifi.Desktop.IO.Messages.Consumers
-{
+{ 
     public abstract class AbstractMessageConsumer : IMessageConsumer
     {
         #region Private Data

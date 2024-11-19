@@ -1,22 +1,14 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
-using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
-using GalaSoft.MvvmLight;
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement.ToolTip;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class AddProfileConfirmationDialogViewModel : ViewModelBase
+    public class AddProfileConfirmationDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
     {
         #region Private Variables
         private IStreamingDevice _selectedDevice;
@@ -36,7 +28,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _selectedDevice = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         private Visibility _saveProfileExisting = Visibility.Collapsed;
@@ -46,7 +38,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _saveProfileExisting = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         public int SelectedStreamingFrequency
@@ -56,7 +48,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 if (value < 1) { return; }
                 _selectedStreamingFrequency = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         #endregion
