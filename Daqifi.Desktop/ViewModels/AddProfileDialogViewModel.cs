@@ -105,7 +105,7 @@ namespace Daqifi.Desktop.ViewModels
                 {
                     if (device != null)
                     {
-                        GetAvailableChannels(device);
+                       // GetAvailableChannels(device);
                     }
                 }
             }
@@ -142,7 +142,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 foreach (var channel in device.DataChannels)
                 {
-                    if (!AvailableChannels.Any(x => x.Name == channel.Name))
+                    if (!AvailableChannels.Any(x => x.Name == channel.Name&&x.DeviceSerialNo==channel.DeviceSerialNo))
                     {
                         AvailableChannels.Add(channel);
                     }
@@ -153,6 +153,27 @@ namespace Daqifi.Desktop.ViewModels
                 AppLogger.Error(ex, "Error in getting Available Channels");
             }
 
+        }
+        public void RemoveAvailableChannels(IStreamingDevice device)
+        {
+            try
+            {
+                // Find channels associated with the deselected device
+                var channelsToRemove = AvailableChannels
+                    .Where(x => x.DeviceSerialNo == device.DeviceSerialNo)
+                    .ToList(); // Create a list to avoid modifying the collection while iterating
+
+                // Remove the channels
+                foreach (var channel in channelsToRemove)
+                {
+                   var channelToRemove= AvailableChannels.ToList().FindIndex(x=>x.DeviceSerialNo==channel.DeviceSerialNo&&x.Name == channel.Name);
+                    AvailableChannels.RemoveAt(channelToRemove);
+                }
+            }
+            catch (System.Exception ex)
+            {
+                AppLogger.Error(ex, "Error in removing Available Channels");
+            }
         }
 
 
@@ -221,14 +242,18 @@ namespace Daqifi.Desktop.ViewModels
                         };
                         foreach (var dataChannel in selectedDevice.DataChannels)
                         {
-                            var isSelected = selectedChannels.Any(sc => sc.Name == dataChannel.Name);
-                            var profileChannel = new ProfileChannel
+                            var isSelected = selectedChannels.Any(sc => sc.Name == dataChannel.Name&&sc.DeviceSerialNo== selectedDevice.DeviceSerialNo);
+                            if(isSelected)
                             {
-                                Name = dataChannel.Name,
-                                Type = dataChannel.TypeString.ToString(),
-                                IsChannelActive = isSelected
-                            };
-                            device.Channels.Add(profileChannel);
+                                var profileChannel = new ProfileChannel
+                                {
+                                    Name = dataChannel.Name,
+                                    Type = dataChannel.TypeString.ToString(),
+                                    IsChannelActive = isSelected
+                                };
+                                device.Channels.Add(profileChannel);
+                            }
+                            
                         }
                         newProfile.Devices.Add(device);
                     }

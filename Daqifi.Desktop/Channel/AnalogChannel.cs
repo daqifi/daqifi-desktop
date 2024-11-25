@@ -31,6 +31,8 @@ namespace Daqifi.Desktop.Channel
         {
             _owner = owner;
             Name = name;
+            DeviceName = owner.DevicePartNumber;
+            DeviceSerialNo = owner.DeviceSerialNo;
             Index = channelId;
             IsOutput = direction == ChannelDirection.Output;
             HasAdc = !IsOutput;

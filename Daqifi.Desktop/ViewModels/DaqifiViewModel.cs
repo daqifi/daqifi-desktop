@@ -917,19 +917,26 @@ namespace Daqifi.Desktop.ViewModels
         private void RemoveChannel(object o)
         {
             var channelToRemove = o as IChannel;
-
-            foreach (var device in ConnectionManager.Instance.ConnectedDevices)
+            var device = ConnectionManager.Instance.ConnectedDevices.FirstOrDefault(x => x.DeviceSerialNo == channelToRemove.DeviceSerialNo);
+            var channel = device.DataChannels.FirstOrDefault(x => x.DeviceSerialNo == channelToRemove.DeviceSerialNo&&x.Name==channelToRemove.Name);
+            if (device != null && channel != null)
             {
-                foreach (var channel in device.DataChannels)
-                {
-                    if (channel == channelToRemove)
-                    {
-                        LoggingManager.Instance.Unsubscribe(channel);
-                        device.RemoveChannel(channel);
-                        return;
-                    }
-                }
+                LoggingManager.Instance.Unsubscribe(channel);
+                device.RemoveChannel(channel);
+                return;
             }
+            //foreach (var device in ConnectionManager.Instance.ConnectedDevices)
+            //{
+            //    foreach (var channel in device.DataChannels)
+            //    {
+            //        if (channel == channelToRemove)
+            //        {
+            //            LoggingManager.Instance.Unsubscribe(channel);
+            //            device.RemoveChannel(channel);
+            //            return;
+            //        }
+            //    }
+            //}
         }
         private void DisconnectDevice(object o)
         {
@@ -1288,7 +1295,7 @@ namespace Daqifi.Desktop.ViewModels
             IsLoggingSessionSettingsOpen = false;
             IsLiveGraphSettingsOpen = false;
             IsLogSummaryOpen = false;
-            IsNotificationsOpen=false;
+            IsNotificationsOpen = false;
         }
 
         #region update profile methods
@@ -1374,7 +1381,7 @@ namespace Daqifi.Desktop.ViewModels
         }
         /// <summary>
         /// Open profile settings flyout 
-        /// </summary>
+        /// </summary
         /// <param name="obj"></param>
         private void OpenProfileSettings(object obj)
         {
@@ -1518,7 +1525,7 @@ namespace Daqifi.Desktop.ViewModels
                         return;
                     }
                 }
-               
+
                 if (profiles != null)
                 {
                     var connectedDevices = ConnectedDevices.Where(connectedDevice => item.Devices.Any(itemDevice => itemDevice.DeviceSerialNo == connectedDevice.DeviceSerialNo)).ToList();

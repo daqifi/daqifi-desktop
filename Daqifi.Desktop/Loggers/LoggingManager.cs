@@ -334,10 +334,12 @@ namespace Daqifi.Desktop.Logger
         {
             try
             {
-
-                if (!SubscribedProfiles.Where(x => x.ProfileId == profile.ProfileId).Any()) { return; }
-                AddAndRemoveProfileXml(profile, false);
-                SubscribedProfiles.Remove(profile);
+                var index = SubscribedProfiles
+                .FindIndex(x => x.ProfileId == profile.ProfileId);
+                if (index == -1) return;
+                var subscribedProfile = SubscribedProfiles[index];
+                AddAndRemoveProfileXml(subscribedProfile, false);
+                SubscribedProfiles.RemoveAt(index);
                 NotifyPropertyChanged("SubscribedProfiles");
             }
             catch (Exception ex)
@@ -353,8 +355,7 @@ namespace Daqifi.Desktop.Logger
         public void Subscribe(IChannel channel)
         {
 
-            if (SubscribedChannels.Contains(channel)) return;
-
+            if (SubscribedChannels.Any(x=>x.DeviceSerialNo==channel.DeviceSerialNo&&x.Name==channel.Name)) return;
             channel.IsActive = true;
             channel.OnChannelUpdated += HandleChannelUpdate;
             SubscribedChannels.Add(channel);
@@ -364,11 +365,13 @@ namespace Daqifi.Desktop.Logger
         public void Unsubscribe(IChannel channel)
         {
             // Don't unsubscribe a channel that isn't subscribed
-            if (!SubscribedChannels.Contains(channel)) return;
-
-            channel.IsActive = false;
-            channel.OnChannelUpdated -= HandleChannelUpdate;
-            SubscribedChannels.Remove(channel);
+            var index = SubscribedChannels
+                .FindIndex(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
+            if (index == -1) return;
+            var subscribedChannel = SubscribedChannels[index];
+            subscribedChannel.IsActive = false;
+            subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
+            SubscribedChannels.RemoveAt(index);
             NotifyPropertyChanged("SubscribedChannels");
         }
         #endregion

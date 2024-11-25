@@ -28,6 +28,7 @@ namespace Daqifi.Desktop.Channel
 
         #region Properties
         public int ID { get; set; }
+        
         public string Name
         {
             get => _name;
@@ -38,6 +39,9 @@ namespace Daqifi.Desktop.Channel
             }
         }
         public int Index { get; set; }
+
+        public string DeviceName { get; set; }
+        public string DeviceSerialNo { get; set; }
 
         public double OutputValue
         {
