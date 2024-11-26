@@ -1,6 +1,6 @@
 ﻿using Daqifi.Desktop.IO.Messages.Decoders;
 using Daqifi.Desktop.IO.Messages.MessageTypes;
-using Google.ProtocolBuffers;
+using Google.Protobuf;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 
@@ -15,8 +15,8 @@ namespace Daqifi.Desktop.IO.Test.Messages.Decoders
         {
             var ipAddressBytes = new byte[] {0xC0, 0xA8, 0x00, 0x2D};
 
-            var mockMessage = new Mock<IDaqifiOutMessage>();
-            mockMessage.Setup(p => p.HasIpAddr).Returns(true);
+            var mockMessage = new Mock<DaqifiOutMessage>();
+            mockMessage.Setup(p => p.IpAddr !=null).Returns(true);
             mockMessage.Setup(p => p.IpAddr).Returns(ByteString.CopyFrom(ipAddressBytes));
 
             var ipAddress = ProtobufDecoder.GetIpAddressString(mockMessage.Object);
@@ -29,8 +29,8 @@ namespace Daqifi.Desktop.IO.Test.Messages.Decoders
         {
             var macAddressBytes = new byte[] { 0x00, 0x1E, 0xC0, 0x33, 0xB8, 0xBE};
 
-            var mockMessage = new Mock<IDaqifiOutMessage>();
-            mockMessage.Setup(p => p.HasMacAddr).Returns(true);
+            var mockMessage = new Mock<DaqifiOutMessage>();
+            mockMessage.Setup(p => p.IpAddr != null).Returns(true);
             mockMessage.Setup(p => p.MacAddr).Returns(ByteString.CopyFrom(macAddressBytes));
 
             var macAddress = ProtobufDecoder.GetMacAddressString(mockMessage.Object);
