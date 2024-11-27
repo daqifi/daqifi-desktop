@@ -118,7 +118,7 @@ namespace Daqifi.Desktop.Device
 
         private bool IsValidStatusMessage(DaqifiOutMessage message)
         {
-            return (message.DigitalPortNum > 0 || message.AnalogInPortNum > 0 || message.AnalogOutPortNum > 0);
+            return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
         }
 
         private void HandleMessageReceived(object sender, MessageEventArgs e)
@@ -187,7 +187,7 @@ namespace Daqifi.Desktop.Device
             var digitalData2 = new byte();
 
             var hasDigitalData = message.DigitalData;
-            if (hasDigitalData != null)
+            if (hasDigitalData.Length > 0)
             {
                 digitalData1 = message.DigitalData.ElementAtOrDefault(0);
                 digitalData2 = message.DigitalData.ElementAtOrDefault(1);
@@ -205,7 +205,7 @@ namespace Daqifi.Desktop.Device
                     continue;
                 }
 
-                if (channel.Type == ChannelType.Digital && hasDigitalData != null)
+                if (channel.Type == ChannelType.Digital && hasDigitalData.Length > 0)
                 {
                     bool bit;
                     if (digitalCount < 8)
@@ -439,7 +439,7 @@ namespace Daqifi.Desktop.Device
 
         private void PopulateAnalogInChannels(DaqifiOutMessage message)
         {
-            if (message.AnalogInPortNum == null) return;
+            if (message.AnalogInPortNum == 0) return;
 
             if (!string.IsNullOrWhiteSpace(DevicePartNumber))
             {
@@ -484,12 +484,13 @@ namespace Daqifi.Desktop.Device
 
         private void HydrateDeviceMetadata(DaqifiOutMessage message)
         {
-            if (message.Ssid != null)
+            if (!string.IsNullOrWhiteSpace(message.Ssid))
             {
                 NetworkConfiguration.Ssid = message.Ssid;
             }
 
             if (message.WifiSecurityMode >0)
+            if (message.WifiSecurityMode != 0)
             {
                 NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
             }
@@ -502,15 +503,25 @@ namespace Daqifi.Desktop.Device
             {
                 DevicePartNumber = message.DevicePn;
             }
-            if (message.DeviceSn > 0)
+            if (message.WifiInfMode != 0)
+            {
+                NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
+            }
+            if (!string.IsNullOrWhiteSpace(message.DevicePn))
+            {
+                DevicePartNumber = message.DevicePn;
+            }
+            if (message.DeviceSn != 0)
             {
                 DeviceSerialNo=message.DeviceSn.ToString();
             }
             if(message.MacAddr != null)
+            if (message.MacAddr.Length > 0)
             {
                 MacAddress= ProtobufDecoder.GetMacAddressString(message);
             }
             if (message.AnalogInPortRange != null && (int)message.AnalogInPortRange[0] == 5)
+            if (message.AnalogInPortRange.Count > 0 && (int)message.AnalogInPortRange[0] == 5)
             {
                 _adcRangeText = _5Volt;
             }
@@ -530,7 +541,7 @@ namespace Daqifi.Desktop.Device
         private void PopulateAnalogOutChannels(DaqifiOutMessage message)
         {
             if (message.AnalogOutPortNum == 0) { return; }
-
+           
             // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
         }
         #endregion
