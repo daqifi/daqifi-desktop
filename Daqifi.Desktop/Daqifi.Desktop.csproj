@@ -55,7 +55,6 @@
 		<PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.1" />
 		<PackageReference Include="System.IO.Ports" Version="8.0.0" />
 		<PackageReference Include="System.Management" Version="8.0.0" />
-		<PackageReference Include="Z.EntityFramework.Extensions.EFCore" Version="8.103.6" />
 	</ItemGroup>
 
 	<ItemGroup>

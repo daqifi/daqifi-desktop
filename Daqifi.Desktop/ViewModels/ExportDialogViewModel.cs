@@ -86,7 +86,7 @@ namespace Daqifi.Desktop.ViewModels
         public ExportDialogViewModel(int sessionId)
         {
             _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
-            _sessionsIds = new List<int>() {sessionId};
+            _sessionsIds = new List<int>() { sessionId };
             ExportSessionCommand = new DelegateCommand(ExportLoggingSessions, CanExportSession);
             BrowseExportPathCommand = new DelegateCommand(BrowseExportPath, CanBrowseExportPath);
         }
@@ -122,7 +122,7 @@ namespace Daqifi.Desktop.ViewModels
 
             var result = dialog.ShowDialog();
 
-            if (result == DialogResult.Cancel) return;
+            if (result == DialogResult.Cancel) { return; }
 
             ExportFilePath = dialog.SelectedPath;
         }

@@ -33,11 +33,11 @@ namespace Daqifi.Desktop.Device
         public int Id { get; set; }
 
         public string Name { get; set; }
-        public string MacAddress {  get; set; }
+        public string MacAddress { get; set; }
 
         public string DevicePartNumber { get; private set; } = string.Empty;
 
-        public string DeviceSerialNo { get; set; }=string.Empty;
+        public string DeviceSerialNo { get; set; } = string.Empty;
 
         public int StreamingFrequency
         {
@@ -130,7 +130,7 @@ namespace Daqifi.Desktop.Device
 
             if (!(e.Message.Data is DaqifiOutMessage message))
             {
-                 AppLogger.Warning("Issue decoding protobuf message");
+                AppLogger.Warning("Issue decoding protobuf message");
                 return;
             }
 
@@ -224,7 +224,7 @@ namespace Daqifi.Desktop.Device
                 {
                     if (analogCount > message.AnalogInData.Count - 1)
                     {
-                         AppLogger.Error("Trying to access at least one more analog channel than we actually received. This might happen if recently added an analog channel but not yet receiving data from it yet.");
+                        AppLogger.Error("Trying to access at least one more analog channel than we actually received. This might happen if recently added an analog channel but not yet receiving data from it yet.");
                         break;
                     }
 
@@ -519,7 +519,7 @@ namespace Daqifi.Desktop.Device
         private void PopulateDigitalChannels(DaqifiOutMessage message)
         {
 
-            if (message.DigitalPortNum == 0) return;
+            if (message.DigitalPortNum == 0) {return;}
 
             for (var i = 0; i < message.DigitalPortNum; i++)
             {
@@ -529,7 +529,7 @@ namespace Daqifi.Desktop.Device
 
         private void PopulateAnalogOutChannels(DaqifiOutMessage message)
         {
-            if (message.AnalogOutPortNum == 0) return;
+            if (message.AnalogOutPortNum == 0) { return; }
 
             // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
         }

@@ -15,6 +15,7 @@ using TickStyle = OxyPlot.Axes.TickStyle;
 using Microsoft.EntityFrameworkCore;
 using System.Data.Common;
 using System.IO;
+using EFCore.BulkExtensions;
 
 namespace Daqifi.Desktop.Logger
 {
@@ -136,7 +137,7 @@ namespace Daqifi.Desktop.Logger
             var timeAxis = new LinearAxis
             {
                 Position = AxisPosition.Bottom,
-                TickStyle = TickStyle.None,
+                TickStyle =TickStyle.None,
                 MajorGridlineStyle = LineStyle.Solid,
                 MinorGridlineStyle = LineStyle.Solid,
                 TitleFontSize = 12,
@@ -302,7 +303,7 @@ namespace Daqifi.Desktop.Logger
                     var channelName = _sessionPoints.Keys.ElementAt(i);
                     //TODO Figure out best way to integrate LTTB
                     //(PlotModel.Series[i] as LineSeries).ItemsSource = LargestTriangleThreeBucket.DownSample(_allSessionPoints[channelName], 1000);
-                    (PlotModel.Series[i] as LineSeries).ItemsSource = _allSessionPoints[channelName];
+                    ((LineSeries)PlotModel.Series[i]).ItemsSource = _allSessionPoints[channelName];
                 }
 
                 NotifyPropertyChanged("SessionPoints");
