@@ -339,13 +339,13 @@ namespace Daqifi.Desktop.Logger
                 if (index == -1) return;
                 var subscribedProfile = SubscribedProfiles[index];
                 AddAndRemoveProfileXml(subscribedProfile, false);
-                SubscribedProfiles.RemoveAt(index);
+                ClearChannelList();
+                // SubscribedProfiles.RemoveAt(index);
                 NotifyPropertyChanged("SubscribedProfiles");
             }
             catch (Exception ex)
             {
-
-                AppLogger.Error(ex, $"Error Unsubscribe Profile");
+                // AppLogger.Error(ex, $"Error Unsubscribe Profile");
             }
 
         }
@@ -355,7 +355,7 @@ namespace Daqifi.Desktop.Logger
         public void Subscribe(IChannel channel)
         {
 
-            if (SubscribedChannels.Any(x=>x.DeviceSerialNo==channel.DeviceSerialNo&&x.Name==channel.Name)) return;
+            if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name)) return;
             channel.IsActive = true;
             channel.OnChannelUpdated += HandleChannelUpdate;
             SubscribedChannels.Add(channel);
@@ -418,11 +418,24 @@ namespace Daqifi.Desktop.Logger
             Loggers.Add(logger);
         }
 
-        public  async Task CheckApplicationVersion(VersionNotification versionNotification)
+        public async Task CheckApplicationVersion(VersionNotification versionNotification)
         {
             await versionNotification.CheckForUpdatesAsync();
             NotifyPropertyChanged("NotificationCount");
             NotifyPropertyChanged("VersionNumber");
+        }
+
+        public void ClearChannelList()
+        {
+
+            foreach (var channel in SubscribedChannels)
+            {
+                channel.IsActive = false;
+                channel.OnChannelUpdated -= HandleChannelUpdate;
+            }
+            SubscribedChannels.Clear();
+            NotifyPropertyChanged("SubscribedChannels");
+
         }
     }
 }

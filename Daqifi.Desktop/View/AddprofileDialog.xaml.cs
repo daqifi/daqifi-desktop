@@ -52,7 +52,6 @@ namespace Daqifi.Desktop.View
 
         }
 
-        private readonly Dictionary<string, List<IChannel>> _deviceChannelMapping = new Dictionary<string, List<IChannel>>();
         private void SelectedDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             var datacontext = this.DataContext as AddProfileDialogViewModel;
