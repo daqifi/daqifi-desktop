@@ -1,7 +1,7 @@
-﻿using Daqifi.Desktop.DataModel.Network;
-using Daqifi.Desktop.IO.Messages.Producers;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Text;
+using Daqifi.Desktop.DataModel.Network;
+using Daqifi.Desktop.IO.Messages.Producers;
 
 namespace Daqifi.Desktop.IO.Test.Messages.Producers
 {

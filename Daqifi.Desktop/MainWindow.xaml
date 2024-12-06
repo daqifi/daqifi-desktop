@@ -10,9 +10,7 @@
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         Service:DialogService.IsRegisteredView="True"
         Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
-    <Window.DataContext>
-        <vm:DaqifiViewModel/>
-    </Window.DataContext>
+    
 
     <Controls:MetroWindow.RightWindowCommands>
         <Controls:WindowCommands>
@@ -94,6 +92,44 @@
     <Controls:MetroWindow.Flyouts>
         <Controls:FlyoutsControl VerticalAlignment="Bottom">
             <!--Application Version Update Flyout -->
+            <!--<Controls:Flyout Background="Black"  x:Name="NotificationFlyout" Header="Notifications" Position="Right" IsOpen="False" Theme="Light">
+                <StackPanel Margin="5">-->
+            <!-- List of notifications -->
+            <!--<ListBox  ItemsSource="{Binding notificationlist}">
+                        <ListBox.Resources>
+                            <Style TargetType="ListBoxItem">
+                                <Style.Resources>
+                                    
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"
+                       Color="Transparent" />
+                                    
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}"
+                       Color="Transparent" />
+                                   
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
+                       Color="Black" />
+                                </Style.Resources>
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            </Style>
+                        </ListBox.Resources>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Vertical">
+                                    <TextBlock Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" MaxWidth="150"/>
+                                    <TextBlock>
+<TextBlock>
+<Hyperlink NavigateUri="{Binding Link}" RequestNavigate="Hyperlink_RequestNavigate">
+<Run Text="here" />
+</Hyperlink>
+</TextBlock>
+</TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>-->
+
+            <!--</StackPanel>
+            </Controls:Flyout>-->
             <flyouts:NotificationsFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
 
             <!-- Live Graph Flyout -->

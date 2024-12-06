@@ -4,11 +4,6 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj" />
-    <ProjectReference Include="..\Daqifi.Desktop.IO\Daqifi.Desktop.IO.csproj" />
-    <ProjectReference Include="..\Daqifi.Desktop\Daqifi.Desktop.csproj" />
-  </ItemGroup>
-  <ItemGroup>
     <PackageReference Include="Google.ProtocolBuffers" Version="2.4.1.555" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.3.0" />
     <PackageReference Include="Moq" Version="4.18.2" />

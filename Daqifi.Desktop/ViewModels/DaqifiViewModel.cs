@@ -6,35 +6,28 @@ using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;
+using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Models;
+using Daqifi.Desktop.UpdateVersion;
 using Daqifi.Desktop.View;
-using GalaSoft.MvvmLight;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
-using Microsoft.Win32;
-using System;
-using System.Collections.Generic;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using System.Collections;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
-using System.IO;
-using System.Threading.Tasks;
+using System.Configuration;
 using System.Windows;
 using System.Windows.Input;
-using System.Collections;
-using Daqifi.Desktop.Device.SerialDevice;
-using System.Threading;
-using Daqifi.Desktop.Models;
-using System.Web.Profile;
-using System.Drawing;
-using Daqifi.Desktop.UpdateVersion;
-using static System.Net.WebRequestMethods;
+using Application = System.Windows.Application;
 using File = System.IO.File;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class DaqifiViewModel : ViewModelBase
+    public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
     {
         #region Private Variables
         private bool _isBusy;
@@ -56,7 +49,7 @@ namespace Daqifi.Desktop.ViewModels
         public WindowState _viewWindowState;
         private readonly IDialogService _dialogService;
         private IStreamingDevice _selectedDevice;
-        private VersionNotification _versionNotification;
+        private VersionNotification? _versionNotification;
         private IStreamingDevice _updateProfileSelectedDevice;
         private IChannel _selectedChannel;
         private Profile _selectedProfile;
@@ -74,6 +67,7 @@ namespace Daqifi.Desktop.ViewModels
         private HidDeviceFinder _hidDeviceFinder;
         private bool _hasNoHidDevices = true;
         private ConnectionDialogViewModel _connectionDialogViewModel;
+        private readonly IDbContextFactory<LoggingContext> _loggingContext;
         #endregion
 
         #region Properties
@@ -98,7 +92,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _version = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -108,7 +102,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _firmwareFilePath = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -118,7 +112,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isFirmwareUploading = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -128,7 +122,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isUploadComplete = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -138,7 +132,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _hasErrorOccured = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -148,8 +142,8 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _uploadFirmwareProgress = value;
-                RaisePropertyChanged();
-                RaisePropertyChanged("UploadFirmwareProgressText");
+                OnPropertyChanged();
+                OnPropertyChanged("UploadFirmwareProgressText");
             }
         }
 
@@ -160,7 +154,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _hasNoHidDevices = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         public IStreamingDevice UpdateProfileSelectedDevice
@@ -170,7 +164,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _updateProfileSelectedDevice = value;
                 GetAvailableChannels(_updateProfileSelectedDevice);
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         public bool IsBusy
@@ -179,7 +173,7 @@ namespace Daqifi.Desktop.ViewModels
             private set
             {
                 _isBusy = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -189,7 +183,7 @@ namespace Daqifi.Desktop.ViewModels
             private set
             {
                 _isLoggedDataBusy = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -224,7 +218,7 @@ namespace Daqifi.Desktop.ViewModels
             private set
             {
                 _canToggleLogging = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -234,7 +228,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isDeviceSettingsOpen = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         public bool IsProfileSettingsOpen
@@ -243,7 +237,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isProfileSettingsOpen = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         public bool IsNotificationsOpen
@@ -252,7 +246,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isNotificationsOpen = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -262,7 +256,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isLoggingSessionSettingsOpen = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -272,7 +266,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isLogSummaryOpen = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -282,7 +276,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isChannelSettingsOpen = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -295,7 +289,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _notificationCount = value;
-                RaisePropertyChanged(nameof(NotificationCount));
+                OnPropertyChanged(nameof(NotificationCount));
             }
         }
 
@@ -307,7 +301,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _versionName = value;
-                RaisePropertyChanged(nameof(VersionName));
+                OnPropertyChanged(nameof(VersionName));
             }
         }
 
@@ -317,7 +311,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isLiveGraphSettingsOpen = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -327,8 +321,8 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _width = value;
-                RaisePropertyChanged();
-                RaisePropertyChanged("FlyoutWidth");
+                OnPropertyChanged();
+                OnPropertyChanged("FlyoutWidth");
             }
         }
 
@@ -338,8 +332,8 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _height = value;
-                RaisePropertyChanged();
-                RaisePropertyChanged("FlyoutHeight");
+                OnPropertyChanged();
+                OnPropertyChanged("FlyoutHeight");
             }
         }
 
@@ -350,7 +344,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _selectedIndex = value;
                 CloseFlyouts();
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -370,7 +364,7 @@ namespace Daqifi.Desktop.ViewModels
 
                 SelectedDevice.StreamingFrequency = value;
                 _selectedStreamingFrequency = SelectedDevice.StreamingFrequency;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -416,7 +410,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _selectedDevice = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -426,7 +420,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _selectedChannel = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         public Profile SelectedProfile
@@ -435,7 +429,8 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _selectedProfile = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
+
             }
         }
 
@@ -445,7 +440,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _selectedLoggingSession = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -457,7 +452,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _loggedDataBusyReason = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         private readonly AppLogger AppLogger = AppLogger.Instance;
@@ -468,70 +463,78 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _viewWindowState = value;
-                RaisePropertyChanged("FlyoutWidth");
-                RaisePropertyChanged("FlyoutHeight");
+                OnPropertyChanged("FlyoutWidth");
+                OnPropertyChanged("FlyoutHeight");
             }
         }
         #endregion
 
         #region Constructor
         public DaqifiViewModel() : this(ServiceLocator.Resolve<IDialogService>()) { }
-
         public DaqifiViewModel(IDialogService dialogService)
         {
-            try
+            var app = Application.Current as App;
+            if (app != null)
             {
-                _dialogService = dialogService;
-
-                RegisterCommands();
-
-                // Manage connected streamingDevice list
-                ConnectionManager.Instance.PropertyChanged += UpdateUi;
-
-                // Manage data for plotting
-                LoggingManager.Instance.PropertyChanged += UpdateUi;
-                Plotter = new PlotLogger();
-                LoggingManager.Instance.AddLogger(Plotter);
-
-                // Database logging
-                DbLogger = new DatabaseLogger();
-                LoggingManager.Instance.AddLogger(DbLogger);
-
-                //Xml profiles load
-
-                LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
-                ObservableCollection<Daqifi.Desktop.Models.Profile> observableProfileList = new ObservableCollection<Daqifi.Desktop.Models.Profile>(LoggingManager.Instance.LoadProfilesFromXml());
-                //  Notifications 
-
-                _versionNotification = new VersionNotification();
-                LoggingManager.Instance.CheckApplicationVersion(_versionNotification);
-
-                GetUpdateProfileAvailableDevice();
-
-                // Summary Logger
-                SummaryLogger = new SummaryLogger();
-                LoggingManager.Instance.AddLogger(SummaryLogger);
-
-                using (var context = new LoggingContext())
+                if (app.IsWindowInit)
                 {
-                    var savedLoggingSessions = new List<LoggingSession>();
-                    var previousSampleSessions = (from s in context.Sessions select s).ToList();
-                    foreach (var session in previousSampleSessions)
+                    try
                     {
-                        if (!savedLoggingSessions.Contains(session)) { savedLoggingSessions.Add(session); }
+                        _dialogService = dialogService;
+                        _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+                        RegisterCommands();
+
+
+                        // Manage connected streamingDevice list
+                        ConnectionManager.Instance.PropertyChanged += UpdateUi;
+
+                        // Manage data for plotting
+                        LoggingManager.Instance.PropertyChanged += UpdateUi;
+                        Plotter = new PlotLogger();
+                        LoggingManager.Instance.AddLogger(Plotter);
+
+                        // Database logging
+                        DbLogger = new DatabaseLogger(_loggingContext);
+                        LoggingManager.Instance.AddLogger(DbLogger);
+
+                        //Xml profiles load
+
+                        LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
+                        ObservableCollection<Daqifi.Desktop.Models.Profile> observableProfileList = new ObservableCollection<Daqifi.Desktop.Models.Profile>(LoggingManager.Instance.LoadProfilesFromXml());
+                        //  Notifications 
+
+                        _versionNotification = new VersionNotification();
+                        LoggingManager.Instance.CheckApplicationVersion(_versionNotification);
+
+                        GetUpdateProfileAvailableDevice();
+
+                        // Summary Logger
+                        SummaryLogger = new SummaryLogger();
+                        LoggingManager.Instance.AddLogger(SummaryLogger);
+
+                        using (var context = _loggingContext.CreateDbContext())
+                        {
+                            var savedLoggingSessions = new List<LoggingSession>();
+                            var previousSampleSessions = (from s in context.Sessions select s).ToList();
+                            foreach (var session in previousSampleSessions)
+                            {
+                                if (!savedLoggingSessions.Contains(session)) { savedLoggingSessions.Add(session); }
+                            }
+                            LoggingManager.Instance.LoggingSessions = savedLoggingSessions;
+                        }
+
+                        //Configure Default Grid Lines
+                        Plotter.ShowingMinorXAxisGrid = false;
+                        Plotter.ShowingMinorYAxisGrid = false;
+
+
                     }
-                    LoggingManager.Instance.LoggingSessions = savedLoggingSessions;
+                    catch (Exception ex)
+                    {
+                        AppLogger.Error(ex, "DAQifiViewModel");
+                    }
                 }
-
-                //Configure Default Grid Lines
-                Plotter.ShowingMinorXAxisGrid = false;
-                Plotter.ShowingMinorYAxisGrid = false;
-
-
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Error(ex, "DAQifiViewModel");
+                app.IsWindowInit = true;
             }
         }
 
@@ -901,7 +904,10 @@ namespace Daqifi.Desktop.ViewModels
         private void ShowSelectColorDialog(object o)
         {
             var item = o as IColorable;
-            if (item == null) { AppLogger.Error("Cannot set the color of an item that does not implement IHasColor."); }
+            if (item == null)
+            {
+                AppLogger.Error("Cannot set the color of an item that does not implement IHasColor.");
+            }
 
             var selectColorDialogViewModel = new SelectColorDialogViewModel(item);
             _dialogService.ShowDialog<SelectColorDialog>(this, selectColorDialogViewModel);
@@ -937,6 +943,8 @@ namespace Daqifi.Desktop.ViewModels
         }
         private void DisconnectDevice(object o)
         {
+
+
             if (!(o is IStreamingDevice deviceToRemove)) { return; }
 
             foreach (var channel in deviceToRemove.DataChannels)
@@ -948,6 +956,10 @@ namespace Daqifi.Desktop.ViewModels
             }
 
             ConnectionManager.Instance.Disconnect(deviceToRemove);
+            var errorDialogViewModel = new ErrorDialogViewModel("Device disconnected succssfully");
+            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+
+
         }
         public void Shutdown(object o)
         {
@@ -962,8 +974,11 @@ namespace Daqifi.Desktop.ViewModels
         }
         public void BrowseForFirmware(object o)
         {
-            var openFileDialog = new OpenFileDialog { Filter = "Firmware Files (*.hex)|*.hex" };
-            if (openFileDialog.ShowDialog() == true)
+            using var openFileDialog = new System.Windows.Forms.OpenFileDialog
+            {
+                Filter = "Firmware Files (*.hex)|*.hex"
+            };
+            if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
                 FirmwareFilePath = openFileDialog.FileName;
             }
@@ -976,7 +991,10 @@ namespace Daqifi.Desktop.ViewModels
         private void OpenDeviceSettings(object o)
         {
             var item = o as IStreamingDevice;
-            if (item == null) { AppLogger.Error("Error opening streamingDevice settings"); }
+            if (item == null)
+            {
+                AppLogger.Error("Error opening streamingDevice settings");
+            }
 
             CloseFlyouts();
             SelectedDevice = item;
@@ -1084,7 +1102,7 @@ namespace Daqifi.Desktop.ViewModels
                         {
                             LoggingSessions.Remove(session);
                         });
-                        RaisePropertyChanged("LoggingSessions");
+                        OnPropertyChanged("LoggingSessions");
                     }
                     finally
                     {
@@ -1131,7 +1149,7 @@ namespace Daqifi.Desktop.ViewModels
                                 LoggingSessions.Remove(session);
                             });
                         }
-                        RaisePropertyChanged("LoggingSessions");
+                        OnPropertyChanged("LoggingSessions");
                     }
                     finally
                     {
@@ -1165,7 +1183,23 @@ namespace Daqifi.Desktop.ViewModels
         }
         private void OpenHelp(object o)
         {
-            System.Diagnostics.Process.Start("https://www.daqifi.com/support");
+            try
+            {
+                var url = "https://www.daqifi.com/support";
+
+                var processStartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                };
+
+                System.Diagnostics.Process.Start(processStartInfo);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Error opening help URL");
+            }
+
         }
         #endregion
 
@@ -1274,6 +1308,18 @@ namespace Daqifi.Desktop.ViewModels
                         {
                             notificationlist.Add(notify);
                         }
+                    }
+                    break;
+                case "NotifyConnection":
+                    var DeviceConnection = ConnectionManager.Instance.NotifyConnection;
+                    if (DeviceConnection)
+                    {
+                        var errorDialogViewModel = new ErrorDialogViewModel("Device disconnected..");
+                        if (errorDialogViewModel != null)
+                        {
+                            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                        }
+                        ConnectionManager.Instance.NotifyConnection = false;
                     }
                     break;
             }
@@ -1518,10 +1564,13 @@ namespace Daqifi.Desktop.ViewModels
                 var anyActiveProfile = profiles.FirstOrDefault(x => x.IsProfileActive);
                 if (anyActiveProfile != null && anyActiveProfile.ProfileId != item.ProfileId)
                 {
-                    var errorDialogViewModel = new ErrorDialogViewModel("Multiple Profiles Cannot Be Active.");
-                    _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                    AppLogger.Error("Multiple Profiles Cannot Be Active.");
-                    return;
+                    if (anyActiveProfile.ProfileId != item.ProfileId)
+                    {
+                        var errorDialogViewModel = new ErrorDialogViewModel("Multiple Profiles Cannot be Active .");
+                        _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                        AppLogger.Error("Multiple Profiles Cannot be Active .");
+                        return;
+                    }
                 }
 
                 if (profiles != null)

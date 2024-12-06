@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
 using System.Windows;
 using Daqifi.Desktop.WindowViewModelMapping;
 
@@ -121,7 +118,7 @@ namespace Daqifi.Desktop.DialogService
             MessageBoxButton button,
             MessageBoxImage icon)
         {
-            return MessageBox.Show(FindOwnerWindow(ownerViewModel), messageBoxText, caption, button, icon);
+            return System.Windows.MessageBox.Show(FindOwnerWindow(ownerViewModel), messageBoxText, caption, button, icon);
         }
         #endregion
 

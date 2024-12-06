@@ -1,35 +1,4 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <PropertyGroup>
-    <PublishUrlHistory>publish\</PublishUrlHistory>
-    <InstallUrlHistory />
-    <SupportUrlHistory />
-    <UpdateUrlHistory />
-    <BootstrapperUrlHistory />
-    <ErrorReportUrlHistory />
-    <FallbackCulture>en-US</FallbackCulture>
-    <VerifyUploadedFiles>false</VerifyUploadedFiles>
-  </PropertyGroup>
-  <ItemGroup>
-    <Compile Update="View\AddProfileConfirmationDialog.xaml.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Update="View\AddprofileDialog.xaml.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Update="View\Flyouts\UpdateProfileFlyout.xaml.cs">
-      <SubType>Code</SubType>
-    </Compile>
-  </ItemGroup>
-  <ItemGroup>
-    <Page Update="View\AddProfileConfirmationDialog.xaml">
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Update="View\AddprofileDialog.xaml">
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Update="View\Flyouts\UpdateProfileFlyout.xaml">
-      <SubType>Designer</SubType>
-    </Page>
-  </ItemGroup>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup />
 </Project>

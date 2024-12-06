@@ -1,5 +1,4 @@
-﻿using Daqifi.Desktop.Common.Loggers;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 
 namespace Daqifi.Desktop
 {
