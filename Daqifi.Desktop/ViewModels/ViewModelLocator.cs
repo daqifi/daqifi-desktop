@@ -1,8 +1,6 @@
-using GalaSoft.MvvmLight;
-using GalaSoft.MvvmLight.Ioc;
-using Microsoft.Practices.ServiceLocation;
+﻿
 
-namespace DAQifi_Desktop.ViewModels
+namespace Daqifi.Desktop.ViewModels
 {
     /// <summary>
     /// This class contains static references to all the view models in the
@@ -27,7 +25,7 @@ namespace DAQifi_Desktop.ViewModels
                 return ServiceLocator.Current.GetInstance<DAQifiViewModel>();
             }
         }
-        
+
         public static void Cleanup()
         {
 

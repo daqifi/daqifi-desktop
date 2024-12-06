@@ -1,9 +1,9 @@
-﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
-using Daqifi.Desktop.IO.Messages.Producers;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using Daqifi.Desktop.IO.Messages.MessageTypes;
+using Daqifi.Desktop.IO.Messages.Producers;
 
 namespace Daqifi.Desktop.IO.Test.Messages.Producers
 {
@@ -23,7 +23,7 @@ namespace Daqifi.Desktop.IO.Test.Messages.Producers
             messageProducer.Send(messageToSend);
 
             // Sleep to allow th message producer to send the message
-            // Has an intneral queue that that it processes at a set interval
+            // Has an intneral queue that it processes at a set interval
             Thread.Sleep(1000);
 
             // Get the result

@@ -1,44 +1,18 @@
-﻿using EntityFramework.BulkInsert.Extensions;
-using EntityFramework.BulkInsert.Helpers;
-using EntityFramework.BulkInsert.Providers;
-using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
-using System.Data.SqlServerCe;
-using System.Linq;
+﻿using EFCore.BulkExtensions;
+using Microsoft.Data.Sqlite;
 
 namespace Daqifi.Desktop
 {
-    public class SqlCeBulkInsertProvider : ProviderBase<SqlCeConnection, SqlCeTransaction>
+    public class SqliteBulkInsertProvider
     {
         public BulkInsertOptions Options { get; set; }
-        protected override SqlCeConnection CreateConnection()
-        {
-            return new SqlCeConnection(ConnectionString);
-        }
 
-        protected override string ConnectionString => DbConnection.ConnectionString;
-
-        /// <summary>
-        /// Get sql grography object from well known text
-        /// </summary>
-        /// <param name="wkt">Well known text representation of the value</param>
-        /// <param name="srid">The identifier associated with the coordinate system.</param>
-        /// <returns></returns>
-        public override object GetSqlGeography(string wkt, int srid)
-        {
-            throw new NotImplementedException();
-        }
-
-        public object GetSqlGeometry(string wkt, int srid)
-        {
-            throw new NotImplementedException();
-        }
+        // Use a method to retrieve the connection string
+        protected string ConnectionString => "Data Source=|DataDirectory|\\DAQifiDatabase.sdf;Max Database Size=4091;Default Lock Timeout=10000";
 
         public void Run<T>(IEnumerable<T> entities)
         {
-            using (var dbConnection = GetConnection())
+            using (var dbConnection = CreateConnection())
             {
                 dbConnection.Open();
 
@@ -48,177 +22,124 @@ namespace Daqifi.Desktop
                     {
                         try
                         {
-                            Run(entities, (SqlCeConnection)dbConnection, (SqlCeTransaction)transaction);
+                            Run(entities, dbConnection, transaction);
                             transaction.Commit();
                         }
                         catch (Exception)
                         {
-                            if (transaction.Connection != null)
-                            {
-                                transaction.Rollback();
-                            }
+                            transaction.Rollback();
                             throw;
                         }
                     }
                 }
                 else
                 {
-                    Run(entities, (SqlCeConnection)dbConnection, null);
+                    Run(entities, dbConnection, null);
                 }
             }
         }
 
-        private bool IsValidIdentityType(Type t)
+
+        protected SqliteConnection CreateConnection()
         {
-            switch (Type.GetTypeCode(t))
-            {
-                case TypeCode.Byte:
-                case TypeCode.SByte:
-                case TypeCode.UInt16:
-                case TypeCode.UInt32:
-                case TypeCode.UInt64:
-                case TypeCode.Int16:
-                case TypeCode.Int32:
-                case TypeCode.Int64:
-                    return true;
-                default:
-                    return false;
-            }
+            return new SqliteConnection(ConnectionString);
         }
 
-        private void Run<T>(IEnumerable<T> entities, SqlCeConnection connection, SqlCeTransaction transaction)
+        private void Run<T>(IEnumerable<T> entities, SqliteConnection connection, SqliteTransaction transaction)
         {
-            bool runIdentityScripts;
-            bool keepIdentity = runIdentityScripts = (SqlBulkCopyOptions.KeepIdentity & Options.SqlBulkCopyOptions) > 0;
-            var keepNulls = (SqlBulkCopyOptions.KeepNulls & Options.SqlBulkCopyOptions) > 0;
+            bool keepNulls = (SqlBulkCopyOptions.KeepNulls & Options.SqlBulkCopyOptions) > 0;
 
-            using (var reader = new MappedDataReader<T>(entities, this))
+            using (MappedDataReader<T> reader = new(entities, this))
             {
-                var identityCols = reader.Cols.Values.Where(x => x.IsIdentity).ToArray();
-                if (identityCols.Length != 1 || !IsValidIdentityType(identityCols[0].Type))
-                {
-                    runIdentityScripts = false;
-                }
-
-                if (keepIdentity && runIdentityScripts)
-                {
-                    SetIdentityInsert(connection, transaction, reader.TableName, true);
-                }
-
                 var colInfos = ColInfos(connection, reader)
                     .Values
-                    .Where(x => !x.IsIdentity || keepIdentity)
                     .ToArray();
 
-                using (var cmd = CreateCommand(reader.TableName, connection, transaction))
+                using (var cmd = CreateCommand(connection, transaction, reader.TableName))
                 {
-                    cmd.CommandType = CommandType.TableDirect;
-                    using (var rs = cmd.ExecuteResultSet(ResultSetOptions.Updatable))
+                    while (reader.Read())
                     {
-                        var rec = rs.CreateRecord();
-                        int i = 0;
-                        long rowsCopied = 0;
-                        while (reader.Read())
+                        cmd.Parameters.Clear();
+                        foreach (var colInfo in colInfos)
                         {
-                            foreach (var colInfo in colInfos)
-                            {
-                                var value = reader.GetValue(colInfo.ReaderKey);
-                                if (value == null && keepNulls)
-                                {
-                                    rec.SetValue(colInfo.OrdinalPosition, DBNull.Value);
-                                }
-                                else
-                                {
-                                    rec.SetValue(colInfo.OrdinalPosition, value);
-                                }
-                            }
-                            rs.Insert(rec);
-
-                            ++i;
-                            if (i == Options.NotifyAfter && Options.Callback != null)
-                            {
-                                rowsCopied += i;
-                                Options.Callback(this, new SqlRowsCopiedEventArgs(rowsCopied));
-                                i = 0;
-                            }
+                            var value = reader.GetValue(colInfo.ReaderKey);
+                            cmd.Parameters.Add(new SqliteParameter($"@p{colInfo.OrdinalPosition}", value ?? DBNull.Value));
                         }
+
+                        cmd.ExecuteNonQuery();
                     }
                 }
-
-                if (keepIdentity && runIdentityScripts)
-                {
-                    SetIdentityInsert(connection, transaction, reader.TableName, false);
-                }
             }
         }
 
-        public void Run<T>(IEnumerable<T> entities, SqlCeTransaction transaction)
+        private SqliteCommand CreateCommand(SqliteConnection connection, SqliteTransaction transaction, string tableName)
         {
-            Run(entities, (SqlCeConnection)transaction.Connection, transaction);
-        }
-        public override void Run<T>(IEnumerable<T> entities, SqlCeTransaction transaction,BulkInsertOptions options)
-        {
-            Options = options;
-            Run(entities, (SqlCeConnection)transaction.Connection, transaction);
-        }
+            var columns = string.Join(", ", ColInfos(connection, new MappedDataReader<object>(null, this)).Values.Select(c => c.OrdinalPosition));
+            var parameterNames = string.Join(", ", ColInfos(connection, new MappedDataReader<object>(null, this)).Values.Select(c => $"@p{c.OrdinalPosition}"));
 
+            var commandText = $"INSERT INTO [{tableName}] ({columns}) VALUES ({parameterNames})";
 
-        private void SetIdentityInsert(SqlCeConnection connection, SqlCeTransaction transaction, string tableName, bool on)
-        {
-            var commandText = string.Format("SET IDENTITY_INSERT [{0}] {1}", tableName, on ? "ON" : "OFF");
-            using (var cmd = CreateCommand(commandText, connection, transaction))
-            {
-                cmd.ExecuteNonQuery();
-            }
-        }
-
-        private SqlCeCommand CreateCommand(string commandText, SqlCeConnection connection, SqlCeTransaction transaction)
-        {
-            var cmd = new SqlCeCommand(commandText, connection);
+            var cmd = new SqliteCommand(commandText, connection);
             if (transaction != null)
             {
                 cmd.Transaction = transaction;
             }
+
             return cmd;
-
         }
 
-        private class ColInfo
+        private static Dictionary<string, ColInfo> ColInfos<T>(SqliteConnection sqlConnection, MappedDataReader<T> reader)
         {
-            public int OrdinalPosition { get; set; }
-            public int ReaderKey { get; set; }
-            public bool IsIdentity { get; set; }
-        }
-
-        private static Dictionary<string, ColInfo> ColInfos<T>(SqlCeConnection sqlCeConnection, MappedDataReader<T> reader)
-        {
-            var dtColumns = sqlCeConnection.GetSchema("Columns");
-
             var colInfos = new Dictionary<string, ColInfo>();
-            foreach (DataRow row in dtColumns.Rows)
+
+            for (int i = 0; i < reader.Cols.Count; i++)
             {
-                var tableName = (string)row.ItemArray[2];
-                if (tableName != reader.TableName)
-                {
-                    continue;
-                }
-
-                var columnName = (string)row.ItemArray[3];
-                var ordinal = (int)row.ItemArray[4] - 1;
-
-                colInfos[columnName] = new ColInfo { OrdinalPosition = ordinal };
+                var colName = reader.Cols[i].ColumnName;
+                colInfos[colName] = new ColInfo { OrdinalPosition = i, ReaderKey = i };
             }
 
-            foreach (var kvp in reader.Cols)
-            {
-                var colName = kvp.Value.ColumnName;
-                if (colInfos.ContainsKey(colName))
-                {
-                    colInfos[colName].ReaderKey = kvp.Key;
-                    colInfos[colName].IsIdentity = kvp.Value.IsIdentity;
-                }
-            }
             return colInfos;
         }
+    }
+
+    public class BulkInsertOptions
+    {
+        public SqlBulkCopyOptions SqlBulkCopyOptions { get; set; }
+        public Action<object, Microsoft.Data.SqlClient.SqlRowsCopiedEventArgs> Callback { get; set; }
+        public int NotifyAfter { get; set; }
+    }
+
+    public class MappedDataReader<T> : IDisposable
+    {
+        public Dictionary<int, ColInfo> Cols { get; set; }
+        public string TableName { get; set; }
+
+        public MappedDataReader(IEnumerable<T> entities, SqliteBulkInsertProvider provider)
+        {
+            // Implement mapping logic from entities to columns
+        }
+
+        public bool Read()
+        {
+            return false; 
+        }
+
+        public object GetValue(int key)
+        {
+            return null; 
+        }
+
+        public void Dispose()
+        {
+            // Implement disposal logic if needed
+        }
+    }
+
+    public class ColInfo
+    {
+        public int OrdinalPosition { get; set; }
+        public int ReaderKey { get; set; }
+        public bool IsIdentity { get; set; }
+        public string ColumnName { get; internal set; }
     }
 }

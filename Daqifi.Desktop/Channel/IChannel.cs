@@ -1,5 +1,4 @@
-﻿using System.Windows.Media;
-using Daqifi.Desktop.Configuration;
+﻿using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.DataModel.Channel;
 
 namespace Daqifi.Desktop.Channel
@@ -18,7 +17,7 @@ namespace Daqifi.Desktop.Channel
         string AdcMode { get; set; }
         string TypeString { get; }
         string ScaleExpression { get; set; }
-        Brush ChannelColorBrush { get; set; }
+        System.Windows.Media.Brush ChannelColorBrush { get; set; }
         bool IsBidirectional { get; set; }
         bool IsOutput { get; set; }
         bool HasAdc { get; set; }

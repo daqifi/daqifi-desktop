@@ -1,16 +1,14 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Configuration;
-using GalaSoft.MvvmLight;
 using System.Collections;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Windows.Input;
-using System.Windows.Media;
+using Brush = System.Windows.Media.Brush;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class SelectColorDialogViewModel : ViewModelBase
+    public class SelectColorDialogViewModel : ObservableObject
     {
         #region Private Variables
         private readonly IColorable _colorObject;

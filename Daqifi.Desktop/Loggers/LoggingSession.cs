@@ -1,5 +1,5 @@
 ﻿using Daqifi.Desktop.Channel;
-using System;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -15,42 +15,36 @@ namespace Daqifi.Desktop.Logger
         [DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int ID { get; set; }
         public DateTime SessionStart { get; set; }
-        public virtual ICollection<IChannel> Channels { get; set; }
-        public virtual ICollection<DataSample> DataSamples { get; set; }
-        public string Name 
+        public virtual ICollection<Channel.Channel> Channels { get; set; } = new List<Channel.Channel>();
+        public virtual ICollection<DataSample> DataSamples { get; set; } = new List<DataSample>();
+
+        public string Name
         {
             get => string.IsNullOrWhiteSpace(_name) ? "Session " + ID.ToString() : _name;
-            set 
+            set
             {
-                if (_name == value) return;
+             if (_name == value) return;
 
-                _name = value;
-                using (var context = new LoggingContext())
-                {
-                    context.Entry(this).State = System.Data.Entity.EntityState.Modified;
-                    context.SaveChanges();
-                }
-            } 
+             _name = value; 
+            }
         }
         #endregion
 
         #region Constructors
         public LoggingSession() { }
 
-        public LoggingSession(int id)
+        public LoggingSession(int id,string name)
         {
             ID = id;
             SessionStart = DateTime.Now;
+            Name = name;
         }
         #endregion
 
         #region Object Overrides
         public override bool Equals(object obj)
         {
-            if (obj == null) return false;
-            LoggingSession sessionObj = obj as LoggingSession;
-            if (sessionObj == null) return false;
-            else return sessionObj.ID == ID;
+            return obj is LoggingSession sessionObj && sessionObj.ID == ID;
         }
         #endregion
     }

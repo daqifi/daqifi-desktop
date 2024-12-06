@@ -1,24 +1,17 @@
-﻿using Bugsnag.Payload;
-using Daqifi.Desktop.Channel;
+﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Models;
-using Daqifi.Desktop.View;
-using GalaSoft.MvvmLight;
-using NLog.Time;
-using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class AddProfileDialogViewModel : ViewModelBase
+    public class AddProfileDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
     {
         #region Private Variables
         private string _profileName = "DaqifiProfile";
@@ -38,7 +31,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _availableDevices = value;
 
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -50,7 +43,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _availableChannels = value;
 
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         public string ProfileName
@@ -60,7 +53,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _profileName = value;
 
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         private bool _canAddProfile;
@@ -71,7 +64,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _canAddProfile = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -83,7 +76,7 @@ namespace Daqifi.Desktop.ViewModels
                 if (value < 1) { return; }
                 ///checkAddProfileButton();
                 _selectedStreamingFrequency = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         #endregion

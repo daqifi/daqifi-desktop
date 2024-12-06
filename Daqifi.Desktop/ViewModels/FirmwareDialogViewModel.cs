@@ -2,14 +2,13 @@
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device.HidDevice;
-using GalaSoft.MvvmLight;
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
 
 namespace DAQifi.Desktop.ViewModels
 {
-    public class FirmwareDialogViewModel : ViewModelBase
+    public class FirmwareDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
     {
         private readonly Pic32Bootloader _bootloader;
         private string _version;
@@ -25,7 +24,7 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _version = value;
-                RaisePropertyChanged();
+                OnPropertyChanged(nameof(Version));
             }
         }
 
@@ -35,7 +34,7 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _firmwareFilePath = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -45,7 +44,7 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _isFirmwareUploading = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -55,7 +54,7 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _isUploadComplete = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -65,7 +64,7 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _hasErrorOccured = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -75,8 +74,8 @@ namespace DAQifi.Desktop.ViewModels
             set
             {
                 _uploadFirmwareProgress = value;
-                RaisePropertyChanged();
-                RaisePropertyChanged("UploadFirmwareProgressText");
+                OnPropertyChanged();
+                OnPropertyChanged("UploadFirmwareProgressText");
             }
         }
 

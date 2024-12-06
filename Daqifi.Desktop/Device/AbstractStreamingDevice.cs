@@ -4,11 +4,7 @@ using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.IO.Messages.Consumers;
-using Daqifi.Desktop.IO.Messages.MessageTypes;
 using Daqifi.Desktop.IO.Messages.Producers;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.Extensions.ObjectPool;
 using Daqifi.Desktop.IO.Messages.Decoders;
 
@@ -27,8 +23,8 @@ namespace Daqifi.Desktop.Device
         private int _streamingFrequency = 1;
         private uint? _previousDeviceTimestamp;
 
-        private ObjectPool<DataSample> _samplePool = ObjectPool.Create<DataSample>();
-        private ObjectPool<DeviceMessage> _deviceMessagePool = ObjectPool.Create<DeviceMessage>();
+        private ObjectPool<DataSample> _samplePool;
+        private ObjectPool<DeviceMessage> _deviceMessagePool;
 
 
         #region Properties
@@ -270,8 +266,9 @@ namespace Daqifi.Desktop.Device
             _previousTimestamp = null;
             MessageProducer.Send(ScpiMessagePoducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
-            _samplePool = ObjectPool.Create<DataSample>();
-            _deviceMessagePool = ObjectPool.Create<DeviceMessage>();
+            var objectPoolProvider = new DefaultObjectPoolProvider(); // Initialize pools with default policy
+            _samplePool = objectPoolProvider.Create<DataSample>();
+            _deviceMessagePool = objectPoolProvider.Create<DeviceMessage>();
         }
 
         public void StopStreaming()
@@ -312,7 +309,7 @@ namespace Daqifi.Desktop.Device
             if (channel == null)
             {
                 AppLogger.Error($"There was a problem adding channel: {channelToAdd.Name}.  " +
-                                $"Trying to add a channel that does not belong to the device: {Name}");
+                               $"Trying to add a channel that does not belong to the device: {Name}");
                 return;
             }
 
@@ -465,9 +462,8 @@ namespace Daqifi.Desktop.Device
                 // TODO handle mismatch.  Probably not add any channels and warn the user something went wrong.
             }
 
-            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) =>
-            {
-                if (list.Count > idx)
+            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) => {
+                if (list.Count>idx)
                 {
                     return list[idx];
                 }
@@ -493,11 +489,20 @@ namespace Daqifi.Desktop.Device
                 NetworkConfiguration.Ssid = message.Ssid;
             }
 
+            if (message.WifiSecurityMode >0)
             if (message.WifiSecurityMode != 0)
             {
                 NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
             }
 
+            if (message.WifiInfMode > 0)
+            {
+                NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
+            }
+            if (message.DevicePn != null)
+            {
+                DevicePartNumber = message.DevicePn;
+            }
             if (message.WifiInfMode != 0)
             {
                 NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
@@ -508,12 +513,14 @@ namespace Daqifi.Desktop.Device
             }
             if (message.DeviceSn != 0)
             {
-                DeviceSerialNo = message.DeviceSn.ToString();
+                DeviceSerialNo=message.DeviceSn.ToString();
             }
+            if(message.MacAddr != null)
             if (message.MacAddr.Length > 0)
             {
-                MacAddress = ProtobufDecoder.GetMacAddressString(message);
+                MacAddress= ProtobufDecoder.GetMacAddressString(message);
             }
+            if (message.AnalogInPortRange != null && (int)message.AnalogInPortRange[0] == 5)
             if (message.AnalogInPortRange.Count > 0 && (int)message.AnalogInPortRange[0] == 5)
             {
                 _adcRangeText = _5Volt;
@@ -523,7 +530,7 @@ namespace Daqifi.Desktop.Device
         private void PopulateDigitalChannels(DaqifiOutMessage message)
         {
 
-            if (message.DigitalPortNum == 0) return;
+            if (message.DigitalPortNum == 0) {return;}
 
             for (var i = 0; i < message.DigitalPortNum; i++)
             {
@@ -533,8 +540,8 @@ namespace Daqifi.Desktop.Device
 
         private void PopulateAnalogOutChannels(DaqifiOutMessage message)
         {
-            if (message.AnalogOutPortNum == 0) return;
-
+            if (message.AnalogOutPortNum == 0) { return; }
+           
             // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
         }
         #endregion

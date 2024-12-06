@@ -90,7 +90,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Error Stopping Device Finder");
+               AppLogger.Error(ex, "Error Stopping Device Finder");
             }
         }
 
