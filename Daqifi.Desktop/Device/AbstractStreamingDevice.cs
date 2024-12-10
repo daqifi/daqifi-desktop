@@ -4,11 +4,7 @@ using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.IO.Messages.Consumers;
-using Daqifi.Desktop.IO.Messages.MessageTypes;
 using Daqifi.Desktop.IO.Messages.Producers;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.Extensions.ObjectPool;
 using Daqifi.Desktop.IO.Messages.Decoders;
 
@@ -21,14 +17,14 @@ namespace Daqifi.Desktop.Device
         private const string Nq1PartNumber = "Nq1";
         private const double TickPeriod = 20E-9f;
         private static DateTime? _previousTimestamp;
-        private string _adcRangeText;      
+        private string _adcRangeText;
         protected readonly double AdcResolution = 131072;
         protected double AdcRange = 1;
         private int _streamingFrequency = 1;
         private uint? _previousDeviceTimestamp;
 
-        private ObjectPool<DataSample> _samplePool = ObjectPool.Create<DataSample>();
-        private ObjectPool<DeviceMessage> _deviceMessagePool = ObjectPool.Create<DeviceMessage>();
+        private ObjectPool<DataSample> _samplePool;
+        private ObjectPool<DeviceMessage> _deviceMessagePool;
 
 
         #region Properties
@@ -37,11 +33,11 @@ namespace Daqifi.Desktop.Device
         public int Id { get; set; }
 
         public string Name { get; set; }
-        public string MacAddress {  get; set; }
+        public string MacAddress { get; set; }
 
         public string DevicePartNumber { get; private set; } = string.Empty;
 
-        public string DeviceSerialNo { get; set; }=string.Empty;
+        public string DeviceSerialNo { get; set; } = string.Empty;
 
         public string IpAddress { get; set; } = string.Empty;
         public int StreamingFrequency
@@ -121,9 +117,9 @@ namespace Daqifi.Desktop.Device
             PopulateAnalogOutChannels(message);
         }
 
-        private bool IsValidStatusMessage(IDaqifiOutMessage message)
+        private bool IsValidStatusMessage(DaqifiOutMessage message)
         {
-            return (message.HasDigitalPortNum || message.HasAnalogInPortNum || message.HasAnalogOutPortNum);
+            return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
         }
 
         private void HandleMessageReceived(object sender, MessageEventArgs e)
@@ -139,7 +135,7 @@ namespace Daqifi.Desktop.Device
                 return;
             }
 
-            if (!message.HasMsgTimeStamp)
+            if (message.MsgTimeStamp ==0)
             {
                 AppLogger.Warning("Protobuf message did not contain a timestamp. Will ignore message");
                 return;
@@ -191,8 +187,8 @@ namespace Daqifi.Desktop.Device
             // DI 9-16
             var digitalData2 = new byte();
 
-            var hasDigitalData = message.HasDigitalData;
-            if (hasDigitalData)
+            var hasDigitalData = message.DigitalData;
+            if (hasDigitalData.Length > 0)
             {
                 digitalData1 = message.DigitalData.ElementAtOrDefault(0);
                 digitalData2 = message.DigitalData.ElementAtOrDefault(1);
@@ -210,7 +206,7 @@ namespace Daqifi.Desktop.Device
                     continue;
                 }
 
-                if (channel.Type == ChannelType.Digital && hasDigitalData)
+                if (channel.Type == ChannelType.Digital && hasDigitalData.Length > 0)
                 {
                     bool bit;
                     if (digitalCount < 8)
@@ -227,13 +223,13 @@ namespace Daqifi.Desktop.Device
                 }
                 else if (channel.Type == ChannelType.Analog)
                 {
-                    if (analogCount > message.AnalogInDataList.Count - 1)
+                    if (analogCount > message.AnalogInData.Count - 1)
                     {
                         AppLogger.Error("Trying to access at least one more analog channel than we actually received. This might happen if recently added an analog channel but not yet receiving data from it yet.");
                         break;
                     }
 
-                    var sample = new DataSample(this, channel, messageTimestamp, ScaleAnalogSample(channel as AnalogChannel, message.AnalogInDataList.ElementAt(analogCount)));
+                    var sample = new DataSample(this, channel, messageTimestamp, ScaleAnalogSample(channel as AnalogChannel, message.AnalogInData.ElementAt(analogCount)));
                     channel.ActiveSample = sample;
                     analogCount++;
                 }
@@ -271,8 +267,9 @@ namespace Daqifi.Desktop.Device
             _previousTimestamp = null;
             MessageProducer.Send(ScpiMessagePoducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
-            _samplePool = ObjectPool.Create<DataSample>();
-            _deviceMessagePool = ObjectPool.Create<DeviceMessage>();
+            var objectPoolProvider = new DefaultObjectPoolProvider(); // Initialize pools with default policy
+            _samplePool = objectPoolProvider.Create<DataSample>();
+            _deviceMessagePool = objectPoolProvider.Create<DeviceMessage>();
         }
 
         public void StopStreaming()
@@ -313,7 +310,7 @@ namespace Daqifi.Desktop.Device
             if (channel == null)
             {
                 AppLogger.Error($"There was a problem adding channel: {channelToAdd.Name}.  " +
-                                $"Trying to add a channel that does not belong to the device: {Name}");
+                               $"Trying to add a channel that does not belong to the device: {Name}");
                 return;
             }
 
@@ -441,9 +438,9 @@ namespace Daqifi.Desktop.Device
             }
         }
 
-        private void PopulateAnalogInChannels(IDaqifiOutMessage message)
+        private void PopulateAnalogInChannels(DaqifiOutMessage message)
         {
-            if (!message.HasAnalogInPortNum) return;
+            if (message.AnalogInPortNum == 0) return;
 
             if (!string.IsNullOrWhiteSpace(DevicePartNumber))
             {
@@ -454,10 +451,10 @@ namespace Daqifi.Desktop.Device
                 }
             }
 
-            var analogInPortRanges = message.AnalogInPortRangeList;
-            var analogInCalibrationBValues = message.AnalogInCalBList;
-            var analogInCalibrationMValues = message.AnalogInCalMList;
-            var analogInInternalScaleMValues = message.AnalogInIntScaleMList;
+            var analogInPortRanges = message.AnalogInPortRange;
+            var analogInCalibrationBValues = message.AnalogInCalB;
+            var analogInCalibrationMValues = message.AnalogInCalM;
+            var analogInInternalScaleMValues = message.AnalogInIntScaleM;
             var analogInResolution = message.AnalogInRes;
 
             if (analogInCalibrationBValues.Count != analogInCalibrationMValues.Count ||
@@ -466,8 +463,9 @@ namespace Daqifi.Desktop.Device
                 // TODO handle mismatch.  Probably not add any channels and warn the user something went wrong.
             }
 
-            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) => {
-                if (list.Count>idx)
+            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) =>
+            {
+                if (list.Count > idx)
                 {
                     return list[idx];
                 }
@@ -486,47 +484,46 @@ namespace Daqifi.Desktop.Device
             }
         }
 
-        private void HydrateDeviceMetadata(IDaqifiOutMessage message)
+        private void HydrateDeviceMetadata(DaqifiOutMessage message)
         {
-            if (message.HasSsid)
+            if (!string.IsNullOrWhiteSpace(message.Ssid))
             {
                 NetworkConfiguration.Ssid = message.Ssid;
             }
 
-            if (message.HasWifiSecurityMode)
+            if (message.WifiSecurityMode != 0)
             {
                 NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
             }
 
-            if (message.HasWifiInfMode)
+            if (message.WifiInfMode > 0)
             {
                 NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
             }
-            if (message.HasDevicePn)
+            if (!string.IsNullOrWhiteSpace(message.DevicePn))
             {
                 DevicePartNumber = message.DevicePn;
             }
-            if (message.HasDeviceSn)
+            if (message.DeviceSn != 0)
             {
-                DeviceSerialNo=message.DeviceSn.ToString();
+                DeviceSerialNo = message.DeviceSn.ToString();
             }
-            if(message.IpAddr != null&&message.IpAddr.Length==4)
-            {
-                IpAddress = string.Join(".", message.IpAddr);
-            }
-            if (message.HasMacAddr)
+            if (message.MacAddr.Length > 0)
             {
                 MacAddress = ProtobufDecoder.GetMacAddressString(message);
             }
-            if (message.AnalogInPortRangeCount > 0 && (int)message.GetAnalogInPortRange(0) == 5)
+
+            if (message.AnalogInPortRange.Count > 0 && (int)message.AnalogInPortRange[0] == 5)
             {
                 _adcRangeText = _5Volt;
             }
         }
 
-        private void PopulateDigitalChannels(IDaqifiOutMessage message)
+        private void PopulateDigitalChannels(DaqifiOutMessage message)
         {
-            if (!message.HasDigitalPortNum) return;
+
+            if (message.DigitalPortNum == 0) { return; }
+
             for (var i = 0; i < message.DigitalPortNum; i++)
             {
                 DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
@@ -535,7 +532,7 @@ namespace Daqifi.Desktop.Device
 
         private void PopulateAnalogOutChannels(DaqifiOutMessage message)
         {
-            if (!message.HasAnalogOutPortNum) return;
+            if (message.AnalogOutPortNum == 0) { return; }
 
             // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
         }

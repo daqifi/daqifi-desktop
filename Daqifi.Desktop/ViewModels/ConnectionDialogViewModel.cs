@@ -1,5 +1,6 @@
 ﻿using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.Device.SerialDevice;
@@ -7,17 +8,13 @@ using Daqifi.Desktop.Device.WiFiDevice;
 using Daqifi.Desktop.DialogService;
 using DAQifi.Desktop.View;
 using DAQifi.Desktop.ViewModels;
-using GalaSoft.MvvmLight;
 using System.Collections;
 using System.Collections.ObjectModel;
-using System.Linq;
-using System.Windows;
 using System.Windows.Input;
-using Daqifi.Desktop.DataModel.Device;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class ConnectionDialogViewModel : ViewModelBase
+    public class ConnectionDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
     {
         #region Private Variables
         private DaqifiDeviceFinder _wifiFinder;
@@ -42,7 +39,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _hasNoWiFiDevices = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -52,7 +49,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _hasNoSerialDevices = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -62,7 +59,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _hasNoHidDevices = value;
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
 
@@ -207,7 +204,7 @@ namespace Daqifi.Desktop.ViewModels
 
             if(AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress) == null)
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
                     AvailableWiFiDevices.Add(wifiDevice);
                     if (HasNoWiFiDevices) HasNoWiFiDevices = false;
@@ -222,7 +219,7 @@ namespace Daqifi.Desktop.ViewModels
             var matchingDevice = AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress);
             if (matchingDevice != null)
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
                     AvailableWiFiDevices.Remove(matchingDevice);
                 });
@@ -235,7 +232,7 @@ namespace Daqifi.Desktop.ViewModels
 
             if (AvailableSerialDevices.FirstOrDefault(d => d.Port == serialDevice.Port) == null)
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
                     AvailableSerialDevices.Add(serialDevice);
                     if (HasNoSerialDevices) HasNoSerialDevices = false;
@@ -250,7 +247,7 @@ namespace Daqifi.Desktop.ViewModels
             var matchingDevice = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == serialDevice.Port.PortName);
             if (matchingDevice != null)
             {
-                Application.Current.Dispatcher.Invoke(() =>
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
                     AvailableSerialDevices.Remove(matchingDevice);
                 });
@@ -264,7 +261,7 @@ namespace Daqifi.Desktop.ViewModels
                 return;
             }
 
-            Application.Current.Dispatcher.Invoke(() =>
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
                 AvailableHidDevices.Add(hidDevice);
                 if (HasNoHidDevices) HasNoHidDevices = false;
@@ -275,7 +272,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             if (!(device is HidFirmwareDevice hidDevice)) return;
 
-            Application.Current.Dispatcher.Invoke(() =>
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
                 AvailableHidDevices.Remove(hidDevice);
                 if (AvailableHidDevices.Count == 0) HasNoHidDevices = true;

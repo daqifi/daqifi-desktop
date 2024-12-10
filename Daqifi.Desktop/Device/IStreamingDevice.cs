@@ -2,7 +2,6 @@
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
-using System.Collections.Generic;
 using Daqifi.Desktop.DataModel.Network;
 
 namespace Daqifi.Desktop.Device

@@ -1,39 +1,26 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
+using Microsoft.EntityFrameworkCore;
 using System;
-using System.Data.Entity;
 
 namespace Daqifi.Desktop.Logger
 {
-    [Serializable]
     public class LoggingContext : DbContext
     {
-        #region Constructors
-        public LoggingContext() : base("name=LoggingDatabaseContext")
+        public LoggingContext(DbContextOptions<LoggingContext> options) : base(options)
         {
-            try
-            {
-                Database.SetInitializer(new CreateDatabaseIfNotExists<LoggingContext>());
-            }
-            catch(Exception ex)
-            {
-                AppLogger.Instance.Error(ex, "Error Logging to Database");
-            }
+            Database.EnsureCreated();
         }
-        #endregion
 
-        protected override void OnModelCreating(DbModelBuilder modelBuilder)
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<LoggingSession>()
-                .HasMany(c => c.DataSamples)
-                .WithRequired(p => p.LoggingSession)
-                .WillCascadeOnDelete(true);
+            modelBuilder.Entity<LoggingSession>().HasMany(c => c.DataSamples).WithOne(p => p.LoggingSession).IsRequired().OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<LoggingSession>().Property(ls => ls.Name).IsRequired();
+            modelBuilder.Entity<Channel.Channel>().Ignore(c => c.ChannelColorBrush);
             base.OnModelCreating(modelBuilder);
         }
 
-        #region DBSets
         public DbSet<LoggingSession> Sessions { get; set; }
         public DbSet<DataSample> Samples { get; set; }
-        #endregion
     }
 }

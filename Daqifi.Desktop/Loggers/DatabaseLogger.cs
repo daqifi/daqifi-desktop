@@ -3,24 +3,23 @@ using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
-using EntityFramework.BulkInsert;
-using EntityFramework.BulkInsert.Extensions;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading;
 using System.Windows.Input;
 using Daqifi.Desktop.Helpers;
 using Exception = System.Exception;
+using TickStyle = OxyPlot.Axes.TickStyle;
+using Microsoft.EntityFrameworkCore;
+using System.Data.Common;
+using System.IO;
+using EFCore.BulkExtensions;
 
 namespace Daqifi.Desktop.Logger
 {
-    public class DatabaseLogger: ObservableObject, ILogger
+    public class DatabaseLogger : ObservableObject, ILogger
     {
         #region Private Data
         private readonly Dictionary<string, List<DataPoint>> _allSessionPoints = new Dictionary<string, List<DataPoint>>();
@@ -30,6 +29,7 @@ namespace Daqifi.Desktop.Logger
         private PlotModel _plotModel;
         private DateTime? _firstTime;
         public AppLogger AppLogger = AppLogger.Instance;
+        private readonly IDbContextFactory<LoggingContext> _loggingContext;
         #endregion
 
         #region Properties
@@ -83,10 +83,10 @@ namespace Daqifi.Desktop.Logger
         #endregion
 
         #region Constructor
-        public DatabaseLogger()
+        public DatabaseLogger(IDbContextFactory<LoggingContext> loggingContext)
         {
-            ProviderFactory.Register<SqlCeBulkInsertProvider>("System.Data.SqlServerCe.SqlCeConnection");
 
+            _loggingContext = loggingContext;
             SaveGraphCommand = new DelegateCommand(SaveGraph, CanSaveGraph);
             ResetZoomCommand = new DelegateCommand(ResetZoom, CanResetZoom);
             ZoomOutXCommand = new DelegateCommand(ZoomOutX, CanZoomOutX);
@@ -137,7 +137,7 @@ namespace Daqifi.Desktop.Logger
             var timeAxis = new LinearAxis
             {
                 Position = AxisPosition.Bottom,
-                TickStyle = TickStyle.None,
+                TickStyle =TickStyle.None,
                 MajorGridlineStyle = LineStyle.Solid,
                 MinorGridlineStyle = LineStyle.Solid,
                 TitleFontSize = 12,
@@ -158,7 +158,7 @@ namespace Daqifi.Desktop.Logger
             PlotModel.IsLegendVisible = true;
             PlotModel.Legends.Add(legend);
 
-            var consumerThread = new Thread(Consumer) {IsBackground = true};
+            var consumerThread = new Thread(Consumer) { IsBackground = true };
             consumerThread.Start();
         }
         #endregion
@@ -196,16 +196,26 @@ namespace Daqifi.Desktop.Logger
 
                     if (bufferCount < 1) continue;
 
-                    using (var context = new LoggingContext())
+                    // Remove the samples from the collection
+                    for (var i = 0; i < bufferCount; i++)
                     {
-                        // Remove the samples from the collection
-                        for (var i = 0; i < bufferCount; i++)
-                        {
-                            if (_buffer.TryTake(out var sample)) samples.Add(sample);
-                        }
-                        context.BulkInsert(samples);
-                        samples.Clear();
+                        if (_buffer.TryTake(out var sample)) samples.Add(sample);
                     }
+
+                    using (var context = _loggingContext.CreateDbContext())
+                    {
+
+                        // Start a new transaction for bulk insert
+                        using (var transaction = context.Database.BeginTransaction())
+                        {
+                            // Perform the bulk insert
+                            context.BulkInsert(samples);
+
+                            // Commit the transaction after the bulk insert
+                            transaction.Commit();
+                        }
+                    }
+                    samples.Clear();
                 }
                 catch (Exception ex)
                 {
@@ -233,34 +243,34 @@ namespace Daqifi.Desktop.Logger
                 ClearPlot();
                 PlotModel.Title = session.Name;
 
-                using (var context = new LoggingContext())
+                using (var context = _loggingContext.CreateDbContext())
                 {
-                    context.Configuration.AutoDetectChangesEnabled = false;
+                    context.ChangeTracker.AutoDetectChangesEnabled = false;
 
                     var samples = context.Samples.AsNoTracking()
                         .Where(s => s.LoggingSessionID == session.ID)
-                        .Select(s => new {s.ChannelName, s.Type, s.Color, s.TimestampTicks, s.Value});
+                        .Select(s => new { s.ChannelName, s.Type, s.Color, s.TimestampTicks, s.Value });
 
                     var samplesCount = context.Samples
                         .AsNoTracking()
                         .Count(s => s.LoggingSessionID == session.ID);
                     const int dataPointsToShow = 1000000;
-                    
+
                     if (samplesCount > 1000000)
                     {
                         PlotModel.Subtitle += $"\nOnly showing {dataPointsToShow:n0} out of {samplesCount:n0} data points";
                     }
-                    
+
                     var channelNames = samples
                         .Select(s => s.ChannelName)
                         .Distinct()
                         .ToList();
-                    
+
                     channelNames.Sort(new OrdinalStringComparer());
                     foreach (var channelName in channelNames)
                     {
                         var channel = samples
-                            .Select(s=> new {s.ChannelName, s.Type, s.Color})
+                            .Select(s => new { s.ChannelName, s.Type, s.Color })
                             .FirstOrDefault(s => s.ChannelName == channelName);
 
                         if (channel != null)
@@ -271,7 +281,7 @@ namespace Daqifi.Desktop.Logger
 
                     var dataSampleCount = 0;
                     foreach (var sample in samples)
-                    {                       
+                    {
                         if (_firstTime == null) _firstTime = new DateTime(sample.TimestampTicks);
                         var deltaTime = (sample.TimestampTicks - _firstTime.Value.Ticks) / 10000.0;
 
@@ -288,18 +298,18 @@ namespace Daqifi.Desktop.Logger
                 }
 
                 // Downsample
-                for (var i = 0; i < _sessionPoints.Keys.Count; i++ )
+                for (var i = 0; i < _sessionPoints.Keys.Count; i++)
                 {
                     var channelName = _sessionPoints.Keys.ElementAt(i);
                     //TODO Figure out best way to integrate LTTB
                     //(PlotModel.Series[i] as LineSeries).ItemsSource = LargestTriangleThreeBucket.DownSample(_allSessionPoints[channelName], 1000);
-                    (PlotModel.Series[i] as LineSeries).ItemsSource = _allSessionPoints[channelName];
+                    ((LineSeries)PlotModel.Series[i]).ItemsSource = _allSessionPoints[channelName];
                 }
 
                 NotifyPropertyChanged("SessionPoints");
                 PlotModel.InvalidatePlot(true);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 AppLogger.Error(ex, "Failed in DisplayLoggingSession");
             }
@@ -311,10 +321,10 @@ namespace Daqifi.Desktop.Logger
             stopwatch.Start();
             try
             {
-                using (var context = new LoggingContext())
+                using (var context = _loggingContext.CreateDbContext())
                 {
-                    context.Configuration.AutoDetectChangesEnabled = false;
-                    
+                    context.ChangeTracker.AutoDetectChangesEnabled = false;
+
                     var loggingSession = context.Sessions.Find(session.ID);
                     // This will cascade delete and delete all corresponding data samples
                     context.Sessions.Remove(loggingSession);
@@ -324,7 +334,7 @@ namespace Daqifi.Desktop.Logger
                     LoggingManager.Instance.LoggingSessions.Remove(session);
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 AppLogger.Error(ex, "Failed in DeleteLoggingSession");
             }
@@ -380,7 +390,7 @@ namespace Daqifi.Desktop.Logger
                 string filePath = dialog.FileName;
                 OxyPlot.Wpf.PngExporter.Export(PlotModel, filePath, 1920, 1080);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 AppLogger.Error(ex, "Failed in SaveGraph");
             }
@@ -396,7 +406,7 @@ namespace Daqifi.Desktop.Logger
 
         private void ZoomOutX(object o)
         {
-            PlotModel.Axes[2].ZoomAtCenter(1/1.5);
+            PlotModel.Axes[2].ZoomAtCenter(1 / 1.5);
             PlotModel.InvalidatePlot(false);
         }
 

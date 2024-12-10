@@ -139,7 +139,7 @@ namespace Daqifi.Desktop.IO.Messages.MessageTypes
         uint WifiInfMode { get; }
         uint WifiSecurityMode { get; }
 
-        DaqifiOutMessage.Builder CreateBuilderForType();
+       // DaqifiOutMessage.Builder CreateBuilderForType();
         float GetAnalogInCalB(int index);
         float GetAnalogInCalBPriv(int index);
         float GetAnalogInCalM(int index);
@@ -160,7 +160,7 @@ namespace Daqifi.Desktop.IO.Messages.MessageTypes
         uint GetAvWifiInfMode(int index);
         uint GetAvWifiSecurityMode(int index);
         uint GetDigitalDataTs(int index);
-        DaqifiOutMessage.Builder ToBuilder();
+        //DaqifiOutMessage.Builder ToBuilder();
         void WriteTo(ICodedOutputStream output);
     }
 }

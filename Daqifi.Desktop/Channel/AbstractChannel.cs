@@ -1,10 +1,9 @@
 ﻿using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using NCalc;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Windows.Media;
+using Brush = System.Windows.Media.Brush;
+
 
 namespace Daqifi.Desktop.Channel
 {
@@ -64,8 +63,8 @@ namespace Daqifi.Desktop.Channel
         public ChannelDirection Direction
         {
             get => _direction;
-            set 
-            { 
+            set
+            {
                 if(_direction == value)  return;
 
                 if (_direction == ChannelDirection.Unknown)
@@ -111,8 +110,8 @@ namespace Daqifi.Desktop.Channel
         public bool IsOutput
         {
             get => _isOutput;
-            set 
-            { 
+            set
+            {
                 _isOutput = value;
 
                 Direction = _isOutput ? ChannelDirection.Output : ChannelDirection.Input;
@@ -202,7 +201,7 @@ namespace Daqifi.Desktop.Channel
 
                 if (string.IsNullOrWhiteSpace(_scaledExpression)) return;
 
-                Expression = new Expression(_scaledExpression, EvaluateOptions.IgnoreCase)
+                Expression = new Expression(_scaledExpression)
                 {
                     Parameters = {["x"] = 1}
                 };

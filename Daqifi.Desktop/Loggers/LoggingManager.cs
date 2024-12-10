@@ -10,6 +10,9 @@ using System.Xml.Linq;
 using System.Collections.ObjectModel;
 using Daqifi.Desktop.UpdateVersion;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using static Azure.Core.HttpHeader;
 
 namespace Daqifi.Desktop.Logger
 {
@@ -23,6 +26,7 @@ namespace Daqifi.Desktop.Logger
         private readonly AppLogger AppLogger = AppLogger.Instance;
         private static string ProfileAppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
         private static readonly string ProfileSettingsXmlPath = ProfileAppDirectory + "\\DAQifiProfilesConfiguration.xml";
+        private readonly IDbContextFactory<LoggingContext> _loggingContext;
         #endregion
 
         #region Properties
@@ -45,12 +49,13 @@ namespace Daqifi.Desktop.Logger
             {
                 if (!_active)
                 {
-                    using (var context = new LoggingContext())
+                    using (var context = _loggingContext.CreateDbContext())
                     {
                         var ids = (from s in context.Sessions.AsNoTracking() select s.ID).ToList();
                         var newId = 0;
                         if (ids.Count > 0) newId = ids.Max() + 1;
-                        Session = new LoggingSession(newId);
+                        var name = $"Session_{newId}";
+                        Session = new LoggingSession(newId,name);
                         context.Sessions.Add(Session);
                         context.SaveChanges();
                     }
@@ -87,6 +92,8 @@ namespace Daqifi.Desktop.Logger
             Loggers = new List<ILogger>();
             SubscribedChannels = new List<IChannel>();
             SubscribedProfiles = new List<Profile>();
+            _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+
         }
 
         public static LoggingManager Instance => instance;
@@ -348,13 +355,13 @@ namespace Daqifi.Desktop.Logger
                 if (index == -1) return;
                 var subscribedProfile = SubscribedProfiles[index];
                 AddAndRemoveProfileXml(subscribedProfile, false);
-                SubscribedProfiles.RemoveAt(index);
+                ClearChannelList();
+                // SubscribedProfiles.RemoveAt(index);
                 NotifyPropertyChanged("SubscribedProfiles");
             }
             catch (Exception ex)
             {
-
-                AppLogger.Error(ex, $"Error Unsubscribe Profile");
+                 AppLogger.Error(ex, $"Error Unsubscribe Profile");
             }
 
         }
@@ -432,6 +439,19 @@ namespace Daqifi.Desktop.Logger
             await versionNotification.CheckForUpdatesAsync();
             NotifyPropertyChanged("NotificationCount");
             NotifyPropertyChanged("VersionNumber");
+        }
+
+        public void ClearChannelList()
+        {
+
+            foreach (var channel in SubscribedChannels)
+            {
+                channel.IsActive = false;
+                channel.OnChannelUpdated -= HandleChannelUpdate;
+            }
+            SubscribedChannels.Clear();
+            NotifyPropertyChanged("SubscribedChannels");
+
         }
     }
 }

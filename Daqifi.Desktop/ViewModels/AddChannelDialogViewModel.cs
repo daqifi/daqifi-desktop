@@ -3,7 +3,7 @@ using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
-using GalaSoft.MvvmLight;
+using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -11,7 +11,7 @@ using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class AddChannelDialogViewModel : ViewModelBase
+    public class AddChannelDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
     {
         #region Private Variables
         private IStreamingDevice _selectedDevice;
@@ -30,7 +30,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _selectedDevice = value;
                 GetAvailableChannels(_selectedDevice);
-                RaisePropertyChanged();
+                OnPropertyChanged();
             }
         }
         #endregion

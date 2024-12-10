@@ -1,6 +1,8 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.SerialDevice;
+using Daqifi.Desktop.DialogService;
+using Daqifi.Desktop.Logger;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -16,6 +18,7 @@ namespace Daqifi.Desktop
         private DAQifiConnectionStatus _connectionStatus = DAQifiConnectionStatus.Disconnected;
         private List<IStreamingDevice> _connectedDevices;
         private bool _isDisconnected = true;
+        private bool _notifyConnection = false;
         private readonly ManagementEventWatcher _deviceRemovedWatcher;
         #endregion
 
@@ -58,6 +61,18 @@ namespace Daqifi.Desktop
                 }
             }
         }
+        public bool NotifyConnection
+        {
+            get => _notifyConnection;
+            set
+            {
+                if (value != _notifyConnection)
+                {
+                    _notifyConnection = value;
+                    NotifyPropertyChanged("NotifyConnection");
+                }
+            }
+        }
         #endregion
 
         #region Singleton Constructor / Initalization
@@ -78,7 +93,6 @@ namespace Daqifi.Desktop
         public static ConnectionManager Instance => instance;
 
         #endregion
-
 
         public void Connect(IStreamingDevice device)
         {
@@ -103,6 +117,7 @@ namespace Daqifi.Desktop
                 ConnectedDevices.Add(device);
                 NotifyPropertyChanged("ConnectedDevices");
                 ConnectionStatus = DAQifiConnectionStatus.Connected;
+                //TODO do we do something if the attempt to connect fails?
             }
             catch (Exception ex)
             {
@@ -166,32 +181,55 @@ namespace Daqifi.Desktop
 
         private void CheckIfSerialDeviceWasRemoved()
         {
+            NotifyConnection = false;
             var bw = new BackgroundWorker();
             bw.DoWork += delegate
             {
                 var availableSerialPorts = SerialDeviceHelper.GetAvailableDaqifiPorts();
                 var devicesToRemove = new List<SerialStreamingDevice>();
+                var lDevicesToRemove = new List<IStreamingDevice>();
 
-                // Get a list of devices to remove
-                foreach (var device in ConnectedDevices)
+                if (availableSerialPorts.Length == 0)
                 {
-                    if (!(device is SerialStreamingDevice)) continue;
-                    var serialDevice = device as SerialStreamingDevice;
-
-                    // Check if the device has been removed
-                    if (!availableSerialPorts.Contains(serialDevice.Port.PortName))
+                    foreach (var device in ConnectedDevices)
                     {
-                        devicesToRemove.Add(serialDevice);
+                        lDevicesToRemove.Add(device);
                     }
                 }
-
-                // Remove the devices
+                else
+                {
+                    foreach (var device in ConnectedDevices)
+                    {
+                        if (device is SerialStreamingDevice serialDevice)
+                        {
+                            if (!availableSerialPorts.Contains(serialDevice.Port.PortName))
+                            {
+                                devicesToRemove.Add(serialDevice);
+                            }
+                        }
+                    }
+                }
                 foreach (var serialDevice in devicesToRemove)
                 {
-                    Application.Current.Dispatcher.Invoke(delegate
+                    System.Windows.Application.Current.Dispatcher.Invoke(delegate
                     {
                         Disconnect(serialDevice);
                     });
+                }
+                foreach (var serialDevice in lDevicesToRemove)
+                {
+                    if (!NotifyConnection)
+                    {
+                      System.Windows.Application.Current.Dispatcher.Invoke(delegate
+                        {
+                            foreach (var channel in serialDevice.DataChannels)
+                            {
+                                LoggingManager.Instance.Unsubscribe(channel);
+                            }
+                            Disconnect(serialDevice);
+                            NotifyConnection = true;
+                        });
+                    }
                 }
             };
 

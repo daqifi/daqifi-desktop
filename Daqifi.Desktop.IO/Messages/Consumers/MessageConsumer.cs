@@ -1,5 +1,5 @@
 ﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
-using System;
+using Google.Protobuf;
 using System.IO;
 
 namespace Daqifi.Desktop.IO.Messages.Consumers
@@ -13,7 +13,7 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
         #region Properties
 
         public bool IsWifiDevice { get; set; }
-    
+
         #endregion
 
         #region Constructors
@@ -24,59 +24,54 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
         #endregion
 
         #region AbstractMessageConsumer overrides
-        //public override void Run()
-        //{
-        //    while (Running)
-        //    {
-        //        try
-        //        {
-        //            var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
-        //            var protobufMessage = new ProtobufMessage(outMessage);
-        //            var daqMessage = new MessageEventArgs(protobufMessage);
-        //            NotifyMessageReceived(this, daqMessage);
-        //        }
-        //        catch (Exception ex)
-        //        {
-        //            if (_isDisposed)
-        //            {
-        //                return;
-        //            }
-        //            AppLogger.Error(ex, "Failed in Message Consumer Run");
-        //        }
-        //    }
-        //}
         public override void Run()
         {
             while (Running)
             {
                 try
                 {
-                    var outMessage = DaqifiOutMessage.ParseDelimitedFrom(DataStream);
+                    if (DataStream != null)
+                    {
+                        var outMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(DataStream);
+                        var protobufMessage = new ProtobufMessage(outMessage);
+                        var daqMessage = new MessageEventArgs(protobufMessage);
+                        NotifyMessageReceived(this, daqMessage);
+                    }
+                }
+                catch (InvalidProtocolBufferException ex)
+                {
 
-                    var protobufMessage = new ProtobufMessage(outMessage);
-                    var daqMessage = new MessageEventArgs(protobufMessage);
-                    NotifyMessageReceived(this, daqMessage);
+                    AppLogger.Error(ex, "Protocol buffer parsing error: {0}");
+                    if (_isDisposed)
+                    {
+                        return;
+                    }
                 }
-                catch (IOException ioEx)
+                catch (IOException ex) when (ex.Message.Contains("aborted because of either a thread exit or an application request"))
                 {
-                    AppLogger.Error(ioEx, "I/O Error in Message Consumer Run. DataStream may be closed.");
-                    return;
+
+                    AppLogger.Error(ex, "I/O operation aborted: {0}");
+                    if (_isDisposed)
+                    {
+                        return;
+                    }
                 }
-                catch (FormatException formatEx)
+                catch (IOException ex)
                 {
-                    AppLogger.Error(formatEx, "Failed to parse message due to invalid format.");
-                }
-                catch (ObjectDisposedException disposedEx)
-                {
-                    AppLogger.Error(disposedEx, "Message Consumer tried to access disposed object.");
-                    return; 
+
+                    AppLogger.Error(ex, "IO error while reading from the transport: {0}");
+                    if (_isDisposed)
+                    {
+                        return;
+                    }
                 }
                 catch (Exception ex)
                 {
-                    AppLogger.Error(ex, "An unexpected error occurred in Message Consumer Run.");
+
+                    AppLogger.Error(ex, "Failed in Message Consumer Run: {0}");
                     if (_isDisposed)
                     {
-                        return; 
+                        return;
                     }
                 }
             }
@@ -92,7 +87,7 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
             catch (Exception ex)
             {
                 AppLogger.Error(ex, "Failed in AbstractMessageConsumer Stop");
-            }   
+            }
         }
 
         public void ClearBuffer()

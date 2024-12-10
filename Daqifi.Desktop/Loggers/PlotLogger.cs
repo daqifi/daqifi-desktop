@@ -5,13 +5,11 @@ using Daqifi.Desktop.Device;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Windows.Input;
 using System.Windows.Media;
+using TickStyle = OxyPlot.Axes.TickStyle;
 
 namespace Daqifi.Desktop.Logger
 {

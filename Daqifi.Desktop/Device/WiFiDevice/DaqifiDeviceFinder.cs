@@ -90,7 +90,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Error Stopping Device Finder");
+               AppLogger.Error(ex, "Error Stopping Device Finder");
             }
         }
 
@@ -105,7 +105,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                 if (IsValidDiscoveryMessage(receivedText))
                 {
                     var stream = new MemoryStream(receivedBytes);
-                    var message = DaqifiOutMessage.ParseDelimitedFrom(stream);
+                    var message = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
                     var device = GetDeviceFromProtobufMessage(message);
                     ((DaqifiStreamingDevice) device).IpAddress = remoteIpEndPoint.Address.ToString();
                     NotifyDeviceFound(this, device);
@@ -130,7 +130,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                    !receivedText.Contains(PowerEvent);
         }
 
-        private IDevice GetDeviceFromProtobufMessage(IDaqifiOutMessage message)
+        private IDevice GetDeviceFromProtobufMessage(DaqifiOutMessage message)
         {
             var deviceName = message.HostName;
             var macAddress = ProtobufDecoder.GetMacAddressString(message);
@@ -152,7 +152,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
             var device = new DaqifiStreamingDevice(deviceInfo);
 
-            if (message.HasSsid)
+            if (!string.IsNullOrWhiteSpace(message.Ssid))
             {
                 device.NetworkConfiguration.Ssid = message.Ssid;
             }

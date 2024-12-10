@@ -1,17 +1,25 @@
 ﻿using Daqifi.Desktop.DialogService;
+using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.WindowViewModelMapping;
-using System;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using OxyPlot.Series;
 using System.IO;
 using System.Windows;
 
 namespace Daqifi.Desktop
 {
-    /// <summary>
-    /// Interaction logic for App.xaml
-    /// </summary>
     public partial class App
     {
         public SplashScreen SplashScreen { get; private set; }
+        public static IServiceProvider ServiceProvider { get; private set; }
+        private bool isWindowInit = false;
+
+        public bool IsWindowInit
+        {
+            get { return isWindowInit; }
+            set { isWindowInit = value; }
+        }
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -23,10 +31,16 @@ namespace Daqifi.Desktop
             Directory.CreateDirectory(daqifiDataDirectory);
             AppDomain.CurrentDomain.SetData("DataDirectory", daqifiDataDirectory);
 
-            // Configure service locator
+            var serviceCollection = new ServiceCollection();
+            serviceCollection.AddDbContextFactory<LoggingContext>(options =>
+                options.UseSqlite($"Data source={Path.Combine(daqifiDataDirectory, "DAQifiDatabase.db")}")
+            );
+
+            serviceCollection.AddSingleton<LoggingManager>();
             ServiceLocator.RegisterSingleton<IDialogService, DialogService.DialogService>();
             ServiceLocator.RegisterSingleton<IWindowViewModelMappings, WindowViewModelMappings>();
 
+            ServiceProvider = serviceCollection.BuildServiceProvider();
             // Create and show main window
             var view = new MainWindow();
             view.Show();

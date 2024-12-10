@@ -8,15 +8,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Web.Profile;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace Daqifi.Desktop.View
 {
@@ -52,7 +45,6 @@ namespace Daqifi.Desktop.View
 
         }
 
-        private readonly Dictionary<string, List<IChannel>> _deviceChannelMapping = new Dictionary<string, List<IChannel>>();
         private void SelectedDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             var datacontext = this.DataContext as AddProfileDialogViewModel;
@@ -74,7 +66,7 @@ namespace Daqifi.Desktop.View
                 {
                     if (!selectedDevices.Any(x => x.DeviceSerialNo == removedDevice.DeviceSerialNo))
                     {
-                        datacontext.RemoveAvailableChannels(removedDevice); // Assume this method exists to remove channels
+                        datacontext.RemoveAvailableChannels(removedDevice); 
                     }
                 }
             }

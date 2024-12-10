@@ -1,8 +1,5 @@
 ﻿using Daqifi.Desktop.DataModel.Channel;
-using System.Collections.Generic;
-using System.Linq;
 using System.Windows.Media;
-
 namespace Daqifi.Desktop.Channel
 {
     public class ChannelColorManager
@@ -15,8 +12,10 @@ namespace Daqifi.Desktop.Channel
 
         #region Properties
 
-        public List<Brush> Brushes { get; } = new List<Brush>()
+
+        public List<System.Windows.Media.Brush> Brushes { get; } = new()
         {
+            (SolidColorBrush) (new BrushConverter().ConvertFrom(MaterialColors.Red700)),
             (SolidColorBrush) new BrushConverter().ConvertFrom(MaterialColors.Red700),
             (SolidColorBrush) new BrushConverter().ConvertFrom(MaterialColors.Pink700),
             (SolidColorBrush) new BrushConverter().ConvertFrom(MaterialColors.Purple700),
@@ -60,18 +59,24 @@ namespace Daqifi.Desktop.Channel
         #endregion
 
         #region Singleton Constructor / Initalization
-        private static readonly ChannelColorManager _instance = new ChannelColorManager();
+        private static readonly ChannelColorManager _instance = new();
 
         private ChannelColorManager()
         {
-            foreach (var brush in Brushes) brush.Freeze();
+            foreach (var brush in Brushes)
+            {
+                if (brush.CanFreeze)
+                {
+                    brush.Freeze();
+                }
+            }
         }
 
         public static ChannelColorManager Instance => _instance;
 
         #endregion
 
-        public Brush NewColor()
+        public System.Windows.Media.Brush NewColor()
         {
             var newColor = Brushes.ElementAt(_colorCount++ % Brushes.Count);
             return newColor;
