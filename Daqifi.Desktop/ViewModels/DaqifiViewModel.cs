@@ -921,25 +921,14 @@ namespace Daqifi.Desktop.ViewModels
         {
             var channelToRemove = o as IChannel;
             var device = ConnectionManager.Instance.ConnectedDevices.FirstOrDefault(x => x.DeviceSerialNo == channelToRemove.DeviceSerialNo);
-            var channel = device.DataChannels.FirstOrDefault(x => x.DeviceSerialNo == channelToRemove.DeviceSerialNo&&x.Name==channelToRemove.Name);
+            var channel = device.DataChannels.FirstOrDefault(x => x.DeviceSerialNo == channelToRemove.DeviceSerialNo && x.Name == channelToRemove.Name);
             if (device != null && channel != null)
             {
                 LoggingManager.Instance.Unsubscribe(channel);
                 device.RemoveChannel(channel);
                 return;
             }
-            //foreach (var device in ConnectionManager.Instance.ConnectedDevices)
-            //{
-            //    foreach (var channel in device.DataChannels)
-            //    {
-            //        if (channel == channelToRemove)
-            //        {
-            //            LoggingManager.Instance.Unsubscribe(channel);
-            //            device.RemoveChannel(channel);
-            //            return;
-            //        }
-            //    }
-            //}
+            
         }
         private void DisconnectDevice(object o)
         {
@@ -1353,7 +1342,6 @@ namespace Daqifi.Desktop.ViewModels
             }
 
         }
-
         /// <summary>
         /// show save profile confirmation for new setting or save current settings
         /// </summary>
@@ -1372,7 +1360,6 @@ namespace Daqifi.Desktop.ViewModels
             }
 
         }
-
         /// <summary>
         ///Get avaliable devices 
         /// </summary>
@@ -1414,6 +1401,10 @@ namespace Daqifi.Desktop.ViewModels
             profiles.Remove(ProfileToRemove);
             return;
         }
+        /// <summary>
+        /// Open notification
+        /// </summary>
+        /// <param name="o"></param>
         private void OpenNotifications(object o)
         {
             IsNotificationsOpen = true;
@@ -1504,8 +1495,6 @@ namespace Daqifi.Desktop.ViewModels
             LoggingManager.Instance.callPropertyChange();
             IsProfileSettingsOpen = true;
         }
-
-
         /// <summary>
         /// Get Available Channels
         /// </summary>
@@ -1620,77 +1609,64 @@ namespace Daqifi.Desktop.ViewModels
                     .Where(cd => item.Devices.Any(id => id.DeviceSerialNo == cd.DeviceSerialNo))
                     .ToList();
 
-                if (!connectedDevices.Any())
+
+                if (connectedDevices == null || connectedDevices.Count == 0)
                 {
-
-                    if (connectedDevices == null || connectedDevices.Count == 0)
-                    {
-                        var errorDialogViewModel = new ErrorDialogViewModel("Profile cannot be active. No connected devices.");
-                        _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                        return;
-                    }
-
-                    // Check if logging is active
-                    if (LoggingManager.Instance.Active)
-                    {
-                        var errorDialogViewModel = new ErrorDialogViewModel("Profile cannot be active while logging.");
-                        _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                        return;
-                    }
-
-                    // Iterate through connected devices
-                    foreach (var connectedDevice in connectedDevices)
-                    {
-                        SelectedDevice = connectedDevice;
-                        UpdateProfileSelectedDevice = SelectedDevice;
-
-                        // Update device frequencies
-                        var matchingDevice = item.Devices.FirstOrDefault(device => device.DeviceSerialNo == connectedDevice.DeviceSerialNo);
-                        if (matchingDevice != null)
-                        {
-                            SelectedStreamingFrequency = matchingDevice.SamplingFrequency;
-                            connectedDevice.StreamingFrequency = matchingDevice.SamplingFrequency;
-                        }
-
-                        // Handle profile activation or deactivation
-                        foreach (var device in item.Devices)
-                        {
-                            foreach (var channel in device.Channels)
-                            {
-                                // Match both device and channel information to ensure distinct mapping
-                                var profileChannel = AvailableChannels
-                                    .FirstOrDefault(x => x.Name == channel.Name.Trim() &&
-                                                         x.TypeString == channel.Type.Trim() &&
-                                                         x.DeviceSerialNo == device.DeviceSerialNo && // Ensure the channel matches the correct device
-                                                         channel.IsChannelActive);
-
-                                if (profileChannel != null)
-                                {
-                                    if (item.IsProfileActive)
-                                    {
-                                        LoggingManager.Instance.Unsubscribe(profileChannel);
-                                    }
-                                    else
-                                    {
-                                        LoggingManager.Instance.Subscribe(profileChannel);
-                                    }
-                                }
-                                else
-                                {
-                                }
-                            }
-                        }
-
-                        // Toggle profile's active state
-                        item.IsProfileActive = !item.IsProfileActive;
-                    }
-                }
-                else
-                {
-                    var errorDialogViewModel = new ErrorDialogViewModel("No connected device for the selected profile.");
+                    var errorDialogViewModel = new ErrorDialogViewModel("Profile cannot be active. No connected devices.");
                     _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
                     return;
                 }
+
+                // Check if logging is active
+                if (LoggingManager.Instance.Active)
+                {
+                    var errorDialogViewModel = new ErrorDialogViewModel("Profile cannot be active while logging.");
+                    _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                    return;
+                }
+
+                // Iterate through connected devices
+                foreach (var connectedDevice in connectedDevices)
+                {
+                    SelectedDevice = connectedDevice;
+                    UpdateProfileSelectedDevice = SelectedDevice;
+
+                    // Update device frequencies
+                    var matchingDevice = item.Devices.FirstOrDefault(device => device.DeviceSerialNo == connectedDevice.DeviceSerialNo);
+                    if (matchingDevice != null)
+                    {
+                        SelectedStreamingFrequency = matchingDevice.SamplingFrequency;
+                        connectedDevice.StreamingFrequency = matchingDevice.SamplingFrequency;
+                    }
+
+                    // Handle profile activation or deactivation
+                    foreach (var device in item.Devices)
+                    {
+                        foreach (var channel in device.Channels)
+                        {
+                            // Match both device and channel information to ensure distinct mapping
+                            var profileChannel = AvailableChannels
+                                .FirstOrDefault(x => x.Name == channel.Name.Trim() &&
+                                                     x.TypeString == channel.Type.Trim() &&
+                                                     x.DeviceSerialNo == device.DeviceSerialNo &&
+                                                     channel.IsChannelActive);
+
+                            if (profileChannel != null)
+                            {
+                                if (item.IsProfileActive)
+                                {
+                                    LoggingManager.Instance.Unsubscribe(profileChannel);
+                                }
+                                else
+                                {
+                                    LoggingManager.Instance.Subscribe(profileChannel);
+                                }
+                            }
+                        }
+                    }
+                }
+                // Toggle profile's active state
+                item.IsProfileActive = !item.IsProfileActive;
             }
             catch (Exception ex)
             {

@@ -98,26 +98,11 @@ namespace Daqifi.Desktop
         {
             try
             {
-                var SerailDeviceProperty = device.GetType().GetProperty("DeviceSerialNo");
-                if (SerailDeviceProperty != null)
-                {
-                    var deviceSerialNo = SerailDeviceProperty.GetValue(device)?.ToString();
-                    if (!string.IsNullOrWhiteSpace(deviceSerialNo))
-                    {
-                        if (ConnectedDevices.Any(d => d == device || d.DeviceSerialNo == deviceSerialNo))
-                        {
-                            ConnectionStatus = DAQifiConnectionStatus.AlreadyConnected;
-                            return;
-                        }
-                    }
-                }
-
                 ConnectionStatus = DAQifiConnectionStatus.Connecting;
-                if (!device.Connect()) return;
+                if (!device.Connect()) { return; }
                 ConnectedDevices.Add(device);
                 NotifyPropertyChanged("ConnectedDevices");
                 ConnectionStatus = DAQifiConnectionStatus.Connected;
-                //TODO do we do something if the attempt to connect fails?
             }
             catch (Exception ex)
             {
@@ -220,15 +205,15 @@ namespace Daqifi.Desktop
                 {
                     if (!NotifyConnection)
                     {
-                      System.Windows.Application.Current.Dispatcher.Invoke(delegate
-                        {
-                            foreach (var channel in serialDevice.DataChannels)
-                            {
-                                LoggingManager.Instance.Unsubscribe(channel);
-                            }
-                            Disconnect(serialDevice);
-                            NotifyConnection = true;
-                        });
+                        System.Windows.Application.Current.Dispatcher.Invoke(delegate
+                          {
+                              foreach (var channel in serialDevice.DataChannels)
+                              {
+                                  LoggingManager.Instance.Unsubscribe(channel);
+                              }
+                              Disconnect(serialDevice);
+                              NotifyConnection = true;
+                          });
                     }
                 }
             };

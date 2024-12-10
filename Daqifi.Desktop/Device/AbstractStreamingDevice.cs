@@ -135,7 +135,7 @@ namespace Daqifi.Desktop.Device
                 return;
             }
 
-            if (message.MsgTimeStamp ==0)
+            if (message.MsgTimeStamp == 0)
             {
                 AppLogger.Warning("Protobuf message did not contain a timestamp. Will ignore message");
                 return;
@@ -491,7 +491,7 @@ namespace Daqifi.Desktop.Device
                 NetworkConfiguration.Ssid = message.Ssid;
             }
 
-            if (message.WifiSecurityMode != 0)
+            if (message.WifiSecurityMode > 0)
             {
                 NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
             }
@@ -507,6 +507,10 @@ namespace Daqifi.Desktop.Device
             if (message.DeviceSn != 0)
             {
                 DeviceSerialNo = message.DeviceSn.ToString();
+            }
+            if (message.IpAddr != null && message.IpAddr.Length > 0)
+            {
+                IpAddress = string.Join(",", message.IpAddr);
             }
             if (message.MacAddr.Length > 0)
             {
