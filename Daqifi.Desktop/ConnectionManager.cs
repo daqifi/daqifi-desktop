@@ -49,9 +49,9 @@ namespace Daqifi.Desktop
         public bool IsDisconnected
         {
             get => _isDisconnected;
-            set 
-            { 
-                if(value != _isDisconnected)
+            set
+            {
+                if (value != _isDisconnected)
                 {
                     _isDisconnected = value;
                     NotifyPropertyChanged("IsDisconnected");
@@ -79,16 +79,30 @@ namespace Daqifi.Desktop
 
         #endregion
 
+
         public void Connect(IStreamingDevice device)
         {
             try
             {
+                var SerailDeviceProperty = device.GetType().GetProperty("DeviceSerialNo");
+                if (SerailDeviceProperty != null)
+                {
+                    var deviceSerialNo = SerailDeviceProperty.GetValue(device)?.ToString();
+                    if (!string.IsNullOrWhiteSpace(deviceSerialNo))
+                    {
+                        if (ConnectedDevices.Any(d => d == device || d.DeviceSerialNo == deviceSerialNo))
+                        {
+                            ConnectionStatus = DAQifiConnectionStatus.AlreadyConnected;
+                            return;
+                        }
+                    }
+                }
+
                 ConnectionStatus = DAQifiConnectionStatus.Connecting;
                 if (!device.Connect()) return;
                 ConnectedDevices.Add(device);
                 NotifyPropertyChanged("ConnectedDevices");
                 ConnectionStatus = DAQifiConnectionStatus.Connected;
-                //TODO do we do something if the attempt to connect fails?
             }
             catch (Exception ex)
             {
@@ -127,7 +141,7 @@ namespace Daqifi.Desktop
 
         public void UpdateStatusString()
         {
-            switch(ConnectionStatus)
+            switch (ConnectionStatus)
             {
                 case DAQifiConnectionStatus.Disconnected:
                     ConnectionStatusString = "Disconnected";
@@ -140,6 +154,9 @@ namespace Daqifi.Desktop
                     break;
                 case DAQifiConnectionStatus.Error:
                     ConnectionStatusString = "Error";
+                    break;
+                case DAQifiConnectionStatus.AlreadyConnected:
+                    ConnectionStatusString = "AlreadyConnected";
                     break;
                 default:
                     ConnectionStatusString = "Error";
@@ -187,6 +204,7 @@ namespace Daqifi.Desktop
         Disconnected,
         Connecting,
         Connected,
-        Error
+        Error,
+        AlreadyConnected
     }
 }

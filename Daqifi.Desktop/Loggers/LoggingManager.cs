@@ -196,16 +196,22 @@ namespace Daqifi.Desktop.Logger
                             new XElement("DevicePartNumber", device.DevicePartName),
                             new XElement("MACAddress", device.MACAddress),
                             new XElement("DeviceSerialNo", device.DeviceSerialNo),
-                            new XElement("SamplingFrequency", device.SamplingFrequency),
-                            new XElement("Channels",
-                                from channel in device.Channels
-                                select new XElement("Channel",
-                                    new XElement("Name", channel.Name),
-                                    new XElement("Type", channel.Type),
-                                    new XElement("IsActive", channel.IsChannelActive)
-                                )
-                            )
+                            new XElement("SamplingFrequency", device.SamplingFrequency)
                         );
+
+                        var activeChannels = device.Channels
+                                                   .Where(channel => channel.IsChannelActive && channel.SerialNo == device.DeviceSerialNo)
+                                                   .Select(channel => new XElement("Channel",
+                                                       new XElement("Name", channel.Name),
+                                                       new XElement("Type", channel.Type),
+                                                       new XElement("IsActive", channel.IsChannelActive),
+                                                       new XElement("SerialNo", device.DeviceSerialNo)
+                                                   )).ToList();
+
+                        if (activeChannels.Any())
+                        {
+                            deviceElement.Add(new XElement("Channels", activeChannels));
+                        }
 
                         devicesElement?.Add(deviceElement);
                     }
@@ -257,10 +263,12 @@ namespace Daqifi.Desktop.Logger
                                     new XElement("DeviceSerialNo", device.DeviceSerialNo),
                                     new XElement("Channels",
                                         from channel in device.Channels
+                                        where channel.IsChannelActive && channel.SerialNo == device.DeviceSerialNo
                                         select new XElement("Channel",
                                             new XElement("Name", channel.Name),
                                             new XElement("Type", channel.Type),
-                                            new XElement("IsActive", channel.IsChannelActive)
+                                            new XElement("IsActive", channel.IsChannelActive),
+                                          new XElement("SerialNo", device.DeviceSerialNo)
 
                                         )
                                     ),
@@ -315,7 +323,8 @@ namespace Daqifi.Desktop.Logger
                             {
                                 Name = (string)c.Element("Name"),
                                 Type = (string)c.Element("Type"),
-                                IsChannelActive = (bool)c.Element("IsActive")
+                                IsChannelActive = (bool)c.Element("IsActive"),
+                                SerialNo = (string)c.Element("DeviceSerialNo")
                             }).ToList()
                         }).ToList())
                     }).ToList();
@@ -355,7 +364,7 @@ namespace Daqifi.Desktop.Logger
         public void Subscribe(IChannel channel)
         {
 
-            if (SubscribedChannels.Any(x=>x.DeviceSerialNo==channel.DeviceSerialNo&&x.Name==channel.Name)) return;
+            if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name)) return;
             channel.IsActive = true;
             channel.OnChannelUpdated += HandleChannelUpdate;
             SubscribedChannels.Add(channel);

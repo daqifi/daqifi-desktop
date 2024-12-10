@@ -21,7 +21,7 @@ namespace Daqifi.Desktop.Device
         private const string Nq1PartNumber = "Nq1";
         private const double TickPeriod = 20E-9f;
         private static DateTime? _previousTimestamp;
-        private string _adcRangeText;
+        private string _adcRangeText;      
         protected readonly double AdcResolution = 131072;
         protected double AdcRange = 1;
         private int _streamingFrequency = 1;
@@ -29,7 +29,7 @@ namespace Daqifi.Desktop.Device
 
         private ObjectPool<DataSample> _samplePool = ObjectPool.Create<DataSample>();
         private ObjectPool<DeviceMessage> _deviceMessagePool = ObjectPool.Create<DeviceMessage>();
-        
+
 
         #region Properties
         public AppLogger AppLogger = AppLogger.Instance;
@@ -43,6 +43,7 @@ namespace Daqifi.Desktop.Device
 
         public string DeviceSerialNo { get; set; }=string.Empty;
 
+        public string IpAddress { get; set; } = string.Empty;
         public int StreamingFrequency
         {
             get => _streamingFrequency;
@@ -66,13 +67,13 @@ namespace Daqifi.Desktop.Device
         public string AdcRangeText
         {
             get => _adcRangeText;
-            set 
+            set
             {
                 if (value == _adcRangeText)
                 {
                     return;
                 }
-                
+
                 switch (value)
                 {
                     case _5Volt:
@@ -131,7 +132,7 @@ namespace Daqifi.Desktop.Device
             {
                 return;
             }
-            
+
             if (!(e.Message.Data is DaqifiOutMessage message))
             {
                 AppLogger.Warning("Issue decoding protobuf message");
@@ -150,7 +151,7 @@ namespace Daqifi.Desktop.Device
                 // The board only sends relative timestamps based on a timestamp clock frequency
                 _previousTimestamp = DateTime.Now;
                 _previousDeviceTimestamp = message.MsgTimeStamp;
-                
+
             }
 
             // Get timestamp difference (i.e. number of clock cycles between messages)
@@ -177,9 +178,9 @@ namespace Daqifi.Desktop.Device
                 numberOfClockCyclesBetweenMessages = _previousDeviceTimestamp.Value - message.MsgTimeStamp;
                 secondsBetweenMessages = numberOfClockCyclesBetweenMessages * TickPeriod * -1;
             }
-            
+
             var messageTimestamp = _previousTimestamp.Value.AddSeconds(secondsBetweenMessages);
-            
+
             // Update digital channel information
             var digitalCount = 0;
             var analogCount = 0;
@@ -220,7 +221,7 @@ namespace Daqifi.Desktop.Device
                     {
                         bit = (digitalData2 & (1 << digitalCount % 8)) != 0;
                     }
-                    
+
                     channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
                     digitalCount++;
                 }
@@ -253,7 +254,7 @@ namespace Daqifi.Desktop.Device
                     TargetFrequency = (int)message.TimestampFreq,
                     Rollover = rollover,
                 };
-                
+
 
                 Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
             }
@@ -315,7 +316,7 @@ namespace Daqifi.Desktop.Device
                                 $"Trying to add a channel that does not belong to the device: {Name}");
                 return;
             }
-            
+
             switch (channel.Type)
             {
                 case ChannelType.Analog:
@@ -509,9 +510,13 @@ namespace Daqifi.Desktop.Device
             {
                 DeviceSerialNo=message.DeviceSn.ToString();
             }
-            if(message.HasMacAddr)
+            if(message.IpAddr != null&&message.IpAddr.Length==4)
             {
-                MacAddress= ProtobufDecoder.GetMacAddressString(message);
+                IpAddress = string.Join(".", message.IpAddr);
+            }
+            if (message.HasMacAddr)
+            {
+                MacAddress = ProtobufDecoder.GetMacAddressString(message);
             }
             if (message.AnalogInPortRangeCount > 0 && (int)message.GetAnalogInPortRange(0) == 5)
             {

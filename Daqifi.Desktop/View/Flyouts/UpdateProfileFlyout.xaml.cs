@@ -50,7 +50,7 @@ namespace Daqifi.Desktop.View.Flyouts
                 SelectedDevice.SelectedItems.Clear();
                 foreach (var channel in LoggingManager.Instance.SelectedProfileChannels)
                 {
-                    if (channel.IsChannelActive == true) 
+                    if (channel.IsChannelActive == true)
                     {
                         UpdatedProfileChannelList.SelectedItems.Add(channel);
                     }
@@ -78,20 +78,21 @@ namespace Daqifi.Desktop.View.Flyouts
                         {
                             foreach (var Channel in device.Channels)
                             {
-                                if (Channel.Name == channel.Name)
+                                if (Channel.Name == channel.Name && Channel.SerialNo == channel.SerialNo)
                                 {
                                     if (item != null && item.IsSelected)
                                     {
                                         Channel.IsChannelActive = false;
+                                        item.IsSelected = true;
                                     }
                                     else
                                     {
                                         Channel.IsChannelActive = true;
+                                        item.IsSelected = false;
                                     }
                                 }
                             }
                         }
-
                     }
                     if (item.DataContext is ProfileDevice selecteddevice && selecteddevice != null)
                     {
@@ -120,14 +121,29 @@ namespace Daqifi.Desktop.View.Flyouts
                           .FirstOrDefault(x => x.DeviceSerialNo == connecteddevice.DeviceSerialNo);
                         if (data == null)
                         {
+                            var channels = new List<ProfileChannel>();
+                            foreach (var Channel in connecteddevice.DataChannels)
+                            {
+                                var lchannel = new ProfileChannel()
+                                {
+                                    Name = Channel.Name,
+                                    Type = Channel.TypeString,
+                                    SerialNo = Channel.DeviceSerialNo,
+                                    IsChannelActive = false,
+                                };
+                                channels.Add(lchannel);
+                            }
+
                             var adddevicedata = new ProfileDevice
                             {
                                 DeviceName = connecteddevice.Name,
                                 DevicePartName = connecteddevice.DevicePartNumber,
                                 DeviceSerialNo = connecteddevice.DeviceSerialNo,
                                 MACAddress = connecteddevice.MacAddress,
-                                Channels = LoggingManager.Instance.SelectedProfile.Devices[0].Channels,
-                                SamplingFrequency = LoggingManager.Instance.SelectedProfile.Devices[0].SamplingFrequency
+                                Channels = channels,
+
+
+                                SamplingFrequency = connecteddevice.StreamingFrequency
                             };
                             LoggingManager.Instance.SelectedProfile.Devices.Add(adddevicedata);
                             AvilableDevices.SelectedItem = -1;
