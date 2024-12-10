@@ -1,4 +1,13 @@
-﻿using Daqifi.Desktop.Common.Loggers;
+﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Device;
+using Daqifi.Desktop.ViewModels;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -25,7 +34,7 @@ namespace Daqifi.Desktop.View
         }
         private void UpdateAddButtonState()
         {
-            if (SelectedDevice.ItemsSource!=null&& ChannelList.ItemsSource != null)
+            if (SelectedDevice.ItemsSource != null && ChannelList.ItemsSource != null)
             {
                 bool isDeviceSelected = SelectedDevice.SelectedItems.Count > 0;
                 bool isChannelSelected = ChannelList.SelectedItems.Count > 0;
@@ -33,11 +42,34 @@ namespace Daqifi.Desktop.View
                 bool isFrequenctSelected = FrequencySlider.Value > 0;
                 btnAdd.IsEnabled = isDeviceSelected && isChannelSelected && isFrequenctSelected && isProfileName;
             }
-           
+
         }
 
         private void SelectedDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            var datacontext = this.DataContext as AddProfileDialogViewModel;
+
+            if (datacontext != null)
+            {
+                var selectedDevices = ((IEnumerable)SelectedDevice.SelectedItems).Cast<IStreamingDevice>().ToList();
+                // Add channels for newly selected devices
+                foreach (IStreamingDevice addedDevice in e.AddedItems)
+                {
+                    if (selectedDevices.Any(x => x.DeviceSerialNo == addedDevice.DeviceSerialNo))
+                    {
+                        datacontext.GetAvailableChannels(addedDevice);
+                    }
+                }
+
+                // Remove channels for deselected devices
+                foreach (IStreamingDevice removedDevice in e.RemovedItems)
+                {
+                    if (!selectedDevices.Any(x => x.DeviceSerialNo == removedDevice.DeviceSerialNo))
+                    {
+                        datacontext.RemoveAvailableChannels(removedDevice); 
+                    }
+                }
+            }
             UpdateAddButtonState();
         }
 

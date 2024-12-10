@@ -12,7 +12,7 @@
     <controls:MetroWindow.Resources>
         <locals:MyMultiValueConverter x:Key="MyMultiValueConverter"/>
     </controls:MetroWindow.Resources>
-    
+
     <Grid>
         <Border>
             <DockPanel Name="AddProfile" HorizontalAlignment="Stretch"  VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
@@ -46,7 +46,7 @@
                         </ListView.ItemTemplate>
                     </ListView>
                 </DockPanel>
-                
+
                 <!--frequency slider-->
                 <DockPanel DockPanel.Dock="Top" Margin="5" LastChildFill="True">
                     <Label Content="Frequency:" DockPanel.Dock="Left"/>
@@ -66,6 +66,9 @@
                                         <Label Content="{Binding Name}"/>
                                         <Label Content="Type:"/>
                                         <Label Content="{Binding TypeString}"/>
+                                        <Label Content="("/>
+                                        <Label Content="{Binding DeviceSerialNo}"/>
+                                        <Label Content=")"/>
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>

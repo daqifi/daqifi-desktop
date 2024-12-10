@@ -39,6 +39,7 @@ namespace Daqifi.Desktop.Device
 
         public string DeviceSerialNo { get; set; } = string.Empty;
 
+        public string IpAddress { get; set; } = string.Empty;
         public int StreamingFrequency
         {
             get => _streamingFrequency;
@@ -462,8 +463,9 @@ namespace Daqifi.Desktop.Device
                 // TODO handle mismatch.  Probably not add any channels and warn the user something went wrong.
             }
 
-            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) => {
-                if (list.Count>idx)
+            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) =>
+            {
+                if (list.Count > idx)
                 {
                     return list[idx];
                 }
@@ -489,21 +491,12 @@ namespace Daqifi.Desktop.Device
                 NetworkConfiguration.Ssid = message.Ssid;
             }
 
-            if (message.WifiSecurityMode >0)
-            if (message.WifiSecurityMode != 0)
+            if (message.WifiSecurityMode > 0)
             {
                 NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
             }
 
             if (message.WifiInfMode > 0)
-            {
-                NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
-            }
-            if (message.DevicePn != null)
-            {
-                DevicePartNumber = message.DevicePn;
-            }
-            if (message.WifiInfMode != 0)
             {
                 NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
             }
@@ -513,14 +506,17 @@ namespace Daqifi.Desktop.Device
             }
             if (message.DeviceSn != 0)
             {
-                DeviceSerialNo=message.DeviceSn.ToString();
+                DeviceSerialNo = message.DeviceSn.ToString();
             }
-            if(message.MacAddr != null)
+            if (message.IpAddr != null && message.IpAddr.Length > 0)
+            {
+                IpAddress = string.Join(",", message.IpAddr);
+            }
             if (message.MacAddr.Length > 0)
             {
-                MacAddress= ProtobufDecoder.GetMacAddressString(message);
+                MacAddress = ProtobufDecoder.GetMacAddressString(message);
             }
-            if (message.AnalogInPortRange != null && (int)message.AnalogInPortRange[0] == 5)
+
             if (message.AnalogInPortRange.Count > 0 && (int)message.AnalogInPortRange[0] == 5)
             {
                 _adcRangeText = _5Volt;
@@ -530,7 +526,7 @@ namespace Daqifi.Desktop.Device
         private void PopulateDigitalChannels(DaqifiOutMessage message)
         {
 
-            if (message.DigitalPortNum == 0) {return;}
+            if (message.DigitalPortNum == 0) { return; }
 
             for (var i = 0; i < message.DigitalPortNum; i++)
             {
@@ -541,7 +537,7 @@ namespace Daqifi.Desktop.Device
         private void PopulateAnalogOutChannels(DaqifiOutMessage message)
         {
             if (message.AnalogOutPortNum == 0) { return; }
-           
+
             // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
         }
         #endregion

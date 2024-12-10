@@ -152,7 +152,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
             var device = new DaqifiStreamingDevice(deviceInfo);
 
-            if (message.Ssid != null)
+            if (!string.IsNullOrWhiteSpace(message.Ssid))
             {
                 device.NetworkConfiguration.Ssid = message.Ssid;
             }

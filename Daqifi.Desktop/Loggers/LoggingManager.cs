@@ -203,16 +203,22 @@ namespace Daqifi.Desktop.Logger
                             new XElement("DevicePartNumber", device.DevicePartName),
                             new XElement("MACAddress", device.MACAddress),
                             new XElement("DeviceSerialNo", device.DeviceSerialNo),
-                            new XElement("SamplingFrequency", device.SamplingFrequency),
-                            new XElement("Channels",
-                                from channel in device.Channels
-                                select new XElement("Channel",
-                                    new XElement("Name", channel.Name),
-                                    new XElement("Type", channel.Type),
-                                    new XElement("IsActive", channel.IsChannelActive)
-                                )
-                            )
+                            new XElement("SamplingFrequency", device.SamplingFrequency)
                         );
+
+                        var activeChannels = device.Channels
+                                                   .Where(channel => channel.IsChannelActive && channel.SerialNo == device.DeviceSerialNo)
+                                                   .Select(channel => new XElement("Channel",
+                                                       new XElement("Name", channel.Name),
+                                                       new XElement("Type", channel.Type),
+                                                       new XElement("IsActive", channel.IsChannelActive),
+                                                       new XElement("SerialNo", device.DeviceSerialNo)
+                                                   )).ToList();
+
+                        if (activeChannels.Any())
+                        {
+                            deviceElement.Add(new XElement("Channels", activeChannels));
+                        }
 
                         devicesElement?.Add(deviceElement);
                     }
@@ -264,10 +270,12 @@ namespace Daqifi.Desktop.Logger
                                     new XElement("DeviceSerialNo", device.DeviceSerialNo),
                                     new XElement("Channels",
                                         from channel in device.Channels
+                                        where channel.IsChannelActive && channel.SerialNo == device.DeviceSerialNo
                                         select new XElement("Channel",
                                             new XElement("Name", channel.Name),
                                             new XElement("Type", channel.Type),
-                                            new XElement("IsActive", channel.IsChannelActive)
+                                            new XElement("IsActive", channel.IsChannelActive),
+                                          new XElement("SerialNo", device.DeviceSerialNo)
 
                                         )
                                     ),
@@ -322,7 +330,8 @@ namespace Daqifi.Desktop.Logger
                             {
                                 Name = (string)c.Element("Name"),
                                 Type = (string)c.Element("Type"),
-                                IsChannelActive = (bool)c.Element("IsActive")
+                                IsChannelActive = (bool)c.Element("IsActive"),
+                                SerialNo = (string)c.Element("DeviceSerialNo")
                             }).ToList()
                         }).ToList())
                     }).ToList();
@@ -341,16 +350,18 @@ namespace Daqifi.Desktop.Logger
         {
             try
             {
-
-                if (!SubscribedProfiles.Where(x => x.ProfileId == profile.ProfileId).Any()) { return; }
-                AddAndRemoveProfileXml(profile, false);
-                SubscribedProfiles.Remove(profile);
+                var index = SubscribedProfiles
+                .FindIndex(x => x.ProfileId == profile.ProfileId);
+                if (index == -1) return;
+                var subscribedProfile = SubscribedProfiles[index];
+                AddAndRemoveProfileXml(subscribedProfile, false);
+                ClearChannelList();
+                // SubscribedProfiles.RemoveAt(index);
                 NotifyPropertyChanged("SubscribedProfiles");
             }
             catch (Exception ex)
             {
-
-                AppLogger.Error(ex, $"Error Unsubscribe Profile");
+                 AppLogger.Error(ex, $"Error Unsubscribe Profile");
             }
 
         }
@@ -360,8 +371,7 @@ namespace Daqifi.Desktop.Logger
         public void Subscribe(IChannel channel)
         {
 
-            if (SubscribedChannels.Contains(channel)) return;
-
+            if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name)) return;
             channel.IsActive = true;
             channel.OnChannelUpdated += HandleChannelUpdate;
             SubscribedChannels.Add(channel);
@@ -371,11 +381,13 @@ namespace Daqifi.Desktop.Logger
         public void Unsubscribe(IChannel channel)
         {
             // Don't unsubscribe a channel that isn't subscribed
-            if (!SubscribedChannels.Contains(channel)) return;
-
-            channel.IsActive = false;
-            channel.OnChannelUpdated -= HandleChannelUpdate;
-            SubscribedChannels.Remove(channel);
+            var index = SubscribedChannels
+                .FindIndex(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
+            if (index == -1) return;
+            var subscribedChannel = SubscribedChannels[index];
+            subscribedChannel.IsActive = false;
+            subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
+            SubscribedChannels.RemoveAt(index);
             NotifyPropertyChanged("SubscribedChannels");
         }
         #endregion
@@ -422,11 +434,24 @@ namespace Daqifi.Desktop.Logger
             Loggers.Add(logger);
         }
 
-        public async Task CheckApplicationVersion(VersionNotification versionNotification)
+        public  async Task CheckApplicationVersion(VersionNotification versionNotification)
         {
             await versionNotification.CheckForUpdatesAsync();
             NotifyPropertyChanged("NotificationCount");
             NotifyPropertyChanged("VersionNumber");
+        }
+
+        public void ClearChannelList()
+        {
+
+            foreach (var channel in SubscribedChannels)
+            {
+                channel.IsActive = false;
+                channel.OnChannelUpdated -= HandleChannelUpdate;
+            }
+            SubscribedChannels.Clear();
+            NotifyPropertyChanged("SubscribedChannels");
+
         }
     }
 }
