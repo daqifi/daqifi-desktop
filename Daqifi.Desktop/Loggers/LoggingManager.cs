@@ -352,11 +352,13 @@ namespace Daqifi.Desktop.Logger
             {
                 var index = SubscribedProfiles
                 .FindIndex(x => x.ProfileId == profile.ProfileId);
-                if (index == -1) return;
+                if (index == -1)
+                {
+                    return;
+                }
                 var subscribedProfile = SubscribedProfiles[index];
                 AddAndRemoveProfileXml(subscribedProfile, false);
                 ClearChannelList();
-                // SubscribedProfiles.RemoveAt(index);
                 NotifyPropertyChanged("SubscribedProfiles");
             }
             catch (Exception ex)

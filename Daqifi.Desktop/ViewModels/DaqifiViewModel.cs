@@ -1466,7 +1466,7 @@ namespace Daqifi.Desktop.ViewModels
 
                             if (profileChannel == null)
                             {
-                                profileChannel = new ProfileChannel()
+                                profileChannel = new ProfileChannel
                                 {
                                     Name = channels.Name,
                                     SerialNo = selectedDevice.DeviceSerialNo,
@@ -1483,15 +1483,13 @@ namespace Daqifi.Desktop.ViewModels
                     }
                 }
                 var deviceSelected = LoggingManager.Instance.SelectedProfileDevices.FirstOrDefault(x => x.DeviceSerialNo == selectedDevice.DeviceSerialNo);
-                if (deviceSelected.Channels != null && deviceSelected.Channels.Count > 0)
+                if (deviceSelected?.Channels is { Count: > 0 })
                 {
                     deviceSelected.Channels.Clear();
                     deviceSelected.Channels = LoggingManager.Instance.SelectedProfileChannels.Where(x => x.SerialNo == selectedDevice.DeviceSerialNo).ToList();
                 }
 
             }
-            //SelectedProfile.Devices.Clear();
-            //SelectedProfile.Devices = LoggingManager.Instance.SelectedProfileDevices;
             LoggingManager.Instance.callPropertyChange();
             IsProfileSettingsOpen = true;
         }

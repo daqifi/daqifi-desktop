@@ -111,7 +111,7 @@ namespace Daqifi.Desktop.View.Flyouts
                             var channels = new List<ProfileChannel>();
                             foreach (var Channel in connecteddevice.DataChannels)
                             {
-                                var lchannel = new ProfileChannel()
+                                var lchannel = new ProfileChannel
                                 {
                                     Name = Channel.Name,
                                     Type = Channel.TypeString,
