@@ -16,7 +16,7 @@ namespace Daqifi.Desktop.Models
             get => _ipAddress;
             set 
             {
-                if (value == _ipAddress) return;
+                if (value == _ipAddress) { return; }
                 _ipAddress = value;
                 NotifyPropertyChanged("IpAddress");
             }
@@ -39,7 +39,7 @@ namespace Daqifi.Desktop.Models
             get => _portNumber;
             set 
             {
-                if (value == _portNumber) return;
+                if (value == _portNumber) { return; }
                 _portNumber = value;
                 PortNumberString = _portNumber.ToString();
                 NotifyPropertyChanged("PortNumber");

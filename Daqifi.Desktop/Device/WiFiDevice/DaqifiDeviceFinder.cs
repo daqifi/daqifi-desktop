@@ -189,7 +189,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             {
                 foreach (var unicastIpAddressInformation in networkInterface.GetIPProperties().UnicastAddresses)
                 {
-                    if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork) continue;
+                    if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork) { continue; }
                     if (address.Equals(unicastIpAddressInformation.Address))
                     {
                         subnet = unicastIpAddressInformation.IPv4Mask;

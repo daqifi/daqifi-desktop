@@ -53,16 +53,16 @@ namespace Daqifi.Desktop.Logger
                     {
                         var ids = (from s in context.Sessions.AsNoTracking() select s.ID).ToList();
                         var newId = 0;
-                        if (ids.Count > 0) newId = ids.Max() + 1;
+                        if (ids.Count > 0) { newId = ids.Max() + 1; }
                         var name = $"Session_{newId}";
-                        Session = new LoggingSession(newId,name);
+                        Session = new LoggingSession(newId, name);
                         context.Sessions.Add(Session);
                         context.SaveChanges();
                     }
                 }
                 else
                 {
-                    if (LoggingSessions == null) LoggingSessions = new List<LoggingSession>();
+                    if (LoggingSessions == null) { LoggingSessions = new List<LoggingSession>(); }
                     LoggingSessions.Add(Session);
                     NotifyPropertyChanged("LoggingSessions");
                 }
@@ -363,7 +363,7 @@ namespace Daqifi.Desktop.Logger
             }
             catch (Exception ex)
             {
-                 AppLogger.Error(ex, $"Error Unsubscribe Profile");
+                AppLogger.Error(ex, $"Error Unsubscribe Profile");
             }
 
         }
@@ -373,7 +373,7 @@ namespace Daqifi.Desktop.Logger
         public void Subscribe(IChannel channel)
         {
 
-            if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name)) return;
+            if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name)) { return; }
             channel.IsActive = true;
             channel.OnChannelUpdated += HandleChannelUpdate;
             SubscribedChannels.Add(channel);
@@ -385,7 +385,7 @@ namespace Daqifi.Desktop.Logger
             // Don't unsubscribe a channel that isn't subscribed
             var index = SubscribedChannels
                 .FindIndex(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
-            if (index == -1) return;
+            if (index == -1) { return; }
             var subscribedChannel = SubscribedChannels[index];
             subscribedChannel.IsActive = false;
             subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
@@ -436,7 +436,7 @@ namespace Daqifi.Desktop.Logger
             Loggers.Add(logger);
         }
 
-        public  async Task CheckApplicationVersion(VersionNotification versionNotification)
+        public async Task CheckApplicationVersion(VersionNotification versionNotification)
         {
             await versionNotification.CheckForUpdatesAsync();
             NotifyPropertyChanged("NotificationCount");

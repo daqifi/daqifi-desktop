@@ -45,7 +45,7 @@ namespace Daqifi.Desktop.Device
             get => _streamingFrequency;
             set
             {
-                if (value < 1) return;
+                if (value < 1) { return; }
                 _streamingFrequency = value;
                 NotifyPropertyChanged("StreamingFrequency");
             }
@@ -440,7 +440,7 @@ namespace Daqifi.Desktop.Device
 
         private void PopulateAnalogInChannels(DaqifiOutMessage message)
         {
-            if (message.AnalogInPortNum == 0) return;
+            if (message.AnalogInPortNum == 0) { return; }
 
             if (!string.IsNullOrWhiteSpace(DevicePartNumber))
             {
@@ -556,7 +556,7 @@ namespace Daqifi.Desktop.Device
 
         public void UpdateNetworkConfiguration()
         {
-            if (IsStreaming) StopStreaming();
+            if (IsStreaming) { StopStreaming(); }
             MessageProducer.Send(ScpiMessagePoducer.SetWifiMode(NetworkConfiguration.Mode));
             MessageProducer.Send(ScpiMessagePoducer.SetSsid(NetworkConfiguration.Ssid));
             MessageProducer.Send(ScpiMessagePoducer.SetSecurity(NetworkConfiguration.SecurityType));

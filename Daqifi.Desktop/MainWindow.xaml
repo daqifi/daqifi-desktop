@@ -310,7 +310,7 @@
                                                 <Border>
                                                     <DockPanel >
                                                         <Label Content="{Binding Name}" DockPanel.Dock="Left" FontWeight="Bold"/>
-
+                                                       
                                                         <!-- Delete Logging Session -->
                                                         <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteLoggingSessionCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Delete" Padding="5">
                                                             <Button.Content>

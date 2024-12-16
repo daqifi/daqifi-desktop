@@ -111,7 +111,7 @@ namespace Daqifi.Desktop.ViewModels
 
             var result = dialog.ShowDialog();
 
-            if (result == false) return;
+            if (result == false) { return; }
 
             ExportFilePath = dialog.FileName;
         }
@@ -129,7 +129,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void ExportLoggingSessions(object o)
         {
-            if (string.IsNullOrWhiteSpace(ExportFilePath)) return;
+            if (string.IsNullOrWhiteSpace(ExportFilePath)) { return; }
 
             var bw = new BackgroundWorker();
             bw.DoWork += delegate

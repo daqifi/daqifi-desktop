@@ -27,7 +27,7 @@ namespace Daqifi.Desktop.Channel
 
         #region Properties
         public int ID { get; set; }
-        
+
         public string Name
         {
             get => _name;
@@ -47,7 +47,7 @@ namespace Daqifi.Desktop.Channel
             get => _outputValue;
             set
             {
-                if(Direction != ChannelDirection.Output) return;
+                if (Direction != ChannelDirection.Output) { return; }
                 _outputValue = value;
                 _owner.SetChannelOutputValue(this, value);
                 NotifyPropertyChanged("OutputValue");
@@ -65,7 +65,7 @@ namespace Daqifi.Desktop.Channel
             get => _direction;
             set
             {
-                if(_direction == value)  return;
+                if (_direction == value) { return; }
 
                 if (_direction == ChannelDirection.Unknown)
                 {
@@ -171,8 +171,8 @@ namespace Daqifi.Desktop.Channel
             {
                 var typeString = "";
 
-                if (IsDigital) typeString = "Digital ";
-                if (IsAnalog) typeString = "Analog ";
+                if (IsDigital) { typeString = "Digital "; }
+                if (IsAnalog) {typeString = "Analog "; }
 
                 switch (Direction)
                 {
@@ -199,11 +199,11 @@ namespace Daqifi.Desktop.Channel
             {
                 _scaledExpression = value;
 
-                if (string.IsNullOrWhiteSpace(_scaledExpression)) return;
+                if (string.IsNullOrWhiteSpace(_scaledExpression)) { return; }
 
                 Expression = new Expression(_scaledExpression)
                 {
-                    Parameters = {["x"] = 1}
+                    Parameters = { ["x"] = 1 }
                 };
 
                 try
@@ -248,7 +248,7 @@ namespace Daqifi.Desktop.Channel
             set
             {
                 _activeSample = value;
-                if(Expression != null)
+                if (Expression != null)
                 {
                     Expression.Parameters["x"] = _activeSample.Value;
                     _activeSample.Value = (double)Expression.Evaluate();
@@ -270,7 +270,7 @@ namespace Daqifi.Desktop.Channel
         #region Object overrides
         public override bool Equals(object obj)
         {
-            if (!(obj is AbstractChannel channel)) return false;
+            if (!(obj is AbstractChannel channel)) { return false; }
 
             return channel.Name == Name;
         }

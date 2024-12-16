@@ -15,6 +15,7 @@ namespace Daqifi.Desktop.Channel
         public long TimestampTicks { get; set; }
         public string DeviceName { get; set; }
         public string ChannelName { get; set; }
+        public string DeviceSerialNo { get; set; }
         public string Color { get; set; }
         public ChannelType Type { get; set; }
 
@@ -28,7 +29,7 @@ namespace Daqifi.Desktop.Channel
         public DataSample(IDevice streamingDevice, IChannel channel, DateTime timestamp, double value)
         {
             DeviceName = streamingDevice.Name;
-            
+            DeviceSerialNo=channel.DeviceSerialNo;
             ChannelName = channel.Name;
             Type = channel.Type;
             Color = channel.ChannelColorBrush.ToString();

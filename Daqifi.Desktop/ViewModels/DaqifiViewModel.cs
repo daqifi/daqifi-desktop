@@ -1004,7 +1004,7 @@ namespace Daqifi.Desktop.ViewModels
         private void OpenLoggingSessionSettings(object o)
         {
             var item = o as LoggingSession;
-            if (item == null) AppLogger.Error("Error opening logging session settings");
+            if (item == null) { AppLogger.Error("Error opening logging session settings"); }
 
             CloseFlyouts();
             SelectedLoggingSession = item;
@@ -1149,7 +1149,7 @@ namespace Daqifi.Desktop.ViewModels
         }
         private void RebootSelectedDevice(object o)
         {
-            if (!(o is IStreamingDevice deviceToReboot)) return;
+            if (!(o is IStreamingDevice deviceToReboot)) { return; }
 
             if (deviceToReboot.DataChannels != null)
             {

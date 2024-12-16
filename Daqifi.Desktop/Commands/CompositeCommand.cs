@@ -48,7 +48,7 @@ namespace Daqifi.Desktop.Commands
         /// <param name="command">The command to register.</param>
         public virtual void RegisterCommand(ICommand command)
         {
-            if (command == null) throw new ArgumentNullException("command");
+            if (command == null) { throw new ArgumentNullException("command"); }
             if (command == this)
             {
                 throw new ArgumentException();
@@ -82,7 +82,7 @@ namespace Daqifi.Desktop.Commands
         /// <param name="command">The command to unregister.</param>
         public virtual void UnregisterCommand(ICommand command)
         {
-            if (command == null) throw new ArgumentNullException("command");
+            if (command == null) { throw new ArgumentNullException("command"); }
             bool removed;
             lock (registeredCommands)
             {
