@@ -44,7 +44,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void OnSelectChannelExecute(object selectedItems)
         {
-            if (!((IEnumerable)selectedItems).Cast<Brush>().Any()) return;
+            if (!((IEnumerable)selectedItems).Cast<Brush>().Any()) { return; }
 
             var selectedColor = ((IEnumerable)selectedItems).Cast<Brush>().ElementAt(0);
             _colorObject.SetColor(selectedColor);

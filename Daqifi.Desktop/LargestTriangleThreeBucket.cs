@@ -11,7 +11,7 @@ namespace Daqifi.Desktop
 
             int dataLength = data.Count;
             if (threshold >= dataLength || threshold == 0)
-                return data; // Nothing to do
+            { return data; } // Nothing to do
 
             List<DataPoint> sampled = new List<DataPoint>(threshold);
 
@@ -19,7 +19,7 @@ namespace Daqifi.Desktop
             double every = (double)(dataLength - 2) / (threshold - 2);
 
             int a = 0;
-            DataPoint maxAreaPoint = new DataPoint(0,0);
+            DataPoint maxAreaPoint = new DataPoint(0, 0);
             int nextA = 0;
 
             sampled.Add(data[a]); // Always add the first point

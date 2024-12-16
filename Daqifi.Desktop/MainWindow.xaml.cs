@@ -29,7 +29,9 @@ namespace Daqifi.Desktop
                 Closing += (sender, e) =>
                 {
                     if (HostCommands.ShutdownCommand.CanExecute(e))
+                    {
                         HostCommands.ShutdownCommand.Execute(e);
+                    }
                 };
             }
             catch (Exception ex)

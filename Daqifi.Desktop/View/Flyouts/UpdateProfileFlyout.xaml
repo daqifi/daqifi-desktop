@@ -67,39 +67,9 @@
                     </ListView.ItemTemplate>
                 </ListView>
             </GroupBox>
-
-
-        </StackPanel>
-        <StackPanel Grid.Column="1">
-            <!--Selected Profile Channels-->
-            <GroupBox Header="Selected Profile Channels">
-                <Grid Margin="5">
-                    <ListView Name="UpdatedProfileChannelList" Height="160"   ItemsSource="{Binding SelectedProfile.Devices[0].Channels}"   SelectionMode="Multiple"   Margin="5" Background="Transparent" BorderThickness="0">
-                        <ListView.ItemContainerStyle>
-                            <Style TargetType="ListViewItem">
-                                <EventSetter Event="PreviewMouseLeftButtonDown" Handler="ListViewItem_PreviewMouseLeftButtonDown" />
-                            </Style>
-                        </ListView.ItemContainerStyle>
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Border >
-                                    <StackPanel Orientation="Horizontal">
-                                        <Label Content="Channel:"/>
-                                        <Label Content="{Binding Name}"/>
-                                        <Label Content="Type:"/>
-                                        <Label Content="{Binding Type}"/>
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </Grid>
-            </GroupBox>
-
-            <!--Selected Profile Device Frequency-->
             <GroupBox Header="Selected Profile Device Frequency">
 
-                <ListView Height="250" Name="SelectedDeviceFrequency" SelectionMode="Multiple"  ItemsSource="{Binding SelectedProfile.Devices}">
+                <ListView Height="250" Name="SelectedDeviceFrequency" SelectionMode="Multiple"  ScrollViewer.VerticalScrollBarVisibility="Auto"  ItemsSource="{Binding SelectedProfile.Devices}">
                     <ListView.ItemTemplate>
                         <DataTemplate>
                             <DockPanel DockPanel.Dock="Top" Margin="0" LastChildFill="True">
@@ -115,8 +85,50 @@
                     </ListView.ItemTemplate>
                 </ListView>
 
-
-
+            </GroupBox>
+        </StackPanel>
+        <StackPanel Grid.Column="1">
+            <GroupBox Header="Selected Profile Channels">
+                <Grid>
+                    <ListView Name="UpdatedProfileChannelList" Height="500" 
+                      ItemsSource="{Binding SelectedProfile.Devices}" 
+                      Margin="5" Background="Transparent" BorderThickness="0"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <Label Content="{Binding DeviceName}"></Label>
+                                    <ListView ItemsSource="{Binding Channels}" Height="200" SelectionMode="Multiple" BorderThickness="0" Margin="0" 
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Margin="5">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Label Content="{Binding Name}"/>
+                                                        <Label Content="{Binding Type}"/>
+                                                        <Label Content="{Binding SerialNo}"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
+                                        <ListView.ItemContainerStyle>
+                                            <Style TargetType="ListViewItem">
+                                                <Setter Property="Padding" Value="0"/>
+                                                <Setter Property="Margin" Value="0"/>
+                                                <EventSetter Event="PreviewMouseLeftButtonDown" Handler="ListViewItem_PreviewMouseLeftButtonDown"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsChannelActive}" Value="True">
+                                                        <Setter Property="IsSelected" Value="True"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ListView.ItemContainerStyle>
+                                    </ListView>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
             </GroupBox>
         </StackPanel>
     </Grid>

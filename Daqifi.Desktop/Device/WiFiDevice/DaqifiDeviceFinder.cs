@@ -152,7 +152,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
             var device = new DaqifiStreamingDevice(deviceInfo);
 
-            if (message.Ssid != null)
+            if (!string.IsNullOrWhiteSpace(message.Ssid))
             {
                 device.NetworkConfiguration.Ssid = message.Ssid;
             }
@@ -189,7 +189,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             {
                 foreach (var unicastIpAddressInformation in networkInterface.GetIPProperties().UnicastAddresses)
                 {
-                    if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork) continue;
+                    if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork) { continue; }
                     if (address.Equals(unicastIpAddressInformation.Address))
                     {
                         subnet = unicastIpAddressInformation.IPv4Mask;
