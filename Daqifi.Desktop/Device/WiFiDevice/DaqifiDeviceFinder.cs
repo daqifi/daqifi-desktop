@@ -172,37 +172,43 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         }
 
         // TODO move to its own helper class
+        
         private IPAddress GetBroadcastAddress()
         {
-            var address = IPAddress.Broadcast;
-            var subnet = IPAddress.None;
-            var host = Dns.GetHostEntry(Dns.GetHostName());
-            foreach (var ip in host.AddressList)
-            {
-                if (ip.AddressFamily == AddressFamily.InterNetwork)
-                {
-                    address = ip;
-                }
-            }
-
+            IPAddress broadcastAddress = IPAddress.None;
             foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
             {
+                if (networkInterface.OperationalStatus != OperationalStatus.Up ||
+                    (networkInterface.NetworkInterfaceType != NetworkInterfaceType.Ethernet &&
+                     networkInterface.NetworkInterfaceType != NetworkInterfaceType.Wireless80211))
+                {
+                    continue;
+                }
                 foreach (var unicastIpAddressInformation in networkInterface.GetIPProperties().UnicastAddresses)
                 {
-                    if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork) continue;
-                    if (address.Equals(unicastIpAddressInformation.Address))
+                    if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork)
                     {
-                        subnet = unicastIpAddressInformation.IPv4Mask;
+                        continue;
                     }
+                    // Get the IP address and subnet mask
+                    var ipAddress = unicastIpAddressInformation.Address;
+                    var subnetMask = unicastIpAddressInformation.IPv4Mask;
+                    var broadcastBytes = new byte[ipAddress.GetAddressBytes().Length];
+                    var ipBytes = ipAddress.GetAddressBytes();
+                    var maskBytes = subnetMask.GetAddressBytes();
+                    for (var i = 0; i < broadcastBytes.Length; i++)
+                    {
+                        broadcastBytes[i] = (byte)(ipBytes[i] | (maskBytes[i] ^ 255));
+                    }
+                    broadcastAddress = new IPAddress(broadcastBytes);
+                    break;
+                }
+                if (broadcastAddress != IPAddress.None)
+                {
+                    break;
                 }
             }
-
-            var broadcastAddress = new byte[address.GetAddressBytes().Length];
-            for (var i = 0; i < broadcastAddress.Length; i++)
-            {
-                broadcastAddress[i] = (byte) (address.GetAddressBytes()[i] | (subnet.GetAddressBytes()[i] ^ 255));
-            }
-            return new IPAddress(broadcastAddress);
+            return broadcastAddress;
         }
     }
 }
