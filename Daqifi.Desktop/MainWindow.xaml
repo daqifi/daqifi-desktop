@@ -91,45 +91,7 @@
 
     <Controls:MetroWindow.Flyouts>
         <Controls:FlyoutsControl VerticalAlignment="Bottom">
-            <!--Application Version Update Flyout -->
-            <!--<Controls:Flyout Background="Black"  x:Name="NotificationFlyout" Header="Notifications" Position="Right" IsOpen="False" Theme="Light">
-                <StackPanel Margin="5">-->
-            <!-- List of notifications -->
-            <!--<ListBox  ItemsSource="{Binding notificationlist}">
-                        <ListBox.Resources>
-                            <Style TargetType="ListBoxItem">
-                                <Style.Resources>
-                                    
-                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}"
-                       Color="Transparent" />
-                                    
-                                    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}"
-                       Color="Transparent" />
-                                   
-                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}"
-                       Color="Black" />
-                                </Style.Resources>
-                                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                            </Style>
-                        </ListBox.Resources>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel Orientation="Vertical">
-                                    <TextBlock Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" MaxWidth="150"/>
-                                    <TextBlock>
-<TextBlock>
-<Hyperlink NavigateUri="{Binding Link}" RequestNavigate="Hyperlink_RequestNavigate">
-<Run Text="here" />
-</Hyperlink>
-</TextBlock>
-</TextBlock>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>-->
-
-            <!--</StackPanel>
-            </Controls:Flyout>-->
+            <!--NotificationsFlyout-->
             <flyouts:NotificationsFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
 
             <!-- Live Graph Flyout -->
@@ -247,7 +209,15 @@
                             <DataTemplate>
                                 <DockPanel Margin="5" Height="40" LastChildFill="True" HorizontalAlignment="Left">
                                     <Rectangle Width="25" Height="25" Fill="{Binding ChannelColorBrush}"/>
-                                    <Label Content="{Binding Name}" BorderThickness="0" VerticalAlignment="Center" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
+                                    <StackPanel Orientation="Vertical" >
+                                        <Label Content="{Binding Name}" BorderThickness="0" VerticalAlignment="Center" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
+                                        <Label Content="{Binding DeviceSerialNo}" 
+                                               BorderThickness="0"
+                                               FontSize="8" VerticalAlignment="Top"
+                                               HorizontalAlignment="Stretch" 
+                                               HorizontalContentAlignment="Stretch"/>
+                                    </StackPanel>
+                                  
                                 </DockPanel>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -340,7 +310,7 @@
                                                 <Border>
                                                     <DockPanel >
                                                         <Label Content="{Binding Name}" DockPanel.Dock="Left" FontWeight="Bold"/>
-
+                                                       
                                                         <!-- Delete Logging Session -->
                                                         <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteLoggingSessionCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Delete" Padding="5">
                                                             <Button.Content>
@@ -445,6 +415,7 @@
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                         <Label Content="{Binding Name}" FontSize="16" Padding="5,0,0,0"/>
                                                         <Label Content="{Binding TypeString}" Padding="5,0,0,0"/>
+                                                        <Label Content="{Binding DeviceSerialNo}" FontSize="12" Padding="5,0,0,0"/>
                                                     </StackPanel>
 
                                                     <Button Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveChannelList, Path=DataContext.OpenChannelSettingsCommand}" CommandParameter="{Binding}" ToolTip="Channel Settings">

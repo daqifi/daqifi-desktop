@@ -23,9 +23,9 @@ namespace Daqifi.Desktop.Logger
             get => string.IsNullOrWhiteSpace(_name) ? "Session " + ID.ToString() : _name;
             set
             {
-             if (_name == value) return;
+                if (_name == value) { return; }
 
-             _name = value; 
+                _name = value;
             }
         }
         #endregion
@@ -33,7 +33,7 @@ namespace Daqifi.Desktop.Logger
         #region Constructors
         public LoggingSession() { }
 
-        public LoggingSession(int id,string name)
+        public LoggingSession(int id, string name)
         {
             ID = id;
             SessionStart = DateTime.Now;

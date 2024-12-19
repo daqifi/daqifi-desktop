@@ -20,8 +20,8 @@ namespace Daqifi.Desktop.Logger
         private readonly Stopwatch _stopwatch = new Stopwatch();
         private long _lastUpdateMilliSeconds;
         private int _precision = 4;
-        private Dictionary<string, List<DataPoint>> _loggedPoints = new Dictionary<string, List<DataPoint>>();
-        private Dictionary<string, LineSeries> _loggedChannels = new Dictionary<string, LineSeries>();
+        private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
+        private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = new Dictionary<(string deviceSerial, string channelName), LineSeries>();
         #endregion
 
         #region Properties
@@ -37,13 +37,13 @@ namespace Daqifi.Desktop.Logger
 
         public DateTime? FirstTime { get; set; }
 
-        public Dictionary<string, List<DataPoint>> LoggedPoints
+        public Dictionary<(string deviceSerial, string channelName), List<DataPoint>> LoggedPoints
         {
             get => _loggedPoints;
             private set { _loggedPoints = value; NotifyPropertyChanged("LoggedPoints"); }
         }
 
-        public Dictionary<string, LineSeries> LoggedChannels
+        public Dictionary<(string deviceSerial, string channelName), LineSeries> LoggedChannels
         {
             get => _loggedChannels;
             set { _loggedChannels = value; NotifyPropertyChanged("LoggedChannels"); }
@@ -155,7 +155,7 @@ namespace Daqifi.Desktop.Logger
             ResetZoomLiveGraphCommand = new DelegateCommand(ResetZoomLiveGraph, CanResetZoomLiveGraph);
             SaveLiveGraphCommand = new DelegateCommand(SaveLiveGraph, CanSaveLiveGraph);
             
-            LoggedPoints = new Dictionary<string, List<DataPoint>>();
+            LoggedPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
             PlotModel = new PlotModel();
 
             var analogAxis = new LinearAxis
@@ -223,31 +223,32 @@ namespace Daqifi.Desktop.Logger
 
         public void Log(DataSample dataSample)
         {
-            //Check if we already have a series for this Channel.  If not, then create one
-            if (!LoggedChannels.Keys.Contains(dataSample.ChannelName))
+            var key = (dataSample.DeviceSerialNo, dataSample.ChannelName);
+
+            if (!LoggedChannels.ContainsKey(key)) 
             {
-                AddChannelSeries(dataSample.ChannelName, dataSample.Type, dataSample.Color);
+                AddChannelSeries(dataSample.ChannelName,dataSample.DeviceSerialNo, dataSample.Type, dataSample.Color);
             }
             else
             {
                 //Check for a change in color
-                if (LoggedChannels[dataSample.ChannelName].Color.ToString().ToLower() != dataSample.Color.ToLower())
+                if (LoggedChannels[key].Color.ToString().ToLower() != dataSample.Color.ToLower())
                 {
-                    LoggedChannels[dataSample.ChannelName].Color = OxyColor.Parse(dataSample.Color.ToLower());
+                    LoggedChannels[key].Color = OxyColor.Parse(dataSample.Color.ToLower());
                 }
             }
 
-            if (FirstTime == null) FirstTime = new DateTime(dataSample.TimestampTicks);
+            if (FirstTime == null) { FirstTime = new DateTime(dataSample.TimestampTicks); }
 
             var deltaTime = (dataSample.TimestampTicks - FirstTime.Value.Ticks) / 10000.0; //Ticks is 100 nanoseconds
             var scaledSampleValue = dataSample.Value;
 
             lock (PlotModel.SyncRoot)
             {
-                LoggedPoints[dataSample.ChannelName].Add(new DataPoint(deltaTime, scaledSampleValue));
-                if (LoggedPoints[dataSample.ChannelName].Count >= 5000)
+                LoggedPoints[key].Add(new DataPoint(deltaTime, scaledSampleValue));
+                if (LoggedPoints[key].Count >= 5000)
                 {
-                    LoggedPoints[dataSample.ChannelName].RemoveAt(0);
+                    LoggedPoints[key].RemoveAt(0);
                 }
             }
 
@@ -263,10 +264,11 @@ namespace Daqifi.Desktop.Logger
             // No-op
         }
 
-        private void AddChannelSeries(string channelName, ChannelType channelType, string newColor)
+        private void AddChannelSeries(string channelName, string DeviceSerialNo, ChannelType channelType, string newColor)
         {
+            var key = (DeviceSerialNo, channelName);
             var newDataPoints = new List<DataPoint>();
-            LoggedPoints.Add(channelName, newDataPoints);
+            LoggedPoints.Add(key, newDataPoints);
 
             var newLineSeries = new LineSeries
             {
@@ -285,7 +287,7 @@ namespace Daqifi.Desktop.Logger
                     break;
             }
 
-            LoggedChannels.Add(channelName, newLineSeries);
+            LoggedChannels.Add(key, newLineSeries);
             PlotModel.Series.Add(newLineSeries);
             
             NotifyPropertyChanged("PlotModel");
@@ -370,7 +372,7 @@ namespace Daqifi.Desktop.Logger
             {
                 if (count == 1)
                 {
-                    if (!File.Exists(picturesDirectory + "\\" + fileName + ".png")) break;
+                    if (!File.Exists(picturesDirectory + "\\" + fileName + ".png")) { break; }
                 }
 
                 count++;

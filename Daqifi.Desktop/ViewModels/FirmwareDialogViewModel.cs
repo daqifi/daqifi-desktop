@@ -121,7 +121,7 @@ namespace DAQifi.Desktop.ViewModels
 
             var result = dialog.ShowDialog();
 
-            if (result == false) return;
+            if (result == false) { return; }
 
             FirmwareFilePath = dialog.FileName;
         }
@@ -132,8 +132,11 @@ namespace DAQifi.Desktop.ViewModels
             bw.DoWork += delegate
             {
                 IsFirmwareUploading = true;
-                if (string.IsNullOrWhiteSpace(FirmwareFilePath)) return;
-                if (!File.Exists(FirmwareFilePath)) return;
+                if (string.IsNullOrWhiteSpace(FirmwareFilePath)) { return; }
+                if (!File.Exists(FirmwareFilePath))
+                {
+                    return;
+                }
 
                 _bootloader.LoadFirmware(FirmwareFilePath, bw);
             };

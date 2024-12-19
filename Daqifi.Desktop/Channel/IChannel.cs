@@ -10,6 +10,8 @@ namespace Daqifi.Desktop.Channel
         #region Properties
         int ID { get; set; }
         string Name { get; set; }
+        string DeviceName { get; set; }
+        string DeviceSerialNo { get; set; }
         int Index { get; set; }
         double OutputValue { get; set; }
         ChannelType Type { get; }
