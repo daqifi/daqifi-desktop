@@ -224,8 +224,8 @@ namespace Daqifi.Desktop.Logger
         public void Log(DataSample dataSample)
         {
             var key = (dataSample.DeviceSerialNo, dataSample.ChannelName);
-            //Check if we already have a series for this Channel.  If not, then create one
-            if (!LoggedChannels.ContainsKey(key))
+
+            if (!LoggedChannels.ContainsKey(key)) 
             {
                 AddChannelSeries(dataSample.ChannelName,dataSample.DeviceSerialNo, dataSample.Type, dataSample.Color);
             }

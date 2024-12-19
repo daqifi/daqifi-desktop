@@ -23,6 +23,8 @@ namespace Daqifi.Desktop.Device
         private int _streamingFrequency = 1;
         private uint? _previousDeviceTimestamp;
 
+        private Dictionary<string, DateTime> _previousTimestamps = new Dictionary<string, DateTime>();
+        private Dictionary<string, uint?> _previousDeviceTimestamps = new Dictionary<string, uint?>();
         private ObjectPool<DataSample> _samplePool;
         private ObjectPool<DeviceMessage> _deviceMessagePool;
 
@@ -121,7 +123,7 @@ namespace Daqifi.Desktop.Device
         {
             return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
         }
-
+        
         private void HandleMessageReceived(object sender, MessageEventArgs e)
         {
             if (!IsStreaming)
@@ -141,124 +143,116 @@ namespace Daqifi.Desktop.Device
                 return;
             }
 
-            if (_previousTimestamp == null)
-            {
-                // TODO this starting time is inaccurate due to transmission delays.
-                // The board only sends relative timestamps based on a timestamp clock frequency
-                _previousTimestamp = DateTime.Now;
-                _previousDeviceTimestamp = message.MsgTimeStamp;
+            var deviceId = message.DeviceSn.ToString();  
 
+            if (!_previousTimestamps.ContainsKey(deviceId))
+            {
+                _previousTimestamps[deviceId] = DateTime.Now;
+                _previousDeviceTimestamps[deviceId] = message.MsgTimeStamp;
             }
 
-            // Get timestamp difference (i.e. number of clock cycles between messages)
-            // Check for rollover scenario
+            DateTime previousTimestamp = _previousTimestamps[deviceId];
+            uint previousDeviceTimestamp = _previousDeviceTimestamps[deviceId].GetValueOrDefault();  
+
             uint numberOfClockCyclesBetweenMessages;
-            var rollover = _previousDeviceTimestamp > message.MsgTimeStamp;
+            var rollover = previousDeviceTimestamp > message.MsgTimeStamp;
             if (rollover)
             {
-                var numberOfCyclesToMax = uint.MaxValue - _previousDeviceTimestamp.Value;
+                var numberOfCyclesToMax = uint.MaxValue - previousDeviceTimestamp;
                 numberOfClockCyclesBetweenMessages = numberOfCyclesToMax + message.MsgTimeStamp;
             }
             else
             {
-                numberOfClockCyclesBetweenMessages = message.MsgTimeStamp - _previousDeviceTimestamp.Value;
+                numberOfClockCyclesBetweenMessages = message.MsgTimeStamp - previousDeviceTimestamp;
             }
 
-            // Convert clock cycles to a time value
             var secondsBetweenMessages = numberOfClockCyclesBetweenMessages * TickPeriod;
 
-            // Check the time difference and decide if that's reasonable or we simply got data out of order
-            // If out of order, this isn't actually a rollover.
             if (rollover && secondsBetweenMessages > 10)
             {
-                numberOfClockCyclesBetweenMessages = _previousDeviceTimestamp.Value - message.MsgTimeStamp;
+                numberOfClockCyclesBetweenMessages = previousDeviceTimestamp - message.MsgTimeStamp;
                 secondsBetweenMessages = numberOfClockCyclesBetweenMessages * TickPeriod * -1;
             }
 
-            var messageTimestamp = _previousTimestamp.Value.AddSeconds(secondsBetweenMessages);
+            var messageTimestamp = previousTimestamp.AddSeconds(secondsBetweenMessages);
 
-            // Update digital channel information
             var digitalCount = 0;
             var analogCount = 0;
 
-            // DI 1-8
             var digitalData1 = new byte();
-
-            // DI 9-16
             var digitalData2 = new byte();
-
             var hasDigitalData = message.DigitalData;
+
             if (hasDigitalData.Length > 0)
             {
-                digitalData1 = message.DigitalData.ElementAtOrDefault(0);
-                digitalData2 = message.DigitalData.ElementAtOrDefault(1);
+                digitalData1 = hasDigitalData.ElementAtOrDefault(0);
+                digitalData2 = hasDigitalData.ElementAtOrDefault(1);
             }
 
-            foreach (var channel in DataChannels)
+            // Loop through channels for this device
+            foreach (var channel in DataChannels.Where(c => c.IsActive && c.Direction == ChannelDirection.Input))
             {
-                if (!channel.IsActive)
+                try
                 {
-                    continue;
-                }
-
-                if (channel.Direction != ChannelDirection.Input)
-                {
-                    continue;
-                }
-
-                if (channel.Type == ChannelType.Digital && hasDigitalData.Length > 0)
-                {
-                    bool bit;
-                    if (digitalCount < 8)
+                    if (channel.Type == ChannelType.Digital && hasDigitalData.Length > 0)
                     {
-                        bit = (digitalData1 & (1 << digitalCount)) != 0;
-                    }
-                    else
-                    {
-                        bit = (digitalData2 & (1 << digitalCount % 8)) != 0;
-                    }
+                        bool bit;
+                        if (digitalCount < 8)
+                        {
+                            bit = (digitalData1 & (1 << digitalCount)) != 0;
+                        }
+                        else
+                        {
+                            bit = (digitalData2 & (1 << digitalCount % 8)) != 0;
+                        }
 
-                    channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
-                    digitalCount++;
+                        // Assign the sample for the digital channel
+                        channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
+                        digitalCount++;
+                    }
+                    else if (channel.Type == ChannelType.Analog)
+                    {
+                        if (analogCount >= message.AnalogInData.Count)
+                        {
+                            AppLogger.Error("Trying to access more analog channels than received data.");
+                            break;
+                        }
+
+                        // Process the analog sample
+                        var sample = new DataSample(this, channel, messageTimestamp, ScaleAnalogSample(channel as AnalogChannel, message.AnalogInData.ElementAt(analogCount)));
+                        channel.ActiveSample = sample;
+                        analogCount++;
+                    }
                 }
-                else if (channel.Type == ChannelType.Analog)
+                catch (Exception ex)
                 {
-                    if (analogCount > message.AnalogInData.Count - 1)
-                    {
-                        AppLogger.Error("Trying to access at least one more analog channel than we actually received. This might happen if recently added an analog channel but not yet receiving data from it yet.");
-                        break;
-                    }
-
-                    var sample = new DataSample(this, channel, messageTimestamp, ScaleAnalogSample(channel as AnalogChannel, message.AnalogInData.ElementAt(analogCount)));
-                    channel.ActiveSample = sample;
-                    analogCount++;
+                    AppLogger.Error($"Error processing channel data: {ex.Message}");
                 }
             }
 
+            var deviceMessage = new DeviceMessage()
             {
-                var deviceMessage = new DeviceMessage()
-                {
-                    DeviceName = Name,
-                    AnalogChannelCount = analogCount,
-                    DigitalChannelCount = digitalCount,
-                    TimestampTicks = messageTimestamp.Ticks,
-                    AppTicks = DateTime.Now.Ticks,
-                    DeviceStatus = (int)message.DeviceStatus,
-                    BatteryStatus = (int)message.BattStatus,
-                    PowerStatus = (int)message.PwrStatus,
-                    TempStatus = (int)message.TempStatus,
-                    TargetFrequency = (int)message.TimestampFreq,
-                    Rollover = rollover,
-                };
+                DeviceName = Name,
+                AnalogChannelCount = analogCount,
+                DeviceSerialNo = message.DeviceSn.ToString(),
+                DigitalChannelCount = digitalCount,
+                TimestampTicks = messageTimestamp.Ticks,
+                AppTicks = DateTime.Now.Ticks,
+                DeviceStatus = (int)message.DeviceStatus,
+                BatteryStatus = (int)message.BattStatus,
+                PowerStatus = (int)message.PwrStatus,
+                TempStatus = (int)message.TempStatus,
+                TargetFrequency = (int)message.TimestampFreq,
+                Rollover = rollover,
+            };
 
+            Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
 
-                Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
-            }
-
-            // Updates the previous timestamps
-            _previousDeviceTimestamp = message.MsgTimeStamp;
-            _previousTimestamp = messageTimestamp;
+            _previousTimestamps[deviceId] = messageTimestamp;
+            _previousDeviceTimestamps[deviceId] = message.MsgTimeStamp;
         }
+
+
         #endregion
 
         #region Streaming Methods

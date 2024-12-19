@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
-using Google.ProtocolBuffers;
-
+using Google.Protobuf;
 namespace Daqifi.Desktop.IO.Messages.MessageTypes
 {
     public interface IDaqifiOutMessage
@@ -161,6 +160,6 @@ namespace Daqifi.Desktop.IO.Messages.MessageTypes
         uint GetAvWifiSecurityMode(int index);
         uint GetDigitalDataTs(int index);
         //DaqifiOutMessage.Builder ToBuilder();
-        void WriteTo(ICodedOutputStream output);
+     //   void WriteTo(ICodedOutputStream output);
     }
 }

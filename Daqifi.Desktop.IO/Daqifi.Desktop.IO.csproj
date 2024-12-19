@@ -11,7 +11,4 @@
     <ProjectReference Include="..\Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj" />
     <ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Google.ProtocolBuffers" Version="2.4.1.555" />
-  </ItemGroup>
 </Project>
