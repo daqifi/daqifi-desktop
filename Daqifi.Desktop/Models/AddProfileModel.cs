@@ -2,7 +2,7 @@
 
 namespace Daqifi.Desktop.Models
 {
-        public class AddProfileModel:ObservableObject
+    public class AddProfileModel : ObservableObject
     {
         public List<Profile> ProfileList { get; set; }
     }
@@ -152,6 +152,18 @@ namespace Daqifi.Desktop.Models
                 NotifyPropertyChanged(nameof(Name));
             }
         }
+        private string serialNo;
+
+        public string SerialNo
+        {
+            get => serialNo;
+            set
+            {
+                serialNo = value;
+                NotifyPropertyChanged(nameof(SerialNo));
+            }
+        }
+
         private string type;
 
         public string Type

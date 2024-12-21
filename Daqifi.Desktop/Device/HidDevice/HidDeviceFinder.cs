@@ -30,7 +30,7 @@ namespace Daqifi.Desktop.Device.HidDevice
                     foreach (var device in connectedHidDevices)
                     {
                         var devicePath = device.DevicePath;
-                        if (_firmwareDevices.FirstOrDefault(d => d.Name == devicePath) != null) continue;
+                        if (_firmwareDevices.FirstOrDefault(d => d.Name == devicePath) != null) { continue; }
 
                         var daqifiDevice = new HidFirmwareDevice(device as HidFastReadDevice) {Name = devicePath};
                         _firmwareDevices.Add(daqifiDevice);
@@ -42,7 +42,7 @@ namespace Daqifi.Desktop.Device.HidDevice
                     foreach (var device in _firmwareDevices)
                     {
                         var devicePath = device.Name;
-                        if (connectedHidDevices.FirstOrDefault(d => d.DevicePath == devicePath) != null) continue;
+                        if (connectedHidDevices.FirstOrDefault(d => d.DevicePath == devicePath) != null) { continue; }
 
                         NotifyDeviceRemoved(this, device);
                         devicesToRemove.Add(device);

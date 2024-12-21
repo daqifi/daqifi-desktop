@@ -23,7 +23,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         public DaqifiStreamingDevice(DeviceInfo deviceInfo)
         {
             Name = deviceInfo.DeviceName;
-            DeviceSerialNo= deviceInfo.DeviceSerialNo;
+            DeviceSerialNo = deviceInfo.DeviceSerialNo;
             IpAddress = deviceInfo.IpAddress;
             MacAddress = deviceInfo.MacAddress;
             Port = (int)deviceInfo.Port;
@@ -107,10 +107,10 @@ namespace Daqifi.Desktop.Device.WiFiDevice
 
         public override bool Equals(object obj)
         {
-            if (!(obj is DaqifiStreamingDevice other)) return false;
-            if (Name != other.Name) return false;
-            if (IpAddress != other.IpAddress) return false;
-            if (MacAddress != other.MacAddress) return false;
+            if (!(obj is DaqifiStreamingDevice other)) { return false; }
+            if (Name != other.Name) { return false; }
+            if (IpAddress != other.IpAddress) { return false; }
+            if (MacAddress != other.MacAddress) { return false; }
             return true;
         }
         #endregion

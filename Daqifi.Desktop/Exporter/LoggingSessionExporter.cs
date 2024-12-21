@@ -26,7 +26,7 @@ namespace Daqifi.Desktop.Exporter
                 var hasTimeStamps = loggingSession.DataSamples.Select(s => s.TimestampTicks).Distinct().Any();
                 var samplesCount = loggingSession.DataSamples.Count;
 
-                if (channelNames.Count == 0 || !hasTimeStamps) return;
+                if (channelNames.Count == 0 || !hasTimeStamps) { return; }
 
                 channelNames.Sort(new OrdinalStringComparer());
 

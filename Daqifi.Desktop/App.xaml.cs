@@ -27,13 +27,13 @@ namespace Daqifi.Desktop
 
             ShowSplashScreen();
 
-            var daqifiDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DAQifi");
+            var daqifiDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DAQiFi");
             Directory.CreateDirectory(daqifiDataDirectory);
             AppDomain.CurrentDomain.SetData("DataDirectory", daqifiDataDirectory);
 
             var serviceCollection = new ServiceCollection();
             serviceCollection.AddDbContextFactory<LoggingContext>(options =>
-                options.UseSqlite($"Data source={Path.Combine(daqifiDataDirectory, "DAQifiDatabase.db")}")
+                options.UseSqlite($"Data source={Path.Combine(daqifiDataDirectory, "DAQiFiDatabase.db")}")
             );
 
             serviceCollection.AddSingleton<LoggingManager>();
@@ -50,7 +50,7 @@ namespace Daqifi.Desktop
         {
             try
             {
-                SplashScreen = new SplashScreen("Images/DAQifi.png");
+                SplashScreen = new SplashScreen("Images/DAQiFi.png");
                 SplashScreen.Show(true, true);
             }
             catch

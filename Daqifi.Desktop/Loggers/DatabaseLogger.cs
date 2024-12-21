@@ -22,9 +22,9 @@ namespace Daqifi.Desktop.Logger
     public class DatabaseLogger : ObservableObject, ILogger
     {
         #region Private Data
-        private readonly Dictionary<string, List<DataPoint>> _allSessionPoints = new Dictionary<string, List<DataPoint>>();
+        private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
         private readonly BlockingCollection<DataSample> _buffer = new BlockingCollection<DataSample>();
-        private readonly Dictionary<string, List<DataPoint>> _sessionPoints = new Dictionary<string, List<DataPoint>>();
+        private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _sessionPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
 
         private PlotModel _plotModel;
         private DateTime? _firstTime;
@@ -137,7 +137,7 @@ namespace Daqifi.Desktop.Logger
             var timeAxis = new LinearAxis
             {
                 Position = AxisPosition.Bottom,
-                TickStyle =TickStyle.None,
+                TickStyle = TickStyle.None,
                 MajorGridlineStyle = LineStyle.Solid,
                 MinorGridlineStyle = LineStyle.Solid,
                 TitleFontSize = 12,
@@ -194,12 +194,12 @@ namespace Daqifi.Desktop.Logger
 
                     bufferCount = _buffer.Count;
 
-                    if (bufferCount < 1) continue;
+                    if (bufferCount < 1) { continue; }
 
                     // Remove the samples from the collection
                     for (var i = 0; i < bufferCount; i++)
                     {
-                        if (_buffer.TryTake(out var sample)) samples.Add(sample);
+                        if (_buffer.TryTake(out var sample)) { samples.Add(sample); }
                     }
 
                     using (var context = _loggingContext.CreateDbContext())
@@ -249,7 +249,7 @@ namespace Daqifi.Desktop.Logger
 
                     var samples = context.Samples.AsNoTracking()
                         .Where(s => s.LoggingSessionID == session.ID)
-                        .Select(s => new { s.ChannelName, s.Type, s.Color, s.TimestampTicks, s.Value });
+                        .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color, s.TimestampTicks, s.Value });
 
                     var samplesCount = context.Samples
                         .AsNoTracking()
@@ -261,32 +261,30 @@ namespace Daqifi.Desktop.Logger
                         PlotModel.Subtitle += $"\nOnly showing {dataPointsToShow:n0} out of {samplesCount:n0} data points";
                     }
 
-                    var channelNames = samples
-                        .Select(s => s.ChannelName)
-                        .Distinct()
-                        .ToList();
+                    var channelNames = samples.Select(s => new { s.ChannelName, s.DeviceSerialNo }).Distinct().ToList();
 
-                    channelNames.Sort(new OrdinalStringComparer());
-                    foreach (var channelName in channelNames)
+                    // Sort channel-device pairs
+                    channelNames.Sort((x, y) => string.Compare(x.ChannelName, y.ChannelName, StringComparison.Ordinal));
+                    foreach (var pair in channelNames)
                     {
                         var channel = samples
-                            .Select(s => new { s.ChannelName, s.Type, s.Color })
-                            .FirstOrDefault(s => s.ChannelName == channelName);
+                    .FirstOrDefault(s => s.ChannelName == pair.ChannelName && s.DeviceSerialNo == pair.DeviceSerialNo);
 
                         if (channel != null)
                         {
-                            AddChannelSeries(channel.ChannelName, channel.Type, channel.Color);
+                            AddChannelSeries(channel.ChannelName, channel.DeviceSerialNo, channel.Type, channel.Color);
                         }
                     }
 
                     var dataSampleCount = 0;
                     foreach (var sample in samples)
                     {
-                        if (_firstTime == null) _firstTime = new DateTime(sample.TimestampTicks);
+                        var key = (sample.DeviceSerialNo, sample.ChannelName);
+                        if (_firstTime == null) { _firstTime = new DateTime(sample.TimestampTicks); }
                         var deltaTime = (sample.TimestampTicks - _firstTime.Value.Ticks) / 10000.0;
 
                         // Add new datapoint
-                        _allSessionPoints[sample.ChannelName].Add(new DataPoint(deltaTime, sample.Value));
+                        _allSessionPoints[key].Add(new DataPoint(deltaTime, sample.Value));
 
                         dataSampleCount++;
 
@@ -345,16 +343,18 @@ namespace Daqifi.Desktop.Logger
             }
         }
 
-        private void AddChannelSeries(string channelName, ChannelType type, string color)
+        private void AddChannelSeries(string channelName, string DeviceSerialNo, ChannelType type, string color)
         {
-            _sessionPoints.Add(channelName, new List<DataPoint>());
-            _allSessionPoints.Add(channelName, new List<DataPoint>());
+            var key = (DeviceSerialNo, channelName);
+            _sessionPoints.Add(key, new List<DataPoint>());
+            _allSessionPoints.Add(key, new List<DataPoint>());
 
             var newLineSeries = new LineSeries()
             {
-                Title = channelName,
+                Title = $"{channelName} : ({DeviceSerialNo})",
                 ItemsSource = _sessionPoints.Last().Value,
-                Color = OxyColor.Parse(color)
+                Color = OxyColor.Parse(color),
+
             };
 
             switch (type)
@@ -385,7 +385,7 @@ namespace Daqifi.Desktop.Logger
                 // Show save file dialog box
                 bool? result = dialog.ShowDialog();
 
-                if (result == false) return;
+                if (result == false) { return; }
 
                 string filePath = dialog.FileName;
                 OxyPlot.Wpf.PngExporter.Export(PlotModel, filePath, 1920, 1080);

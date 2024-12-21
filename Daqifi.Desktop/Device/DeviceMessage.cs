@@ -6,6 +6,7 @@
         public long TimestampTicks { get; set; }
         public long AppTicks { get; set; }
         public string DeviceName { get; set; }
+        public string DeviceSerialNo { get; set; }  
         
         public int DigitalChannelCount { get; set; }
         public int AnalogChannelCount { get; set; }

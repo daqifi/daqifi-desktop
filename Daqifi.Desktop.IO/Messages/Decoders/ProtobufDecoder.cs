@@ -14,7 +14,7 @@ namespace Daqifi.Desktop.IO.Messages.Decoders
         {
             var ipAddressString = string.Empty;
 
-            if (protobufMessage.IpAddr != null) { return ipAddressString; }
+            if (protobufMessage.IpAddr.Length < 0) { return ipAddressString; }
             var ipAddressBytes = protobufMessage.IpAddr.ToByteArray();
             for (var i = 0; i < ipAddressBytes.Length; i++)
             {

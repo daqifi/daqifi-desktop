@@ -90,7 +90,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             }
             catch (Exception ex)
             {
-               AppLogger.Error(ex, "Error Stopping Device Finder");
+                AppLogger.Error(ex, "Error Stopping Device Finder");
             }
         }
 
@@ -107,7 +107,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                     var stream = new MemoryStream(receivedBytes);
                     var message = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
                     var device = GetDeviceFromProtobufMessage(message);
-                    ((DaqifiStreamingDevice) device).IpAddress = remoteIpEndPoint.Address.ToString();
+                    ((DaqifiStreamingDevice)device).IpAddress = remoteIpEndPoint.Address.ToString();
                     NotifyDeviceFound(this, device);
                 }
 
@@ -137,7 +137,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             var ipAddress = ProtobufDecoder.GetIpAddressString(message);
             var isPowerOn = message.PwrStatus == 1;
             var port = message.DevicePort;
-            var device_sn= message.DeviceSn;
+            var device_sn = message.DeviceSn;
 
             var deviceInfo = new DeviceInfo
             {
@@ -146,13 +146,13 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                 MacAddress = macAddress,
                 Port = port,
                 IsPowerOn = isPowerOn,
-                DeviceSerialNo= device_sn.ToString()
+                DeviceSerialNo = device_sn.ToString()
 
             };
 
             var device = new DaqifiStreamingDevice(deviceInfo);
 
-            if (message.Ssid != null)
+            if (!string.IsNullOrWhiteSpace(message.Ssid))
             {
                 device.NetworkConfiguration.Ssid = message.Ssid;
             }
@@ -174,35 +174,40 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         // TODO move to its own helper class
         private IPAddress GetBroadcastAddress()
         {
-            var address = IPAddress.Broadcast;
-            var subnet = IPAddress.None;
-            var host = Dns.GetHostEntry(Dns.GetHostName());
-            foreach (var ip in host.AddressList)
-            {
-                if (ip.AddressFamily == AddressFamily.InterNetwork)
-                {
-                    address = ip;
-                }
-            }
-
+            IPAddress broadcastAddress = IPAddress.None;
             foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
             {
+                if (networkInterface.OperationalStatus != OperationalStatus.Up ||
+                    (networkInterface.NetworkInterfaceType != NetworkInterfaceType.Ethernet &&
+                     networkInterface.NetworkInterfaceType != NetworkInterfaceType.Wireless80211))
+                {
+                    continue;
+                }
                 foreach (var unicastIpAddressInformation in networkInterface.GetIPProperties().UnicastAddresses)
                 {
-                    if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork) continue;
-                    if (address.Equals(unicastIpAddressInformation.Address))
+                    if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork)
                     {
-                        subnet = unicastIpAddressInformation.IPv4Mask;
+                        continue;
                     }
+                    var ipAddress = unicastIpAddressInformation.Address;
+                    var subnetMask = unicastIpAddressInformation.IPv4Mask;
+                    var broadcastBytes = new byte[ipAddress.GetAddressBytes().Length];
+                    var ipBytes = ipAddress.GetAddressBytes();
+                    var maskBytes = subnetMask.GetAddressBytes();
+                    for (var i = 0; i < broadcastBytes.Length; i++)
+                    {
+                        broadcastBytes[i] = (byte)(ipBytes[i] | (maskBytes[i] ^ 255));
+                    }
+                    broadcastAddress = new IPAddress(broadcastBytes);
+                    break;
+                }
+                if (broadcastAddress != IPAddress.None)
+                {
+                    break;
                 }
             }
-
-            var broadcastAddress = new byte[address.GetAddressBytes().Length];
-            for (var i = 0; i < broadcastAddress.Length; i++)
-            {
-                broadcastAddress[i] = (byte) (address.GetAddressBytes()[i] | (subnet.GetAddressBytes()[i] ^ 255));
-            }
-            return new IPAddress(broadcastAddress);
+            return broadcastAddress;
         }
+
     }
 }

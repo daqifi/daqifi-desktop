@@ -38,6 +38,8 @@ namespace Daqifi.Desktop.Channel
         public bool IsScalingActive { get; set; }
         public bool HasValidExpression { get; set; }
         public DataSample ActiveSample { get; set; }
+        public string DeviceName { get ; set ; }
+        public string DeviceSerialNo { get ; set; }
 
         public event OnChannelUpdatedHandler OnChannelUpdated;
 

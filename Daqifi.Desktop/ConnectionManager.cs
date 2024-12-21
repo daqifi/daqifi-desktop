@@ -99,11 +99,10 @@ namespace Daqifi.Desktop
             try
             {
                 ConnectionStatus = DAQifiConnectionStatus.Connecting;
-                if (!device.Connect()) return;
+                if (!device.Connect()) { return; }
                 ConnectedDevices.Add(device);
                 NotifyPropertyChanged("ConnectedDevices");
                 ConnectionStatus = DAQifiConnectionStatus.Connected;
-                //TODO do we do something if the attempt to connect fails?
             }
             catch (Exception ex)
             {
@@ -156,13 +155,15 @@ namespace Daqifi.Desktop
                 case DAQifiConnectionStatus.Error:
                     ConnectionStatusString = "Error";
                     break;
+                case DAQifiConnectionStatus.AlreadyConnected:
+                    ConnectionStatusString = "AlreadyConnected";
+                    break;
                 default:
                     ConnectionStatusString = "Error";
                     break;
             }
         }
 
-       
         private void CheckIfSerialDeviceWasRemoved()
         {
             NotifyConnection = false;
@@ -204,15 +205,15 @@ namespace Daqifi.Desktop
                 {
                     if (!NotifyConnection)
                     {
-                      System.Windows.Application.Current.Dispatcher.Invoke(delegate
-                        {
-                            foreach (var channel in serialDevice.DataChannels)
-                            {
-                                LoggingManager.Instance.Unsubscribe(channel);
-                            }
-                            Disconnect(serialDevice);
-                            NotifyConnection = true;
-                        });
+                        System.Windows.Application.Current.Dispatcher.Invoke(delegate
+                          {
+                              foreach (var channel in serialDevice.DataChannels)
+                              {
+                                  LoggingManager.Instance.Unsubscribe(channel);
+                              }
+                              Disconnect(serialDevice);
+                              NotifyConnection = true;
+                          });
                     }
                 }
             };
@@ -226,6 +227,7 @@ namespace Daqifi.Desktop
         Disconnected,
         Connecting,
         Connected,
-        Error
+        Error,
+        AlreadyConnected
     }
 }
