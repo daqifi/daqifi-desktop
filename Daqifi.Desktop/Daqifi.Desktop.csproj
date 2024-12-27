@@ -10,8 +10,13 @@
 	</PropertyGroup>
 	<PropertyGroup>
 		<ApplicationIcon>Images\WiFiDAQ.ico</ApplicationIcon>
+		<AssemblyName>DAQiFi</AssemblyName>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
 	</PropertyGroup>
-
+	<PropertyGroup>
+		<AssemblyVersion>3.0.0.0</AssemblyVersion>
+		<FileVersion>3.0.0.0</FileVersion>
+	</PropertyGroup>
 	<ItemGroup>
 		<Compile Remove="Loggers\CsvLogger.cs" />
 		<Compile Remove="ViewModels\PlottingViewModel.cs" />

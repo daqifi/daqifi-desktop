@@ -138,6 +138,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             var isPowerOn = message.PwrStatus == 1;
             var port = message.DevicePort;
             var device_sn = message.DeviceSn;
+            var device_version = message.DeviceFwRev;
 
             var deviceInfo = new DeviceInfo
             {
@@ -146,7 +147,8 @@ namespace Daqifi.Desktop.Device.WiFiDevice
                 MacAddress = macAddress,
                 Port = port,
                 IsPowerOn = isPowerOn,
-                DeviceSerialNo = device_sn.ToString()
+                DeviceSerialNo = device_sn.ToString(),
+                DeviceVersion = device_version.ToString()
 
             };
 

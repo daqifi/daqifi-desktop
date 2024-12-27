@@ -9,6 +9,7 @@ using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Models;
 using Daqifi.Desktop.UpdateVersion;
 using Daqifi.Desktop.View;
@@ -35,6 +36,7 @@ namespace Daqifi.Desktop.ViewModels
         private bool _isDeviceSettingsOpen;
         private bool _isProfileSettingsOpen;
         private bool _isNotificationsOpen;
+        private bool _isFirmwareUpdatationFlyoutOpen;
         private bool _isLogSummaryOpen;
         private bool _isChannelSettingsOpen;
         private bool _isLoggingSessionSettingsOpen;
@@ -246,6 +248,16 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isNotificationsOpen = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool IsFirmwareUpdatationFlyoutOpen
+        {
+            get => _isFirmwareUpdatationFlyoutOpen;
+            set
+            {
+                _isFirmwareUpdatationFlyoutOpen = value;
                 OnPropertyChanged();
             }
         }
@@ -484,7 +496,6 @@ namespace Daqifi.Desktop.ViewModels
                         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
                         RegisterCommands();
 
-
                         // Manage connected streamingDevice list
                         ConnectionManager.Instance.PropertyChanged += UpdateUi;
 
@@ -529,7 +540,7 @@ namespace Daqifi.Desktop.ViewModels
 
 
                     }
-                    catch (Exception ex)
+                    catch (System.Exception ex)
                     {
                         AppLogger.Error(ex, "DAQifiViewModel");
                     }
@@ -576,6 +587,7 @@ namespace Daqifi.Desktop.ViewModels
             OpenHelpCommand = new DelegateCommand(OpenHelp, CanOpenHelp);
             BrowseForFirmwareCommand = new DelegateCommand(BrowseForFirmware, CanBrowseForFirmware);
             UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
+            OpenFirmwareUpdateCommand = new DelegateCommand(OpenFirmwareUpdateSettings, CanOpenFirmwareUpdateSettings);
             HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
         }
 
@@ -669,6 +681,12 @@ namespace Daqifi.Desktop.ViewModels
 
         public ICommand OpenDeviceSettingsCommand { get; private set; }
         private bool CanOpenDeviceSettings(object o)
+        {
+            return true;
+        }
+
+        public ICommand OpenFirmwareUpdateCommand { get; private set; }
+        public bool CanOpenFirmwareUpdateSettings(object o)
         {
             return true;
         }
@@ -811,82 +829,86 @@ namespace Daqifi.Desktop.ViewModels
 
         public void UploadFirmware(object o)
         {
-            // Check if the available port is opened:
-            ObservableCollection<SerialStreamingDevice> _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
-            SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
-            SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
-
-            SerialStreamingDevice port = manualserialdevice;
-            // Check if serial ports auto/manual are not null
-            if (port == null) { port = autodaqifiport; }
-            if (port != null)
+            FirmwareFilePath = FirmwareUpdatationManager.Instance.DownloadFirmwareAsync().GetAwaiter().GetResult();
+            if (FirmwareFilePath != null)
             {
-                // Send the Daqifi command "Force Boot"
-                string command = "SYSTem:FORceBoot\r\n";
+                // Check if the available port is opened:
+                ObservableCollection<SerialStreamingDevice> _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
+                SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
+                SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
 
-                if (port.Write(command))
+                SerialStreamingDevice port = manualserialdevice;
+                // Check if serial ports auto/manual are not null
+                if (port == null) { port = autodaqifiport; }
+                if (port != null)
                 {
-                    // Once the Daqifi resets, the COM serial port is closed,
-                    // and the HID port for managing the bootloader must be found
-                    StartConnectionFinders();
+                    // Send the Daqifi command "Force Boot"
+                    string command = "SYSTem:FORceBoot\r\n";
 
-                    // Update the variable 'HasNoHidDevices' in a backbround task
-                    var bw2 = new BackgroundWorker();
-                    bw2.DoWork += delegate
+                    if (port.Write(command))
                     {
-                        while (HasNoHidDevices == true)
+                        // Once the Daqifi resets, the COM serial port is closed,
+                        // and the HID port for managing the bootloader must be found
+                        StartConnectionFinders();
+
+                        // Update the variable 'HasNoHidDevices' in a backbround task
+                        var bw2 = new BackgroundWorker();
+                        bw2.DoWork += delegate
                         {
-                            Thread.Sleep(2000);
-                            if (HasNoHidDevices == false)
+                            while (HasNoHidDevices == true)
                             {
-                                // Connect HID if it was found before              
-                                HidFirmwareDevice hidFirmwareDevice = ConnectHid(AvailableHidDevices);
-                                if (hidFirmwareDevice != null)
+                                Thread.Sleep(2000);
+                                if (HasNoHidDevices == false)
                                 {
-                                    _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
-                                    _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
-                                    _bootloader.RequestVersion();
-
-                                    var bw = new BackgroundWorker();
-                                    bw.DoWork += delegate
+                                    // Connect HID if it was found before              
+                                    HidFirmwareDevice hidFirmwareDevice = ConnectHid(AvailableHidDevices);
+                                    if (hidFirmwareDevice != null)
                                     {
-                                        IsFirmwareUploading = true;
-                                        if (string.IsNullOrWhiteSpace(FirmwareFilePath))
+                                        _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
+                                        _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
+                                        _bootloader.RequestVersion();
+
+                                        var bw = new BackgroundWorker();
+                                        bw.DoWork += delegate
                                         {
-                                            return;
-                                        }
-                                        if (!File.Exists(FirmwareFilePath))
-                                        {
-                                            return;
-                                        }
+                                            IsFirmwareUploading = true;
+                                            if (string.IsNullOrWhiteSpace(FirmwareFilePath))
+                                            {
+                                                return;
+                                            }
+                                            if (!File.Exists(FirmwareFilePath))
+                                            {
+                                                return;
+                                            }
 
 
-                                        if (_bootloader != null)
-                                        {
-                                            _bootloader.LoadFirmware(FirmwareFilePath, bw);
-                                        }
+                                            if (_bootloader != null)
+                                            {
+                                                _bootloader.LoadFirmware(FirmwareFilePath, bw);
+                                            }
 
-                                    };
-                                    bw.WorkerReportsProgress = true;
-                                    bw.ProgressChanged += UploadFirmwareProgressChanged;
-                                    bw.RunWorkerCompleted += HandleUploadCompleted;
-                                    bw.RunWorkerAsync();
+                                        };
+                                        bw.WorkerReportsProgress = true;
+                                        bw.ProgressChanged += UploadFirmwareProgressChanged;
+                                        bw.RunWorkerCompleted += HandleUploadCompleted;
+                                        bw.RunWorkerAsync();
+                                    }
                                 }
                             }
-                        }
-                    };
-                    bw2.RunWorkerAsync();
+                        };
+                        bw2.RunWorkerAsync();
+                    }
+                    else
+                    {
+                        string msg = "Error writing to COM port";
+                        AppLogger.Error(msg);
+                    }
                 }
                 else
                 {
-                    string msg = "Error writing to COM port";
+                    string msg = "Error serial COM port detection";
                     AppLogger.Error(msg);
                 }
-            }
-            else
-            {
-                string msg = "Error serial COM port detection";
-                AppLogger.Error(msg);
             }
         }
         private void ShowConnectionDialog(object o)
@@ -928,7 +950,7 @@ namespace Daqifi.Desktop.ViewModels
                 device.RemoveChannel(channel);
                 return;
             }
-            
+
         }
         private void DisconnectDevice(object o)
         {
@@ -941,8 +963,8 @@ namespace Daqifi.Desktop.ViewModels
                     LoggingManager.Instance.Unsubscribe(channel);
                 }
             }
-
             ConnectionManager.Instance.Disconnect(deviceToRemove);
+            RemoveNotification(deviceToRemove);
         }
         public void Shutdown(object o)
         {
@@ -982,6 +1004,25 @@ namespace Daqifi.Desktop.ViewModels
             CloseFlyouts();
             SelectedDevice = item;
             IsDeviceSettingsOpen = true;
+        }
+        private void OpenFirmwareUpdateSettings(object o)
+        {
+            var item = o as IStreamingDevice;
+            if (item == null)
+            {
+                AppLogger.Error("Error opening firmware settings");
+            }
+            CloseFlyouts();
+            SelectedDevice = item;
+            IsFirmwareUpdatationFlyoutOpen = true;
+            //Task.Run(async () =>
+            //{
+            //    string firmwarePath = await FirmwareUpdatationManager.Instance.DownloadFirmwareAsync();
+            //    if (!string.IsNullOrWhiteSpace(firmwarePath))
+            //    {
+            //        FirmwareFilePath = firmwarePath; 
+            //    }
+            //});
         }
         private void OpenChannelSettings(object o)
         {
@@ -1095,7 +1136,7 @@ namespace Daqifi.Desktop.ViewModels
 
                 bw.RunWorkerAsync();
             }
-            catch (Exception ex)
+            catch (System.Exception ex)
             {
                 AppLogger.Error(ex, "Error Deleting Logging Session");
             }
@@ -1253,6 +1294,12 @@ namespace Daqifi.Desktop.ViewModels
                     ConnectedDevices.Clear();
                     foreach (var connectedDevice in ConnectionManager.Instance.ConnectedDevices)
                     {
+                        var SerailDeviceProperty = connectedDevice.GetType().GetProperty("DeviceVersion");
+                        var DeviceVersion = SerailDeviceProperty.GetValue(connectedDevice)?.ToString();
+                        if (DeviceVersion != latestFirmwareVersion)
+                        {
+                            connectedDevice.IsFirmwareOutdated = true;
+                        }
                         ConnectedDevices.Add(connectedDevice);
                     }
                     GetUpdateProfileAvailableDevice();
@@ -1284,6 +1331,8 @@ namespace Daqifi.Desktop.ViewModels
                         VersionName = data.VersionNumber;
                         var notify = new Notifications()
                         {
+                            isFirmwareUpdate = false,
+                            DeviceSerialNo = null,
                             Message = $"Please update latest application version:  {VersionName}",
                             Link = "https://github.com/daqifi/daqifi-desktop/releases"
                         };
@@ -1307,6 +1356,7 @@ namespace Daqifi.Desktop.ViewModels
                     break;
             }
             CanToggleLogging = ActiveChannels.Count > 0;
+            GetFirmwareupdatationList();
         }
         public async Task<MessageDialogResult> ShowMessage(string title, string message, MessageDialogStyle dialogStyle)
         {
@@ -1322,6 +1372,7 @@ namespace Daqifi.Desktop.ViewModels
             IsLiveGraphSettingsOpen = false;
             IsLogSummaryOpen = false;
             IsNotificationsOpen = false;
+            IsFirmwareUpdatationFlyoutOpen = false;
         }
 
         #region update profile methods
@@ -1370,6 +1421,62 @@ namespace Daqifi.Desktop.ViewModels
                 AvailableDevices.Add(device);
             }
         }
+
+        #region Firmware version checking methods 
+
+        private string latestFirmwareVersion;
+        public async Task GetFirmwareupdatationList()
+        {
+            var ldata = await FirmwareUpdatationManager.Instance.CheckFirmwareVersion();
+            latestFirmwareVersion = ldata;
+
+            if (latestFirmwareVersion == null)
+            {
+                return;
+            }
+            var connectedDevices = ConnectionManager.Instance.ConnectedDevices;
+            foreach (var device in connectedDevices)
+            {
+                var deviceVersion = new Version(device.DeviceVersion);
+                var latestVersion = new Version(latestFirmwareVersion);
+                if (device.DeviceSerialNo != null && deviceVersion < latestVersion)
+                {
+                    AddNotification(device, latestFirmwareVersion);
+                }
+            }
+        }
+
+        private void AddNotification(IStreamingDevice device, string LatestFirmware)
+        {
+            var message = $"Device With Serial {device.DeviceSerialNo} has Outdated Firmware. Please Update to Version {LatestFirmware}.";
+
+            // Check if the notification is already in the list
+            var existingNotification = notificationlist.FirstOrDefault(n => n.DeviceSerialNo != null
+                && n.isFirmwareUpdate
+                && n.DeviceSerialNo == device.DeviceSerialNo);
+
+            if (existingNotification == null)
+            {
+                // If not found, add the new notification
+                notificationlist.Add(new Notifications
+                {
+                    DeviceSerialNo = device.DeviceSerialNo,
+                    Message = message,
+                    isFirmwareUpdate = true  // Assuming you want to set this flag as true
+                });
+            }
+
+            NotificationCount = notificationlist.Count;
+        }
+        private void RemoveNotification(IStreamingDevice deviceToRemove)
+        {
+            var notificationsToRemove = notificationlist.FirstOrDefault(x => x.DeviceSerialNo != null && x.DeviceSerialNo == deviceToRemove.DeviceSerialNo && x.isFirmwareUpdate);
+            notificationlist.Remove(notificationsToRemove);
+            NotificationCount = notificationlist.Count;
+        }
+
+        #endregion
+
         /// <summary>
         /// Remove profile 
         /// </summary>

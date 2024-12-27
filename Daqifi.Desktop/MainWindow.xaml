@@ -10,7 +10,7 @@
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         Service:DialogService.IsRegisteredView="True"
         Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
-    
+
 
     <Controls:MetroWindow.RightWindowCommands>
         <Controls:WindowCommands>
@@ -111,6 +111,9 @@
 
             <!-- Summary Logger Flyout-->
             <flyouts:SummaryFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+
+            <!--Firmware Updatation Flyout-->
+            <flyouts:FirmwareFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
 
         </Controls:FlyoutsControl>
     </Controls:MetroWindow.Flyouts>
@@ -217,7 +220,7 @@
                                                HorizontalAlignment="Stretch" 
                                                HorizontalContentAlignment="Stretch"/>
                                     </StackPanel>
-                                  
+
                                 </DockPanel>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -310,7 +313,7 @@
                                                 <Border>
                                                     <DockPanel >
                                                         <Label Content="{Binding Name}" DockPanel.Dock="Left" FontWeight="Bold"/>
-                                                       
+
                                                         <!-- Delete Logging Session -->
                                                         <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteLoggingSessionCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Delete" Padding="5">
                                                             <Button.Content>
@@ -505,21 +508,40 @@
                                                             <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+
                                                         </Grid.ColumnDefinitions>
-                                                        <Label Grid.Row="0" Grid.Column="0" Content="{Binding Name}"/>
-                                                        <Label Grid.Row="1" Grid.Column="0" Content="{Binding IpAddress}"/>
-                                                        <Label Grid.Row="2" Grid.Column="0" Content="{Binding MacAddress}"/>
-                                                        <Button Grid.RowSpan="3" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.OpenDeviceSettingsCommand}" CommandParameter="{Binding}" ToolTip="Device Settings">
+                                                        <StackPanel   Grid.Column="0" Grid.Row="0" Margin="5"  Orientation="Vertical">
+                                                            <Label Content="{Binding Name}"  Padding="0"/>
+                                                            <Label Content="{Binding IpAddress}" FontSize="10" Padding="0"/>
+                                                            <Label Content="{Binding MacAddress}" FontSize="10"  Padding="0"/>
+                                                            <TextBlock FontSize="10"  Padding="0">
+                                                                    <Run Text="Firmware version :" />
+                                                                    <Run Text="{Binding DeviceVersion}" />
+                                                            </TextBlock>
+
+                                                        </StackPanel>
+                                                        <Button Grid.RowSpan="3" Grid.Column="1" 
+        HorizontalAlignment="Right" VerticalAlignment="Bottom" 
+        Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.OpenFirmwareUpdateCommand}" 
+        CommandParameter="{Binding}" ToolTip="Update Firmware"   Visibility="{Binding IsFirmwareOutdated, Converter={StaticResource BoolToVis}}" >
+
+                                                            <Button.Content>
+                                                                <iconPacks:PackIconMaterial Kind="Update" HorizontalAlignment="Center" Height="20" Width="20"/>
+                                                            </Button.Content>
+                                                        </Button>
+
+                                                        <Button Grid.RowSpan="3" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.OpenDeviceSettingsCommand}" CommandParameter="{Binding}" ToolTip="Device Settings">
                                                             <Button.Content>
                                                                 <iconPacks:PackIconMaterial Kind="Cog" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                             </Button.Content>
                                                         </Button>
-                                                        <Button Grid.RowSpan="3" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.DisconnectDeviceCommand}" CommandParameter="{Binding}" ToolTip="Disconnect From Device">
+                                                        <Button Grid.RowSpan="3" Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.DisconnectDeviceCommand}" CommandParameter="{Binding}" ToolTip="Disconnect From Device">
                                                             <Button.Content>
                                                                 <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                             </Button.Content>
                                                         </Button>
-                                                        <Button Grid.RowSpan="3" Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.RebootSelectedDeviceCommand}" CommandParameter="{Binding}" ToolTip="Reboot Device">
+                                                        <Button Grid.RowSpan="3" Grid.Column="4" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.RebootSelectedDeviceCommand}" CommandParameter="{Binding}" ToolTip="Reboot Device">
                                                             <Button.Content>
                                                                 <iconPacks:PackIconMaterial Kind="Power" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                             </Button.Content>
