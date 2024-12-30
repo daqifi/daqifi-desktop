@@ -8,11 +8,14 @@ using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.DialogService;
+using Daqifi.Desktop.IO.Messages;
+using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Models;
 using Daqifi.Desktop.UpdateVersion;
 using Daqifi.Desktop.View;
+using Google.Protobuf.WellKnownTypes;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
 using Microsoft.EntityFrameworkCore;
@@ -125,6 +128,10 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _isUploadComplete = value;
                 OnPropertyChanged();
+                if (_isUploadComplete)
+                {
+                    CloseFlyouts();
+                }
             }
         }
 
@@ -816,6 +823,12 @@ namespace Daqifi.Desktop.ViewModels
             else
             {
                 IsUploadComplete = true;
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    var successDialogViewModel = new SuccessDialogViewModel("Firmware update completed successfully.");
+                    _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
+                });
+                CloseFlyouts();
             }
         }
 
@@ -826,10 +839,10 @@ namespace Daqifi.Desktop.ViewModels
         {
             return true;
         }
-
+      
         public void UploadFirmware(object o)
         {
-            FirmwareFilePath = FirmwareUpdatationManager.Instance.DownloadFirmwareAsync().GetAwaiter().GetResult();
+            FirmwareFilePath = FirmwareUpdatationManager.Instance.DownloadFirmwareAsync();
             if (FirmwareFilePath != null)
             {
                 // Check if the available port is opened:
@@ -1015,14 +1028,7 @@ namespace Daqifi.Desktop.ViewModels
             CloseFlyouts();
             SelectedDevice = item;
             IsFirmwareUpdatationFlyoutOpen = true;
-            //Task.Run(async () =>
-            //{
-            //    string firmwarePath = await FirmwareUpdatationManager.Instance.DownloadFirmwareAsync();
-            //    if (!string.IsNullOrWhiteSpace(firmwarePath))
-            //    {
-            //        FirmwareFilePath = firmwarePath; 
-            //    }
-            //});
+
         }
         private void OpenChannelSettings(object o)
         {
@@ -1296,7 +1302,7 @@ namespace Daqifi.Desktop.ViewModels
                     {
                         var SerailDeviceProperty = connectedDevice.GetType().GetProperty("DeviceVersion");
                         var DeviceVersion = SerailDeviceProperty.GetValue(connectedDevice)?.ToString();
-                        if (DeviceVersion != latestFirmwareVersion)
+                        if (DeviceVersion != latestFirmwareVersion && (connectedDevice.Name.StartsWith("COM")))
                         {
                             connectedDevice.IsFirmwareOutdated = true;
                         }

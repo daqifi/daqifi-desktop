@@ -207,5 +207,12 @@ namespace Daqifi.Desktop.IO.Messages.Producers
             return new ScpiMessage("SYSTem:COMMunicate:LAN:SAVE");
         }
         #endregion
+
+        #region WIFI Commands
+        public static IMessage GetWIFIModuleVersion()
+        {
+            return new ScpiMessage("SYSTem:COMMunicate:LAN:GETChipINFO");
+        }
+        #endregion
     }
 }

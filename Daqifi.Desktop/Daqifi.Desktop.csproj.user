@@ -5,9 +5,15 @@
     <Compile Update="View\Flyouts\FirmwareFlyout.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Update="View\SuccessDialog.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Page Update="View\Flyouts\FirmwareFlyout.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Update="View\SuccessDialog.xaml">
       <SubType>Designer</SubType>
     </Page>
   </ItemGroup>

@@ -93,50 +93,36 @@ namespace Daqifi.Desktop.Loggers
             firmwareDownloadUrl = $"http://dev.alcyone.in/FirmwareVersions/DAQiFi_Nyquist_{latestFirmwareVersion}.hex";
         }
 
-        public async Task<string> DownloadFirmwareAsync()
+        public string DownloadFirmwareAsync()
         {
             try
             {
                 string fileName = Path.GetFileName(firmwareDownloadUrl);
-
                 string tempFilePath = Path.Combine(Path.GetTempPath(), fileName);
 
-                using (HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) })
-                {
-                    using (HttpResponseMessage response = await client.GetAsync(firmwareDownloadUrl, HttpCompletionOption.ResponseHeadersRead))
-                    {
-                        response.EnsureSuccessStatusCode();
+                using HttpClient client = new HttpClient();
 
-                        using (Stream contentStream = await response.Content.ReadAsStreamAsync())
-                        using (FileStream fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
-                        {
-                            await contentStream.CopyToAsync(fileStream);
-                        }
-                    }
-                }
+                using HttpResponseMessage response = client.GetAsync(firmwareDownloadUrl).Result;
+                response.EnsureSuccessStatusCode();
 
-                Console.WriteLine($"Firmware downloaded successfully to: {tempFilePath}");
-                return tempFilePath; 
+                using Stream contentStream = response.Content.ReadAsStream();
+                using FileStream fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
+
+                contentStream.CopyTo(fileStream);
+                return tempFilePath;
             }
             catch (TaskCanceledException ex)
             {
+               AppLogger.Error($"Download timed out: {ex.Message}");
                 return null;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error while downloading firmware: {ex.Message}");
+                AppLogger.Error($"Error while downloading firmware: {ex.Message}");
                 return null;
             }
         }
 
 
-
-
-        private string ParseVersionFromHexFileContent(byte[] fileBytes)
-        {
-            string fileContent = Encoding.UTF8.GetString(fileBytes);
-            var match = Regex.Match(fileContent, @"Version:\s*(\d+\.\d+\.\d+)");
-            return match.Success ? match.Groups[1].Value : null;
-        }
     }
 }
