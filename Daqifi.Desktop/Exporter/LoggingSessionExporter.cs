@@ -16,7 +16,10 @@ namespace Daqifi.Desktop.Exporter
         private readonly IDbContextFactory<LoggingContext> _loggingContext;
         public LoggingSessionExporter()
         {
+            if (App.ServiceProvider != null)
+            {
             _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+            }
         }
         public void ExportLoggingSession(LoggingSession loggingSession, string filepath)
         {
