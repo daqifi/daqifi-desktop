@@ -22,7 +22,11 @@ namespace Daqifi.Desktop.Exporter
         {
             try
             {
-                var channelNames = loggingSession.DataSamples.Select(s => s.ChannelName).Distinct().ToList();
+                var channelNames = loggingSession.DataSamples
+                    .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
+                    .Distinct()
+                    .ToList();
+
                 var hasTimeStamps = loggingSession.DataSamples.Select(s => s.TimestampTicks).Distinct().Any();
                 var samplesCount = loggingSession.DataSamples.Count;
 
@@ -32,7 +36,7 @@ namespace Daqifi.Desktop.Exporter
 
                 // Create the header
                 var sb = new StringBuilder();
-                sb.Append("time").Append(Delimiter).Append(string.Join(Delimiter, channelNames.ToArray())).AppendLine();
+                sb.Append("Time").Append(Delimiter).Append(string.Join(Delimiter, channelNames)).AppendLine();
                 File.WriteAllText(filepath, sb.ToString());
                 sb.Clear();
 
@@ -41,7 +45,7 @@ namespace Daqifi.Desktop.Exporter
                 while (count < samplesCount)
                 {
                     var pagedSampleDictionary = loggingSession.DataSamples
-                        .Select(s => new { s.TimestampTicks, s.ChannelName, s.Value })
+                        .Select(s => new { s.TimestampTicks, DeviceChannel = $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value })
                         .OrderBy(s => s.TimestampTicks)
                         .Skip(count)
                         .Take(pageSize)
@@ -52,19 +56,19 @@ namespace Daqifi.Desktop.Exporter
                     {
                         sb.Append(new DateTime(timestamp).ToString("O"));
 
-                        // Create the template for samples dictionary
-                        var sampleDictionary = channelNames.ToDictionary<string, string, double?>(channelName => channelName, channelName => null);
+                        // Create the template for samples dictionary 
+                        var sampleDictionary = channelNames.ToDictionary(channel => channel, channel => (double?)null);
                         var samples = pagedSampleDictionary[timestamp];
 
                         foreach (var sample in samples)
                         {
-                            sampleDictionary[sample.ChannelName] = sample.Value;
+                            sampleDictionary[sample.DeviceChannel] = sample.Value;
                         }
 
                         foreach (var sample in sampleDictionary)
                         {
                             sb.Append(Delimiter);
-                            sb.Append(sample.Value);
+                            sb.Append(sample.Value.HasValue ? sample.Value.Value.ToString("G") : string.Empty);
                         }
 
                         sb.AppendLine();
@@ -88,49 +92,61 @@ namespace Daqifi.Desktop.Exporter
                 {
                     context.ChangeTracker.AutoDetectChangesEnabled = false;
                     var loggingSession = context.Sessions.Find(session.ID);
-                    var channelNames = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == loggingSession.ID).Select(s => s.ChannelName).Distinct();
-                    var samples = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == loggingSession.ID).Select(s => s);
 
-                    var rows = new Dictionary<DateTime, List<double>>();
+                    // Extract channel names in "Device:Channel" format
+                    var channelNames = context.Samples
+                        .AsNoTracking()
+                        .Where(s => s.LoggingSessionID == loggingSession.ID)
+                        .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
+                        .Distinct()
+                        .ToList();
+
+                    var samples = context.Samples
+                        .AsNoTracking()
+                        .Where(s => s.LoggingSessionID == loggingSession.ID)
+                        .Select(s => s);
+
+                    var rows = new Dictionary<DateTime, List<KeyValuePair<string, double>>>();
                     foreach (var sample in samples)
                     {
-                        if (!rows.Keys.Contains(new DateTime(sample.TimestampTicks)))
+                        var timestamp = new DateTime(sample.TimestampTicks);
+                        if (!rows.ContainsKey(timestamp))
                         {
-                            rows.Add(new DateTime(sample.TimestampTicks), new List<double>());
+                            rows[timestamp] = new List<KeyValuePair<string, double>>();
                         }
-
-                        rows[new DateTime(sample.TimestampTicks)].Add(sample.Value);
+                        rows[timestamp].Add(new KeyValuePair<string, double>($"{sample.DeviceName}:{sample.DeviceSerialNo}:{sample.ChannelName}", sample.Value));
                     }
 
                     // Create the header
                     var sb = new StringBuilder();
-                    sb.Append("time").Append(Delimiter).Append(string.Join(Delimiter, channelNames.ToArray())).AppendLine();
+                    sb.Append("Time").Append(Delimiter).Append(string.Join(Delimiter, channelNames)).AppendLine();
 
                     var count = 0;
-                    var tempTotals = new List<double>();
+                    var tempTotals = channelNames.ToDictionary(name => name, _ => 0.0);
+                    var tempCounts = channelNames.ToDictionary(name => name, _ => 0);
 
-                    foreach (var row in rows.Keys)
+                    foreach (var row in rows.Keys.OrderBy(t => t))
                     {
-                        var channelNumber = 0;
-                        foreach (var value in rows[row])
+                        foreach (var kvp in rows[row])
                         {
-                            if (tempTotals.Count - 1 < channelNumber) tempTotals.Add(0);
-                            tempTotals[channelNumber] += value;
-                            channelNumber++;
+                            tempTotals[kvp.Key] += kvp.Value;
+                            tempCounts[kvp.Key]++;
                         }
 
                         count++;
 
                         if (count % averageQuantity == 0)
                         {
-                            // Average and write to file
-                            sb.Append(row).Append(Delimiter);
-                            foreach (var value in tempTotals)
+                            sb.Append(row.ToString("O")).Append(Delimiter);
+                            foreach (var channelName in channelNames)
                             {
-                                sb.Append(value / averageQuantity).Append(Delimiter);
+                                var average = tempCounts[channelName] > 0 ? tempTotals[channelName] / tempCounts[channelName] : (double?)null;
+                                sb.Append(average?.ToString("G") ?? string.Empty).Append(Delimiter);
                             }
                             sb.AppendLine();
-                            tempTotals.Clear();
+
+                            tempTotals = channelNames.ToDictionary(name => name, _ => 0.0);
+                            tempCounts = channelNames.ToDictionary(name => name, _ => 0);
                         }
                     }
                     File.WriteAllText(filepath, sb.ToString());
@@ -138,7 +154,7 @@ namespace Daqifi.Desktop.Exporter
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Failed in ExportLoggingSession");
+                AppLogger.Error(ex, "Failed in ExportAverageSamples");
             }
         }
     }
