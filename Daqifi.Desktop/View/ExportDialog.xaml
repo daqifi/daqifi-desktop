@@ -13,7 +13,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        
+
         <!-- Export Location -->
         <GroupBox Grid.Row="0" Grid.ColumnSpan="2" Header="Export Location">
             <Grid>
@@ -25,7 +25,7 @@
                 <Button Grid.Column="1" Content="Browse" Command="{Binding BrowseExportPathCommand}"/>
             </Grid>
         </GroupBox>
-        
+
         <!-- Export Type -->
         <GroupBox Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Header="Export Type">
             <Grid>
@@ -42,10 +42,33 @@
                 <TextBox Grid.Column="1" Grid.Row="1" Width="50" Text="{Binding AverageQuantity, Mode=TwoWay}"/>
             </Grid>
         </GroupBox>
-        
+
+        <GroupBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Header="Exporting file" >
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Progress Bar -->
+                <controls:MetroProgressBar Grid.Column="0" Grid.Row="0" Height="25" Minimum="0" Maximum="100" 
+                                   Value="{Binding ExportProgress}" 
+                                   Visibility="{Binding IsExporting, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="5"/>
+
+                <!-- Cancel Button -->
+                <Button Grid.Column="1" Grid.Row="0" Content="Cancel" Command="{Binding CancelExportCommand}" 
+                Visibility="{Binding IsExporting, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="5"/>
+                <Label Grid.Row="1" Grid.Column="0" Content="{Binding ExportProgressText}"  HorizontalAlignment="Center"/>
+            </Grid>
+        </GroupBox>
+
         <DockPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Grid.RowSpan="3"  HorizontalAlignment="Right" VerticalAlignment="Bottom">
             <Button Name="btnCancel" Click="btnCancel_Click" Content="Cancel" Width="100" Height="30"  Style="{StaticResource  MahApps.Styles.Button.Square}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
-            <Button Name="btnExport" Click="btnExport_Click" Content="Export"  Command="{Binding ExportSessionCommand}"  Width="100" Height="30" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+            <Button Name="btnExport" Content="Export"  Command="{Binding ExportSessionCommand}"  Width="100" Height="30" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
         </DockPanel>
     </Grid>
 </controls:MetroWindow>

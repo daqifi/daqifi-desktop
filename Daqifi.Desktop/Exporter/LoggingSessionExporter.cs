@@ -6,6 +6,7 @@ using System.Text;
 using Daqifi.Desktop.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.ComponentModel;
 
 namespace Daqifi.Desktop.Exporter
 {
@@ -18,7 +19,7 @@ namespace Daqifi.Desktop.Exporter
         {
             _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
         }
-        public void ExportLoggingSession(LoggingSession loggingSession, string filepath)
+        public void ExportLoggingSession(LoggingSession loggingSession, string filepath, BackgroundWorker bw, int sessionIndex, int totalSessions)
         {
             try
             {
@@ -30,7 +31,6 @@ namespace Daqifi.Desktop.Exporter
 
                 channelNames.Sort(new OrdinalStringComparer());
 
-                // Create the header
                 var sb = new StringBuilder();
                 sb.Append("time").Append(Delimiter).Append(string.Join(Delimiter, channelNames.ToArray())).AppendLine();
                 File.WriteAllText(filepath, sb.ToString());
@@ -40,6 +40,11 @@ namespace Daqifi.Desktop.Exporter
                 var pageSize = 10000 * channelNames.Count;
                 while (count < samplesCount)
                 {
+                    if (bw.CancellationPending)
+                    {
+                        AppLogger.Warning("Export operation cancelled by user.");
+                        return;
+                    }
                     var pagedSampleDictionary = loggingSession.DataSamples
                         .Select(s => new { s.TimestampTicks, s.ChannelName, s.Value })
                         .OrderBy(s => s.TimestampTicks)
@@ -52,7 +57,6 @@ namespace Daqifi.Desktop.Exporter
                     {
                         sb.Append(new DateTime(timestamp).ToString("O"));
 
-                        // Create the template for samples dictionary
                         var sampleDictionary = channelNames.ToDictionary<string, string, double?>(channelName => channelName, channelName => null);
                         var samples = pagedSampleDictionary[timestamp];
 
@@ -72,6 +76,9 @@ namespace Daqifi.Desktop.Exporter
                         sb.Clear();
                     }
                     count += pageSize;
+                    int sessionProgress = (int)((double)count / samplesCount * 100);
+                    int overallProgress = (sessionIndex * 100 + sessionProgress) / totalSessions;
+                    bw.ReportProgress(overallProgress, loggingSession.Name);
                 }
             }
             catch (Exception ex)
