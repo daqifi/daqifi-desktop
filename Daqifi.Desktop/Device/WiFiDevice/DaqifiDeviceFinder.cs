@@ -60,14 +60,18 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         {
             try
             {
-                Client.EnableBroadcast = true;
-                Client.BeginReceive(HandleFinderMessageReceived, null);
-
-                while (Running)
+                if (Client != null)
                 {
-                    Client.Send(_queryCommandBytes, _queryCommandBytes.Length, Destination);
-                    Thread.Sleep(1000);
+                    Client.EnableBroadcast = true;
+                    Client.BeginReceive(HandleFinderMessageReceived, null);
+
+                    while (Running)
+                    {
+                        Client.Send(_queryCommandBytes, _queryCommandBytes.Length, Destination);
+                        Thread.Sleep(1000);
+                    }
                 }
+                
             }
             catch (Exception ex)
             {
