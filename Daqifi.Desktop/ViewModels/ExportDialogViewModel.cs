@@ -198,7 +198,7 @@ namespace Daqifi.Desktop.ViewModels
                     }
                     else if (ExportAverageSelected)
                     {
-                        ExportAverageSamples(loggingSession, filepath);
+                        ExportAverageSamples(loggingSession, filepath, bw, i, totalSessions);
                     }
                 }
             };
@@ -228,10 +228,10 @@ namespace Daqifi.Desktop.ViewModels
             loggingSessionExporter.ExportLoggingSession(session, filepath, bw, sessionIndex, totalSessions);
         }
 
-        private void ExportAverageSamples(LoggingSession session, string filepath)
+        private void ExportAverageSamples(LoggingSession session, string filepath, BackgroundWorker bw, int sessionIndex, int totalSessions)
         {
             var loggingSessionExporter = new LoggingSessionExporter();
-            loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity);
+            loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, bw, sessionIndex, totalSessions);
         }
 
         private async Task<LoggingSession> GetLoggingSessionFromId(int sessionId)

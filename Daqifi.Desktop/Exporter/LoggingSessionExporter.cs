@@ -77,8 +77,9 @@ namespace Daqifi.Desktop.Exporter
                     }
                     count += pageSize;
                     int sessionProgress = (int)((double)count / samplesCount * 100);
-                    int overallProgress = (sessionIndex * 100 + sessionProgress) / totalSessions;
-                    bw.ReportProgress(overallProgress, loggingSession.Name);
+                    int overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
+                    bw.ReportProgress(Math.Min(100, overallProgress), loggingSession.Name);
+
                 }
             }
             catch (Exception ex)
@@ -87,7 +88,7 @@ namespace Daqifi.Desktop.Exporter
             }
         }
 
-        public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity)
+        public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity, BackgroundWorker bw, int sessionIndex, int totalSessions)
         {
             try
             {
@@ -101,12 +102,13 @@ namespace Daqifi.Desktop.Exporter
                     var rows = new Dictionary<DateTime, List<double>>();
                     foreach (var sample in samples)
                     {
-                        if (!rows.Keys.Contains(new DateTime(sample.TimestampTicks)))
+                        var timestamp = new DateTime(sample.TimestampTicks);
+                        if (!rows.ContainsKey(timestamp))
                         {
-                            rows.Add(new DateTime(sample.TimestampTicks), new List<double>());
+                            rows.Add(timestamp, new List<double>());
                         }
 
-                        rows[new DateTime(sample.TimestampTicks)].Add(sample.Value);
+                        rows[timestamp].Add(sample.Value);
                     }
 
                     // Create the header
@@ -115,6 +117,7 @@ namespace Daqifi.Desktop.Exporter
 
                     var count = 0;
                     var tempTotals = new List<double>();
+                    int totalRows = rows.Count;
 
                     foreach (var row in rows.Keys)
                     {
@@ -138,6 +141,15 @@ namespace Daqifi.Desktop.Exporter
                             }
                             sb.AppendLine();
                             tempTotals.Clear();
+                        }
+                        if (bw.WorkerReportsProgress)
+                        {
+                            int progressPercentage = (int)((double)count / totalRows * 100);
+                            bw.ReportProgress(progressPercentage, new Tuple<int, int>(sessionIndex, totalSessions));
+                        }
+                        if (bw.CancellationPending)
+                        {
+                            return;
                         }
                     }
                     File.WriteAllText(filepath, sb.ToString());
