@@ -1,0 +1,85 @@
+﻿<Controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.FirmwareFlyout"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+                 xmlns:networkDataModel="clr-namespace:Daqifi.Desktop.DataModel.Network;assembly=Daqifi.Desktop.DataModel"
+                  xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
+             xmlns:local="clr-namespace:Daqifi.Desktop.View.Flyouts"
+                   xmlns:sys="clr-namespace:System;assembly=mscorlib" xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800"
+                  Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsFirmwareUpdatationFlyoutOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right" Header="Firmware Update">
+
+    <controls:Flyout.DataContext>
+        <vm:DaqifiViewModel/>
+    </controls:Flyout.DataContext>
+    <Controls:Flyout.Resources>
+        <ObjectDataProvider MethodName="GetValues" ObjectType="{x:Type sys:Enum}" x:Key="WifiModes">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="networkDataModel:WifiMode" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+        <ObjectDataProvider MethodName="GetValues" ObjectType="{x:Type sys:Enum}" x:Key="WifiSecurityTypes">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="networkDataModel:WifiSecurityType" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+    </Controls:Flyout.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Device Information -->
+        <GroupBox Grid.Column="0" Grid.Row="0" Header="Device Information">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Label Grid.Column="0" Grid.Row="0" Content="Model Number:"/>
+                <Label Grid.Column="1" Grid.Row="0" Content="{Binding SelectedDevice.DevicePartNumber}"/>
+                <Label Grid.Column="0" Grid.Row="1" Content="Firmware Version :"/>
+                <Label Grid.Column="1" Grid.Row="1" Content="{Binding SelectedDevice.DeviceVersion}" />
+                <Label Grid.Column="0" Grid.Row="2" Content="Device Serial :"/>
+                <Label Grid.Column="1" Grid.Row="2" Content="{Binding SelectedDevice.DeviceSerialNo}"/>
+            </Grid>
+        </GroupBox>
+        <!-- Update Firmware -->
+        <GroupBox Grid.Column="0" Grid.Row="2" Header="Update Firmware">
+     <Grid>
+         <Grid.ColumnDefinitions>
+             <ColumnDefinition Width="*"/>
+             <ColumnDefinition Width="Auto"/>
+         </Grid.ColumnDefinitions>
+         <Grid.RowDefinitions>
+             <RowDefinition Height="Auto"/>
+             <RowDefinition Height="Auto"/>
+             <RowDefinition Height="Auto"/>
+             <RowDefinition Height="Auto"/>
+         </Grid.RowDefinitions>
+
+         <Label Grid.Column="0" Grid.Row="0" Content="Firmware Update" VerticalAlignment="Center" />
+         <controls:MetroProgressBar Grid.Column="0" Grid.Row="1" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadFirmwareProgress}" />
+
+         <Label Grid.Column="0" Grid.Row="2" Content="WIFI Module Update" VerticalAlignment="Center" />
+         <controls:MetroProgressBar Grid.Column="0" Grid.Row="3" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadWIFIProgress}" />
+
+         <Button Grid.Column="1" Grid.Row="3" Width="50" Margin="5,0,0,0" Content="Update" Command="{Binding UploadFirmwareCommand}" />
+     </Grid>
+ </GroupBox>
+    </Grid>
+</Controls:Flyout>

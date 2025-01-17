@@ -19,13 +19,24 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <StackPanel Margin="10" Orientation="Vertical">
-                        <TextBlock Text="{Binding Message}" FontWeight="Medium" FontSize="18"/>
+                        <TextBlock Text="{Binding Message}" FontWeight="Medium" FontSize="18" TextWrapping="Wrap"/>
                         <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Link}" Value="{x:Null}">
+                                            <DataTrigger.Setters>
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger.Setters>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
 
-<Hyperlink NavigateUri="{Binding Link}" RequestNavigate="Hyperlink_RequestNavigate">
-<Run Text="Click here" />
-</Hyperlink>
-</TextBlock>
+    <Hyperlink NavigateUri="{Binding Link}" RequestNavigate="Hyperlink_RequestNavigate">
+        <Run Text="Click here" />
+    </Hyperlink>
+                        </TextBlock>
 
                     </StackPanel>
                 </DataTemplate>

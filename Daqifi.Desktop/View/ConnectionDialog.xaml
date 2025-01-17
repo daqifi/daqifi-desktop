@@ -14,7 +14,7 @@
                         <DockPanel Name="ConnectionUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
                             <!-- Connect Button -->
                             <Button Name="btnConnect" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}" Command="{Binding ConnectCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right"  Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
-                           
+
                             <!-- Device List -->
                             <ListView Name="DeviceList" ItemsSource="{Binding AvailableWiFiDevices}" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
                                 <ListView.ItemTemplate>
@@ -25,10 +25,14 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="1" Orientation="Vertical">
-                                                    <Label Content="{Binding Name}"/>
-                                                    <Label Content="{Binding IpAddress}"/>
-                                                    <Label Content="{Binding MacAddress}"/>
+                                                <StackPanel  Grid.Column="1" Margin="5"  Orientation="Vertical">
+                                                    <Label Content="{Binding Name}"  Padding="0"/>
+                                                    <Label Content="{Binding IpAddress}" FontSize="10" Padding="0"/>
+                                                    <Label Content="{Binding MacAddress}" FontSize="10"  Padding="0"/>
+                                                    <TextBlock FontSize="10"  Padding="0">
+                                                        <Run Text="Firmware version :" />
+                                                        <Run Text="{Binding DeviceVersion}" />
+                                                    </TextBlock>
                                                 </StackPanel>
                                                 <Image Grid.Column="0" Source="../Images/Nq.png" Width="50" Height="50"/>
                                             </Grid>

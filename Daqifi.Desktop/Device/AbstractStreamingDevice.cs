@@ -7,6 +7,8 @@ using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using Microsoft.Extensions.ObjectPool;
 using Daqifi.Desktop.IO.Messages.Decoders;
+using Daqifi.Desktop.Loggers;
+using Bugsnag.Payload;
 
 namespace Daqifi.Desktop.Device
 {
@@ -15,6 +17,8 @@ namespace Daqifi.Desktop.Device
         private const string _5Volt = "+/-5V";
         private const string _10Volt = "+/-10V";
         private const string Nq1PartNumber = "Nq1";
+        private const string Nq2PartNumber = "Nq2";
+        private const string Nq3PartNumber = "Nq3";
         private const double TickPeriod = 20E-9f;
         private static DateTime? _previousTimestamp;
         private string _adcRangeText;
@@ -40,6 +44,8 @@ namespace Daqifi.Desktop.Device
         public string DevicePartNumber { get; private set; } = string.Empty;
 
         public string DeviceSerialNo { get; set; } = string.Empty;
+
+        public string DeviceVersion { get; set; }
 
         public string IpAddress { get; set; } = string.Empty;
         public int StreamingFrequency
@@ -89,6 +95,7 @@ namespace Daqifi.Desktop.Device
         }
 
         public bool IsStreaming { get; set; }
+        public bool IsFirmwareOutdated { get; set; }
         #endregion
 
         #region Abstract Methods
@@ -123,7 +130,7 @@ namespace Daqifi.Desktop.Device
         {
             return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
         }
-        
+
         private void HandleMessageReceived(object sender, MessageEventArgs e)
         {
             if (!IsStreaming)
@@ -143,7 +150,7 @@ namespace Daqifi.Desktop.Device
                 return;
             }
 
-            var deviceId = message.DeviceSn.ToString();  
+            var deviceId = message.DeviceSn.ToString();
 
             if (!_previousTimestamps.ContainsKey(deviceId))
             {
@@ -152,7 +159,7 @@ namespace Daqifi.Desktop.Device
             }
 
             DateTime previousTimestamp = _previousTimestamps[deviceId];
-            uint previousDeviceTimestamp = _previousDeviceTimestamps[deviceId].GetValueOrDefault();  
+            uint previousDeviceTimestamp = _previousDeviceTimestamps[deviceId].GetValueOrDefault();
 
             uint numberOfClockCyclesBetweenMessages;
             var rollover = previousDeviceTimestamp > message.MsgTimeStamp;
@@ -224,7 +231,7 @@ namespace Daqifi.Desktop.Device
                         analogCount++;
                     }
                 }
-                catch (Exception ex)
+                catch (System.Exception ex)
                 {
                     AppLogger.Error($"Error processing channel data: {ex.Message}");
                 }
@@ -235,6 +242,7 @@ namespace Daqifi.Desktop.Device
                 DeviceName = Name,
                 AnalogChannelCount = analogCount,
                 DeviceSerialNo = message.DeviceSn.ToString(),
+                DeviceVersion = message.DeviceFwRev.ToString(),
                 DigitalChannelCount = digitalCount,
                 TimestampTicks = messageTimestamp.Ticks,
                 AppTicks = DateTime.Now.Ticks,
@@ -443,6 +451,11 @@ namespace Daqifi.Desktop.Device
                 {
                     AdcRanges.Add(_5Volt);
                 }
+                else if (DevicePartNumber == Nq2PartNumber || DevicePartNumber == Nq3PartNumber)
+                {
+                    AdcRanges.Add(_5Volt);
+                    AdcRanges.Add(_10Volt);
+                }
             }
 
             var analogInPortRanges = message.AnalogInPortRange;
@@ -501,6 +514,10 @@ namespace Daqifi.Desktop.Device
             if (message.DeviceSn != 0)
             {
                 DeviceSerialNo = message.DeviceSn.ToString();
+            }
+            if (!string.IsNullOrWhiteSpace(message.DeviceFwRev))
+            {
+                DeviceVersion = message.DeviceFwRev.ToString();
             }
             if (message.IpAddr != null && message.IpAddr.Length > 0)
             {

@@ -10,6 +10,7 @@ using DAQifi.Desktop.View;
 using DAQifi.Desktop.ViewModels;
 using System.Collections;
 using System.Collections.ObjectModel;
+using System.Windows.Documents;
 using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels
@@ -138,7 +139,7 @@ namespace Daqifi.Desktop.ViewModels
             return true;
         }
 
-        private void OnConnectSelectedItemsExecute(object selectedItems)
+        private async void OnConnectSelectedItemsExecute(object selectedItems)
         {
             _wifiFinder.Stop();
 
@@ -147,30 +148,31 @@ namespace Daqifi.Desktop.ViewModels
 
             foreach (var device in selectedDevices)
             {
-                ConnectionManager.Instance.Connect(device);
+               await ConnectionManager.Instance.Connect(device);
             }
         }
 
-        private void ConnectSerial(object selectedItems)
+        private async void ConnectSerial(object selectedItems)
         {
             _serialFinder.Stop();
 
             var selectedDevices = ((IEnumerable)selectedItems).Cast<IStreamingDevice>();
             foreach (var device in selectedDevices)
             {
-                ConnectionManager.Instance.Connect(device);
+
+                await ConnectionManager.Instance.Connect(device);
             }
         }
 
-        private void ConnectManualSerial(object _)
+        private async void ConnectManualSerial(object _)
         {
             if (string.IsNullOrWhiteSpace(ManualPortName)) { return; }
 
             ManualSerialDevice = new SerialStreamingDevice(ManualPortName);
-            ConnectionManager.Instance.Connect(ManualSerialDevice);
+            await ConnectionManager.Instance.Connect(ManualSerialDevice);
         }
 
-        private void ConnectManualWifi(object _)
+        private async void ConnectManualWifi(object _)
         {
             if (string.IsNullOrWhiteSpace(ManualIpAddress)) { return; }
 
@@ -181,7 +183,7 @@ namespace Daqifi.Desktop.ViewModels
             };
 
             var device = new DaqifiStreamingDevice(deviceInfo);
-            ConnectionManager.Instance.Connect(device);
+            await ConnectionManager.Instance.Connect(device);
         }
 
         private void ConnectHid(object selectedItems)
