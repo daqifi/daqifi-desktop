@@ -20,7 +20,7 @@ namespace Daqifi.Desktop.Exporter
         {
             _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
         }
-        public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool ExportRelativeTime)
+        public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool exportRelativeTime)
         {
             try
             {
@@ -54,10 +54,8 @@ namespace Daqifi.Desktop.Exporter
 
                     foreach (var timestamp in pagedSampleDictionary.Keys)
                     {
-                        var timeString = ExportRelativeTime
-                    ? ((timestamp - firstTimestampTicks) / TimeSpan.TicksPerSecond).ToString("F3")
-                    : new DateTime(timestamp).ToString("O");
-
+                        var timeString = GetFormattedTime(timestamp, exportRelativeTime, firstTimestampTicks);
+                        
                         sb.Append(timeString);
 
                         // Initialize a dictionary for all channels with null values
@@ -88,7 +86,7 @@ namespace Daqifi.Desktop.Exporter
             }
         }
 
-        public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity, bool ExportRelativeTime)
+        public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity, bool exportRelativeTime)
         {
             try
             {
@@ -127,10 +125,10 @@ namespace Daqifi.Desktop.Exporter
                     var count = 0;
                     var tempTotals = new List<double>();
 
-                    foreach (var timestampTicks in rows.Keys)
+                    foreach (var timestamp in rows.Keys)
                     {
                         var channelNumber = 0;
-                        foreach (var value in rows[timestampTicks])
+                        foreach (var value in rows[timestamp])
                         {
                             if (tempTotals.Count <= channelNumber) tempTotals.Add(0);
                             tempTotals[channelNumber] += value;
@@ -141,9 +139,7 @@ namespace Daqifi.Desktop.Exporter
 
                         if (count % averageQuantity == 0)
                         {
-                            string timeString = ExportRelativeTime
-                                ? ((timestampTicks - firstTimestampTicks) / TimeSpan.TicksPerSecond).ToString("F3")
-                                : new DateTime(timestampTicks).ToString("O");
+                            var timeString = GetFormattedTime(timestamp, exportRelativeTime, firstTimestampTicks);
 
                             sb.Append(timeString).Append(Delimiter);
 
@@ -162,6 +158,13 @@ namespace Daqifi.Desktop.Exporter
             {
                 AppLogger.Error(ex, "Failed in ExportLoggingSession");
             }
+        }
+        
+        private string GetFormattedTime(long timestampTicks, bool exportRelativeTime, long firstTimestampTicks)
+        {
+            return exportRelativeTime
+                ? ((timestampTicks - firstTimestampTicks) / (double)TimeSpan.TicksPerMillisecond / 1000).ToString("F3")
+                : new DateTime(timestampTicks).ToString("O");
         }
     }
 }
