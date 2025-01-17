@@ -1,4 +1,5 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
+using Newtonsoft.Json.Linq;
 using System.IO;
 using System.Net.Http;
 using System.Text;
@@ -9,7 +10,7 @@ namespace Daqifi.Desktop.Loggers
 {
     public class FirmwareUpdatationManager : ObservableObject
     {
-        private static readonly string firmwareXmlUrl = "https://dev.alcyone.in/FirmwareVersion.xml";
+        
         private readonly AppLogger AppLogger = AppLogger.Instance;
 
 
@@ -27,102 +28,123 @@ namespace Daqifi.Desktop.Loggers
         public static FirmwareUpdatationManager Instance { get; } = new FirmwareUpdatationManager();
 
 
-        public async Task<string> CheckFirmwareVersion()
-        {
-            try
-            {
-                using HttpClient client = new HttpClient();
-                string xmlContent = await client.GetStringAsync(firmwareXmlUrl);
-
-                XDocument doc = XDocument.Parse(xmlContent);
-                LatestFirmwareVersion = doc.Element("VersionInfo")?.Element("Version")?.Value;
-
-                if (string.IsNullOrWhiteSpace(LatestFirmwareVersion))
-                {
-                    AppLogger.Error("Failed to retrieve the latest firmware version.");
-                    return null;
-                }
-                // Build the URL for the .hex file using the latest version
-                var url = $"http://dev.alcyone.in/FirmwareVersions/DAQiFi_Nyquist_{LatestFirmwareVersion}.hex";
-
-                // Check if the file exists on the server
-                bool fileExists = await CheckFileExistsAsync(url);
-
-                if (!fileExists)
-                {
-                    AppLogger.Error($"Firmware file for version {LatestFirmwareVersion} not found on the server.");
-                    return null;
-                }
-                if (fileExists)
-                {
-                    SetFirmwareDownloadUrl(LatestFirmwareVersion);
-                }
-
-                return LatestFirmwareVersion;
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Error(ex, "Error while checking firmware version.");
-                return null;
-            }
-        }
-
-
-        private async Task<bool> CheckFileExistsAsync(string fileUrl)
-        {
-            try
-            {
-                using (HttpClient client = new HttpClient())
-                {
-                    var response = await client.SendAsync(new HttpRequestMessage(HttpMethod.Head, fileUrl));
-                    return response.IsSuccessStatusCode;
-                }
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Error($"Error while checking if file exists: {ex.Message}");
-                return false;
-            }
-        }
+        
 
 
         private static string firmwareDownloadUrl;
 
-        public static void SetFirmwareDownloadUrl(string latestFirmwareVersion)
-        {
-            firmwareDownloadUrl = $"http://dev.alcyone.in/FirmwareVersions/DAQiFi_Nyquist_{latestFirmwareVersion}.hex";
-        }
+    
 
-        public string DownloadFirmwareAsync()
+        private const string firmwareApiUrl = "https://api.github.com/repos/daqifi/daqifi-nyquist-firmware/releases";
+
+
+        private static DateTime CacheTimestamp;
+
+        public async Task<string> CheckFirmwareVersion()
         {
+
+            if (!string.IsNullOrEmpty(LatestFirmwareVersion) && (DateTime.Now - CacheTimestamp).TotalMinutes < 60)
+            {
+                return LatestFirmwareVersion;
+            }
             try
             {
-                string fileName = Path.GetFileName(firmwareDownloadUrl);
-                string tempFilePath = Path.Combine(Path.GetTempPath(), fileName);
+                string githubApiUrl = "https://api.github.com/repos/daqifi/daqifi-nyquist-firmware/releases";
+                string userAgent = "Mozilla/5.0 (compatible; AcmeApp/1.0)";
+                HttpClientHandler handler = new HttpClientHandler { AllowAutoRedirect = true };
+                using HttpClient client = new HttpClient(handler);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
 
-                using HttpClient client = new HttpClient();
+                HttpResponseMessage response = client.GetAsync(githubApiUrl).Result;
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (response.Headers.Contains("X-RateLimit-Reset"))
+                    {
+                        string resetTimeString = response.Headers.GetValues("X-RateLimit-Reset").FirstOrDefault();
+                        if (long.TryParse(resetTimeString, out long resetTimeUnix))
+                        {
+                            DateTime resetTime = DateTimeOffset.FromUnixTimeSeconds(resetTimeUnix).UtcDateTime;
+                            AppLogger.Error($"Rate limit reached. Next attempt allowed after: {resetTime} UTC.");
+                        }
+                    }
+                    AppLogger.Error($"Failed to fetch firmware version. Status Code: {response.StatusCode}");
+                    return null;
+                }
 
-                using HttpResponseMessage response = client.GetAsync(firmwareDownloadUrl).Result;
-                response.EnsureSuccessStatusCode();
-
-                using Stream contentStream = response.Content.ReadAsStream();
-                using FileStream fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
-
-                contentStream.CopyTo(fileStream);
-                return tempFilePath;
-            }
-            catch (TaskCanceledException ex)
-            {
-               AppLogger.Error($"Download timed out: {ex.Message}");
-                return null;
+                string jsonResponse = await response.Content.ReadAsStringAsync();
+                var releaseData = JArray.Parse(jsonResponse);
+                var latestRelease = releaseData.FirstOrDefault();
+                LatestFirmwareVersion = latestRelease["tag_name"]?.ToString()?.Trim();
+                CacheTimestamp = DateTime.Now;
+                if (!string.IsNullOrEmpty(LatestFirmwareVersion) && LatestFirmwareVersion.StartsWith("v"))
+                {
+                    LatestFirmwareVersion = LatestFirmwareVersion.Substring(1, LatestFirmwareVersion.Length - 3).TrimEnd('.');
+                }
+                return LatestFirmwareVersion;
             }
             catch (Exception ex)
             {
-                AppLogger.Error($"Error while downloading firmware: {ex.Message}");
+                AppLogger.Error("Error while checking firmware version: " + ex.Message);
                 return null;
             }
         }
 
+        public string DownloadFirmware()
+        {
+            try
+            {
+                HttpClientHandler handler = new HttpClientHandler { AllowAutoRedirect = true };
+                using HttpClient client = new HttpClient(handler);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("DaqifiFirmwareUpdater/1.0");
 
+                HttpResponseMessage response = client.GetAsync(firmwareApiUrl).Result;
+                if (!response.IsSuccessStatusCode)
+                {
+                    AppLogger.Error($"Failed to fetch firmware release info. Status Code: {response.StatusCode}");
+                    return null;
+                }
+
+                string jsonResponse = response.Content.ReadAsStringAsync().Result;
+                var releaseData = JArray.Parse(jsonResponse);
+                var latestRelease = releaseData.FirstOrDefault();
+                var assets = latestRelease["assets"] as JArray;
+                var hexFileAsset = assets?.FirstOrDefault(a => a["name"]?.ToString().EndsWith(".hex") == true);
+
+                if (hexFileAsset == null)
+                {
+                    AppLogger.Error("No .hex firmware file found in the release assets.");
+                    return null;
+                }
+
+                firmwareDownloadUrl = hexFileAsset["browser_download_url"]?.ToString();
+                string fileName = hexFileAsset["name"]?.ToString();
+                string daqifiFolderPath = Path.Combine(Path.GetTempPath(), "DAQiFi");
+                Directory.CreateDirectory(daqifiFolderPath);
+                string filePath = Path.Combine(daqifiFolderPath, fileName);
+
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+
+                HttpResponseMessage hexFileResponse = client.GetAsync(firmwareDownloadUrl).Result;
+                if (!hexFileResponse.IsSuccessStatusCode)
+                {
+                    AppLogger.Error($"Failed to download firmware file. Status Code: {hexFileResponse.StatusCode}");
+                    return null;
+                }
+
+                using Stream contentStream = hexFileResponse.Content.ReadAsStream();
+                using FileStream fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                contentStream.CopyTo(fileStream);
+
+                return filePath;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error("Error while downloading firmware: " + ex.Message);
+                return null;
+            }
+        }
     }
 }

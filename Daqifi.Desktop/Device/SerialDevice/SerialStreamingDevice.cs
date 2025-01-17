@@ -25,6 +25,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
         {
             try
             {
+                Task.Delay(1000);
                 Port.Open();
                 Port.DtrEnable = true;
                 MessageProducer = new MessageProducer(Port.BaseStream);
@@ -32,7 +33,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
 
                 TurnOffEcho();
                 StopStreaming();
-                TurnDeviceOn();
+                TurnDeviceOn();   
                 SetProtobufMessageFormat();
 
                 MessageConsumer = new MessageConsumer(Port.BaseStream);

@@ -8,22 +8,24 @@ using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.DialogService;
-using Daqifi.Desktop.IO.Messages;
-using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Models;
 using Daqifi.Desktop.UpdateVersion;
 using Daqifi.Desktop.View;
-using Google.Protobuf.WellKnownTypes;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json.Linq;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Configuration;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.IO.Ports;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Input;
 using Application = System.Windows.Application;
@@ -69,6 +71,7 @@ namespace Daqifi.Desktop.ViewModels
         private bool _isUploadComplete;
         private bool _hasErrorOccured;
         private int _uploadFirmwareProgress;
+        private int _uploadWIFIProgress;
         private HidDeviceFinder _hidDeviceFinder;
         private bool _hasNoHidDevices = true;
         private ConnectionDialogViewModel _connectionDialogViewModel;
@@ -128,10 +131,6 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _isUploadComplete = value;
                 OnPropertyChanged();
-                if (_isUploadComplete)
-                {
-                    CloseFlyouts();
-                }
             }
         }
 
@@ -153,6 +152,15 @@ namespace Daqifi.Desktop.ViewModels
                 _uploadFirmwareProgress = value;
                 OnPropertyChanged();
                 OnPropertyChanged("UploadFirmwareProgressText");
+            }
+        }
+        public int UploadWIFIProgress
+        {
+            get => _uploadWIFIProgress;
+            set
+            {
+                _uploadWIFIProgress = value;
+                OnPropertyChanged();
             }
         }
 
@@ -522,7 +530,7 @@ namespace Daqifi.Desktop.ViewModels
                         //  Notifications 
 
                         _versionNotification = new VersionNotification();
-                        LoggingManager.Instance.CheckApplicationVersion(_versionNotification);
+                        _ = LoggingManager.Instance.CheckApplicationVersion(_versionNotification);
 
                         GetUpdateProfileAvailableDevice();
 
@@ -564,45 +572,15 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-        public void RegisterCommands()
-        {
-            ShowAddProfileConfirmationDialogCommand = new DelegateCommand(ShowAddProfileConfirmation, CanShowAddProfileConfirmationDialogCommand);
-            ShowAddProfileDialogCommand = new DelegateCommand(ShowAddProfileDialog, CanShowAddProfileDialog);
-            ShowConnectionDialogCommand = new DelegateCommand(ShowConnectionDialog, CanShowConnectionDialog);
-            ShowAddChannelDialogCommand = new DelegateCommand(ShowAddChannelDialog, CanShowAddChannelDialog);
-            ShowSelectColorDialogCommand = new DelegateCommand(ShowSelectColorDialog, CanShowSelectColorDialogCommand);
-            RemoveProfileCommand = new DelegateCommand(RemoveProfile, CanRemoveProfileCommand);
-            RemoveChannelCommand = new DelegateCommand(RemoveChannel, CanRemoveChannelCommand);
-            OpenLiveGraphSettingsCommand = new DelegateCommand(OpenLiveGraphSettings, CanOpenLiveGraphSettings);
-            OpenDeviceSettingsCommand = new DelegateCommand(OpenDeviceSettings, CanOpenDeviceSettings);
-            OpenChannelSettingsCommand = new DelegateCommand(OpenChannelSettings, CanOpenChannelSettings);
-            OpenProfileSettingsCommand = new DelegateCommand(OpenProfileSettings, CanOpenProfileSettings);
-            NotificationCommand = new DelegateCommand(OpenNotifications, CanOpenNotification);
-            IsprofileActiveCommand = new DelegateCommand(GetSelectedProfileActive, CanIsprofileActive);
-            OpenLogSummaryCommand = new DelegateCommand(OpenLogSummary, CanOpenLogSummary);
-            OpenLoggingSessionSettingsCommand = new DelegateCommand(OpenLoggingSessionSettings, CanOpenLoggingSessionSettings);
-            ShowDAQifiSettingsDialogCommand = new DelegateCommand(ShowDAQifiSettingsDialog, CanShowDAQifiSettingsDialog);
-            DisconnectDeviceCommand = new DelegateCommand(DisconnectDevice, CanDisconnectDevice);
-            UpdateNetworkConfigurationCommand = new DelegateCommand(UpdateNetworkConfiguration, CanUpdateNetworkConfiguration);
-            ShutdownCommand = new DelegateCommand(Shutdown, CanShutdown);
-            DisplayLoggingSessionCommand = new DelegateCommand(DisplayLoggingSession, CanDisplayLoggingSession);
-            ExportLoggingSessionCommand = new DelegateCommand(ExportLoggingSession, CanExportLoggingSession);
-            ExportAllLoggingSessionCommand = new DelegateCommand(ExportAllLoggingSession, CanExportAllLoggingSession);
-            DeleteLoggingSessionCommand = new DelegateCommand(DeleteLoggingSession, CanDeleteLoggingSession);
-            DeleteAllLoggingSessionCommand = new DelegateCommand(DeleteAllLoggingSession, CanDeleteAllLoggingSession);
-            RebootSelectedDeviceCommand = new DelegateCommand(RebootSelectedDevice, CanRebootSelectedDevice);
-            OpenHelpCommand = new DelegateCommand(OpenHelp, CanOpenHelp);
-            BrowseForFirmwareCommand = new DelegateCommand(BrowseForFirmware, CanBrowseForFirmware);
-            UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
-            OpenFirmwareUpdateCommand = new DelegateCommand(OpenFirmwareUpdateSettings, CanOpenFirmwareUpdateSettings);
-            HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
-        }
-
-
         #endregion
 
         #region Command Properties
         public ICommand UploadFirmwareCommand { get; set; }
+        private bool CanUploadFirmware(object o)
+        {
+            return true;
+        }
+
         public ICommand ShowAddProfileDialogCommand { get; private set; }
         private bool CanShowAddProfileDialog(object o)
         {
@@ -709,7 +687,6 @@ namespace Daqifi.Desktop.ViewModels
             return true;
         }
 
-
         public ICommand NotificationCommand { get; private set; }
         private bool CanOpenNotification(object o)
         {
@@ -806,13 +783,257 @@ namespace Daqifi.Desktop.ViewModels
         {
             return true;
         }
+        #endregion
 
+        #region Register Command 
+        public void RegisterCommands()
+        {
+            ShowAddProfileConfirmationDialogCommand = new DelegateCommand(ShowAddProfileConfirmation, CanShowAddProfileConfirmationDialogCommand);
+            ShowAddProfileDialogCommand = new DelegateCommand(ShowAddProfileDialog, CanShowAddProfileDialog);
+            ShowConnectionDialogCommand = new DelegateCommand(ShowConnectionDialog, CanShowConnectionDialog);
+            ShowAddChannelDialogCommand = new DelegateCommand(ShowAddChannelDialog, CanShowAddChannelDialog);
+            ShowSelectColorDialogCommand = new DelegateCommand(ShowSelectColorDialog, CanShowSelectColorDialogCommand);
+            RemoveProfileCommand = new DelegateCommand(RemoveProfile, CanRemoveProfileCommand);
+            RemoveChannelCommand = new DelegateCommand(RemoveChannel, CanRemoveChannelCommand);
+            OpenLiveGraphSettingsCommand = new DelegateCommand(OpenLiveGraphSettings, CanOpenLiveGraphSettings);
+            OpenDeviceSettingsCommand = new DelegateCommand(OpenDeviceSettings, CanOpenDeviceSettings);
+            OpenChannelSettingsCommand = new DelegateCommand(OpenChannelSettings, CanOpenChannelSettings);
+            OpenProfileSettingsCommand = new DelegateCommand(OpenProfileSettings, CanOpenProfileSettings);
+            NotificationCommand = new DelegateCommand(OpenNotifications, CanOpenNotification);
+            IsprofileActiveCommand = new DelegateCommand(GetSelectedProfileActive, CanIsprofileActive);
+            OpenLogSummaryCommand = new DelegateCommand(OpenLogSummary, CanOpenLogSummary);
+            OpenLoggingSessionSettingsCommand = new DelegateCommand(OpenLoggingSessionSettings, CanOpenLoggingSessionSettings);
+            ShowDAQifiSettingsDialogCommand = new DelegateCommand(ShowDAQifiSettingsDialog, CanShowDAQifiSettingsDialog);
+            DisconnectDeviceCommand = new DelegateCommand(DisconnectDevice, CanDisconnectDevice);
+            UpdateNetworkConfigurationCommand = new DelegateCommand(UpdateNetworkConfiguration, CanUpdateNetworkConfiguration);
+            ShutdownCommand = new DelegateCommand(Shutdown, CanShutdown);
+            DisplayLoggingSessionCommand = new DelegateCommand(DisplayLoggingSession, CanDisplayLoggingSession);
+            ExportLoggingSessionCommand = new DelegateCommand(ExportLoggingSession, CanExportLoggingSession);
+            ExportAllLoggingSessionCommand = new DelegateCommand(ExportAllLoggingSession, CanExportAllLoggingSession);
+            DeleteLoggingSessionCommand = new DelegateCommand(DeleteLoggingSession, CanDeleteLoggingSession);
+            DeleteAllLoggingSessionCommand = new DelegateCommand(DeleteAllLoggingSession, CanDeleteAllLoggingSession);
+            RebootSelectedDeviceCommand = new DelegateCommand(RebootSelectedDevice, CanRebootSelectedDevice);
+            OpenHelpCommand = new DelegateCommand(OpenHelp, CanOpenHelp);
+            BrowseForFirmwareCommand = new DelegateCommand(BrowseForFirmware, CanBrowseForFirmware);
+            UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
+            OpenFirmwareUpdateCommand = new DelegateCommand(OpenFirmwareUpdateSettings, CanOpenFirmwareUpdateSettings);
+            HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
+        }
+        #endregion
+
+        #region Command Callback Methods
+
+        #region Updload firmware and update processes
         void UploadFirmwareProgressChanged(object sender, ProgressChangedEventArgs e)
         {
             UploadFirmwareProgress = e.ProgressPercentage;
         }
+        private BackgroundWorker _backgroundWorker;
+        private async void InitializeBackgroundWorker()
+        {
+            _backgroundWorker = new BackgroundWorker
+            {
+                WorkerReportsProgress = true
+            };
+            _backgroundWorker.DoWork += BackgroundWorker_DoWork;
+            _backgroundWorker.ProgressChanged += BackgroundWorker_ProgressChanged;
+            _backgroundWorker.RunWorkerCompleted += BackgroundWorker_RunWorkerCompleted;
+            if (!_backgroundWorker.IsBusy)
+            {
+                UploadWIFIProgress = 0;
+                _backgroundWorker.RunWorkerAsync();
+            }
+        }
+        private async Task BackgroundWorker_DoWorkAsync()
+        {
+            string githubApiUrl = "https://api.github.com/repos/daqifi/winc1500-Manual-UART-Firmware-Update/releases/latest";
+            string tempPath = Path.GetTempPath();
+            string userAgent = "Mozilla/5.0 (compatible; AcmeApp/1.0)";
 
-        private void HandleUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
+            try
+            {
+                using HttpClient client = new HttpClient();
+                client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
+                HttpResponseMessage response = await client.GetAsync(githubApiUrl);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    AppLogger.Error($"Failed to fetch GitHub API data. Status Code: {response.StatusCode}");
+                    return;
+                }
+
+                string jsonResponse = await response.Content.ReadAsStringAsync();
+                JObject releaseData = JObject.Parse(jsonResponse);
+
+                string latestVersion = releaseData["tag_name"]?.ToString()?.Trim();
+                string zipballUrl = releaseData["zipball_url"]?.ToString();
+
+                if (string.IsNullOrEmpty(zipballUrl))
+                {
+                    AppLogger.Error("No zipball URL found for the latest release.");
+                    return;
+                }
+
+                _backgroundWorker.ReportProgress(10, "Starting download...");
+
+                string zipFileName = $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}.zip";
+                string zipFilePath = Path.Combine(tempPath, zipFileName);
+
+                try
+                {
+                    using (var zipResponse = await client.GetAsync(zipballUrl))
+                    using (var contentStream = await zipResponse.Content.ReadAsStreamAsync())
+                    using (var fileStream = new FileStream(zipFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        if (zipResponse.IsSuccessStatusCode)
+                        {
+                            long totalBytes = zipResponse.Content.Headers.ContentLength ?? 1;
+                            long bytesRead = 0;
+                            byte[] buffer = new byte[8192];
+
+                            int read;
+                            while ((read = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                            {
+                                fileStream.Write(buffer, 0, read);
+                                bytesRead += read;
+                                int progress = (int)((double)bytesRead / totalBytes * 50) + 10;
+                                _backgroundWorker.ReportProgress(progress, $"Downloading... {progress}%");
+                            }
+                        }
+                        else
+                        {
+                            throw new Exception("Failed to download the zipball file.");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Error($"Error during download: {ex.Message}");
+                    return;
+                }
+
+                _backgroundWorker.ReportProgress(70, "Extracting files...");
+
+                string extractFolderPath = Path.Combine(tempPath, $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}");
+
+                if (Directory.Exists(extractFolderPath))
+                {
+                    await Task.Delay(500);
+
+                    for (int i = 0; i < 3; i++)
+                    {
+                        try
+                        {
+                            Directory.Delete(extractFolderPath, true);
+                            break;
+                        }
+                        catch (IOException)
+                        {
+                            if (i == 2) throw;
+                            await Task.Delay(500);
+                        }
+                    }
+                }
+
+                Directory.CreateDirectory(extractFolderPath);
+                ZipFile.ExtractToDirectory(zipFilePath, extractFolderPath);
+
+                string[] matchingFiles = Directory.GetFiles(extractFolderPath, "winc_flash_tool.cmd", SearchOption.AllDirectories);
+                if (matchingFiles.Length > 0)
+                {
+                    string cmdFilePath = matchingFiles[0];
+                    ObservableCollection<SerialStreamingDevice> _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
+                    SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
+                    SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
+
+                    SerialStreamingDevice lPort = manualserialdevice ?? autodaqifiport;
+                    if (lPort != null)
+                    {
+                        var availablePorts = SerialPort.GetPortNames();
+                        if (!availablePorts.Contains(lPort.Name))
+                        {
+                            AppLogger.Error($"Device port {lPort.Name} is not available.");
+                            return;
+                        }
+
+                        try
+                        {
+                            lPort.Connect();
+                            lPort.Write("SYSTem:POWer:STATe 1");
+                            await Task.Delay(1000);
+                            lPort.Write("SYSTem:COMMUnicate:LAN:FWUpdate");
+                            await Task.Delay(1000);
+                            lPort.Write("SYSTem:COMMUnicate:LAN:APPLY");
+                            await Task.Delay(1000);
+                            //lPort.Disconnect();
+                            // await Task.Delay(1000);
+                        }
+                        catch (Exception ex)
+                        {
+                            AppLogger.Error($"Error during UART communication: {ex.Message}");
+                            return;
+                        }
+
+
+                        string processCommand = $"\"{cmdFilePath}\" /p {lPort.Name} /d WINC1500 /v {latestVersion} /k /e /i aio /w";
+                        ProcessStartInfo processStartInfo = new ProcessStartInfo
+                        {
+                            FileName = "cmd.exe",
+                            Arguments = $"/k {processCommand}",
+                            UseShellExecute = true,
+                            CreateNoWindow = false,
+                            WorkingDirectory = Path.GetDirectoryName(cmdFilePath)
+                        };
+
+                        try
+                        {
+                            using (Process process = Process.Start(processStartInfo))
+                            {
+                                process.WaitForExit();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            AppLogger.Error($"Error while starting process: {ex.Message}");
+                            return;
+                        }
+                        lPort.Write("SYSTem:USB:SetTransparentMode 0");
+                        await Task.Delay(1000);
+                        lPort.Write("SYSTem:COMMunicate:LAN:ENabled 1");
+                        await Task.Delay(1000);
+                        lPort.Write("SYSTem:COMMUnicate:LAN:APPLY");
+                        await Task.Delay(1000);
+
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            var successDialogViewModel = new SuccessDialogViewModel("Firmware update completed successfully.");
+                            _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
+                        });
+                        CloseFlyouts();
+                    }
+                }
+                else
+                {
+                    AppLogger.Error("winc_flash_tool.cmd not found in the extracted folder.");
+                }
+                _backgroundWorker.ReportProgress(100, "Extraction completed.");
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"Error: {ex.Message}");
+            }
+        }
+
+        private void BackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
+        {
+            var task = BackgroundWorker_DoWorkAsync();
+            task.Wait();
+        }
+        private void BackgroundWorker_ProgressChanged(object sender, ProgressChangedEventArgs e)
+        {
+            UploadWIFIProgress = e.ProgressPercentage;
+        }
+        private void BackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             IsFirmwareUploading = false;
             if (e.Error != null)
@@ -823,29 +1044,17 @@ namespace Daqifi.Desktop.ViewModels
             else
             {
                 IsUploadComplete = true;
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    var successDialogViewModel = new SuccessDialogViewModel("Firmware update completed successfully.");
-                    _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
-                });
-                CloseFlyouts();
             }
         }
-
-        #endregion
-
-        #region Command Methods
-        private bool CanUploadFirmware(object o)
+        private async void HandleUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            return true;
+            InitializeBackgroundWorker();
         }
-      
         public void UploadFirmware(object o)
         {
-            FirmwareFilePath = FirmwareUpdatationManager.Instance.DownloadFirmwareAsync();
+            FirmwareFilePath = FirmwareUpdatationManager.Instance.DownloadFirmware();
             if (FirmwareFilePath != null)
             {
-                // Check if the available port is opened:
                 ObservableCollection<SerialStreamingDevice> _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
                 SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
                 SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
@@ -924,6 +1133,7 @@ namespace Daqifi.Desktop.ViewModels
                 }
             }
         }
+        #endregion
         private void ShowConnectionDialog(object o)
         {
             _connectionDialogViewModel = new ConnectionDialogViewModel();
@@ -947,11 +1157,13 @@ namespace Daqifi.Desktop.ViewModels
             var selectColorDialogViewModel = new SelectColorDialogViewModel(item);
             _dialogService.ShowDialog<SelectColorDialog>(this, selectColorDialogViewModel);
         }
+
         private void ShowDAQifiSettingsDialog(object o)
         {
             var settingsViewModel = new SettingsViewModel();
             _dialogService.ShowDialog<SettingsDialog>(this, settingsViewModel);
         }
+
         private void RemoveChannel(object o)
         {
             var channelToRemove = o as IChannel;
@@ -965,6 +1177,7 @@ namespace Daqifi.Desktop.ViewModels
             }
 
         }
+
         private void DisconnectDevice(object o)
         {
             if (!(o is IStreamingDevice deviceToRemove)) { return; }
@@ -979,6 +1192,7 @@ namespace Daqifi.Desktop.ViewModels
             ConnectionManager.Instance.Disconnect(deviceToRemove);
             RemoveNotification(deviceToRemove);
         }
+
         public void Shutdown(object o)
         {
             foreach (var device in ConnectedDevices)
@@ -986,10 +1200,12 @@ namespace Daqifi.Desktop.ViewModels
                 device.Disconnect();
             }
         }
+
         public void UpdateNetworkConfiguration(object o)
         {
             SelectedDevice.UpdateNetworkConfiguration();
         }
+
         public void BrowseForFirmware(object o)
         {
             using var openFileDialog = new System.Windows.Forms.OpenFileDialog
@@ -1001,11 +1217,13 @@ namespace Daqifi.Desktop.ViewModels
                 FirmwareFilePath = openFileDialog.FileName;
             }
         }
+
         private void OpenLiveGraphSettings(object o)
         {
             CloseFlyouts();
             IsLiveGraphSettingsOpen = true;
         }
+
         private void OpenDeviceSettings(object o)
         {
             var item = o as IStreamingDevice;
@@ -1018,6 +1236,7 @@ namespace Daqifi.Desktop.ViewModels
             SelectedDevice = item;
             IsDeviceSettingsOpen = true;
         }
+
         private void OpenFirmwareUpdateSettings(object o)
         {
             var item = o as IStreamingDevice;
@@ -1030,6 +1249,7 @@ namespace Daqifi.Desktop.ViewModels
             IsFirmwareUpdatationFlyoutOpen = true;
 
         }
+
         private void OpenChannelSettings(object o)
         {
             if (!(o is IChannel item))
@@ -1048,6 +1268,7 @@ namespace Daqifi.Desktop.ViewModels
             CloseFlyouts();
             IsLogSummaryOpen = true;
         }
+
         private void OpenLoggingSessionSettings(object o)
         {
             var item = o as LoggingSession;
@@ -1057,6 +1278,7 @@ namespace Daqifi.Desktop.ViewModels
             SelectedLoggingSession = item;
             IsLoggingSessionSettingsOpen = true;
         }
+
         private void DisplayLoggingSession(object o)
         {
             if (!(o is LoggingSession session))
@@ -1082,6 +1304,7 @@ namespace Daqifi.Desktop.ViewModels
 
             bw.RunWorkerAsync();
         }
+
         private void ExportLoggingSession(object o)
         {
             if (!(o is LoggingSession session))
@@ -1093,6 +1316,7 @@ namespace Daqifi.Desktop.ViewModels
             var exportDialogViewModel = new ExportDialogViewModel(session.ID);
             _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
         }
+
         private void ExportAllLoggingSession(object o)
         {
             if (LoggingSessions == null)
@@ -1104,6 +1328,7 @@ namespace Daqifi.Desktop.ViewModels
             var exportDialogViewModel = new ExportDialogViewModel(LoggingSessions);
             _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
         }
+
         private async void DeleteLoggingSession(object o)
         {
             try
@@ -1147,6 +1372,7 @@ namespace Daqifi.Desktop.ViewModels
                 AppLogger.Error(ex, "Error Deleting Logging Session");
             }
         }
+
         private async void DeleteAllLoggingSession(object o)
         {
             try
@@ -1194,6 +1420,7 @@ namespace Daqifi.Desktop.ViewModels
                 AppLogger.Error(ex, "Error Deleting All Logging Session");
             }
         }
+
         private void RebootSelectedDevice(object o)
         {
             if (!(o is IStreamingDevice deviceToReboot)) { return; }
@@ -1211,6 +1438,7 @@ namespace Daqifi.Desktop.ViewModels
 
             ConnectionManager.Instance.Reboot(deviceToReboot);
         }
+
         private void OpenHelp(object o)
         {
             try
@@ -1280,8 +1508,23 @@ namespace Daqifi.Desktop.ViewModels
                 if (AvailableHidDevices.Count == 0) { HasNoHidDevices = true; }
             });
         }
-        public void UpdateUi(object sender, PropertyChangedEventArgs args)
+        public async Task UpdateConnectedDeviceUI()
         {
+            foreach (var connectedDevice in ConnectionManager.Instance.ConnectedDevices)
+            {
+                var SerailDeviceProperty = connectedDevice.GetType().GetProperty("DeviceVersion");
+                var DeviceVersion = SerailDeviceProperty.GetValue(connectedDevice)?.ToString();
+                if (DeviceVersion != latestFirmwareVersion && (connectedDevice.Name.StartsWith("COM")))
+                {
+                    connectedDevice.IsFirmwareOutdated = true;
+                }
+
+                ConnectedDevices.Add(connectedDevice);
+            }
+        }
+        public async void UpdateUi(object sender, PropertyChangedEventArgs args)
+        {
+
             switch (args.PropertyName)
             {
                 case "SubscribedProfiles":
@@ -1298,16 +1541,8 @@ namespace Daqifi.Desktop.ViewModels
                     break;
                 case "ConnectedDevices":
                     ConnectedDevices.Clear();
-                    foreach (var connectedDevice in ConnectionManager.Instance.ConnectedDevices)
-                    {
-                        var SerailDeviceProperty = connectedDevice.GetType().GetProperty("DeviceVersion");
-                        var DeviceVersion = SerailDeviceProperty.GetValue(connectedDevice)?.ToString();
-                        if (DeviceVersion != latestFirmwareVersion && (connectedDevice.Name.StartsWith("COM")))
-                        {
-                            connectedDevice.IsFirmwareOutdated = true;
-                        }
-                        ConnectedDevices.Add(connectedDevice);
-                    }
+                    await UpdateConnectedDeviceUI();
+
                     GetUpdateProfileAvailableDevice();
                     break;
                 case "SubscribedChannels":
@@ -1355,14 +1590,17 @@ namespace Daqifi.Desktop.ViewModels
                         var errorDialogViewModel = new ErrorDialogViewModel("Device disconnected..");
                         if (errorDialogViewModel != null)
                         {
-                            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                            // To do  work giving error 
+                            //_dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+
                         }
                         ConnectionManager.Instance.NotifyConnection = false;
                     }
                     break;
             }
             CanToggleLogging = ActiveChannels.Count > 0;
-            GetFirmwareupdatationList();
+            _ = GetFirmwareupdatationList();
+            RemoveNotification();
         }
         public async Task<MessageDialogResult> ShowMessage(string title, string message, MessageDialogStyle dialogStyle)
         {
@@ -1381,7 +1619,7 @@ namespace Daqifi.Desktop.ViewModels
             IsFirmwareUpdatationFlyoutOpen = false;
         }
 
-        #region update profile methods
+        #region New Enhancements and developement
         /// <summary>
         /// Show add profile dialog
         /// </summary>
@@ -1433,42 +1671,58 @@ namespace Daqifi.Desktop.ViewModels
         private string latestFirmwareVersion;
         public async Task GetFirmwareupdatationList()
         {
-            var ldata = await FirmwareUpdatationManager.Instance.CheckFirmwareVersion();
-            latestFirmwareVersion = ldata;
-
-            if (latestFirmwareVersion == null)
-            {
-                return;
-            }
             var connectedDevices = ConnectionManager.Instance.ConnectedDevices;
-            foreach (var device in connectedDevices)
+            if (connectedDevices.Count > 0)
             {
-                var deviceVersion = new Version(device.DeviceVersion);
-                var latestVersion = new Version(latestFirmwareVersion);
-                if (device.DeviceSerialNo != null && deviceVersion < latestVersion)
+
+                var ldata = await FirmwareUpdatationManager.Instance.CheckFirmwareVersion();
+                latestFirmwareVersion = ldata;
+
+                if (latestFirmwareVersion == null)
                 {
-                    AddNotification(device, latestFirmwareVersion);
+                    return;
+                }
+                foreach (var device in connectedDevices)
+                {
+                    var deviceVersion = new Version(device.DeviceVersion);
+                    var latestVersion = new Version(latestFirmwareVersion);
+                    if (device.DeviceSerialNo != null && deviceVersion < latestVersion)
+                    {
+                        AddNotification(device, latestFirmwareVersion);
+                    }
                 }
             }
+        }
+        private void RemoveNotification()
+        {
+            foreach (var notification in notificationlist.ToList())
+            {
+                var deviceIsDisconnected = !ConnectionManager.Instance.ConnectedDevices
+                    .Any(device => device.DeviceSerialNo == notification.DeviceSerialNo);
+
+                if (deviceIsDisconnected)
+                {
+                    notificationlist.Remove(notification);
+                }
+            }
+            NotificationCount = notificationlist.Count;
         }
 
         private void AddNotification(IStreamingDevice device, string LatestFirmware)
         {
             var message = $"Device With Serial {device.DeviceSerialNo} has Outdated Firmware. Please Update to Version {LatestFirmware}.";
 
-            // Check if the notification is already in the list
             var existingNotification = notificationlist.FirstOrDefault(n => n.DeviceSerialNo != null
                 && n.isFirmwareUpdate
                 && n.DeviceSerialNo == device.DeviceSerialNo);
 
             if (existingNotification == null)
             {
-                // If not found, add the new notification
                 notificationlist.Add(new Notifications
                 {
                     DeviceSerialNo = device.DeviceSerialNo,
                     Message = message,
-                    isFirmwareUpdate = true  // Assuming you want to set this flag as true
+                    isFirmwareUpdate = true
                 });
             }
 
@@ -1482,7 +1736,6 @@ namespace Daqifi.Desktop.ViewModels
         }
 
         #endregion
-
         /// <summary>
         /// Remove profile 
         /// </summary>
@@ -1619,7 +1872,6 @@ namespace Daqifi.Desktop.ViewModels
                 AvailableChannels.Add(channel);
             }
         }
-
         /// <summary>
         /// Save current session profile Settings 
         /// </summary>

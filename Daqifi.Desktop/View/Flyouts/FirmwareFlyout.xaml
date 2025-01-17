@@ -60,21 +60,26 @@
         </GroupBox>
         <!-- Update Firmware -->
         <GroupBox Grid.Column="0" Grid.Row="2" Header="Update Firmware">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-               
-                
-                <controls:MetroProgressBar Grid.Column="0" Grid.Row="1" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadFirmwareProgress}" />
-                <Button Grid.Column="1" Grid.Row="1" Width="50" Content="Update" 
-                   Command="{Binding UploadFirmwareCommand}" />
-            </Grid>
-        </GroupBox>
+     <Grid>
+         <Grid.ColumnDefinitions>
+             <ColumnDefinition Width="*"/>
+             <ColumnDefinition Width="Auto"/>
+         </Grid.ColumnDefinitions>
+         <Grid.RowDefinitions>
+             <RowDefinition Height="Auto"/>
+             <RowDefinition Height="Auto"/>
+             <RowDefinition Height="Auto"/>
+             <RowDefinition Height="Auto"/>
+         </Grid.RowDefinitions>
+
+         <Label Grid.Column="0" Grid.Row="0" Content="Firmware Update" VerticalAlignment="Center" />
+         <controls:MetroProgressBar Grid.Column="0" Grid.Row="1" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadFirmwareProgress}" />
+
+         <Label Grid.Column="0" Grid.Row="2" Content="WIFI Module Update" VerticalAlignment="Center" />
+         <controls:MetroProgressBar Grid.Column="0" Grid.Row="3" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadWIFIProgress}" />
+
+         <Button Grid.Column="1" Grid.Row="3" Width="50" Margin="5,0,0,0" Content="Update" Command="{Binding UploadFirmwareCommand}" />
+     </Grid>
+ </GroupBox>
     </Grid>
 </Controls:Flyout>

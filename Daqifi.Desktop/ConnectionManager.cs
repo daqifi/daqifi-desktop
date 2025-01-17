@@ -94,13 +94,19 @@ namespace Daqifi.Desktop
 
         #endregion
 
-        public void Connect(IStreamingDevice device)
+        public async Task Connect(IStreamingDevice device)
         {
             try
             {
                 ConnectionStatus = DAQifiConnectionStatus.Connecting;
-                if (!device.Connect()) { return; }
+                bool isConnected = await Task.Run(() => device.Connect());
+                if (!isConnected)
+                {
+                    ConnectionStatus = DAQifiConnectionStatus.Error;
+                    return;
+                }
                 ConnectedDevices.Add(device);
+               await Task.Delay(1000);
                 NotifyPropertyChanged("ConnectedDevices");
                 ConnectionStatus = DAQifiConnectionStatus.Connected;
             }
