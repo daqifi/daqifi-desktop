@@ -21,7 +21,7 @@ namespace Daqifi.Desktop.Exporter
         {
             _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
         }
-      
+
         public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
         {
             try
@@ -39,7 +39,7 @@ namespace Daqifi.Desktop.Exporter
                 channelNames.Sort(new OrdinalStringComparer());
 
                 var sb = new StringBuilder();
-                sb.Append("Time").Append(Delimiter).Append(string.Join(Delimiter, channelNames)).AppendLine();
+                sb.Append(exportRelativeTime ? "Relative Time (s)" : "Time").Append(Delimiter).Append(string.Join(Delimiter, channelNames)).AppendLine();
                 File.WriteAllText(filepath, sb.ToString());
                 sb.Clear();
 
@@ -64,7 +64,11 @@ namespace Daqifi.Desktop.Exporter
 
                     foreach (var timestamp in pagedSampleDictionary.Keys)
                     {
-                        sb.Append(new DateTime(timestamp).ToString("O"));
+                        var timeString = exportRelativeTime
+                            ? ((timestamp - firstTimestampTicks) / (double)TimeSpan.TicksPerSecond).ToString("F3")  // Relative time in seconds
+                            : new DateTime(timestamp).ToString("O");  
+
+                        sb.Append(timeString);
 
                         // Create the template for samples dictionary 
                         var sampleDictionary = channelNames.ToDictionary(channel => channel, channel => (double?)null);
@@ -89,7 +93,6 @@ namespace Daqifi.Desktop.Exporter
                     int sessionProgress = (int)((double)count / samplesCount * 100);
                     int overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
                     bw.ReportProgress(Math.Min(100, overallProgress), loggingSession.Name);
-
                 }
             }
             catch (Exception ex)
@@ -97,6 +100,7 @@ namespace Daqifi.Desktop.Exporter
                 AppLogger.Error(ex, "Exception in ExportLoggingSession");
             }
         }
+
 
         public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
         {
@@ -107,7 +111,6 @@ namespace Daqifi.Desktop.Exporter
                     context.ChangeTracker.AutoDetectChangesEnabled = false;
                     var loggingSession = context.Sessions.Find(session.ID);
 
-                    // Extract channel names in "Device:Channel" format
                     var channelNames = context.Samples
                         .AsNoTracking()
                         .Where(s => s.LoggingSessionID == loggingSession.ID)
@@ -117,31 +120,31 @@ namespace Daqifi.Desktop.Exporter
 
                     var samples = context.Samples
                         .AsNoTracking()
-                        .Where(s => s.LoggingSessionID == loggingSession.ID)
-                        .Select(s => s);
+                        .Where(s => s.LoggingSessionID == loggingSession.ID);
 
-                    var rows = new Dictionary<DateTime, List<KeyValuePair<string, double>>>();
+                    var rows = new Dictionary<long, List<KeyValuePair<string, double>>>();
                     foreach (var sample in samples)
                     {
-                        var timestamp = new DateTime(sample.TimestampTicks);
-                        if (!rows.ContainsKey(timestamp))
+                        if (!rows.ContainsKey(sample.TimestampTicks))
                         {
-                            rows[timestamp] = new List<KeyValuePair<string, double>>();
+                            rows[sample.TimestampTicks] = new List<KeyValuePair<string, double>>();
                         }
-                        rows[timestamp].Add(new KeyValuePair<string, double>($"{sample.DeviceName}:{sample.DeviceSerialNo}:{sample.ChannelName}", sample.Value));
+                        rows[sample.TimestampTicks].Add(new KeyValuePair<string, double>($"{sample.DeviceName}:{sample.DeviceSerialNo}:{sample.ChannelName}", sample.Value));
                     }
 
-                    // Create the header
                     var sb = new StringBuilder();
-                    sb.Append("Time").Append(Delimiter).Append(string.Join(Delimiter, channelNames)).AppendLine();
+                    sb.Append(exportRelativeTime ? "Relative Time (s)" : "Time").Append(Delimiter).Append(string.Join(Delimiter, channelNames)).AppendLine();
 
-                    var count = 0;
                     var tempTotals = channelNames.ToDictionary(name => name, _ => 0.0);
                     var tempCounts = channelNames.ToDictionary(name => name, _ => 0);
+
+                    long firstTimestampTicks = rows.Keys.Min();
+                    int count = 0;
                     int totalRows = rows.Count;
-                    foreach (var row in rows.Keys.OrderBy(t => t))
+
+                    foreach (var timestamp in rows.Keys.OrderBy(t => t))
                     {
-                        foreach (var kvp in rows[row])
+                        foreach (var kvp in rows[timestamp])
                         {
                             tempTotals[kvp.Key] += kvp.Value;
                             tempCounts[kvp.Key]++;
@@ -151,22 +154,29 @@ namespace Daqifi.Desktop.Exporter
 
                         if (count % averageQuantity == 0)
                         {
-                            sb.Append(row.ToString("O")).Append(Delimiter);
+                            string timeString = exportRelativeTime
+                                ? ((timestamp - firstTimestampTicks) / (double)TimeSpan.TicksPerSecond).ToString("F3")
+                                : new DateTime(timestamp).ToString("O");
+
+                            sb.Append(timeString).Append(Delimiter);
                             foreach (var channelName in channelNames)
                             {
                                 var average = tempCounts[channelName] > 0 ? tempTotals[channelName] / tempCounts[channelName] : (double?)null;
                                 sb.Append(average?.ToString("G") ?? string.Empty).Append(Delimiter);
                             }
+                            sb.Length--;
                             sb.AppendLine();
 
                             tempTotals = channelNames.ToDictionary(name => name, _ => 0.0);
                             tempCounts = channelNames.ToDictionary(name => name, _ => 0);
                         }
+
                         if (bw.WorkerReportsProgress)
                         {
                             int progressPercentage = (int)((double)count / totalRows * 100);
                             bw.ReportProgress(progressPercentage, new Tuple<int, int>(sessionIndex, totalSessions));
                         }
+
                         if (bw.CancellationPending)
                         {
                             return;
@@ -179,13 +189,6 @@ namespace Daqifi.Desktop.Exporter
             {
                 AppLogger.Error(ex, "Failed in ExportAverageSamples");
             }
-        }
-        
-        private string GetFormattedTime(long timestampTicks, bool exportRelativeTime, long firstTimestampTicks)
-        {
-            return exportRelativeTime
-                ? ((timestampTicks - firstTimestampTicks) / (double)TimeSpan.TicksPerMillisecond / 1000).ToString("F3")
-                : new DateTime(timestampTicks).ToString("O");
         }
     }
 }
