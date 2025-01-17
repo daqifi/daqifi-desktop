@@ -121,13 +121,11 @@ namespace Daqifi.Desktop.Exporter
 
                     foreach (var sample in samples)
                     {
-                        var timestamp = new DateTime(sample.TimestampTicks);
-                        if (!rows.ContainsKey(timestamp))
+                        if (!rows.ContainsKey(sample.TimestampTicks))
                         {
-                            rows.Add(timestamp, new List<double>());
+                            rows[sample.TimestampTicks] = new List<double>();
                         }
-
-                        rows[timestamp].Add(sample.Value);
+                        rows[sample.TimestampTicks].Add(sample.Value);
                     }
 
                     // Create the header
