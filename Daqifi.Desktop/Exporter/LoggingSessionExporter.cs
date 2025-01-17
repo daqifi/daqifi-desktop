@@ -7,6 +7,8 @@ using Daqifi.Desktop.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
+using System.IO;
+using System.Text;
 
 namespace Daqifi.Desktop.Exporter
 {
@@ -19,7 +21,8 @@ namespace Daqifi.Desktop.Exporter
         {
             _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
         }
-        public void ExportLoggingSession(LoggingSession loggingSession, string filepath, BackgroundWorker bw, int sessionIndex, int totalSessions)
+      
+        public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
         {
             try
             {
@@ -35,6 +38,8 @@ namespace Daqifi.Desktop.Exporter
                 sb.Append("time").Append(Delimiter).Append(string.Join(Delimiter, channelNames.ToArray())).AppendLine();
                 File.WriteAllText(filepath, sb.ToString());
                 sb.Clear();
+
+                var firstTimestampTicks = loggingSession.DataSamples.Min(s => s.TimestampTicks); // Capture first timestamp for relative time
 
                 var count = 0;
                 var pageSize = 10000 * channelNames.Count;
@@ -55,9 +60,12 @@ namespace Daqifi.Desktop.Exporter
 
                     foreach (var timestamp in pagedSampleDictionary.Keys)
                     {
-                        sb.Append(new DateTime(timestamp).ToString("O"));
+                        var timeString = GetFormattedTime(timestamp, exportRelativeTime, firstTimestampTicks);
+                        
+                        sb.Append(timeString);
 
                         var sampleDictionary = channelNames.ToDictionary<string, string, double?>(channelName => channelName, channelName => null);
+
                         var samples = pagedSampleDictionary[timestamp];
 
                         foreach (var sample in samples)
@@ -88,7 +96,7 @@ namespace Daqifi.Desktop.Exporter
             }
         }
 
-        public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity, BackgroundWorker bw, int sessionIndex, int totalSessions)
+        public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
         {
             try
             {
@@ -96,10 +104,21 @@ namespace Daqifi.Desktop.Exporter
                 {
                     context.ChangeTracker.AutoDetectChangesEnabled = false;
                     var loggingSession = context.Sessions.Find(session.ID);
-                    var channelNames = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == loggingSession.ID).Select(s => s.ChannelName).Distinct();
-                    var samples = context.Samples.AsNoTracking().Where(s => s.LoggingSessionID == loggingSession.ID).Select(s => s);
+                    var channelNames = context.Samples.AsNoTracking()
+                                                      .Where(s => s.LoggingSessionID == loggingSession.ID)
+                                                      .Select(s => s.ChannelName)
+                                                      .Distinct()
+                                                      .ToList();
+                    var samples = context.Samples.AsNoTracking()
+                                                 .Where(s => s.LoggingSessionID == loggingSession.ID)
+                                                 .OrderBy(s => s.TimestampTicks)
+                                                 .ToList();
 
-                    var rows = new Dictionary<DateTime, List<double>>();
+                    if (channelNames.Count == 0 || samples.Count == 0) return;
+
+                    var rows = new Dictionary<long, List<double>>();
+                    var firstTimestampTicks = samples.First().TimestampTicks; // First timestamp for relative time
+
                     foreach (var sample in samples)
                     {
                         var timestamp = new DateTime(sample.TimestampTicks);
@@ -113,18 +132,18 @@ namespace Daqifi.Desktop.Exporter
 
                     // Create the header
                     var sb = new StringBuilder();
-                    sb.Append("time").Append(Delimiter).Append(string.Join(Delimiter, channelNames.ToArray())).AppendLine();
+                    sb.Append("time").Append(Delimiter).Append(string.Join(Delimiter, channelNames)).AppendLine();
 
                     var count = 0;
                     var tempTotals = new List<double>();
                     int totalRows = rows.Count;
 
-                    foreach (var row in rows.Keys)
+                    foreach (var timestamp in rows.Keys)
                     {
                         var channelNumber = 0;
-                        foreach (var value in rows[row])
+                        foreach (var value in rows[timestamp])
                         {
-                            if (tempTotals.Count - 1 < channelNumber) tempTotals.Add(0);
+                            if (tempTotals.Count <= channelNumber) tempTotals.Add(0);
                             tempTotals[channelNumber] += value;
                             channelNumber++;
                         }
@@ -133,11 +152,13 @@ namespace Daqifi.Desktop.Exporter
 
                         if (count % averageQuantity == 0)
                         {
-                            // Average and write to file
-                            sb.Append(row).Append(Delimiter);
+                            var timeString = GetFormattedTime(timestamp, exportRelativeTime, firstTimestampTicks);
+
+                            sb.Append(timeString).Append(Delimiter);
+
                             foreach (var value in tempTotals)
                             {
-                                sb.Append(value / averageQuantity).Append(Delimiter);
+                                sb.Append((value / averageQuantity).ToString("G")).Append(Delimiter);
                             }
                             sb.AppendLine();
                             tempTotals.Clear();
@@ -159,6 +180,13 @@ namespace Daqifi.Desktop.Exporter
             {
                 AppLogger.Error(ex, "Failed in ExportLoggingSession");
             }
+        }
+        
+        private string GetFormattedTime(long timestampTicks, bool exportRelativeTime, long firstTimestampTicks)
+        {
+            return exportRelativeTime
+                ? ((timestampTicks - firstTimestampTicks) / (double)TimeSpan.TicksPerMillisecond / 1000).ToString("F3")
+                : new DateTime(timestampTicks).ToString("O");
         }
     }
 }

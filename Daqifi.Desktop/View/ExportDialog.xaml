@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         Title="Export Logging Session" ResizeMode="NoResize" Height="300" Width="600" GlowBrush="{DynamicResource AccentColorBrush}">
+
     <Grid Margin="5">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
@@ -64,6 +65,13 @@
                 Visibility="{Binding IsExporting, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="5"/>
                 <Label Grid.Row="1" Grid.Column="0" Content="{Binding ExportProgressText}"  HorizontalAlignment="Center"/>
             </Grid>
+        </GroupBox>
+
+        <GroupBox Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Header="Timestamp Format" Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton Grid.Column="0" Grid.Row="0" Content="Relative Time" IsChecked="{Binding ExportRelativeTime}" Margin="0,0,10,0"/>
+                <RadioButton Grid.Column="0" Grid.Row="1" Content="Absolute Time" IsChecked="True" />
+            </StackPanel>
         </GroupBox>
 
         <DockPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Grid.RowSpan="3"  HorizontalAlignment="Right" VerticalAlignment="Bottom">
