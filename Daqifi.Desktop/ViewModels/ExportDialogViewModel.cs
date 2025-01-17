@@ -1,11 +1,13 @@
-﻿using Daqifi.Desktop.Commands;
+﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.View;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
-
 using System.IO;
 using System.Windows.Input;
 
@@ -18,7 +20,10 @@ namespace Daqifi.Desktop.ViewModels
         private string _exportFilePath;
         private bool _exportAllSelected = true;
         private bool _exportAverageSelected;
+        private bool _isExporting;
         private int _averageQuantity = 2;
+        private int _exportProgress;
+        private readonly IDialogService _dialogService;
         #endregion
 
         #region Properties
@@ -54,12 +59,33 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
+        public int ExportProgress
+        {
+            get => _exportProgress;
+            set
+            {
+                _exportProgress = value;
+                OnPropertyChanged();
+                OnPropertyChanged("ExportProgressText");
+            }
+        }
+        public string ExportProgressText => ($"Exporting progress: {ExportProgress}% completed");
+
         public bool ExportAverageSelected
         {
             get => _exportAverageSelected;
             set
             {
                 _exportAverageSelected = value;
+                OnPropertyChanged();
+            }
+        }
+        public bool IsExporting
+        {
+            get => _isExporting;
+            set
+            {
+                _isExporting = value;
                 OnPropertyChanged();
             }
         }
@@ -88,6 +114,13 @@ namespace Daqifi.Desktop.ViewModels
         {
             return true;
         }
+
+
+        public ICommand CancelExportCommand { get; set; }
+        private bool CanCancelExportCommand(object o)
+        {
+            return true;
+        }
         #endregion
 
         #region Constructor
@@ -99,6 +132,8 @@ namespace Daqifi.Desktop.ViewModels
             _sessionsIds = new List<int>() { sessionId };
             ExportSessionCommand = new DelegateCommand(ExportLoggingSessions, CanExportSession);
             BrowseExportPathCommand = new DelegateCommand(BrowseExportPath, CanBrowseExportPath);
+            CancelExportCommand = new DelegateCommand(CancelExport, CanCancelExportCommand);
+
         }
 
         public ExportDialogViewModel(IEnumerable<LoggingSession> sessions)
@@ -137,55 +172,98 @@ namespace Daqifi.Desktop.ViewModels
 
             ExportFilePath = dialog.SelectedPath;
         }
-
+        private BackgroundWorker bw;
+        private void CancelExport(object o)
+        {
+            if (bw != null && bw.WorkerSupportsCancellation)
+            {
+                bw.CancelAsync();
+            }
+        }
         private void ExportLoggingSessions(object o)
         {
+            IsExporting = true;
             if (string.IsNullOrWhiteSpace(ExportFilePath)) { return; }
-
-            var bw = new BackgroundWorker();
-            bw.DoWork += delegate
+            bw = new BackgroundWorker
             {
-                foreach (var sessionId in _sessionsIds)
+                WorkerReportsProgress = true,
+                WorkerSupportsCancellation = true
+            };
+            bw.DoWork += async (sender, args) =>
+            {
+                int totalSessions = _sessionsIds.Count;
+                for (int i = 0; i < totalSessions; i++)
                 {
-                    var loggingSession = GetLoggingSessionFromId(sessionId);
-
-                    var filepath = _sessionsIds.Count > 1 ? Path.Combine(ExportFilePath, $"{loggingSession.Name}.csv") : ExportFilePath;
+                    if (bw.CancellationPending)
+                        return;
+                    var sessionId = _sessionsIds[i];
+                    var loggingSession = await GetLoggingSessionFromId(sessionId);
+                    var filepath = totalSessions > 1
+                        ? Path.Combine(ExportFilePath, $"{loggingSession.Name}.csv")
+                        : ExportFilePath;
 
                     if (ExportAllSelected)
                     {
-                        ExportAllSamples(loggingSession, filepath);
+                        ExportAllSamples(loggingSession, filepath, bw, i, totalSessions);
                     }
                     else if (ExportAverageSelected)
                     {
-                        ExportAverageSamples(loggingSession, filepath);
+                        ExportAverageSamples(loggingSession, filepath, bw, i, totalSessions);
                     }
                 }
             };
-
+            bw.ProgressChanged += UploadFirmwareProgressChanged;
+            bw.RunWorkerCompleted += (sender, args) =>
+            {
+                if (args.Error != null)
+                {
+                    AppLogger.Instance.Error(args.Error, "Problem Exporting Data");
+                }
+                else
+                {
+                    IsExporting = false;
+                }
+            };
             bw.RunWorkerAsync();
         }
 
-        private void ExportAllSamples(LoggingSession session, string filepath)
+        private void UploadFirmwareProgressChanged(object? sender, ProgressChangedEventArgs e)
         {
-            var loggingSessionExporter = new LoggingSessionExporter();
-            loggingSessionExporter.ExportLoggingSession(session, filepath, ExportRelativeTime);
+            ExportProgress = e.ProgressPercentage;
         }
 
-        private void ExportAverageSamples(LoggingSession session, string filepath)
+        private void ExportAllSamples(LoggingSession session, string filepath, BackgroundWorker bw, int sessionIndex, int totalSessions)
         {
             var loggingSessionExporter = new LoggingSessionExporter();
-            loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime);
+            loggingSessionExporter.ExportLoggingSession(session, filepath, ExportRelativeTime, bw, sessionIndex, totalSessions);
         }
 
-        private LoggingSession GetLoggingSessionFromId(int sessionId)
+        private void ExportAverageSamples(LoggingSession session, string filepath, BackgroundWorker bw, int sessionIndex, int totalSessions)
+        {
+            var loggingSessionExporter = new LoggingSessionExporter();
+            loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime, bw, sessionIndex, totalSessions);
+        }
+
+        private async Task<LoggingSession> GetLoggingSessionFromId(int sessionId)
         {
             using (var context = _loggingContext.CreateDbContext())
             {
-                context.ChangeTracker.AutoDetectChangesEnabled = false;
-
-                var loggingSession = context.Sessions
-                   .Include(s => s.DataSamples)
-                   .FirstOrDefault(s => s.ID == sessionId);
+                var loggingSession = await context.Sessions
+                     .AsNoTracking()
+                     .Where(s => s.ID == sessionId)
+                     .Select(s => new LoggingSession
+                     {
+                         ID = s.ID,
+                         DataSamples = s.DataSamples.Select(d => new DataSample
+                         {
+                             ID = d.ID,
+                             Value = d.Value,
+                             TimestampTicks = d.TimestampTicks,
+                             ChannelName = d.ChannelName,
+                             DeviceSerialNo = d.DeviceSerialNo,
+                             DeviceName = d.DeviceName
+                         }).ToList()
+                     }).FirstOrDefaultAsync();
                 return loggingSession;
             }
         }

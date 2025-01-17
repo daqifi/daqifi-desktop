@@ -17,10 +17,7 @@ namespace Daqifi.Desktop.View
             Close();
         }
 
-        private void btnExport_Click(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
+      
 
     }
 }

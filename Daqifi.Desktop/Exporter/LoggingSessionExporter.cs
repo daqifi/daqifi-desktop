@@ -6,6 +6,7 @@ using System.Text;
 using Daqifi.Desktop.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.ComponentModel;
 using System.IO;
 using System.Text;
 
@@ -20,7 +21,8 @@ namespace Daqifi.Desktop.Exporter
         {
             _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
         }
-        public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool exportRelativeTime)
+      
+        public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
         {
             try
             {
@@ -32,7 +34,6 @@ namespace Daqifi.Desktop.Exporter
 
                 channelNames.Sort(new OrdinalStringComparer());
 
-                // Create the header
                 var sb = new StringBuilder();
                 sb.Append("time").Append(Delimiter).Append(string.Join(Delimiter, channelNames.ToArray())).AppendLine();
                 File.WriteAllText(filepath, sb.ToString());
@@ -44,6 +45,11 @@ namespace Daqifi.Desktop.Exporter
                 var pageSize = 10000 * channelNames.Count;
                 while (count < samplesCount)
                 {
+                    if (bw.CancellationPending)
+                    {
+                        AppLogger.Warning("Export operation cancelled by user.");
+                        return;
+                    }
                     var pagedSampleDictionary = loggingSession.DataSamples
                         .Select(s => new { s.TimestampTicks, s.ChannelName, s.Value })
                         .OrderBy(s => s.TimestampTicks)
@@ -58,8 +64,8 @@ namespace Daqifi.Desktop.Exporter
                         
                         sb.Append(timeString);
 
-                        // Initialize a dictionary for all channels with null values
-                        var sampleDictionary = channelNames.ToDictionary(channelName => channelName, channelName => (double?)null);
+                        var sampleDictionary = channelNames.ToDictionary<string, string, double?>(channelName => channelName, channelName => null);
+
                         var samples = pagedSampleDictionary[timestamp];
 
                         foreach (var sample in samples)
@@ -78,6 +84,10 @@ namespace Daqifi.Desktop.Exporter
                         sb.Clear();
                     }
                     count += pageSize;
+                    int sessionProgress = (int)((double)count / samplesCount * 100);
+                    int overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
+                    bw.ReportProgress(Math.Min(100, overallProgress), loggingSession.Name);
+
                 }
             }
             catch (Exception ex)
@@ -86,7 +96,7 @@ namespace Daqifi.Desktop.Exporter
             }
         }
 
-        public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity, bool exportRelativeTime)
+        public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
         {
             try
             {
@@ -124,6 +134,7 @@ namespace Daqifi.Desktop.Exporter
 
                     var count = 0;
                     var tempTotals = new List<double>();
+                    int totalRows = rows.Count;
 
                     foreach (var timestamp in rows.Keys)
                     {
@@ -149,6 +160,15 @@ namespace Daqifi.Desktop.Exporter
                             }
                             sb.AppendLine();
                             tempTotals.Clear();
+                        }
+                        if (bw.WorkerReportsProgress)
+                        {
+                            int progressPercentage = (int)((double)count / totalRows * 100);
+                            bw.ReportProgress(progressPercentage, new Tuple<int, int>(sessionIndex, totalSessions));
+                        }
+                        if (bw.CancellationPending)
+                        {
+                            return;
                         }
                     }
                     File.WriteAllText(filepath, sb.ToString());
