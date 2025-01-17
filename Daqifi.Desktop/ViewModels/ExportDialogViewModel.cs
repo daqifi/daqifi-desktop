@@ -34,6 +34,16 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
+        public bool _exportRelativeTime;
+        public bool ExportRelativeTime
+        {
+            get => _exportRelativeTime;
+            set
+            {
+                _exportRelativeTime = value;
+                OnPropertyChanged();
+            }
+        }
         public bool ExportAllSelected
         {
             get => _exportAllSelected;
@@ -158,13 +168,13 @@ namespace Daqifi.Desktop.ViewModels
         private void ExportAllSamples(LoggingSession session, string filepath)
         {
             var loggingSessionExporter = new LoggingSessionExporter();
-            loggingSessionExporter.ExportLoggingSession(session, filepath);
+            loggingSessionExporter.ExportLoggingSession(session, filepath, ExportRelativeTime);
         }
 
         private void ExportAverageSamples(LoggingSession session, string filepath)
         {
             var loggingSessionExporter = new LoggingSessionExporter();
-            loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity);
+            loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime);
         }
 
         private LoggingSession GetLoggingSessionFromId(int sessionId)
