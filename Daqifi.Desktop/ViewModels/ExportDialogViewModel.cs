@@ -198,8 +198,9 @@ namespace Daqifi.Desktop.ViewModels
                         return;
                     var sessionId = _sessionsIds[i];
                     var loggingSession = await GetLoggingSessionFromId(sessionId);
+                    var sessionname = LoggingManager.Instance.LoggingSessions.FirstOrDefault(s => s.ID == sessionId).Name;
                     var filepath = totalSessions > 1
-                        ? Path.Combine(ExportFilePath, $"{loggingSession.Name}.csv")
+                        ? Path.Combine(ExportFilePath, $"{sessionname}.csv")
                         : ExportFilePath;
 
                     if (ExportAllSelected)
