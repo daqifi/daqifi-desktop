@@ -66,10 +66,21 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _exportProgress = value;
                 OnPropertyChanged();
-                OnPropertyChanged("ExportProgressText");
+                ExportProgressText = $"Exporting progress: {ExportProgress}% completed";
+
             }
         }
-        public string ExportProgressText => ($"Exporting progress: {ExportProgress}% completed");
+
+
+        private string _exportProgressText;
+
+        public string ExportProgressText 
+        {
+            get { return _exportProgressText; }
+            set { _exportProgressText = value; OnPropertyChanged("ExportProgressText"); }
+        }
+
+       
 
         public bool ExportAverageSelected
         {
