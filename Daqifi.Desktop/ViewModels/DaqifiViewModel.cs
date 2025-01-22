@@ -494,6 +494,18 @@ namespace Daqifi.Desktop.ViewModels
                 OnPropertyChanged("FlyoutHeight");
             }
         }
+        private string _loggedSessionName;
+        public string LoggedSessionName
+        {
+            get => _loggedSessionName;
+            set
+            {
+                if (_loggedSessionName == value) { return; }
+
+                _loggedSessionName = value;
+                OnPropertyChanged("LoggedSessionName");
+            }
+        }
         #endregion
 
         #region Constructor
@@ -1276,6 +1288,15 @@ namespace Daqifi.Desktop.ViewModels
 
             CloseFlyouts();
             SelectedLoggingSession = item;
+            if (item.Name.Length == 0)
+            {
+                LoggedSessionName = "Session_" + item.ID; 
+            }
+            else
+            {
+                LoggedSessionName = item.Name;
+            }
+            LoggedSessionName = item.Name;
             IsLoggingSessionSettingsOpen = true;
         }
 

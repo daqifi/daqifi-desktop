@@ -17,7 +17,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <GroupBox Grid.Row="0" Grid.Column="0" Header="Name">
-            <TextBox Text="{Binding SelectedLoggingSession.Name}" Height="50" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
+            <TextBox Text="{Binding LoggedSessionName,UpdateSourceTrigger=PropertyChanged}" TextChanged="UpdateSessionName" Height="50" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
         </GroupBox>
     </Grid>
 </Controls:Flyout>
