@@ -38,7 +38,11 @@
 		<None Remove="Images\WiFi.png" />
 		<None Remove="Images\WiFiDAQ.ico" />
 	</ItemGroup>
-
+	<ItemGroup>
+		<Content Include="e_sqlite3.dll">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
 		<PackageReference Include="EFCore.BulkExtensions" Version="8.1.1" />
@@ -56,6 +60,7 @@
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="OxyPlot.Core" Version="2.2.0" />
 		<PackageReference Include="OxyPlot.Wpf" Version="2.2.0" />
+		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.10" />
 		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.10" />
 		<PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.1" />
 		<PackageReference Include="System.IO.Ports" Version="8.0.0" />

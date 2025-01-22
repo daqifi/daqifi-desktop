@@ -82,12 +82,27 @@ namespace Daqifi.Desktop
         {
             ConnectedDevices = new List<IStreamingDevice>();
 
-            // EventType 3 is Device Removal
-            var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
+            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+            {
+                try
+                {
+                    // EventType 3 is Device Removal
+                    var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
 
-            _deviceRemovedWatcher = new ManagementEventWatcher(deviceRemovedQuery);
-            _deviceRemovedWatcher.EventArrived += (sender, eventArgs) => CheckIfSerialDeviceWasRemoved();
-            _deviceRemovedWatcher.Start();
+                    _deviceRemovedWatcher = new ManagementEventWatcher(deviceRemovedQuery);
+                    _deviceRemovedWatcher.EventArrived += (sender, eventArgs) => CheckIfSerialDeviceWasRemoved();
+                    _deviceRemovedWatcher.Start();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Instance.Error(ex, "Failed to initialize ManagementEventWatcher: " + ex.Message);
+                    _deviceRemovedWatcher = null; // Disable the watcher if initialization fails.
+                }
+            }
+            else
+            {
+                AppLogger.Instance.Error( "WMI functionality is not supported on this platform.");
+            }
         }
 
         public static ConnectionManager Instance => instance;
