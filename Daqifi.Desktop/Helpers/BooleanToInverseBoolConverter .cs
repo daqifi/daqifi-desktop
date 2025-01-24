@@ -1,0 +1,18 @@
+﻿using System.Globalization;
+using System.Windows.Data;
+
+namespace Daqifi.Desktop.Helpers
+{
+    public class BooleanToInverseBoolConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return value is bool boolValue ? !boolValue : false;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return value is bool boolValue ? !boolValue : false;
+        }
+    }
+}

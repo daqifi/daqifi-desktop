@@ -16,8 +16,5 @@ namespace Daqifi.Desktop.View
         {
             Close();
         }
-
-      
-
     }
 }
