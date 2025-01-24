@@ -1,11 +1,10 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Moq;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 
@@ -17,8 +16,8 @@ namespace Daqifi.Desktop.Test.Exporter
         private const string ExportFileName = "testExportFile.csv";
         private const string TestDirectoryPath = @"C:\ProgramData\DAQifi\Tests";
 
-        private readonly DateTime _firstTime = new DateTime(2018, 2, 9, 1, 3, 30);
-        private readonly DateTime _secondTime = new DateTime(2018, 2, 9, 1, 3, 31);
+        private readonly DateTime _firstTime = new(2018, 2, 9, 1, 3, 30);
+        private readonly DateTime _secondTime = new(2018, 2, 9, 1, 3, 31);
 
         private List<Channel.Channel> _channels;
         private List<DataSample> _dataSamples;
@@ -28,22 +27,46 @@ namespace Daqifi.Desktop.Test.Exporter
         {
             Directory.CreateDirectory(TestDirectoryPath);
 
-            _channels = new List<Channel.Channel>
-            {
-                new DigitalChannel {ID = 1, Name = "Channel 1"},
-                new DigitalChannel {ID = 2, Name = "Channel 2"},
-                new DigitalChannel {ID = 2, Name = "Channel 3"}
-            };
+            _channels =
+            [
+                new Channel.Channel { ID = 1, Name = "Channel 1" },
+                new Channel.Channel { ID = 2, Name = "Channel 2" },
+                new Channel.Channel { ID = 2, Name = "Channel 3" }
+            ];
 
-            _dataSamples = new List<DataSample>
-            {
-                new DataSample {ID = 1, LoggingSessionID = 1, ChannelName = "Channel 1", TimestampTicks = _firstTime.Ticks ,Value = 0.01},
-                new DataSample {ID = 2, LoggingSessionID = 1, ChannelName = "Channel 2", TimestampTicks = _firstTime.Ticks, Value = 0.02},
-                new DataSample {ID = 3, LoggingSessionID = 1, ChannelName = "Channel 3", TimestampTicks = _firstTime.Ticks, Value = 0.03},
-                new DataSample {ID = 4, LoggingSessionID = 1, ChannelName = "Channel 1", TimestampTicks = _secondTime.Ticks, Value = 0.04},
-                new DataSample {ID = 5, LoggingSessionID = 1, ChannelName = "Channel 2", TimestampTicks = _secondTime.Ticks, Value = 0.05},
-                new DataSample {ID = 6, LoggingSessionID = 1, ChannelName = "Channel 3", TimestampTicks = _secondTime.Ticks, Value = 0.06}
-            };
+            _dataSamples =
+            [
+                new DataSample
+                {
+                    ID = 1, DeviceName = "device1", DeviceSerialNo = "123", LoggingSessionID = 1,
+                    ChannelName = "Channel 1", TimestampTicks = _firstTime.Ticks, Value = 0.01
+                },
+                new DataSample
+                {
+                    ID = 2, DeviceName = "device1", DeviceSerialNo = "123", LoggingSessionID = 1,
+                    ChannelName = "Channel 2", TimestampTicks = _firstTime.Ticks, Value = 0.02
+                },
+                new DataSample
+                {
+                    ID = 3, DeviceName = "device1", DeviceSerialNo = "123", LoggingSessionID = 1,
+                    ChannelName = "Channel 3", TimestampTicks = _firstTime.Ticks, Value = 0.03
+                },
+                new DataSample
+                {
+                    ID = 4, DeviceName = "device1", DeviceSerialNo = "123", LoggingSessionID = 1,
+                    ChannelName = "Channel 1", TimestampTicks = _secondTime.Ticks, Value = 0.04
+                },
+                new DataSample
+                {
+                    ID = 5, DeviceName = "device1", DeviceSerialNo = "123", LoggingSessionID = 1,
+                    ChannelName = "Channel 2", TimestampTicks = _secondTime.Ticks, Value = 0.05
+                },
+                new DataSample
+                {
+                    ID = 6, DeviceName = "device1", DeviceSerialNo = "123", LoggingSessionID = 1,
+                    ChannelName = "Channel 3", TimestampTicks = _secondTime.Ticks, Value = 0.06
+                }
+            ];
         }
 
         [TestMethod]
@@ -55,14 +78,19 @@ namespace Daqifi.Desktop.Test.Exporter
                 Channels = _channels,
                 DataSamples = _dataSamples
             };
-            var loggingContextFactory = new Mock<IDbContextFactory<LoggingContext>>();
 
             var exporter = new LoggingSessionExporter();
             var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
+            
+            var bw = new BackgroundWorker
+            {
+                WorkerReportsProgress = true,
+                WorkerSupportsCancellation = true
+            };
 
-            exporter.ExportLoggingSession(loggingSession, exportFilePath);
+            exporter.ExportLoggingSession(loggingSession, exportFilePath, false, bw, 0, 0);
 
-            var expectedOutput = "time,Channel 1,Channel 2,Channel 3\r\n";
+            var expectedOutput = "Time,device1:123:Channel 1,device1:123:Channel 2,device1:123:Channel 3\r\n";
             expectedOutput += "2018-02-09T01:03:30.0000000,0.01,0.02,0.03\r\n";
             expectedOutput += "2018-02-09T01:03:31.0000000,0.04,0.05,0.06\r\n";
 
@@ -87,10 +115,15 @@ namespace Daqifi.Desktop.Test.Exporter
             var exporter = new LoggingSessionExporter();
             var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
 
+            var bw = new BackgroundWorker
+            {
+                WorkerReportsProgress = true,
+                WorkerSupportsCancellation = true
+            };
 
-            exporter.ExportLoggingSession(loggingSession, exportFilePath);
+            exporter.ExportLoggingSession(loggingSession, exportFilePath, false, bw, 0, 0);
 
-            var expectedOutput = "time,Channel 1,Channel 2,Channel 3\r\n";
+            var expectedOutput = "Time,device1:123:Channel 1,device1:123:Channel 2,device1:123:Channel 3\r\n";
             expectedOutput += "2018-02-09T01:03:30.0000000,0.01,0.02,0.03\r\n";
             expectedOutput += "2018-02-09T01:03:31.0000000,0.04,,0.06\r\n";
 
@@ -111,7 +144,13 @@ namespace Daqifi.Desktop.Test.Exporter
             var exporter = new LoggingSessionExporter();
             var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
 
-            exporter.ExportLoggingSession(loggingSession, exportFilePath);
+            var bw = new BackgroundWorker
+            {
+                WorkerReportsProgress = true,
+                WorkerSupportsCancellation = true
+            };
+            
+            exporter.ExportLoggingSession(loggingSession, exportFilePath, false, bw, 0, 0);
 
             Assert.IsFalse(File.Exists(exportFilePath));
         }
@@ -126,10 +165,5 @@ namespace Daqifi.Desktop.Test.Exporter
                 File.Delete(exportFilePath);
             }
         }
-    }
-
-    public class DigitalChannel : Channel.Channel
-    {
-
     }
 }
