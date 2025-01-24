@@ -66,10 +66,21 @@ namespace Daqifi.Desktop.ViewModels
             {
                 _exportProgress = value;
                 OnPropertyChanged();
-                OnPropertyChanged("ExportProgressText");
+                ExportProgressText = $"Exporting progress: {ExportProgress}% completed";
+
             }
         }
-        public string ExportProgressText => ($"Exporting progress: {ExportProgress}% completed");
+
+
+        private string _exportProgressText;
+
+        public string ExportProgressText 
+        {
+            get { return _exportProgressText; }
+            set { _exportProgressText = value; OnPropertyChanged("ExportProgressText"); }
+        }
+
+       
 
         public bool ExportAverageSelected
         {
@@ -198,8 +209,9 @@ namespace Daqifi.Desktop.ViewModels
                         return;
                     var sessionId = _sessionsIds[i];
                     var loggingSession = await GetLoggingSessionFromId(sessionId);
+                    var sessionname = LoggingManager.Instance.LoggingSessions.FirstOrDefault(s => s.ID == sessionId).Name;
                     var filepath = totalSessions > 1
-                        ? Path.Combine(ExportFilePath, $"{loggingSession.Name}.csv")
+                        ? Path.Combine(ExportFilePath, $"{sessionname}.csv")
                         : ExportFilePath;
 
                     if (ExportAllSelected)
