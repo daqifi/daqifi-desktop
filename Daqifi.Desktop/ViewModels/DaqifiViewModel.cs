@@ -1062,87 +1062,97 @@ namespace Daqifi.Desktop.ViewModels
         {
             InitializeBackgroundWorker();
         }
+
         public void UploadFirmware(object o)
         {
-            FirmwareFilePath = FirmwareUpdatationManager.Instance.DownloadFirmware();
-            if (FirmwareFilePath != null)
+            FirmwareFilePath = new FirmwareDownloader().Download();
+
+            if (string.IsNullOrEmpty(FirmwareFilePath))
             {
-                ObservableCollection<SerialStreamingDevice> _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
-                SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
-                SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
+                AppLogger.Error("Firmware file path is null or empty.");
+                return;
+            }
 
-                SerialStreamingDevice port = manualserialdevice;
-                // Check if serial ports auto/manual are not null
-                if (port == null) { port = autodaqifiport; }
-                if (port != null)
+            var _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
+            var autodaqifiport = _availableSerialDevices.FirstOrDefault();
+            var manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
+
+            var port = manualserialdevice;
+            // Check if serial ports auto/manual are not null
+            if (port == null)
+            {
+                port = autodaqifiport;
+            }
+
+            if (port != null)
+            {
+                // Send the Daqifi command "Force Boot"
+                string command = "SYSTem:FORceBoot\r\n";
+
+                if (port.Write(command))
                 {
-                    // Send the Daqifi command "Force Boot"
-                    string command = "SYSTem:FORceBoot\r\n";
+                    // Once the Daqifi resets, the COM serial port is closed,
+                    // and the HID port for managing the bootloader must be found
+                    StartConnectionFinders();
 
-                    if (port.Write(command))
+                    // Update the variable 'HasNoHidDevices' in a backbround task
+                    var bw2 = new BackgroundWorker();
+                    bw2.DoWork += delegate
                     {
-                        // Once the Daqifi resets, the COM serial port is closed,
-                        // and the HID port for managing the bootloader must be found
-                        StartConnectionFinders();
-
-                        // Update the variable 'HasNoHidDevices' in a backbround task
-                        var bw2 = new BackgroundWorker();
-                        bw2.DoWork += delegate
+                        while (HasNoHidDevices == true)
                         {
-                            while (HasNoHidDevices == true)
+                            Thread.Sleep(2000);
+                            if (HasNoHidDevices == false)
                             {
-                                Thread.Sleep(2000);
-                                if (HasNoHidDevices == false)
+                                // Connect HID if it was found before              
+                                HidFirmwareDevice hidFirmwareDevice = ConnectHid(AvailableHidDevices);
+                                if (hidFirmwareDevice != null)
                                 {
-                                    // Connect HID if it was found before              
-                                    HidFirmwareDevice hidFirmwareDevice = ConnectHid(AvailableHidDevices);
-                                    if (hidFirmwareDevice != null)
+                                    _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
+                                    _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
+                                    _bootloader.RequestVersion();
+
+                                    var bw = new BackgroundWorker();
+                                    bw.DoWork += delegate
                                     {
-                                        _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
-                                        _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
-                                        _bootloader.RequestVersion();
-
-                                        var bw = new BackgroundWorker();
-                                        bw.DoWork += delegate
+                                        IsFirmwareUploading = true;
+                                        if (string.IsNullOrWhiteSpace(FirmwareFilePath))
                                         {
-                                            IsFirmwareUploading = true;
-                                            if (string.IsNullOrWhiteSpace(FirmwareFilePath))
-                                            {
-                                                return;
-                                            }
-                                            if (!File.Exists(FirmwareFilePath))
-                                            {
-                                                return;
-                                            }
+                                            return;
+                                        }
+
+                                        if (!File.Exists(FirmwareFilePath))
+                                        {
+                                            return;
+                                        }
 
 
-                                            if (_bootloader != null)
-                                            {
-                                                _bootloader.LoadFirmware(FirmwareFilePath, bw);
-                                            }
+                                        if (_bootloader != null)
+                                        {
+                                            _bootloader.LoadFirmware(FirmwareFilePath, bw);
+                                        }
 
-                                        };
-                                        bw.WorkerReportsProgress = true;
-                                        bw.ProgressChanged += UploadFirmwareProgressChanged;
-                                        bw.RunWorkerCompleted += HandleUploadCompleted;
-                                        bw.RunWorkerAsync();
-                                    }
+                                    };
+                                    bw.WorkerReportsProgress = true;
+                                    bw.ProgressChanged += UploadFirmwareProgressChanged;
+                                    bw.RunWorkerCompleted += HandleUploadCompleted;
+                                    bw.RunWorkerAsync();
                                 }
                             }
-                        };
-                        bw2.RunWorkerAsync();
-                    }
-                    else
-                    {
-                        string msg = "Error writing to COM port";
-                        AppLogger.Error(msg);
-                    }
+                        }
+                    };
+                    bw2.RunWorkerAsync();
                 }
                 else
                 {
-                    string msg = "Error serial COM port detection";
+                    string msg = "Error writing to COM port";
                     AppLogger.Error(msg);
                 }
+            }
+            else
+            {
+                string msg = "Error serial COM port detection";
+                AppLogger.Error(msg);
             }
         }
         #endregion

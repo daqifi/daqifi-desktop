@@ -94,6 +94,7 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         public static IMessage Reboot => new ScpiMessage("SYSTem:REboot");
         public static IMessage SystemInfo => new ScpiMessage("SYSTem:SYSInfoPB?");
 
+        public static IMessage ForceBootloader => new ScpiMessage("SYSTem:FORceBoot");
 
         public static IMessage Echo(int echo)
         {
