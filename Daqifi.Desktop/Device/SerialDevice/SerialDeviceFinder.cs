@@ -23,25 +23,40 @@ namespace Daqifi.Desktop.Device.SerialDevice
 
         private void WireUpSerialPortChanges()
         {
-            try
+            if (OperatingSystem.IsWindows())
             {
-                // EventType 2 is Device Arrival
-                var deviceAddedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 2");
+                try
+                {
+                    // EventType 2 is Device Arrival
+                    var deviceAddedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 2");
 
-                // EventType 3 is Device Removal
-                var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
+                    // EventType 3 is Device Removal
+                    var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
 
-                _deviceAddedWatcher = new ManagementEventWatcher(deviceAddedQuery);
-                _deviceRemovedWatcher = new ManagementEventWatcher(deviceRemovedQuery);
+                    _deviceAddedWatcher = new ManagementEventWatcher(deviceAddedQuery);
+                    _deviceRemovedWatcher = new ManagementEventWatcher(deviceRemovedQuery);
 
-                _deviceAddedWatcher.EventArrived += (sender, eventArgs) => RaisePortsChangedIfNecessary();
-                _deviceRemovedWatcher.EventArrived += (sender, eventArgs) => RaisePortsChangedIfNecessary();
+                    _deviceAddedWatcher.EventArrived += (sender, eventArgs) => RaisePortsChangedIfNecessary();
+                    _deviceRemovedWatcher.EventArrived += (sender, eventArgs) => RaisePortsChangedIfNecessary();
+
+                    _deviceAddedWatcher.Start();
+                    _deviceRemovedWatcher.Start();
+                }
+                catch (ManagementException ex)
+                {
+                    //AppLogger.Instance.Error(ex, "Error setting up device watchers: " + ex.Message, ex);
+                }
+                catch (Exception ex)
+                {
+
+                }
             }
-            catch (ManagementException)
+            else
             {
 
             }
         }
+
 
         private void RaisePortsChangedIfNecessary()
         {
@@ -76,15 +91,30 @@ namespace Daqifi.Desktop.Device.SerialDevice
 
         public void Start()
         {
-            RaisePortsChangedIfNecessary();
-            _deviceAddedWatcher.Start();
-            _deviceRemovedWatcher.Start();
+            try
+            {
+                RaisePortsChangedIfNecessary();
+
+                _deviceAddedWatcher?.Start();
+                _deviceRemovedWatcher?.Start();
+            }
+            catch (Exception ex)
+            {
+
+            }
         }
 
         public void Stop()
         {
-            _deviceAddedWatcher.Stop();
-            _deviceRemovedWatcher.Stop();
+            try
+            {
+                _deviceAddedWatcher?.Stop();
+                _deviceRemovedWatcher?.Stop();
+            }
+            catch (Exception ex)
+            {
+
+            }
         }
 
         public void NotifyDeviceFound(object sender, IDevice device)

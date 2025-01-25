@@ -82,8 +82,7 @@ namespace Daqifi.Desktop
         {
             ConnectedDevices = new List<IStreamingDevice>();
 
-            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
-            {
+
                 try
                 {
                     // EventType 3 is Device Removal
@@ -96,13 +95,8 @@ namespace Daqifi.Desktop
                 catch (Exception ex)
                 {
                     AppLogger.Instance.Error(ex, "Failed to initialize ManagementEventWatcher: " + ex.Message);
-                    _deviceRemovedWatcher = null; // Disable the watcher if initialization fails.
                 }
-            }
-            else
-            {
-                AppLogger.Instance.Error( "WMI functionality is not supported on this platform.");
-            }
+            
         }
 
         public static ConnectionManager Instance => instance;
