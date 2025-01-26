@@ -71,7 +71,7 @@ namespace Daqifi.Desktop.ViewModels
         private bool _isUploadComplete;
         private bool _hasErrorOccured;
         private int _uploadFirmwareProgress;
-        private int _uploadWIFIProgress;
+        private int _uploadWiFiProgress;
         private HidDeviceFinder _hidDeviceFinder;
         private bool _hasNoHidDevices = true;
         private ConnectionDialogViewModel _connectionDialogViewModel;
@@ -154,12 +154,12 @@ namespace Daqifi.Desktop.ViewModels
                 OnPropertyChanged("UploadFirmwareProgressText");
             }
         }
-        public int UploadWIFIProgress
+        public int UploadWiFiProgress
         {
-            get => _uploadWIFIProgress;
+            get => _uploadWiFiProgress;
             set
             {
-                _uploadWIFIProgress = value;
+                _uploadWiFiProgress = value;
                 OnPropertyChanged();
             }
         }
@@ -840,212 +840,126 @@ namespace Daqifi.Desktop.ViewModels
         {
             UploadFirmwareProgress = e.ProgressPercentage;
         }
-        private BackgroundWorker _backgroundWorker;
+        private BackgroundWorker _updateWiFiBackgroundWorker;
         private async void InitializeBackgroundWorker()
         {
-            _backgroundWorker = new BackgroundWorker
+            _updateWiFiBackgroundWorker = new BackgroundWorker
             {
                 WorkerReportsProgress = true
             };
-            _backgroundWorker.DoWork += BackgroundWorker_DoWork;
-            _backgroundWorker.ProgressChanged += BackgroundWorker_ProgressChanged;
-            _backgroundWorker.RunWorkerCompleted += BackgroundWorker_RunWorkerCompleted;
-            if (!_backgroundWorker.IsBusy)
+            _updateWiFiBackgroundWorker.DoWork += UpdateWiFiBackgroundWorkerDoWork;
+            _updateWiFiBackgroundWorker.ProgressChanged += UpdateWiFiBackgroundWorkerProgressChanged;
+            _updateWiFiBackgroundWorker.RunWorkerCompleted += UpdateWiFiBackgroundWorkerRunWorkerCompleted;
+            if (!_updateWiFiBackgroundWorker.IsBusy)
             {
-                UploadWIFIProgress = 0;
-                _backgroundWorker.RunWorkerAsync();
+                UploadWiFiProgress = 0;
+                _updateWiFiBackgroundWorker.RunWorkerAsync();
             }
         }
-        private async Task BackgroundWorker_DoWorkAsync()
+
+        private async Task WiFiBackgroundWorker_DoWorkAsync()
         {
-            string githubApiUrl = "https://api.github.com/repos/daqifi/winc1500-Manual-UART-Firmware-Update/releases/latest";
-            string tempPath = Path.GetTempPath();
-            string userAgent = "Mozilla/5.0 (compatible; AcmeApp/1.0)";
+            var wifiDownloader = new WiFiDownloader();
+            var (extractFolderPath, latestVersion) = await wifiDownloader.DownloadAndExtractWiFiAsync(_updateWiFiBackgroundWorker);
 
-            try
+            if (string.IsNullOrEmpty(extractFolderPath))
             {
-                using HttpClient client = new HttpClient();
-                client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
-                HttpResponseMessage response = await client.GetAsync(githubApiUrl);
+                return;
+            }
 
-                if (!response.IsSuccessStatusCode)
+            string[] matchingFiles =
+                Directory.GetFiles(extractFolderPath, "winc_flash_tool.cmd", SearchOption.AllDirectories);
+            if (matchingFiles.Length > 0)
+            {
+                string cmdFilePath = matchingFiles[0];
+                ObservableCollection<SerialStreamingDevice> _availableSerialDevices =
+                    _connectionDialogViewModel.AvailableSerialDevices;
+                SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
+                SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
+
+                SerialStreamingDevice lPort = manualserialdevice ?? autodaqifiport;
+                if (lPort != null)
                 {
-                    AppLogger.Error($"Failed to fetch GitHub API data. Status Code: {response.StatusCode}");
-                    return;
-                }
-
-                string jsonResponse = await response.Content.ReadAsStringAsync();
-                JObject releaseData = JObject.Parse(jsonResponse);
-
-                string latestVersion = releaseData["tag_name"]?.ToString()?.Trim();
-                string zipballUrl = releaseData["zipball_url"]?.ToString();
-
-                if (string.IsNullOrEmpty(zipballUrl))
-                {
-                    AppLogger.Error("No zipball URL found for the latest release.");
-                    return;
-                }
-
-                _backgroundWorker.ReportProgress(10, "Starting download...");
-
-                string zipFileName = $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}.zip";
-                string zipFilePath = Path.Combine(tempPath, zipFileName);
-
-                try
-                {
-                    using (var zipResponse = await client.GetAsync(zipballUrl))
-                    using (var contentStream = await zipResponse.Content.ReadAsStreamAsync())
-                    using (var fileStream = new FileStream(zipFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+                    var availablePorts = SerialPort.GetPortNames();
+                    if (!availablePorts.Contains(lPort.Name))
                     {
-                        if (zipResponse.IsSuccessStatusCode)
-                        {
-                            long totalBytes = zipResponse.Content.Headers.ContentLength ?? 1;
-                            long bytesRead = 0;
-                            byte[] buffer = new byte[8192];
-
-                            int read;
-                            while ((read = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                            {
-                                fileStream.Write(buffer, 0, read);
-                                bytesRead += read;
-                                int progress = (int)((double)bytesRead / totalBytes * 50) + 10;
-                                _backgroundWorker.ReportProgress(progress, $"Downloading... {progress}%");
-                            }
-                        }
-                        else
-                        {
-                            throw new Exception("Failed to download the zipball file.");
-                        }
+                        AppLogger.Error($"Device port {lPort.Name} is not available.");
+                        return;
                     }
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Error($"Error during download: {ex.Message}");
-                    return;
-                }
 
-                _backgroundWorker.ReportProgress(70, "Extracting files...");
-
-                string extractFolderPath = Path.Combine(tempPath, $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}");
-
-                if (Directory.Exists(extractFolderPath))
-                {
-                    await Task.Delay(500);
-
-                    for (int i = 0; i < 3; i++)
+                    try
                     {
-                        try
-                        {
-                            Directory.Delete(extractFolderPath, true);
-                            break;
-                        }
-                        catch (IOException)
-                        {
-                            if (i == 2) throw;
-                            await Task.Delay(500);
-                        }
-                    }
-                }
-
-                Directory.CreateDirectory(extractFolderPath);
-                ZipFile.ExtractToDirectory(zipFilePath, extractFolderPath);
-
-                string[] matchingFiles = Directory.GetFiles(extractFolderPath, "winc_flash_tool.cmd", SearchOption.AllDirectories);
-                if (matchingFiles.Length > 0)
-                {
-                    string cmdFilePath = matchingFiles[0];
-                    ObservableCollection<SerialStreamingDevice> _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
-                    SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
-                    SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
-
-                    SerialStreamingDevice lPort = manualserialdevice ?? autodaqifiport;
-                    if (lPort != null)
-                    {
-                        var availablePorts = SerialPort.GetPortNames();
-                        if (!availablePorts.Contains(lPort.Name))
-                        {
-                            AppLogger.Error($"Device port {lPort.Name} is not available.");
-                            return;
-                        }
-
-                        try
-                        {
-                            lPort.Connect();
-                            lPort.Write("SYSTem:POWer:STATe 1");
-                            await Task.Delay(1000);
-                            lPort.Write("SYSTem:COMMUnicate:LAN:FWUpdate");
-                            await Task.Delay(1000);
-                            lPort.Write("SYSTem:COMMUnicate:LAN:APPLY");
-                            await Task.Delay(1000);
-                            //lPort.Disconnect();
-                            // await Task.Delay(1000);
-                        }
-                        catch (Exception ex)
-                        {
-                            AppLogger.Error($"Error during UART communication: {ex.Message}");
-                            return;
-                        }
-
-
-                        string processCommand = $"\"{cmdFilePath}\" /p {lPort.Name} /d WINC1500 /v {latestVersion} /k /e /i aio /w";
-                        ProcessStartInfo processStartInfo = new ProcessStartInfo
-                        {
-                            FileName = "cmd.exe",
-                            Arguments = $"/k {processCommand}",
-                            UseShellExecute = true,
-                            CreateNoWindow = false,
-                            WorkingDirectory = Path.GetDirectoryName(cmdFilePath)
-                        };
-
-                        try
-                        {
-                            using (Process process = Process.Start(processStartInfo))
-                            {
-                                process.WaitForExit();
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            AppLogger.Error($"Error while starting process: {ex.Message}");
-                            return;
-                        }
-                        lPort.Write("SYSTem:USB:SetTransparentMode 0");
+                        lPort.Connect();
+                        lPort.Write("SYSTem:POWer:STATe 1");
                         await Task.Delay(1000);
-                        lPort.Write("SYSTem:COMMunicate:LAN:ENabled 1");
+                        lPort.Write("SYSTem:COMMUnicate:LAN:FWUpdate");
                         await Task.Delay(1000);
                         lPort.Write("SYSTem:COMMUnicate:LAN:APPLY");
                         await Task.Delay(1000);
-
-                        Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            var successDialogViewModel = new SuccessDialogViewModel("Firmware update completed successfully.");
-                            _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
-                        });
-                        CloseFlyouts();
+                        lPort.Disconnect();
                     }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Error($"Error during UART communication: {ex.Message}");
+                        return;
+                    }
+
+                    string processCommand =
+                        $"\"{cmdFilePath}\" /p {lPort.Name} /d WINC1500 /v {latestVersion} /k /e /i aio /w";
+                    ProcessStartInfo processStartInfo = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/k {processCommand}",
+                        UseShellExecute = true,
+                        CreateNoWindow = false,
+                        WorkingDirectory = Path.GetDirectoryName(cmdFilePath)
+                    };
+
+                    try
+                    {
+                        using (Process process = Process.Start(processStartInfo))
+                        {
+                            process.WaitForExit();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Error($"Error while starting process: {ex.Message}");
+                        return;
+                    }
+
+                    lPort.Write("SYSTem:USB:SetTransparentMode 0");
+                    await Task.Delay(1000);
+                    lPort.Write("SYSTem:COMMunicate:LAN:ENabled 1");
+                    await Task.Delay(1000);
+                    lPort.Write("SYSTem:COMMUnicate:LAN:APPLY");
+                    await Task.Delay(1000);
+
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        var successDialogViewModel =
+                            new SuccessDialogViewModel("Firmware update completed successfully.");
+                        _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
+                    });
+                    CloseFlyouts();
                 }
-                else
-                {
-                    AppLogger.Error("winc_flash_tool.cmd not found in the extracted folder.");
-                }
-                _backgroundWorker.ReportProgress(100, "Extraction completed.");
             }
-            catch (Exception ex)
+            else
             {
-                AppLogger.Error($"Error: {ex.Message}");
+                AppLogger.Error("winc_flash_tool.cmd not found in the extracted folder.");
             }
         }
 
-        private void BackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
+        private void UpdateWiFiBackgroundWorkerDoWork(object sender, DoWorkEventArgs e)
         {
-            var task = BackgroundWorker_DoWorkAsync();
+            var task = WiFiBackgroundWorker_DoWorkAsync();
             task.Wait();
         }
-        private void BackgroundWorker_ProgressChanged(object sender, ProgressChangedEventArgs e)
+        private void UpdateWiFiBackgroundWorkerProgressChanged(object sender, ProgressChangedEventArgs e)
         {
-            UploadWIFIProgress = e.ProgressPercentage;
+            UploadWiFiProgress = e.ProgressPercentage;
         }
-        private void BackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        private void UpdateWiFiBackgroundWorkerRunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             IsFirmwareUploading = false;
             if (e.Error != null)
@@ -1058,7 +972,7 @@ namespace Daqifi.Desktop.ViewModels
                 IsUploadComplete = true;
             }
         }
-        private async void HandleUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
+        private async void HandleFirmwareUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             InitializeBackgroundWorker();
         }
@@ -1135,7 +1049,7 @@ namespace Daqifi.Desktop.ViewModels
                                     };
                                     bw.WorkerReportsProgress = true;
                                     bw.ProgressChanged += UploadFirmwareProgressChanged;
-                                    bw.RunWorkerCompleted += HandleUploadCompleted;
+                                    bw.RunWorkerCompleted += HandleFirmwareUploadCompleted;
                                     bw.RunWorkerAsync();
                                 }
                             }
