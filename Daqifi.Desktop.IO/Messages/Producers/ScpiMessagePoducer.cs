@@ -197,7 +197,12 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         {
             return new ScpiMessage($"SYSTem:COMMunicate:LAN:PASs \"{password}\"");
         }
-
+        
+        public static IMessage EnabledLan()
+        {
+            return new ScpiMessage("SYSTem:COMMunicate:LAN:ENabled 1");
+        }
+        
         public static IMessage ApplyLan()
         {
             return new ScpiMessage("SYSTem:COMMunicate:LAN:APPLY");
@@ -207,12 +212,23 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         {
             return new ScpiMessage("SYSTem:COMMunicate:LAN:SAVE");
         }
-        #endregion
-
-        #region WIFI Commands
+        
+        public static IMessage SetLanFWUpdateMode()
+        {
+            return new ScpiMessage("SYSTem:COMMUnicate:LAN:FWUpdate");
+        }
+        
         public static IMessage GetWIFIModuleVersion()
         {
             return new ScpiMessage("SYSTem:COMMunicate:LAN:GETChipINFO");
+        }
+        
+        #endregion
+        
+        #region USB
+        public static IMessage SetUsbTransparencyMode(int mode)
+        {
+            return new ScpiMessage($"SYSTem:USB:SetTransparentMode {mode}");
         }
         #endregion
     }

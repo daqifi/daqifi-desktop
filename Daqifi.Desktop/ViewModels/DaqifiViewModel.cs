@@ -870,34 +870,30 @@ namespace Daqifi.Desktop.ViewModels
 
             var matchingFiles =
                 Directory.GetFiles(extractFolderPath, "winc_flash_tool.cmd", SearchOption.AllDirectories);
+            
             if (matchingFiles.Length > 0)
             {
                 var cmdFilePath = matchingFiles[0];
-                ObservableCollection<SerialStreamingDevice> _availableSerialDevices =
-                    _connectionDialogViewModel.AvailableSerialDevices;
+                var _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
                 var autodaqifiport = _availableSerialDevices.FirstOrDefault();
                 var manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
 
-                var lPort = manualserialdevice ?? autodaqifiport;
-                if (lPort != null)
+                var serialDevice = manualserialdevice ?? autodaqifiport;
+                if (serialDevice != null)
                 {
                     var availablePorts = SerialPort.GetPortNames();
-                    if (!availablePorts.Contains(lPort.Name))
+                    if (!availablePorts.Contains(serialDevice.Name))
                     {
-                        AppLogger.Error($"Device port {lPort.Name} is not available.");
+                        AppLogger.Error($"Device port {serialDevice.Name} is not available.");
                         return;
                     }
 
                     try
                     {
-                        lPort.Connect();
-                        lPort.Write("SYSTem:POWer:STATe 1\r\n");
+                        serialDevice.Connect();
+                        serialDevice.EnableLanUpdateMode();
                         await Task.Delay(1000);
-                        lPort.Write("SYSTem:COMMUnicate:LAN:FWUpdate\r\n");
-                        await Task.Delay(1000);
-                        lPort.Write("SYSTem:COMMUnicate:LAN:APPLY\r\n");
-                        await Task.Delay(1000);
-                        lPort.Disconnect();
+                        serialDevice.Disconnect();
                     }
                     catch (Exception ex)
                     {
@@ -906,7 +902,7 @@ namespace Daqifi.Desktop.ViewModels
                     }
 
                     var processCommand =
-                        $"\"{cmdFilePath}\" /p {lPort.Name} /d WINC1500 /v {latestVersion} /k /e /i aio /w";
+                        $"\"{cmdFilePath}\" /p {serialDevice.Name} /d WINC1500 /v {latestVersion} /k /e /i aio /w";
                     try
                     {
                         var processStartInfo = new ProcessStartInfo
@@ -917,7 +913,7 @@ namespace Daqifi.Desktop.ViewModels
                             RedirectStandardOutput = true, // Redirect output to monitor it
                             RedirectStandardError = true,
                             RedirectStandardInput = true, // Enable input redirection to simulate key press
-                            CreateNoWindow = false, // Set to false to display the shell window
+                            CreateNoWindow = true,
                             WorkingDirectory = Path.GetDirectoryName(cmdFilePath) // Set the correct working directory
                         };
 
@@ -967,13 +963,8 @@ namespace Daqifi.Desktop.ViewModels
                     {
                         AppLogger.Error($"Error while starting process: {ex.Message}");
                     }
-                    
-                    lPort.Write("SYSTem:USB:SetTransparentMode 0\r\n");
-                    await Task.Delay(1000);
-                    lPort.Write("SYSTem:COMMunicate:LAN:ENabled 1\r\n");
-                    await Task.Delay(1000);
-                    lPort.Write("SYSTem:COMMUnicate:LAN:APPLY\r\n");
-                    await Task.Delay(1000);
+
+                    serialDevice.ResetLanAfterUpdate();
 
                     Application.Current.Dispatcher.Invoke(() =>
                     {
@@ -1049,7 +1040,7 @@ namespace Daqifi.Desktop.ViewModels
                     // and the HID port for managing the bootloader must be found
                     StartConnectionFinders();
 
-                    // Update the variable 'HasNoHidDevices' in a backbround task
+                    // Update the variable 'HasNoHidDevices' in a background task
                     var bw2 = new BackgroundWorker();
                     bw2.DoWork += delegate
                     {
