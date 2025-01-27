@@ -14,7 +14,7 @@ public class WiFiDownloader
     public async Task<(string extractFolderPath, string latestVersion)> DownloadAndExtractWiFiAsync(
         BackgroundWorker backgroundWorker)
     {
-        var tempPath = Path.GetTempPath();
+        var daqifiFolderPath = Path.Combine(Path.GetTempPath(), "DAQiFi");
         try
         {
             using var client = new HttpClient();
@@ -42,7 +42,7 @@ public class WiFiDownloader
             backgroundWorker.ReportProgress(10, "Starting download...");
 
             var zipFileName = $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}.zip";
-            var zipFilePath = Path.Combine(tempPath, zipFileName);
+            var zipFilePath = Path.Combine(daqifiFolderPath, zipFileName);
 
             try
             {
@@ -78,7 +78,7 @@ public class WiFiDownloader
             backgroundWorker.ReportProgress(70, "Extracting files...");
 
             string extractFolderPath =
-                Path.Combine(tempPath, $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}");
+                Path.Combine(daqifiFolderPath, $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}");
 
             if (Directory.Exists(extractFolderPath))
             {

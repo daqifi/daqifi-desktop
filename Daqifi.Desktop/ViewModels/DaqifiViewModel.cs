@@ -860,24 +860,25 @@ namespace Daqifi.Desktop.ViewModels
         private async Task WiFiBackgroundWorker_DoWorkAsync()
         {
             var wifiDownloader = new WiFiDownloader();
-            var (extractFolderPath, latestVersion) = await wifiDownloader.DownloadAndExtractWiFiAsync(_updateWiFiBackgroundWorker);
+            var (extractFolderPath, latestVersion) =
+                await wifiDownloader.DownloadAndExtractWiFiAsync(_updateWiFiBackgroundWorker);
 
             if (string.IsNullOrEmpty(extractFolderPath))
             {
                 return;
             }
 
-            string[] matchingFiles =
+            var matchingFiles =
                 Directory.GetFiles(extractFolderPath, "winc_flash_tool.cmd", SearchOption.AllDirectories);
             if (matchingFiles.Length > 0)
             {
-                string cmdFilePath = matchingFiles[0];
+                var cmdFilePath = matchingFiles[0];
                 ObservableCollection<SerialStreamingDevice> _availableSerialDevices =
                     _connectionDialogViewModel.AvailableSerialDevices;
-                SerialStreamingDevice autodaqifiport = _availableSerialDevices.FirstOrDefault();
-                SerialStreamingDevice manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
+                var autodaqifiport = _availableSerialDevices.FirstOrDefault();
+                var manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
 
-                SerialStreamingDevice lPort = manualserialdevice ?? autodaqifiport;
+                var lPort = manualserialdevice ?? autodaqifiport;
                 if (lPort != null)
                 {
                     var availablePorts = SerialPort.GetPortNames();
@@ -890,11 +891,11 @@ namespace Daqifi.Desktop.ViewModels
                     try
                     {
                         lPort.Connect();
-                        lPort.Write("SYSTem:POWer:STATe 1");
+                        lPort.Write("SYSTem:POWer:STATe 1\r\n");
                         await Task.Delay(1000);
-                        lPort.Write("SYSTem:COMMUnicate:LAN:FWUpdate");
+                        lPort.Write("SYSTem:COMMUnicate:LAN:FWUpdate\r\n");
                         await Task.Delay(1000);
-                        lPort.Write("SYSTem:COMMUnicate:LAN:APPLY");
+                        lPort.Write("SYSTem:COMMUnicate:LAN:APPLY\r\n");
                         await Task.Delay(1000);
                         lPort.Disconnect();
                     }
@@ -904,35 +905,74 @@ namespace Daqifi.Desktop.ViewModels
                         return;
                     }
 
-                    string processCommand =
+                    var processCommand =
                         $"\"{cmdFilePath}\" /p {lPort.Name} /d WINC1500 /v {latestVersion} /k /e /i aio /w";
-                    ProcessStartInfo processStartInfo = new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = $"/k {processCommand}",
-                        UseShellExecute = true,
-                        CreateNoWindow = false,
-                        WorkingDirectory = Path.GetDirectoryName(cmdFilePath)
-                    };
-
                     try
                     {
-                        using (Process process = Process.Start(processStartInfo))
+                        var processStartInfo = new ProcessStartInfo
                         {
+                            FileName = "cmd.exe",
+                            Arguments = $"/c {processCommand}", // /c ensures the process exits after execution
+                            UseShellExecute = false, // Must be false for redirection
+                            RedirectStandardOutput = true, // Redirect output to monitor it
+                            RedirectStandardError = true,
+                            RedirectStandardInput = true, // Enable input redirection to simulate key press
+                            CreateNoWindow = false, // Set to false to display the shell window
+                            WorkingDirectory = Path.GetDirectoryName(cmdFilePath) // Set the correct working directory
+                        };
+
+                        using (var process = new Process())
+                        {
+                            process.StartInfo = processStartInfo;
+
+                            // Start the process
+                            process.Start();
+
+                            // Tasks to handle output and error streams
+                            var outputTask = Task.Run(async () =>
+                            {
+                                while (!process.StandardOutput.EndOfStream)
+                                {
+                                    var line = process.StandardOutput.ReadLine();
+                                    Console.WriteLine(line); // Display in your C# app's console
+
+                                    // Check for the pause message
+                                    if (line.Contains("Power cycle WINC and set to bootloader mode"))
+                                    {
+                                        Console.WriteLine("waiting for 1 second...");
+                                        await Task.Delay(1000); // Wait for 1 second
+                                        
+                                        // Simulate a key press to continue
+                                        process.StandardInput.WriteLine(); // Press Enter
+                                        Console.WriteLine("Simulated key press to continue.");
+                                    }
+                                }
+                            });
+
+                            var errorTask = Task.Run(() =>
+                            {
+                                while (!process.StandardError.EndOfStream)
+                                {
+                                    var errorLine = process.StandardError.ReadLine();
+                                    Console.WriteLine($"[Error] {errorLine}"); // Display errors in your console
+                                }
+                            });
+
+                            // Wait for the process to exit and for the tasks to complete
                             process.WaitForExit();
+                            Task.WaitAll(outputTask, errorTask);
                         }
                     }
                     catch (Exception ex)
                     {
                         AppLogger.Error($"Error while starting process: {ex.Message}");
-                        return;
                     }
-
-                    lPort.Write("SYSTem:USB:SetTransparentMode 0");
+                    
+                    lPort.Write("SYSTem:USB:SetTransparentMode 0\r\n");
                     await Task.Delay(1000);
-                    lPort.Write("SYSTem:COMMunicate:LAN:ENabled 1");
+                    lPort.Write("SYSTem:COMMunicate:LAN:ENabled 1\r\n");
                     await Task.Delay(1000);
-                    lPort.Write("SYSTem:COMMUnicate:LAN:APPLY");
+                    lPort.Write("SYSTem:COMMUnicate:LAN:APPLY\r\n");
                     await Task.Delay(1000);
 
                     Application.Current.Dispatcher.Invoke(() =>
@@ -987,8 +1027,8 @@ namespace Daqifi.Desktop.ViewModels
                 return;
             }
 
-            var _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
-            var autodaqifiport = _availableSerialDevices.FirstOrDefault();
+            var availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
+            var autodaqifiport = availableSerialDevices.FirstOrDefault();
             var manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
 
             var port = manualserialdevice;
@@ -1001,7 +1041,7 @@ namespace Daqifi.Desktop.ViewModels
             if (port != null)
             {
                 // Send the Daqifi command "Force Boot"
-                string command = "SYSTem:FORceBoot\r\n";
+                const string command = "SYSTem:FORceBoot\r\n";
 
                 if (port.Write(command))
                 {
@@ -1019,7 +1059,7 @@ namespace Daqifi.Desktop.ViewModels
                             if (HasNoHidDevices == false)
                             {
                                 // Connect HID if it was found before              
-                                HidFirmwareDevice hidFirmwareDevice = ConnectHid(AvailableHidDevices);
+                                var hidFirmwareDevice = ConnectHid(AvailableHidDevices);
                                 if (hidFirmwareDevice != null)
                                 {
                                     _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
@@ -1039,13 +1079,11 @@ namespace Daqifi.Desktop.ViewModels
                                         {
                                             return;
                                         }
-
-
+                                        
                                         if (_bootloader != null)
                                         {
                                             _bootloader.LoadFirmware(FirmwareFilePath, bw);
                                         }
-
                                     };
                                     bw.WorkerReportsProgress = true;
                                     bw.ProgressChanged += UploadFirmwareProgressChanged;
