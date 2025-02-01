@@ -6,9 +6,9 @@ Windows desktop application (.NET) that is used to communicate with DAQiFi hardw
 
 ## Tech Stack
 
-- .NET 4.8
+- .NET 8.0
 - WPF
-- SqlServerSe
+- SQLite
 
 ## Dependencies
 

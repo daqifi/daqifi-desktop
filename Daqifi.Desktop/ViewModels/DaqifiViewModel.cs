@@ -931,6 +931,7 @@ namespace Daqifi.Desktop.ViewModels
                                 {
                                     var line = process.StandardOutput.ReadLine();
                                     Console.WriteLine(line); // Display in your C# app's console
+                                    AppLogger.Information(line);
 
                                     // Check for the pause message
                                     if (line.Contains("Power cycle WINC and set to bootloader mode"))
