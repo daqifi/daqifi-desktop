@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
-  <Package Name="DAQifi"
-           Manufacturer="DAQifi"
+  <Package Name="DAQiFi"
+           Manufacturer="DAQiFi"
            Version="1.1.0.0"
            UpgradeCode="ACA4F4E1-6DBB-47C0-A829-84AA1536C147"
            Language="1033">
 
-    <StandardDirectory Id="ProgramFilesFolder">
-      <Directory Id="DAQifiFolder" Name="DAQifi">
-        <Directory Id="INSTALLFOLDER" Name="DAQifi Desktop">
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="DAQifiFolder" Name="DAQiFi">
+        <Directory Id="INSTALLFOLDER" Name="DAQiFi Desktop">
           <!-- Add runtimes directory -->
           <Directory Id="RUNTIMESFOLDER" Name="runtimes">
             <Directory Id="RUNTIMESWIN" Name="win">

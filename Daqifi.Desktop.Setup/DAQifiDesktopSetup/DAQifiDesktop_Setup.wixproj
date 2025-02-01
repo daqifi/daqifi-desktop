@@ -3,7 +3,7 @@
     <OutputType>Package</OutputType>
     <OutputName>DAQifiDesktop_Setup</OutputName>
     <Name>DAQifiDesktop_Setup</Name>
-    <Platform>x86</Platform>
+    <Platform>x64</Platform>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -13,9 +13,17 @@
     <MainExeName>DAQiFi.exe</MainExeName>
   </PropertyGroup>
 
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
     <DefineConstants>
       Debug;
+      SourceDir=$(DaqifiSourceDirShort);
+      MainExeName=$(MainExeName)
+    </DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
+    <DefineConstants>
+      Release;
       SourceDir=$(DaqifiSourceDirShort);
       MainExeName=$(MainExeName)
     </DefineConstants>
