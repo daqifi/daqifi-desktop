@@ -1,11 +1,6 @@
 ﻿using HidLibrary;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Threading;
 
 namespace Daqifi.Desktop.Bootloader
 {

@@ -1,42 +1,43 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+﻿<Project Sdk="WixToolset.Sdk/5.0.0">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
-    <ProductVersion>3.9</ProductVersion>
-    <ProjectGuid>cd91730f-e4a6-4bb1-9d13-8f2e67f69d7c</ProjectGuid>
-    <SchemaVersion>2.0</SchemaVersion>
-    <OutputName>DAQifiDesktop_Setup</OutputName>
     <OutputType>Package</OutputType>
-    <WixTargetsPath Condition=" '$(WixTargetsPath)' == '' AND '$(MSBuildExtensionsPath32)' != '' ">$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
-    <WixTargetsPath Condition=" '$(WixTargetsPath)' == '' ">$(MSBuildExtensionsPath)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
+    <OutputName>DAQifiDesktop_Setup</OutputName>
     <Name>DAQifiDesktop_Setup</Name>
+    <Platform>x64</Platform>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
-    <OutputPath>bin\$(Configuration)\</OutputPath>
-    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
-    <DefineConstants>Debug;SourceDir=$(SolutionDir)MyApplication\bin\$(Configuration)</DefineConstants>
+
+  <PropertyGroup>
+    <SolutionDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..'))</SolutionDir>
+    <DaqifiSourceDir>$(SolutionDir)\Daqifi.Desktop\bin\$(Configuration)\net8.0-windows</DaqifiSourceDir>
+    <DaqifiSourceDirShort>$([System.IO.Path]::GetFullPath('$(DaqifiSourceDir)'))</DaqifiSourceDirShort>
+    <MainExeName>DAQiFi.exe</MainExeName>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
-    <OutputPath>bin\$(Configuration)\</OutputPath>
-    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
+    <DefineConstants>
+      Debug;
+      SourceDir=$(DaqifiSourceDirShort);
+      MainExeName=$(MainExeName)
+    </DefineConstants>
   </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
+    <DefineConstants>
+      Release;
+      SourceDir=$(DaqifiSourceDirShort);
+      MainExeName=$(MainExeName)
+    </DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
-    <Compile Include="Product.wxs" />
+    <PackageReference Include="WixToolset.UI.wixext" Version="5.0.0" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.0.0" />
   </ItemGroup>
-  <ItemGroup>
-    <WixExtension Include="WixUtilExtension">
-      <HintPath>$(WixExtDir)\WixUtilExtension.dll</HintPath>
-      <Name>WixUtilExtension</Name>
-    </WixExtension>
-    <WixExtension Include="WixUIExtension">
-      <HintPath>$(WixExtDir)\WixUIExtension.dll</HintPath>
-      <Name>WixUIExtension</Name>
-    </WixExtension>
-  </ItemGroup>
+
   <ItemGroup>
     <Content Include="License.rtf" />
   </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\Daqifi.Desktop\Daqifi.Desktop.csproj">
       <Name>Daqifi.Desktop</Name>
@@ -47,13 +48,4 @@
       <RefTargetDir>INSTALLFOLDER</RefTargetDir>
     </ProjectReference>
   </ItemGroup>
-  <Import Project="$(WixTargetsPath)" />
-  <!--
-	To modify your build process, add your task inside one of the targets below and uncomment it.
-	Other similar extension points exist, see Wix.targets.
-	<Target Name="BeforeBuild">
-	</Target>
-	<Target Name="AfterBuild">
-	</Target>
-	-->
 </Project>

@@ -13,8 +13,10 @@ namespace Daqifi.Desktop.Device
         List<string> AdcRanges { get; }
         string AdcRangeText { get; set; }
         string MacAddress { get; set; }
-         string DeviceSerialNo { get; set; }
-        string IpAddress {  get; set; }
+        string DeviceSerialNo { get; set; }
+        string DeviceVersion { get; set; }
+        bool IsFirmwareOutdated { get; set; }
+        string IpAddress { get; set; }
         int StreamingFrequency { get; set; }
         IMessageConsumer MessageConsumer { get; set; }
         IMessageProducer MessageProducer { get; set; }

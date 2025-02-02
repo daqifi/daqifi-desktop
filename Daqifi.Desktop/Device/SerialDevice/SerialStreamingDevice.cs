@@ -25,6 +25,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
         {
             try
             {
+                Task.Delay(1000);
                 Port.Open();
                 Port.DtrEnable = true;
                 MessageProducer = new MessageProducer(Port.BaseStream);
@@ -32,7 +33,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
 
                 TurnOffEcho();
                 StopStreaming();
-                TurnDeviceOn();
+                TurnDeviceOn();   
                 SetProtobufMessageFormat();
 
                 MessageConsumer = new MessageConsumer(Port.BaseStream);
@@ -79,6 +80,22 @@ namespace Daqifi.Desktop.Device.SerialDevice
             }
         }
 
+        #endregion
+        
+        #region Serial Device Only Methods
+        public void EnableLanUpdateMode()
+        {
+            MessageProducer.Send(ScpiMessagePoducer.DeviceOn);
+            MessageProducer.Send(ScpiMessagePoducer.SetLanFWUpdateMode());
+            MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
+        }
+        
+        public void ResetLanAfterUpdate()
+        {
+            MessageProducer.Send(ScpiMessagePoducer.SetUsbTransparencyMode(0));
+            MessageProducer.Send(ScpiMessagePoducer.EnabledLan());
+            MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
+        }
         #endregion
     }
 }

@@ -16,6 +16,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         public int Port { get; set; }
         public bool IsPowerOn { get; set; }
         public string DeviceSerialNo { get; set; }
+        public string DeviceVersion { get; set; }
 
         #endregion
 
@@ -29,6 +30,8 @@ namespace Daqifi.Desktop.Device.WiFiDevice
             Port = (int)deviceInfo.Port;
             IsPowerOn = deviceInfo.IsPowerOn;
             IsStreaming = false;
+            DeviceVersion = deviceInfo.DeviceVersion;
+
         }
 
         #endregion

@@ -94,6 +94,7 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         public static IMessage Reboot => new ScpiMessage("SYSTem:REboot");
         public static IMessage SystemInfo => new ScpiMessage("SYSTem:SYSInfoPB?");
 
+        public static IMessage ForceBootloader => new ScpiMessage("SYSTem:FORceBoot");
 
         public static IMessage Echo(int echo)
         {
@@ -196,7 +197,12 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         {
             return new ScpiMessage($"SYSTem:COMMunicate:LAN:PASs \"{password}\"");
         }
-
+        
+        public static IMessage EnabledLan()
+        {
+            return new ScpiMessage("SYSTem:COMMunicate:LAN:ENabled 1");
+        }
+        
         public static IMessage ApplyLan()
         {
             return new ScpiMessage("SYSTem:COMMunicate:LAN:APPLY");
@@ -205,6 +211,24 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         public static IMessage SaveLan()
         {
             return new ScpiMessage("SYSTem:COMMunicate:LAN:SAVE");
+        }
+        
+        public static IMessage SetLanFWUpdateMode()
+        {
+            return new ScpiMessage("SYSTem:COMMUnicate:LAN:FWUpdate");
+        }
+        
+        public static IMessage GetWIFIModuleVersion()
+        {
+            return new ScpiMessage("SYSTem:COMMunicate:LAN:GETChipINFO");
+        }
+        
+        #endregion
+        
+        #region USB
+        public static IMessage SetUsbTransparencyMode(int mode)
+        {
+            return new ScpiMessage($"SYSTem:USB:SetTransparentMode {mode}");
         }
         #endregion
     }

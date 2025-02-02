@@ -82,25 +82,40 @@ namespace Daqifi.Desktop
         {
             ConnectedDevices = new List<IStreamingDevice>();
 
-            // EventType 3 is Device Removal
-            var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
 
-            _deviceRemovedWatcher = new ManagementEventWatcher(deviceRemovedQuery);
-            _deviceRemovedWatcher.EventArrived += (sender, eventArgs) => CheckIfSerialDeviceWasRemoved();
-            _deviceRemovedWatcher.Start();
+                try
+                {
+                    // EventType 3 is Device Removal
+                    var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
+
+                    _deviceRemovedWatcher = new ManagementEventWatcher(deviceRemovedQuery);
+                    _deviceRemovedWatcher.EventArrived += (sender, eventArgs) => CheckIfSerialDeviceWasRemoved();
+                    _deviceRemovedWatcher.Start();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Instance.Error(ex, "Failed to initialize ManagementEventWatcher: " + ex.Message);
+                }
+            
         }
 
         public static ConnectionManager Instance => instance;
 
         #endregion
 
-        public void Connect(IStreamingDevice device)
+        public async Task Connect(IStreamingDevice device)
         {
             try
             {
                 ConnectionStatus = DAQifiConnectionStatus.Connecting;
-                if (!device.Connect()) { return; }
+                bool isConnected = await Task.Run(() => device.Connect());
+                if (!isConnected)
+                {
+                    ConnectionStatus = DAQifiConnectionStatus.Error;
+                    return;
+                }
                 ConnectedDevices.Add(device);
+               await Task.Delay(1000);
                 NotifyPropertyChanged("ConnectedDevices");
                 ConnectionStatus = DAQifiConnectionStatus.Connected;
             }
