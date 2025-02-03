@@ -47,11 +47,14 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <Label Grid.Column="0" Grid.Row="0" Content="Model Number:"/>
                 <Label Grid.Column="1" Grid.Row="0" Content="{Binding SelectedDevice.DevicePartNumber}"/>
-                <Label Grid.Column="0" Grid.Row="1" Content="Firmware Version :"/>
-                <Label Grid.Column="1" Grid.Row="1" Content="{Binding SelectedDevice.DeviceVersion}" />
+                <Label Grid.Column="0" Grid.Row="1" Content="Serial Number:"/>
+                <Label Grid.Column="1" Grid.Row="1" Content="{Binding SelectedDevice.DeviceSerialNo}" />
+                <Label Grid.Column="0" Grid.Row="2" Content="Firmware Version:"/>
+                <Label Grid.Column="1" Grid.Row="2" Content="{Binding SelectedDevice.DeviceVersion}" />
             </Grid>
         </GroupBox>
 
@@ -117,8 +120,8 @@
             </Grid>
         </GroupBox>
 
-        <!-- Update Firmware --><!--
-        <GroupBox Grid.Column="0" Grid.Row="2" Header="Update Firmware">
+        <!-- Manually Update Firmware -->
+        <GroupBox Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2" Header="Manually Update Firmware">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -134,6 +137,6 @@
                 <Button Grid.Column="1" Grid.Row="1" Width="50" Content="Update" 
                         Command="{Binding UploadFirmwareCommand}" />
             </Grid>
-        </GroupBox>-->
+        </GroupBox>
     </Grid>
 </Controls:Flyout>

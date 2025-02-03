@@ -841,7 +841,7 @@ namespace Daqifi.Desktop.ViewModels
             UploadFirmwareProgress = e.ProgressPercentage;
         }
         private BackgroundWorker _updateWiFiBackgroundWorker;
-        private async void InitializeBackgroundWorker()
+        private async void InitializeUpdateWiFiBackgroundWorker()
         {
             _updateWiFiBackgroundWorker = new BackgroundWorker
             {
@@ -1004,14 +1004,37 @@ namespace Daqifi.Desktop.ViewModels
                 IsUploadComplete = true;
             }
         }
-        private async void HandleFirmwareUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
+        private void HandleFirmwareUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            InitializeBackgroundWorker();
+            if (e.Error != null || e.Cancelled)
+            {
+                return;
+            }
+            
+            var isManualUpload = (bool)e.Result;
+        
+            if (isManualUpload)
+            {
+                // Do nothing - we don't need to update wifi firmware on manual firmware update
+            }
+            else
+            {
+                InitializeUpdateWiFiBackgroundWorker();
+            }
         }
 
         public void UploadFirmware(object o)
         {
-            FirmwareFilePath = new FirmwareDownloader().Download();
+            var isManualUpload = false;
+            // Download if a hex file wasn't passed to it.
+            if (string.IsNullOrEmpty(FirmwareFilePath))
+            {
+                FirmwareFilePath = new FirmwareDownloader().Download();
+            }
+            else
+            {
+                isManualUpload = true;
+            }
 
             if (string.IsNullOrEmpty(FirmwareFilePath))
             {
@@ -1032,12 +1055,12 @@ namespace Daqifi.Desktop.ViewModels
 
             if (port != null)
             {
-                // Send the Daqifi command "Force Boot"
+                // Send the DAQiFi command "Force Boot"
                 const string command = "SYSTem:FORceBoot\r\n";
 
                 if (port.Write(command))
                 {
-                    // Once the Daqifi resets, the COM serial port is closed,
+                    // Once the DAQiFi resets, the COM serial port is closed,
                     // and the HID port for managing the bootloader must be found
                     StartConnectionFinders();
 
@@ -1045,7 +1068,7 @@ namespace Daqifi.Desktop.ViewModels
                     var bw2 = new BackgroundWorker();
                     bw2.DoWork += delegate
                     {
-                        while (HasNoHidDevices == true)
+                        while (HasNoHidDevices)
                         {
                             Thread.Sleep(2000);
                             if (HasNoHidDevices == false)
@@ -1059,7 +1082,7 @@ namespace Daqifi.Desktop.ViewModels
                                     _bootloader.RequestVersion();
 
                                     var bw = new BackgroundWorker();
-                                    bw.DoWork += delegate
+                                    bw.DoWork += (sender, e) =>
                                     {
                                         IsFirmwareUploading = true;
                                         if (string.IsNullOrWhiteSpace(FirmwareFilePath))
@@ -1076,6 +1099,7 @@ namespace Daqifi.Desktop.ViewModels
                                         {
                                             _bootloader.LoadFirmware(FirmwareFilePath, bw);
                                         }
+                                        e.Result = isManualUpload;
                                     };
                                     bw.WorkerReportsProgress = true;
                                     bw.ProgressChanged += UploadFirmwareProgressChanged;
@@ -1174,7 +1198,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public void BrowseForFirmware(object o)
         {
-            using var openFileDialog = new System.Windows.Forms.OpenFileDialog
+            using var openFileDialog = new OpenFileDialog
             {
                 Filter = "Firmware Files (*.hex)|*.hex"
             };
