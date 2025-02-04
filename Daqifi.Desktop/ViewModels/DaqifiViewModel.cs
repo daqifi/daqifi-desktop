@@ -966,20 +966,23 @@ namespace Daqifi.Desktop.ViewModels
                     }
 
                     serialDevice.ResetLanAfterUpdate();
-
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        var successDialogViewModel =
-                            new SuccessDialogViewModel("Firmware update completed successfully.");
-                        _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
-                    });
-                    CloseFlyouts();
                 }
             }
             else
             {
                 AppLogger.Error("winc_flash_tool.cmd not found in the extracted folder.");
             }
+        }
+
+        private void ShowUploadSuccessMessage()
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                var successDialogViewModel =
+                    new SuccessDialogViewModel("Firmware update completed successfully.");
+                _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
+            });
+            CloseFlyouts();
         }
 
         private void UpdateWiFiBackgroundWorkerDoWork(object sender, DoWorkEventArgs e)
@@ -1002,6 +1005,7 @@ namespace Daqifi.Desktop.ViewModels
             else
             {
                 IsUploadComplete = true;
+                ShowUploadSuccessMessage();
             }
         }
         private void HandleFirmwareUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
@@ -1015,7 +1019,9 @@ namespace Daqifi.Desktop.ViewModels
         
             if (isManualUpload)
             {
-                // Do nothing - we don't need to update wifi firmware on manual firmware update
+                // Don't need to update wifi firmware on manual firmware update. Mark as complete
+                IsUploadComplete = true;
+                ShowUploadSuccessMessage();
             }
             else
             {
@@ -1023,7 +1029,7 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-        public void UploadFirmware(object o)
+        private void UploadFirmware(object o)
         {
             var isManualUpload = false;
             // Download if a hex file wasn't passed to it.
