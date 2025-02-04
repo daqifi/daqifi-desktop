@@ -13,6 +13,7 @@
 		<ApplicationIcon>Images\WiFiDAQ.ico</ApplicationIcon>
 		<AssemblyName>DAQiFi</AssemblyName>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<EnableWindowsTargeting>true</EnableWindowsTargeting>
 	</PropertyGroup>
 	<PropertyGroup>
 		<AssemblyVersion>3.0.0.0</AssemblyVersion>

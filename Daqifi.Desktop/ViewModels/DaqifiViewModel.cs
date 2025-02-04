@@ -80,20 +80,20 @@ namespace Daqifi.Desktop.ViewModels
 
         #region Properties
 
-        public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = new ObservableCollection<HidFirmwareDevice>();
-        public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = new ObservableCollection<IStreamingDevice>();
-        public ObservableCollection<Profile> profiles { get; } = new ObservableCollection<Profile>();
+        public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = [];
+        public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = [];
+        public ObservableCollection<Profile> profiles { get; } = [];
 
-        public ObservableCollection<Notifications> notificationlist { get; } = new ObservableCollection<Notifications>();
-        public ObservableCollection<IChannel> ActiveChannels { get; } = new ObservableCollection<IChannel>();
-        public ObservableCollection<IChannel> ActiveInputChannels { get; } = new ObservableCollection<IChannel>();
-        public ObservableCollection<LoggingSession> LoggingSessions { get; } = new ObservableCollection<LoggingSession>();
+        public ObservableCollection<Notifications> notificationlist { get; } = [];
+        public ObservableCollection<IChannel> ActiveChannels { get; } = [];
+        public ObservableCollection<IChannel> ActiveInputChannels { get; } = [];
+        public ObservableCollection<LoggingSession> LoggingSessions { get; } = [];
 
         public PlotLogger Plotter { get; }
         public DatabaseLogger DbLogger { get; }
         public SummaryLogger SummaryLogger { get; }
-        public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
-        public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
+        public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
+        public ObservableCollection<IChannel> AvailableChannels { get; } = [];
         public string Version
         {
             get => _version;
@@ -841,7 +841,7 @@ namespace Daqifi.Desktop.ViewModels
             UploadFirmwareProgress = e.ProgressPercentage;
         }
         private BackgroundWorker _updateWiFiBackgroundWorker;
-        private async void InitializeBackgroundWorker()
+        private async void InitializeUpdateWiFiBackgroundWorker()
         {
             _updateWiFiBackgroundWorker = new BackgroundWorker
             {
@@ -874,8 +874,8 @@ namespace Daqifi.Desktop.ViewModels
             if (matchingFiles.Length > 0)
             {
                 var cmdFilePath = matchingFiles[0];
-                var _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
-                var autodaqifiport = _availableSerialDevices.FirstOrDefault();
+                var availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
+                var autodaqifiport = availableSerialDevices.FirstOrDefault();
                 var manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
 
                 var serialDevice = manualserialdevice ?? autodaqifiport;
@@ -966,14 +966,6 @@ namespace Daqifi.Desktop.ViewModels
                     }
 
                     serialDevice.ResetLanAfterUpdate();
-
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        var successDialogViewModel =
-                            new SuccessDialogViewModel("Firmware update completed successfully.");
-                        _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
-                    });
-                    CloseFlyouts();
                 }
             }
             else
@@ -982,36 +974,89 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
+        private void ShowUploadSuccessMessage()
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                var successDialogViewModel =
+                    new SuccessDialogViewModel("Firmware update completed successfully.");
+                _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
+            });
+            CloseFlyouts();
+        }
+
         private void UpdateWiFiBackgroundWorkerDoWork(object sender, DoWorkEventArgs e)
         {
-            var task = WiFiBackgroundWorker_DoWorkAsync();
-            task.Wait();
+            try 
+            {
+                var task = WiFiBackgroundWorker_DoWorkAsync();
+                task.Wait();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Error updating WiFi firmware");
+                e.Result = ex;
+            }
         }
+
         private void UpdateWiFiBackgroundWorkerProgressChanged(object sender, ProgressChangedEventArgs e)
         {
             UploadWiFiProgress = e.ProgressPercentage;
         }
+
         private void UpdateWiFiBackgroundWorkerRunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             IsFirmwareUploading = false;
-            if (e.Error != null)
+            if (e.Error != null || e.Result is Exception)
             {
-                AppLogger.Instance.Error(e.Error, "Problem Uploading Firmware");
+                AppLogger.Instance.Error(e.Error ?? (Exception)e.Result, "Problem Uploading WiFi Firmware");
                 HasErrorOccured = true;
+                
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    var errorDialogViewModel = new ErrorDialogViewModel("WiFi firmware update failed. Please try again.");
+                    _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                });
             }
             else
             {
                 IsUploadComplete = true;
+                ShowUploadSuccessMessage();
             }
         }
-        private async void HandleFirmwareUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
+        private void HandleFirmwareUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            InitializeBackgroundWorker();
+            if (e.Error != null || e.Cancelled)
+            {
+                return;
+            }
+            
+            var isManualUpload = (bool)e.Result;
+        
+            if (isManualUpload)
+            {
+                // Don't need to update wifi firmware on manual firmware update. Mark as complete
+                IsUploadComplete = true;
+                ShowUploadSuccessMessage();
+            }
+            else
+            {
+                InitializeUpdateWiFiBackgroundWorker();
+            }
         }
 
-        public void UploadFirmware(object o)
+        private void UploadFirmware(object o)
         {
-            FirmwareFilePath = new FirmwareDownloader().Download();
+            var isManualUpload = false;
+            // Download if a hex file wasn't passed to it.
+            if (string.IsNullOrEmpty(FirmwareFilePath))
+            {
+                FirmwareFilePath = new FirmwareDownloader().Download();
+            }
+            else
+            {
+                isManualUpload = true;
+            }
 
             if (string.IsNullOrEmpty(FirmwareFilePath))
             {
@@ -1032,12 +1077,12 @@ namespace Daqifi.Desktop.ViewModels
 
             if (port != null)
             {
-                // Send the Daqifi command "Force Boot"
+                // Send the DAQiFi command "Force Boot"
                 const string command = "SYSTem:FORceBoot\r\n";
 
                 if (port.Write(command))
                 {
-                    // Once the Daqifi resets, the COM serial port is closed,
+                    // Once the DAQiFi resets, the COM serial port is closed,
                     // and the HID port for managing the bootloader must be found
                     StartConnectionFinders();
 
@@ -1045,7 +1090,7 @@ namespace Daqifi.Desktop.ViewModels
                     var bw2 = new BackgroundWorker();
                     bw2.DoWork += delegate
                     {
-                        while (HasNoHidDevices == true)
+                        while (HasNoHidDevices)
                         {
                             Thread.Sleep(2000);
                             if (HasNoHidDevices == false)
@@ -1059,7 +1104,7 @@ namespace Daqifi.Desktop.ViewModels
                                     _bootloader.RequestVersion();
 
                                     var bw = new BackgroundWorker();
-                                    bw.DoWork += delegate
+                                    bw.DoWork += (sender, e) =>
                                     {
                                         IsFirmwareUploading = true;
                                         if (string.IsNullOrWhiteSpace(FirmwareFilePath))
@@ -1076,6 +1121,7 @@ namespace Daqifi.Desktop.ViewModels
                                         {
                                             _bootloader.LoadFirmware(FirmwareFilePath, bw);
                                         }
+                                        e.Result = isManualUpload;
                                     };
                                     bw.WorkerReportsProgress = true;
                                     bw.ProgressChanged += UploadFirmwareProgressChanged;
@@ -1174,7 +1220,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public void BrowseForFirmware(object o)
         {
-            using var openFileDialog = new System.Windows.Forms.OpenFileDialog
+            using var openFileDialog = new OpenFileDialog
             {
                 Filter = "Firmware Files (*.hex)|*.hex"
             };
