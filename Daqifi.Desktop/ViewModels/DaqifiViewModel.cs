@@ -80,20 +80,20 @@ namespace Daqifi.Desktop.ViewModels
 
         #region Properties
 
-        public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = new ObservableCollection<HidFirmwareDevice>();
-        public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = new ObservableCollection<IStreamingDevice>();
-        public ObservableCollection<Profile> profiles { get; } = new ObservableCollection<Profile>();
+        public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = [];
+        public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = [];
+        public ObservableCollection<Profile> profiles { get; } = [];
 
-        public ObservableCollection<Notifications> notificationlist { get; } = new ObservableCollection<Notifications>();
-        public ObservableCollection<IChannel> ActiveChannels { get; } = new ObservableCollection<IChannel>();
-        public ObservableCollection<IChannel> ActiveInputChannels { get; } = new ObservableCollection<IChannel>();
-        public ObservableCollection<LoggingSession> LoggingSessions { get; } = new ObservableCollection<LoggingSession>();
+        public ObservableCollection<Notifications> notificationlist { get; } = [];
+        public ObservableCollection<IChannel> ActiveChannels { get; } = [];
+        public ObservableCollection<IChannel> ActiveInputChannels { get; } = [];
+        public ObservableCollection<LoggingSession> LoggingSessions { get; } = [];
 
         public PlotLogger Plotter { get; }
         public DatabaseLogger DbLogger { get; }
         public SummaryLogger SummaryLogger { get; }
-        public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
-        public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
+        public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
+        public ObservableCollection<IChannel> AvailableChannels { get; } = [];
         public string Version
         {
             get => _version;
@@ -874,8 +874,8 @@ namespace Daqifi.Desktop.ViewModels
             if (matchingFiles.Length > 0)
             {
                 var cmdFilePath = matchingFiles[0];
-                var _availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
-                var autodaqifiport = _availableSerialDevices.FirstOrDefault();
+                var availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
+                var autodaqifiport = availableSerialDevices.FirstOrDefault();
                 var manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
 
                 var serialDevice = manualserialdevice ?? autodaqifiport;
