@@ -987,20 +987,36 @@ namespace Daqifi.Desktop.ViewModels
 
         private void UpdateWiFiBackgroundWorkerDoWork(object sender, DoWorkEventArgs e)
         {
-            var task = WiFiBackgroundWorker_DoWorkAsync();
-            task.Wait();
+            try 
+            {
+                var task = WiFiBackgroundWorker_DoWorkAsync();
+                task.Wait();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Error updating WiFi firmware");
+                e.Result = ex;
+            }
         }
+
         private void UpdateWiFiBackgroundWorkerProgressChanged(object sender, ProgressChangedEventArgs e)
         {
             UploadWiFiProgress = e.ProgressPercentage;
         }
+
         private void UpdateWiFiBackgroundWorkerRunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             IsFirmwareUploading = false;
-            if (e.Error != null)
+            if (e.Error != null || e.Result is Exception)
             {
-                AppLogger.Instance.Error(e.Error, "Problem Uploading Firmware");
+                AppLogger.Instance.Error(e.Error ?? (Exception)e.Result, "Problem Uploading WiFi Firmware");
                 HasErrorOccured = true;
+                
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    var errorDialogViewModel = new ErrorDialogViewModel("WiFi firmware update failed. Please try again.");
+                    _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                });
             }
             else
             {
