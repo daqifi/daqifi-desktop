@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics;
 using System.Security.Principal;
 using System.Windows;
@@ -7,7 +6,7 @@ using MessageBox = System.Windows.MessageBox;
 
 namespace Daqifi.Desktop.Configuration
 {
-    public class FirewallConfiguration
+    public static class FirewallConfiguration
     {
         private const string RuleName = "DAQiFi Desktop";
         private static IFirewallHelper _firewallHelper;
@@ -43,14 +42,19 @@ namespace Daqifi.Desktop.Configuration
                     return;
                 }
 
-                var appPath = Process.GetCurrentProcess().MainModule.FileName;
+                var appPath = Process.GetCurrentProcess().MainModule?.FileName;
 
                 // Check if rule already exists
                 if (_firewallHelper.RuleExists(RuleName))
+                {
                     return;
+                }
 
                 // Create new rule
-                _firewallHelper.CreateUdpRule(RuleName, appPath);
+                if (appPath != null)
+                {
+                    _firewallHelper.CreateUdpRule(RuleName, appPath);
+                }
             }
             catch (Exception ex)
             {
