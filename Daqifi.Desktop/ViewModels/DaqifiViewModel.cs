@@ -6,7 +6,6 @@ using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;
-using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
@@ -17,27 +16,23 @@ using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Newtonsoft.Json.Linq;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
 using System.IO.Ports;
-using System.Net.Http;
 using System.Windows;
 using System.Windows.Input;
 using Application = System.Windows.Application;
 using File = System.IO.File;
-using System.Security.Principal;
-using WindowsFirewallHelper;
-using MessageBox = System.Windows.MessageBox;
 
 namespace Daqifi.Desktop.ViewModels
 {
     public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
     {
+        private readonly AppLogger _appLogger = AppLogger.Instance;
+        
         #region Private Variables
         private bool _isBusy;
         private bool _isLoggedDataBusy;
@@ -323,7 +318,6 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-
         private string _versionName;
         public string VersionName
         {
@@ -473,9 +467,7 @@ namespace Daqifi.Desktop.ViewModels
                 OnPropertyChanged();
             }
         }
-
-
-
+        
         public string LoggedDataBusyReason
         {
             get => _loggedDataBusyReason;
@@ -485,7 +477,6 @@ namespace Daqifi.Desktop.ViewModels
                 OnPropertyChanged();
             }
         }
-        private readonly AppLogger AppLogger = AppLogger.Instance;
 
         public WindowState ViewWindowState
         {
@@ -571,16 +562,16 @@ namespace Daqifi.Desktop.ViewModels
                         FirewallConfiguration.InitializeFirewallRules();
 
                     }
-                    catch (System.Exception ex)
+                    catch (Exception ex)
                     {
-                        AppLogger.Error(ex, "DAQifiViewModel");
+                        _appLogger.Error(ex, "DAQifiViewModel");
                     }
                 }
                 app.IsWindowInit = true;
             }
         }
 
-        private void OnHidDevicePropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        private void OnHidDevicePropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == "Version")
             {
@@ -888,7 +879,7 @@ namespace Daqifi.Desktop.ViewModels
                     var availablePorts = SerialPort.GetPortNames();
                     if (!availablePorts.Contains(serialDevice.Name))
                     {
-                        AppLogger.Error($"Device port {serialDevice.Name} is not available.");
+                        _appLogger.Error($"Device port {serialDevice.Name} is not available.");
                         return;
                     }
 
@@ -901,7 +892,7 @@ namespace Daqifi.Desktop.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        AppLogger.Error($"Error during UART communication: {ex.Message}");
+                        _appLogger.Error($"Error during UART communication: {ex.Message}");
                         return;
                     }
 
@@ -935,7 +926,7 @@ namespace Daqifi.Desktop.ViewModels
                                 {
                                     var line = process.StandardOutput.ReadLine();
                                     Console.WriteLine(line); // Display in your C# app's console
-                                    AppLogger.Information(line);
+                                    _appLogger.Information(line);
 
                                     // Check for the pause message
                                     if (line.Contains("Power cycle WINC and set to bootloader mode"))
@@ -966,7 +957,7 @@ namespace Daqifi.Desktop.ViewModels
                     }
                     catch (Exception ex)
                     {
-                        AppLogger.Error($"Error while starting process: {ex.Message}");
+                        _appLogger.Error($"Error while starting process: {ex.Message}");
                     }
 
                     serialDevice.ResetLanAfterUpdate();
@@ -974,7 +965,7 @@ namespace Daqifi.Desktop.ViewModels
             }
             else
             {
-                AppLogger.Error("winc_flash_tool.cmd not found in the extracted folder.");
+                _appLogger.Error("winc_flash_tool.cmd not found in the extracted folder.");
             }
         }
 
@@ -998,7 +989,7 @@ namespace Daqifi.Desktop.ViewModels
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Error updating WiFi firmware");
+                _appLogger.Error(ex, "Error updating WiFi firmware");
                 e.Result = ex;
             }
         }
@@ -1064,7 +1055,7 @@ namespace Daqifi.Desktop.ViewModels
 
             if (string.IsNullOrEmpty(FirmwareFilePath))
             {
-                AppLogger.Error("Firmware file path is null or empty.");
+                _appLogger.Error("Firmware file path is null or empty.");
                 return;
             }
 
@@ -1139,14 +1130,14 @@ namespace Daqifi.Desktop.ViewModels
                 }
                 else
                 {
-                    string msg = "Error writing to COM port";
-                    AppLogger.Error(msg);
+                    var msg = "Error writing to COM port";
+                    _appLogger.Error(msg);
                 }
             }
             else
             {
-                string msg = "Error serial COM port detection";
-                AppLogger.Error(msg);
+                var msg = "Error serial COM port detection";
+                _appLogger.Error(msg);
             }
         }
         #endregion
@@ -1167,7 +1158,7 @@ namespace Daqifi.Desktop.ViewModels
             var item = o as IColorable;
             if (item == null)
             {
-                AppLogger.Error("Cannot set the color of an item that does not implement IHasColor.");
+                _appLogger.Error("Cannot set the color of an item that does not implement IHasColor.");
             }
 
             var selectColorDialogViewModel = new SelectColorDialogViewModel(item);
@@ -1245,7 +1236,7 @@ namespace Daqifi.Desktop.ViewModels
             var item = o as IStreamingDevice;
             if (item == null)
             {
-                AppLogger.Error("Error opening streamingDevice settings");
+                _appLogger.Error("Error opening streamingDevice settings");
             }
 
             CloseFlyouts();
@@ -1258,7 +1249,7 @@ namespace Daqifi.Desktop.ViewModels
             var item = o as IStreamingDevice;
             if (item == null)
             {
-                AppLogger.Error("Error opening firmware settings");
+                _appLogger.Error("Error opening firmware settings");
             }
             CloseFlyouts();
             SelectedDevice = item;
@@ -1270,7 +1261,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             if (!(o is IChannel item))
             {
-                AppLogger.Error("Error opening channel settings");
+                _appLogger.Error("Error opening channel settings");
                 return;
             }
 
@@ -1288,7 +1279,7 @@ namespace Daqifi.Desktop.ViewModels
         private void OpenLoggingSessionSettings(object o)
         {
             var item = o as LoggingSession;
-            if (item == null) { AppLogger.Error("Error opening logging session settings"); }
+            if (item == null) { _appLogger.Error("Error opening logging session settings"); }
 
             CloseFlyouts();
             SelectedLoggingSession = item;
@@ -1334,7 +1325,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             if (!(o is LoggingSession session))
             {
-                AppLogger.Error("Error exporting logging session");
+                _appLogger.Error("Error exporting logging session");
                 return;
             }
 
@@ -1346,7 +1337,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             if (LoggingSessions == null)
             {
-                AppLogger.Error("Error exporting all logging sessions");
+                _appLogger.Error("Error exporting all logging sessions");
                 return;
             }
 
@@ -1360,7 +1351,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 if (!(o is LoggingSession session))
                 {
-                    AppLogger.Error("Error deleting logging session");
+                    _appLogger.Error("Error deleting logging session");
                     return;
                 }
 
@@ -1394,7 +1385,7 @@ namespace Daqifi.Desktop.ViewModels
             }
             catch (System.Exception ex)
             {
-                AppLogger.Error(ex, "Error Deleting Logging Session");
+                _appLogger.Error(ex, "Error Deleting Logging Session");
             }
         }
 
@@ -1404,7 +1395,7 @@ namespace Daqifi.Desktop.ViewModels
             {
                 if (LoggingSessions.Count == 0)
                 {
-                    AppLogger.Error("Error deleting logging session");
+                    _appLogger.Error("Error deleting logging session");
                     return;
                 }
 
@@ -1442,7 +1433,7 @@ namespace Daqifi.Desktop.ViewModels
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Error Deleting All Logging Session");
+                _appLogger.Error(ex, "Error Deleting All Logging Session");
             }
         }
 
@@ -1480,7 +1471,7 @@ namespace Daqifi.Desktop.ViewModels
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Error opening help URL");
+                _appLogger.Error(ex, "Error opening help URL");
             }
 
         }
@@ -1658,7 +1649,7 @@ namespace Daqifi.Desktop.ViewModels
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Error opening add profile dialog");
+                _appLogger.Error(ex, "Error opening add profile dialog");
             }
 
         }
@@ -1676,7 +1667,7 @@ namespace Daqifi.Desktop.ViewModels
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Error opening confirmation dialog");
+                _appLogger.Error(ex, "Error opening confirmation dialog");
             }
 
         }
@@ -1808,7 +1799,7 @@ namespace Daqifi.Desktop.ViewModels
         {
             if (!(obj is Profile item))
             {
-                AppLogger.Error("Error opening channel settings");
+                _appLogger.Error("Error opening channel settings");
                 return;
             }
             CloseFlyouts();
@@ -1963,7 +1954,7 @@ namespace Daqifi.Desktop.ViewModels
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Error saving existing settings");
+                _appLogger.Error(ex, "Error saving existing settings");
             }
         }
 
@@ -1979,7 +1970,7 @@ namespace Daqifi.Desktop.ViewModels
                 {
                     var errorDialogViewModel = new ErrorDialogViewModel("Error Activating Profile.");
                     _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                    AppLogger.Error("Error Activating Profile");
+                    _appLogger.Error("Error Activating Profile");
                     return;
                 }
 
@@ -1989,7 +1980,7 @@ namespace Daqifi.Desktop.ViewModels
                 {
                     var errorDialogViewModel = new ErrorDialogViewModel("Multiple Profiles Cannot be Active.");
                     _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                    AppLogger.Error("Multiple Profiles Cannot be Active.");
+                    _appLogger.Error("Multiple Profiles Cannot be Active.");
                     return;
                 }
 
@@ -2058,7 +2049,7 @@ namespace Daqifi.Desktop.ViewModels
             }
             catch (Exception ex)
             {
-                AppLogger.Error("Error activating Profile: " + ex.Message);
+                _appLogger.Error("Error activating Profile: " + ex.Message);
             }
         }
 
