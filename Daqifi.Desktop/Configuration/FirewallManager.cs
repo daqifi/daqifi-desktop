@@ -18,7 +18,7 @@ namespace Daqifi.Desktop.Configuration
         }
 
         // For testing
-        internal static void SetFirewallHelper(IFirewallHelper helper)
+        public static void SetFirewallHelper(IFirewallHelper helper)
         {
             _firewallHelper = helper;
         }
