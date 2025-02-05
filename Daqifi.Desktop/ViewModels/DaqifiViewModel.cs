@@ -568,7 +568,7 @@ namespace Daqifi.Desktop.ViewModels
                         Plotter.ShowingMinorXAxisGrid = false;
                         Plotter.ShowingMinorYAxisGrid = false;
 
-                        InitializeFirewallRules();
+                        FirewallConfiguration.InitializeFirewallRules();
 
                     }
                     catch (System.Exception ex)
@@ -2065,56 +2065,5 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #endregion
-
-        private void InitializeFirewallRules()
-        {
-            try
-            {
-                // Check if running with admin privileges
-                var isElevated = new WindowsPrincipal(WindowsIdentity.GetCurrent())
-                    .IsInRole(WindowsBuiltInRole.Administrator);
-
-                if (!isElevated)
-                {
-                    MessageBox.Show(
-                        "DAQiFi Desktop requires firewall permissions to discover devices on your network. " +
-                        "Please run the application as administrator to automatically configure firewall rules, " +
-                        "or manually add firewall rules for both private and public networks.",
-                        "Firewall Configuration Required",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                    return;
-                }
-
-                var appPath = Process.GetCurrentProcess().MainModule.FileName;
-                const string ruleName = "DAQiFi Desktop";
-
-                // Check if rule already exists
-                if (FirewallManager.Instance.Rules.Any(r => r.Name == ruleName))
-                    return;
-
-                // Create new rule
-                var rule = FirewallManager.Instance.CreateApplicationRule(
-                    ruleName,
-                    FirewallAction.Allow,
-                    appPath);
-
-                // Enable for both private and public networks
-                rule.Direction = FirewallDirection.Inbound;
-                rule.Protocol = FirewallProtocol.UDP;
-                
-                // Add the rule
-                FirewallManager.Instance.Rules.Add(rule);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    "Unable to configure firewall rules automatically. You may need to manually add firewall rules " +
-                    "for both private and public networks.\n\nError: " + ex.Message,
-                    "Firewall Configuration Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-            }
-        }
     }
 }
