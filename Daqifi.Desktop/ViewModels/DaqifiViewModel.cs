@@ -32,6 +32,7 @@ using Application = System.Windows.Application;
 using File = System.IO.File;
 using System.Security.Principal;
 using WindowsFirewallHelper;
+using MessageBox = System.Windows.MessageBox;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -2070,13 +2071,13 @@ namespace Daqifi.Desktop.ViewModels
             try
             {
                 // Check if running with admin privileges
-                bool isElevated = new WindowsPrincipal(WindowsIdentity.GetCurrent())
+                var isElevated = new WindowsPrincipal(WindowsIdentity.GetCurrent())
                     .IsInRole(WindowsBuiltInRole.Administrator);
 
                 if (!isElevated)
                 {
                     MessageBox.Show(
-                        "DAQifi Desktop requires firewall permissions to discover devices on your network. " +
+                        "DAQiFi Desktop requires firewall permissions to discover devices on your network. " +
                         "Please run the application as administrator to automatically configure firewall rules, " +
                         "or manually add firewall rules for both private and public networks.",
                         "Firewall Configuration Required",
@@ -2085,8 +2086,8 @@ namespace Daqifi.Desktop.ViewModels
                     return;
                 }
 
-                var appPath = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName;
-                var ruleName = "DAQiFi Desktop";
+                var appPath = Process.GetCurrentProcess().MainModule.FileName;
+                const string ruleName = "DAQiFi Desktop";
 
                 // Check if rule already exists
                 if (FirewallManager.Instance.Rules.Any(r => r.Name == ruleName))
@@ -2115,6 +2116,5 @@ namespace Daqifi.Desktop.ViewModels
                     MessageBoxImage.Warning);
             }
         }
-
     }
 }
