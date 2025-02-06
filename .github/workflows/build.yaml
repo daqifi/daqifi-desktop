@@ -23,3 +23,15 @@ jobs:
 
     - name: Test
       run: dotnet test --no-build --verbosity normal --configuration Release
+
+    - name: Build MSI Installer
+      run: |
+        cd Daqifi.Desktop.Setup
+        dotnet build -c Release
+
+    - name: Upload MSI Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: DAQifiDesktop-Installer
+        path: Daqifi.Desktop.Setup/DAQifiDesktopSetup/bin/x86/Release/DAQifiDesktop_Setup.msi
+        if-no-files-found: error
