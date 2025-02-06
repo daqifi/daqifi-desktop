@@ -7,8 +7,8 @@
            UpgradeCode="ACA4F4E1-6DBB-47C0-A829-84AA1536C147"
            Language="1033">
 
-    <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="DAQifiFolder" Name="DAQiFi">
+    <StandardDirectory Id="ProgramFilesFolder">
+      <Directory Id="DAQiFiFolder" Name="DAQiFi">
         <Directory Id="INSTALLFOLDER" Name="DAQiFi Desktop">
           <!-- Add runtimes directory -->
           <Directory Id="RUNTIMESFOLDER" Name="runtimes">
@@ -29,14 +29,14 @@
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="ProgramMenuDAQifi" Name="DAQifi">
-        <Directory Id="ProgramMenuDAQifiDesktop" Name="DAQifi"/>
+      <Directory Id="ProgramMenuDAQiFi" Name="DAQiFi">
+        <Directory Id="ProgramMenuDAQiFiDesktop" Name="DAQiFi"/>
       </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="DesktopFolder" />
 
-    <MajorUpgrade DowngradeErrorMessage="A newer version of DAQifi is already installed." />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of DAQiFi is already installed." />
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="Icon.exe" SourceFile="$(var.SourceDir)\$(var.MainExeName)"/>
 
@@ -51,7 +51,7 @@
                       OnlyDetect="no"/>
     </Upgrade>
 
-    <Feature Id="ProductFeature" Title="DAQifiDesktop_Setup" Level="1" Display="expand">
+    <Feature Id="ProductFeature" Title="DAQiFiDesktop_Setup" Level="1" Display="expand">
       <ComponentRef Id="UninstallProgramMenuItems"/>
       <ComponentGroupRef Id="ProductComponents" />
       <ComponentGroupRef Id="RuntimeComponents" />
@@ -67,7 +67,7 @@
       <UIRef Id="WixUI_ErrorProgressText" />
 
       <!-- Option to run after install -->
-      <Property Id="WixUI_ExitDialogOptionalCheckboxText" Value="Launch DAQifi" />
+      <Property Id="WixUI_ExitDialogOptionalCheckboxText" Value="Launch DAQiFi" />
       <Property Id="WIXSHELLEXECTARGET" Secure="yes"/>
       <Property Id="LAUNCHAPPPLICATION" Secure="yes"/>
 
@@ -90,20 +90,20 @@
     <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
       <!-- Main Executable -->
       <Component Id="MainExecutable" Guid="A0B50642-0EB2-48B2-B83E-5E2D62DA01E8">
-        <File Id="DAQifiEXE"
+        <File Id="DAQiFiEXE"
               Name="DAQiFi.exe"
               Source="$(var.SourceDir)\$(var.MainExeName)"
               KeyPath="yes">
           <Shortcut Id="DAQShortcutProgramMenu"
-                    Directory="ProgramMenuDAQifiDesktop"
-                    Name="DAQifi"
+                    Directory="ProgramMenuDAQiFiDesktop"
+                    Name="DAQiFi"
                     Show="normal"
                     WorkingDirectory="TARGETDIR"
                     Icon="Icon.exe"
                     Advertise="yes"/>
-          <Shortcut Id="DAQifiShortcut"
+          <Shortcut Id="DAQiFiShortcut"
                     Directory="DesktopFolder"
-                    Name ="DAQifi"
+                    Name ="DAQiFi"
                     WorkingDirectory ="TARGETDIR"
                     Icon="Icon.exe"
                     Advertise="yes"/>
@@ -111,18 +111,18 @@
       </Component>
 
       <!-- Config Files -->
-      <Component Id="DAQifiConfig" Guid="36A06DA8-C3F3-47F8-B53A-29A090138DE2">
-        <File Id="DAQifiDllConfig" Source="$(var.SourceDir)\DAQiFi.dll.config" KeyPath="yes"/>
+      <Component Id="DAQiFiConfig" Guid="36A06DA8-C3F3-47F8-B53A-29A090138DE2">
+        <File Id="DAQiFiDllConfig" Source="$(var.SourceDir)\DAQiFi.dll.config" KeyPath="yes"/>
       </Component>
-      <Component Id="DAQifiDepsJson" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C7">
+      <Component Id="DAQiFiDepsJson" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C7">
         <File Source="$(var.SourceDir)\DAQiFi.deps.json"/>
       </Component>
-      <Component Id="DAQifiRuntimeConfig" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C8">
+      <Component Id="DAQiFiRuntimeConfig" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C8">
         <File Source="$(var.SourceDir)\DAQiFi.runtimeconfig.json"/>
       </Component>
 
-      <!-- DAQifi Core DLLs -->
-      <Component Id="DAQifiDll" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C9">
+      <!-- DAQiFi Core DLLs -->
+      <Component Id="DAQiFiDll" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C9">
         <File Source="$(var.SourceDir)\DAQiFi.dll"/>
       </Component>
       <Component Id="Daqifi.Desktop.Bootloader" Guid="C23982B1-AADC-40BA-8CB5-0C2300CB8F9E">
@@ -366,6 +366,11 @@
       <Component Id="MicrosoftNetHttpHeaders" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D1">
         <File Source="$(var.SourceDir)\Microsoft.Net.Http.Headers.dll"/>
       </Component>
+      
+      <!-- Firewall Helper -->
+      <Component Id="WindowsFirewallHelper" Guid="c6ee9767-649e-460d-925c-8469caefd274">
+        <File Source="$(var.SourceDir)\WindowsFirewallHelper.dll"/>
+      </Component>
 
       <!-- System Components -->
       <Component Id="SystemCompositionAttributedModel" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D2">
@@ -467,9 +472,9 @@
     </ComponentGroup>
 
     <!-- Add the UninstallProgramMenuItems component -->
-    <Component Id="UninstallProgramMenuItems" Directory="ProgramMenuDAQifiDesktop" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C6">
-      <RemoveFolder Id="RemoveProgramMenuDAQifi" Directory="ProgramMenuDAQifi" On="uninstall"/>
-      <RemoveFolder Id="RemoveProgramMenuDAQifiDesktop" Directory="ProgramMenuDAQifiDesktop" On="uninstall"/>
+    <Component Id="UninstallProgramMenuItems" Directory="ProgramMenuDAQiFiDesktop" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C6">
+      <RemoveFolder Id="RemoveProgramMenuDAQiFi" Directory="ProgramMenuDAQiFi" On="uninstall"/>
+      <RemoveFolder Id="RemoveProgramMenuDAQiFiDesktop" Directory="ProgramMenuDAQiFiDesktop" On="uninstall"/>
       <RegistryValue Root="HKCU" Key="Software\DAQifi\DAQifi Desktop" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
     </Component>
   </Package>

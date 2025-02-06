@@ -7,13 +7,12 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <SolutionDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..'))</SolutionDir>
-    <DaqifiSourceDir>$(SolutionDir)\Daqifi.Desktop\bin\$(Configuration)\net8.0-windows</DaqifiSourceDir>
+    <DaqifiSourceDir>$(SolutionDir)..\Daqifi.Desktop\bin\$(Configuration)\net8.0-windows</DaqifiSourceDir>
     <DaqifiSourceDirShort>$([System.IO.Path]::GetFullPath('$(DaqifiSourceDir)'))</DaqifiSourceDirShort>
     <MainExeName>DAQiFi.exe</MainExeName>
   </PropertyGroup>
 
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DefineConstants>
       Debug;
       SourceDir=$(DaqifiSourceDirShort);
@@ -21,7 +20,7 @@
     </DefineConstants>
   </PropertyGroup>
 
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
     <DefineConstants>
       Release;
       SourceDir=$(DaqifiSourceDirShort);
