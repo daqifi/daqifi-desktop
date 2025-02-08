@@ -110,15 +110,16 @@
             </Grid>
         </GroupBox>
 
-        <!-- ADC Range -->
-        <GroupBox Grid.Column="1" Grid.Row="1" Header="ADC Range">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <ComboBox ItemsSource="{Binding SelectedDevice.AdcRanges}" Text="{Binding SelectedDevice.AdcRangeText}"/>
-            </Grid>
-        </GroupBox>
+        <!-- Disabled until hardware supports setting ADC Range -->
+        <!-- ~1~ ADC Range @1@ -->
+        <!-- <GroupBox Grid.Column="1" Grid.Row="1" Header="ADC Range"> -->
+        <!--     <Grid> -->
+        <!--         <Grid.RowDefinitions> -->
+        <!--             <RowDefinition Height="Auto"/> -->
+        <!--         </Grid.RowDefinitions> -->
+        <!--         <ComboBox ItemsSource="{Binding SelectedDevice.AdcRanges}" Text="{Binding SelectedDevice.AdcRangeText}"/> -->
+        <!--     </Grid> -->
+        <!-- </GroupBox> -->
 
         <!-- Manually Update Firmware -->
         <GroupBox Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2" Header="Manually Update Firmware">
