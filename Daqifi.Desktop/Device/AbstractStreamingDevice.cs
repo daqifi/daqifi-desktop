@@ -571,7 +571,7 @@ namespace Daqifi.Desktop.Device
             MessageProducer.Send(ScpiMessagePoducer.SetSsid(NetworkConfiguration.Ssid));
             MessageProducer.Send(ScpiMessagePoducer.SetSecurity(NetworkConfiguration.SecurityType));
             MessageProducer.Send(ScpiMessagePoducer.SetPassword(NetworkConfiguration.Password));
-            
+            MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
             MessageProducer.Send(ScpiMessagePoducer.SaveLan());
             ConnectionManager.Instance.Reboot(this);
         }
