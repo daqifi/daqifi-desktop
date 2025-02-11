@@ -1,4 +1,5 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<TargetFramework>net8.0-windows</TargetFramework>
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
@@ -16,6 +17,10 @@
 		<PackageReference Include="System.ServiceModel.Duplex" Version="4.9.0" />
 		<PackageReference Include="System.ServiceModel.NetTcp" Version="4.9.0" />
 		<PackageReference Include="System.ServiceModel.Federation" Version="4.9.0" />
+		<PackageReference Include="coverlet.collector" Version="6.0.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj" />
