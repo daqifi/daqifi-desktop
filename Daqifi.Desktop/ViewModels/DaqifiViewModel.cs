@@ -960,7 +960,9 @@ namespace Daqifi.Desktop.ViewModels
                         _appLogger.Error($"Error while starting process: {ex.Message}");
                     }
 
+                    serialDevice.Connect();
                     serialDevice.ResetLanAfterUpdate();
+                    serialDevice.Reboot();
                 }
             }
             else
@@ -1030,7 +1032,7 @@ namespace Daqifi.Desktop.ViewModels
         
             if (isManualUpload)
             {
-                // Don't need to update wifi firmware on manual firmware update. Mark as complete
+                // Don't need to update WiFi firmware on manual firmware update. Mark as complete
                 IsUploadComplete = true;
                 ShowUploadSuccessMessage();
             }
@@ -1130,14 +1132,12 @@ namespace Daqifi.Desktop.ViewModels
                 }
                 else
                 {
-                    var msg = "Error writing to COM port";
-                    _appLogger.Error(msg);
+                    _appLogger.Error("Error writing to COM port");
                 }
             }
             else
             {
-                var msg = "Error serial COM port detection";
-                _appLogger.Error(msg);
+                _appLogger.Error("Error serial COM port detection");
             }
         }
         #endregion
