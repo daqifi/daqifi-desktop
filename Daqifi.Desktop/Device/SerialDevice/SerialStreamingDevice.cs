@@ -95,6 +95,7 @@ namespace Daqifi.Desktop.Device.SerialDevice
             MessageProducer.Send(ScpiMessagePoducer.SetUsbTransparencyMode(0));
             MessageProducer.Send(ScpiMessagePoducer.EnabledLan());
             MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
+            MessageProducer.Send(ScpiMessagePoducer.SaveLan());
         }
         #endregion
     }
