@@ -23,16 +23,16 @@ jobs:
       run: dotnet restore
 
     - name: Build
-      run: dotnet build --no-restore --configuration Release
+      run: dotnet build --configuration Release
 
     - name: Test with coverage
-      run: dotnet test --no-build --verbosity normal --configuration Release /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:CoverletOutput=./coverage/
+      run: dotnet test --configuration Release --collect:"XPlat Code Coverage" --results-directory TestResults
 
     - name: Upload coverage to Codacy
       uses: codacy/codacy-coverage-reporter-action@v1
       with:
         project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
-        coverage-reports: '**/coverage/coverage.cobertura.xml'
+        coverage-reports: 'TestResults/**/coverage.cobertura.xml'
 
     - name: Build MSI Installer
       run: |
