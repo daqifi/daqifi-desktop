@@ -1,11 +1,4 @@
-﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Daqifi.Desktop.IO.Messages.Decoders
+﻿namespace Daqifi.Desktop.IO.Messages.Decoders
 {
     public static class ProtobufDecoder
     {

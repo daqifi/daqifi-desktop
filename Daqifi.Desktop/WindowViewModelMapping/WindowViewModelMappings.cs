@@ -2,8 +2,6 @@
 using Daqifi.Desktop.ViewModels;
 using DAQifi.Desktop.View;
 using DAQifi.Desktop.ViewModels;
-using System;
-using System.Collections.Generic;
 
 namespace Daqifi.Desktop.WindowViewModelMapping
 {

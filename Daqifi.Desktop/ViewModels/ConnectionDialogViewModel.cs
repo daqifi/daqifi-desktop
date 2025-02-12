@@ -10,7 +10,6 @@ using DAQifi.Desktop.View;
 using DAQifi.Desktop.ViewModels;
 using System.Collections;
 using System.Collections.ObjectModel;
-using System.Windows.Documents;
 using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels

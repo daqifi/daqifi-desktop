@@ -1,9 +1,7 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
 using Newtonsoft.Json.Linq;
-using System;
 using System.Net.Http;
 using System.Reflection;
-using System.Threading.Tasks;
 
 namespace Daqifi.Desktop.UpdateVersion
 {

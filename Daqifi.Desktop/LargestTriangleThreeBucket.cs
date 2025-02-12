@@ -1,6 +1,4 @@
 ﻿using OxyPlot;
-using System;
-using System.Collections.Generic;
 
 namespace Daqifi.Desktop
 {

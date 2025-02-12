@@ -4,7 +4,6 @@ using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
-using Daqifi.Desktop.View;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;

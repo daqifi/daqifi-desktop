@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using Google.Protobuf;
+﻿using Google.Protobuf;
 namespace Daqifi.Desktop.IO.Messages.MessageTypes
 {
     public interface IDaqifiOutMessage

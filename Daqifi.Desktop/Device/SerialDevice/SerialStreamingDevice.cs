@@ -1,6 +1,5 @@
 ﻿using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
-using System;
 using System.IO.Ports;
 
 namespace Daqifi.Desktop.Device.SerialDevice

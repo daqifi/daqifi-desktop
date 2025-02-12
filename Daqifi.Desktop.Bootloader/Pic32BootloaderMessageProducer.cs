@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace Daqifi.Desktop.Bootloader
+﻿namespace Daqifi.Desktop.Bootloader
 {
     public class Pic32BootloaderMessageProducer
     {

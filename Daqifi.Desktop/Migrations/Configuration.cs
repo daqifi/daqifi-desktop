@@ -1,9 +1,5 @@
 namespace Daqifi.Desktop.Migrations
 {
-    using System;
-    
-    using System.Linq;
-
     internal sealed class Configuration 
     {
         //public Configuration()

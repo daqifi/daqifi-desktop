@@ -3,10 +3,8 @@ using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
-using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels

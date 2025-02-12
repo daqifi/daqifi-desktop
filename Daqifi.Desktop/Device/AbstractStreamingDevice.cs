@@ -7,8 +7,6 @@ using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using Microsoft.Extensions.ObjectPool;
 using Daqifi.Desktop.IO.Messages.Decoders;
-using Daqifi.Desktop.Loggers;
-using Bugsnag.Payload;
 
 namespace Daqifi.Desktop.Device
 {

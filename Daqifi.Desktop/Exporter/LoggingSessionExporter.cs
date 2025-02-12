@@ -7,8 +7,6 @@ using Daqifi.Desktop.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
-using System.IO;
-using System.Text;
 
 namespace Daqifi.Desktop.Exporter
 {

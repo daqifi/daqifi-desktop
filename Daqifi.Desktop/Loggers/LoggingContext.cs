@@ -1,7 +1,5 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Common.Loggers;
 using Microsoft.EntityFrameworkCore;
-using System;
 
 namespace Daqifi.Desktop.Logger
 {

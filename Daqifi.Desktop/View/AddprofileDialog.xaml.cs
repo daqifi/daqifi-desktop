@@ -1,13 +1,7 @@
-﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Common.Loggers;
+﻿using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.ViewModels;
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 
