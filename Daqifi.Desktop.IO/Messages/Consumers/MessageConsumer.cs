@@ -1,6 +1,5 @@
 ﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
 using Google.Protobuf;
-using System.IO;
 
 namespace Daqifi.Desktop.IO.Messages.Consumers
 {

@@ -1,7 +1,6 @@
 ﻿using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
-using System;
 using System.Net.Sockets;
 
 namespace Daqifi.Desktop.Device.WiFiDevice

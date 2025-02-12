@@ -1,7 +1,6 @@
 ﻿using Daqifi.Desktop.IO.Messages.Decoders;
 using Google.Protobuf;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Moq;
 
 namespace Daqifi.Desktop.IO.Test.Messages.Decoders
 {

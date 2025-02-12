@@ -2,8 +2,6 @@
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
-using System;
-using System.Collections.Generic;
 using System.Text;
 using System.Windows.Input;
 

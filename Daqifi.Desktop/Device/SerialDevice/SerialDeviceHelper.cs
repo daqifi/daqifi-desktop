@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Management;
+﻿using System.Management;
 
 namespace Daqifi.Desktop.Device.SerialDevice
 {

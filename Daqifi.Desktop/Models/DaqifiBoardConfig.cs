@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Daqifi.Desktop.Models
+﻿namespace Daqifi.Desktop.Models
 {
     public class DaqifiBoardConfig : ObservableObject
     {

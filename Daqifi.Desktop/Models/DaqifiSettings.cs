@@ -1,5 +1,4 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
-using System;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Xml.Linq;

@@ -1,5 +1,4 @@
 ﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
-using System;
 
 namespace Daqifi.Desktop.IO.Messages
 {

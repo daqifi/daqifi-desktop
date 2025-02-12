@@ -9,12 +9,9 @@ using OxyPlot.Series;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Windows.Input;
-using Daqifi.Desktop.Helpers;
 using Exception = System.Exception;
 using TickStyle = OxyPlot.Axes.TickStyle;
 using Microsoft.EntityFrameworkCore;
-using System.Data.Common;
-using System.IO;
 using EFCore.BulkExtensions;
 
 namespace Daqifi.Desktop.Logger

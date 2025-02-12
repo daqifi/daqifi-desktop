@@ -1,9 +1,6 @@
 ﻿using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.ViewModels;
-using Microsoft.Extensions.DependencyInjection;
-using System;
 using System.Diagnostics;
 using System.Reflection;
 

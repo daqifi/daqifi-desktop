@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Daqifi.Desktop.Common.Loggers
+﻿namespace Daqifi.Desktop.Common.Loggers
 {
     public interface IAppLogger
     {

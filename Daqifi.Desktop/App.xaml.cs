@@ -3,7 +3,6 @@ using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.WindowViewModelMapping;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using OxyPlot.Series;
 using System.IO;
 using System.Windows;
 

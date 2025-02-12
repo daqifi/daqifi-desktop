@@ -1,18 +1,13 @@
 ﻿using Daqifi.Desktop.Channel;
-using System.Collections.Generic;
-using System.Linq;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Models;
-using System;
 using Daqifi.Desktop.Common.Loggers;
 using System.IO;
 using System.Xml.Linq;
 using System.Collections.ObjectModel;
 using Daqifi.Desktop.UpdateVersion;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using static Azure.Core.HttpHeader;
 
 namespace Daqifi.Desktop.Logger
 {

@@ -1,5 +1,4 @@
-﻿using System;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;

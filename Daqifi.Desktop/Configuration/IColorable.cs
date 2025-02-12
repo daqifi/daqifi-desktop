@@ -1,6 +1,4 @@
-﻿using System.Windows.Media;
-
-namespace Daqifi.Desktop.Configuration
+﻿namespace Daqifi.Desktop.Configuration
 {
     public interface IColorable
     {

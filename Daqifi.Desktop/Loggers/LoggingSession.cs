@@ -1,6 +1,4 @@
 ﻿using Daqifi.Desktop.Channel;
-using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Daqifi.Desktop.Logger

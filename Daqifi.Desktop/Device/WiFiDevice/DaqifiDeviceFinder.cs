@@ -1,14 +1,11 @@
 ﻿using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Decoders;
-using Daqifi.Desktop.IO.Messages.MessageTypes;
-using System;
 using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
-using System.Threading;
 
 namespace Daqifi.Desktop.Device.WiFiDevice
 {
