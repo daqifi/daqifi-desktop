@@ -15,6 +15,11 @@ namespace Daqifi.Desktop.Models
         public long Size { get; set; }
 
         /// <summary>
+        /// The created date of the file
+        /// </summary>
+        public DateTime CreatedDate { get; set; }
+
+        /// <summary>
         /// The formatted size string (e.g., "1.2 MB")
         /// </summary>
         public string FormattedSize
@@ -32,10 +37,5 @@ namespace Daqifi.Desktop.Models
                 return $"{len:0.##} {sizes[order]}";
             }
         }
-
-        /// <summary>
-        /// The last modified date of the file
-        /// </summary>
-        public DateTime LastModified { get; set; }
     }
 } 

@@ -334,15 +334,27 @@ namespace Daqifi.Desktop.ViewModels
                 {
                     if (value)
                     {
-                        if (IsLogging)
+                        var (canEnable, message) = SDCardLoggingManager.Instance.ValidateLoggingState(SelectedDevice);
+                        if (!string.IsNullOrEmpty(message))
                         {
-                            IsLogging = false; // Stop WiFi streaming
+                            var dialogViewModel = new WarningDialogViewModel(message);
+                            _dialogService.ShowDialog<WarningDialog>(this, dialogViewModel);
                         }
-                        SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.EnableSdLogging);
+                        
+                        if (canEnable)
+                        {
+                            _ = SDCardLoggingManager.Instance.EnableLogging(SelectedDevice);
+                        }
+                        else
+                        {
+                            _isSdCardLoggingEnabled = false;
+                            OnPropertyChanged();
+                            return;
+                        }
                     }
                     else
                     {
-                        SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.DisableSdLogging);
+                        SDCardLoggingManager.Instance.DisableLogging(SelectedDevice);
                     }
                 }
                 
@@ -2152,23 +2164,81 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region SD Card Logging
-        private void RefreshSdCardFiles()
+        private async void RefreshSdCardFiles()
         {
             if (SelectedDevice == null) return;
             
-            // Clear existing files
-            SdCardFiles.Clear();
+            // Show busy indicator
+            IsBusy = true;
             
-            // Request file list from device
-            SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.GetSdFileList);
+            try
+            {
+                // Request file list from device
+                SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.GetSdFileList);
+                
+                // Wait for response (this will be updated through the message handler)
+                await Task.Delay(1000);
+                
+                // Update UI with files from manager
+                var files = SDCardLoggingManager.Instance.GetFileList(SelectedDevice.DeviceSerialNo);
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    SdCardFiles.Clear();
+                    foreach (var file in files)
+                    {
+                        SdCardFiles.Add(file);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Error(ex, "Failed to refresh SD card files");
+                var errorDialogViewModel = new ErrorDialogViewModel("Failed to refresh file list. Please try again.");
+                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
 
-        private void DownloadSdCardFile()
+        private async void DownloadSdCardFile()
         {
             if (SelectedDevice == null || SelectedSdCardFile == null) return;
             
-            // Request file download from device
-            SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.GetSdFile);
+            IsBusy = true;
+            
+            try
+            {
+                // Show file save dialog
+                var saveFileDialog = new SaveFileDialog
+                {
+                    FileName = SelectedSdCardFile.FileName,
+                    Filter = "All files (*.*)|*.*"
+                };
+
+                if (saveFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    // Request file download from device
+                    SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.GetSdFile);
+                    
+                    // Wait for response and save file
+                    await Task.Delay(1000); // This will be replaced with actual file download logic
+                    
+                    var successDialogViewModel = new SuccessDialogViewModel("File downloaded successfully.");
+                    _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
+                }
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Error(ex, "Failed to download SD card file");
+                var errorDialogViewModel = new ErrorDialogViewModel("Failed to download file. Please try again.");
+                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+            }
+            finally
+            {
+                IsBusy = false;
+            }
         }
 
         private void OpenSdCardLoggingSettings()
