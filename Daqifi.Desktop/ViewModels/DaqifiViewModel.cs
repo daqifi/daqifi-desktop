@@ -44,6 +44,11 @@ namespace Daqifi.Desktop.ViewModels
         private bool _isChannelSettingsOpen;
         private bool _isLoggingSessionSettingsOpen;
         private bool _isLiveGraphSettingsOpen;
+        private bool _isSdCardLoggingOpen;
+        private bool _isSdCardLoggingEnabled;
+        private string _selectedDataFormat;
+        private ObservableCollection<SdCardFile> _sdCardFiles;
+        private SdCardFile _selectedSdCardFile;
         private int _width = 800;
         private int _height = 600;
         private int _sidePanelWidth = 85;
@@ -305,6 +310,87 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
+        public bool IsSdCardLoggingOpen
+        {
+            get => _isSdCardLoggingOpen;
+            set
+            {
+                _isSdCardLoggingOpen = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool IsSdCardLoggingEnabled
+        {
+            get => _isSdCardLoggingEnabled;
+            set
+            {
+                if (_isSdCardLoggingEnabled == value) return;
+                _isSdCardLoggingEnabled = value;
+                
+                if (SelectedDevice != null)
+                {
+                    if (value)
+                    {
+                        if (IsLogging)
+                        {
+                            IsLogging = false; // Stop WiFi streaming
+                        }
+                        SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.EnableSdLogging);
+                    }
+                    else
+                    {
+                        SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.DisableSdLogging);
+                    }
+                }
+                
+                OnPropertyChanged();
+            }
+        }
+
+        public string SelectedDataFormat
+        {
+            get => _selectedDataFormat;
+            set
+            {
+                if (_selectedDataFormat == value) return;
+                _selectedDataFormat = value;
+                
+                if (SelectedDevice != null)
+                {
+                    if (value == "JSON")
+                    {
+                        SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.SetJsonStreamFormat);
+                    }
+                    else
+                    {
+                        SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.SetProtobufStreamFormat);
+                    }
+                }
+                
+                OnPropertyChanged();
+            }
+        }
+
+        public ObservableCollection<SdCardFile> SdCardFiles
+        {
+            get => _sdCardFiles ??= new ObservableCollection<SdCardFile>();
+            set
+            {
+                _sdCardFiles = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public SdCardFile SelectedSdCardFile
+        {
+            get => _selectedSdCardFile;
+            set
+            {
+                _selectedSdCardFile = value;
+                OnPropertyChanged();
+            }
+        }
 
         private int _notificationCount;
 
@@ -790,6 +876,10 @@ namespace Daqifi.Desktop.ViewModels
         {
             return true;
         }
+
+        public ICommand OpenSdCardLoggingCommand { get; private set; }
+        public ICommand RefreshSdCardFilesCommand { get; private set; }
+        public ICommand DownloadSdCardFileCommand { get; private set; }
         #endregion
 
         #region Register Command 
@@ -825,6 +915,9 @@ namespace Daqifi.Desktop.ViewModels
             UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
             OpenFirmwareUpdateCommand = new DelegateCommand(OpenFirmwareUpdateSettings, CanOpenFirmwareUpdateSettings);
             HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
+            OpenSdCardLoggingCommand = new RelayCommand(OpenSdCardLoggingSettings);
+            RefreshSdCardFilesCommand = new RelayCommand(RefreshSdCardFiles);
+            DownloadSdCardFileCommand = new RelayCommand(DownloadSdCardFile);
         }
         #endregion
 
@@ -1633,6 +1726,7 @@ namespace Daqifi.Desktop.ViewModels
             IsLogSummaryOpen = false;
             IsNotificationsOpen = false;
             IsFirmwareUpdatationFlyoutOpen = false;
+            IsSdCardLoggingOpen = false;
         }
 
         #region New Enhancements and developement
@@ -2053,6 +2147,33 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
+        #endregion
+
+        #region SD Card Logging
+        private void RefreshSdCardFiles(object o)
+        {
+            if (SelectedDevice == null) return;
+            
+            // Clear existing files
+            SdCardFiles.Clear();
+            
+            // Request file list from device
+            SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.GetSdFileList);
+        }
+
+        private void DownloadSdCardFile(object o)
+        {
+            if (SelectedDevice == null || SelectedSdCardFile == null) return;
+            
+            // Request file download from device
+            SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.GetSdFile);
+        }
+
+        private void OpenSdCardLoggingSettings(object o)
+        {
+            CloseFlyouts();
+            IsSdCardLoggingOpen = true;
+        }
         #endregion
 
         #endregion
