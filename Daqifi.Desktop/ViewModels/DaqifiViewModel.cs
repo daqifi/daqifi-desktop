@@ -915,9 +915,9 @@ namespace Daqifi.Desktop.ViewModels
             UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
             OpenFirmwareUpdateCommand = new DelegateCommand(OpenFirmwareUpdateSettings, CanOpenFirmwareUpdateSettings);
             HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
-            OpenSdCardLoggingCommand = new RelayCommand(o => OpenSdCardLoggingSettings(o));
-            RefreshSdCardFilesCommand = new RelayCommand(o => RefreshSdCardFiles(o));
-            DownloadSdCardFileCommand = new RelayCommand(o => DownloadSdCardFile(o));
+            OpenSdCardLoggingCommand = new RelayCommand(() => OpenSdCardLoggingSettings());
+            RefreshSdCardFilesCommand = new RelayCommand(() => RefreshSdCardFiles());
+            DownloadSdCardFileCommand = new RelayCommand(() => DownloadSdCardFile());
         }
         #endregion
 
@@ -2150,7 +2150,7 @@ namespace Daqifi.Desktop.ViewModels
         #endregion
 
         #region SD Card Logging
-        private void RefreshSdCardFiles(object o)
+        private void RefreshSdCardFiles()
         {
             if (SelectedDevice == null) return;
             
@@ -2161,7 +2161,7 @@ namespace Daqifi.Desktop.ViewModels
             SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.GetSdFileList);
         }
 
-        private void DownloadSdCardFile(object o)
+        private void DownloadSdCardFile()
         {
             if (SelectedDevice == null || SelectedSdCardFile == null) return;
             
@@ -2169,7 +2169,7 @@ namespace Daqifi.Desktop.ViewModels
             SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.GetSdFile);
         }
 
-        private void OpenSdCardLoggingSettings(object o)
+        private void OpenSdCardLoggingSettings()
         {
             CloseFlyouts();
             IsSdCardLoggingOpen = true;
