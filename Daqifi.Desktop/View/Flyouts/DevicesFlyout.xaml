@@ -63,14 +63,12 @@
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
-            <Setter Property="TextTransform" Value="Uppercase"/>
         </Style>
 
         <Style x:Key="FormLabelStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
-            <Setter Property="TextTransform" Value="Uppercase"/>
         </Style>
 
         <!-- Control Templates -->
@@ -262,23 +260,13 @@
 
     <DockPanel LastChildFill="True">
         <!-- Header -->
-        <Grid DockPanel.Dock="Top" Background="#2D2D30" Height="60">
+        <Grid DockPanel.Dock="Top" Background="#2D2D30" Height="65">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="60"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             
-            <!-- Back Button Area -->
-            <Border Grid.Column="0" Background="Transparent">
-                <Path Data="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z" 
-                      Fill="White" 
-                      Width="24" 
-                      Height="24"
-                      Stretch="Uniform"/>
-            </Border>
-            
             <!-- Device Info -->
-            <StackPanel Grid.Column="1" Margin="0,8,20,8">
+            <StackPanel Margin="0,8,20,8">
                 <TextBlock Text="{Binding SelectedDevice.DevicePartNumber}"
                          Style="{StaticResource HeaderTextBlockStyle}"/>
                 <StackPanel Orientation="Horizontal">

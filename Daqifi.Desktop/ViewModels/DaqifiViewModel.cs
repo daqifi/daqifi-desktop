@@ -24,6 +24,8 @@ using System.IO;
 using System.IO.Ports;
 using System.Windows;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
+using Daqifi.Desktop.IO.Messages.Producers;
 using Application = System.Windows.Application;
 using File = System.IO.File;
 
