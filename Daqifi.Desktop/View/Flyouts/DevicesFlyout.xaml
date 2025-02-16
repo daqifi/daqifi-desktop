@@ -10,6 +10,7 @@
              xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
              xmlns:local="clr-namespace:Daqifi.Desktop.Converters"
              mc:Ignorable="d" 
+             d:DataContext="{d:DesignInstance Type=vm:DaqifiViewModel}"
              Position="Right"
              Theme="Dark"
              IsPinned="True"
@@ -19,6 +20,17 @@
              IsOpen="{Binding IsDeviceSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}">
     
     <Controls:Flyout.Resources>
+        <!-- Color Constants -->
+        <Color x:Key="AccentColor">#4B8FE2</Color>
+        <Color x:Key="BackgroundColor">#333333</Color>
+        <Color x:Key="HeaderBackgroundColor">#2D2D30</Color>
+        
+        <!-- Brushes -->
+        <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+        <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}"/>
+        <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="{StaticResource HeaderBackgroundColor}"/>
+        
+        <!-- Data Providers -->
         <ObjectDataProvider MethodName="GetValues" ObjectType="{x:Type sys:Enum}" x:Key="WifiModes">
             <ObjectDataProvider.MethodParameters>
                 <x:Type TypeName="networkDataModel:WifiMode" />
@@ -29,10 +41,12 @@
                 <x:Type TypeName="networkDataModel:WifiSecurityType" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+        
+        <!-- Converters -->
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <local:NotNullToBoolConverter x:Key="NotNullToBoolConverter"/>
         
-        <!-- Common Styles -->
+        <!-- Text Styles -->
         <Style x:Key="HeaderTextBlockStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="24"/>
             <Setter Property="Foreground" Value="White"/>
@@ -47,68 +61,61 @@
         
         <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#4B8FE2"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
             <Setter Property="TextTransform" Value="Uppercase"/>
         </Style>
 
         <Style x:Key="FormLabelStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#4B8FE2"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="TextTransform" Value="Uppercase"/>
         </Style>
-        
+
+        <!-- Control Templates -->
+        <ControlTemplate x:Key="ComboBoxToggleTemplate" TargetType="ToggleButton">
+            <Border Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition Width="30"/>
+                    </Grid.ColumnDefinitions>
+                    <ContentPresenter Grid.Column="0"
+                                    Content="{Binding Path=SelectionBoxItem, RelativeSource={RelativeSource AncestorType={x:Type ComboBox}}}"
+                                    ContentTemplate="{Binding Path=SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType={x:Type ComboBox}}}"
+                                    Margin="{TemplateBinding Padding}"
+                                    VerticalAlignment="Center"/>
+                    <Path Grid.Column="1" 
+                          Data="M0,0 L8,8 L16,0" 
+                          Stroke="White"
+                          StrokeThickness="2"
+                          VerticalAlignment="Center"
+                          HorizontalAlignment="Center"/>
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#404040"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="#404040"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <!-- Control Styles -->
         <Style x:Key="TabControlStyle" TargetType="TabControl">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="0"/>
         </Style>
-        
-        <Style x:Key="TabItemStyle" TargetType="TabItem">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="#999999"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="MinWidth" Value="125"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Border Name="Border" 
-                                Background="Transparent"
-                                BorderThickness="0,0,0,1" 
-                                BorderBrush="#333333"
-                                Height="40">
-                            <Grid>
-                                <Border Name="SelectedBorder"
-                                        BorderThickness="0,0,0,2"
-                                        BorderBrush="Transparent"
-                                        VerticalAlignment="Bottom">
-                                    <ContentPresenter x:Name="ContentSite"
-                                                    VerticalAlignment="Center"
-                                                    HorizontalAlignment="Center"
-                                                    ContentSource="Header"
-                                                    RecognizesAccessKey="True"/>
-                                </Border>
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="SelectedBorder" Property="BorderBrush" Value="#4B8FE2"/>
-                                <Setter Property="Foreground" Value="#4B8FE2"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="False">
-                                <Setter Property="Foreground" Value="#999999"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        
+
         <Style x:Key="ButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button}">
-            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Height" Value="35"/>
@@ -130,11 +137,12 @@
         </Style>
         
         <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonStyle}">
-            <Setter Property="Background" Value="#4B8FE2"/>
+            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
         </Style>
 
+        <!-- Input Control Styles -->
         <Style x:Key="TextBoxStyle" TargetType="TextBox">
-            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Height" Value="35"/>
@@ -143,7 +151,7 @@
         </Style>
 
         <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Height" Value="35"/>
@@ -157,48 +165,15 @@
                                         BorderBrush="{TemplateBinding BorderBrush}"
                                         BorderThickness="{TemplateBinding BorderThickness}"
                                         IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                        Padding="{TemplateBinding Padding}">
-                                <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border Background="{TemplateBinding Background}"
-                                                BorderBrush="{TemplateBinding BorderBrush}"
-                                                BorderThickness="{TemplateBinding BorderThickness}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition/>
-                                                    <ColumnDefinition Width="30"/>
-                                                </Grid.ColumnDefinitions>
-                                                <ContentPresenter Grid.Column="0"
-                                                                Content="{Binding Path=SelectionBoxItem, RelativeSource={RelativeSource AncestorType={x:Type ComboBox}}}"
-                                                                ContentTemplate="{Binding Path=SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType={x:Type ComboBox}}}"
-                                                                Margin="{TemplateBinding Padding}"
-                                                                VerticalAlignment="Center"/>
-                                                <Path Grid.Column="1" 
-                                                      Data="M0,0 L8,8 L16,0" 
-                                                      Stroke="White"
-                                                      StrokeThickness="2"
-                                                      VerticalAlignment="Center"
-                                                      HorizontalAlignment="Center"/>
-                                            </Grid>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#404040"/>
-                                            </Trigger>
-                                            <Trigger Property="IsChecked" Value="True">
-                                                <Setter Property="Background" Value="#404040"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ToggleButton.Template>
-                            </ToggleButton>
+                                        Padding="{TemplateBinding Padding}"
+                                        Template="{StaticResource ComboBoxToggleTemplate}"/>
                             <Popup x:Name="PART_Popup"
                                    IsOpen="{TemplateBinding IsDropDownOpen}"
                                    AllowsTransparency="True"
                                    Placement="Bottom"
                                    PopupAnimation="Slide"
                                    PlacementTarget="{Binding ElementName=ToggleButton}">
-                                <Border Background="#333333" 
+                                <Border Background="{StaticResource BackgroundBrush}"
                                         BorderThickness="0">
                                     <ScrollViewer MaxHeight="200" 
                                                 VerticalScrollBarVisibility="Auto">
@@ -212,7 +187,7 @@
             </Setter>
             <Style.Resources>
                 <Style TargetType="ComboBoxItem">
-                    <Setter Property="Background" Value="#333333"/>
+                    <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
                     <Setter Property="Foreground" Value="White"/>
                     <Setter Property="Height" Value="35"/>
                     <Setter Property="Padding" Value="10,0"/>
@@ -229,7 +204,7 @@
                                         <Setter Property="Background" Value="#404040"/>
                                     </Trigger>
                                     <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="Background" Value="#4B8FE2"/>
+                                        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
