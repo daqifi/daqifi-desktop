@@ -915,9 +915,9 @@ namespace Daqifi.Desktop.ViewModels
             UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
             OpenFirmwareUpdateCommand = new DelegateCommand(OpenFirmwareUpdateSettings, CanOpenFirmwareUpdateSettings);
             HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
-            OpenSdCardLoggingCommand = new RelayCommand(OpenSdCardLoggingSettings);
-            RefreshSdCardFilesCommand = new RelayCommand(RefreshSdCardFiles);
-            DownloadSdCardFileCommand = new RelayCommand(DownloadSdCardFile);
+            OpenSdCardLoggingCommand = new RelayCommand(o => OpenSdCardLoggingSettings(o));
+            RefreshSdCardFilesCommand = new RelayCommand(o => RefreshSdCardFiles(o));
+            DownloadSdCardFileCommand = new RelayCommand(o => DownloadSdCardFile(o));
         }
         #endregion
 
