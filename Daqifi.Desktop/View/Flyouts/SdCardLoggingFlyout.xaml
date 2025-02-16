@@ -35,9 +35,10 @@
                     OffContent="Disabled"
                     ToolTip="Enable or disable logging to SD card. Note: This will disable WiFi streaming."/>
 
-                <ComboBox 
+                <Label 
                     Margin="0,10,0,0"
-                    controls:HeaderedControlHelper.Header="Data Format"
+                    Content="Data Format"/>
+                <ComboBox 
                     SelectedItem="{Binding SelectedDataFormat, Mode=TwoWay}">
                     <ComboBoxItem Content="Protobuf"/>
                     <ComboBoxItem Content="JSON"/>
