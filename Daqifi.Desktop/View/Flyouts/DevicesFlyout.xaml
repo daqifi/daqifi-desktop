@@ -35,6 +35,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         
         <!-- Device Information -->
@@ -42,11 +43,9 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
@@ -57,18 +56,59 @@
                 <Label Grid.Column="1" Grid.Row="1" Content="{Binding SelectedDevice.DeviceSerialNo}" />
                 <Label Grid.Column="0" Grid.Row="2" Content="Firmware Version:"/>
                 <Label Grid.Column="1" Grid.Row="2" Content="{Binding SelectedDevice.DeviceVersion}" />
-                <Button 
-                    Grid.Column="0" 
-                    Grid.ColumnSpan="2"
-                    Grid.Row="3" 
-                    Margin="0,10,0,0"
-                    Content="SD Card Logging Settings"
-                    Command="{Binding OpenSdCardLoggingCommand}"/>
             </Grid>
         </GroupBox>
 
+        <!-- SD Card Logging -->
+        <GroupBox Grid.Column="1" Grid.Row="0" Header="SD Card Logging">
+            <StackPanel>
+                <Controls:ToggleSwitch 
+                    Header="Logging State"
+                    IsOn="{Binding IsSdCardLoggingEnabled, Mode=TwoWay}"
+                    OnContent="Enabled" 
+                    OffContent="Disabled"
+                    ToolTip="Enable or disable logging to SD card. Note: This will disable WiFi streaming."/>
+
+                <ComboBox 
+                    Margin="0,10,0,0"
+                    controls:HeaderedControlHelper.Header="Data Format"
+                    SelectedItem="{Binding SelectedDataFormat, Mode=TwoWay}">
+                    <ComboBoxItem Content="Protobuf"/>
+                    <ComboBoxItem Content="JSON"/>
+                </ComboBox>
+
+                <GroupBox Header="Files" Margin="0,10,0,0">
+                    <DockPanel LastChildFill="True">
+                        <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,5">
+                            <Button 
+                                DockPanel.Dock="Left"
+                                Content="Refresh List"
+                                Command="{Binding RefreshSdCardFilesCommand}"/>
+                            <Button 
+                                DockPanel.Dock="Right"
+                                Content="Download Selected"
+                                Command="{Binding DownloadSdCardFileCommand}"
+                                IsEnabled="{Binding SelectedSdCardFile, Converter={StaticResource NotNullToBoolConverter}}"/>
+                        </DockPanel>
+                        
+                        <ListView 
+                            Height="150"
+                            ItemsSource="{Binding SdCardFiles}"
+                            SelectedItem="{Binding SelectedSdCardFile, Mode=TwoWay}">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="File Name" DisplayMemberBinding="{Binding FileName}"/>
+                                    <GridViewColumn Header="Size" DisplayMemberBinding="{Binding FormattedSize}"/>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                    </DockPanel>
+                </GroupBox>
+            </StackPanel>
+        </GroupBox>
+
         <!-- Network Configuration -->
-        <GroupBox Grid.Column="0" Grid.Row="1" Header="WiFi Configuration">
+        <GroupBox Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Header="WiFi Configuration">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -108,7 +148,7 @@
         </GroupBox>
         
         <!-- Frequency Configuration-->
-        <GroupBox Grid.Column="1" Grid.Row="0" Header="Sampling Frequency (Hz)">
+        <GroupBox Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2" Header="Sampling Frequency (Hz)">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -131,7 +171,7 @@
         <!-- </GroupBox> -->
 
         <!-- Manually Update Firmware -->
-        <GroupBox Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2" Header="Manually Update Firmware">
+        <GroupBox Grid.Column="0" Grid.Row="3" Grid.ColumnSpan="2" Header="Manually Update Firmware">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
