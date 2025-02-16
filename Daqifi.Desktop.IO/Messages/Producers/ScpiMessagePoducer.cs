@@ -103,6 +103,16 @@ namespace Daqifi.Desktop.IO.Messages.Producers
 
         #endregion
 
+        #region SD Card Logging Commands
+
+        public static IMessage EnableSdLogging => new ScpiMessage("SYSTem:STORage:SD:LOGging 1");
+        public static IMessage DisableSdLogging => new ScpiMessage("SYSTem:STORage:SD:LOGging 0");
+        public static IMessage GetSdLoggingState => new ScpiMessage("SYSTem:STORage:SD:LOGging?");
+        public static IMessage GetSdFileList => new ScpiMessage("SYSTem:STORage:SD:LIST?");
+        public static IMessage GetSdFile => new ScpiMessage("SYSTem:STORage:SD:GET");
+
+        #endregion
+
         #region Power Commands
 
         public static IMessage BatteryLevel => new ScpiMessage("SYSTem:BAT:LEVel?");
@@ -122,6 +132,8 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         public static IMessage SetProtobufStreamFormat => new ScpiMessage("SYSTem:STReam:FORmat 0");
 
         public static IMessage SetJsonStreamFormat => new ScpiMessage("SYSTem:STReam:FORmat 1");
+
+        public static IMessage GetStreamFormat => new ScpiMessage("SYSTem:STReam:FORmat?");
 
         #endregion
 

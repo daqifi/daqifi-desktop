@@ -112,6 +112,16 @@ namespace Daqifi.Desktop.IO.Test.Messages.Producers
             CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
         }
 
+        [TestMethod]
+        public void GetStreamFormatCommand_ReturnsCorrectCommand()
+        {
+            var actualCommand = ScpiMessagePoducer.GetStreamFormat;
+            var actualCommandRawData = actualCommand.GetBytes();
+            const string expectedCommandText = "SYSTem:STReam:FORmat?";
+            var expectedCommandRawData = GetBytes(expectedCommandText);
+
+            CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
+        }
         #endregion
 
         #region ADC Commands
@@ -268,6 +278,63 @@ namespace Daqifi.Desktop.IO.Test.Messages.Producers
             var actualCommand = ScpiMessagePoducer.SaveLan();
             var actualCommandRawData = actualCommand.GetBytes();
             const string expectedCommandText = "SYSTem:COMMunicate:LAN:SAVE";
+            var expectedCommandRawData = GetBytes(expectedCommandText);
+
+            CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
+        }
+        #endregion
+
+        #region SD Card Logging Commands
+        [TestMethod]
+        public void EnableSdLoggingCommand_ReturnsCorrectCommand()
+        {
+            var actualCommand = ScpiMessagePoducer.EnableSdLogging;
+            var actualCommandRawData = actualCommand.GetBytes();
+            const string expectedCommandText = "SYSTem:STORage:SD:LOGging 1";
+            var expectedCommandRawData = GetBytes(expectedCommandText);
+
+            CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
+        }
+
+        [TestMethod]
+        public void DisableSdLoggingCommand_ReturnsCorrectCommand()
+        {
+            var actualCommand = ScpiMessagePoducer.DisableSdLogging;
+            var actualCommandRawData = actualCommand.GetBytes();
+            const string expectedCommandText = "SYSTem:STORage:SD:LOGging 0";
+            var expectedCommandRawData = GetBytes(expectedCommandText);
+
+            CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
+        }
+
+        [TestMethod]
+        public void GetSdLoggingStateCommand_ReturnsCorrectCommand()
+        {
+            var actualCommand = ScpiMessagePoducer.GetSdLoggingState;
+            var actualCommandRawData = actualCommand.GetBytes();
+            const string expectedCommandText = "SYSTem:STORage:SD:LOGging?";
+            var expectedCommandRawData = GetBytes(expectedCommandText);
+
+            CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
+        }
+
+        [TestMethod]
+        public void GetSdFileListCommand_ReturnsCorrectCommand()
+        {
+            var actualCommand = ScpiMessagePoducer.GetSdFileList;
+            var actualCommandRawData = actualCommand.GetBytes();
+            const string expectedCommandText = "SYSTem:STORage:SD:LIST?";
+            var expectedCommandRawData = GetBytes(expectedCommandText);
+
+            CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
+        }
+
+        [TestMethod]
+        public void GetSdFileCommand_ReturnsCorrectCommand()
+        {
+            var actualCommand = ScpiMessagePoducer.GetSdFile;
+            var actualCommandRawData = actualCommand.GetBytes();
+            const string expectedCommandText = "SYSTem:STORage:SD:GET";
             var expectedCommandRawData = GetBytes(expectedCommandText);
 
             CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
