@@ -114,6 +114,51 @@
             <Setter Property="Margin" Value="0"/>
         </Style>
 
+        <Style x:Key="TabItemStyle" TargetType="TabItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="#999999"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="MinWidth" Value="125"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border Name="Border" 
+                                Background="Transparent"
+                                BorderThickness="0,0,0,1" 
+                                BorderBrush="{StaticResource BackgroundBrush}"
+                                Height="40">
+                            <Grid>
+                                <Border Name="SelectedBorder"
+                                        BorderThickness="0,0,0,2"
+                                        BorderBrush="Transparent"
+                                        VerticalAlignment="Bottom">
+                                    <ContentPresenter x:Name="ContentSite"
+                                                    VerticalAlignment="Center"
+                                                    HorizontalAlignment="Center"
+                                                    ContentSource="Header"
+                                                    RecognizesAccessKey="True"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="SelectedBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="False">
+                                <Setter Property="Foreground" Value="#999999"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="ButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button}">
             <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
             <Setter Property="Foreground" Value="White"/>
