@@ -46,10 +46,16 @@
         </Style>
         
         <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="Foreground" Value="#4B8FE2"/>
-            <Setter Property="Margin" Value="0,0,0,15"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="TextTransform" Value="Uppercase"/>
+        </Style>
+
+        <Style x:Key="FormLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#4B8FE2"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
         
         <Style x:Key="TabControlStyle" TargetType="TabControl">
@@ -250,9 +256,9 @@
                 <TabItem Header="NETWORK" Style="{StaticResource TabItemStyle}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="25">
-                            <TextBlock Text="WiFi Mode" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="WIFI MODE" Style="{StaticResource FormLabelStyle}"/>
                             <ComboBox Style="{StaticResource ComboBoxStyle}"
-                                    Margin="0,0,0,25"
+                                    Margin="0,0,0,20"
                                     ItemsSource="{Binding Source={StaticResource WifiModes}}"
                                     SelectedItem="{Binding SelectedDevice.NetworkConfiguration.Mode}">
                                 <ComboBox.ItemTemplate>
@@ -262,9 +268,9 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
 
-                            <TextBlock Text="Security Type" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="SECURITY TYPE" Style="{StaticResource FormLabelStyle}"/>
                             <ComboBox Style="{StaticResource ComboBoxStyle}"
-                                    Margin="0,0,0,25"
+                                    Margin="0,0,0,20"
                                     ItemsSource="{Binding Source={StaticResource WifiSecurityTypes}}"
                                     SelectedItem="{Binding SelectedDevice.NetworkConfiguration.SecurityType}">
                                 <ComboBox.ItemTemplate>
@@ -274,17 +280,17 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
 
-                            <TextBlock Text="Network SSID" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="NETWORK SSID" Style="{StaticResource FormLabelStyle}"/>
                             <TextBox Style="{StaticResource TextBoxStyle}"
-                                    Margin="0,0,0,25"
+                                    Margin="0,0,0,20"
                                     Text="{Binding SelectedDevice.NetworkConfiguration.Ssid, Mode=TwoWay}"/>
 
-                            <TextBlock Text="Password" Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="PASSWORD" Style="{StaticResource FormLabelStyle}"/>
                             <TextBox Style="{StaticResource TextBoxStyle}"
                                     Margin="0,0,0,25"
                                     Text="{Binding SelectedDevice.NetworkConfiguration.Password, Mode=TwoWay}"/>
 
-                            <Button Content="apply network settings"
+                            <Button Content="APPLY NETWORK SETTINGS"
                                     Style="{StaticResource AccentButtonStyle}"
                                     HorizontalAlignment="Right"
                                     Command="{Binding UpdateNetworkConfigurationCommand}"/>
