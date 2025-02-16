@@ -53,14 +53,43 @@
         <Style x:Key="TabControlStyle" TargetType="TabControl" BasedOn="{StaticResource MahApps.Styles.TabControl}">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="TabStripPlacement" Value="Top"/>
         </Style>
         
         <Style x:Key="TabItemStyle" TargetType="TabItem" BasedOn="{StaticResource MahApps.Styles.TabItem}">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Foreground" Value="#999999"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="MinWidth" Value="120"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border Name="Border" 
+                                Background="Transparent"
+                                BorderThickness="0,0,0,2" 
+                                BorderBrush="Transparent"
+                                Margin="0">
+                            <ContentPresenter x:Name="ContentSite"
+                                            VerticalAlignment="Center"
+                                            HorizontalAlignment="Center"
+                                            ContentSource="Header"
+                                            RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#4B8FE2"/>
+                                <Setter Property="Foreground" Value="#4B8FE2"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="False">
+                                <Setter Property="Foreground" Value="#999999"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         
         <Style x:Key="ButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button}">
@@ -93,163 +122,161 @@
 
         <!-- Tab Navigation -->
         <TabControl Style="{StaticResource TabControlStyle}">
-            <!-- Data Acquisition Tab -->
-            <TabItem Header="DATA ACQUISITION" Style="{StaticResource TabItemStyle}">
-                <StackPanel Margin="20">
-                    <TextBlock Text="SAMPLING CONFIGURATION" Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBlock Text="Frequency (Hz)" Foreground="White" Margin="0,0,0,10"/>
-                    <TextBox Text="{Binding ElementName=FrequencySlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
-                             Background="#2D2D30"
-                             Foreground="White"
-                             BorderThickness="0"
-                             HorizontalAlignment="Center"
-                             FontSize="28"
-                             Width="100"
-                             Margin="0,0,0,15"
-                             TextAlignment="Center"/>
-                    <Slider Name="FrequencySlider"
-                           Minimum="1" Maximum="1000"
-                           TickFrequency="1"
-                           IsSnapToTickEnabled="True"
-                           Value="{Binding SelectedDevice.StreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
-                </StackPanel>
-            </TabItem>
-
-            <!-- SD Card Tab -->
-            <TabItem Header="SD CARD" Style="{StaticResource TabItemStyle}">
-                <StackPanel Margin="20">
-                    <TextBlock Text="LOGGING STATE" Style="{StaticResource SectionHeaderStyle}"/>
-                    <Controls:ToggleSwitch 
-                        IsOn="{Binding IsSdCardLoggingEnabled, Mode=TwoWay}"
-                        OnContent="Enabled" 
-                        OffContent="Disabled"
-                        Margin="0,0,0,20"/>
-
-                    <TextBlock Text="DATA FORMAT" Style="{StaticResource SectionHeaderStyle}"/>
-                    <ComboBox 
-                        Margin="0,0,0,20"
-                        Background="#2D2D30"
-                        Foreground="White"
-                        BorderThickness="0"
-                        SelectedItem="{Binding SelectedDataFormat, Mode=TwoWay}">
-                        <ComboBoxItem Content="Protobuf"/>
-                        <ComboBoxItem Content="JSON"/>
-                    </ComboBox>
-
-                    <TextBlock Text="STORED FILES" Style="{StaticResource SectionHeaderStyle}"/>
-                    <DockPanel LastChildFill="False" Margin="0,0,0,10">
-                        <Button Style="{StaticResource ButtonStyle}"
-                                Content="refresh list"
-                                DockPanel.Dock="Left"
-                                Command="{Binding RefreshSdCardFilesCommand}"/>
-                        <Button Style="{StaticResource AccentButtonStyle}"
-                                Content="download selected"
-                                DockPanel.Dock="Right"
-                                Command="{Binding DownloadSdCardFileCommand}"
-                                IsEnabled="{Binding SelectedSdCardFile, Converter={StaticResource NotNullToBoolConverter}}"/>
-                    </DockPanel>
-
-                    <ListView Background="#2D2D30"
-                              BorderThickness="0"
-                              Foreground="White"
-                              Height="250"
-                              ItemsSource="{Binding SdCardFiles}"
-                              SelectedItem="{Binding SelectedSdCardFile, Mode=TwoWay}">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="FILE NAME" Width="250" DisplayMemberBinding="{Binding FileName}"/>
-                                <GridViewColumn Header="SIZE" Width="100" DisplayMemberBinding="{Binding FormattedSize}"/>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                </StackPanel>
-            </TabItem>
-
-            <!-- Network Tab -->
-            <TabItem Header="NETWORK" Style="{StaticResource TabItemStyle}">
-                <StackPanel Margin="20">
-                    <TextBlock Text="WiFi Mode" Style="{StaticResource SectionHeaderStyle}"/>
-                    <ComboBox Margin="0,0,0,20"
-                             Background="#2D2D30"
-                             Foreground="White"
-                             BorderThickness="0"
-                             ItemsSource="{Binding Source={StaticResource WifiModes}}"
-                             SelectedItem="{Binding SelectedDevice.NetworkConfiguration.Mode}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-
-                    <TextBlock Text="Security Type" Style="{StaticResource SectionHeaderStyle}"/>
-                    <ComboBox Margin="0,0,0,20"
-                             Background="#2D2D30"
-                             Foreground="White"
-                             BorderThickness="0"
-                             ItemsSource="{Binding Source={StaticResource WifiSecurityTypes}}"
-                             SelectedItem="{Binding SelectedDevice.NetworkConfiguration.SecurityType}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-
-                    <TextBlock Text="Network SSID" Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBox Margin="0,0,0,20"
-                             Background="#2D2D30"
-                             Foreground="White"
-                             BorderThickness="0"
-                             Text="{Binding SelectedDevice.NetworkConfiguration.Ssid, Mode=TwoWay}"/>
-
-                    <TextBlock Text="Password" Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBox Margin="0,0,0,20"
-                             Background="#2D2D30"
-                             Foreground="White"
-                             BorderThickness="0"
-                             Text="{Binding SelectedDevice.NetworkConfiguration.Password, Mode=TwoWay}"/>
-
-                    <Button Content="apply network settings"
-                            Style="{StaticResource AccentButtonStyle}"
-                            HorizontalAlignment="Right"
-                            Command="{Binding UpdateNetworkConfigurationCommand}"/>
-                </StackPanel>
-            </TabItem>
-
-            <!-- Firmware Tab -->
-            <TabItem Header="FIRMWARE" Style="{StaticResource TabItemStyle}">
-                <StackPanel Margin="20">
-                    <TextBlock Text="UPDATE DEVICE FIRMWARE" Style="{StaticResource SectionHeaderStyle}"/>
-                    
-                    <DockPanel LastChildFill="True" Margin="0,0,0,15">
-                        <Button DockPanel.Dock="Right"
-                                Content="browse"
-                                Style="{StaticResource ButtonStyle}"
-                                Margin="10,0,0,0"
-                                Command="{Binding BrowseForFirmwareCommand}"/>
-                        <TextBox Text="{Binding FirmwareFilePath, Mode=TwoWay}"
+            <TabControl.Items>
+                <TabItem Header="DATA ACQUISITION" Style="{StaticResource TabItemStyle}">
+                    <StackPanel Margin="20">
+                        <TextBlock Text="SAMPLING CONFIGURATION" Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBlock Text="Frequency (Hz)" Foreground="White" Margin="0,0,0,10"/>
+                        <TextBox Text="{Binding ElementName=FrequencySlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                  Background="#2D2D30"
                                  Foreground="White"
-                                 BorderThickness="0"/>
-                    </DockPanel>
+                                 BorderThickness="0"
+                                 HorizontalAlignment="Center"
+                                 FontSize="28"
+                                 Width="100"
+                                 Margin="0,0,0,15"
+                                 TextAlignment="Center"/>
+                        <Slider Name="FrequencySlider"
+                               Minimum="1" Maximum="1000"
+                               TickFrequency="1"
+                               IsSnapToTickEnabled="True"
+                               Value="{Binding SelectedDevice.StreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
+                    </StackPanel>
+                </TabItem>
 
-                    <DockPanel LastChildFill="True">
-                        <Button DockPanel.Dock="Right"
-                                Content="update"
+                <TabItem Header="SD CARD" Style="{StaticResource TabItemStyle}">
+                    <StackPanel Margin="20">
+                        <TextBlock Text="LOGGING STATE" Style="{StaticResource SectionHeaderStyle}"/>
+                        <Controls:ToggleSwitch 
+                            IsOn="{Binding IsSdCardLoggingEnabled, Mode=TwoWay}"
+                            OnContent="Enabled" 
+                            OffContent="Disabled"
+                            Margin="0,0,0,20"/>
+
+                        <TextBlock Text="DATA FORMAT" Style="{StaticResource SectionHeaderStyle}"/>
+                        <ComboBox 
+                            Margin="0,0,0,20"
+                            Background="#2D2D30"
+                            Foreground="White"
+                            BorderThickness="0"
+                            SelectedItem="{Binding SelectedDataFormat, Mode=TwoWay}">
+                            <ComboBoxItem Content="Protobuf"/>
+                            <ComboBoxItem Content="JSON"/>
+                        </ComboBox>
+
+                        <TextBlock Text="STORED FILES" Style="{StaticResource SectionHeaderStyle}"/>
+                        <DockPanel LastChildFill="False" Margin="0,0,0,10">
+                            <Button Style="{StaticResource ButtonStyle}"
+                                    Content="refresh list"
+                                    DockPanel.Dock="Left"
+                                    Command="{Binding RefreshSdCardFilesCommand}"/>
+                            <Button Style="{StaticResource AccentButtonStyle}"
+                                    Content="download selected"
+                                    DockPanel.Dock="Right"
+                                    Command="{Binding DownloadSdCardFileCommand}"
+                                    IsEnabled="{Binding SelectedSdCardFile, Converter={StaticResource NotNullToBoolConverter}}"/>
+                        </DockPanel>
+
+                        <ListView Background="#2D2D30"
+                                  BorderThickness="0"
+                                  Foreground="White"
+                                  Height="250"
+                                  ItemsSource="{Binding SdCardFiles}"
+                                  SelectedItem="{Binding SelectedSdCardFile, Mode=TwoWay}">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="FILE NAME" Width="250" DisplayMemberBinding="{Binding FileName}"/>
+                                    <GridViewColumn Header="SIZE" Width="100" DisplayMemberBinding="{Binding FormattedSize}"/>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                    </StackPanel>
+                </TabItem>
+
+                <TabItem Header="NETWORK" Style="{StaticResource TabItemStyle}">
+                    <StackPanel Margin="20">
+                        <TextBlock Text="WiFi Mode" Style="{StaticResource SectionHeaderStyle}"/>
+                        <ComboBox Margin="0,0,0,20"
+                                 Background="#2D2D30"
+                                 Foreground="White"
+                                 BorderThickness="0"
+                                 ItemsSource="{Binding Source={StaticResource WifiModes}}"
+                                 SelectedItem="{Binding SelectedDevice.NetworkConfiguration.Mode}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <TextBlock Text="Security Type" Style="{StaticResource SectionHeaderStyle}"/>
+                        <ComboBox Margin="0,0,0,20"
+                                 Background="#2D2D30"
+                                 Foreground="White"
+                                 BorderThickness="0"
+                                 ItemsSource="{Binding Source={StaticResource WifiSecurityTypes}}"
+                                 SelectedItem="{Binding SelectedDevice.NetworkConfiguration.SecurityType}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <TextBlock Text="Network SSID" Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBox Margin="0,0,0,20"
+                                 Background="#2D2D30"
+                                 Foreground="White"
+                                 BorderThickness="0"
+                                 Text="{Binding SelectedDevice.NetworkConfiguration.Ssid, Mode=TwoWay}"/>
+
+                        <TextBlock Text="Password" Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBox Margin="0,0,0,20"
+                                 Background="#2D2D30"
+                                 Foreground="White"
+                                 BorderThickness="0"
+                                 Text="{Binding SelectedDevice.NetworkConfiguration.Password, Mode=TwoWay}"/>
+
+                        <Button Content="apply network settings"
                                 Style="{StaticResource AccentButtonStyle}"
-                                Margin="10,0,0,0"
-                                Width="80"
-                                Command="{Binding UploadFirmwareCommand}"/>
-                        <controls:MetroProgressBar Height="25"
-                                                 Background="#2D2D30"
-                                                 Foreground="#4B8FE2"
-                                                 Minimum="0"
-                                                 Maximum="100"
-                                                 Value="{Binding UploadFirmwareProgress}"/>
-                    </DockPanel>
-                </StackPanel>
-            </TabItem>
+                                HorizontalAlignment="Right"
+                                Command="{Binding UpdateNetworkConfigurationCommand}"/>
+                    </StackPanel>
+                </TabItem>
+
+                <TabItem Header="FIRMWARE" Style="{StaticResource TabItemStyle}">
+                    <StackPanel Margin="20">
+                        <TextBlock Text="UPDATE DEVICE FIRMWARE" Style="{StaticResource SectionHeaderStyle}"/>
+                        
+                        <DockPanel LastChildFill="True" Margin="0,0,0,15">
+                            <Button DockPanel.Dock="Right"
+                                    Content="browse"
+                                    Style="{StaticResource ButtonStyle}"
+                                    Margin="10,0,0,0"
+                                    Command="{Binding BrowseForFirmwareCommand}"/>
+                            <TextBox Text="{Binding FirmwareFilePath, Mode=TwoWay}"
+                                     Background="#2D2D30"
+                                     Foreground="White"
+                                     BorderThickness="0"/>
+                        </DockPanel>
+
+                        <DockPanel LastChildFill="True">
+                            <Button DockPanel.Dock="Right"
+                                    Content="update"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Margin="10,0,0,0"
+                                    Width="80"
+                                    Command="{Binding UploadFirmwareCommand}"/>
+                            <controls:MetroProgressBar Height="25"
+                                                     Background="#2D2D30"
+                                                     Foreground="#4B8FE2"
+                                                     Minimum="0"
+                                                     Maximum="100"
+                                                     Value="{Binding UploadFirmwareProgress}"/>
+                        </DockPanel>
+                    </StackPanel>
+                </TabItem>
+            </TabControl.Items>
         </TabControl>
     </DockPanel>
 </Controls:Flyout>
