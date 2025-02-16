@@ -7,6 +7,7 @@
              xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
              xmlns:networkDataModel="clr-namespace:Daqifi.Desktop.DataModel.Network;assembly=Daqifi.Desktop.DataModel"
              xmlns:sys="clr-namespace:System;assembly=mscorlib" xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:local="clr-namespace:Daqifi.Desktop.Converters"
                  mc:Ignorable="d" 
              d:DesignHeight="600" d:DesignWidth="600"
              Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsDeviceSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right" Header="Device Settings">
@@ -25,6 +26,8 @@
                 <x:Type TypeName="networkDataModel:WifiSecurityType" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <local:NotNullToBoolConverter x:Key="NotNullToBoolConverter"/>
     </Controls:Flyout.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
