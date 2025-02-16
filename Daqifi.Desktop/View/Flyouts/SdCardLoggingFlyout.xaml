@@ -37,7 +37,7 @@
 
                 <ComboBox 
                     Margin="0,10,0,0"
-                    Header="Data Format"
+                    controls:HeaderedControlHelper.Header="Data Format"
                     SelectedItem="{Binding SelectedDataFormat, Mode=TwoWay}">
                     <ComboBoxItem Content="Protobuf"/>
                     <ComboBoxItem Content="JSON"/>
