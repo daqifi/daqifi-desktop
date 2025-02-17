@@ -339,11 +339,18 @@ namespace Daqifi.Desktop.ViewModels
                     {
                         if (value)
                         {
+                            // Ensure we're in SD card mode
+                            LoggingManager.Instance.SwitchLoggingMode(LoggingMode.SdCard);
                             SDCardLoggingManager.Instance.EnableLogging(SelectedDevice);
                         }
                         else
                         {
                             SDCardLoggingManager.Instance.DisableLogging(SelectedDevice);
+                            // Switch back to streaming mode if not explicitly in SD card mode
+                            if (!IsLogToDeviceMode)
+                            {
+                                LoggingManager.Instance.SwitchLoggingMode(LoggingMode.Stream);
+                            }
                         }
                     }
                     
@@ -609,6 +616,9 @@ namespace Daqifi.Desktop.ViewModels
                     }
                     
                     IsLogToDeviceMode = mode == "Log to Device";
+                    
+                    // Switch logging mode in LoggingManager
+                    LoggingManager.Instance.SwitchLoggingMode(IsLogToDeviceMode ? LoggingMode.SdCard : LoggingMode.Stream);
                     
                     // If switching to Log to Device mode
                     if (IsLogToDeviceMode)

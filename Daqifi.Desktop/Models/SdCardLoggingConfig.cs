@@ -9,9 +9,11 @@ namespace Daqifi.Desktop.Models
     {
         private bool _isEnabled;
         private string _dataFormat;
+        private LoggingMode _loggingMode;
+        private string _fileNamePattern;
 
         /// <summary>
-        /// Gets or sets whether SD card logging is enabled
+        /// Gets or sets whether SD card is enabled
         /// </summary>
         public bool IsEnabled
         {
@@ -42,11 +44,51 @@ namespace Daqifi.Desktop.Models
             }
         }
 
+        /// <summary>
+        /// Gets or sets the current logging mode
+        /// </summary>
+        public LoggingMode LoggingMode
+        {
+            get => _loggingMode;
+            set
+            {
+                if (_loggingMode != value)
+                {
+                    _loggingMode = value;
+                    OnPropertyChanged(nameof(LoggingMode));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the filename pattern for logged files
+        /// </summary>
+        public string FileNamePattern
+        {
+            get => _fileNamePattern;
+            set
+            {
+                if (_fileNamePattern != value)
+                {
+                    _fileNamePattern = value;
+                    OnPropertyChanged(nameof(FileNamePattern));
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         protected virtual void OnPropertyChanged(string propertyName)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        public SdCardLoggingConfig()
+        {
+            // Set default values
+            DataFormat = "Protobuf";  // Default to Protobuf format
+            FileNamePattern = "LOG_%Y%m%d_%H%M%S.dat";  // Default filename pattern with timestamp
+            LoggingMode = LoggingMode.Stream;  // Default to streaming mode
         }
     }
 } 

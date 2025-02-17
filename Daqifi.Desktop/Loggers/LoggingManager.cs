@@ -22,6 +22,7 @@ namespace Daqifi.Desktop.Logger
         private static string ProfileAppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
         private static readonly string ProfileSettingsXmlPath = ProfileAppDirectory + "\\DAQifiProfilesConfiguration.xml";
         private readonly IDbContextFactory<LoggingContext> _loggingContext;
+        private LoggingMode _currentMode = LoggingMode.Stream;
         #endregion
 
         #region Properties
@@ -75,6 +76,27 @@ namespace Daqifi.Desktop.Logger
             {
                 _loggingSessions = value;
                 NotifyPropertyChanged("LoggingSessions");
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the current logging mode (Stream or SD Card)
+        /// </summary>
+        public LoggingMode CurrentMode
+        {
+            get => _currentMode;
+            set
+            {
+                if (_currentMode != value)
+                {
+                    // If switching to SD card mode, stop streaming
+                    if (value == LoggingMode.SdCard && Active)
+                    {
+                        Active = false;
+                    }
+                    _currentMode = value;
+                    NotifyPropertyChanged(nameof(CurrentMode));
+                }
             }
         }
         #endregion
@@ -367,25 +389,64 @@ namespace Daqifi.Desktop.Logger
         #region Channel Subscription
         public void Subscribe(IChannel channel)
         {
-
-            if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name)) { return; }
+            if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name)) 
+                return;
+                
             channel.IsActive = true;
-            channel.OnChannelUpdated += HandleChannelUpdate;
+            
+            // Only attach streaming handlers if in Stream mode
+            if (CurrentMode == LoggingMode.Stream)
+            {
+                channel.OnChannelUpdated += HandleChannelUpdate;
+            }
+            
             SubscribedChannels.Add(channel);
             NotifyPropertyChanged("SubscribedChannels");
         }
 
         public void Unsubscribe(IChannel channel)
         {
-            // Don't unsubscribe a channel that isn't subscribed
             var index = SubscribedChannels
                 .FindIndex(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
-            if (index == -1) { return; }
+            if (index == -1) return;
+            
             var subscribedChannel = SubscribedChannels[index];
             subscribedChannel.IsActive = false;
+            
+            // Remove event handler if it's attached
             subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
+            
             SubscribedChannels.RemoveAt(index);
             NotifyPropertyChanged("SubscribedChannels");
+        }
+
+        /// <summary>
+        /// Switches between logging modes, handling necessary cleanup and setup
+        /// </summary>
+        public void SwitchLoggingMode(LoggingMode newMode)
+        {
+            if (CurrentMode == newMode) return;
+
+            // Stop current logging/streaming
+            if (Active)
+            {
+                Active = false;
+            }
+
+            // Update channel handlers based on new mode
+            foreach (var channel in SubscribedChannels)
+            {
+                if (newMode == LoggingMode.Stream)
+                {
+                    channel.OnChannelUpdated += HandleChannelUpdate;
+                }
+                else
+                {
+                    channel.OnChannelUpdated -= HandleChannelUpdate;
+                }
+            }
+
+            CurrentMode = newMode;
         }
         #endregion
 
