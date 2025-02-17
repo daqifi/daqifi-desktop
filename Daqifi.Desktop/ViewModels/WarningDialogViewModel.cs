@@ -4,14 +4,10 @@ using Daqifi.Desktop.Commands;
 
 namespace Daqifi.Desktop.ViewModels
 {
-    public class WarningDialogViewModel : ObservableObject
+    public partial class WarningDialogViewModel : ObservableObject
     {
+        [ObservableProperty]
         private string _message;
-        public string Message
-        {
-            get => _message;
-            set => SetProperty(ref _message, value);
-        }
 
         public ICommand OkCommand { get; }
 

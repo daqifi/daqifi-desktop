@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.IO.Messages.Producers;
+using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Models;
 
 namespace Daqifi.Desktop.Managers
@@ -12,7 +13,7 @@ namespace Daqifi.Desktop.Managers
     {
         private static readonly Lazy<SDCardLoggingManager> _instance = new(() => new SDCardLoggingManager());
         private readonly AppLogger _appLogger = AppLogger.Instance;
-        private readonly Dictionary<string, bool> _deviceLoggingStates = new();
+        private readonly Dictionary<string, bool> _loggingStates = new();
         private readonly Dictionary<string, List<SdCardFile>> _deviceFiles = new();
 
         public static SDCardLoggingManager Instance => _instance.Value;
@@ -24,20 +25,19 @@ namespace Daqifi.Desktop.Managers
         /// </summary>
         public async Task<bool> EnableLogging(IStreamingDevice device)
         {
+            if (device == null) return false;
+
             try
             {
-                if (device == null) return false;
-
                 // Stop WiFi streaming if active
-                if (device.IsStreaming)
+                if (LoggingManager.Instance.Active)
                 {
-                    device.StopStreaming();
-                    await Task.Delay(100); // Give device time to stop streaming
+                    LoggingManager.Instance.Active = false;
                 }
 
                 // Enable SD card logging
                 device.MessageProducer.Send(ScpiMessagePoducer.EnableSdLogging);
-                _deviceLoggingStates[device.DeviceSerialNo] = true;
+                _loggingStates[device.DeviceSerialNo] = true;
                 
                 _appLogger.Information($"Enabled SD card logging for device {device.DeviceSerialNo}");
                 return true;
@@ -52,22 +52,20 @@ namespace Daqifi.Desktop.Managers
         /// <summary>
         /// Disables SD card logging for a device
         /// </summary>
-        public bool DisableLogging(IStreamingDevice device)
+        public void DisableLogging(IStreamingDevice device)
         {
+            if (device == null) return;
+
             try
             {
-                if (device == null) return false;
-
                 device.MessageProducer.Send(ScpiMessagePoducer.DisableSdLogging);
-                _deviceLoggingStates[device.DeviceSerialNo] = false;
+                _loggingStates[device.DeviceSerialNo] = false;
                 
                 _appLogger.Information($"Disabled SD card logging for device {device.DeviceSerialNo}");
-                return true;
             }
             catch (Exception ex)
             {
                 _appLogger.Error(ex, $"Failed to disable SD card logging for device {device?.DeviceSerialNo}");
-                return false;
             }
         }
 
@@ -76,7 +74,7 @@ namespace Daqifi.Desktop.Managers
         /// </summary>
         public bool IsLoggingEnabled(string deviceSerialNo)
         {
-            return _deviceLoggingStates.TryGetValue(deviceSerialNo, out bool state) && state;
+            return _loggingStates.TryGetValue(deviceSerialNo, out var isEnabled) && isEnabled;
         }
 
         /// <summary>
@@ -84,6 +82,7 @@ namespace Daqifi.Desktop.Managers
         /// </summary>
         public void UpdateFileList(string deviceSerialNo, List<SdCardFile> files)
         {
+            if (string.IsNullOrEmpty(deviceSerialNo)) return;
             _deviceFiles[deviceSerialNo] = files;
         }
 
@@ -101,12 +100,16 @@ namespace Daqifi.Desktop.Managers
         public (bool canEnable, string message) ValidateLoggingState(IStreamingDevice device)
         {
             if (device == null)
-                return (false, "No device selected");
+            {
+                return (false, "No device selected.");
+            }
 
-            if (device.IsStreaming)
-                return (true, "WiFi streaming will be stopped when SD card logging is enabled");
+            if (LoggingManager.Instance.Active)
+            {
+                return (false, "Cannot enable SD card logging while WiFi streaming is active. Please stop streaming first.");
+            }
 
-            return (true, string.Empty);
+            return (true, null);
         }
 
         /// <summary>
@@ -114,7 +117,7 @@ namespace Daqifi.Desktop.Managers
         /// </summary>
         public void ClearDeviceState(string deviceSerialNo)
         {
-            _deviceLoggingStates.Remove(deviceSerialNo);
+            _loggingStates.Remove(deviceSerialNo);
             _deviceFiles.Remove(deviceSerialNo);
         }
     }
