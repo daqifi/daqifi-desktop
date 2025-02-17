@@ -43,7 +43,9 @@
         </ObjectDataProvider>
         
         <!-- Converters -->
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <local:BoolToConnectionStatusConverter x:Key="BoolToConnectionStatus"/>
+        <local:BoolToStatusColorConverter x:Key="BoolToStatusColor"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <local:NotNullToBoolConverter x:Key="NotNullToBoolConverter"/>
         
         <!-- Text Styles -->
@@ -70,7 +72,7 @@
             <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
-
+        
         <!-- Control Templates -->
         <ControlTemplate x:Key="ComboBoxToggleTemplate" TargetType="ToggleButton">
             <Border Background="{TemplateBinding Background}"
