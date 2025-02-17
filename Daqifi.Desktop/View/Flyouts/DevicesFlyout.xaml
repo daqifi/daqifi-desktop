@@ -287,7 +287,8 @@
                             <TextBlock Text="LOGGING MODE" Style="{StaticResource SectionHeaderStyle}"/>
                             <ComboBox Style="{StaticResource ComboBoxStyle}"
                                     Margin="0,0,0,25"
-                                    SelectedItem="{Binding SelectedLoggingMode, Mode=TwoWay}">
+                                    SelectedValue="{Binding SelectedLoggingMode, Mode=TwoWay}"
+                                    SelectedValuePath="Content">
                                 <ComboBoxItem Content="Stream to App"/>
                                 <ComboBoxItem Content="Log to Device"/>
                             </ComboBox>

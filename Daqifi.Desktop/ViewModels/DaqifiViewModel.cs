@@ -29,6 +29,7 @@ using Daqifi.Desktop.IO.Messages.Producers;
 using Daqifi.Desktop.Managers;
 using Application = System.Windows.Application;
 using File = System.IO.File;
+using System.Linq;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -599,7 +600,15 @@ namespace Daqifi.Desktop.ViewModels
                 if (_selectedLoggingMode != value)
                 {
                     _selectedLoggingMode = value;
-                    IsLogToDeviceMode = value == "Log to Device";
+                    
+                    // Handle ComboBoxItem content
+                    string mode = value;
+                    if (value?.Contains("ComboBoxItem") == true)
+                    {
+                        mode = value.Split(':').Last().Trim();
+                    }
+                    
+                    IsLogToDeviceMode = mode == "Log to Device";
                     
                     // If switching to Log to Device mode
                     if (IsLogToDeviceMode)
