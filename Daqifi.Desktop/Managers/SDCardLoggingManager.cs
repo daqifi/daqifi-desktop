@@ -35,6 +35,12 @@ namespace Daqifi.Desktop.Managers
                     LoggingManager.Instance.Active = false;
                 }
 
+                // Disable LAN first
+                device.MessageProducer.Send(ScpiMessagePoducer.DisableLan);
+                
+                // Enable SD card
+                device.MessageProducer.Send(ScpiMessagePoducer.EnableSdCard);
+                
                 // Enable SD card logging
                 device.MessageProducer.Send(ScpiMessagePoducer.EnableSdLogging);
                 _loggingStates[device.DeviceSerialNo] = true;
@@ -50,7 +56,7 @@ namespace Daqifi.Desktop.Managers
         }
 
         /// <summary>
-        /// Disables SD card logging for a device
+        /// Disables SD card logging for a device and re-enables LAN
         /// </summary>
         public void DisableLogging(IStreamingDevice device)
         {
@@ -58,7 +64,16 @@ namespace Daqifi.Desktop.Managers
 
             try
             {
+                // Disable SD card logging first
                 device.MessageProducer.Send(ScpiMessagePoducer.DisableSdLogging);
+                
+                // Disable SD card
+                device.MessageProducer.Send(ScpiMessagePoducer.DisableSdCard);
+                
+                // Re-enable LAN
+                device.MessageProducer.Send(ScpiMessagePoducer.EnabledLan);
+                device.MessageProducer.Send(ScpiMessagePoducer.ApplyLan);
+                
                 _loggingStates[device.DeviceSerialNo] = false;
                 
                 _appLogger.Information($"Disabled SD card logging for device {device.DeviceSerialNo}");

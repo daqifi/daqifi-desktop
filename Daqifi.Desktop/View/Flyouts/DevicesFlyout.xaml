@@ -284,6 +284,14 @@
                 <TabItem Header="DATA ACQUISITION" Style="{StaticResource TabItemStyle}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="25">
+                            <TextBlock Text="LOGGING MODE" Style="{StaticResource SectionHeaderStyle}"/>
+                            <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                    Margin="0,0,0,25"
+                                    SelectedItem="{Binding SelectedLoggingMode, Mode=TwoWay}">
+                                <ComboBoxItem Content="Stream to App"/>
+                                <ComboBoxItem Content="Log to Device"/>
+                            </ComboBox>
+
                             <TextBlock Text="SAMPLING CONFIGURATION" Style="{StaticResource SectionHeaderStyle}"/>
                             <TextBlock Text="Frequency (Hz)" Foreground="White" Margin="0,0,0,10"/>
                             <TextBox Text="{Binding ElementName=FrequencySlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
@@ -298,54 +306,47 @@
                                    TickFrequency="1"
                                    IsSnapToTickEnabled="True"
                                    Value="{Binding SelectedDevice.StreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
-                        </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
 
-                <TabItem Header="SD CARD" Style="{StaticResource TabItemStyle}">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="25">
-                            <TextBlock Text="LOGGING STATE" Style="{StaticResource SectionHeaderStyle}"/>
-                            <Controls:ToggleSwitch 
-                                IsOn="{Binding IsSdCardLoggingEnabled, Mode=TwoWay}"
-                                OnContent="Enabled" 
-                                OffContent="Disabled"
-                                Margin="0,0,0,25"/>
+                            <!-- SD Card options shown only when in Log to Device mode -->
+                            <StackPanel Visibility="{Binding IsLogToDeviceMode, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="DATA FORMAT" Style="{StaticResource SectionHeaderStyle}" Margin="0,25,0,0"/>
+                                <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                        Margin="0,0,0,25"
+                                        SelectedItem="{Binding SelectedDataFormat, Mode=TwoWay}">
+                                    <ComboBoxItem Content="Protobuf"/>
+                                    <ComboBoxItem Content="JSON"/>
+                                </ComboBox>
 
-                            <TextBlock Text="DATA FORMAT" Style="{StaticResource SectionHeaderStyle}"/>
-                            <ComboBox Style="{StaticResource ComboBoxStyle}"
-                                    Margin="0,0,0,25"
-                                    SelectedItem="{Binding SelectedDataFormat, Mode=TwoWay}">
-                                <ComboBoxItem Content="Protobuf"/>
-                                <ComboBoxItem Content="JSON"/>
-                            </ComboBox>
+                                <!-- Show file list only when logging is stopped -->
+                                <StackPanel Visibility="{Binding IsNotLogging, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="STORED FILES" Style="{StaticResource SectionHeaderStyle}"/>
+                                    <DockPanel LastChildFill="False" Margin="0,0,0,10">
+                                        <Button Style="{StaticResource ButtonStyle}"
+                                                Content="refresh list"
+                                                DockPanel.Dock="Left"
+                                                Command="{Binding RefreshSdCardFilesCommand}"/>
+                                        <Button Style="{StaticResource AccentButtonStyle}"
+                                                Content="download selected"
+                                                DockPanel.Dock="Right"
+                                                Command="{Binding DownloadSdCardFileCommand}"
+                                                IsEnabled="{Binding SelectedSdCardFile, Converter={StaticResource NotNullToBoolConverter}}"/>
+                                    </DockPanel>
 
-                            <TextBlock Text="STORED FILES" Style="{StaticResource SectionHeaderStyle}"/>
-                            <DockPanel LastChildFill="False" Margin="0,0,0,10">
-                                <Button Style="{StaticResource ButtonStyle}"
-                                        Content="refresh list"
-                                        DockPanel.Dock="Left"
-                                        Command="{Binding RefreshSdCardFilesCommand}"/>
-                                <Button Style="{StaticResource AccentButtonStyle}"
-                                        Content="download selected"
-                                        DockPanel.Dock="Right"
-                                        Command="{Binding DownloadSdCardFileCommand}"
-                                        IsEnabled="{Binding SelectedSdCardFile, Converter={StaticResource NotNullToBoolConverter}}"/>
-                            </DockPanel>
-
-                            <ListView Background="#333333"
-                                    BorderThickness="0"
-                                    Foreground="White"
-                                    Height="250"
-                                    ItemsSource="{Binding SdCardFiles}"
-                                    SelectedItem="{Binding SelectedSdCardFile, Mode=TwoWay}">
-                                <ListView.View>
-                                    <GridView>
-                                        <GridViewColumn Header="FILE NAME" Width="250" DisplayMemberBinding="{Binding FileName}"/>
-                                        <GridViewColumn Header="SIZE" Width="100" DisplayMemberBinding="{Binding FormattedSize}"/>
-                                    </GridView>
-                                </ListView.View>
-                            </ListView>
+                                    <ListView Background="#333333"
+                                            BorderThickness="0"
+                                            Foreground="White"
+                                            Height="250"
+                                            ItemsSource="{Binding SdCardFiles}"
+                                            SelectedItem="{Binding SelectedSdCardFile, Mode=TwoWay}">
+                                        <ListView.View>
+                                            <GridView>
+                                                <GridViewColumn Header="FILE NAME" Width="250" DisplayMemberBinding="{Binding FileName}"/>
+                                                <GridViewColumn Header="SIZE" Width="100" DisplayMemberBinding="{Binding FormattedSize}"/>
+                                            </GridView>
+                                        </ListView.View>
+                                    </ListView>
+                                </StackPanel>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>

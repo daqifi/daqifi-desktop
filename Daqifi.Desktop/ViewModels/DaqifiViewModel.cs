@@ -82,6 +82,8 @@ namespace Daqifi.Desktop.ViewModels
         private bool _hasNoHidDevices = true;
         private ConnectionDialogViewModel _connectionDialogViewModel;
         private readonly IDbContextFactory<LoggingContext> _loggingContext;
+        private string _selectedLoggingMode = "Stream to App";
+        private bool _isLogToDeviceMode;
         #endregion
 
         #region Properties
@@ -328,38 +330,25 @@ namespace Daqifi.Desktop.ViewModels
             get => _isSdCardLoggingEnabled;
             set
             {
-                if (_isSdCardLoggingEnabled == value) return;
-                _isSdCardLoggingEnabled = value;
-                
-                if (SelectedDevice != null)
+                if (_isSdCardLoggingEnabled != value)
                 {
-                    if (value)
+                    _isSdCardLoggingEnabled = value;
+                    
+                    if (SelectedDevice != null)
                     {
-                        var (canEnable, message) = SDCardLoggingManager.Instance.ValidateLoggingState(SelectedDevice);
-                        if (!string.IsNullOrEmpty(message))
+                        if (value)
                         {
-                            var dialogViewModel = new WarningDialogViewModel(message);
-                            _dialogService.ShowDialog<WarningDialog>(this, dialogViewModel);
-                        }
-                        
-                        if (canEnable)
-                        {
-                            _ = SDCardLoggingManager.Instance.EnableLogging(SelectedDevice);
+                            SDCardLoggingManager.Instance.EnableLogging(SelectedDevice);
                         }
                         else
                         {
-                            _isSdCardLoggingEnabled = false;
-                            OnPropertyChanged();
-                            return;
+                            SDCardLoggingManager.Instance.DisableLogging(SelectedDevice);
                         }
                     }
-                    else
-                    {
-                        SDCardLoggingManager.Instance.DisableLogging(SelectedDevice);
-                    }
+                    
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsNotLogging));
                 }
-                
-                OnPropertyChanged();
             }
         }
 
@@ -601,6 +590,55 @@ namespace Daqifi.Desktop.ViewModels
                 OnPropertyChanged("LoggedSessionName");
             }
         }
+
+        public string SelectedLoggingMode
+        {
+            get => _selectedLoggingMode;
+            set
+            {
+                if (_selectedLoggingMode != value)
+                {
+                    _selectedLoggingMode = value;
+                    IsLogToDeviceMode = value == "Log to Device";
+                    
+                    // If switching to Log to Device mode
+                    if (IsLogToDeviceMode)
+                    {
+                        // Stop any active streaming
+                        if (IsLogging)
+                        {
+                            IsLogging = false;
+                        }
+                    }
+                    // If switching to Stream to App mode
+                    else
+                    {
+                        // Disable SD card logging if it's enabled
+                        if (IsSdCardLoggingEnabled)
+                        {
+                            IsSdCardLoggingEnabled = false;
+                        }
+                    }
+                    
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool IsLogToDeviceMode
+        {
+            get => _isLogToDeviceMode;
+            private set
+            {
+                if (_isLogToDeviceMode != value)
+                {
+                    _isLogToDeviceMode = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool IsNotLogging => !IsLogging;
         #endregion
 
         #region Constructor

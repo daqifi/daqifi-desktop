@@ -105,11 +105,14 @@ namespace Daqifi.Desktop.IO.Messages.Producers
 
         #region SD Card Logging Commands
 
+        public static IMessage EnableSdCard => new ScpiMessage("SYSTem:STORage:SD:ENAble 1");
+        public static IMessage DisableSdCard => new ScpiMessage("SYSTem:STORage:SD:ENAble 0");
         public static IMessage EnableSdLogging => new ScpiMessage("SYSTem:STORage:SD:LOGging 1");
         public static IMessage DisableSdLogging => new ScpiMessage("SYSTem:STORage:SD:LOGging 0");
         public static IMessage GetSdLoggingState => new ScpiMessage("SYSTem:STORage:SD:LOGging?");
         public static IMessage GetSdFileList => new ScpiMessage("SYSTem:STORage:SD:LIST?");
         public static IMessage GetSdFile => new ScpiMessage("SYSTem:STORage:SD:GET");
+        public static IMessage DisableLan => new ScpiMessage("SYSTem:COMMunicate:LAN:ENAbled 0");
 
         #endregion
 
