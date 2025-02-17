@@ -12,8 +12,7 @@
         WindowStartupLocation="CenterOwner"
         GlowBrush="{DynamicResource AccentColorBrush}"
         ResizeMode="NoResize"
-        WindowStyle="None"
-        Theme="Dark">
+        WindowStyle="None">
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
