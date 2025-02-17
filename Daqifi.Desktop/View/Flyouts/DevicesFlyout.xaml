@@ -284,14 +284,71 @@
                 <TabItem Header="DATA ACQUISITION" Style="{StaticResource TabItemStyle}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="25">
+                            <!-- Device Status -->
+                            <TextBlock Text="DEVICE STATUS" Style="{StaticResource SectionHeaderStyle}"/>
+                            <Grid Margin="0,0,0,25">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                
+                                <TextBlock Text="Connection:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
+                                <TextBlock Text="{Binding SelectedDevice.IsConnected, Converter={StaticResource BoolToConnectionStatus}}" 
+                                         Grid.Row="0" Grid.Column="1" 
+                                         Foreground="{Binding SelectedDevice.IsConnected, Converter={StaticResource BoolToStatusColor}}"/>
+                                
+                                <TextBlock Text="Serial:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
+                                <TextBlock Text="{Binding SelectedDevice.DeviceSerialNo}" Grid.Row="1" Grid.Column="1"/>
+                                
+                                <TextBlock Text="Firmware:" Grid.Row="2" Grid.Column="0" Margin="0,0,10,5"/>
+                                <TextBlock Text="{Binding SelectedDevice.FirmwareVersion}" Grid.Row="2" Grid.Column="1"/>
+                            </Grid>
+
+                            <!-- Mode Selection with Status -->
                             <TextBlock Text="LOGGING MODE" Style="{StaticResource SectionHeaderStyle}"/>
-                            <ComboBox Style="{StaticResource ComboBoxStyle}"
-                                    Margin="0,0,0,25"
-                                    SelectedValue="{Binding SelectedLoggingMode, Mode=TwoWay}"
-                                    SelectedValuePath="Content">
-                                <ComboBoxItem Content="Stream to App"/>
-                                <ComboBoxItem Content="Log to Device"/>
-                            </ComboBox>
+                            <Grid Margin="0,0,0,25">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                
+                                <ComboBox Grid.Row="0"
+                                        Style="{StaticResource ComboBoxStyle}"
+                                        Margin="0,0,0,10"
+                                        SelectedValue="{Binding SelectedLoggingMode, Mode=TwoWay}"
+                                        SelectedValuePath="Content">
+                                    <ComboBoxItem Content="Stream to App"/>
+                                    <ComboBoxItem Content="Log to Device"/>
+                                </ComboBox>
+                                
+                                <!-- Mode Status Indicator -->
+                                <Border Grid.Row="1" 
+                                        Background="{DynamicResource MahApps.Brushes.Gray9}"
+                                        CornerRadius="4"
+                                        Padding="10">
+                                    <StackPanel>
+                                        <TextBlock Text="Current Status:" FontWeight="Bold"/>
+                                        <TextBlock Margin="0,5,0,0">
+                                            <Run Text="Mode: "/>
+                                            <Run Text="{Binding SelectedLoggingMode}" FontWeight="Bold"/>
+                                        </TextBlock>
+                                        <TextBlock Margin="0,5,0,0">
+                                            <Run Text="Active Channels: "/>
+                                            <Run Text="{Binding ActiveChannels.Count}" FontWeight="Bold"/>
+                                        </TextBlock>
+                                        <TextBlock Margin="0,5,0,0">
+                                            <Run Text="Sampling Rate: "/>
+                                            <Run Text="{Binding SelectedStreamingFrequency}" FontWeight="Bold"/>
+                                            <Run Text=" Hz"/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
 
                             <TextBlock Text="SAMPLING CONFIGURATION" Style="{StaticResource SectionHeaderStyle}"/>
                             <TextBlock Text="Frequency (Hz)" Foreground="White" Margin="0,0,0,10"/>

@@ -149,7 +149,73 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Controls:ToggleSwitch Grid.Column="2" IsOn="{Binding IsLogging, Mode=TwoWay}" IsEnabled="{Binding CanToggleLogging, Mode=OneWay}" OffContent="Logging Off" OnContent="Logging On" HorizontalAlignment="Right"/>
+                        
+                        <!-- Session Status Panel -->
+                        <Border Grid.Column="0"
+                                Background="{DynamicResource MahApps.Brushes.Gray9}"
+                                CornerRadius="4"
+                                Margin="5"
+                                Padding="10"
+                                Visibility="{Binding IsLogging, Converter={StaticResource BoolToVis}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <!-- Session Info -->
+                                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                    <TextBlock Text="Active Session" FontWeight="Bold"/>
+                                    <TextBlock Margin="0,5,0,0">
+                                        <Run Text="Mode: "/>
+                                        <Run Text="{Binding SelectedLoggingMode}" FontWeight="Bold"/>
+                                    </TextBlock>
+                                    <TextBlock Margin="0,5,0,0">
+                                        <Run Text="Duration: "/>
+                                        <Run Text="{Binding SessionDuration}" FontWeight="Bold"/>
+                                    </TextBlock>
+                                </StackPanel>
+                                
+                                <!-- Channel Info -->
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="Active Channels" FontWeight="Bold"/>
+                                    <ItemsControl ItemsSource="{Binding ActiveChannels}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Margin="0,5,0,0">
+                                                    <Run Text="{Binding Name}"/>
+                                                    <Run Text=" - "/>
+                                                    <Run Text="{Binding TypeString}"/>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                                
+                                <!-- Sampling Info -->
+                                <StackPanel Grid.Column="2" Margin="20,0,0,0">
+                                    <TextBlock Text="Sampling" FontWeight="Bold"/>
+                                    <TextBlock Margin="0,5,0,0">
+                                        <Run Text="Rate: "/>
+                                        <Run Text="{Binding SelectedStreamingFrequency}" FontWeight="Bold"/>
+                                        <Run Text=" Hz"/>
+                                    </TextBlock>
+                                    <TextBlock Margin="0,5,0,0" 
+                                              Visibility="{Binding IsLogToDeviceMode, Converter={StaticResource BoolToVis}}">
+                                        <Run Text="Storage: "/>
+                                        <Run Text="{Binding StorageUsage}" FontWeight="Bold"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        
+                        <Controls:ToggleSwitch Grid.Column="2" 
+                                              IsOn="{Binding IsLogging, Mode=TwoWay}" 
+                                              IsEnabled="{Binding CanToggleLogging, Mode=OneWay}" 
+                                              OffContent="Logging Off" 
+                                              OnContent="Logging On" 
+                                              HorizontalAlignment="Right"/>
                     </Grid>
                     <oxy:PlotView x:Name="DataLog" Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Model="{Binding Plotter.PlotModel}" Margin="5,5,20,5" TabIndex="0" />
 

@@ -1,0 +1,63 @@
+---
+description: 
+globs: 
+---
+# Project Rules
+
+## Project Background
+
+This is the Desktop Application that interacts with DAQiFi Devices
+
+### DAQiFi Goal
+
+Our goal is to modernize data acquisition so that users can focus more on the data itself rather than the data collection process. Current DAQs on the market are clunky, hard to configure, and have ugly user interfaces! We at DAQiFi are committed to creating powerful yet user friendly and intuitive products.
+
+
+## Naming Conventions
+- Interfaces: PascalCase with I prefix (e.g., IStreamingDevice)
+- Classes: PascalCase (e.g., FirewallConfiguration)
+- Methods: PascalCase (e.g., InitializeFirewallRules)
+- Properties: PascalCase (e.g., StreamingFrequency)
+- Private Fields: camelCase with _ prefix (e.g., _firewallHelper)
+- Constants: SCREAMING_SNAKE_CASE (e.g., RULE_NAME)
+
+## Code Style
+- Indentation: 4 spaces
+- Max line length: 120 characters
+- Braces: Allman style
+- Regions: Required for logical grouping (#region)
+- File organization: One main class per file
+
+## Architecture
+- Pattern: MVVM
+- Project Structure:
+  - Daqifi.Desktop - The main project including the UI
+  - Daqifi.Desktop.Bootloader - Specific to the bootloader / firmware domain
+  - Daqifi.Desktop.Common - Common things used across packages
+  - Daqifi.Desktop.DataModel - Specific to the data models used
+  - Daqifi.Desktop.IO - Consuming and producing messages from the DAQiFi device.
+  - Daqifi.Desktop.Setup - Wix installer to create a published version of DAQiFi Desktop Application. 
+
+## Testing
+- Test projects parallel main projects with .Test suffix
+- 80% minimum code coverage
+- Test files named *Tests.cs
+- Use MSTest with Moq for mocking
+
+## Documentation
+- README.md required and maintained
+- Use conventional commits
+- XML comments on public APIs
+- Keep documentation in sync with code
+
+## Security
+- Admin privileges required for firewall changes
+- Use SecureString for passwords
+- Input validation required
+- Secure error handling
+
+## Logging
+- Use NLog framework
+- Log levels: Error, Warning, Info, Debug
+- Store logs in CommonApplicationData\DAQifi\Logs
+- Include stack traces for errors
