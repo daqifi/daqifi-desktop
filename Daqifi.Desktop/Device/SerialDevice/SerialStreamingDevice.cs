@@ -84,17 +84,17 @@ namespace Daqifi.Desktop.Device.SerialDevice
         #region Serial Device Only Methods
         public void EnableLanUpdateMode()
         {
-            MessageProducer.Send(ScpiMessagePoducer.DeviceOn);
-            MessageProducer.Send(ScpiMessagePoducer.SetLanFWUpdateMode());
-            MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
+            MessageProducer.Send(ScpiMessageProducer.DeviceOn);
+            MessageProducer.Send(ScpiMessageProducer.SetLanFWUpdateMode);
+            MessageProducer.Send(ScpiMessageProducer.ApplyLan);
         }
         
         public void ResetLanAfterUpdate()
         {
-            MessageProducer.Send(ScpiMessagePoducer.SetUsbTransparencyMode(0));
-            MessageProducer.Send(ScpiMessagePoducer.EnabledLan());
-            MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
-            MessageProducer.Send(ScpiMessagePoducer.SaveLan());
+            MessageProducer.Send(ScpiMessageProducer.SetUsbTransparencyMode(0));
+            MessageProducer.Send(ScpiMessageProducer.EnableLan);
+            MessageProducer.Send(ScpiMessageProducer.ApplyLan);
+            MessageProducer.Send(ScpiMessageProducer.SaveLan);
         }
         #endregion
     }

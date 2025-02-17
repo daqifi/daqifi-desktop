@@ -109,7 +109,7 @@ namespace Daqifi.Desktop.Device
             var message = e.Message.Data as DaqifiOutMessage;
             if (message == null || !IsValidStatusMessage(message))
             {
-                MessageProducer.Send(ScpiMessagePoducer.SystemInfo);
+                MessageProducer.Send(ScpiMessageProducer.SystemInfo);
                 return;
             }
 
@@ -264,7 +264,7 @@ namespace Daqifi.Desktop.Device
         public void InitializeStreaming()
         {
             _previousTimestamp = null;
-            MessageProducer.Send(ScpiMessagePoducer.StartStreaming(StreamingFrequency));
+            MessageProducer.Send(ScpiMessageProducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
             var objectPoolProvider = new DefaultObjectPoolProvider(); // Initialize pools with default policy
             _samplePool = objectPoolProvider.Create<DataSample>();
@@ -274,7 +274,7 @@ namespace Daqifi.Desktop.Device
         public void StopStreaming()
         {
             IsStreaming = false;
-            MessageProducer.Send(ScpiMessagePoducer.StopStreaming);
+            MessageProducer.Send(ScpiMessageProducer.StopStreaming);
             _previousTimestamp = null;
 
             foreach (var channel in DataChannels)
@@ -288,17 +288,17 @@ namespace Daqifi.Desktop.Device
 
         protected void TurnOffEcho()
         {
-            MessageProducer.Send(ScpiMessagePoducer.Echo(-1));
+            MessageProducer.Send(ScpiMessageProducer.Echo(-1));
         }
 
         protected void TurnDeviceOn()
         {
-            MessageProducer.Send(ScpiMessagePoducer.DeviceOn);
+            MessageProducer.Send(ScpiMessageProducer.DeviceOn);
         }
 
         protected void SetProtobufMessageFormat()
         {
-            MessageProducer.Send(ScpiMessagePoducer.SetProtobufStreamFormat);
+            MessageProducer.Send(ScpiMessageProducer.SetProtobufStreamFormat);
         }
         #endregion
 
@@ -332,10 +332,10 @@ namespace Daqifi.Desktop.Device
                     var channelSetString = Convert.ToString(channelSetByte);
 
                     // Send the command to add the channel
-                    MessageProducer.Send(ScpiMessagePoducer.EnableAdcChannels(channelSetString));
+                    MessageProducer.Send(ScpiMessageProducer.EnableAdcChannels(channelSetString));
                     break;
                 case ChannelType.Digital:
-                    MessageProducer.Send(ScpiMessagePoducer.EnableDioPorts());
+                    MessageProducer.Send(ScpiMessageProducer.EnableDioPorts());
                     break;
             }
 
@@ -363,7 +363,7 @@ namespace Daqifi.Desktop.Device
                     var channelSetString = Convert.ToString(channelSetByte);
 
                     //Send the command to add the channel
-                    MessageProducer.Send(ScpiMessagePoducer.EnableAdcChannels(channelSetString));
+                    MessageProducer.Send(ScpiMessageProducer.EnableAdcChannels(channelSetString));
                     break;
             }
 
@@ -388,10 +388,10 @@ namespace Daqifi.Desktop.Device
             switch (channel.Type)
             {
                 case ChannelType.Analog:
-                    MessageProducer.Send(ScpiMessagePoducer.SetVoltageLevel(channel.Index, value));
+                    MessageProducer.Send(ScpiMessageProducer.SetVoltageLevel(channel.Index, value));
                     break;
                 case ChannelType.Digital:
-                    MessageProducer.Send(ScpiMessagePoducer.SetDioPortState(channel.Index, value));
+                    MessageProducer.Send(ScpiMessageProducer.SetDioPortState(channel.Index, value));
                     break;
             }
         }
@@ -401,10 +401,10 @@ namespace Daqifi.Desktop.Device
             switch (direction)
             {
                 case ChannelDirection.Input:
-                    MessageProducer.Send(ScpiMessagePoducer.SetDioPortDirection(channel.Index, 0));
+                    MessageProducer.Send(ScpiMessageProducer.SetDioPortDirection(channel.Index, 0));
                     break;
                 case ChannelDirection.Output:
-                    MessageProducer.Send(ScpiMessagePoducer.SetDioPortDirection(channel.Index, 1));
+                    MessageProducer.Send(ScpiMessageProducer.SetDioPortDirection(channel.Index, 1));
                     break;
             }
         }
@@ -414,10 +414,10 @@ namespace Daqifi.Desktop.Device
             switch (mode)
             {
                 case AdcMode.Differential:
-                    MessageProducer.Send(ScpiMessagePoducer.ConfigureAdcMode(channel.Index, 0));
+                    MessageProducer.Send(ScpiMessageProducer.ConfigureAdcMode(channel.Index, 0));
                     break;
                 case AdcMode.SingleEnded:
-                    MessageProducer.Send(ScpiMessagePoducer.ConfigureAdcMode(channel.Index, 1));
+                    MessageProducer.Send(ScpiMessageProducer.ConfigureAdcMode(channel.Index, 1));
                     break;
             }
         }
@@ -427,11 +427,11 @@ namespace Daqifi.Desktop.Device
             switch (range)
             {
                 case 5:
-                    MessageProducer.Send(ScpiMessagePoducer.ConfigureAdcRange(0));
+                    MessageProducer.Send(ScpiMessageProducer.ConfigureAdcRange(0));
                     AdcRange = 0;
                     break;
                 case 10:
-                    MessageProducer.Send(ScpiMessagePoducer.ConfigureAdcRange(1));
+                    MessageProducer.Send(ScpiMessageProducer.ConfigureAdcRange(1));
                     AdcRange = 1;
                     break;
             }
@@ -553,7 +553,7 @@ namespace Daqifi.Desktop.Device
         public void InitializeDeviceState()
         {
             MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
-            MessageProducer.Send(ScpiMessagePoducer.SystemInfo);
+            MessageProducer.Send(ScpiMessageProducer.SystemInfo);
         }
 
         private static double ScaleAnalogSample(AnalogChannel channel, double analogValue)
@@ -565,17 +565,17 @@ namespace Daqifi.Desktop.Device
         public void UpdateNetworkConfiguration()
         {
             if (IsStreaming) { StopStreaming(); }
-            MessageProducer.Send(ScpiMessagePoducer.SetWifiMode(NetworkConfiguration.Mode));
-            MessageProducer.Send(ScpiMessagePoducer.SetSsid(NetworkConfiguration.Ssid));
-            MessageProducer.Send(ScpiMessagePoducer.SetSecurity(NetworkConfiguration.SecurityType));
-            MessageProducer.Send(ScpiMessagePoducer.SetPassword(NetworkConfiguration.Password));
-            MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
-            MessageProducer.Send(ScpiMessagePoducer.SaveLan());
+            MessageProducer.Send(ScpiMessageProducer.SetWifiMode(NetworkConfiguration.Mode));
+            MessageProducer.Send(ScpiMessageProducer.SetSsid(NetworkConfiguration.Ssid));
+            MessageProducer.Send(ScpiMessageProducer.SetSecurity(NetworkConfiguration.SecurityType));
+            MessageProducer.Send(ScpiMessageProducer.SetPassword(NetworkConfiguration.Password));
+            MessageProducer.Send(ScpiMessageProducer.ApplyLan);
+            MessageProducer.Send(ScpiMessageProducer.SaveLan);
         }
 
         public void Reboot()
         {
-            MessageProducer.Send(ScpiMessagePoducer.Reboot);
+            MessageProducer.Send(ScpiMessageProducer.Reboot);
             MessageProducer.StopSafely();
             MessageConsumer.Stop();
         }

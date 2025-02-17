@@ -365,11 +365,11 @@ namespace Daqifi.Desktop.ViewModels
                 {
                     if (value == "JSON")
                     {
-                        SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.SetJsonStreamFormat);
+                        SelectedDevice.MessageProducer.Send(ScpiMessageProducer.SetJsonStreamFormat);
                     }
                     else
                     {
-                        SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.SetProtobufStreamFormat);
+                        SelectedDevice.MessageProducer.Send(ScpiMessageProducer.SetProtobufStreamFormat);
                     }
                 }
                 
@@ -2222,7 +2222,7 @@ namespace Daqifi.Desktop.ViewModels
             try
             {
                 // Request file list from device
-                SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.GetSdFileList);
+                SelectedDevice.MessageProducer.Send(ScpiMessageProducer.GetSdFileList);
                 
                 // Wait for response (this will be updated through the message handler)
                 await Task.Delay(1000);
@@ -2268,7 +2268,7 @@ namespace Daqifi.Desktop.ViewModels
                 if (saveFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     // Request file download from device
-                    SelectedDevice.MessageProducer.Send(ScpiMessagePoducer.GetSdFile);
+                    SelectedDevice.MessageProducer.Send(ScpiMessageProducer.GetSdFile);
                     
                     // Wait for response and save file
                     await Task.Delay(1000); // This will be replaced with actual file download logic
