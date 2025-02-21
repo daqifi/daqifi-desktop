@@ -63,13 +63,11 @@ namespace Daqifi.Desktop.Common.Loggers
         public void Information(string message)
         {
             _logger.Info(message);
-            _client.Notify(new Exception(message), Severity.Info);
         }
 
         public void Warning(string message)
         {
             _logger.Warn(message);
-            _client.Notify(new Exception(message), Severity.Warning);
         }
 
         public void Error(string message)
