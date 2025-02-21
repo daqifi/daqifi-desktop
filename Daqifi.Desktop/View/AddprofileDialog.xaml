@@ -65,7 +65,7 @@
                                         <Label Content="Channel:"/>
                                         <Label Content="{Binding Name}"/>
                                         <Label Content="Type:"/>
-                                        <Label Content="{Binding TypeString}"/>
+                                        <Label Content="{Binding TypeString, Mode=OneWay}"/>
                                         <Label Content="("/>
                                         <Label Content="{Binding DeviceSerialNo}"/>
                                         <Label Content=")"/>

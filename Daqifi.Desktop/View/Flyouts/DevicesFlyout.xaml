@@ -86,7 +86,7 @@
                     <ContentPresenter Grid.Column="0"
                                     Content="{Binding Path=SelectionBoxItem, RelativeSource={RelativeSource AncestorType={x:Type ComboBox}}}"
                                     ContentTemplate="{Binding Path=SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType={x:Type ComboBox}}}"
-                                    Margin="{TemplateBinding Padding}"
+                                    Margin="10,0"
                                     VerticalAlignment="Center"/>
                     <Path Grid.Column="1" 
                           Data="M0,0 L8,8 L16,0" 
@@ -200,7 +200,6 @@
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Height" Value="35"/>
-            <Setter Property="Padding" Value="10,0"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ComboBox">
@@ -210,7 +209,6 @@
                                         BorderBrush="{TemplateBinding BorderBrush}"
                                         BorderThickness="{TemplateBinding BorderThickness}"
                                         IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                        Padding="{TemplateBinding Padding}"
                                         Template="{StaticResource ComboBoxToggleTemplate}"/>
                             <Popup x:Name="PART_Popup"
                                    IsOpen="{TemplateBinding IsDropDownOpen}"
@@ -235,13 +233,12 @@
                     <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
                     <Setter Property="Foreground" Value="White"/>
                     <Setter Property="Height" Value="35"/>
-                    <Setter Property="Padding" Value="10,0"/>
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="ComboBoxItem">
                                 <Border x:Name="Border"
                                         Background="{TemplateBinding Background}"
-                                        Padding="{TemplateBinding Padding}">
+                                        Padding="10,0">
                                     <ContentPresenter VerticalAlignment="Center"/>
                                 </Border>
                                 <ControlTemplate.Triggers>
@@ -261,234 +258,188 @@
     </Controls:Flyout.Resources>
 
     <DockPanel LastChildFill="True">
-        <!-- Header -->
-        <Grid DockPanel.Dock="Top" Background="#2D2D30" Height="65">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
+        <!-- Header with Device Info -->
+        <Grid DockPanel.Dock="Top" Background="{StaticResource HeaderBackgroundBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             
-            <!-- Device Info -->
-            <StackPanel Margin="0,8,20,8">
-                <TextBlock Text="{Binding SelectedDevice.DevicePartNumber}"
-                         Style="{StaticResource HeaderTextBlockStyle}"/>
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="S/N: " Style="{StaticResource SubHeaderTextBlockStyle}"/>
-                    <TextBlock Text="{Binding SelectedDevice.DeviceSerialNo}" Style="{StaticResource SubHeaderTextBlockStyle}"/>
-                    <TextBlock Text=" | v" Style="{StaticResource SubHeaderTextBlockStyle}" Margin="10,0"/>
-                    <TextBlock Text="{Binding SelectedDevice.DeviceVersion}" Style="{StaticResource SubHeaderTextBlockStyle}"/>
-                </StackPanel>
+            <TextBlock Text="{Binding SelectedDevice.DevicePartNumber}" 
+                      FontSize="24" 
+                      Foreground="White" 
+                      FontWeight="Light"/>
+            
+            <StackPanel Grid.Row="1" 
+                        Orientation="Horizontal" 
+                        Margin="0,5,0,0">
+                <TextBlock Text="{Binding SelectedDevice.DeviceSerialNo}" 
+                          Foreground="#CCCCCC" 
+                          FontSize="14"/>
+                <TextBlock Text=" | v" 
+                          Foreground="#CCCCCC" 
+                          FontSize="14" 
+                          Margin="10,0"/>
+                <TextBlock Text="{Binding SelectedDevice.DeviceVersion}" 
+                          Foreground="#CCCCCC" 
+                          FontSize="14"/>
+                <TextBlock Text=" | " 
+                          Foreground="#CCCCCC" 
+                          FontSize="14" 
+                          Margin="10,0"/>
+                <TextBlock Text="{Binding SelectedDevice.IsConnected, Converter={StaticResource BoolToConnectionStatus}}"
+                          Foreground="{Binding SelectedDevice.IsConnected, Converter={StaticResource BoolToStatusColor}}"
+                          FontSize="14"/>
             </StackPanel>
         </Grid>
 
-        <!-- Tab Navigation -->
+        <!-- Main Content -->
         <TabControl Style="{StaticResource TabControlStyle}">
-            <TabControl.Items>
-                <TabItem Header="DATA ACQUISITION" Style="{StaticResource TabItemStyle}">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="25">
-                            <!-- Device Status -->
-                            <TextBlock Text="DEVICE STATUS" Style="{StaticResource SectionHeaderStyle}"/>
-                            <Grid Margin="0,0,0,25">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                
-                                <TextBlock Text="Connection:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
-                                <TextBlock Text="{Binding SelectedDevice.IsConnected, Converter={StaticResource BoolToConnectionStatus}}" 
-                                         Grid.Row="0" Grid.Column="1" 
-                                         Foreground="{Binding SelectedDevice.IsConnected, Converter={StaticResource BoolToStatusColor}}"/>
-                                
-                                <TextBlock Text="Serial:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
-                                <TextBlock Text="{Binding SelectedDevice.DeviceSerialNo}" Grid.Row="1" Grid.Column="1"/>
-                                
-                                <TextBlock Text="Firmware:" Grid.Row="2" Grid.Column="0" Margin="0,0,10,5"/>
-                                <TextBlock Text="{Binding SelectedDevice.FirmwareVersion}" Grid.Row="2" Grid.Column="1"/>
-                            </Grid>
+            <TabItem Header="DATA ACQUISITION" Style="{StaticResource TabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20">
+                        <!-- Logging Mode -->
+                        <TextBlock Text="LOGGING MODE" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                 Margin="0,0,0,20"
+                                 SelectedValue="{Binding SelectedLoggingMode, Mode=TwoWay}"
+                                 SelectedValuePath="Content">
+                            <ComboBoxItem Content="Stream to App"/>
+                            <ComboBoxItem Content="Log to Device"/>
+                        </ComboBox>
 
-                            <!-- Mode Selection with Status -->
-                            <TextBlock Text="LOGGING MODE" Style="{StaticResource SectionHeaderStyle}"/>
-                            <Grid Margin="0,0,0,25">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                
-                                <ComboBox Grid.Row="0"
-                                        Style="{StaticResource ComboBoxStyle}"
-                                        Margin="0,0,0,10"
-                                        SelectedValue="{Binding SelectedLoggingMode, Mode=TwoWay}"
-                                        SelectedValuePath="Content">
-                                    <ComboBoxItem Content="Stream to App"/>
-                                    <ComboBoxItem Content="Log to Device"/>
-                                </ComboBox>
-                                
-                                <!-- Mode Status Indicator -->
-                                <Border Grid.Row="1" 
-                                        Background="{DynamicResource MahApps.Brushes.Gray9}"
-                                        CornerRadius="4"
-                                        Padding="10">
-                                    <StackPanel>
-                                        <TextBlock Text="Current Status:" FontWeight="Bold"/>
-                                        <TextBlock Margin="0,5,0,0">
-                                            <Run Text="Mode: "/>
-                                            <Run Text="{Binding SelectedLoggingMode}" FontWeight="Bold"/>
-                                        </TextBlock>
-                                        <TextBlock Margin="0,5,0,0">
-                                            <Run Text="Active Channels: "/>
-                                            <Run Text="{Binding ActiveChannels.Count}" FontWeight="Bold"/>
-                                        </TextBlock>
-                                        <TextBlock Margin="0,5,0,0">
-                                            <Run Text="Sampling Rate: "/>
-                                            <Run Text="{Binding SelectedStreamingFrequency}" FontWeight="Bold"/>
-                                            <Run Text=" Hz"/>
-                                        </TextBlock>
-                                    </StackPanel>
-                                </Border>
-                            </Grid>
-
-                            <TextBlock Text="SAMPLING CONFIGURATION" Style="{StaticResource SectionHeaderStyle}"/>
-                            <TextBlock Text="Frequency (Hz)" Foreground="White" Margin="0,0,0,10"/>
+                        <!-- Sampling Configuration -->
+                        <TextBlock Text="SAMPLING CONFIGURATION" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <TextBlock Text="Frequency (Hz)" 
+                                 Foreground="White" 
+                                 Margin="0,0,0,5"/>
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
                             <TextBox Text="{Binding ElementName=FrequencySlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
                                     Style="{StaticResource TextBoxStyle}"
-                                    HorizontalAlignment="Left"
-                                    Width="100"
-                                    FontSize="24"
+                                    Width="80"
+                                    FontSize="20"
                                     TextAlignment="Center"
-                                    Margin="0,0,0,15"/>
-                            <Slider Name="FrequencySlider"
-                                   Minimum="1" Maximum="1000"
+                                    Margin="0,0,10,0"/>
+                            <Slider Grid.Column="1"
+                                   Name="FrequencySlider"
+                                   Minimum="1" 
+                                   Maximum="1000"
                                    TickFrequency="1"
                                    IsSnapToTickEnabled="True"
                                    Value="{Binding SelectedDevice.StreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
 
-                            <!-- SD Card options shown only when in Log to Device mode -->
-                            <StackPanel Visibility="{Binding IsLogToDeviceMode, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="DATA FORMAT" Style="{StaticResource SectionHeaderStyle}" Margin="0,25,0,0"/>
-                                <ComboBox Style="{StaticResource ComboBoxStyle}"
-                                        Margin="0,0,0,25"
-                                        SelectedItem="{Binding SelectedDataFormat, Mode=TwoWay}">
-                                    <ComboBoxItem Content="Protobuf"/>
-                                    <ComboBoxItem Content="JSON"/>
-                                </ComboBox>
-
-                                <!-- Show file list only when logging is stopped -->
-                                <StackPanel Visibility="{Binding IsNotLogging, Converter={StaticResource BoolToVis}}">
-                                    <TextBlock Text="STORED FILES" Style="{StaticResource SectionHeaderStyle}"/>
-                                    <DockPanel LastChildFill="False" Margin="0,0,0,10">
-                                        <Button Style="{StaticResource ButtonStyle}"
-                                                Content="refresh list"
-                                                DockPanel.Dock="Left"
-                                                Command="{Binding RefreshSdCardFilesCommand}"/>
-                                        <Button Style="{StaticResource AccentButtonStyle}"
-                                                Content="download selected"
-                                                DockPanel.Dock="Right"
-                                                Command="{Binding DownloadSdCardFileCommand}"
-                                                IsEnabled="{Binding SelectedSdCardFile, Converter={StaticResource NotNullToBoolConverter}}"/>
-                                    </DockPanel>
-
-                                    <ListView Background="#333333"
-                                            BorderThickness="0"
-                                            Foreground="White"
-                                            Height="250"
-                                            ItemsSource="{Binding SdCardFiles}"
-                                            SelectedItem="{Binding SelectedSdCardFile, Mode=TwoWay}">
-                                        <ListView.View>
-                                            <GridView>
-                                                <GridViewColumn Header="FILE NAME" Width="250" DisplayMemberBinding="{Binding FileName}"/>
-                                                <GridViewColumn Header="SIZE" Width="100" DisplayMemberBinding="{Binding FormattedSize}"/>
-                                            </GridView>
-                                        </ListView.View>
-                                    </ListView>
-                                </StackPanel>
-                            </StackPanel>
+                        <!-- Data Format (only shown in Log to Device mode) -->
+                        <StackPanel Visibility="{Binding IsLogToDeviceMode, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="DATA FORMAT" 
+                                     Style="{StaticResource SectionHeaderStyle}" 
+                                     Margin="0,0,0,10"/>
+                            <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                     Margin="0,0,0,20"
+                                     SelectedItem="{Binding SelectedDataFormat, Mode=TwoWay}">
+                                <ComboBoxItem Content="Protobuf"/>
+                                <ComboBoxItem Content="JSON"/>
+                            </ComboBox>
                         </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
 
-                <TabItem Header="NETWORK" Style="{StaticResource TabItemStyle}">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="25">
-                            <TextBlock Text="WIFI MODE" Style="{StaticResource FormLabelStyle}"/>
-                            <ComboBox Style="{StaticResource ComboBoxStyle}"
-                                    Margin="0,0,0,20"
-                                    ItemsSource="{Binding Source={StaticResource WifiModes}}"
-                                    SelectedItem="{Binding SelectedDevice.NetworkConfiguration.Mode}">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
+            <TabItem Header="NETWORK" Style="{StaticResource TabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20">
+                        <TextBlock Text="WIFI MODE" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                 Margin="0,0,0,20"
+                                 ItemsSource="{Binding Source={StaticResource WifiModes}}"
+                                 SelectedItem="{Binding SelectedDevice.NetworkConfiguration.Mode}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
 
-                            <TextBlock Text="SECURITY TYPE" Style="{StaticResource FormLabelStyle}"/>
-                            <ComboBox Style="{StaticResource ComboBoxStyle}"
-                                    Margin="0,0,0,20"
-                                    ItemsSource="{Binding Source={StaticResource WifiSecurityTypes}}"
-                                    SelectedItem="{Binding SelectedDevice.NetworkConfiguration.SecurityType}">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
+                        <TextBlock Text="SECURITY TYPE" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                 Margin="0,0,0,20"
+                                 ItemsSource="{Binding Source={StaticResource WifiSecurityTypes}}"
+                                 SelectedItem="{Binding SelectedDevice.NetworkConfiguration.SecurityType}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
 
-                            <TextBlock Text="NETWORK SSID" Style="{StaticResource FormLabelStyle}"/>
+                        <TextBlock Text="NETWORK SSID" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <TextBox Style="{StaticResource TextBoxStyle}"
+                                Margin="0,0,0,20"
+                                Text="{Binding SelectedDevice.NetworkConfiguration.Ssid, Mode=TwoWay}"/>
+
+                        <TextBlock Text="PASSWORD" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <TextBox Style="{StaticResource TextBoxStyle}"
+                                Margin="0,0,0,20"
+                                Text="{Binding SelectedDevice.NetworkConfiguration.Password, Mode=TwoWay}"/>
+
+                        <Button Content="APPLY NETWORK SETTINGS"
+                                Style="{StaticResource AccentButtonStyle}"
+                                HorizontalAlignment="Right"
+                                Command="{Binding UpdateNetworkConfigurationCommand}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="FIRMWARE" Style="{StaticResource TabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20">
+                        <TextBlock Text="UPDATE DEVICE FIRMWARE" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,15"/>
+                        
+                        <DockPanel LastChildFill="True" Margin="0,0,0,15">
+                            <Button DockPanel.Dock="Right"
+                                    Content="browse"
+                                    Style="{StaticResource ButtonStyle}"
+                                    Margin="10,0,0,0"
+                                    Command="{Binding BrowseForFirmwareCommand}"/>
                             <TextBox Style="{StaticResource TextBoxStyle}"
-                                    Margin="0,0,0,20"
-                                    Text="{Binding SelectedDevice.NetworkConfiguration.Ssid, Mode=TwoWay}"/>
+                                    Text="{Binding FirmwareFilePath, Mode=TwoWay}"/>
+                        </DockPanel>
 
-                            <TextBlock Text="PASSWORD" Style="{StaticResource FormLabelStyle}"/>
-                            <TextBox Style="{StaticResource TextBoxStyle}"
-                                    Margin="0,0,0,25"
-                                    Text="{Binding SelectedDevice.NetworkConfiguration.Password, Mode=TwoWay}"/>
-
-                            <Button Content="APPLY NETWORK SETTINGS"
+                        <DockPanel LastChildFill="True">
+                            <Button DockPanel.Dock="Right"
+                                    Content="update"
                                     Style="{StaticResource AccentButtonStyle}"
-                                    HorizontalAlignment="Right"
-                                    Command="{Binding UpdateNetworkConfigurationCommand}"/>
-                        </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
-
-                <TabItem Header="FIRMWARE" Style="{StaticResource TabItemStyle}">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="25">
-                            <TextBlock Text="UPDATE DEVICE FIRMWARE" Style="{StaticResource SectionHeaderStyle}"/>
-                            
-                            <DockPanel LastChildFill="True" Margin="0,0,0,15">
-                                <Button DockPanel.Dock="Right"
-                                        Content="browse"
-                                        Style="{StaticResource ButtonStyle}"
-                                        Margin="10,0,0,0"
-                                        Command="{Binding BrowseForFirmwareCommand}"/>
-                                <TextBox Style="{StaticResource TextBoxStyle}"
-                                        Text="{Binding FirmwareFilePath, Mode=TwoWay}"/>
-                            </DockPanel>
-
-                            <DockPanel LastChildFill="True">
-                                <Button DockPanel.Dock="Right"
-                                        Content="update"
-                                        Style="{StaticResource AccentButtonStyle}"
-                                        Margin="10,0,0,0"
-                                        Width="80"
-                                        Command="{Binding UploadFirmwareCommand}"/>
-                                <controls:MetroProgressBar Height="35"
-                                                         Background="#333333"
-                                                         Foreground="#4B8FE2"
-                                                         Minimum="0"
-                                                         Maximum="100"
-                                                         Value="{Binding UploadFirmwareProgress}"/>
-                            </DockPanel>
-                        </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
-            </TabControl.Items>
+                                    Margin="10,0,0,0"
+                                    Width="80"
+                                    Command="{Binding UploadFirmwareCommand}"/>
+                            <controls:MetroProgressBar Height="35"
+                                                     Background="#333333"
+                                                     Foreground="#4B8FE2"
+                                                     Minimum="0"
+                                                     Maximum="100"
+                                                     Value="{Binding UploadFirmwareProgress}"/>
+                        </DockPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
         </TabControl>
     </DockPanel>
 </Controls:Flyout>

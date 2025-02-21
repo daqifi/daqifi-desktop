@@ -1,7 +1,9 @@
-﻿<Application x:Class="Daqifi.Desktop.App"
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Application x:Class="Daqifi.Desktop.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"   
-             xmlns:helpers="clr-namespace:Daqifi.Desktop.Helpers">
+             xmlns:helpers="clr-namespace:Daqifi.Desktop.Helpers"
+             xmlns:converters="clr-namespace:Daqifi.Desktop.Converters">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -39,6 +41,8 @@
             <helpers:IntToVisibilityConverter x:Key="intToVisibility"/>
             <helpers:EnumDescriptionConverter x:Key="EnumDescription"/>
             <helpers:BooleanToInverseBoolConverter x:Key="BooleanToInverse"/>
+            <converters:BoolToActiveStatusConverter x:Key="BoolToActiveStatus"/>
+            <converters:BoolToStatusColorConverter x:Key="BoolToStatusColor"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -186,7 +186,7 @@
                                                 <TextBlock Margin="0,5,0,0">
                                                     <Run Text="{Binding Name}"/>
                                                     <Run Text=" - "/>
-                                                    <Run Text="{Binding TypeString}"/>
+                                                    <Run Text="{Binding TypeString, Mode=OneWay}"/>
                                                 </TextBlock>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
@@ -483,7 +483,7 @@
                                                     <Rectangle Grid.Column="0" Width="25" Height="25" VerticalAlignment="Center" Fill="{Binding ChannelColorBrush}"/>
                                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                         <Label Content="{Binding Name}" FontSize="16" Padding="5,0,0,0"/>
-                                                        <Label Content="{Binding TypeString}" Padding="5,0,0,0"/>
+                                                        <Label Content="{Binding TypeString, Mode=OneWay}" Padding="5,0,0,0"/>
                                                         <Label Content="{Binding DeviceSerialNo}" FontSize="12" Padding="5,0,0,0"/>
                                                     </StackPanel>
 

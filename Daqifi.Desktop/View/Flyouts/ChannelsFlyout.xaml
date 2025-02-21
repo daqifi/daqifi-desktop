@@ -33,7 +33,7 @@
                               Foreground="{Binding SelectedChannel.IsActive, Converter={StaticResource BoolToStatusColor}}"/>
                     
                     <TextBlock Text="Type:" Grid.Row="1" Grid.Column="0" Margin="0,0,10,5"/>
-                    <TextBlock Text="{Binding SelectedChannel.TypeString}" Grid.Row="1" Grid.Column="1"/>
+                    <TextBlock Text="{Binding SelectedChannel.TypeString, Mode=OneWay}" Grid.Row="1" Grid.Column="1"/>
                     
                     <TextBlock Text="Device:" Grid.Row="2" Grid.Column="0" Margin="0,0,10,5"/>
                     <TextBlock Text="{Binding SelectedChannel.DeviceName}" Grid.Row="2" Grid.Column="1"/>
