@@ -1,26 +1,60 @@
-/Daqifi.Desktop/bin
-/Daqifi.Desktop/obj
-/Daqifi.Desktop.Bootloader/bin
-/Daqifi.Desktop.Bootloader/obj
-/Daqifi.Desktop.Bootloader.Test/obj
-/Daqifi.Desktop.Bootloader.Test/bin
-/Daqifi.Desktop.Test/obj
-/Daqifi.Desktop.Test/bin
-/packages
-/.vs/DAQIifi Desktop/v15/*.suo
-/.vs/DAQIifi Desktop/v15/Server/sqlite3
-/Daqifi.Desktop.DataModel/bin/Debug
-/Daqifi.Desktop.DataModel/obj/Debug
-/Daqifi.Desktop.Setup/packages
-/Daqifi.Desktop.Setup/DAQifiDesktopSetup/bin
-/Daqifi.Desktop.Setup/DAQifiDesktopSetup/obj
-/Daqifi.Desktop.Setup/.vs
-/DAQIifi Desktop.sln.DotSettings.user
-bin
-obj
-AnalysisReport.sarif
-debug.log
-upgrade-assistant.clef
+# Build results
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]uild/
+msbuild.log
+msbuild.err
+msbuild.wrn
+
+# Visual Studio files
 .vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.[Cc]ache
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.log
+*.sarif
+*.clef
+
+# Test Results
+**/TestResults/
+[Tt]est[Rr]esult*/
+*.coverage
+*.coveragexml
+
+# IDE files
 .idea/
+.vscode/
 .editorconfig
+
+# NuGet Packages
+*.nupkg
+packages/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Misc
+[Tt]emp/
+*.tmp
+*.swp
+*~
+._*
+.DS_Store
+thumbs.db
