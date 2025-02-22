@@ -26,7 +26,6 @@ using System.Windows;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using Daqifi.Desktop.IO.Messages.Producers;
-using Daqifi.Desktop.Managers;
 using Application = System.Windows.Application;
 using File = System.IO.File;
 using System.Linq;
@@ -221,17 +220,30 @@ namespace Daqifi.Desktop.ViewModels
                 _isLogging = value;
                 if (_isLogging)
                 {
-                    Plotter.ClearPlot();
                     foreach (var device in ConnectedDevices)
                     {
-                        device.InitializeStreaming();
+                        if (device.Mode == DeviceMode.StreamToApp)
+                        {
+                            device.InitializeStreaming();
+                        }
+                        else if (device.Mode == DeviceMode.LogToDevice)
+                        {
+                            device.StartSdCardLogging();
+                        }
                     }
                 }
                 else
                 {
                     foreach (var device in ConnectedDevices)
                     {
-                        device.StopStreaming();
+                        if (device.Mode == DeviceMode.StreamToApp)
+                        {
+                            device.StopStreaming();
+                        }
+                        else if (device.Mode == DeviceMode.LogToDevice)
+                        {
+                            device.StopSdCardLogging();
+                        }
                     }
                 }
                 LoggingManager.Instance.Active = value;
@@ -337,20 +349,30 @@ namespace Daqifi.Desktop.ViewModels
                     
                     if (SelectedDevice != null)
                     {
-                        if (value)
+                        try
                         {
-                            // Ensure we're in SD card mode
-                            LoggingManager.Instance.SwitchLoggingMode(LoggingMode.SdCard);
-                            SDCardLoggingManager.Instance.EnableLogging(SelectedDevice);
-                        }
-                        else
-                        {
-                            SDCardLoggingManager.Instance.DisableLogging(SelectedDevice);
-                            // Switch back to streaming mode if not explicitly in SD card mode
-                            if (!IsLogToDeviceMode)
+                            if (value)
                             {
-                                LoggingManager.Instance.SwitchLoggingMode(LoggingMode.Stream);
+                                SelectedDevice.SwitchMode(DeviceMode.LogToDevice);
+                                SelectedDevice.StartSdCardLogging();
                             }
+                            else
+                            {
+                                SelectedDevice.StopSdCardLogging();
+                                if (!IsLogToDeviceMode)
+                                {
+                                    SelectedDevice.SwitchMode(DeviceMode.StreamToApp);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _appLogger.Error(ex, "Failed to toggle SD card logging");
+                            var errorDialogViewModel = new ErrorDialogViewModel("Failed to toggle SD card logging. Please try again.");
+                            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                            
+                            // Revert the toggle
+                            _isSdCardLoggingEnabled = !value;
                         }
                     }
                     
@@ -616,27 +638,12 @@ namespace Daqifi.Desktop.ViewModels
                     }
                     
                     IsLogToDeviceMode = mode == "Log to Device";
+                    var deviceMode = IsLogToDeviceMode ? DeviceMode.LogToDevice : DeviceMode.StreamToApp;
                     
-                    // Switch logging mode in LoggingManager
-                    LoggingManager.Instance.SwitchLoggingMode(IsLogToDeviceMode ? LoggingMode.SdCard : LoggingMode.Stream);
-                    
-                    // If switching to Log to Device mode
-                    if (IsLogToDeviceMode)
+                    // Switch mode on all devices
+                    foreach (var device in ConnectedDevices)
                     {
-                        // Stop any active streaming
-                        if (IsLogging)
-                        {
-                            IsLogging = false;
-                        }
-                    }
-                    // If switching to Stream to App mode
-                    else
-                    {
-                        // Disable SD card logging if it's enabled
-                        if (IsSdCardLoggingEnabled)
-                        {
-                            IsSdCardLoggingEnabled = false;
-                        }
+                        device.SwitchMode(deviceMode);
                     }
                     
                     OnPropertyChanged();
@@ -1500,7 +1507,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void ExportAllLoggingSession(object o)
         {
-            if (LoggingSessions == null)
+            if (LoggingSessions.Count == 0)
             {
                 _appLogger.Error("Error exporting all logging sessions");
                 return;
@@ -2231,18 +2238,13 @@ namespace Daqifi.Desktop.ViewModels
             
             try
             {
-                // Request file list from device
-                SelectedDevice.MessageProducer.Send(ScpiMessageProducer.GetSdFileList);
+                SelectedDevice.RefreshSdCardFiles();
+                await Task.Delay(1000); // Wait for response
                 
-                // Wait for response (this will be updated through the message handler)
-                await Task.Delay(1000);
-                
-                // Update UI with files from manager
-                var files = SDCardLoggingManager.Instance.GetFileList(SelectedDevice.DeviceSerialNo);
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     SdCardFiles.Clear();
-                    foreach (var file in files)
+                    foreach (var file in SelectedDevice.SdCardFiles)
                     {
                         SdCardFiles.Add(file);
                     }
@@ -2277,11 +2279,8 @@ namespace Daqifi.Desktop.ViewModels
 
                 if (saveFileDialog.ShowDialog() == DialogResult.OK)
                 {
-                    // Request file download from device
-                    SelectedDevice.MessageProducer.Send(ScpiMessageProducer.GetSdFile);
-                    
-                    // Wait for response and save file
-                    await Task.Delay(1000); // This will be replaced with actual file download logic
+                    SelectedDevice.DownloadSdCardFile(SelectedSdCardFile.FileName);
+                    await Task.Delay(1000); // Wait for response
                     
                     var successDialogViewModel = new SuccessDialogViewModel("File downloaded successfully.");
                     _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);

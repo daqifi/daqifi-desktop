@@ -288,20 +288,9 @@ namespace Daqifi.Desktop.IO.Test.Messages.Producers
         [TestMethod]
         public void EnableSdLoggingCommand_ReturnsCorrectCommand()
         {
-            var actualCommand = ScpiMessageProducer.EnableSdLogging;
+            var actualCommand = ScpiMessageProducer.SetSdLoggingFileName("test.bin");
             var actualCommandRawData = actualCommand.GetBytes();
-            const string expectedCommandText = "SYSTem:STORage:SD:LOGging 1";
-            var expectedCommandRawData = GetBytes(expectedCommandText);
-
-            CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
-        }
-
-        [TestMethod]
-        public void DisableSdLoggingCommand_ReturnsCorrectCommand()
-        {
-            var actualCommand = ScpiMessageProducer.DisableSdLogging;
-            var actualCommandRawData = actualCommand.GetBytes();
-            const string expectedCommandText = "SYSTem:STORage:SD:LOGging 0";
+            const string expectedCommandText = "SYSTem:STORage:SD:LOGging test.bin";
             var expectedCommandRawData = GetBytes(expectedCommandText);
 
             CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
@@ -341,7 +330,7 @@ namespace Daqifi.Desktop.IO.Test.Messages.Producers
         }
         #endregion
 
-        public byte[] GetBytes(string data)
+        private byte[] GetBytes(string data)
         {
             return Encoding.ASCII.GetBytes(data + "\r\n");
         }

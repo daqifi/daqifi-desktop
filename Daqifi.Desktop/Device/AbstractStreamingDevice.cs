@@ -7,6 +7,7 @@ using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using Microsoft.Extensions.ObjectPool;
 using Daqifi.Desktop.IO.Messages.Decoders;
+using Daqifi.Desktop.Models;
 
 namespace Daqifi.Desktop.Device
 {
@@ -29,9 +30,16 @@ namespace Daqifi.Desktop.Device
         private Dictionary<string, uint?> _previousDeviceTimestamps = new Dictionary<string, uint?>();
         private ObjectPool<DataSample> _samplePool;
         private ObjectPool<DeviceMessage> _deviceMessagePool;
+        private DeviceMode _mode = DeviceMode.StreamToApp;
+        private bool _isLoggingToSdCard;
+        private List<SdCardFile> _sdCardFiles = new();
 
         #region Properties
         public AppLogger AppLogger = AppLogger.Instance;
+
+        public DeviceMode Mode => _mode;
+        public bool IsLoggingToSdCard => _isLoggingToSdCard;
+        public IReadOnlyList<SdCardFile> SdCardFiles => _sdCardFiles.AsReadOnly();
 
         public int Id { get; set; }
 
@@ -261,11 +269,149 @@ namespace Daqifi.Desktop.Device
         #endregion
 
         #region Streaming Methods
+        public void SwitchMode(DeviceMode newMode)
+        {
+            if (_mode == newMode) return;
+            
+            // Stop any current activity
+            if (IsStreaming)
+            {
+                StopStreaming();
+            }
+            if (IsLoggingToSdCard)
+            {
+                StopSdCardLogging();
+            }
+            
+            // Clean up old mode
+            switch (_mode)
+            {
+                case DeviceMode.StreamToApp:
+                    StopMessageConsumer();
+                    break;
+                case DeviceMode.LogToDevice:
+                    // Ensure SD card logging is stopped
+                    StopSdCardLogging();
+                    break;
+            }
+
+            _mode = newMode;
+
+            // Setup new mode
+            switch (_mode)
+            {
+                case DeviceMode.StreamToApp:
+                    MessageProducer.Send(ScpiMessageProducer.EnableLan);
+                    MessageProducer.Send(ScpiMessageProducer.ApplyLan);
+                    SetProtobufMessageFormat();
+                    break;
+                case DeviceMode.LogToDevice:
+                    MessageProducer.Send(ScpiMessageProducer.DisableLan);
+                    MessageProducer.Send(ScpiMessageProducer.ApplyLan);
+                    break;
+            }
+
+            NotifyPropertyChanged(nameof(Mode));
+        }
+
+        public void StartSdCardLogging()
+        {
+            if (Mode != DeviceMode.LogToDevice)
+            {
+                throw new InvalidOperationException("Cannot start SD card logging while in StreamToApp mode");
+            }
+
+            try
+            {
+                MessageProducer.Send(ScpiMessageProducer.EnableSdCard);
+                MessageProducer.Send(ScpiMessageProducer.SetSdLoggingFileName($"log_{DateTime.Now:yyyyMMdd_HHmmss}.bin"));
+                MessageProducer.Send(ScpiMessageProducer.SetJsonStreamFormat); // Set format for SD card logging
+                
+                // Enable any active channels
+                foreach (var channel in DataChannels.Where(c => c.IsActive))
+                {
+                    if (channel.Type == ChannelType.Analog)
+                    {
+                        var channelSetByte = 1 << channel.Index;
+                        MessageProducer.Send(ScpiMessageProducer.EnableAdcChannels(channelSetByte.ToString()));
+                    }
+                    else if (channel.Type == ChannelType.Digital)
+                    {
+                        MessageProducer.Send(ScpiMessageProducer.EnableDioPorts());
+                    }
+                }
+
+                // Start the device logging at the configured frequency
+                MessageProducer.Send(ScpiMessageProducer.StartStreaming(StreamingFrequency));
+                
+                _isLoggingToSdCard = true;
+                IsStreaming = true; // We're streaming to SD card
+                AppLogger.Information($"Enabled SD card logging for device {DeviceSerialNo}");
+                NotifyPropertyChanged(nameof(IsLoggingToSdCard));
+                NotifyPropertyChanged(nameof(IsStreaming));
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, $"Failed to enable SD card logging for device {DeviceSerialNo}");
+                throw;
+            }
+        }
+
+        public void StopSdCardLogging()
+        {
+            try
+            {
+                // Stop the device logging
+                MessageProducer.Send(ScpiMessageProducer.StopStreaming);
+                MessageProducer.Send(ScpiMessageProducer.DisableSdCard);
+                
+                _isLoggingToSdCard = false;
+                IsStreaming = false;
+                AppLogger.Information($"Disabled SD card logging for device {DeviceSerialNo}");
+                NotifyPropertyChanged(nameof(IsLoggingToSdCard));
+                NotifyPropertyChanged(nameof(IsStreaming));
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, $"Failed to disable SD card logging for device {DeviceSerialNo}");
+                throw;
+            }
+        }
+
+        public void RefreshSdCardFiles()
+        {
+            MessageProducer.Send(ScpiMessageProducer.GetSdFileList);
+        }
+
+        public void UpdateSdCardFiles(List<SdCardFile> files)
+        {
+            _sdCardFiles = files ?? new List<SdCardFile>();
+            NotifyPropertyChanged(nameof(SdCardFiles));
+        }
+
+        public void DownloadSdCardFile(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName))
+            {
+                throw new ArgumentException("Filename cannot be null or empty", nameof(fileName));
+            }
+
+            MessageProducer.Send(ScpiMessageProducer.GetSdFile);
+            // Note: The actual file download handling would need to be implemented
+            // based on how the device sends the file data
+        }
+
         public void InitializeStreaming()
         {
+            if (Mode != DeviceMode.StreamToApp)
+            {
+                throw new InvalidOperationException("Cannot initialize streaming while in LogToDevice mode");
+            }
+
             _previousTimestamp = null;
             MessageProducer.Send(ScpiMessageProducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
+            StartMessageConsumer();
             var objectPoolProvider = new DefaultObjectPoolProvider(); // Initialize pools with default policy
             _samplePool = objectPoolProvider.Create<DataSample>();
             _deviceMessagePool = objectPoolProvider.Create<DeviceMessage>();
@@ -275,6 +421,7 @@ namespace Daqifi.Desktop.Device
         {
             IsStreaming = false;
             MessageProducer.Send(ScpiMessageProducer.StopStreaming);
+            StopMessageConsumer();
             _previousTimestamp = null;
 
             foreach (var channel in DataChannels)
@@ -282,6 +429,35 @@ namespace Daqifi.Desktop.Device
                 if (channel.ActiveSample != null)
                 {
                     channel.ActiveSample = null;
+                }
+            }
+        }
+
+        protected void StartMessageConsumer()
+        {
+            if (Mode != DeviceMode.StreamToApp)
+            {
+                return; // Don't start consumer if not in streaming mode
+            }
+            
+            if (MessageConsumer != null)
+            {
+                MessageConsumer.OnMessageReceived += HandleMessageReceived;
+                if (!MessageConsumer.Running)
+                {
+                    MessageConsumer.Start();
+                }
+            }
+        }
+
+        protected void StopMessageConsumer()
+        {
+            if (MessageConsumer != null)
+            {
+                MessageConsumer.OnMessageReceived -= HandleMessageReceived;
+                if (MessageConsumer.Running)
+                {
+                    MessageConsumer.Stop();
                 }
             }
         }

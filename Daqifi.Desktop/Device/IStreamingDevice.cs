@@ -1,13 +1,31 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.DataModel.Channel;
+using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
-using Daqifi.Desktop.DataModel.Network;
+using Daqifi.Desktop.Models;
 
 namespace Daqifi.Desktop.Device
 {
+    public enum DeviceMode
+    {
+        StreamToApp,
+        LogToDevice
+    }
+
     public interface IStreamingDevice : IDevice
     {
+        DeviceMode Mode { get; }
+        bool IsLoggingToSdCard { get; }
+        IReadOnlyList<SdCardFile> SdCardFiles { get; }
+
+        void SwitchMode(DeviceMode newMode);
+        void StartSdCardLogging();
+        void StopSdCardLogging();
+        void RefreshSdCardFiles();
+        void UpdateSdCardFiles(List<SdCardFile> files);
+        void DownloadSdCardFile(string fileName);
+
         string DevicePartNumber { get; }
         NetworkConfiguration NetworkConfiguration { get; }
         List<string> AdcRanges { get; }

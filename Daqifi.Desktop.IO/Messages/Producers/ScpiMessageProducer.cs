@@ -23,13 +23,14 @@ namespace Daqifi.Desktop.IO.Messages.Producers
 
         public static IMessage EnableSdCard => new ScpiMessage("SYSTem:STORage:SD:ENAble 1");
         public static IMessage DisableSdCard => new ScpiMessage("SYSTem:STORage:SD:ENAble 0");
-        public static IMessage EnableSdLogging => new ScpiMessage("SYSTem:STORage:SD:LOGging 1");
-        public static IMessage DisableSdLogging => new ScpiMessage("SYSTem:STORage:SD:LOGging 0");
         public static IMessage GetSdLoggingState => new ScpiMessage("SYSTem:STORage:SD:LOGging?");
         public static IMessage GetSdFileList => new ScpiMessage("SYSTem:STORage:SD:LIST?");
         public static IMessage GetSdFile => new ScpiMessage("SYSTem:STORage:SD:GET");
-        public static IMessage DisableLan => new ScpiMessage("SYSTem:COMMunicate:LAN:ENAbled 0");
-        public static IMessage EnableLan => new ScpiMessage("SYSTem:COMMunicate:LAN:ENAbled 1");
+        
+        public static IMessage SetSdLoggingFileName(string fileName)
+        {
+            return new ScpiMessage($"SYSTem:STORage:SD:LOGging \"{fileName}\"");
+        }
 
         #endregion
 
@@ -129,6 +130,10 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         {
             return new ScpiMessage($"SYSTem:COMMunicate:LAN:PASs \"{password}\"");
         }
+        
+        public static IMessage DisableLan => new ScpiMessage("SYSTem:COMMunicate:LAN:ENAbled 0");
+        
+        public static IMessage EnableLan => new ScpiMessage("SYSTem:COMMunicate:LAN:ENAbled 1");
         
         public static IMessage ApplyLan => new ScpiMessage("SYSTem:COMMunicate:LAN:APPLY");
 
