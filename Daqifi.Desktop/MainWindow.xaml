@@ -378,7 +378,7 @@
                                             <DataTemplate>
                                                 <Border>
                                                     <DockPanel >
-                                                        <Label Content="{Binding Name}" DockPanel.Dock="Left" FontWeight="Bold"/>
+                                                        <TextBlock Text="{Binding Name}" DockPanel.Dock="Left" FontWeight="Bold" VerticalAlignment="Center"/>
 
                                                         <!-- Delete Logging Session -->
                                                         <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteLoggingSessionCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Delete" Padding="5">
