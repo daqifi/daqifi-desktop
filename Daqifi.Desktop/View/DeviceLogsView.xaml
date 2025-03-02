@@ -6,42 +6,16 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
-             xmlns:oxy="http://oxyplot.org/wpf"
              xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="2*"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-
-        <!-- Device Logs Plot -->
-        <Grid Grid.Row="0">
-            <oxy:PlotView x:Name="DeviceLogPlot" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0" />
-            <DockPanel LastChildFill="False" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0,10,25,0">
-                <StackPanel>
-                    <Button Command="{Binding DbLogger.ZoomInYCommand}" ToolTip="Zoom In (Analog)" Style="{StaticResource FadeButton}">
-                        <Button.Content>
-                            <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                        </Button.Content>
-                    </Button>
-                    <Button Command="{Binding DbLogger.ZoomOutYCommand}" ToolTip="Zoom Out (Analog)" Style="{StaticResource FadeButton}">
-                        <Button.Content>
-                            <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                        </Button.Content>
-                    </Button>
-                    <Button Command="{Binding DbLogger.ResetZoomCommand}" Style="{StaticResource FadeButton}" ToolTip="Reset Zoom" VerticalAlignment="Bottom">
-                        <Button.Content>
-                            <iconPacks:PackIconMaterial Kind="Crosshairs" HorizontalAlignment="Center" Height="15" Width="15"/>
-                        </Button.Content>
-                    </Button>
-                </StackPanel>
-            </DockPanel>
-        </Grid>
-
+        
         <!-- Device Logs List -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
@@ -69,20 +43,6 @@
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
-                        <GridViewColumn Header="Start Time" Width="150">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding SessionStart, StringFormat=\{0:g\}}" />
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
-                        <GridViewColumn Header="File" Width="200">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding SourceFilePath}" />
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
                         <GridViewColumn Width="100">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
@@ -91,11 +51,6 @@
                                                 CommandParameter="{Binding}" Style="{StaticResource FadeButton}" 
                                                 ToolTip="Export">
                                             <iconPacks:PackIconMaterial Kind="Export" Height="15" Width="15"/>
-                                        </Button>
-                                        <Button Command="{Binding DataContext.DeleteDeviceLogCommand, RelativeSource={RelativeSource AncestorType=ListView}}" 
-                                                CommandParameter="{Binding}" Style="{StaticResource FadeButton}" 
-                                                ToolTip="Delete">
-                                            <iconPacks:PackIconMaterial Kind="Delete" Height="15" Width="15"/>
                                         </Button>
                                     </StackPanel>
                                 </DataTemplate>
