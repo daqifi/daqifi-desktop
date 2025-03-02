@@ -28,7 +28,6 @@ using CommunityToolkit.Mvvm.Input;
 using Daqifi.Desktop.IO.Messages.Producers;
 using Application = System.Windows.Application;
 using File = System.IO.File;
-using System.Linq;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -97,9 +96,9 @@ namespace Daqifi.Desktop.ViewModels
         public ObservableCollection<IChannel> ActiveInputChannels { get; } = [];
         public ObservableCollection<LoggingSession> LoggingSessions { get; } = [];
 
-        public PlotLogger Plotter { get; }
-        public DatabaseLogger DbLogger { get; }
-        public SummaryLogger SummaryLogger { get; }
+        public PlotLogger Plotter { get; private set; }
+        public DatabaseLogger DbLogger { get; private set; }
+        public SummaryLogger SummaryLogger { get; private set; }
         public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
         public ObservableCollection<IChannel> AvailableChannels { get; } = [];
         public string Version
@@ -665,6 +664,8 @@ namespace Daqifi.Desktop.ViewModels
         }
 
         public bool IsNotLogging => !IsLogging;
+
+        public DeviceLogsViewModel DeviceLogsViewModel { get; private set; }
         #endregion
 
         #region Constructor
@@ -694,8 +695,10 @@ namespace Daqifi.Desktop.ViewModels
                         DbLogger = new DatabaseLogger(_loggingContext);
                         LoggingManager.Instance.AddLogger(DbLogger);
 
-                        //Xml profiles load
+                        // Device Logs View Model
+                        DeviceLogsViewModel = new DeviceLogsViewModel();
 
+                        //Xml profiles load
                         LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
                         ObservableCollection<Daqifi.Desktop.Models.Profile> observableProfileList = new ObservableCollection<Daqifi.Desktop.Models.Profile>(LoggingManager.Instance.LoadProfilesFromXml());
                         //  Notifications 

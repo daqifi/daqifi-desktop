@@ -8,6 +8,7 @@
         xmlns:Service="clr-namespace:Daqifi.Desktop.DialogService"
         xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+        xmlns:local="clr-namespace:Daqifi.Desktop.View"
         Service:DialogService.IsRegisteredView="True"
         Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
 
@@ -315,134 +316,163 @@
                 </TabItem.Header>
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="2*"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Logged Data Plot-->
-                    <Grid Grid.Row="0">
-                        <oxy:PlotView Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
-                        <DockPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top">
-                            <Button Command="{Binding DbLogger.SaveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
-                                <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                            </Button>
-                        </DockPanel>
-                        <DockPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
-                            <Button Command="{Binding DbLogger.ZoomOutXCommand}" ToolTip="Zoom Out (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
-                                <Button.Content>
-                                    <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                </Button.Content>
-                            </Button>
-                            <Button Command="{Binding DbLogger.ZoomInXCommand}" ToolTip="Zoom In (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
-                                <Button.Content>
-                                    <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                </Button.Content>
-                            </Button>
-                            <StackPanel>
-                                <Button Command="{Binding DbLogger.ZoomInYCommand}" ToolTip="Zoom In (Analog)" Style="{StaticResource FadeButton}">
-                                    <Button.Content>
-                                        <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                    </Button.Content>
-                                </Button>
-                                <Button Command="{Binding DbLogger.ZoomOutYCommand}" ToolTip="Zoom Out (Analog)" Style="{StaticResource FadeButton}">
-                                    <Button.Content>
-                                        <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                    </Button.Content>
-                                </Button>
-                                <Button Command="{Binding DbLogger.ResetZoomCommand }" CommandParameter="{Binding}" Style="{StaticResource FadeButton}" ToolTip="Reset Zoom" VerticalAlignment="Bottom" >
-                                    <Button.Content>
-                                        <iconPacks:PackIconMaterial Kind="Crosshairs" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                    </Button.Content>
-                                </Button>
-                            </StackPanel>
-                        </DockPanel>
-                    </Grid>
+                    <!-- Tabs for Application and Device Logs -->
+                    <TabControl Grid.Row="0" Grid.RowSpan="2" Margin="5">
+                        <!-- Application Logs Tab -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <TextBlock Text="APPLICATION LOGS" 
+                                         FontWeight="SemiBold" 
+                                         Margin="5,2"/>
+                            </TabItem.Header>
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="2*"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
 
-                    <!-- Logged Data List -->
-                    <ContentPresenter Content="{Binding}" Grid.Row="1">
-                        <ContentPresenter.ContentTemplate>
-                            <DataTemplate>
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-
-                                    <ListView Name="LoggingSessionList"  Grid.Row="0" ItemsSource="{Binding LoggingSessions}" Background="Transparent" BorderThickness="0">
-                                        <i:Interaction.Triggers>
-                                            <i:EventTrigger EventName="SelectionChanged">
-                                                <i:InvokeCommandAction Command="{Binding DisplayLoggingSessionCommand}" CommandParameter="{Binding SelectedItem, ElementName=LoggingSessionList}"/>
-                                            </i:EventTrigger>
-                                        </i:Interaction.Triggers>
-                                        <ListView.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border>
-                                                    <DockPanel >
-                                                        <TextBlock Text="{Binding Name}" DockPanel.Dock="Left" FontWeight="Bold" VerticalAlignment="Center"/>
-
-                                                        <!-- Delete Logging Session -->
-                                                        <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteLoggingSessionCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Delete" Padding="5">
-                                                            <Button.Content>
-                                                                <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
-                                                            </Button.Content>
-                                                        </Button>
-
-                                                        <!-- Export Logging Session -->
-                                                        <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.ExportLoggingSessionCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Export" Padding="5">
-                                                            <Button.Content>
-                                                                <iconPacks:PackIconMaterial Kind="DownloadCircleOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
-                                                            </Button.Content>
-                                                        </Button>
-
-                                                        <!-- Logging Session Settings -->
-                                                        <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.OpenLoggingSessionSettingsCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Settings">
-                                                            <Button.Content>
-                                                                <iconPacks:PackIconMaterial Kind="Cog" HorizontalAlignment="Center" Height="20" Width="20"/>
-                                                            </Button.Content>
-                                                        </Button>
-                                                        <Label Content="{Binding SessionStart}" DockPanel.Dock="Right" HorizontalContentAlignment="Right"/>
-                                                    </DockPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ListView.ItemTemplate>
-                                    </ListView>
-                                    <DockPanel Grid.Row="1" LastChildFill="False">
-
-                                        <!-- Delete All Logging Session -->
-                                        <Button Name="DeleteAllLoggingSessionsButton"  DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteAllLoggingSessionCommand}" Background="#88FFFFFF" ToolTip="Delete All" Padding="5">
-                                            <Button.Content>
-                                                <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
-                                            </Button.Content>
-                                        </Button>
-
-                                        <!-- Export All Logging Session -->
-                                        <Button Name="ExportAllLoggingSessionsButton" DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.ExportAllLoggingSessionCommand}" Background="#88FFFFFF" ToolTip="Export All" Padding="5">
-                                            <Button.Content>
-                                                <iconPacks:PackIconMaterial Kind="DownloadCircleOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
-                                            </Button.Content>
+                                <!-- Logged Data Plot-->
+                                <Grid Grid.Row="0">
+                                    <oxy:PlotView Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
+                                    <DockPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                        <Button Command="{Binding DbLogger.SaveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
+                                            <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                                         </Button>
                                     </DockPanel>
-                                    <Border Name="EmptyLoggingSessionListLabel" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                                        <Label HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalAlignment="Stretch" VerticalContentAlignment="Center">
-                                            <Label.Content>
-                                                <StackPanel Orientation="Vertical" HorizontalAlignment="Stretch" VerticalAlignment="Center">
-                                                    <Label Content="No Logging Sessions Available" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
-                                                </StackPanel>
-                                            </Label.Content>
-                                        </Label>
-                                    </Border>
+                                    <DockPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                        <Button Command="{Binding DbLogger.ZoomOutXCommand}" ToolTip="Zoom Out (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
+                                            <Button.Content>
+                                                <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                            </Button.Content>
+                                        </Button>
+                                        <Button Command="{Binding DbLogger.ZoomInXCommand}" ToolTip="Zoom In (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
+                                            <Button.Content>
+                                                <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                            </Button.Content>
+                                        </Button>
+                                        <StackPanel>
+                                            <Button Command="{Binding DbLogger.ZoomInYCommand}" ToolTip="Zoom In (Analog)" Style="{StaticResource FadeButton}">
+                                                <Button.Content>
+                                                    <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                                </Button.Content>
+                                            </Button>
+                                            <Button Command="{Binding DbLogger.ZoomOutYCommand}" ToolTip="Zoom Out (Analog)" Style="{StaticResource FadeButton}">
+                                                <Button.Content>
+                                                    <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                                </Button.Content>
+                                            </Button>
+                                            <Button Command="{Binding DbLogger.ResetZoomCommand }" CommandParameter="{Binding}" Style="{StaticResource FadeButton}" ToolTip="Reset Zoom" VerticalAlignment="Bottom" >
+                                                <Button.Content>
+                                                    <iconPacks:PackIconMaterial Kind="Crosshairs" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                                </Button.Content>
+                                            </Button>
+                                        </StackPanel>
+                                    </DockPanel>
                                 </Grid>
-                                <DataTemplate.Triggers>
-                                    <DataTrigger Binding="{Binding LoggingSessions.Count}" Value="0">
-                                        <Setter TargetName="LoggingSessionList" Property="Visibility" Value="Collapsed"/>
-                                        <Setter TargetName="DeleteAllLoggingSessionsButton" Property="Visibility" Value="Collapsed"/>
-                                        <Setter TargetName="ExportAllLoggingSessionsButton" Property="Visibility" Value="Collapsed"/>
-                                        <Setter TargetName="EmptyLoggingSessionListLabel" Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </DataTemplate.Triggers>
-                            </DataTemplate>
-                        </ContentPresenter.ContentTemplate>
-                    </ContentPresenter>
+
+                                <!-- Logged Data List -->
+                                <ContentPresenter Content="{Binding}" Grid.Row="1">
+                                    <ContentPresenter.ContentTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+
+                                                <ListView Name="LoggingSessionList"  Grid.Row="0" ItemsSource="{Binding LoggingSessions}" Background="Transparent" BorderThickness="0">
+                                                    <i:Interaction.Triggers>
+                                                        <i:EventTrigger EventName="SelectionChanged">
+                                                            <i:InvokeCommandAction Command="{Binding DisplayLoggingSessionCommand}" CommandParameter="{Binding SelectedItem, ElementName=LoggingSessionList}"/>
+                                                        </i:EventTrigger>
+                                                    </i:Interaction.Triggers>
+                                                    <ListView.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border>
+                                                                <DockPanel >
+                                                                    <TextBlock Text="{Binding Name}" DockPanel.Dock="Left" FontWeight="Bold" VerticalAlignment="Center"/>
+
+                                                                    <!-- Delete Logging Session -->
+                                                                    <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteLoggingSessionCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Delete" Padding="5">
+                                                                        <Button.Content>
+                                                                            <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
+                                                                        </Button.Content>
+                                                                    </Button>
+
+                                                                    <!-- Export Logging Session -->
+                                                                    <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.ExportLoggingSessionCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Export" Padding="5">
+                                                                        <Button.Content>
+                                                                            <iconPacks:PackIconMaterial Kind="DownloadCircleOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
+                                                                        </Button.Content>
+                                                                    </Button>
+
+                                                                    <!-- Logging Session Settings -->
+                                                                    <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.OpenLoggingSessionSettingsCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Settings">
+                                                                        <Button.Content>
+                                                                            <iconPacks:PackIconMaterial Kind="Cog" HorizontalAlignment="Center" Height="20" Width="20"/>
+                                                                        </Button.Content>
+                                                                    </Button>
+                                                                    <Label Content="{Binding SessionStart}" DockPanel.Dock="Right" HorizontalContentAlignment="Right"/>
+                                                                </DockPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ListView.ItemTemplate>
+                                                </ListView>
+                                                <DockPanel Grid.Row="1" LastChildFill="False">
+                                                    <!-- Delete All Logging Session -->
+                                                    <Button Name="DeleteAllLoggingSessionsButton"  DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteAllLoggingSessionCommand}" Background="#88FFFFFF" ToolTip="Delete All" Padding="5">
+                                                        <Button.Content>
+                                                            <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
+                                                        </Button.Content>
+                                                    </Button>
+
+                                                    <!-- Export All Logging Session -->
+                                                    <Button Name="ExportAllLoggingSessionsButton" DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.ExportAllLoggingSessionCommand}" Background="#88FFFFFF" ToolTip="Export All" Padding="5">
+                                                        <Button.Content>
+                                                            <iconPacks:PackIconMaterial Kind="DownloadCircleOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
+                                                        </Button.Content>
+                                                    </Button>
+                                                </DockPanel>
+                                                <Border Name="EmptyLoggingSessionListLabel" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                                    <Label HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalAlignment="Stretch" VerticalContentAlignment="Center">
+                                                        <Label.Content>
+                                                            <StackPanel Orientation="Vertical" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                                                                <Label Content="No Logging Sessions Available" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
+                                                            </StackPanel>
+                                                        </Label.Content>
+                                                    </Label>
+                                                </Border>
+                                            </Grid>
+                                            <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding LoggingSessions.Count}" Value="0">
+                                                    <Setter TargetName="LoggingSessionList" Property="Visibility" Value="Collapsed"/>
+                                                    <Setter TargetName="DeleteAllLoggingSessionsButton" Property="Visibility" Value="Collapsed"/>
+                                                    <Setter TargetName="ExportAllLoggingSessionsButton" Property="Visibility" Value="Collapsed"/>
+                                                    <Setter TargetName="EmptyLoggingSessionListLabel" Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ContentPresenter.ContentTemplate>
+                                </ContentPresenter>
+                            </Grid>
+                        </TabItem>
+
+                        <!-- Device Logs Tab -->
+                        <TabItem>
+                            <TabItem.Header>
+                                <TextBlock Text="DEVICE LOGS" 
+                                         FontWeight="SemiBold" 
+                                         Margin="5,2"/>
+                            </TabItem.Header>
+                            <local:DeviceLogsView DataContext="{Binding DeviceLogsViewModel}"/>
+                        </TabItem>
+                    </TabControl>
+
+                    <!-- Loading Overlay -->
                     <Grid Grid.RowSpan="2" Visibility="{Binding IsLoggedDataBusy, FallbackValue=Hidden, Converter={StaticResource BoolToVis}}">
                         <Rectangle Fill="White" Opacity="0.75" IsHitTestVisible="False"/>
                         <StackPanel VerticalAlignment="Center">
