@@ -8,11 +8,22 @@ using Daqifi.Desktop.IO.Messages.Producers;
 using Microsoft.Extensions.ObjectPool;
 using Daqifi.Desktop.IO.Messages.Decoders;
 using Daqifi.Desktop.Models;
+using System.Text.RegularExpressions;
+using System.Globalization;
+using System.IO;
 
 namespace Daqifi.Desktop.Device
 {
     public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevice
     {
+        private enum MessageHandlerType
+        {
+            Status,
+            Streaming,
+            SdCard
+        }
+
+        private MessageHandlerType _currentHandler;
         private const string _5Volt = "+/-5V";
         private const string _10Volt = "+/-10V";
         private const string Nq1PartNumber = "Nq1";
@@ -112,6 +123,34 @@ namespace Daqifi.Desktop.Device
         #endregion
 
         #region Message Handlers
+        private void SetMessageHandler(MessageHandlerType handlerType)
+        {
+            // Remove all handlers first
+            if (MessageConsumer != null)
+            {
+                MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
+                MessageConsumer.OnMessageReceived -= HandleMessageReceived;
+                MessageConsumer.OnMessageReceived -= HandleSdCardMessageReceived;
+
+                // Add the new handler
+                switch (handlerType)
+                {
+                    case MessageHandlerType.Status:
+                        MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
+                        break;
+                    case MessageHandlerType.Streaming:
+                        MessageConsumer.OnMessageReceived += HandleMessageReceived;
+                        break;
+                    case MessageHandlerType.SdCard:
+                        MessageConsumer.OnMessageReceived += HandleSdCardMessageReceived;
+                        break;
+                }
+
+                _currentHandler = handlerType;
+                AppLogger.Information($"Message handler set to: {handlerType}");
+            }
+        }
+
         private void HandleStatusMessageReceived(object sender, MessageEventArgs e)
         {
             var message = e.Message.Data as DaqifiOutMessage;
@@ -122,8 +161,7 @@ namespace Daqifi.Desktop.Device
             }
 
             // Change the message handler
-            MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
-            MessageConsumer.OnMessageReceived += HandleMessageReceived;
+            SetMessageHandler(MessageHandlerType.Streaming);
 
             HydrateDeviceMetadata(message);
             PopulateDigitalChannels(message);
@@ -265,7 +303,83 @@ namespace Daqifi.Desktop.Device
             _previousDeviceTimestamps[deviceId] = message.MsgTimeStamp;
         }
 
+        private void HandleSdCardMessageReceived(object sender, MessageEventArgs e)
+        {
+            // The message will be a string containing file paths
+            if (e.Message.Data is not string fileListResponse)
+            {
+                AppLogger.Warning("Expected string response for SD card file list");
+                return;
+            }
 
+            var files = fileListResponse
+                .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(path =>
+                {
+                    // Clean up the path and handle the malformed first line
+                    var cleanPath = path.Trim();
+                    if (cleanPath.StartsWith("efault.bin"))
+                    {
+                        cleanPath = "Daqifi/default.bin";
+                    }
+                    else if (!cleanPath.StartsWith("Daqifi/"))
+                    {
+                        cleanPath = "Daqifi/" + cleanPath;
+                    }
+
+                    // Remove the Daqifi/ prefix if present and get just the filename
+                    var fileName = Path.GetFileName(cleanPath);
+                    
+                    // For log files, try to parse the date from the filename
+                    var createdDate = TryParseLogFileDate(fileName) ?? DateTime.MinValue;
+                    
+                    return new SdCardFile
+                    {
+                        FileName = fileName,
+                        CreatedDate = createdDate,
+                        // Size will be unknown until we implement a separate command to get file details
+                        Size = 0
+                    };
+                })
+                .Where(file => !string.IsNullOrEmpty(file.FileName))
+                .ToList();
+
+            AppLogger.Information($"Found {files.Count} files on SD card");
+            UpdateSdCardFiles(files);
+
+            // Switch back to protobuf message consumer for streaming
+            if (Mode == DeviceMode.StreamToApp && IsStreaming)
+            {
+                // Stop the text message consumer
+                MessageConsumer.Stop();
+                
+                // Create a new protobuf message consumer
+                MessageConsumer = new MessageConsumer(MessageConsumer.DataStream);
+                SetMessageHandler(MessageHandlerType.Streaming);
+                MessageConsumer.Start();
+            }
+        }
+
+        private DateTime? TryParseLogFileDate(string fileName)
+        {
+            // Try to parse date from log_YYYYMMDD_HHMMSS.bin format
+            var match = Regex.Match(fileName, @"log_(\d{8})_(\d{6})\.bin");
+            if (match.Success)
+            {
+                var dateStr = match.Groups[1].Value;
+                var timeStr = match.Groups[2].Value;
+                if (DateTime.TryParseExact(
+                    dateStr + timeStr, 
+                    "yyyyMMddHHmmss", 
+                    CultureInfo.InvariantCulture, 
+                    DateTimeStyles.None, 
+                    out DateTime result))
+                {
+                    return result;
+                }
+            }
+            return null;
+        }
         #endregion
 
         #region Streaming Methods
@@ -380,6 +494,21 @@ namespace Daqifi.Desktop.Device
 
         public void RefreshSdCardFiles()
         {
+            // Stop the current message consumer
+            if (MessageConsumer != null && MessageConsumer.Running)
+            {
+                MessageConsumer.Stop();
+            }
+
+            // Create a text message consumer for SD card operations
+            MessageConsumer = new TextMessageConsumer(MessageConsumer.DataStream);
+            SetMessageHandler(MessageHandlerType.SdCard);
+            
+            if (!MessageConsumer.Running)
+            {
+                MessageConsumer.Start();
+            }
+
             MessageProducer.Send(ScpiMessageProducer.GetSdFileList);
         }
 
@@ -442,7 +571,7 @@ namespace Daqifi.Desktop.Device
             
             if (MessageConsumer != null)
             {
-                MessageConsumer.OnMessageReceived += HandleMessageReceived;
+                SetMessageHandler(MessageHandlerType.Streaming);
                 if (!MessageConsumer.Running)
                 {
                     MessageConsumer.Start();
@@ -454,7 +583,7 @@ namespace Daqifi.Desktop.Device
         {
             if (MessageConsumer != null)
             {
-                MessageConsumer.OnMessageReceived -= HandleMessageReceived;
+                SetMessageHandler(MessageHandlerType.Status);
                 if (MessageConsumer.Running)
                 {
                     MessageConsumer.Stop();
@@ -728,7 +857,7 @@ namespace Daqifi.Desktop.Device
 
         public void InitializeDeviceState()
         {
-            MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
+            SetMessageHandler(MessageHandlerType.Status);
             MessageProducer.Send(ScpiMessageProducer.SystemInfo);
         }
 

@@ -1,9 +1,13 @@
 using System.Collections.ObjectModel;
-using System.IO;
 using Application = System.Windows.Application;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Desktop.Device;
+using System.Windows.Input;
+using Daqifi.Desktop.Commands;
+using Daqifi.Desktop.Models;
+using Daqifi.Desktop.IO.Messages.Producers;
 
 namespace Daqifi.Desktop.ViewModels
 {
@@ -19,12 +23,149 @@ namespace Daqifi.Desktop.ViewModels
         private double _progress;
 
         [ObservableProperty]
-        private ObservableCollection<DeviceLogInfo> _deviceLogs;
+        private ObservableCollection<IStreamingDevice> _connectedDevices;
+
+        [ObservableProperty]
+        private IStreamingDevice _selectedDevice;
+
+        [ObservableProperty]
+        private ObservableCollection<SdCardFile> _deviceFiles;
+
+        [ObservableProperty]
+        private SdCardFile _selectedFile;
+
+        public ICommand RefreshFilesCommand { get; private set; }
+        public ICommand DownloadFileCommand { get; private set; }
 
         public DeviceLogsViewModel()
         {
-            DeviceLogs = new ObservableCollection<DeviceLogInfo>();
-            LoadDeviceLogs();
+            ConnectedDevices = new ObservableCollection<IStreamingDevice>();
+            DeviceFiles = new ObservableCollection<SdCardFile>();
+            
+            // Initialize commands
+            RefreshFilesCommand = new DelegateCommand(o => RefreshFiles());
+            DownloadFileCommand = new DelegateCommand(o => DownloadFile(), o => CanDownloadFile());
+
+            // Subscribe to device connection changes
+            ConnectionManager.Instance.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == "ConnectedDevices")
+                {
+                    UpdateConnectedDevices();
+                }
+            };
+
+            // Initial load
+            UpdateConnectedDevices();
+        }
+
+        private void UpdateConnectedDevices()
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                ConnectedDevices.Clear();
+                foreach (var device in ConnectionManager.Instance.ConnectedDevices)
+                {
+                    ConnectedDevices.Add(device);
+                }
+
+                // If we have devices but none selected, select the first one
+                if (SelectedDevice == null && ConnectedDevices.Any())
+                {
+                    SelectedDevice = ConnectedDevices.First();
+                }
+            });
+        }
+
+        partial void OnSelectedDeviceChanged(IStreamingDevice value)
+        {
+            if (value != null)
+            {
+                RefreshFiles();
+            }
+            else
+            {
+                DeviceFiles.Clear();
+            }
+        }
+
+        private async void RefreshFiles()
+        {
+            if (SelectedDevice == null) return;
+
+            try
+            {
+                IsBusy = true;
+                BusyMessage = "Refreshing device files...";
+
+                // Switch to SD card mode
+                SelectedDevice.MessageProducer.Send(ScpiMessageProducer.DisableLan);
+                await Task.Delay(100); // Give device time to process
+                SelectedDevice.MessageProducer.Send(ScpiMessageProducer.EnableSdCard);
+                await Task.Delay(100);
+
+                // Request file list
+                SelectedDevice.RefreshSdCardFiles();
+                await Task.Delay(1000); // Wait for response
+
+                // Update UI
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    DeviceFiles.Clear();
+                    foreach (var file in SelectedDevice.SdCardFiles)
+                    {
+                        DeviceFiles.Add(file);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                await ShowMessage("Error", $"Failed to refresh device files: {ex.Message}", MessageDialogStyle.Affirmative);
+            }
+            finally
+            {
+                IsBusy = false;
+                BusyMessage = string.Empty;
+            }
+        }
+
+        private async void DownloadFile()
+        {
+            if (SelectedDevice == null || SelectedFile == null) return;
+
+            try
+            {
+                IsBusy = true;
+                BusyMessage = "Downloading file...";
+
+                var saveFileDialog = new Microsoft.Win32.SaveFileDialog
+                {
+                    FileName = SelectedFile.FileName,
+                    Filter = "All files (*.*)|*.*"
+                };
+
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    SelectedDevice.DownloadSdCardFile(SelectedFile.FileName);
+                    await Task.Delay(1000); // Wait for response
+
+                    await ShowMessage("Success", "File downloaded successfully!", MessageDialogStyle.Affirmative);
+                }
+            }
+            catch (Exception ex)
+            {
+                await ShowMessage("Error", $"Failed to download file: {ex.Message}", MessageDialogStyle.Affirmative);
+            }
+            finally
+            {
+                IsBusy = false;
+                BusyMessage = string.Empty;
+            }
+        }
+
+        private bool CanDownloadFile()
+        {
+            return SelectedDevice != null && SelectedFile != null;
         }
 
         private async Task<MessageDialogResult> ShowMessage(string title, string message, MessageDialogStyle dialogStyle)
@@ -32,125 +173,5 @@ namespace Daqifi.Desktop.ViewModels
             var metroWindow = Application.Current.MainWindow as MetroWindow;
             return await metroWindow.ShowMessageAsync(title, message, dialogStyle, metroWindow.MetroDialogOptions);
         }
-
-        private void LoadDeviceLogs()
-        {
-            try
-            {
-                IsBusy = true;
-                BusyMessage = "Loading device logs...";
-
-                // Clear existing logs
-                DeviceLogs.Clear();
-
-                // TODO: Query the device for its logs
-                // For now, we'll just look for log files in a specific directory
-                var logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DAQifi", "DeviceLogs");
-                if (Directory.Exists(logDirectory))
-                {
-                    foreach (var file in Directory.GetFiles(logDirectory, "*.log"))
-                    {
-                        var fileInfo = new FileInfo(file);
-                        DeviceLogs.Add(new DeviceLogInfo
-                        {
-                            Name = Path.GetFileNameWithoutExtension(file),
-                            FilePath = file,
-                            CreatedDate = fileInfo.CreationTime,
-                            Size = fileInfo.Length
-                        });
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _ = ShowMessage("Error", $"Error loading device logs: {ex.Message}", MessageDialogStyle.Affirmative);
-            }
-            finally
-            {
-                IsBusy = false;
-                BusyMessage = string.Empty;
-            }
-        }
-
-        public async void DeleteSelectedLog(DeviceLogInfo selectedLog)
-        {
-            if (selectedLog == null)
-                return;
-
-            try
-            {
-                var result = await ShowMessage(
-                    "Confirm Delete",
-                    "Are you sure you want to delete this log?",
-                    MessageDialogStyle.AffirmativeAndNegative);
-
-                if (result == MessageDialogResult.Affirmative)
-                {
-                    IsBusy = true;
-                    BusyMessage = "Deleting log...";
-
-                    if (File.Exists(selectedLog.FilePath))
-                    {
-                        File.Delete(selectedLog.FilePath);
-                        DeviceLogs.Remove(selectedLog);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                await ShowMessage("Error", $"Error deleting log: {ex.Message}", MessageDialogStyle.Affirmative);
-            }
-            finally
-            {
-                IsBusy = false;
-                BusyMessage = string.Empty;
-            }
-        }
-
-        public async void ExportSelectedLog(DeviceLogInfo selectedLog)
-        {
-            if (selectedLog == null)
-                return;
-
-            try
-            {
-                var saveFileDialog = new Microsoft.Win32.SaveFileDialog
-                {
-                    Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
-                    FilterIndex = 1,
-                    DefaultExt = "csv",
-                    FileName = $"DeviceLog_{selectedLog.Name}_{selectedLog.CreatedDate:yyyyMMdd_HHmmss}.csv"
-                };
-
-                if (saveFileDialog.ShowDialog() == true)
-                {
-                    IsBusy = true;
-                    BusyMessage = "Exporting log...";
-
-                    // TODO: Implement actual log file parsing and export
-                    // For now, just copy the file
-                    File.Copy(selectedLog.FilePath, saveFileDialog.FileName, true);
-
-                    await ShowMessage("Success", "Export completed successfully!", MessageDialogStyle.Affirmative);
-                }
-            }
-            catch (Exception ex)
-            {
-                await ShowMessage("Error", $"Error exporting log: {ex.Message}", MessageDialogStyle.Affirmative);
-            }
-            finally
-            {
-                IsBusy = false;
-                BusyMessage = string.Empty;
-            }
-        }
-    }
-
-    public class DeviceLogInfo
-    {
-        public string Name { get; set; }
-        public string FilePath { get; set; }
-        public DateTime CreatedDate { get; set; }
-        public long Size { get; set; }
     }
 } 
