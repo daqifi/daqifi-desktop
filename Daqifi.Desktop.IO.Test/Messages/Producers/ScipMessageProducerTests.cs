@@ -321,9 +321,9 @@ namespace Daqifi.Desktop.IO.Test.Messages.Producers
         [TestMethod]
         public void GetSdFileCommand_ReturnsCorrectCommand()
         {
-            var actualCommand = ScpiMessageProducer.GetSdFile;
+            var actualCommand = ScpiMessageProducer.GetSdFile("test.bin");
             var actualCommandRawData = actualCommand.GetBytes();
-            const string expectedCommandText = "SYSTem:STORage:SD:GET";
+            const string expectedCommandText = "SYSTem:STORage:SD:GET \"test.bin\"";
             var expectedCommandRawData = GetBytes(expectedCommandText);
 
             CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);

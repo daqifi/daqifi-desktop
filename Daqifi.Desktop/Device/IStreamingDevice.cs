@@ -19,6 +19,8 @@ namespace Daqifi.Desktop.Device
         bool IsLoggingToSdCard { get; }
         IReadOnlyList<SdCardFile> SdCardFiles { get; }
 
+        event EventHandler<FileDownloadEventArgs> OnFileDownloaded;
+
         void SwitchMode(DeviceMode newMode);
         void StartSdCardLogging();
         void StopSdCardLogging();

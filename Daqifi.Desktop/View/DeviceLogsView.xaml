@@ -66,6 +66,7 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <Button Command="{Binding DataContext.DownloadFileCommand, RelativeSource={RelativeSource AncestorType=ListView}}" 
+                                            CommandParameter="{Binding}"
                                             Style="{StaticResource MahApps.Styles.Button.Square.Accent}"
                                             ToolTip="Download">
                                         <iconPacks:PackIconMaterial Kind="Download" Height="15" Width="15"/>

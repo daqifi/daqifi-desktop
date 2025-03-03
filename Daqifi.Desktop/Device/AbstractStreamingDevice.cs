@@ -306,13 +306,40 @@ namespace Daqifi.Desktop.Device
         private void HandleSdCardMessageReceived(object sender, MessageEventArgs e)
         {
             // The message will be a string containing file paths
-            if (e.Message.Data is not string fileListResponse)
+            if (e.Message.Data is not string response)
             {
-                AppLogger.Warning("Expected string response for SD card file list");
+                AppLogger.Warning("Expected string response for SD card operation");
                 return;
             }
 
-            var files = fileListResponse
+            // Check if this is a file content response (contains JSON or __END_OF_FILE__ marker)
+            if (response.Contains("__END_OF_FILE__") || response.Contains("\"timestamp\""))
+            {
+                HandleFileContentResponse(response);
+            }
+            // Check if this is a file list response (contains multiple lines with .bin files)
+            else if (response.Contains(".bin"))
+            {
+                HandleFileListResponse(response);
+            }
+            else
+            {
+                AppLogger.Warning($"Unexpected SD card response format: {response.Substring(0, Math.Min(100, response.Length))}");
+            }
+
+            // Switch back to protobuf message consumer for streaming
+            if (Mode == DeviceMode.StreamToApp && IsStreaming)
+            {
+                MessageConsumer.Stop();
+                MessageConsumer = new MessageConsumer(MessageConsumer.DataStream);
+                SetMessageHandler(MessageHandlerType.Streaming);
+                MessageConsumer.Start();
+            }
+        }
+
+        private void HandleFileListResponse(string response)
+        {
+            var files = response
                 .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(path =>
                 {
@@ -346,19 +373,31 @@ namespace Daqifi.Desktop.Device
 
             AppLogger.Information($"Found {files.Count} files on SD card");
             UpdateSdCardFiles(files);
-
-            // Switch back to protobuf message consumer for streaming
-            if (Mode == DeviceMode.StreamToApp && IsStreaming)
-            {
-                // Stop the text message consumer
-                MessageConsumer.Stop();
-                
-                // Create a new protobuf message consumer
-                MessageConsumer = new MessageConsumer(MessageConsumer.DataStream);
-                SetMessageHandler(MessageHandlerType.Streaming);
-                MessageConsumer.Start();
-            }
         }
+
+        private void HandleFileContentResponse(string content)
+        {
+            if (string.IsNullOrEmpty(content))
+            {
+                AppLogger.Warning("Received empty file content response");
+                return;
+            }
+
+            // Remove the end of file marker if present
+            var cleanContent = content;
+            if (content.Contains("__END_OF_FILE__"))
+            {
+                cleanContent = content.Replace("__END_OF_FILE__", "").Trim();
+            }
+
+            AppLogger.Information($"Received file content of length: {cleanContent.Length}");
+            
+            // Raise an event to notify that file content is available
+            var args = new FileDownloadEventArgs(cleanContent);
+            OnFileDownloaded?.Invoke(this, args);
+        }
+
+        public event EventHandler<FileDownloadEventArgs> OnFileDownloaded;
 
         private DateTime? TryParseLogFileDate(string fileName)
         {
@@ -525,9 +564,23 @@ namespace Daqifi.Desktop.Device
                 throw new ArgumentException("Filename cannot be null or empty", nameof(fileName));
             }
 
-            MessageProducer.Send(ScpiMessageProducer.GetSdFile);
-            // Note: The actual file download handling would need to be implemented
-            // based on how the device sends the file data
+            // Stop the current message consumer
+            if (MessageConsumer != null && MessageConsumer.Running)
+            {
+                MessageConsumer.Stop();
+            }
+
+            // Create a text message consumer for file download
+            MessageConsumer = new TextMessageConsumer(MessageConsumer.DataStream);
+            SetMessageHandler(MessageHandlerType.SdCard);
+            
+            if (!MessageConsumer.Running)
+            {
+                MessageConsumer.Start();
+            }
+
+            // Send the get file command with the filename
+            MessageProducer.Send(ScpiMessageProducer.GetSdFile(fileName));
         }
 
         public void InitializeStreaming()

@@ -25,7 +25,11 @@ namespace Daqifi.Desktop.IO.Messages.Producers
         public static IMessage DisableSdCard => new ScpiMessage("SYSTem:STORage:SD:ENAble 0");
         public static IMessage GetSdLoggingState => new ScpiMessage("SYSTem:STORage:SD:LOGging?");
         public static IMessage GetSdFileList => new ScpiMessage("SYSTem:STORage:SD:LIST?");
-        public static IMessage GetSdFile => new ScpiMessage("SYSTem:STORage:SD:GET");
+        
+        public static IMessage GetSdFile(string fileName)
+        {
+            return new ScpiMessage($"SYSTem:STORage:SD:GET \"{fileName}\"");
+        }
         
         public static IMessage SetSdLoggingFileName(string fileName)
         {

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using Application = System.Windows.Application;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
@@ -44,7 +45,7 @@ namespace Daqifi.Desktop.ViewModels
             
             // Initialize commands
             RefreshFilesCommand = new DelegateCommand(o => RefreshFiles());
-            DownloadFileCommand = new DelegateCommand(o => DownloadFile(), o => CanDownloadFile());
+            DownloadFileCommand = new DelegateCommand(o => DownloadFile(o as SdCardFile), o => CanDownloadFile());
 
             // Subscribe to device connection changes
             ConnectionManager.Instance.PropertyChanged += (s, e) =>
@@ -81,6 +82,8 @@ namespace Daqifi.Desktop.ViewModels
         {
             if (value != null)
             {
+                // Subscribe to file download events
+                value.OnFileDownloaded += HandleFileDownloaded;
                 RefreshFiles();
             }
             else
@@ -88,6 +91,41 @@ namespace Daqifi.Desktop.ViewModels
                 DeviceFiles.Clear();
             }
         }
+
+        private async void HandleFileDownloaded(object sender, FileDownloadEventArgs e)
+        {
+            try
+            {
+                // Save the file content
+                if (SaveFilePath != null)
+                {
+                    await File.WriteAllTextAsync(SaveFilePath, e.Content);
+                    SaveFilePath = null;
+                    
+                    await Application.Current.Dispatcher.InvokeAsync(async () =>
+                    {
+                        await ShowMessage("Success", "File downloaded successfully!", MessageDialogStyle.Affirmative);
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                await Application.Current.Dispatcher.InvokeAsync(async () =>
+                {
+                    await ShowMessage("Error", $"Failed to save file: {ex.Message}", MessageDialogStyle.Affirmative);
+                });
+            }
+            finally
+            {
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    IsBusy = false;
+                    BusyMessage = string.Empty;
+                });
+            }
+        }
+
+        private string SaveFilePath { get; set; }
 
         private async void RefreshFiles()
         {
@@ -129,9 +167,9 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-        private async void DownloadFile()
+        private async void DownloadFile(SdCardFile file)
         {
-            if (SelectedDevice == null || SelectedFile == null) return;
+            if (SelectedDevice == null || file == null) return;
 
             try
             {
@@ -140,24 +178,24 @@ namespace Daqifi.Desktop.ViewModels
 
                 var saveFileDialog = new Microsoft.Win32.SaveFileDialog
                 {
-                    FileName = SelectedFile.FileName,
+                    FileName = file.FileName,
                     Filter = "All files (*.*)|*.*"
                 };
 
                 if (saveFileDialog.ShowDialog() == true)
                 {
-                    SelectedDevice.DownloadSdCardFile(SelectedFile.FileName);
-                    await Task.Delay(1000); // Wait for response
-
-                    await ShowMessage("Success", "File downloaded successfully!", MessageDialogStyle.Affirmative);
+                    SaveFilePath = saveFileDialog.FileName;
+                    SelectedDevice.DownloadSdCardFile(file.FileName);
+                }
+                else
+                {
+                    IsBusy = false;
+                    BusyMessage = string.Empty;
                 }
             }
             catch (Exception ex)
             {
                 await ShowMessage("Error", $"Failed to download file: {ex.Message}", MessageDialogStyle.Affirmative);
-            }
-            finally
-            {
                 IsBusy = false;
                 BusyMessage = string.Empty;
             }
@@ -165,7 +203,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private bool CanDownloadFile()
         {
-            return SelectedDevice != null && SelectedFile != null;
+            return SelectedDevice != null;
         }
 
         private async Task<MessageDialogResult> ShowMessage(string title, string message, MessageDialogStyle dialogStyle)
