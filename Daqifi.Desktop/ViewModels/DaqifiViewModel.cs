@@ -48,7 +48,6 @@ namespace Daqifi.Desktop.ViewModels
         private bool _isLiveGraphSettingsOpen;
         private bool _isSdCardLoggingOpen;
         private bool _isSdCardLoggingEnabled;
-        private string _selectedDataFormat;
         private ObservableCollection<SdCardFile> _sdCardFiles;
         private SdCardFile _selectedSdCardFile;
         private int _width = 800;
@@ -378,30 +377,6 @@ namespace Daqifi.Desktop.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(IsNotLogging));
                 }
-            }
-        }
-
-        public string SelectedDataFormat
-        {
-            get => _selectedDataFormat;
-            set
-            {
-                if (_selectedDataFormat == value) return;
-                _selectedDataFormat = value;
-                
-                if (SelectedDevice != null)
-                {
-                    if (value == "JSON")
-                    {
-                        SelectedDevice.MessageProducer.Send(ScpiMessageProducer.SetJsonStreamFormat);
-                    }
-                    else
-                    {
-                        SelectedDevice.MessageProducer.Send(ScpiMessageProducer.SetProtobufStreamFormat);
-                    }
-                }
-                
-                OnPropertyChanged();
             }
         }
 

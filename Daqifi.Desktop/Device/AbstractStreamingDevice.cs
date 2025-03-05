@@ -478,7 +478,7 @@ namespace Daqifi.Desktop.Device
             {
                 MessageProducer.Send(ScpiMessageProducer.EnableSdCard);
                 MessageProducer.Send(ScpiMessageProducer.SetSdLoggingFileName($"log_{DateTime.Now:yyyyMMdd_HHmmss}.bin"));
-                MessageProducer.Send(ScpiMessageProducer.SetJsonStreamFormat); // Set format for SD card logging
+                MessageProducer.Send(ScpiMessageProducer.SetProtobufStreamFormat); // Set format for SD card logging
                 
                 // Enable any active channels
                 foreach (var channel in DataChannels.Where(c => c.IsActive))

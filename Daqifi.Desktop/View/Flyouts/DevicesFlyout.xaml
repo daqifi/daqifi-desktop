@@ -337,18 +337,7 @@
                                    Value="{Binding SelectedDevice.StreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <!-- Data Format (only shown in Log to Device mode) -->
-                        <StackPanel Visibility="{Binding IsLogToDeviceMode, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="DATA FORMAT" 
-                                     Style="{StaticResource SectionHeaderStyle}" 
-                                     Margin="0,0,0,10"/>
-                            <ComboBox Style="{StaticResource ComboBoxStyle}"
-                                     Margin="0,0,0,20"
-                                     SelectedItem="{Binding SelectedDataFormat, Mode=TwoWay}">
-                                <ComboBoxItem Content="Protobuf"/>
-                                <ComboBoxItem Content="JSON"/>
-                            </ComboBox>
-                        </StackPanel>
+                        <!-- Data Format section removed since we only support Protobuf now -->
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

@@ -34,15 +34,6 @@
                     OnContent="Enabled" 
                     OffContent="Disabled"
                     ToolTip="Enable or disable logging to SD card. Note: This will disable WiFi streaming."/>
-
-                <Label 
-                    Margin="0,10,0,0"
-                    Content="Data Format"/>
-                <ComboBox 
-                    SelectedItem="{Binding SelectedDataFormat, Mode=TwoWay}">
-                    <ComboBoxItem Content="Protobuf"/>
-                    <ComboBoxItem Content="JSON"/>
-                </ComboBox>
             </StackPanel>
         </GroupBox>
 

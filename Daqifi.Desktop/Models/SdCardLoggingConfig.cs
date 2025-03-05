@@ -8,7 +8,6 @@ namespace Daqifi.Desktop.Models
     public class SdCardLoggingConfig : INotifyPropertyChanged
     {
         private bool _isEnabled;
-        private string _dataFormat;
         private LoggingMode _loggingMode;
         private string _fileNamePattern;
 
@@ -24,22 +23,6 @@ namespace Daqifi.Desktop.Models
                 {
                     _isEnabled = value;
                     OnPropertyChanged(nameof(IsEnabled));
-                }
-            }
-        }
-
-        /// <summary>
-        /// Gets or sets the data format for SD card logging (JSON/Protobuf)
-        /// </summary>
-        public string DataFormat
-        {
-            get => _dataFormat;
-            set
-            {
-                if (_dataFormat != value)
-                {
-                    _dataFormat = value;
-                    OnPropertyChanged(nameof(DataFormat));
                 }
             }
         }
@@ -86,7 +69,6 @@ namespace Daqifi.Desktop.Models
         public SdCardLoggingConfig()
         {
             // Set default values
-            DataFormat = "Protobuf";  // Default to Protobuf format
             FileNamePattern = "LOG_%Y%m%d_%H%M%S.dat";  // Default filename pattern with timestamp
             LoggingMode = LoggingMode.Stream;  // Default to streaming mode
         }
