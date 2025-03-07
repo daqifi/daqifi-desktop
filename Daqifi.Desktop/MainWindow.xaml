@@ -515,7 +515,7 @@
                                                             <Label Content="{Binding Name}"  Padding="0"/>
                                                             <Label Content="{Binding IpAddress}" FontSize="10" Padding="0"/>
                                                             <Label Content="{Binding DeviceSerialNo}" FontSize="10"  Padding="0"/>
-                                                            <TextBlock FontSize="10"  Padding="0">
+                                                            <TextBlock FontSize="10" Padding="0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Label}}">
                                                                     <Run Text="Firmware version :" />
                                                                     <Run Text="{Binding DeviceVersion}" />
                                                             </TextBlock>
