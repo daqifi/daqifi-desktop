@@ -65,12 +65,21 @@
                         <GridViewColumn Width="100">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Button Command="{Binding DataContext.DownloadFileCommand, RelativeSource={RelativeSource AncestorType=ListView}}" 
-                                            CommandParameter="{Binding}"
-                                            Style="{StaticResource MahApps.Styles.Button.Square.Accent}"
-                                            ToolTip="Download">
-                                        <iconPacks:PackIconMaterial Kind="Download" Height="15" Width="15"/>
-                                    </Button>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Command="{Binding DataContext.DownloadFileCommand, RelativeSource={RelativeSource AncestorType=ListView}}" 
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource MahApps.Styles.Button.Square.Accent}"
+                                                ToolTip="Download"
+                                                Margin="0,0,5,0">
+                                            <iconPacks:PackIconMaterial Kind="Download" Height="15" Width="15"/>
+                                        </Button>
+                                        <Button Command="{Binding DataContext.ImportFileCommand, RelativeSource={RelativeSource AncestorType=ListView}}" 
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource MahApps.Styles.Button.Square}"
+                                                ToolTip="Import to Debug">
+                                            <iconPacks:PackIconMaterial Kind="Import" Height="15" Width="15"/>
+                                        </Button>
+                                    </StackPanel>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
