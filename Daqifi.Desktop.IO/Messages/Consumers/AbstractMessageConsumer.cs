@@ -42,7 +42,17 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
         public virtual void Stop()
         {
             _running = false;
-            _consumerThread.Join(1000);
+            
+            // Give the thread up to 2 seconds to stop gracefully
+            if (_consumerThread != null && _consumerThread.IsAlive)
+            {
+                // Wait for thread to exit gracefully
+                if (!_consumerThread.Join(2000))
+                {
+                    // Log warning if thread didn't stop in time
+                    AppLogger.Warning("Consumer thread did not stop within timeout period");
+                }
+            }
         }
 
         public void NotifyMessageReceived(object sender, MessageEventArgs e)

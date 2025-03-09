@@ -1,6 +1,7 @@
 ﻿using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using System.IO.Ports;
+using System.Threading;
 
 namespace Daqifi.Desktop.Device.SerialDevice
 {
@@ -66,15 +67,59 @@ namespace Daqifi.Desktop.Device.SerialDevice
         {
             try
             {
-                MessageProducer.Stop();
-                MessageConsumer.Stop();
+                // First stop streaming to prevent new data from being requested
                 StopStreaming();
-                Port.DtrEnable = false;
-                Port.Close();
+
+                // Stop the message producer first to prevent new messages
+                if (MessageProducer != null)
+                {
+                    try
+                    {
+                        MessageProducer.StopSafely(); // Use StopSafely to ensure queued messages are sent
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Warning($"Error stopping message producer: {ex.Message}");
+                    }
+                }
+
+                // Stop the consumer next
+                if (MessageConsumer != null)
+                {
+                    try
+                    {
+                        MessageConsumer.Stop();
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Warning($"Error stopping message consumer: {ex.Message}");
+                    }
+                }
+
+                // Finally close the port
+                if (Port != null)
+                {
+                    try
+                    {
+                        if (Port.IsOpen)
+                        {
+                            Port.DtrEnable = false;
+                            // Give a small delay to ensure DTR state change is processed
+                            Thread.Sleep(50);
+                            Port.Close();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Warning($"Error closing serial port: {ex.Message}");
+                    }
+                }
+
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.Error(ex, "Error during device disconnect");
                 return false;
             }
         }

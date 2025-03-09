@@ -23,33 +23,57 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
         {
             var buffer = new byte[4096];
 
-            while (Running)
+            while (Running && !_isDisposed)
             {
                 try
                 {
-                    if (DataStream != null && DataStream.CanRead)
+                    // Check if we should stop
+                    if (_isDisposed || !Running || DataStream == null || !DataStream.CanRead)
                     {
-                        int bytesRead = DataStream.Read(buffer, 0, buffer.Length);
-                        if (bytesRead > 0)
-                        {
-                            string text = Encoding.ASCII.GetString(buffer, 0, bytesRead);
-                            lock (_stringBuilder)
-                            {
-                                _stringBuilder.Append(text);
-                            }
-                            
-                            // Reset the timer each time we get data
-                            _processTimer.Change(PROCESS_DELAY_MS, Timeout.Infinite);
-                        }
+                        break;
                     }
-                    Thread.Sleep(10); // Shorter sleep to be more responsive
+
+                    int bytesRead = 0;
+                    try
+                    {
+                        bytesRead = DataStream.Read(buffer, 0, buffer.Length);
+                    }
+                    catch
+                    {
+                        // Any read error should cause us to exit
+                        break;
+                    }
+
+                    if (bytesRead > 0)
+                    {
+                        string text = Encoding.ASCII.GetString(buffer, 0, bytesRead);
+                        lock (_stringBuilder)
+                        {
+                            _stringBuilder.Append(text);
+                        }
+                        
+                        // Reset the timer each time we get data
+                        _processTimer.Change(PROCESS_DELAY_MS, Timeout.Infinite);
+                    }
+                    else
+                    {
+                        // No data available, check if we should stop
+                        if (_isDisposed || !Running)
+                        {
+                            break;
+                        }
+                        Thread.Sleep(10);
+                    }
                 }
                 catch (Exception ex)
                 {
                     AppLogger.Error(ex, "Error reading text response");
-                    if (_isDisposed) return;
+                    break; // Any error should cause us to exit
                 }
             }
+
+            // Ensure we process any remaining data before exiting
+            ProcessAccumulatedData(null);
         }
 
         private void ProcessAccumulatedData(object? state)
@@ -84,7 +108,15 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
             try
             {
                 _isDisposed = true;
-                _processTimer.Dispose();
+                if (_processTimer != null)
+                {
+                    _processTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                    _processTimer.Dispose();
+                }
+
+                // Process any remaining data before stopping
+                ProcessAccumulatedData(null);
+                
                 base.Stop();
             }
             catch (Exception ex)

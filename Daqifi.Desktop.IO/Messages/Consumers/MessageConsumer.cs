@@ -1,5 +1,6 @@
 ﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
 using Google.Protobuf;
+using System.Threading;
 
 namespace Daqifi.Desktop.IO.Messages.Consumers
 {
@@ -25,11 +26,11 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
         #region AbstractMessageConsumer overrides
         public override void Run()
         {
-            while (Running)
+            while (Running && !_isDisposed)
             {
                 try
                 {
-                    if (DataStream != null)
+                    if (DataStream != null && DataStream.CanRead)
                     {
                         var outMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(DataStream);
                         var protobufMessage = new ProtobufMessage(outMessage);
@@ -39,39 +40,23 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
                 }
                 catch (InvalidProtocolBufferException ex)
                 {
-
                     AppLogger.Error(ex, "Protocol buffer parsing error: {0}");
-                    if (_isDisposed)
-                    {
-                        return;
-                    }
+                    if (_isDisposed) break;
                 }
                 catch (IOException ex) when (ex.Message.Contains("aborted because of either a thread exit or an application request"))
                 {
-
                     AppLogger.Error(ex, "I/O operation aborted: {0}");
-                    if (_isDisposed)
-                    {
-                        return;
-                    }
+                    if (_isDisposed) break;
                 }
                 catch (IOException ex)
                 {
-
                     AppLogger.Error(ex, "IO error while reading from the transport: {0}");
-                    if (_isDisposed)
-                    {
-                        return;
-                    }
+                    if (_isDisposed) break;
                 }
                 catch (Exception ex)
                 {
-
                     AppLogger.Error(ex, "Failed in Message Consumer Run: {0}");
-                    if (_isDisposed)
-                    {
-                        return;
-                    }
+                    if (_isDisposed) break;
                 }
             }
         }
@@ -82,6 +67,9 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
             {
                 _isDisposed = true;
                 base.Stop();
+                
+                // Give the thread a chance to exit gracefully
+                Thread.Sleep(100);
             }
             catch (Exception ex)
             {

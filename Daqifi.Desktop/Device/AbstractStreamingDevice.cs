@@ -312,28 +312,28 @@ namespace Daqifi.Desktop.Device
                 return;
             }
 
-            // Check if this is a file content response (contains JSON or __END_OF_FILE__ marker)
-            if (response.Contains("__END_OF_FILE__") || response.Contains("\"timestamp\""))
+            try
             {
-                HandleFileContentResponse(response);
+                // Check if this is a file content response (contains JSON or __END_OF_FILE__ marker)
+                if (response.Contains("__END_OF_FILE__") || response.Contains("\"timestamp\""))
+                {
+                    HandleFileContentResponse(response);
+                }
+                // Check if this is a file list response (contains multiple lines with .bin files)
+                else if (response.Contains(".bin"))
+                {
+                    HandleFileListResponse(response);
+                    // We're done with the text consumer, stop it
+                    MessageConsumer.Stop();
+                }
+                else
+                {
+                    AppLogger.Warning($"Unexpected SD card response format: {response.Substring(0, Math.Min(100, response.Length))}");
+                }
             }
-            // Check if this is a file list response (contains multiple lines with .bin files)
-            else if (response.Contains(".bin"))
+            catch (Exception ex)
             {
-                HandleFileListResponse(response);
-            }
-            else
-            {
-                AppLogger.Warning($"Unexpected SD card response format: {response.Substring(0, Math.Min(100, response.Length))}");
-            }
-
-            // Switch back to protobuf message consumer for streaming
-            if (Mode == DeviceMode.StreamToApp && IsStreaming)
-            {
-                MessageConsumer.Stop();
-                MessageConsumer = new MessageConsumer(MessageConsumer.DataStream);
-                SetMessageHandler(MessageHandlerType.Streaming);
-                MessageConsumer.Start();
+                AppLogger.Error(ex, "Error processing SD card message");
             }
         }
 
