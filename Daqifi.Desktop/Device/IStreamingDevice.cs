@@ -26,7 +26,6 @@ namespace Daqifi.Desktop.Device
         void StopSdCardLogging();
         void RefreshSdCardFiles();
         void UpdateSdCardFiles(List<SdCardFile> files);
-        void DownloadSdCardFile(string fileName);
 
         string DevicePartNumber { get; }
         NetworkConfiguration NetworkConfiguration { get; }

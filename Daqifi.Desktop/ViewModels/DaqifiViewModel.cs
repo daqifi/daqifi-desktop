@@ -46,7 +46,6 @@ namespace Daqifi.Desktop.ViewModels
         private bool _isChannelSettingsOpen;
         private bool _isLoggingSessionSettingsOpen;
         private bool _isLiveGraphSettingsOpen;
-        private bool _isSdCardLoggingOpen;
         private bool _isSdCardLoggingEnabled;
         private ObservableCollection<SdCardFile> _sdCardFiles;
         private SdCardFile _selectedSdCardFile;
@@ -322,16 +321,6 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _isChannelSettingsOpen = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public bool IsSdCardLoggingOpen
-        {
-            get => _isSdCardLoggingOpen;
-            set
-            {
-                _isSdCardLoggingOpen = value;
                 OnPropertyChanged();
             }
         }
@@ -934,9 +923,7 @@ namespace Daqifi.Desktop.ViewModels
             return true;
         }
 
-        public ICommand OpenSdCardLoggingCommand { get; private set; }
         public ICommand RefreshSdCardFilesCommand { get; private set; }
-        public ICommand DownloadSdCardFileCommand { get; private set; }
         #endregion
 
         #region Register Command 
@@ -972,9 +959,7 @@ namespace Daqifi.Desktop.ViewModels
             UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
             OpenFirmwareUpdateCommand = new DelegateCommand(OpenFirmwareUpdateSettings, CanOpenFirmwareUpdateSettings);
             HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
-            OpenSdCardLoggingCommand = new RelayCommand(() => OpenSdCardLoggingSettings());
             RefreshSdCardFilesCommand = new RelayCommand(() => RefreshSdCardFiles());
-            DownloadSdCardFileCommand = new RelayCommand(() => DownloadSdCardFile());
         }
         #endregion
 
@@ -1783,7 +1768,6 @@ namespace Daqifi.Desktop.ViewModels
             IsLogSummaryOpen = false;
             IsNotificationsOpen = false;
             IsFirmwareUpdatationFlyoutOpen = false;
-            IsSdCardLoggingOpen = false;
         }
 
         #region New Enhancements and developement
@@ -2238,48 +2222,6 @@ namespace Daqifi.Desktop.ViewModels
             {
                 IsBusy = false;
             }
-        }
-
-        private async void DownloadSdCardFile()
-        {
-            if (SelectedDevice == null || SelectedSdCardFile == null) return;
-            
-            IsBusy = true;
-            
-            try
-            {
-                // Show file save dialog
-                var saveFileDialog = new SaveFileDialog
-                {
-                    FileName = SelectedSdCardFile.FileName,
-                    Filter = "All files (*.*)|*.*"
-                };
-
-                if (saveFileDialog.ShowDialog() == DialogResult.OK)
-                {
-                    SelectedDevice.DownloadSdCardFile(SelectedSdCardFile.FileName);
-                    await Task.Delay(1000); // Wait for response
-                    
-                    var successDialogViewModel = new SuccessDialogViewModel("File downloaded successfully.");
-                    _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
-                }
-            }
-            catch (Exception ex)
-            {
-                _appLogger.Error(ex, "Failed to download SD card file");
-                var errorDialogViewModel = new ErrorDialogViewModel("Failed to download file. Please try again.");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-            }
-            finally
-            {
-                IsBusy = false;
-            }
-        }
-
-        private void OpenSdCardLoggingSettings()
-        {
-            CloseFlyouts();
-            IsSdCardLoggingOpen = true;
         }
         #endregion
 

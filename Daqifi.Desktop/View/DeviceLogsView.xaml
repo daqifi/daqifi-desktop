@@ -6,7 +6,6 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
-             xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
     <Grid>
@@ -59,27 +58,6 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding CreatedDate, StringFormat=\{0:g\}}" />
-                                </DataTemplate>
-                            </GridViewColumn.CellTemplate>
-                        </GridViewColumn>
-                        <GridViewColumn Width="100">
-                            <GridViewColumn.CellTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button Command="{Binding DataContext.DownloadFileCommand, RelativeSource={RelativeSource AncestorType=ListView}}" 
-                                                CommandParameter="{Binding}"
-                                                Style="{StaticResource MahApps.Styles.Button.Square.Accent}"
-                                                ToolTip="Download"
-                                                Margin="0,0,5,0">
-                                            <iconPacks:PackIconMaterial Kind="Download" Height="15" Width="15"/>
-                                        </Button>
-                                        <Button Command="{Binding DataContext.ImportFileCommand, RelativeSource={RelativeSource AncestorType=ListView}}" 
-                                                CommandParameter="{Binding}"
-                                                Style="{StaticResource MahApps.Styles.Button.Square}"
-                                                ToolTip="Import to Debug">
-                                            <iconPacks:PackIconMaterial Kind="Import" Height="15" Width="15"/>
-                                        </Button>
-                                    </StackPanel>
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>

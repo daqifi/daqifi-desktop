@@ -363,9 +363,7 @@ namespace Daqifi.Desktop.Device
                     return new SdCardFile
                     {
                         FileName = fileName,
-                        CreatedDate = createdDate,
-                        // Size will be unknown until we implement a separate command to get file details
-                        Size = 0
+                        CreatedDate = createdDate
                     };
                 })
                 .Where(file => !string.IsNullOrEmpty(file.FileName))
@@ -454,13 +452,10 @@ namespace Daqifi.Desktop.Device
             switch (_mode)
             {
                 case DeviceMode.StreamToApp:
-                    MessageProducer.Send(ScpiMessageProducer.EnableLan);
-                    MessageProducer.Send(ScpiMessageProducer.ApplyLan);
-                    SetProtobufMessageFormat();
+                    PrepareLanInterface();
                     break;
                 case DeviceMode.LogToDevice:
-                    MessageProducer.Send(ScpiMessageProducer.DisableLan);
-                    MessageProducer.Send(ScpiMessageProducer.ApplyLan);
+                    PrepareSdInterface();
                     break;
             }
 
@@ -533,11 +528,7 @@ namespace Daqifi.Desktop.Device
 
         public void RefreshSdCardFiles()
         {
-            // Stop the current message consumer
-            if (MessageConsumer != null && MessageConsumer.Running)
-            {
-                MessageConsumer.Stop();
-            }
+            PrepareSdInterface();
 
             // Create a text message consumer for SD card operations
             MessageConsumer = new TextMessageConsumer(MessageConsumer.DataStream);
@@ -555,32 +546,6 @@ namespace Daqifi.Desktop.Device
         {
             _sdCardFiles = files ?? new List<SdCardFile>();
             NotifyPropertyChanged(nameof(SdCardFiles));
-        }
-
-        public void DownloadSdCardFile(string fileName)
-        {
-            if (string.IsNullOrEmpty(fileName))
-            {
-                throw new ArgumentException("Filename cannot be null or empty", nameof(fileName));
-            }
-
-            // Stop the current message consumer
-            if (MessageConsumer != null && MessageConsumer.Running)
-            {
-                MessageConsumer.Stop();
-            }
-
-            // Create a text message consumer for file download
-            MessageConsumer = new TextMessageConsumer(MessageConsumer.DataStream);
-            SetMessageHandler(MessageHandlerType.SdCard);
-            
-            if (!MessageConsumer.Running)
-            {
-                MessageConsumer.Start();
-            }
-
-            // Send the get file command with the filename
-            MessageProducer.Send(ScpiMessageProducer.GetSdFile(fileName));
         }
 
         public void InitializeStreaming()
@@ -936,6 +901,20 @@ namespace Daqifi.Desktop.Device
             MessageProducer.Send(ScpiMessageProducer.Reboot);
             MessageProducer.StopSafely();
             MessageConsumer.Stop();
+        }
+
+        // SD and LAN can't both be enabled due to hardware limitations
+        private void PrepareSdInterface()
+        {
+            MessageProducer.Send(ScpiMessageProducer.DisableLan);
+            MessageProducer.Send(ScpiMessageProducer.EnableSdCard);
+        }
+        
+        // SD and LAN can't both be enabled due to hardware limitations
+        private void PrepareLanInterface()
+        {
+            MessageProducer.Send(ScpiMessageProducer.DisableSdCard);
+            MessageProducer.Send(ScpiMessageProducer.EnableLan);
         }
     }
 }
