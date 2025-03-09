@@ -528,17 +528,29 @@ namespace Daqifi.Desktop.Device
 
         public void RefreshSdCardFiles()
         {
-            PrepareSdInterface();
-
-            // Create a text message consumer for SD card operations
-            MessageConsumer = new TextMessageConsumer(MessageConsumer.DataStream);
-            SetMessageHandler(MessageHandlerType.SdCard);
+            var stream = MessageConsumer.DataStream;
             
-            if (!MessageConsumer.Running)
+            // Stop existing consumer first
+            if (MessageConsumer != null && MessageConsumer.Running)
             {
-                MessageConsumer.Start();
+                MessageConsumer.Stop();
             }
 
+            // Create and start the new consumer BEFORE sending any commands
+            MessageConsumer = new TextMessageConsumer(stream);
+            SetMessageHandler(MessageHandlerType.SdCard);
+            MessageConsumer.Start();
+            
+            // Give the consumer a moment to fully initialize
+            Thread.Sleep(50);
+
+            // Now that we're listening, prepare the SD interface
+            PrepareSdInterface();
+            
+            // Give the interface time to switch and send any responses
+            Thread.Sleep(100);
+            
+            // Now request the file list
             MessageProducer.Send(ScpiMessageProducer.GetSdFileList);
         }
 
