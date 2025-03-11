@@ -570,7 +570,7 @@ namespace Daqifi.Desktop.Device
             _previousTimestamp = null;
             MessageProducer.Send(ScpiMessageProducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
-            StartMessageConsumer();
+            StartStreamingMessageConsumer();
             var objectPoolProvider = new DefaultObjectPoolProvider(); // Initialize pools with default policy
             _samplePool = objectPoolProvider.Create<DataSample>();
             _deviceMessagePool = objectPoolProvider.Create<DeviceMessage>();
@@ -592,20 +592,23 @@ namespace Daqifi.Desktop.Device
             }
         }
 
-        protected void StartMessageConsumer()
+        protected void StartStreamingMessageConsumer()
         {
             if (Mode != DeviceMode.StreamToApp)
             {
                 return; // Don't start consumer if not in streaming mode
             }
-            
-            if (MessageConsumer != null)
+
+            if (MessageConsumer is not IO.Messages.Consumers.MessageConsumer)
             {
-                SetMessageHandler(MessageHandlerType.Streaming);
-                if (!MessageConsumer.Running)
-                {
-                    MessageConsumer.Start();
-                }
+                var stream = MessageConsumer.DataStream;
+                MessageConsumer = new MessageConsumer(stream);
+            }
+
+            SetMessageHandler(MessageHandlerType.Streaming);
+            if (!MessageConsumer.Running)
+            {
+                MessageConsumer.Start();
             }
         }
 
