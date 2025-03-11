@@ -5,7 +5,6 @@ using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
-using Microsoft.Extensions.ObjectPool;
 using Daqifi.Desktop.IO.Messages.Decoders;
 using Daqifi.Desktop.Models;
 using System.Text.RegularExpressions;
@@ -37,19 +36,18 @@ namespace Daqifi.Desktop.Device
         private int _streamingFrequency = 1;
         private uint? _previousDeviceTimestamp;
 
-        private Dictionary<string, DateTime> _previousTimestamps = new Dictionary<string, DateTime>();
-        private Dictionary<string, uint?> _previousDeviceTimestamps = new Dictionary<string, uint?>();
-        private ObjectPool<DataSample> _samplePool;
-        private ObjectPool<DeviceMessage> _deviceMessagePool;
-        private DeviceMode _mode = DeviceMode.StreamToApp;
-        private bool _isLoggingToSdCard;
-        private List<SdCardFile> _sdCardFiles = new();
+        private Dictionary<string, DateTime> _previousTimestamps = new();
+        private Dictionary<string, uint?> _previousDeviceTimestamps = new();
+        private List<SdCardFile> _sdCardFiles = [];
 
         #region Properties
-        public AppLogger AppLogger = AppLogger.Instance;
 
-        public DeviceMode Mode => _mode;
-        public bool IsLoggingToSdCard => _isLoggingToSdCard;
+        protected readonly AppLogger AppLogger = AppLogger.Instance;
+
+        public DeviceMode Mode { get; private set; } = DeviceMode.StreamToApp;
+
+        public bool IsLoggingToSdCard { get; private set; }
+
         public IReadOnlyList<SdCardFile> SdCardFiles => _sdCardFiles.AsReadOnly();
 
         public int Id { get; set; }
@@ -126,29 +124,28 @@ namespace Daqifi.Desktop.Device
         private void SetMessageHandler(MessageHandlerType handlerType)
         {
             // Remove all handlers first
-            if (MessageConsumer != null)
+            MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
+            MessageConsumer.OnMessageReceived -= HandleMessageReceived;
+            MessageConsumer.OnMessageReceived -= HandleSdCardMessageReceived;
+
+            // Add the new handler
+            switch (handlerType)
             {
-                MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
-                MessageConsumer.OnMessageReceived -= HandleMessageReceived;
-                MessageConsumer.OnMessageReceived -= HandleSdCardMessageReceived;
-
-                // Add the new handler
-                switch (handlerType)
-                {
-                    case MessageHandlerType.Status:
-                        MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
-                        break;
-                    case MessageHandlerType.Streaming:
-                        MessageConsumer.OnMessageReceived += HandleMessageReceived;
-                        break;
-                    case MessageHandlerType.SdCard:
-                        MessageConsumer.OnMessageReceived += HandleSdCardMessageReceived;
-                        break;
-                }
-
-                _currentHandler = handlerType;
-                AppLogger.Information($"Message handler set to: {handlerType}");
+                case MessageHandlerType.Status:
+                    MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
+                    break;
+                case MessageHandlerType.Streaming:
+                    MessageConsumer.OnMessageReceived += HandleMessageReceived;
+                    break;
+                case MessageHandlerType.SdCard:
+                    MessageConsumer.OnMessageReceived += HandleSdCardMessageReceived;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(handlerType), handlerType, null);
             }
+
+            _currentHandler = handlerType;
+            AppLogger.Information($"Message handler set to: {handlerType}");
         }
 
         private void HandleStatusMessageReceived(object sender, MessageEventArgs e)
@@ -274,7 +271,7 @@ namespace Daqifi.Desktop.Device
                         analogCount++;
                     }
                 }
-                catch (System.Exception ex)
+                catch (Exception ex)
                 {
                     AppLogger.Error($"Error processing channel data: {ex.Message}");
                 }
@@ -285,14 +282,14 @@ namespace Daqifi.Desktop.Device
                 DeviceName = Name,
                 AnalogChannelCount = analogCount,
                 DeviceSerialNo = message.DeviceSn.ToString(),
-                DeviceVersion = message.DeviceFwRev.ToString(),
+                DeviceVersion = message.DeviceFwRev,
                 DigitalChannelCount = digitalCount,
                 TimestampTicks = messageTimestamp.Ticks,
                 AppTicks = DateTime.Now.Ticks,
                 DeviceStatus = (int)message.DeviceStatus,
                 BatteryStatus = (int)message.BattStatus,
                 PowerStatus = (int)message.PwrStatus,
-                TempStatus = (int)message.TempStatus,
+                TempStatus = message.TempStatus,
                 TargetFrequency = (int)message.TimestampFreq,
                 Rollover = rollover,
             };
@@ -340,7 +337,7 @@ namespace Daqifi.Desktop.Device
         private void HandleFileListResponse(string response)
         {
             var files = response
-                .Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries)
+                .Split(["\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries)
                 .Select(path =>
                 {
                     // Clean up the path and handle the malformed first line
@@ -410,7 +407,7 @@ namespace Daqifi.Desktop.Device
                     "yyyyMMddHHmmss", 
                     CultureInfo.InvariantCulture, 
                     DateTimeStyles.None, 
-                    out DateTime result))
+                    out var result))
                 {
                     return result;
                 }
@@ -422,7 +419,7 @@ namespace Daqifi.Desktop.Device
         #region Streaming Methods
         public void SwitchMode(DeviceMode newMode)
         {
-            if (_mode == newMode) return;
+            if (Mode == newMode) return;
             
             // Stop any current activity
             if (IsStreaming)
@@ -435,7 +432,7 @@ namespace Daqifi.Desktop.Device
             }
             
             // Clean up old mode
-            switch (_mode)
+            switch (Mode)
             {
                 case DeviceMode.StreamToApp:
                     StopMessageConsumer();
@@ -446,10 +443,10 @@ namespace Daqifi.Desktop.Device
                     break;
             }
 
-            _mode = newMode;
+            Mode = newMode;
 
             // Setup new mode
-            switch (_mode)
+            switch (Mode)
             {
                 case DeviceMode.StreamToApp:
                     PrepareLanInterface();
@@ -492,7 +489,7 @@ namespace Daqifi.Desktop.Device
                 // Start the device logging at the configured frequency
                 MessageProducer.Send(ScpiMessageProducer.StartStreaming(StreamingFrequency));
                 
-                _isLoggingToSdCard = true;
+                IsLoggingToSdCard = true;
                 IsStreaming = true; // We're streaming to SD card
                 AppLogger.Information($"Enabled SD card logging for device {DeviceSerialNo}");
                 NotifyPropertyChanged(nameof(IsLoggingToSdCard));
@@ -513,7 +510,7 @@ namespace Daqifi.Desktop.Device
                 MessageProducer.Send(ScpiMessageProducer.StopStreaming);
                 MessageProducer.Send(ScpiMessageProducer.DisableSdCard);
                 
-                _isLoggingToSdCard = false;
+                IsLoggingToSdCard = false;
                 IsStreaming = false;
                 AppLogger.Information($"Disabled SD card logging for device {DeviceSerialNo}");
                 NotifyPropertyChanged(nameof(IsLoggingToSdCard));
@@ -556,7 +553,7 @@ namespace Daqifi.Desktop.Device
 
         public void UpdateSdCardFiles(List<SdCardFile> files)
         {
-            _sdCardFiles = files ?? new List<SdCardFile>();
+            _sdCardFiles = files;
             NotifyPropertyChanged(nameof(SdCardFiles));
         }
 
@@ -571,9 +568,6 @@ namespace Daqifi.Desktop.Device
             MessageProducer.Send(ScpiMessageProducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
             StartStreamingMessageConsumer();
-            var objectPoolProvider = new DefaultObjectPoolProvider(); // Initialize pools with default policy
-            _samplePool = objectPoolProvider.Create<DataSample>();
-            _deviceMessagePool = objectPoolProvider.Create<DeviceMessage>();
         }
 
         public void StopStreaming()
