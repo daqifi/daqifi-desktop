@@ -547,15 +547,21 @@ namespace Daqifi.Desktop.Device
                 return; // Don't start consumer if not in streaming mode
             }
 
-            if (MessageConsumer is not IO.Messages.Consumers.MessageConsumer)
+            // Always create a new message consumer to ensure clean state
+            var stream = MessageConsumer?.DataStream;
+            if (stream != null)
             {
-                var stream = MessageConsumer.DataStream;
-                MessageConsumer = new MessageConsumer(stream);
-            }
+                // Stop and cleanup existing consumer if any
+                MessageConsumer?.Stop();
 
-            SetMessageHandler(MessageHandlerType.Streaming);
-            if (!MessageConsumer.Running)
-            {
+                // Create new consumer
+                MessageConsumer = new MessageConsumer(stream);
+                if (MessageConsumer is MessageConsumer msgConsumer)
+                {
+                    msgConsumer.ClearBuffer();
+                }
+                
+                SetMessageHandler(MessageHandlerType.Streaming);
                 MessageConsumer.Start();
             }
         }

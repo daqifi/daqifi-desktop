@@ -34,7 +34,7 @@ namespace Daqifi.Desktop.Logger
             private set
             {
                 _subscribedChannels = value;
-                NotifyPropertyChanged("SubscribedChannels");
+                NotifyPropertyChanged(nameof(SubscribedChannels));
             }
         }
 
@@ -43,7 +43,7 @@ namespace Daqifi.Desktop.Logger
             get => _active;
             set
             {
-                if (!_active)
+                if (!_active && value) // Starting a new logging session
                 {
                     using (var context = _loggingContext.CreateDbContext())
                     {
@@ -55,15 +55,42 @@ namespace Daqifi.Desktop.Logger
                         context.Sessions.Add(Session);
                         context.SaveChanges();
                     }
+                    
+                    // Clear all loggers when starting a new session
+                    foreach (var logger in Loggers)
+                    {
+                        if (logger is PlotLogger plotLogger)
+                        {
+                            plotLogger.ClearPlot();
+                        }
+                        else if (logger is DatabaseLogger dbLogger)
+                        {
+                            dbLogger.ClearPlot();
+                        }
+                    }
+
+                    // Resubscribe all active channels to ensure proper event handling
+                    foreach (var channel in SubscribedChannels.ToList())
+                    {
+                        // Temporarily remove to ensure clean state
+                        channel.OnChannelUpdated -= HandleChannelUpdate;
+                        
+                        // Only reattach if in Stream mode
+                        if (CurrentMode == LoggingMode.Stream)
+                        {
+                            channel.OnChannelUpdated += HandleChannelUpdate;
+                        }
+                    }
                 }
-                else
+                else if (_active && !value) // Stopping the current session
                 {
                     if (LoggingSessions == null) { LoggingSessions = new List<LoggingSession>(); }
                     LoggingSessions.Add(Session);
-                    NotifyPropertyChanged("LoggingSessions");
+                    NotifyPropertyChanged(nameof(LoggingSessions));
                 }
 
                 _active = value;
+                NotifyPropertyChanged(nameof(Active));
             }
         }
 
@@ -75,7 +102,7 @@ namespace Daqifi.Desktop.Logger
             set
             {
                 _loggingSessions = value;
-                NotifyPropertyChanged("LoggingSessions");
+                NotifyPropertyChanged(nameof(LoggingSessions));
             }
         }
 
@@ -499,7 +526,7 @@ namespace Daqifi.Desktop.Logger
             NotifyPropertyChanged("VersionNumber");
         }
 
-        public void ClearChannelList()
+        private void ClearChannelList()
         {
 
             foreach (var channel in SubscribedChannels)
@@ -509,7 +536,6 @@ namespace Daqifi.Desktop.Logger
             }
             SubscribedChannels.Clear();
             NotifyPropertyChanged("SubscribedChannels");
-
         }
     }
 }
