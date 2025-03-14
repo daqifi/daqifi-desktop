@@ -139,7 +139,7 @@ namespace Daqifi.Desktop.Device
                 return;
             }
 
-            if (!(e.Message.Data is DaqifiOutMessage message))
+            if (e.Message.Data is not DaqifiOutMessage message)
             {
                 AppLogger.Warning("Issue decoding protobuf message");
                 return;
@@ -222,7 +222,8 @@ namespace Daqifi.Desktop.Device
                     {
                         if (analogCount >= message.AnalogInData.Count)
                         {
-                            AppLogger.Error("Trying to access more analog channels than received data.");
+                            AppLogger.Error("Trying to access more analog channels than received data. " +
+                                            $"Expected {analogCount} but messaged had {message.AnalogInData.Count} ");
                             break;
                         }
 

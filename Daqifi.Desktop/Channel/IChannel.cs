@@ -16,7 +16,6 @@ namespace Daqifi.Desktop.Channel
         double OutputValue { get; set; }
         ChannelType Type { get; }
         ChannelDirection Direction { get; set; }
-        string AdcMode { get; set; }
         string TypeString { get; }
         string ScaleExpression { get; set; }
         System.Windows.Media.Brush ChannelColorBrush { get; set; }
