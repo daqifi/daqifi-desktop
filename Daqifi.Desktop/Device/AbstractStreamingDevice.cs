@@ -87,7 +87,7 @@ namespace Daqifi.Desktop.Device
         {
             // Remove all handlers first
             MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
-            MessageConsumer.OnMessageReceived -= HandleMessageReceived;
+            MessageConsumer.OnMessageReceived -= HandleStreamingMessageReceived;
             MessageConsumer.OnMessageReceived -= HandleSdCardMessageReceived;
 
             // Add the new handler
@@ -97,7 +97,7 @@ namespace Daqifi.Desktop.Device
                     MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
                     break;
                 case MessageHandlerType.Streaming:
-                    MessageConsumer.OnMessageReceived += HandleMessageReceived;
+                    MessageConsumer.OnMessageReceived += HandleStreamingMessageReceived;
                     break;
                 case MessageHandlerType.SdCard:
                     MessageConsumer.OnMessageReceived += HandleSdCardMessageReceived;
@@ -132,7 +132,7 @@ namespace Daqifi.Desktop.Device
             return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
         }
 
-        private void HandleMessageReceived(object sender, MessageEventArgs e)
+        private void HandleStreamingMessageReceived(object sender, MessageEventArgs e)
         {
             if (!IsStreaming)
             {
@@ -159,8 +159,8 @@ namespace Daqifi.Desktop.Device
                 _previousDeviceTimestamps[deviceId] = message.MsgTimeStamp;
             }
 
-            DateTime previousTimestamp = _previousTimestamps[deviceId];
-            uint previousDeviceTimestamp = _previousDeviceTimestamps[deviceId].GetValueOrDefault();
+            var previousTimestamp = _previousTimestamps[deviceId];
+            var previousDeviceTimestamp = _previousDeviceTimestamps[deviceId].GetValueOrDefault();
 
             uint numberOfClockCyclesBetweenMessages;
             var rollover = previousDeviceTimestamp > message.MsgTimeStamp;
@@ -189,12 +189,13 @@ namespace Daqifi.Desktop.Device
 
             var digitalData1 = new byte();
             var digitalData2 = new byte();
-            var hasDigitalData = message.DigitalData;
+            var hasDigitalData = message.DigitalData.Length > 0;
+            var hasAnalogData = message.AnalogInData.Count > 0;
 
-            if (hasDigitalData.Length > 0)
+            if (hasDigitalData)
             {
-                digitalData1 = hasDigitalData.ElementAtOrDefault(0);
-                digitalData2 = hasDigitalData.ElementAtOrDefault(1);
+                digitalData1 = message.DigitalData.ElementAtOrDefault(0);
+                digitalData2 = message.DigitalData.ElementAtOrDefault(1);
             }
 
             // Loop through channels for this device
@@ -202,7 +203,7 @@ namespace Daqifi.Desktop.Device
             {
                 try
                 {
-                    if (channel.Type == ChannelType.Digital && hasDigitalData.Length > 0)
+                    if (channel.Type == ChannelType.Digital && hasDigitalData)
                     {
                         bool bit;
                         if (digitalCount < 8)
@@ -218,7 +219,7 @@ namespace Daqifi.Desktop.Device
                         channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
                         digitalCount++;
                     }
-                    else if (channel.Type == ChannelType.Analog)
+                    else if (channel.Type == ChannelType.Analog && hasAnalogData)
                     {
                         if (analogCount >= message.AnalogInData.Count)
                         {
@@ -302,16 +303,7 @@ namespace Daqifi.Desktop.Device
                 .Split(["\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries)
                 .Select(path =>
                 {
-                    // Clean up the path and handle the malformed first line
                     var cleanPath = path.Trim();
-                    if (cleanPath.StartsWith("efault.bin"))
-                    {
-                        cleanPath = "Daqifi/default.bin";
-                    }
-                    else if (!cleanPath.StartsWith("Daqifi/"))
-                    {
-                        cleanPath = "Daqifi/" + cleanPath;
-                    }
 
                     // Remove the Daqifi/ prefix if present and get just the filename
                     var fileName = Path.GetFileName(cleanPath);
