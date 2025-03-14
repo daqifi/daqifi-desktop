@@ -26,11 +26,8 @@ namespace Daqifi.Desktop.Device
         void StopSdCardLogging();
         void RefreshSdCardFiles();
         void UpdateSdCardFiles(List<SdCardFile> files);
-
         string DevicePartNumber { get; }
         NetworkConfiguration NetworkConfiguration { get; }
-        List<string> AdcRanges { get; }
-        string AdcRangeText { get; set; }
         string MacAddress { get; set; }
         string DeviceSerialNo { get; set; }
         string DeviceVersion { get; set; }
@@ -48,19 +45,6 @@ namespace Daqifi.Desktop.Device
         /// Sends a command to get any initialization data from the streamingDevice that might be needed
         /// </summary>
         void InitializeDeviceState();
-
-        /// <summary>
-        /// Sets the ADC mode. Either "Single Ended" or "Differential"
-        /// </summary>
-        /// <param name="channel"></param>
-        /// <param name="mode">ADC Mode</param>
-        void SetAdcMode(IChannel channel, AdcMode mode);
-
-        /// <summary>
-        ///  Sets the ADC Range
-        /// </summary>
-        /// <param name="range">ADC Range (Plus or Minus)</param>
-        void SetAdcRange(int range);
 
         /// <summary>
         /// Sends a command to activate a channel on the streamingDevice

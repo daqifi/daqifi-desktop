@@ -21,18 +21,9 @@ namespace Daqifi.Desktop.Device
             Streaming,
             SdCard
         }
-
-        private MessageHandlerType _currentHandler;
-        private const string _5Volt = "+/-5V";
-        private const string _10Volt = "+/-10V";
-        private const string Nq1PartNumber = "Nq1";
-        private const string Nq2PartNumber = "Nq2";
-        private const string Nq3PartNumber = "Nq3";
+        
         private const double TickPeriod = 20E-9f;
         private static DateTime? _previousTimestamp;
-        private string _adcRangeText;
-        protected readonly double AdcResolution = 131072;
-        protected double AdcRange = 1;
         private int _streamingFrequency = 1;
         private uint? _previousDeviceTimestamp;
 
@@ -73,40 +64,11 @@ namespace Daqifi.Desktop.Device
             }
         }
 
-        public List<string> SecurityTypes { get; } = new List<string>();
-        public List<string> AdcRanges { get; } = new List<string>();
-
-        public NetworkConfiguration NetworkConfiguration { get; set; } = new NetworkConfiguration();
+        public NetworkConfiguration NetworkConfiguration { get; set; } = new();
 
         public IMessageConsumer MessageConsumer { get; set; }
         public IMessageProducer MessageProducer { get; set; }
-        public List<IChannel> DataChannels { get; set; } = new List<IChannel>();
-
-        public string AdcRangeText
-        {
-            get => _adcRangeText;
-            set
-            {
-                if (value == _adcRangeText)
-                {
-                    return;
-                }
-
-                switch (value)
-                {
-                    case _5Volt:
-                        SetAdcRange(5);
-                        break;
-                    case _10Volt:
-                        SetAdcRange(10);
-                        break;
-                    default:
-                        return;
-                }
-                _adcRangeText = value;
-                NotifyPropertyChanged("AdcRange");
-            }
-        }
+        public List<IChannel> DataChannels { get; set; } = [];
 
         public bool IsStreaming { get; set; }
         public bool IsFirmwareOutdated { get; set; }
@@ -143,8 +105,7 @@ namespace Daqifi.Desktop.Device
                 default:
                     throw new ArgumentOutOfRangeException(nameof(handlerType), handlerType, null);
             }
-
-            _currentHandler = handlerType;
+            
             AppLogger.Information($"Message handler set to: {handlerType}");
         }
 
@@ -741,51 +702,9 @@ namespace Daqifi.Desktop.Device
             }
         }
 
-        public void SetAdcMode(IChannel channel, AdcMode mode)
-        {
-            switch (mode)
-            {
-                case AdcMode.Differential:
-                    MessageProducer.Send(ScpiMessageProducer.ConfigureAdcMode(channel.Index, 0));
-                    break;
-                case AdcMode.SingleEnded:
-                    MessageProducer.Send(ScpiMessageProducer.ConfigureAdcMode(channel.Index, 1));
-                    break;
-            }
-        }
-
-        public void SetAdcRange(int range)
-        {
-            switch (range)
-            {
-                case 5:
-                    MessageProducer.Send(ScpiMessageProducer.ConfigureAdcRange(0));
-                    AdcRange = 0;
-                    break;
-                case 10:
-                    MessageProducer.Send(ScpiMessageProducer.ConfigureAdcRange(1));
-                    AdcRange = 1;
-                    break;
-            }
-        }
-
         private void PopulateAnalogInChannels(DaqifiOutMessage message)
         {
             if (message.AnalogInPortNum == 0) { return; }
-
-            if (!string.IsNullOrWhiteSpace(DevicePartNumber))
-            {
-                AdcRanges.Clear();
-                if (DevicePartNumber == Nq1PartNumber)
-                {
-                    AdcRanges.Add(_5Volt);
-                }
-                else if (DevicePartNumber == Nq2PartNumber || DevicePartNumber == Nq3PartNumber)
-                {
-                    AdcRanges.Add(_5Volt);
-                    AdcRanges.Add(_10Volt);
-                }
-            }
 
             var analogInPortRanges = message.AnalogInPortRange;
             var analogInCalibrationBValues = message.AnalogInCalB;
@@ -855,11 +774,6 @@ namespace Daqifi.Desktop.Device
             if (message.MacAddr.Length > 0)
             {
                 MacAddress = ProtobufDecoder.GetMacAddressString(message);
-            }
-
-            if (message.AnalogInPortRange.Count > 0 && (int)message.AnalogInPortRange[0] == 5)
-            {
-                _adcRangeText = _5Volt;
             }
         }
 
