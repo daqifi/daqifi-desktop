@@ -290,7 +290,7 @@ namespace Daqifi.Desktop.IO.Test.Messages.Producers
         {
             var actualCommand = ScpiMessageProducer.SetSdLoggingFileName("test.bin");
             var actualCommandRawData = actualCommand.GetBytes();
-            const string expectedCommandText = "SYSTem:STORage:SD:LOGging test.bin";
+            const string expectedCommandText = "SYSTem:STORage:SD:LOGging \"test.bin\"";
             var expectedCommandRawData = GetBytes(expectedCommandText);
 
             CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
