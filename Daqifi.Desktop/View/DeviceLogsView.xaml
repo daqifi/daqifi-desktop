@@ -6,8 +6,14 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+             xmlns:converters="clr-namespace:Daqifi.Desktop.Converters"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
+    <UserControl.Resources>
+        <converters:ConnectionTypeToColorConverter x:Key="ConnectionTypeToColorConverter"/>
+        <converters:NotNullToVisibilityConverter x:Key="NotNullToVisibilityConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -16,27 +22,51 @@
 
         <!-- Device Selection -->
         <Grid Grid.Row="0" Margin="0,0,0,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
+            <!-- Device Selection Row -->
             <TextBlock Text="Device:" 
+                      Grid.Row="0"
                       VerticalAlignment="Center" 
                       Margin="0,0,10,0"/>
             
-            <ComboBox Grid.Column="1" 
+            <ComboBox Grid.Row="0"
+                      Grid.Column="1" 
                       ItemsSource="{Binding ConnectedDevices}"
                       SelectedItem="{Binding SelectedDevice}"
                       DisplayMemberPath="DeviceSerialNo"
                       Margin="0,0,10,0"/>
 
-            <Button Grid.Column="2" 
+            <Button Grid.Row="0"
+                    Grid.Column="2" 
                     Command="{Binding RefreshFilesCommand}"
-                    ToolTip="Refresh Files">
-                <iconPacks:PackIconMaterial Kind="Refresh"/>
+                    ToolTip="{Binding ConnectionTypeMessage}"
+                    IsEnabled="{Binding CanAccessSdCard}">
+                <StackPanel Orientation="Horizontal">
+                    <iconPacks:PackIconMaterial Kind="Refresh" Margin="0,0,5,0"/>
+                    <TextBlock Text="Refresh Files"/>
+                </StackPanel>
             </Button>
+
+            <!-- Connection Status Row -->
+            <TextBlock Grid.Row="1"
+                       Grid.Column="0"
+                       Grid.ColumnSpan="3"
+                       Text="{Binding ConnectionTypeMessage}"
+                       Margin="0,5,0,0"
+                       FontSize="14"
+                       FontWeight="SemiBold"
+                       Foreground="{Binding SelectedDevice.ConnectionType, Converter={StaticResource ConnectionTypeToColorConverter}}"
+                       HorizontalAlignment="Left"
+                       Visibility="{Binding SelectedDevice, Converter={StaticResource NotNullToVisibilityConverter}}"/>
         </Grid>
 
         <!-- Device Files List -->

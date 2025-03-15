@@ -8,7 +8,8 @@ namespace Daqifi.Desktop.Device.SerialDevice
     public class SerialStreamingDevice : AbstractStreamingDevice
     {
         #region Properties
-        public SerialPort Port { get; }
+        public SerialPort Port { get; set; }
+        public override ConnectionType ConnectionType => ConnectionType.Usb;
         #endregion
 
         #region Constructor

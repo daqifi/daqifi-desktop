@@ -3,9 +3,9 @@ using Application = System.Windows.Application;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Daqifi.Desktop.Device;
 using System.Windows.Input;
-using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Models;
 
 namespace Daqifi.Desktop.ViewModels
@@ -27,7 +27,17 @@ namespace Daqifi.Desktop.ViewModels
         [ObservableProperty]
         private ObservableCollection<SdCardFile> _deviceFiles;
 
-        public ICommand RefreshFilesCommand { get; private set; }
+        [ObservableProperty]
+        private bool _canRefreshFiles;
+
+        public bool CanAccessSdCard => SelectedDevice?.ConnectionType == ConnectionType.Usb;
+        
+        public string ConnectionTypeMessage => SelectedDevice == null ? string.Empty :
+            SelectedDevice.ConnectionType == ConnectionType.Usb ? 
+                "USB Connected - SD Card Access Available" : 
+                "WiFi Connected - SD Card Access Requires USB Connection";
+
+        public ICommand RefreshFilesCommand { get; }
 
         public DeviceLogsViewModel()
         {
@@ -35,7 +45,7 @@ namespace Daqifi.Desktop.ViewModels
             DeviceFiles = new ObservableCollection<SdCardFile>();
             
             // Initialize commands
-            RefreshFilesCommand = new DelegateCommand(o => RefreshFiles());
+            RefreshFilesCommand = new RelayCommand(RefreshFiles, () => CanAccessSdCard);
 
             // Subscribe to device connection changes
             ConnectionManager.Instance.PropertyChanged += (s, e) =>
@@ -72,17 +82,29 @@ namespace Daqifi.Desktop.ViewModels
         {
             if (value != null)
             {
-                RefreshFiles();
+                // Only refresh files if we have USB access
+                if (CanAccessSdCard)
+                {
+                    RefreshFiles();
+                }
+                else
+                {
+                    DeviceFiles.Clear();
+                }
             }
             else
             {
                 DeviceFiles.Clear();
             }
+
+            OnPropertyChanged(nameof(CanAccessSdCard));
+            OnPropertyChanged(nameof(ConnectionTypeMessage));
+            (RefreshFilesCommand as RelayCommand)?.NotifyCanExecuteChanged();
         }
 
         private async void RefreshFiles()
         {
-            if (SelectedDevice == null)
+            if (SelectedDevice == null || !CanAccessSdCard)
             {
                 return;
             }

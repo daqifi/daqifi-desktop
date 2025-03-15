@@ -16,6 +16,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice
         public bool IsPowerOn { get; set; }
         public string DeviceSerialNo { get; set; }
         public string DeviceVersion { get; set; }
+        public override ConnectionType ConnectionType => ConnectionType.Wifi;
 
         #endregion
 

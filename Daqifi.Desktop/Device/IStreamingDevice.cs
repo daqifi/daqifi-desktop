@@ -13,9 +13,23 @@ namespace Daqifi.Desktop.Device
         LogToDevice
     }
 
+    public enum ConnectionType
+    {
+        /// <summary>
+        /// Device is connected via USB
+        /// </summary>
+        Usb,
+        
+        /// <summary>
+        /// Device is connected via WiFi
+        /// </summary>
+        Wifi
+    }
+
     public interface IStreamingDevice : IDevice
     {
         DeviceMode Mode { get; }
+        ConnectionType ConnectionType { get; }
         bool IsLoggingToSdCard { get; }
         IReadOnlyList<SdCardFile> SdCardFiles { get; }
 

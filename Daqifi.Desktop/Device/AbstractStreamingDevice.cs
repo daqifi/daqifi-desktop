@@ -22,6 +22,8 @@ namespace Daqifi.Desktop.Device
             SdCard
         }
         
+        public abstract ConnectionType ConnectionType { get; }
+        
         private const double TickPeriod = 20E-9f;
         private static DateTime? _previousTimestamp;
         private int _streamingFrequency = 1;
@@ -373,6 +375,11 @@ namespace Daqifi.Desktop.Device
         #region Streaming Methods
         public void SwitchMode(DeviceMode newMode)
         {
+            if (newMode == DeviceMode.LogToDevice && ConnectionType != ConnectionType.Usb)
+            {
+                throw new InvalidOperationException("SD Card logging is only available when connected via USB");
+            }
+
             if (Mode == newMode) return;
             
             // Stop any current activity
@@ -415,6 +422,11 @@ namespace Daqifi.Desktop.Device
 
         public void StartSdCardLogging()
         {
+            if (ConnectionType != ConnectionType.Usb)
+            {
+                throw new InvalidOperationException("SD Card logging is only available when connected via USB");
+            }
+
             if (Mode != DeviceMode.LogToDevice)
             {
                 throw new InvalidOperationException("Cannot start SD card logging while in StreamToApp mode");
@@ -479,6 +491,11 @@ namespace Daqifi.Desktop.Device
 
         public void RefreshSdCardFiles()
         {
+            if (ConnectionType != ConnectionType.Usb)
+            {
+                throw new InvalidOperationException("SD Card access is only available when connected via USB");
+            }
+
             var stream = MessageConsumer.DataStream;
             
             // Stop existing consumer first
