@@ -342,13 +342,7 @@ namespace Daqifi.Desktop.Device
             }
 
             AppLogger.Information($"Received file content of length: {cleanContent.Length}");
-            
-            // Raise an event to notify that file content is available
-            var args = new FileDownloadEventArgs(cleanContent);
-            OnFileDownloaded?.Invoke(this, args);
         }
-
-        public event EventHandler<FileDownloadEventArgs> OnFileDownloaded;
 
         private DateTime? TryParseLogFileDate(string fileName)
         {
