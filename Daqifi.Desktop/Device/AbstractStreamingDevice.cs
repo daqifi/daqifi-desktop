@@ -276,13 +276,8 @@ namespace Daqifi.Desktop.Device
 
             try
             {
-                // Check if this is a file content response (contains JSON or __END_OF_FILE__ marker)
-                if (response.Contains("__END_OF_FILE__") || response.Contains("\"timestamp\""))
-                {
-                    HandleFileContentResponse(response);
-                }
                 // Check if this is a file list response (contains multiple lines with .bin files)
-                else if (response.Contains(".bin"))
+                if (response.Contains(".bin"))
                 {
                     HandleFileListResponse(response);
                     // We're done with the text consumer, stop it
@@ -324,24 +319,6 @@ namespace Daqifi.Desktop.Device
 
             AppLogger.Information($"Found {files.Count} files on SD card");
             UpdateSdCardFiles(files);
-        }
-
-        private void HandleFileContentResponse(string content)
-        {
-            if (string.IsNullOrEmpty(content))
-            {
-                AppLogger.Warning("Received empty file content response");
-                return;
-            }
-
-            // Remove the end of file marker if present
-            var cleanContent = content;
-            if (content.Contains("__END_OF_FILE__"))
-            {
-                cleanContent = content.Replace("__END_OF_FILE__", "").Trim();
-            }
-
-            AppLogger.Information($"Received file content of length: {cleanContent.Length}");
         }
 
         private DateTime? TryParseLogFileDate(string fileName)

@@ -48,7 +48,6 @@ namespace Daqifi.Desktop.ViewModels
         private bool _isLiveGraphSettingsOpen;
         private bool _isSdCardLoggingEnabled;
         private ObservableCollection<SdCardFile> _sdCardFiles;
-        private SdCardFile _selectedSdCardFile;
         private int _width = 800;
         private int _height = 600;
         private int _sidePanelWidth = 85;
@@ -375,16 +374,6 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _sdCardFiles = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public SdCardFile SelectedSdCardFile
-        {
-            get => _selectedSdCardFile;
-            set
-            {
-                _selectedSdCardFile = value;
                 OnPropertyChanged();
             }
         }

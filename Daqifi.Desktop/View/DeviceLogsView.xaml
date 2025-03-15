@@ -72,7 +72,6 @@
         <!-- Device Files List -->
         <Grid Grid.Row="1">
             <ListView ItemsSource="{Binding DeviceFiles}" 
-                      SelectedItem="{Binding SelectedFile}"
                       Background="Transparent" 
                       BorderThickness="0">
                 <ListView.View>
