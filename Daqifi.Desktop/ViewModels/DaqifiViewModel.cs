@@ -3,7 +3,6 @@ using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Configuration;
-using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.DialogService;
@@ -24,8 +23,6 @@ using System.IO;
 using System.IO.Ports;
 using System.Windows;
 using System.Windows.Input;
-using CommunityToolkit.Mvvm.Input;
-using Daqifi.Desktop.IO.Messages.Producers;
 using Application = System.Windows.Application;
 using File = System.IO.File;
 
@@ -46,14 +43,12 @@ namespace Daqifi.Desktop.ViewModels
         private bool _isChannelSettingsOpen;
         private bool _isLoggingSessionSettingsOpen;
         private bool _isLiveGraphSettingsOpen;
-        private bool _isSdCardLoggingEnabled;
         private int _width = 800;
         private int _height = 600;
         private int _sidePanelWidth = 85;
         private int _topToolbarHeight = 30;
         private int _selectedIndex;
         private int _selectedStreamingFrequency;
-        private int _selectedChannelOutput;
         public WindowState _viewWindowState;
         private readonly IDialogService _dialogService;
         private IStreamingDevice _selectedDevice;
@@ -323,50 +318,6 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-        public bool IsSdCardLoggingEnabled
-        {
-            get => _isSdCardLoggingEnabled;
-            set
-            {
-                if (_isSdCardLoggingEnabled != value)
-                {
-                    _isSdCardLoggingEnabled = value;
-                    
-                    if (SelectedDevice != null)
-                    {
-                        try
-                        {
-                            if (value)
-                            {
-                                SelectedDevice.SwitchMode(DeviceMode.LogToDevice);
-                                SelectedDevice.StartSdCardLogging();
-                            }
-                            else
-                            {
-                                SelectedDevice.StopSdCardLogging();
-                                if (!IsLogToDeviceMode)
-                                {
-                                    SelectedDevice.SwitchMode(DeviceMode.StreamToApp);
-                                }
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _appLogger.Error(ex, "Failed to toggle SD card logging");
-                            var errorDialogViewModel = new ErrorDialogViewModel("Failed to toggle SD card logging. Please try again.");
-                            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                            
-                            // Revert the toggle
-                            _isSdCardLoggingEnabled = !value;
-                        }
-                    }
-                    
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(IsNotLogging));
-                }
-            }
-        }
-
         public bool IsNotLogging => !IsLogging;
 
         private int _notificationCount;
@@ -377,7 +328,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _notificationCount = value;
-                OnPropertyChanged(nameof(NotificationCount));
+                OnPropertyChanged();
             }
         }
 
@@ -388,7 +339,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _versionName = value;
-                OnPropertyChanged(nameof(VersionName));
+                OnPropertyChanged();
             }
         }
 
@@ -452,18 +403,6 @@ namespace Daqifi.Desktop.ViewModels
                 SelectedDevice.StreamingFrequency = value;
                 _selectedStreamingFrequency = SelectedDevice.StreamingFrequency;
                 OnPropertyChanged();
-            }
-        }
-
-        public int SelectedChannelOutput
-        {
-            get => _selectedStreamingFrequency;
-            set
-            {
-                if (SelectedChannel.Direction != ChannelDirection.Output) { return; }
-
-                _selectedChannelOutput = value;
-                SelectedChannel.OutputValue = value;
             }
         }
 
@@ -560,7 +499,7 @@ namespace Daqifi.Desktop.ViewModels
                 if (_loggedSessionName == value) { return; }
 
                 _loggedSessionName = value;
-                OnPropertyChanged("LoggedSessionName");
+                OnPropertyChanged();
             }
         }
 
