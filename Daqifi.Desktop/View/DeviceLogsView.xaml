@@ -73,7 +73,8 @@
         <Grid Grid.Row="1">
             <ListView ItemsSource="{Binding DeviceFiles}" 
                       Background="Transparent" 
-                      BorderThickness="0">
+                      BorderThickness="0"
+                      IsEnabled="{Binding CanAccessSdCard}">
                 <ListView.View>
                     <GridView>
                         <GridViewColumn Header="Name" Width="300">

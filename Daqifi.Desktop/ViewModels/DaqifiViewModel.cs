@@ -47,7 +47,6 @@ namespace Daqifi.Desktop.ViewModels
         private bool _isLoggingSessionSettingsOpen;
         private bool _isLiveGraphSettingsOpen;
         private bool _isSdCardLoggingEnabled;
-        private ObservableCollection<SdCardFile> _sdCardFiles;
         private int _width = 800;
         private int _height = 600;
         private int _sidePanelWidth = 85;
@@ -368,15 +367,7 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
-        public ObservableCollection<SdCardFile> SdCardFiles
-        {
-            get => _sdCardFiles ??= new ObservableCollection<SdCardFile>();
-            set
-            {
-                _sdCardFiles = value;
-                OnPropertyChanged();
-            }
-        }
+        public bool IsNotLogging => !IsLogging;
 
         private int _notificationCount;
 
@@ -615,8 +606,6 @@ namespace Daqifi.Desktop.ViewModels
                 }
             }
         }
-
-        public bool IsNotLogging => !IsLogging;
 
         public DeviceLogsViewModel DeviceLogsViewModel { get; private set; }
         #endregion
@@ -2191,15 +2180,6 @@ namespace Daqifi.Desktop.ViewModels
             {
                 SelectedDevice.RefreshSdCardFiles();
                 await Task.Delay(1000); // Wait for response
-                
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    SdCardFiles.Clear();
-                    foreach (var file in SelectedDevice.SdCardFiles)
-                    {
-                        SdCardFiles.Add(file);
-                    }
-                });
             }
             catch (Exception ex)
             {
