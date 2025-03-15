@@ -120,33 +120,20 @@ namespace Daqifi.Desktop.ViewModels
                 // Request file list from device
                 SelectedDevice.RefreshSdCardFiles();
 
-                // Wait for the device to respond (with a timeout)
-                int timeoutMs = 5000;
-                int elapsedMs = 0;
-                int checkIntervalMs = 100;
+                // Wait for a moment to let the device respond
+                await Task.Delay(1000);
 
-                while (elapsedMs < timeoutMs)
+                // Update our list with any files found
+                foreach (var file in SelectedDevice.SdCardFiles)
                 {
-                    await Task.Delay(checkIntervalMs);
-                    elapsedMs += checkIntervalMs;
-
-                    // Check if we have files
-                    if (SelectedDevice.SdCardFiles.Any())
-                    {
-                        // Update our list
-                        foreach (var file in SelectedDevice.SdCardFiles)
-                        {
-                            DeviceFiles.Add(file);
-                        }
-                        break;
-                    }
+                    DeviceFiles.Add(file);
                 }
 
-                if (!DeviceFiles.Any() && elapsedMs >= timeoutMs)
+                if (!DeviceFiles.Any())
                 {
                     await Application.Current.Dispatcher.InvokeAsync(async () =>
                     {
-                        await ShowMessage("No Files Found", "No files were found on the device or the device did not respond.", MessageDialogStyle.Affirmative);
+                        await ShowMessage("No Files Found", "No files were found on the device.", MessageDialogStyle.Affirmative);
                     });
                 }
             }

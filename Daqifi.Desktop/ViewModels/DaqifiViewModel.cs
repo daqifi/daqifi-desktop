@@ -900,8 +900,6 @@ namespace Daqifi.Desktop.ViewModels
         {
             return true;
         }
-
-        public ICommand RefreshSdCardFilesCommand { get; private set; }
         #endregion
 
         #region Register Command 
@@ -937,7 +935,6 @@ namespace Daqifi.Desktop.ViewModels
             UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
             OpenFirmwareUpdateCommand = new DelegateCommand(OpenFirmwareUpdateSettings, CanOpenFirmwareUpdateSettings);
             HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand);
-            RefreshSdCardFilesCommand = new RelayCommand(() => RefreshSdCardFiles());
         }
         #endregion
 
@@ -2172,25 +2169,7 @@ namespace Daqifi.Desktop.ViewModels
         private async void RefreshSdCardFiles()
         {
             if (SelectedDevice == null) return;
-            
-            // Show busy indicator
-            IsBusy = true;
-            
-            try
-            {
-                SelectedDevice.RefreshSdCardFiles();
-                await Task.Delay(1000); // Wait for response
-            }
-            catch (Exception ex)
-            {
-                _appLogger.Error(ex, "Failed to refresh SD card files");
-                var errorDialogViewModel = new ErrorDialogViewModel("Failed to refresh file list. Please try again.");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-            }
-            finally
-            {
-                IsBusy = false;
-            }
+            SelectedDevice.RefreshSdCardFiles();
         }
         #endregion
 
