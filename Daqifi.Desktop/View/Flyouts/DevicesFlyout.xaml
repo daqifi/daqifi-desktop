@@ -9,6 +9,7 @@
              xmlns:sys="clr-namespace:System;assembly=mscorlib" 
              xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
              xmlns:local="clr-namespace:Daqifi.Desktop.Converters"
+             xmlns:converters="clr-namespace:Daqifi.Desktop.Converters"
              mc:Ignorable="d" 
              d:DataContext="{d:DesignInstance Type=vm:DaqifiViewModel}"
              Position="Right"
@@ -47,6 +48,7 @@
         <local:BoolToStatusColorConverter x:Key="BoolToStatusColor"/>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <local:NotNullToBoolConverter x:Key="NotNullToBoolConverter"/>
+        <converters:ConnectionTypeToUsbConverter x:Key="ConnectionTypeToUsbConverter"/>
         
         <!-- Text Styles -->
         <Style x:Key="HeaderTextBlockStyle" TargetType="TextBlock">
@@ -239,7 +241,22 @@
                                 <Border x:Name="Border"
                                         Background="{TemplateBinding Background}"
                                         Padding="10,0">
-                                    <ContentPresenter VerticalAlignment="Center"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ContentPresenter Grid.Column="0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="DisabledMessage"
+                                                 Grid.Column="1"
+                                                 Text="(WiFi Connection - SD Card Not Available)"
+                                                 Foreground="#999999"
+                                                 FontStyle="Italic"
+                                                 VerticalAlignment="Center"
+                                                 HorizontalAlignment="Right"
+                                                 Margin="10,0,0,0"
+                                                 Visibility="Collapsed"/>
+                                    </Grid>
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
@@ -247,6 +264,10 @@
                                     </Trigger>
                                     <Trigger Property="IsSelected" Value="True">
                                         <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Foreground" Value="#999999"/>
+                                        <Setter TargetName="DisabledMessage" Property="Visibility" Value="Visible"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
@@ -307,7 +328,19 @@
                                  SelectedValue="{Binding SelectedLoggingMode, Mode=TwoWay}"
                                  SelectedValuePath="Content">
                             <ComboBoxItem Content="Stream to App"/>
-                            <ComboBoxItem Content="Log to Device"/>
+                            <ComboBoxItem Content="Log to Device" 
+                                         IsEnabled="{Binding SelectedDevice.ConnectionType, 
+                                                   Converter={StaticResource ConnectionTypeToUsbConverter}}">
+                                <ComboBoxItem.ToolTip>
+                                    <ToolTip Background="#333333" 
+                                            Foreground="White"
+                                            BorderBrush="#4B8FE2">
+                                        <TextBlock Text="SD Card logging requires a USB connection. WiFi devices do not support SD card logging."
+                                                 TextWrapping="Wrap"
+                                                 MaxWidth="250"/>
+                                    </ToolTip>
+                                </ComboBoxItem.ToolTip>
+                            </ComboBoxItem>
                         </ComboBox>
 
                         <!-- Sampling Configuration -->
