@@ -1,17 +1,46 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.DataModel.Channel;
+using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
-using Daqifi.Desktop.DataModel.Network;
+using Daqifi.Desktop.Models;
+using System.ComponentModel;
 
 namespace Daqifi.Desktop.Device
 {
+    public enum DeviceMode
+    {
+        StreamToApp,
+        LogToDevice
+    }
+
+    public enum ConnectionType
+    {
+        /// <summary>
+        /// Device is connected via USB
+        /// </summary>
+        Usb,
+        
+        /// <summary>
+        /// Device is connected via WiFi
+        /// </summary>
+        Wifi
+    }
+
     public interface IStreamingDevice : IDevice
     {
+        DeviceMode Mode { get; }
+        ConnectionType ConnectionType { get; }
+        bool IsLoggingToSdCard { get; }
+        IReadOnlyList<SdCardFile> SdCardFiles { get; }
+
+        void SwitchMode(DeviceMode newMode);
+        void StartSdCardLogging();
+        void StopSdCardLogging();
+        void RefreshSdCardFiles();
+        void UpdateSdCardFiles(List<SdCardFile> files);
         string DevicePartNumber { get; }
         NetworkConfiguration NetworkConfiguration { get; }
-        List<string> AdcRanges { get; }
-        string AdcRangeText { get; set; }
         string MacAddress { get; set; }
         string DeviceSerialNo { get; set; }
         string DeviceVersion { get; set; }
@@ -29,19 +58,6 @@ namespace Daqifi.Desktop.Device
         /// Sends a command to get any initialization data from the streamingDevice that might be needed
         /// </summary>
         void InitializeDeviceState();
-
-        /// <summary>
-        /// Sets the ADC mode. Either "Single Ended" or "Differential"
-        /// </summary>
-        /// <param name="channel"></param>
-        /// <param name="mode">ADC Mode</param>
-        void SetAdcMode(IChannel channel, AdcMode mode);
-
-        /// <summary>
-        ///  Sets the ADC Range
-        /// </summary>
-        /// <param name="range">ADC Range (Plus or Minus)</param>
-        void SetAdcRange(int range);
 
         /// <summary>
         /// Sends a command to activate a channel on the streamingDevice

@@ -1,13 +1,15 @@
 ﻿using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using System.IO.Ports;
+using System.Threading;
 
 namespace Daqifi.Desktop.Device.SerialDevice
 {
     public class SerialStreamingDevice : AbstractStreamingDevice
     {
         #region Properties
-        public SerialPort Port { get; }
+        public SerialPort Port { get; set; }
+        public override ConnectionType ConnectionType => ConnectionType.Usb;
         #endregion
 
         #region Constructor
@@ -66,15 +68,59 @@ namespace Daqifi.Desktop.Device.SerialDevice
         {
             try
             {
-                MessageProducer.Stop();
-                MessageConsumer.Stop();
+                // First stop streaming to prevent new data from being requested
                 StopStreaming();
-                Port.DtrEnable = false;
-                Port.Close();
+
+                // Stop the message producer first to prevent new messages
+                if (MessageProducer != null)
+                {
+                    try
+                    {
+                        MessageProducer.StopSafely(); // Use StopSafely to ensure queued messages are sent
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Warning($"Error stopping message producer: {ex.Message}");
+                    }
+                }
+
+                // Stop the consumer next
+                if (MessageConsumer != null)
+                {
+                    try
+                    {
+                        MessageConsumer.Stop();
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Warning($"Error stopping message consumer: {ex.Message}");
+                    }
+                }
+
+                // Finally close the port
+                if (Port != null)
+                {
+                    try
+                    {
+                        if (Port.IsOpen)
+                        {
+                            Port.DtrEnable = false;
+                            // Give a small delay to ensure DTR state change is processed
+                            Thread.Sleep(50);
+                            Port.Close();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Warning($"Error closing serial port: {ex.Message}");
+                    }
+                }
+
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                AppLogger.Error(ex, "Error during device disconnect");
                 return false;
             }
         }
@@ -84,17 +130,17 @@ namespace Daqifi.Desktop.Device.SerialDevice
         #region Serial Device Only Methods
         public void EnableLanUpdateMode()
         {
-            MessageProducer.Send(ScpiMessagePoducer.DeviceOn);
-            MessageProducer.Send(ScpiMessagePoducer.SetLanFWUpdateMode());
-            MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
+            MessageProducer.Send(ScpiMessageProducer.DeviceOn);
+            MessageProducer.Send(ScpiMessageProducer.SetLanFWUpdateMode);
+            MessageProducer.Send(ScpiMessageProducer.ApplyLan);
         }
         
         public void ResetLanAfterUpdate()
         {
-            MessageProducer.Send(ScpiMessagePoducer.SetUsbTransparencyMode(0));
-            MessageProducer.Send(ScpiMessagePoducer.EnabledLan());
-            MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
-            MessageProducer.Send(ScpiMessagePoducer.SaveLan());
+            MessageProducer.Send(ScpiMessageProducer.SetUsbTransparencyMode(0));
+            MessageProducer.Send(ScpiMessageProducer.EnableLan);
+            MessageProducer.Send(ScpiMessageProducer.ApplyLan);
+            MessageProducer.Send(ScpiMessageProducer.SaveLan);
         }
         #endregion
     }

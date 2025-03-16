@@ -3,7 +3,6 @@ using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Configuration;
-using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.DialogService;
@@ -50,7 +49,6 @@ namespace Daqifi.Desktop.ViewModels
         private int _topToolbarHeight = 30;
         private int _selectedIndex;
         private int _selectedStreamingFrequency;
-        private int _selectedChannelOutput;
         public WindowState _viewWindowState;
         private readonly IDialogService _dialogService;
         private IStreamingDevice _selectedDevice;
@@ -74,6 +72,8 @@ namespace Daqifi.Desktop.ViewModels
         private bool _hasNoHidDevices = true;
         private ConnectionDialogViewModel _connectionDialogViewModel;
         private readonly IDbContextFactory<LoggingContext> _loggingContext;
+        private string _selectedLoggingMode = "Stream to App";
+        private bool _isLogToDeviceMode;
         #endregion
 
         #region Properties
@@ -87,9 +87,9 @@ namespace Daqifi.Desktop.ViewModels
         public ObservableCollection<IChannel> ActiveInputChannels { get; } = [];
         public ObservableCollection<LoggingSession> LoggingSessions { get; } = [];
 
-        public PlotLogger Plotter { get; }
-        public DatabaseLogger DbLogger { get; }
-        public SummaryLogger SummaryLogger { get; }
+        public PlotLogger Plotter { get; private set; }
+        public DatabaseLogger DbLogger { get; private set; }
+        public SummaryLogger SummaryLogger { get; private set; }
         public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
         public ObservableCollection<IChannel> AvailableChannels { get; } = [];
         public string Version
@@ -210,17 +210,30 @@ namespace Daqifi.Desktop.ViewModels
                 _isLogging = value;
                 if (_isLogging)
                 {
-                    Plotter.ClearPlot();
                     foreach (var device in ConnectedDevices)
                     {
-                        device.InitializeStreaming();
+                        if (device.Mode == DeviceMode.StreamToApp)
+                        {
+                            device.InitializeStreaming();
+                        }
+                        else if (device.Mode == DeviceMode.LogToDevice)
+                        {
+                            device.StartSdCardLogging();
+                        }
                     }
                 }
                 else
                 {
                     foreach (var device in ConnectedDevices)
                     {
-                        device.StopStreaming();
+                        if (device.Mode == DeviceMode.StreamToApp)
+                        {
+                            device.StopStreaming();
+                        }
+                        else if (device.Mode == DeviceMode.LogToDevice)
+                        {
+                            device.StopSdCardLogging();
+                        }
                     }
                 }
                 LoggingManager.Instance.Active = value;
@@ -305,6 +318,7 @@ namespace Daqifi.Desktop.ViewModels
             }
         }
 
+        public bool IsNotLogging => !IsLogging;
 
         private int _notificationCount;
 
@@ -314,7 +328,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _notificationCount = value;
-                OnPropertyChanged(nameof(NotificationCount));
+                OnPropertyChanged();
             }
         }
 
@@ -325,7 +339,7 @@ namespace Daqifi.Desktop.ViewModels
             set
             {
                 _versionName = value;
-                OnPropertyChanged(nameof(VersionName));
+                OnPropertyChanged();
             }
         }
 
@@ -389,18 +403,6 @@ namespace Daqifi.Desktop.ViewModels
                 SelectedDevice.StreamingFrequency = value;
                 _selectedStreamingFrequency = SelectedDevice.StreamingFrequency;
                 OnPropertyChanged();
-            }
-        }
-
-        public int SelectedChannelOutput
-        {
-            get => _selectedStreamingFrequency;
-            set
-            {
-                if (SelectedChannel.Direction != ChannelDirection.Output) { return; }
-
-                _selectedChannelOutput = value;
-                SelectedChannel.OutputValue = value;
             }
         }
 
@@ -497,9 +499,54 @@ namespace Daqifi.Desktop.ViewModels
                 if (_loggedSessionName == value) { return; }
 
                 _loggedSessionName = value;
-                OnPropertyChanged("LoggedSessionName");
+                OnPropertyChanged();
             }
         }
+
+        public string SelectedLoggingMode
+        {
+            get => _selectedLoggingMode;
+            set
+            {
+                if (_selectedLoggingMode != value)
+                {
+                    _selectedLoggingMode = value;
+                    
+                    // Handle ComboBoxItem content
+                    string mode = value;
+                    if (value?.Contains("ComboBoxItem") == true)
+                    {
+                        mode = value.Split(':').Last().Trim();
+                    }
+                    
+                    IsLogToDeviceMode = mode == "Log to Device";
+                    var deviceMode = IsLogToDeviceMode ? DeviceMode.LogToDevice : DeviceMode.StreamToApp;
+                    
+                    // Switch mode on all devices
+                    foreach (var device in ConnectedDevices)
+                    {
+                        device.SwitchMode(deviceMode);
+                    }
+                    
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool IsLogToDeviceMode
+        {
+            get => _isLogToDeviceMode;
+            private set
+            {
+                if (_isLogToDeviceMode != value)
+                {
+                    _isLogToDeviceMode = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public DeviceLogsViewModel DeviceLogsViewModel { get; private set; }
         #endregion
 
         #region Constructor
@@ -529,8 +576,10 @@ namespace Daqifi.Desktop.ViewModels
                         DbLogger = new DatabaseLogger(_loggingContext);
                         LoggingManager.Instance.AddLogger(DbLogger);
 
-                        //Xml profiles load
+                        // Device Logs View Model
+                        DeviceLogsViewModel = new DeviceLogsViewModel();
 
+                        //Xml profiles load
                         LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
                         ObservableCollection<Daqifi.Desktop.Models.Profile> observableProfileList = new ObservableCollection<Daqifi.Desktop.Models.Profile>(LoggingManager.Instance.LoadProfilesFromXml());
                         //  Notifications 
@@ -1335,7 +1384,7 @@ namespace Daqifi.Desktop.ViewModels
 
         private void ExportAllLoggingSession(object o)
         {
-            if (LoggingSessions == null)
+            if (LoggingSessions.Count == 0)
             {
                 _appLogger.Error("Error exporting all logging sessions");
                 return;

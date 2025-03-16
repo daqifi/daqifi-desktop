@@ -6,6 +6,7 @@
         private string _ipAddress;
         private string _portNumberString;
         private int _portNumber;
+        private SdCardLoggingConfig _sdCardLogging;
         #endregion
 
         #region Properties
@@ -44,6 +45,25 @@
                 NotifyPropertyChanged("PortNumberString");
             }
         }
+
+        /// <summary>
+        /// Gets or sets the SD card logging configuration
+        /// </summary>
+        public SdCardLoggingConfig SdCardLogging
+        {
+            get => _sdCardLogging;
+            set
+            {
+                if (value == _sdCardLogging) { return; }
+                _sdCardLogging = value;
+                NotifyPropertyChanged(nameof(SdCardLogging));
+            }
+        }
         #endregion
+
+        public DaqifiBoardConfig()
+        {
+            SdCardLogging = new SdCardLoggingConfig();
+        }
     }
 }

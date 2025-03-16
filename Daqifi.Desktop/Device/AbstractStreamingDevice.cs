@@ -5,33 +5,41 @@ using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
-using Microsoft.Extensions.ObjectPool;
 using Daqifi.Desktop.IO.Messages.Decoders;
+using Daqifi.Desktop.Models;
+using System.Text.RegularExpressions;
+using System.Globalization;
+using System.IO;
 
 namespace Daqifi.Desktop.Device
 {
     public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevice
     {
-        private const string _5Volt = "+/-5V";
-        private const string _10Volt = "+/-10V";
-        private const string Nq1PartNumber = "Nq1";
-        private const string Nq2PartNumber = "Nq2";
-        private const string Nq3PartNumber = "Nq3";
+        private enum MessageHandlerType
+        {
+            Status,
+            Streaming,
+            SdCard
+        }
+        
+        public abstract ConnectionType ConnectionType { get; }
+        
         private const double TickPeriod = 20E-9f;
-        private static DateTime? _previousTimestamp;
-        private string _adcRangeText;
-        protected readonly double AdcResolution = 131072;
-        protected double AdcRange = 1;
         private int _streamingFrequency = 1;
-        private uint? _previousDeviceTimestamp;
 
-        private Dictionary<string, DateTime> _previousTimestamps = new Dictionary<string, DateTime>();
-        private Dictionary<string, uint?> _previousDeviceTimestamps = new Dictionary<string, uint?>();
-        private ObjectPool<DataSample> _samplePool;
-        private ObjectPool<DeviceMessage> _deviceMessagePool;
+        private readonly Dictionary<string, DateTime> _previousTimestamps = new();
+        private readonly Dictionary<string, uint?> _previousDeviceTimestamps = new();
+        private List<SdCardFile> _sdCardFiles = [];
 
         #region Properties
-        public AppLogger AppLogger = AppLogger.Instance;
+
+        protected readonly AppLogger AppLogger = AppLogger.Instance;
+
+        public DeviceMode Mode { get; private set; } = DeviceMode.StreamToApp;
+
+        public bool IsLoggingToSdCard { get; private set; }
+
+        public IReadOnlyList<SdCardFile> SdCardFiles => _sdCardFiles.AsReadOnly();
 
         public int Id { get; set; }
 
@@ -56,40 +64,11 @@ namespace Daqifi.Desktop.Device
             }
         }
 
-        public List<string> SecurityTypes { get; } = new List<string>();
-        public List<string> AdcRanges { get; } = new List<string>();
-
-        public NetworkConfiguration NetworkConfiguration { get; set; } = new NetworkConfiguration();
+        public NetworkConfiguration NetworkConfiguration { get; set; } = new();
 
         public IMessageConsumer MessageConsumer { get; set; }
         public IMessageProducer MessageProducer { get; set; }
-        public List<IChannel> DataChannels { get; set; } = new List<IChannel>();
-
-        public string AdcRangeText
-        {
-            get => _adcRangeText;
-            set
-            {
-                if (value == _adcRangeText)
-                {
-                    return;
-                }
-
-                switch (value)
-                {
-                    case _5Volt:
-                        SetAdcRange(5);
-                        break;
-                    case _10Volt:
-                        SetAdcRange(10);
-                        break;
-                    default:
-                        return;
-                }
-                _adcRangeText = value;
-                NotifyPropertyChanged("AdcRange");
-            }
-        }
+        public List<IChannel> DataChannels { get; set; } = [];
 
         public bool IsStreaming { get; set; }
         public bool IsFirmwareOutdated { get; set; }
@@ -104,18 +83,43 @@ namespace Daqifi.Desktop.Device
         #endregion
 
         #region Message Handlers
+        private void SetMessageHandler(MessageHandlerType handlerType)
+        {
+            // Remove all handlers first
+            MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
+            MessageConsumer.OnMessageReceived -= HandleStreamingMessageReceived;
+            MessageConsumer.OnMessageReceived -= HandleSdCardMessageReceived;
+
+            // Add the new handler
+            switch (handlerType)
+            {
+                case MessageHandlerType.Status:
+                    MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
+                    break;
+                case MessageHandlerType.Streaming:
+                    MessageConsumer.OnMessageReceived += HandleStreamingMessageReceived;
+                    break;
+                case MessageHandlerType.SdCard:
+                    MessageConsumer.OnMessageReceived += HandleSdCardMessageReceived;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(handlerType), handlerType, null);
+            }
+            
+            AppLogger.Information($"Message handler set to: {handlerType}");
+        }
+
         private void HandleStatusMessageReceived(object sender, MessageEventArgs e)
         {
             var message = e.Message.Data as DaqifiOutMessage;
             if (message == null || !IsValidStatusMessage(message))
             {
-                MessageProducer.Send(ScpiMessagePoducer.SystemInfo);
+                MessageProducer.Send(ScpiMessageProducer.SystemInfo);
                 return;
             }
 
             // Change the message handler
-            MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
-            MessageConsumer.OnMessageReceived += HandleMessageReceived;
+            SetMessageHandler(MessageHandlerType.Streaming);
 
             HydrateDeviceMetadata(message);
             PopulateDigitalChannels(message);
@@ -128,14 +132,14 @@ namespace Daqifi.Desktop.Device
             return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
         }
 
-        private void HandleMessageReceived(object sender, MessageEventArgs e)
+        private void HandleStreamingMessageReceived(object sender, MessageEventArgs e)
         {
             if (!IsStreaming)
             {
                 return;
             }
 
-            if (!(e.Message.Data is DaqifiOutMessage message))
+            if (e.Message.Data is not DaqifiOutMessage message)
             {
                 AppLogger.Warning("Issue decoding protobuf message");
                 return;
@@ -155,8 +159,8 @@ namespace Daqifi.Desktop.Device
                 _previousDeviceTimestamps[deviceId] = message.MsgTimeStamp;
             }
 
-            DateTime previousTimestamp = _previousTimestamps[deviceId];
-            uint previousDeviceTimestamp = _previousDeviceTimestamps[deviceId].GetValueOrDefault();
+            var previousTimestamp = _previousTimestamps[deviceId];
+            var previousDeviceTimestamp = _previousDeviceTimestamps[deviceId].GetValueOrDefault();
 
             uint numberOfClockCyclesBetweenMessages;
             var rollover = previousDeviceTimestamp > message.MsgTimeStamp;
@@ -185,12 +189,13 @@ namespace Daqifi.Desktop.Device
 
             var digitalData1 = new byte();
             var digitalData2 = new byte();
-            var hasDigitalData = message.DigitalData;
+            var hasDigitalData = message.DigitalData.Length > 0;
+            var hasAnalogData = message.AnalogInData.Count > 0;
 
-            if (hasDigitalData.Length > 0)
+            if (hasDigitalData)
             {
-                digitalData1 = hasDigitalData.ElementAtOrDefault(0);
-                digitalData2 = hasDigitalData.ElementAtOrDefault(1);
+                digitalData1 = message.DigitalData.ElementAtOrDefault(0);
+                digitalData2 = message.DigitalData.ElementAtOrDefault(1);
             }
 
             // Loop through channels for this device
@@ -198,7 +203,7 @@ namespace Daqifi.Desktop.Device
             {
                 try
                 {
-                    if (channel.Type == ChannelType.Digital && hasDigitalData.Length > 0)
+                    if (channel.Type == ChannelType.Digital && hasDigitalData)
                     {
                         bool bit;
                         if (digitalCount < 8)
@@ -214,11 +219,12 @@ namespace Daqifi.Desktop.Device
                         channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
                         digitalCount++;
                     }
-                    else if (channel.Type == ChannelType.Analog)
+                    else if (channel.Type == ChannelType.Analog && hasAnalogData)
                     {
                         if (analogCount >= message.AnalogInData.Count)
                         {
-                            AppLogger.Error("Trying to access more analog channels than received data.");
+                            AppLogger.Error("Trying to access more analog channels than received data. " +
+                                            $"Expected {analogCount} but messaged had {message.AnalogInData.Count} ");
                             break;
                         }
 
@@ -228,7 +234,7 @@ namespace Daqifi.Desktop.Device
                         analogCount++;
                     }
                 }
-                catch (System.Exception ex)
+                catch (Exception ex)
                 {
                     AppLogger.Error($"Error processing channel data: {ex.Message}");
                 }
@@ -239,14 +245,14 @@ namespace Daqifi.Desktop.Device
                 DeviceName = Name,
                 AnalogChannelCount = analogCount,
                 DeviceSerialNo = message.DeviceSn.ToString(),
-                DeviceVersion = message.DeviceFwRev.ToString(),
+                DeviceVersion = message.DeviceFwRev,
                 DigitalChannelCount = digitalCount,
                 TimestampTicks = messageTimestamp.Ticks,
                 AppTicks = DateTime.Now.Ticks,
                 DeviceStatus = (int)message.DeviceStatus,
                 BatteryStatus = (int)message.BattStatus,
                 PowerStatus = (int)message.PwrStatus,
-                TempStatus = (int)message.TempStatus,
+                TempStatus = message.TempStatus,
                 TargetFrequency = (int)message.TimestampFreq,
                 Rollover = rollover,
             };
@@ -257,25 +263,262 @@ namespace Daqifi.Desktop.Device
             _previousDeviceTimestamps[deviceId] = message.MsgTimeStamp;
         }
 
+        private void HandleSdCardMessageReceived(object sender, MessageEventArgs e)
+        {
+            // The message will be a string containing file paths
+            if (e.Message.Data is not string response)
+            {
+                AppLogger.Warning("Expected string response for SD card operation");
+                return;
+            }
 
+            try
+            {
+                // Check if this is a file list response (contains multiple lines with .bin files)
+                if (response.Contains(".bin"))
+                {
+                    HandleFileListResponse(response);
+                    // We're done with the text consumer, stop it
+                    MessageConsumer.Stop();
+                }
+                else
+                {
+                    AppLogger.Warning($"Unexpected SD card response format: {response.Substring(0, Math.Min(100, response.Length))}");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Error processing SD card message");
+            }
+        }
+
+        private void HandleFileListResponse(string response)
+        {
+            var files = response
+                .Split(["\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries)
+                .Select(path =>
+                {
+                    var cleanPath = path.Trim();
+
+                    // Remove the Daqifi/ prefix if present and get just the filename
+                    var fileName = Path.GetFileName(cleanPath);
+                    
+                    // For log files, try to parse the date from the filename
+                    var createdDate = TryParseLogFileDate(fileName) ?? DateTime.MinValue;
+                    
+                    return new SdCardFile
+                    {
+                        FileName = fileName,
+                        CreatedDate = createdDate
+                    };
+                })
+                .Where(file => !string.IsNullOrEmpty(file.FileName))
+                .ToList();
+
+            AppLogger.Information($"Found {files.Count} files on SD card");
+            UpdateSdCardFiles(files);
+        }
+
+        private DateTime? TryParseLogFileDate(string fileName)
+        {
+            // Try to parse date from log_YYYYMMDD_HHMMSS.bin format
+            var match = Regex.Match(fileName, @"log_(\d{8})_(\d{6})\.bin");
+            if (match.Success)
+            {
+                var dateStr = match.Groups[1].Value;
+                var timeStr = match.Groups[2].Value;
+                if (DateTime.TryParseExact(
+                    dateStr + timeStr, 
+                    "yyyyMMddHHmmss", 
+                    CultureInfo.InvariantCulture, 
+                    DateTimeStyles.None, 
+                    out var result))
+                {
+                    return result;
+                }
+            }
+            return null;
+        }
         #endregion
 
         #region Streaming Methods
+        public void SwitchMode(DeviceMode newMode)
+        {
+            if (newMode == DeviceMode.LogToDevice && ConnectionType != ConnectionType.Usb)
+            {
+                throw new InvalidOperationException("SD Card logging is only available when connected via USB");
+            }
+
+            if (Mode == newMode)
+            {
+                return;
+            }
+            
+            // Stop any current activity
+            if (IsStreaming)
+            {
+                StopStreaming();
+            }
+            if (IsLoggingToSdCard)
+            {
+                StopSdCardLogging();
+            }
+            
+            // Clean up old mode
+            switch (Mode)
+            {
+                case DeviceMode.StreamToApp:
+                    StopMessageConsumer();
+                    break;
+                case DeviceMode.LogToDevice:
+                    // Ensure SD card logging is stopped
+                    StopSdCardLogging();
+                    break;
+            }
+
+            Mode = newMode;
+
+            // Setup new mode
+            switch (Mode)
+            {
+                case DeviceMode.StreamToApp:
+                    PrepareLanInterface();
+                    break;
+                case DeviceMode.LogToDevice:
+                    PrepareSdInterface();
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+
+            NotifyPropertyChanged(nameof(Mode));
+        }
+
+        public void StartSdCardLogging()
+        {
+            if (ConnectionType != ConnectionType.Usb)
+            {
+                throw new InvalidOperationException("SD Card logging is only available when connected via USB");
+            }
+
+            if (Mode != DeviceMode.LogToDevice)
+            {
+                throw new InvalidOperationException("Cannot start SD card logging while in StreamToApp mode");
+            }
+
+            try
+            {
+                MessageProducer.Send(ScpiMessageProducer.EnableSdCard);
+                MessageProducer.Send(ScpiMessageProducer.SetSdLoggingFileName($"log_{DateTime.Now:yyyyMMdd_HHmmss}.bin"));
+                MessageProducer.Send(ScpiMessageProducer.SetProtobufStreamFormat); // Set format for SD card logging
+                
+                // Enable any active channels
+                foreach (var channel in DataChannels.Where(c => c.IsActive))
+                {
+                    if (channel.Type == ChannelType.Analog)
+                    {
+                        var channelSetByte = 1 << channel.Index;
+                        MessageProducer.Send(ScpiMessageProducer.EnableAdcChannels(channelSetByte.ToString()));
+                    }
+                    else if (channel.Type == ChannelType.Digital)
+                    {
+                        MessageProducer.Send(ScpiMessageProducer.EnableDioPorts());
+                    }
+                }
+
+                // Start the device logging at the configured frequency
+                MessageProducer.Send(ScpiMessageProducer.StartStreaming(StreamingFrequency));
+                
+                IsLoggingToSdCard = true;
+                IsStreaming = true; // We're streaming to SD card
+                AppLogger.Information($"Enabled SD card logging for device {DeviceSerialNo}");
+                NotifyPropertyChanged(nameof(IsLoggingToSdCard));
+                NotifyPropertyChanged(nameof(IsStreaming));
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, $"Failed to enable SD card logging for device {DeviceSerialNo}");
+                throw;
+            }
+        }
+
+        public void StopSdCardLogging()
+        {
+            try
+            {
+                // Stop the device logging
+                MessageProducer.Send(ScpiMessageProducer.StopStreaming);
+                MessageProducer.Send(ScpiMessageProducer.DisableSdCard);
+                
+                IsLoggingToSdCard = false;
+                IsStreaming = false;
+                AppLogger.Information($"Disabled SD card logging for device {DeviceSerialNo}");
+                NotifyPropertyChanged(nameof(IsLoggingToSdCard));
+                NotifyPropertyChanged(nameof(IsStreaming));
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, $"Failed to disable SD card logging for device {DeviceSerialNo}");
+                throw;
+            }
+        }
+
+        public void RefreshSdCardFiles()
+        {
+            if (ConnectionType != ConnectionType.Usb)
+            {
+                throw new InvalidOperationException("SD Card access is only available when connected via USB");
+            }
+
+            var stream = MessageConsumer.DataStream;
+            
+            // Stop existing consumer first
+            if (MessageConsumer != null && MessageConsumer.Running)
+            {
+                MessageConsumer.Stop();
+            }
+
+            // Create and start the new consumer BEFORE sending any commands
+            MessageConsumer = new TextMessageConsumer(stream);
+            SetMessageHandler(MessageHandlerType.SdCard);
+            MessageConsumer.Start();
+            
+            // Give the consumer a moment to fully initialize
+            Thread.Sleep(50);
+
+            // Now that we're listening, prepare the SD interface
+            PrepareSdInterface();
+            
+            // Give the interface time to switch and send any responses
+            Thread.Sleep(100);
+            
+            // Now request the file list
+            MessageProducer.Send(ScpiMessageProducer.GetSdFileList);
+        }
+
+        public void UpdateSdCardFiles(List<SdCardFile> files)
+        {
+            _sdCardFiles = files;
+            NotifyPropertyChanged(nameof(SdCardFiles));
+        }
+
         public void InitializeStreaming()
         {
-            _previousTimestamp = null;
-            MessageProducer.Send(ScpiMessagePoducer.StartStreaming(StreamingFrequency));
+            if (Mode != DeviceMode.StreamToApp)
+            {
+                throw new InvalidOperationException("Cannot initialize streaming while in LogToDevice mode");
+            }
+            
+            MessageProducer.Send(ScpiMessageProducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
-            var objectPoolProvider = new DefaultObjectPoolProvider(); // Initialize pools with default policy
-            _samplePool = objectPoolProvider.Create<DataSample>();
-            _deviceMessagePool = objectPoolProvider.Create<DeviceMessage>();
+            StartStreamingMessageConsumer();
         }
 
         public void StopStreaming()
         {
             IsStreaming = false;
-            MessageProducer.Send(ScpiMessagePoducer.StopStreaming);
-            _previousTimestamp = null;
+            MessageProducer.Send(ScpiMessageProducer.StopStreaming);
+            StopMessageConsumer();
 
             foreach (var channel in DataChannels)
             {
@@ -286,19 +529,57 @@ namespace Daqifi.Desktop.Device
             }
         }
 
+        protected void StartStreamingMessageConsumer()
+        {
+            if (Mode != DeviceMode.StreamToApp)
+            {
+                return; // Don't start consumer if not in streaming mode
+            }
+
+            // Always create a new message consumer to ensure clean state
+            var stream = MessageConsumer?.DataStream;
+            if (stream != null)
+            {
+                // Stop and cleanup existing consumer if any
+                MessageConsumer?.Stop();
+
+                // Create new consumer
+                MessageConsumer = new MessageConsumer(stream);
+                if (MessageConsumer is MessageConsumer msgConsumer)
+                {
+                    msgConsumer.ClearBuffer();
+                }
+                
+                SetMessageHandler(MessageHandlerType.Streaming);
+                MessageConsumer.Start();
+            }
+        }
+
+        protected void StopMessageConsumer()
+        {
+            if (MessageConsumer != null)
+            {
+                SetMessageHandler(MessageHandlerType.Status);
+                if (MessageConsumer.Running)
+                {
+                    MessageConsumer.Stop();
+                }
+            }
+        }
+
         protected void TurnOffEcho()
         {
-            MessageProducer.Send(ScpiMessagePoducer.Echo(-1));
+            MessageProducer.Send(ScpiMessageProducer.Echo(-1));
         }
 
         protected void TurnDeviceOn()
         {
-            MessageProducer.Send(ScpiMessagePoducer.DeviceOn);
+            MessageProducer.Send(ScpiMessageProducer.DeviceOn);
         }
 
         protected void SetProtobufMessageFormat()
         {
-            MessageProducer.Send(ScpiMessagePoducer.SetProtobufStreamFormat);
+            MessageProducer.Send(ScpiMessageProducer.SetProtobufStreamFormat);
         }
         #endregion
 
@@ -332,10 +613,10 @@ namespace Daqifi.Desktop.Device
                     var channelSetString = Convert.ToString(channelSetByte);
 
                     // Send the command to add the channel
-                    MessageProducer.Send(ScpiMessagePoducer.EnableAdcChannels(channelSetString));
+                    MessageProducer.Send(ScpiMessageProducer.EnableAdcChannels(channelSetString));
                     break;
                 case ChannelType.Digital:
-                    MessageProducer.Send(ScpiMessagePoducer.EnableDioPorts());
+                    MessageProducer.Send(ScpiMessageProducer.EnableDioPorts());
                     break;
             }
 
@@ -363,7 +644,7 @@ namespace Daqifi.Desktop.Device
                     var channelSetString = Convert.ToString(channelSetByte);
 
                     //Send the command to add the channel
-                    MessageProducer.Send(ScpiMessagePoducer.EnableAdcChannels(channelSetString));
+                    MessageProducer.Send(ScpiMessageProducer.EnableAdcChannels(channelSetString));
                     break;
             }
 
@@ -388,10 +669,10 @@ namespace Daqifi.Desktop.Device
             switch (channel.Type)
             {
                 case ChannelType.Analog:
-                    MessageProducer.Send(ScpiMessagePoducer.SetVoltageLevel(channel.Index, value));
+                    MessageProducer.Send(ScpiMessageProducer.SetVoltageLevel(channel.Index, value));
                     break;
                 case ChannelType.Digital:
-                    MessageProducer.Send(ScpiMessagePoducer.SetDioPortState(channel.Index, value));
+                    MessageProducer.Send(ScpiMessageProducer.SetDioPortState(channel.Index, value));
                     break;
             }
         }
@@ -401,38 +682,10 @@ namespace Daqifi.Desktop.Device
             switch (direction)
             {
                 case ChannelDirection.Input:
-                    MessageProducer.Send(ScpiMessagePoducer.SetDioPortDirection(channel.Index, 0));
+                    MessageProducer.Send(ScpiMessageProducer.SetDioPortDirection(channel.Index, 0));
                     break;
                 case ChannelDirection.Output:
-                    MessageProducer.Send(ScpiMessagePoducer.SetDioPortDirection(channel.Index, 1));
-                    break;
-            }
-        }
-
-        public void SetAdcMode(IChannel channel, AdcMode mode)
-        {
-            switch (mode)
-            {
-                case AdcMode.Differential:
-                    MessageProducer.Send(ScpiMessagePoducer.ConfigureAdcMode(channel.Index, 0));
-                    break;
-                case AdcMode.SingleEnded:
-                    MessageProducer.Send(ScpiMessagePoducer.ConfigureAdcMode(channel.Index, 1));
-                    break;
-            }
-        }
-
-        public void SetAdcRange(int range)
-        {
-            switch (range)
-            {
-                case 5:
-                    MessageProducer.Send(ScpiMessagePoducer.ConfigureAdcRange(0));
-                    AdcRange = 0;
-                    break;
-                case 10:
-                    MessageProducer.Send(ScpiMessagePoducer.ConfigureAdcRange(1));
-                    AdcRange = 1;
+                    MessageProducer.Send(ScpiMessageProducer.SetDioPortDirection(channel.Index, 1));
                     break;
             }
         }
@@ -440,20 +693,6 @@ namespace Daqifi.Desktop.Device
         private void PopulateAnalogInChannels(DaqifiOutMessage message)
         {
             if (message.AnalogInPortNum == 0) { return; }
-
-            if (!string.IsNullOrWhiteSpace(DevicePartNumber))
-            {
-                AdcRanges.Clear();
-                if (DevicePartNumber == Nq1PartNumber)
-                {
-                    AdcRanges.Add(_5Volt);
-                }
-                else if (DevicePartNumber == Nq2PartNumber || DevicePartNumber == Nq3PartNumber)
-                {
-                    AdcRanges.Add(_5Volt);
-                    AdcRanges.Add(_10Volt);
-                }
-            }
 
             var analogInPortRanges = message.AnalogInPortRange;
             var analogInCalibrationBValues = message.AnalogInCalB;
@@ -524,11 +763,6 @@ namespace Daqifi.Desktop.Device
             {
                 MacAddress = ProtobufDecoder.GetMacAddressString(message);
             }
-
-            if (message.AnalogInPortRange.Count > 0 && (int)message.AnalogInPortRange[0] == 5)
-            {
-                _adcRangeText = _5Volt;
-            }
         }
 
         private void PopulateDigitalChannels(DaqifiOutMessage message)
@@ -552,8 +786,8 @@ namespace Daqifi.Desktop.Device
 
         public void InitializeDeviceState()
         {
-            MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
-            MessageProducer.Send(ScpiMessagePoducer.SystemInfo);
+            SetMessageHandler(MessageHandlerType.Status);
+            MessageProducer.Send(ScpiMessageProducer.SystemInfo);
         }
 
         private static double ScaleAnalogSample(AnalogChannel channel, double analogValue)
@@ -565,19 +799,33 @@ namespace Daqifi.Desktop.Device
         public void UpdateNetworkConfiguration()
         {
             if (IsStreaming) { StopStreaming(); }
-            MessageProducer.Send(ScpiMessagePoducer.SetWifiMode(NetworkConfiguration.Mode));
-            MessageProducer.Send(ScpiMessagePoducer.SetSsid(NetworkConfiguration.Ssid));
-            MessageProducer.Send(ScpiMessagePoducer.SetSecurity(NetworkConfiguration.SecurityType));
-            MessageProducer.Send(ScpiMessagePoducer.SetPassword(NetworkConfiguration.Password));
-            MessageProducer.Send(ScpiMessagePoducer.ApplyLan());
-            MessageProducer.Send(ScpiMessagePoducer.SaveLan());
+            MessageProducer.Send(ScpiMessageProducer.SetWifiMode(NetworkConfiguration.Mode));
+            MessageProducer.Send(ScpiMessageProducer.SetSsid(NetworkConfiguration.Ssid));
+            MessageProducer.Send(ScpiMessageProducer.SetSecurity(NetworkConfiguration.SecurityType));
+            MessageProducer.Send(ScpiMessageProducer.SetPassword(NetworkConfiguration.Password));
+            MessageProducer.Send(ScpiMessageProducer.ApplyLan);
+            MessageProducer.Send(ScpiMessageProducer.SaveLan);
         }
 
         public void Reboot()
         {
-            MessageProducer.Send(ScpiMessagePoducer.Reboot);
+            MessageProducer.Send(ScpiMessageProducer.Reboot);
             MessageProducer.StopSafely();
             MessageConsumer.Stop();
+        }
+
+        // SD and LAN can't both be enabled due to hardware limitations
+        private void PrepareSdInterface()
+        {
+            MessageProducer.Send(ScpiMessageProducer.DisableLan);
+            MessageProducer.Send(ScpiMessageProducer.EnableSdCard);
+        }
+        
+        // SD and LAN can't both be enabled due to hardware limitations
+        private void PrepareLanInterface()
+        {
+            MessageProducer.Send(ScpiMessageProducer.DisableSdCard);
+            MessageProducer.Send(ScpiMessageProducer.EnableLan);
         }
     }
 }

@@ -81,29 +81,6 @@ namespace Daqifi.Desktop.Channel
         }
 
         [NotMapped]
-        public string AdcMode
-        {
-            get => _adcMode;
-            set
-            {
-                if (value == AdcModes[0])
-                {
-                    _owner.SetAdcMode(this, DataModel.Channel.AdcMode.SingleEnded);
-                }
-                else if (value == AdcModes[1])
-                {
-                    _owner.SetAdcMode(this, DataModel.Channel.AdcMode.Differential);
-                }
-                else
-                {
-                    return;
-                }
-                _adcMode = value;
-                NotifyPropertyChanged("AdcMode");
-            }
-        }
-
-        [NotMapped]
         public bool IsBidirectional { get; set; }
 
         [NotMapped]

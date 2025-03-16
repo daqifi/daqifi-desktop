@@ -22,6 +22,7 @@ namespace Daqifi.Desktop.Logger
         private static string ProfileAppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
         private static readonly string ProfileSettingsXmlPath = ProfileAppDirectory + "\\DAQifiProfilesConfiguration.xml";
         private readonly IDbContextFactory<LoggingContext> _loggingContext;
+        private LoggingMode _currentMode = LoggingMode.Stream;
         #endregion
 
         #region Properties
@@ -33,7 +34,7 @@ namespace Daqifi.Desktop.Logger
             private set
             {
                 _subscribedChannels = value;
-                NotifyPropertyChanged("SubscribedChannels");
+                NotifyPropertyChanged(nameof(SubscribedChannels));
             }
         }
 
@@ -42,7 +43,7 @@ namespace Daqifi.Desktop.Logger
             get => _active;
             set
             {
-                if (!_active)
+                if (!_active && value) // Starting a new logging session
                 {
                     using (var context = _loggingContext.CreateDbContext())
                     {
@@ -54,15 +55,42 @@ namespace Daqifi.Desktop.Logger
                         context.Sessions.Add(Session);
                         context.SaveChanges();
                     }
+                    
+                    // Clear all loggers when starting a new session
+                    foreach (var logger in Loggers)
+                    {
+                        if (logger is PlotLogger plotLogger)
+                        {
+                            plotLogger.ClearPlot();
+                        }
+                        else if (logger is DatabaseLogger dbLogger)
+                        {
+                            dbLogger.ClearPlot();
+                        }
+                    }
+
+                    // Resubscribe all active channels to ensure proper event handling
+                    foreach (var channel in SubscribedChannels.ToList())
+                    {
+                        // Temporarily remove to ensure clean state
+                        channel.OnChannelUpdated -= HandleChannelUpdate;
+                        
+                        // Only reattach if in Stream mode
+                        if (CurrentMode == LoggingMode.Stream)
+                        {
+                            channel.OnChannelUpdated += HandleChannelUpdate;
+                        }
+                    }
                 }
-                else
+                else if (_active && !value) // Stopping the current session
                 {
                     if (LoggingSessions == null) { LoggingSessions = new List<LoggingSession>(); }
                     LoggingSessions.Add(Session);
-                    NotifyPropertyChanged("LoggingSessions");
+                    NotifyPropertyChanged(nameof(LoggingSessions));
                 }
 
                 _active = value;
+                NotifyPropertyChanged(nameof(Active));
             }
         }
 
@@ -74,7 +102,28 @@ namespace Daqifi.Desktop.Logger
             set
             {
                 _loggingSessions = value;
-                NotifyPropertyChanged("LoggingSessions");
+                NotifyPropertyChanged(nameof(LoggingSessions));
+            }
+        }
+
+        /// <summary>
+        /// Gets or sets the current logging mode (Stream or SD Card)
+        /// </summary>
+        public LoggingMode CurrentMode
+        {
+            get => _currentMode;
+            set
+            {
+                if (_currentMode != value)
+                {
+                    // If switching to SD card mode, stop streaming
+                    if (value == LoggingMode.SdCard && Active)
+                    {
+                        Active = false;
+                    }
+                    _currentMode = value;
+                    NotifyPropertyChanged(nameof(CurrentMode));
+                }
             }
         }
         #endregion
@@ -367,25 +416,41 @@ namespace Daqifi.Desktop.Logger
         #region Channel Subscription
         public void Subscribe(IChannel channel)
         {
-
-            if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name)) { return; }
+            if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name))
+            {
+                return;
+            }
+                
             channel.IsActive = true;
-            channel.OnChannelUpdated += HandleChannelUpdate;
+            
+            // Only attach streaming handlers if in Stream mode
+            if (CurrentMode == LoggingMode.Stream)
+            {
+                channel.OnChannelUpdated += HandleChannelUpdate;
+            }
+            
             SubscribedChannels.Add(channel);
-            NotifyPropertyChanged("SubscribedChannels");
+            NotifyPropertyChanged(nameof(SubscribedChannels));
         }
 
         public void Unsubscribe(IChannel channel)
         {
-            // Don't unsubscribe a channel that isn't subscribed
             var index = SubscribedChannels
                 .FindIndex(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
-            if (index == -1) { return; }
+            
+            if (index == -1)
+            {
+                return;
+            }
+            
             var subscribedChannel = SubscribedChannels[index];
             subscribedChannel.IsActive = false;
+            
+            // Remove event handler if it's attached
             subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
+            
             SubscribedChannels.RemoveAt(index);
-            NotifyPropertyChanged("SubscribedChannels");
+            NotifyPropertyChanged(nameof(SubscribedChannels));
         }
         #endregion
 
@@ -438,7 +503,7 @@ namespace Daqifi.Desktop.Logger
             NotifyPropertyChanged("VersionNumber");
         }
 
-        public void ClearChannelList()
+        private void ClearChannelList()
         {
 
             foreach (var channel in SubscribedChannels)
@@ -448,7 +513,6 @@ namespace Daqifi.Desktop.Logger
             }
             SubscribedChannels.Clear();
             NotifyPropertyChanged("SubscribedChannels");
-
         }
     }
 }

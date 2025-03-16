@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl x:Class="Daqifi.Desktop.View.DeviceLogsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+             xmlns:converters="clr-namespace:Daqifi.Desktop.Converters"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800">
+    <UserControl.Resources>
+        <converters:ConnectionTypeToColorConverter x:Key="ConnectionTypeToColorConverter"/>
+        <converters:NotNullToVisibilityConverter x:Key="NotNullToVisibilityConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Device Selection -->
+        <Grid Grid.Row="0" Margin="0,0,0,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Device Selection Row -->
+            <TextBlock Text="Device:" 
+                      Grid.Row="0"
+                      VerticalAlignment="Center" 
+                      Margin="0,0,10,0"/>
+            
+            <ComboBox Grid.Row="0"
+                      Grid.Column="1" 
+                      ItemsSource="{Binding ConnectedDevices}"
+                      SelectedItem="{Binding SelectedDevice}"
+                      DisplayMemberPath="DeviceSerialNo"
+                      Margin="0,0,10,0"/>
+
+            <Button Grid.Row="0"
+                    Grid.Column="2" 
+                    Command="{Binding RefreshFilesCommand}"
+                    ToolTip="{Binding ConnectionTypeMessage}"
+                    IsEnabled="{Binding CanAccessSdCard}">
+                <StackPanel Orientation="Horizontal">
+                    <iconPacks:PackIconMaterial Kind="Refresh" Margin="0,0,5,0"/>
+                    <TextBlock Text="Refresh Files"/>
+                </StackPanel>
+            </Button>
+
+            <!-- Connection Status Row -->
+            <TextBlock Grid.Row="1"
+                       Grid.Column="0"
+                       Grid.ColumnSpan="3"
+                       Text="{Binding ConnectionTypeMessage}"
+                       Margin="0,5,0,0"
+                       FontSize="14"
+                       FontWeight="SemiBold"
+                       Foreground="{Binding SelectedDevice.ConnectionType, Converter={StaticResource ConnectionTypeToColorConverter}}"
+                       HorizontalAlignment="Left"
+                       Visibility="{Binding SelectedDevice, Converter={StaticResource NotNullToVisibilityConverter}}"/>
+        </Grid>
+
+        <!-- Device Files List -->
+        <Grid Grid.Row="1">
+            <ListView ItemsSource="{Binding DeviceFiles}" 
+                      Background="Transparent" 
+                      BorderThickness="0"
+                      IsEnabled="{Binding CanAccessSdCard}">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Name" Width="300">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding FileName}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Created" Width="200">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding CreatedDate, StringFormat=\{0:g\}}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </Grid>
+
+        <!-- Loading Overlay -->
+        <Grid Grid.RowSpan="2" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
+            <Rectangle Fill="White" Opacity="0.75" IsHitTestVisible="False"/>
+            <StackPanel VerticalAlignment="Center">
+                <Controls:ProgressRing IsActive="{Binding IsBusy}"/>
+                <Label Content="{Binding BusyMessage}" 
+                       FontSize="14" 
+                       HorizontalContentAlignment="Center" 
+                       Foreground="#CC119EDA" 
+                       FontWeight="Bold"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl> 

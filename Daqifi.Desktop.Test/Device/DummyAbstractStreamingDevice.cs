@@ -1,14 +1,13 @@
-﻿
-
-using Daqifi.Desktop.Device;
+﻿using Daqifi.Desktop.Device;
 namespace Daqifi.Desktop.Test.Device
 {
     public class DummyAbstractStreamingDevice : AbstractStreamingDevice
     {
+        public override ConnectionType ConnectionType => ConnectionType.Usb; // Default to USB for testing
 
         public override bool Connect()
         {
-            throw new System.NotImplementedException();
+            return true;
         }
 
         public override bool Disconnect()

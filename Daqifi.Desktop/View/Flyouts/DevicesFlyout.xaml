@@ -6,15 +6,32 @@
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
              xmlns:networkDataModel="clr-namespace:Daqifi.Desktop.DataModel.Network;assembly=Daqifi.Desktop.DataModel"
-             xmlns:sys="clr-namespace:System;assembly=mscorlib" xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
-                 mc:Ignorable="d" 
-             d:DesignHeight="600" d:DesignWidth="600"
-             Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsDeviceSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right" Header="Device Settings">
-    <controls:Flyout.DataContext>
-        <vm:DaqifiViewModel/>
-    </controls:Flyout.DataContext>
+             xmlns:sys="clr-namespace:System;assembly=mscorlib" 
+             xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
+             xmlns:local="clr-namespace:Daqifi.Desktop.Converters"
+             xmlns:converters="clr-namespace:Daqifi.Desktop.Converters"
+             mc:Ignorable="d" 
+             d:DataContext="{d:DesignInstance Type=vm:DaqifiViewModel}"
+             Position="Right"
+             Theme="Dark"
+             IsPinned="True"
+             Width="{Binding FlyoutWidth}"
+             Height="{Binding FlyoutHeight}"
+             Background="#1E1E1E"
+             IsOpen="{Binding IsDeviceSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}">
     
     <Controls:Flyout.Resources>
+        <!-- Color Constants -->
+        <Color x:Key="AccentColor">#4B8FE2</Color>
+        <Color x:Key="BackgroundColor">#333333</Color>
+        <Color x:Key="HeaderBackgroundColor">#2D2D30</Color>
+        
+        <!-- Brushes -->
+        <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+        <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}"/>
+        <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="{StaticResource HeaderBackgroundColor}"/>
+        
+        <!-- Data Providers -->
         <ObjectDataProvider MethodName="GetValues" ObjectType="{x:Type sys:Enum}" x:Key="WifiModes">
             <ObjectDataProvider.MethodParameters>
                 <x:Type TypeName="networkDataModel:WifiMode" />
@@ -25,119 +42,426 @@
                 <x:Type TypeName="networkDataModel:WifiSecurityType" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+        
+        <!-- Converters -->
+        <local:BoolToConnectionStatusConverter x:Key="BoolToConnectionStatus"/>
+        <local:BoolToStatusColorConverter x:Key="BoolToStatusColor"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <local:NotNullToBoolConverter x:Key="NotNullToBoolConverter"/>
+        <converters:ConnectionTypeToUsbConverter x:Key="ConnectionTypeToUsbConverter"/>
+        
+        <!-- Text Styles -->
+        <Style x:Key="HeaderTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        
+        <Style x:Key="SubHeaderTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        
+        <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="FormLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        
+        <!-- Control Templates -->
+        <ControlTemplate x:Key="ComboBoxToggleTemplate" TargetType="ToggleButton">
+            <Border Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition Width="30"/>
+                    </Grid.ColumnDefinitions>
+                    <ContentPresenter Grid.Column="0"
+                                    Content="{Binding Path=SelectionBoxItem, RelativeSource={RelativeSource AncestorType={x:Type ComboBox}}}"
+                                    ContentTemplate="{Binding Path=SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType={x:Type ComboBox}}}"
+                                    Margin="10,0"
+                                    VerticalAlignment="Center"/>
+                    <Path Grid.Column="1" 
+                          Data="M0,0 L8,8 L16,0" 
+                          Stroke="White"
+                          StrokeThickness="2"
+                          VerticalAlignment="Center"
+                          HorizontalAlignment="Center"/>
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#404040"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="#404040"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <!-- Control Styles -->
+        <Style x:Key="TabControlStyle" TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+        </Style>
+
+        <Style x:Key="TabItemStyle" TargetType="TabItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="#999999"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="MinWidth" Value="125"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border Name="Border" 
+                                Background="Transparent"
+                                BorderThickness="0,0,0,1" 
+                                BorderBrush="{StaticResource BackgroundBrush}"
+                                Height="40">
+                            <Grid>
+                                <Border Name="SelectedBorder"
+                                        BorderThickness="0,0,0,2"
+                                        BorderBrush="Transparent"
+                                        VerticalAlignment="Bottom">
+                                    <ContentPresenter x:Name="ContentSite"
+                                                    VerticalAlignment="Center"
+                                                    HorizontalAlignment="Center"
+                                                    ContentSource="Header"
+                                                    RecognizesAccessKey="True"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="SelectedBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="False">
+                                <Setter Property="Foreground" Value="#999999"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ButtonStyle" TargetType="Button" BasedOn="{StaticResource MahApps.Styles.Button}">
+            <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="MinWidth" Value="80"/>
+            <Setter Property="Padding" Value="15,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonStyle}">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+        </Style>
+
+        <!-- Input Control Styles -->
+        <Style x:Key="TextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="ComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Height" Value="35"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        IsChecked="{Binding Path=IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                        Template="{StaticResource ComboBoxToggleTemplate}"/>
+                            <Popup x:Name="PART_Popup"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Placement="Bottom"
+                                   PopupAnimation="Slide"
+                                   PlacementTarget="{Binding ElementName=ToggleButton}">
+                                <Border Background="{StaticResource BackgroundBrush}"
+                                        BorderThickness="0">
+                                    <ScrollViewer MaxHeight="200" 
+                                                VerticalScrollBarVisibility="Auto">
+                                        <StackPanel IsItemsHost="True"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Resources>
+                <Style TargetType="ComboBoxItem">
+                    <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Height" Value="35"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ComboBoxItem">
+                                <Border x:Name="Border"
+                                        Background="{TemplateBinding Background}"
+                                        Padding="10,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ContentPresenter Grid.Column="0" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="DisabledMessage"
+                                                 Grid.Column="1"
+                                                 Text="(WiFi Connection - SD Card Not Available)"
+                                                 Foreground="#999999"
+                                                 FontStyle="Italic"
+                                                 VerticalAlignment="Center"
+                                                 HorizontalAlignment="Right"
+                                                 Margin="10,0,0,0"
+                                                 Visibility="Collapsed"/>
+                                    </Grid>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#404040"/>
+                                    </Trigger>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Foreground" Value="#999999"/>
+                                        <Setter TargetName="DisabledMessage" Property="Visibility" Value="Visible"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Style.Resources>
+        </Style>
     </Controls:Flyout.Resources>
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-        
-        <!-- Device Information -->
-        <GroupBox Grid.Column="0" Grid.Row="0" Header="Device Information">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <Label Grid.Column="0" Grid.Row="0" Content="Model Number:"/>
-                <Label Grid.Column="1" Grid.Row="0" Content="{Binding SelectedDevice.DevicePartNumber}"/>
-                <Label Grid.Column="0" Grid.Row="1" Content="Serial Number:"/>
-                <Label Grid.Column="1" Grid.Row="1" Content="{Binding SelectedDevice.DeviceSerialNo}" />
-                <Label Grid.Column="0" Grid.Row="2" Content="Firmware Version:"/>
-                <Label Grid.Column="1" Grid.Row="2" Content="{Binding SelectedDevice.DeviceVersion}" />
-            </Grid>
-        </GroupBox>
 
-        <!-- Network Configuration -->
-        <GroupBox Grid.Column="0" Grid.Row="1" Header="WiFi Configuration">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <Label Grid.Column="0" Grid.Row="0" Content="Mode" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18"/>
-                <ComboBox Grid.Column="1" Grid.Row="0" ItemsSource="{Binding Source={StaticResource WifiModes}}" SelectedItem="{Binding SelectedDevice.NetworkConfiguration.Mode}">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                <Label Grid.Column="0" Grid.Row="1" Content="Security" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18"/>
-                <ComboBox Grid.Column="1" Grid.Row="1" ItemsSource="{Binding Source={StaticResource WifiSecurityTypes}}" SelectedItem="{Binding SelectedDevice.NetworkConfiguration.SecurityType}">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                <Label Grid.Column="0" Grid.Row="2" Content="SSID" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18"/>
-                <TextBox Grid.Column="1" Grid.Row="2"  Text="{Binding SelectedDevice.NetworkConfiguration.Ssid, Mode=TwoWay}"/>
-                <Label Grid.Column="0" Grid.Row="3" Content="Password" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18"/>
-                <TextBox Grid.Column="1" Grid.Row="3" Text="{Binding SelectedDevice.NetworkConfiguration.Password, Mode=TwoWay}" />
-                <DockPanel Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="4" HorizontalAlignment="Right">
-                    <Button Content="Update" Command="{Binding UpdateNetworkConfigurationCommand}"/>
-                </DockPanel>
-            </Grid>
-        </GroupBox>
-        
-        <!-- Frequency Configuration-->
-        <GroupBox Grid.Column="1" Grid.Row="0" Header="Sampling Frequency (Hz)">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <TextBox Grid.Row="0" Text="{Binding ElementName=FrequencySlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
-                <Slider Grid.Row="1" Name="FrequencySlider" HorizontalAlignment="Stretch" Minimum="1" Maximum="1000" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding SelectedDevice.StreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
-            </Grid>
-        </GroupBox>
+    <DockPanel LastChildFill="True">
+        <!-- Header with Device Info -->
+        <Grid DockPanel.Dock="Top" Background="{StaticResource HeaderBackgroundBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <TextBlock Text="{Binding SelectedDevice.DevicePartNumber}" 
+                      FontSize="24" 
+                      Foreground="White" 
+                      FontWeight="Light"/>
+            
+            <StackPanel Grid.Row="1" 
+                        Orientation="Horizontal" 
+                        Margin="0,5,0,0">
+                <TextBlock Text="{Binding SelectedDevice.DeviceSerialNo}" 
+                          Foreground="#CCCCCC" 
+                          FontSize="14"/>
+                <TextBlock Text=" | v" 
+                          Foreground="#CCCCCC" 
+                          FontSize="14" 
+                          Margin="10,0"/>
+                <TextBlock Text="{Binding SelectedDevice.DeviceVersion}" 
+                          Foreground="#CCCCCC" 
+                          FontSize="14"/>
+                <TextBlock Text=" | " 
+                          Foreground="#CCCCCC" 
+                          FontSize="14" 
+                          Margin="10,0"/>
+                <TextBlock Text="{Binding SelectedDevice.IsConnected, Converter={StaticResource BoolToConnectionStatus}}"
+                          Foreground="{Binding SelectedDevice.IsConnected, Converter={StaticResource BoolToStatusColor}}"
+                          FontSize="14"/>
+            </StackPanel>
+        </Grid>
 
-        <!-- Disabled until hardware supports setting ADC Range -->
-        <!-- ~1~ ADC Range @1@ -->
-        <!-- <GroupBox Grid.Column="1" Grid.Row="1" Header="ADC Range"> -->
-        <!--     <Grid> -->
-        <!--         <Grid.RowDefinitions> -->
-        <!--             <RowDefinition Height="Auto"/> -->
-        <!--         </Grid.RowDefinitions> -->
-        <!--         <ComboBox ItemsSource="{Binding SelectedDevice.AdcRanges}" Text="{Binding SelectedDevice.AdcRangeText}"/> -->
-        <!--     </Grid> -->
-        <!-- </GroupBox> -->
+        <!-- Main Content -->
+        <TabControl Style="{StaticResource TabControlStyle}">
+            <TabItem Header="DATA ACQUISITION" Style="{StaticResource TabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20">
+                        <!-- Logging Mode -->
+                        <TextBlock Text="LOGGING MODE" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                 Margin="0,0,0,20"
+                                 SelectedValue="{Binding SelectedLoggingMode, Mode=TwoWay}"
+                                 SelectedValuePath="Content">
+                            <ComboBoxItem Content="Stream to App"/>
+                            <ComboBoxItem Content="Log to Device" 
+                                         IsEnabled="{Binding SelectedDevice.ConnectionType, 
+                                                   Converter={StaticResource ConnectionTypeToUsbConverter}}">
+                                <ComboBoxItem.ToolTip>
+                                    <ToolTip Background="#333333" 
+                                            Foreground="White"
+                                            BorderBrush="#4B8FE2">
+                                        <TextBlock Text="SD Card logging requires a USB connection. WiFi devices do not support SD card logging."
+                                                 TextWrapping="Wrap"
+                                                 MaxWidth="250"/>
+                                    </ToolTip>
+                                </ComboBoxItem.ToolTip>
+                            </ComboBoxItem>
+                        </ComboBox>
 
-        <!-- Manually Update Firmware -->
-        <GroupBox Grid.Column="0" Grid.Row="2" Grid.ColumnSpan="2" Header="Manually Update Firmware">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <TextBox Grid.Row="0" Grid.Column="0" Text="{Binding FirmwareFilePath, Mode=TwoWay}" />
-                <Button Grid.Row="0" Grid.Column="1" Content="Browse"  Command="{Binding BrowseForFirmwareCommand}"/>
-                <controls:MetroProgressBar Grid.Column="0" Grid.Row="1" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadFirmwareProgress}" />
-                <Button Grid.Column="1" Grid.Row="1" Width="50" Content="Update" 
-                        Command="{Binding UploadFirmwareCommand}" />
-            </Grid>
-        </GroupBox>
-    </Grid>
+                        <!-- Sampling Configuration -->
+                        <TextBlock Text="SAMPLING CONFIGURATION" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <TextBlock Text="Frequency (Hz)" 
+                                 Foreground="White" 
+                                 Margin="0,0,0,5"/>
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Text="{Binding ElementName=FrequencySlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                    Style="{StaticResource TextBoxStyle}"
+                                    Width="80"
+                                    FontSize="20"
+                                    TextAlignment="Center"
+                                    Margin="0,0,10,0"/>
+                            <Slider Grid.Column="1"
+                                   Name="FrequencySlider"
+                                   Minimum="1" 
+                                   Maximum="1000"
+                                   TickFrequency="1"
+                                   IsSnapToTickEnabled="True"
+                                   Value="{Binding SelectedDevice.StreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+
+                        <!-- Data Format section removed since we only support Protobuf now -->
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="NETWORK" Style="{StaticResource TabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20">
+                        <TextBlock Text="WIFI MODE" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                 Margin="0,0,0,20"
+                                 ItemsSource="{Binding Source={StaticResource WifiModes}}"
+                                 SelectedItem="{Binding SelectedDevice.NetworkConfiguration.Mode}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <TextBlock Text="SECURITY TYPE" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                 Margin="0,0,0,20"
+                                 ItemsSource="{Binding Source={StaticResource WifiSecurityTypes}}"
+                                 SelectedItem="{Binding SelectedDevice.NetworkConfiguration.SecurityType}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={StaticResource EnumDescription}}"/>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+
+                        <TextBlock Text="NETWORK SSID" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <TextBox Style="{StaticResource TextBoxStyle}"
+                                Margin="0,0,0,20"
+                                Text="{Binding SelectedDevice.NetworkConfiguration.Ssid, Mode=TwoWay}"/>
+
+                        <TextBlock Text="PASSWORD" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,10"/>
+                        <TextBox Style="{StaticResource TextBoxStyle}"
+                                Margin="0,0,0,20"
+                                Text="{Binding SelectedDevice.NetworkConfiguration.Password, Mode=TwoWay}"/>
+
+                        <Button Content="APPLY NETWORK SETTINGS"
+                                Style="{StaticResource AccentButtonStyle}"
+                                HorizontalAlignment="Right"
+                                Command="{Binding UpdateNetworkConfigurationCommand}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="FIRMWARE" Style="{StaticResource TabItemStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20">
+                        <TextBlock Text="UPDATE DEVICE FIRMWARE" 
+                                 Style="{StaticResource SectionHeaderStyle}" 
+                                 Margin="0,0,0,15"/>
+                        
+                        <DockPanel LastChildFill="True" Margin="0,0,0,15">
+                            <Button DockPanel.Dock="Right"
+                                    Content="browse"
+                                    Style="{StaticResource ButtonStyle}"
+                                    Margin="10,0,0,0"
+                                    Command="{Binding BrowseForFirmwareCommand}"/>
+                            <TextBox Style="{StaticResource TextBoxStyle}"
+                                    Text="{Binding FirmwareFilePath, Mode=TwoWay}"/>
+                        </DockPanel>
+
+                        <DockPanel LastChildFill="True">
+                            <Button DockPanel.Dock="Right"
+                                    Content="update"
+                                    Style="{StaticResource AccentButtonStyle}"
+                                    Margin="10,0,0,0"
+                                    Width="80"
+                                    Command="{Binding UploadFirmwareCommand}"/>
+                            <controls:MetroProgressBar Height="35"
+                                                     Background="#333333"
+                                                     Foreground="#4B8FE2"
+                                                     Minimum="0"
+                                                     Maximum="100"
+                                                     Value="{Binding UploadFirmwareProgress}"/>
+                        </DockPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
 </Controls:Flyout>
