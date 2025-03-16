@@ -389,6 +389,8 @@ namespace Daqifi.Desktop.Device
                 case DeviceMode.LogToDevice:
                     PrepareSdInterface();
                     break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
 
             NotifyPropertyChanged(nameof(Mode));

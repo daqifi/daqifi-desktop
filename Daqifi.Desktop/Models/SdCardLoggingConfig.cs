@@ -1,11 +1,9 @@
-using System.ComponentModel;
-
 namespace Daqifi.Desktop.Models
 {
     /// <summary>
     /// Configuration model for SD card logging settings
     /// </summary>
-    public class SdCardLoggingConfig : INotifyPropertyChanged
+    public class SdCardLoggingConfig : ObservableObject
     {
         private bool _isEnabled;
         private LoggingMode _loggingMode;
@@ -22,7 +20,7 @@ namespace Daqifi.Desktop.Models
                 if (_isEnabled != value)
                 {
                     _isEnabled = value;
-                    OnPropertyChanged(nameof(IsEnabled));
+                    NotifyPropertyChanged(nameof(IsEnabled));
                 }
             }
         }
@@ -38,7 +36,7 @@ namespace Daqifi.Desktop.Models
                 if (_loggingMode != value)
                 {
                     _loggingMode = value;
-                    OnPropertyChanged(nameof(LoggingMode));
+                    NotifyPropertyChanged(nameof(LoggingMode));
                 }
             }
         }
@@ -54,16 +52,9 @@ namespace Daqifi.Desktop.Models
                 if (_fileNamePattern != value)
                 {
                     _fileNamePattern = value;
-                    OnPropertyChanged(nameof(FileNamePattern));
+                    NotifyPropertyChanged(nameof(FileNamePattern));
                 }
             }
-        }
-
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        protected virtual void OnPropertyChanged(string propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
         public SdCardLoggingConfig()

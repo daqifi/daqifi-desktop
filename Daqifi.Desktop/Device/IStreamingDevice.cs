@@ -27,7 +27,7 @@ namespace Daqifi.Desktop.Device
         Wifi
     }
 
-    public interface IStreamingDevice : IDevice, INotifyPropertyChanged
+    public interface IStreamingDevice : IDevice
     {
         DeviceMode Mode { get; }
         ConnectionType ConnectionType { get; }

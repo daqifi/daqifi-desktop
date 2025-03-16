@@ -12,9 +12,9 @@ namespace Daqifi.Desktop.IO.Messages.Producers
 
         public static IMessage ForceBootloader => new ScpiMessage("SYSTem:FORceBoot");
 
-        public static IMessage Echo(int echo)
+        public static IMessage Echo(int echoValue)
         {
-            return new ScpiMessage($"SYSTem:ECHO {echo}");
+            return new ScpiMessage($"SYSTem:ECHO {echoValue}");
         }
 
         #endregion
