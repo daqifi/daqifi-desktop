@@ -416,8 +416,10 @@ namespace Daqifi.Desktop.Logger
         #region Channel Subscription
         public void Subscribe(IChannel channel)
         {
-            if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name)) 
+            if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name))
+            {
                 return;
+            }
                 
             channel.IsActive = true;
             
@@ -428,14 +430,18 @@ namespace Daqifi.Desktop.Logger
             }
             
             SubscribedChannels.Add(channel);
-            NotifyPropertyChanged("SubscribedChannels");
+            NotifyPropertyChanged(nameof(SubscribedChannels));
         }
 
         public void Unsubscribe(IChannel channel)
         {
             var index = SubscribedChannels
                 .FindIndex(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
-            if (index == -1) return;
+            
+            if (index == -1)
+            {
+                return;
+            }
             
             var subscribedChannel = SubscribedChannels[index];
             subscribedChannel.IsActive = false;
@@ -444,36 +450,7 @@ namespace Daqifi.Desktop.Logger
             subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
             
             SubscribedChannels.RemoveAt(index);
-            NotifyPropertyChanged("SubscribedChannels");
-        }
-
-        /// <summary>
-        /// Switches between logging modes, handling necessary cleanup and setup
-        /// </summary>
-        public void SwitchLoggingMode(LoggingMode newMode)
-        {
-            if (CurrentMode == newMode) return;
-
-            // Stop current logging/streaming
-            if (Active)
-            {
-                Active = false;
-            }
-
-            // Update channel handlers based on new mode
-            foreach (var channel in SubscribedChannels)
-            {
-                if (newMode == LoggingMode.Stream)
-                {
-                    channel.OnChannelUpdated += HandleChannelUpdate;
-                }
-                else
-                {
-                    channel.OnChannelUpdated -= HandleChannelUpdate;
-                }
-            }
-
-            CurrentMode = newMode;
+            NotifyPropertyChanged(nameof(SubscribedChannels));
         }
         #endregion
 

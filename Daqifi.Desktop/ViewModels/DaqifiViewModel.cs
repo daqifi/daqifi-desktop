@@ -2104,14 +2104,6 @@ namespace Daqifi.Desktop.ViewModels
 
         #endregion
 
-        #region SD Card Logging
-        private async void RefreshSdCardFiles()
-        {
-            if (SelectedDevice == null) return;
-            SelectedDevice.RefreshSdCardFiles();
-        }
-        #endregion
-
         #endregion
     }
 }

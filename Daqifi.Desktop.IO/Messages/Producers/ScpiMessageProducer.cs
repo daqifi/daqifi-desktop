@@ -73,11 +73,6 @@ namespace Daqifi.Desktop.IO.Messages.Producers
             return new ScpiMessage($"CONFigure:ADC:RANGe {range}");
         }
 
-        //public static IMessage ConfigureAdcChannels(string channelSetString)
-        //{
-        //    return new ScpiMessage($"CONFigure:ADC:CHANnel {channelSetString}");
-        //}
-
         public static IMessage EnableAdcChannels(string channelSetString)
         {
             return new ScpiMessage($"ENAble:VOLTage:DC {channelSetString}");

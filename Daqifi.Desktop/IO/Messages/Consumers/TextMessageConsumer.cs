@@ -87,7 +87,10 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
                     _stringBuilder.Clear();
                 }
 
-                if (string.IsNullOrEmpty(accumulated)) return;
+                if (string.IsNullOrEmpty(accumulated))
+                {
+                    return;
+                }
 
                 // Log the raw received data for debugging
                 AppLogger.Information($"Raw text response: {accumulated}");

@@ -351,7 +351,10 @@ namespace Daqifi.Desktop.Device
                 throw new InvalidOperationException("SD Card logging is only available when connected via USB");
             }
 
-            if (Mode == newMode) return;
+            if (Mode == newMode)
+            {
+                return;
+            }
             
             // Stop any current activity
             if (IsStreaming)

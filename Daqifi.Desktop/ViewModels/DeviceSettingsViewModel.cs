@@ -40,13 +40,14 @@ namespace Daqifi.Desktop.ViewModels
 
         private string GetSdCardMessage()
         {
-            if (SelectedDevice == null) return string.Empty;
+            if (SelectedDevice == null)
+            {
+                return string.Empty;
+            }
             
             return SelectedDevice.ConnectionType == ConnectionType.Usb
                 ? "SD Card logging available"
                 : "SD Card logging is not available on WiFi devices";
         }
-
-        // ... existing code ...
     }
 } 
