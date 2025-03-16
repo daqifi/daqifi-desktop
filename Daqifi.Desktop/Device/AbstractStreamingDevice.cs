@@ -25,12 +25,10 @@ namespace Daqifi.Desktop.Device
         public abstract ConnectionType ConnectionType { get; }
         
         private const double TickPeriod = 20E-9f;
-        private static DateTime? _previousTimestamp;
         private int _streamingFrequency = 1;
-        private uint? _previousDeviceTimestamp;
 
-        private Dictionary<string, DateTime> _previousTimestamps = new();
-        private Dictionary<string, uint?> _previousDeviceTimestamps = new();
+        private readonly Dictionary<string, DateTime> _previousTimestamps = new();
+        private readonly Dictionary<string, uint?> _previousDeviceTimestamps = new();
         private List<SdCardFile> _sdCardFiles = [];
 
         #region Properties
@@ -510,8 +508,7 @@ namespace Daqifi.Desktop.Device
             {
                 throw new InvalidOperationException("Cannot initialize streaming while in LogToDevice mode");
             }
-
-            _previousTimestamp = null;
+            
             MessageProducer.Send(ScpiMessageProducer.StartStreaming(StreamingFrequency));
             IsStreaming = true;
             StartStreamingMessageConsumer();
@@ -522,7 +519,6 @@ namespace Daqifi.Desktop.Device
             IsStreaming = false;
             MessageProducer.Send(ScpiMessageProducer.StopStreaming);
             StopMessageConsumer();
-            _previousTimestamp = null;
 
             foreach (var channel in DataChannels)
             {

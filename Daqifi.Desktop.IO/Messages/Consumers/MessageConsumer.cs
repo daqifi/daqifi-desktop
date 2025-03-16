@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.IO.Messages.Consumers
     {
         #region Private Data
         private bool _isDisposed;
-        private CancellationTokenSource _cancellationTokenSource;
+        private readonly CancellationTokenSource _cancellationTokenSource;
         #endregion
 
         #region Properties
