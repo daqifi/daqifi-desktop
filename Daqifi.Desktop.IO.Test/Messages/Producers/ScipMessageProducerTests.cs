@@ -32,11 +32,22 @@ namespace Daqifi.Desktop.IO.Test.Messages.Producers
         }
 
         [TestMethod]
-        public void EchoCommand_ReturnsCorrectCommand()
+        public void TurnOnEchoCommand_ReturnsCorrectCommand()
         {
-            var actualCommand = ScpiMessageProducer.Echo(1);
+            var actualCommand = ScpiMessageProducer.TurnOnEcho;
             var actualCommandRawData = actualCommand.GetBytes();
             const string expectedCommandText = "SYSTem:ECHO 1";
+            var expectedCommandRawData = GetBytes(expectedCommandText);
+
+            CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);
+        }
+        
+        [TestMethod]
+        public void TurnOffEchoCommand_ReturnsCorrectCommand()
+        {
+            var actualCommand = ScpiMessageProducer.TurnOffEcho;
+            var actualCommandRawData = actualCommand.GetBytes();
+            const string expectedCommandText = "SYSTem:ECHO -1";
             var expectedCommandRawData = GetBytes(expectedCommandText);
 
             CollectionAssert.AreEqual(expectedCommandRawData, actualCommandRawData);

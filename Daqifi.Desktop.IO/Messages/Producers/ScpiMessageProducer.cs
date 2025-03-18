@@ -12,11 +12,9 @@ namespace Daqifi.Desktop.IO.Messages.Producers
 
         public static IMessage ForceBootloader => new ScpiMessage("SYSTem:FORceBoot");
 
-        public static IMessage Echo(int echoValue)
-        {
-            return new ScpiMessage($"SYSTem:ECHO {echoValue}");
-        }
+        public static IMessage TurnOffEcho => new ScpiMessage("SYSTem:ECHO -1");
 
+        public static IMessage TurnOnEcho => new ScpiMessage("SYSTem:ECHO 1");
         #endregion
 
         #region SD Card Logging Commands
