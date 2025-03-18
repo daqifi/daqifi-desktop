@@ -48,7 +48,7 @@ namespace Daqifi.Desktop.ViewModels
 
         public DeviceLogsViewModel()
         {
-            _deviceLogImportService = new DeviceLogImportService(LoggingManager.Instance);
+            _deviceLogImportService = new DeviceLogImportService();
             ConnectedDevices = new ObservableCollection<IStreamingDevice>();
             DeviceFiles = new ObservableCollection<SdCardFile>();
             
