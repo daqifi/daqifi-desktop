@@ -569,7 +569,7 @@ namespace Daqifi.Desktop.Device
 
         protected void TurnOffEcho()
         {
-            MessageProducer.Send(ScpiMessageProducer.Echo(-1));
+            MessageProducer.Send(ScpiMessageProducer.TurnOffEcho);
         }
 
         protected void TurnDeviceOn()

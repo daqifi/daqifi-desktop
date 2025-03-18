@@ -70,12 +70,13 @@ namespace Daqifi.Desktop.Device.SerialDevice
             {
                 // First stop streaming to prevent new data from being requested
                 StopStreaming();
-
+                
                 // Stop the message producer first to prevent new messages
                 if (MessageProducer != null)
                 {
                     try
                     {
+                        MessageProducer.Send(ScpiMessageProducer.TurnOnEcho);
                         MessageProducer.StopSafely(); // Use StopSafely to ensure queued messages are sent
                     }
                     catch (Exception ex)
