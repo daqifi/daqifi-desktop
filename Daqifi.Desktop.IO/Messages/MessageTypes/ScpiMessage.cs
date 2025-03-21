@@ -1,19 +1,13 @@
 ﻿using System.Text;
 
-namespace Daqifi.Desktop.IO.Messages.MessageTypes
+namespace Daqifi.Desktop.IO.Messages.MessageTypes;
+
+public class ScpiMessage(string command) : IMessage
 {
-    public class ScpiMessage : IMessage
+    public object Data { get; set; } = command;
+
+    public byte[] GetBytes()
     {
-        public object Data { get; set; }
-
-        public ScpiMessage(string command)
-        {
-            Data = command;
-        }
-
-        public byte[] GetBytes()
-        {
-            return Encoding.ASCII.GetBytes((string)Data + "\r\n");
-        }
+        return Encoding.ASCII.GetBytes((string)Data + "\r\n");
     }
 }

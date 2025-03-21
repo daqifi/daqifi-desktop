@@ -1,7 +1,6 @@
-﻿namespace Daqifi.Desktop.Configuration
+﻿namespace Daqifi.Desktop.Configuration;
+
+public interface IColorable
 {
-    public interface IColorable
-    {
-        void SetColor(System.Windows.Media.Brush color);
-    }
+    void SetColor(System.Windows.Media.Brush color);
 }

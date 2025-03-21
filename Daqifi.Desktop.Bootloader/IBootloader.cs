@@ -1,11 +1,10 @@
 ﻿using System.ComponentModel;
 
-namespace Daqifi.Desktop.Bootloader
+namespace Daqifi.Desktop.Bootloader;
+
+public interface IBootloader
 {
-    public interface IBootloader
-    {
-        bool LoadFirmware(string filePath, BackgroundWorker backgroundWorker);
-        void RequestVersion();
-        bool EraseFlash();
-    }
+    bool LoadFirmware(string filePath, BackgroundWorker backgroundWorker);
+    void RequestVersion();
+    bool EraseFlash();
 }

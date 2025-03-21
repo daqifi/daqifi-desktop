@@ -2,36 +2,35 @@
 using System.Globalization;
 using System.Windows.Data;
 
-namespace Daqifi.Desktop.Helpers
+namespace Daqifi.Desktop.Helpers;
+
+public class EnumDescriptionConverter : IValueConverter
 {
-    public class EnumDescriptionConverter : IValueConverter
+    private string GetEnumDescription(Enum enumObj)
     {
-        private string GetEnumDescription(Enum enumObj)
+        var fieldInfo = enumObj.GetType().GetField(enumObj.ToString());
+
+        var attribArray = fieldInfo.GetCustomAttributes(false);
+
+        if (attribArray.Length == 0)
         {
-            var fieldInfo = enumObj.GetType().GetField(enumObj.ToString());
-
-            var attribArray = fieldInfo.GetCustomAttributes(false);
-
-            if (attribArray.Length == 0)
-            {
-                return enumObj.ToString();
-            }
-
-            var attrib = attribArray[0] as DescriptionAttribute;
-            return attrib.Description;
-
+            return enumObj.ToString();
         }
 
-        object IValueConverter.Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            var myEnum = (Enum)value;
-            var description = GetEnumDescription(myEnum);
-            return description;
-        }
+        var attrib = attribArray[0] as DescriptionAttribute;
+        return attrib.Description;
 
-        object IValueConverter.ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            return string.Empty;
-        }
+    }
+
+    object IValueConverter.Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var myEnum = (Enum)value;
+        var description = GetEnumDescription(myEnum);
+        return description;
+    }
+
+    object IValueConverter.ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return string.Empty;
     }
 }

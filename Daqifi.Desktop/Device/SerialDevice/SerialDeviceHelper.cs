@@ -1,31 +1,30 @@
 ﻿using System.Management;
 
-namespace Daqifi.Desktop.Device.SerialDevice
+namespace Daqifi.Desktop.Device.SerialDevice;
+
+public static class SerialDeviceHelper
 {
-    public static class SerialDeviceHelper
+    public static string[] GetAvailableDaqifiPorts()
     {
-        public static string[] GetAvailableDaqifiPorts()
+        var portNames = new List<string>();
+
+        ManagementObjectCollection collection;
+        using (var searcher = new ManagementObjectSearcher(@"Select * From WIN32_SerialPort"))
+            collection = searcher.Get();
+
+        foreach (var serialDevice in collection)
         {
-            var portNames = new List<string>();
+            var deviceId = serialDevice.GetPropertyValue("DeviceID");
+            var pnpDeviceId = serialDevice.GetPropertyValue("PNPDeviceID");
 
-            ManagementObjectCollection collection;
-            using (var searcher = new ManagementObjectSearcher(@"Select * From WIN32_SerialPort"))
-                collection = searcher.Get();
+            var device = UsbDevice.Get((string)pnpDeviceId);
+            var deviceReportedDescription = device.BusReportedDeviceDescription;
 
-            foreach (var serialDevice in collection)
+            if ((deviceReportedDescription != null) && (deviceReportedDescription.ToLower() == "nyquist"))
             {
-                var deviceId = serialDevice.GetPropertyValue("DeviceID");
-                var pnpDeviceId = serialDevice.GetPropertyValue("PNPDeviceID");
-
-                var device = UsbDevice.Get((string)pnpDeviceId);
-                var deviceReportedDescription = device.BusReportedDeviceDescription;
-
-                if ((deviceReportedDescription != null) && (deviceReportedDescription.ToLower() == "nyquist"))
-                {
-                    portNames.Add((string)deviceId);
-                }
+                portNames.Add((string)deviceId);
             }
-            return portNames.ToArray();
         }
+        return portNames.ToArray();
     }
 }

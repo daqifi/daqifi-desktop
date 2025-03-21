@@ -1,6 +1,5 @@
-﻿namespace Daqifi.Desktop.DialogService
+﻿namespace Daqifi.Desktop.DialogService;
+
+interface IDialogServiceContract
 {
-    interface IDialogServiceContract
-    {
-    }
 }

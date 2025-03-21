@@ -1,8 +1,7 @@
-﻿namespace Daqifi.Desktop.DataModel.Channel
+﻿namespace Daqifi.Desktop.DataModel.Channel;
+
+public enum ChannelType
 {
-    public enum ChannelType
-    {
-        Digital,
-        Analog
-    }
+    Digital,
+    Analog
 }

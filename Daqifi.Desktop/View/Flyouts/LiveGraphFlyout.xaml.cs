@@ -1,13 +1,12 @@
-﻿namespace Daqifi.Desktop.View.Flyouts
+﻿namespace Daqifi.Desktop.View.Flyouts;
+
+/// <summary>
+/// Interaction logic for LiveGraphFlyout.xaml
+/// </summary>
+public partial class LiveGraphFlyout
 {
-    /// <summary>
-    /// Interaction logic for LiveGraphFlyout.xaml
-    /// </summary>
-    public partial class LiveGraphFlyout
+    public LiveGraphFlyout()
     {
-        public LiveGraphFlyout()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

@@ -1,25 +1,24 @@
 ﻿using System.Windows;
 
-namespace Daqifi.Desktop.View
+namespace Daqifi.Desktop.View;
+
+/// <summary>
+/// Interaction logic for AddProfileConfirmationDialog.xaml
+/// </summary>
+public partial class AddProfileConfirmationDialog 
 {
-    /// <summary>
-    /// Interaction logic for AddProfileConfirmationDialog.xaml
-    /// </summary>
-    public partial class AddProfileConfirmationDialog 
+    public AddProfileConfirmationDialog()
     {
-        public AddProfileConfirmationDialog()
-        {
-            InitializeComponent();       
-        }
+        InitializeComponent();       
+    }
 
-        private void ExixtingProfileBtn_Click(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
+    private void ExixtingProfileBtn_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
 
-        private void CreateNewProfileBtn_Click(object sender, RoutedEventArgs e)
-        {
-            Close();
-        }
+    private void CreateNewProfileBtn_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
     }
 }

@@ -1,19 +1,18 @@
-﻿namespace Daqifi.Desktop.IO.Messages.Consumers
+﻿namespace Daqifi.Desktop.IO.Messages.Consumers;
+
+public delegate void OnMessageReceivedHandler(object sender, MessageEventArgs e);
+
+public interface IMessageConsumer
 {
-    public delegate void OnMessageReceivedHandler(object sender, MessageEventArgs e);
+    bool Running { get; set; }
+    Stream DataStream { get; set; }
 
-    public interface IMessageConsumer
-    {
-        bool Running { get; set; }
-        Stream DataStream { get; set; }
+    #region Events
+    event OnMessageReceivedHandler OnMessageReceived;
+    #endregion
 
-        #region Events
-        event OnMessageReceivedHandler OnMessageReceived;
-        #endregion
-
-        void Start();
-        void Stop();
-        void NotifyMessageReceived(object sender, MessageEventArgs e);
-        void Run();
-    }
+    void Start();
+    void Stop();
+    void NotifyMessageReceived(object sender, MessageEventArgs e);
+    void Run();
 }

@@ -1,9 +1,8 @@
-﻿namespace Daqifi.Desktop.DataModel.Channel
+﻿namespace Daqifi.Desktop.DataModel.Channel;
+
+public enum ChannelDirection
 {
-    public enum ChannelDirection
-    {
-        Input,
-        Output,
-        Unknown
-    }
+    Input,
+    Output,
+    Unknown
 }

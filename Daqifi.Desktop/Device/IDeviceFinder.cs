@@ -1,16 +1,15 @@
-﻿namespace Daqifi.Desktop.Device
+﻿namespace Daqifi.Desktop.Device;
+
+public delegate void OnDeviceFoundHandler(object sender, IDevice device);
+public delegate void OnDeviceRemovedHandler(object sender, IDevice device);
+
+public interface IDeviceFinder
 {
-    public delegate void OnDeviceFoundHandler(object sender, IDevice device);
-    public delegate void OnDeviceRemovedHandler(object sender, IDevice device);
+    event OnDeviceFoundHandler OnDeviceFound;
+    event OnDeviceRemovedHandler OnDeviceRemoved;
 
-    public interface IDeviceFinder
-    {
-        event OnDeviceFoundHandler OnDeviceFound;
-        event OnDeviceRemovedHandler OnDeviceRemoved;
-
-        void Start();
-        void Stop();
-        void NotifyDeviceFound(object sender, IDevice device);
-        void NotifyDeviceRemoved(object sender, IDevice device);
-    }
+    void Start();
+    void Stop();
+    void NotifyDeviceFound(object sender, IDevice device);
+    void NotifyDeviceRemoved(object sender, IDevice device);
 }

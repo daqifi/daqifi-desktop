@@ -1,23 +1,22 @@
-﻿namespace DAQifi.Desktop.View
+﻿namespace DAQifi.Desktop.View;
+
+/// <summary>
+/// Interaction logic for FirmwareDialog.xaml
+/// </summary>
+public partial class FirmwareDialog
 {
-    /// <summary>
-    /// Interaction logic for FirmwareDialog.xaml
-    /// </summary>
-    public partial class FirmwareDialog
+    public FirmwareDialog()
     {
-        public FirmwareDialog()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
+    }
 
-        private void btnCancel_Click(object sender, System.Windows.RoutedEventArgs e)
-        {
-            Close();
-        }
+    private void btnCancel_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        Close();
+    }
 
-        private void btnOk_Click(object sender, System.Windows.RoutedEventArgs e)
-        {
-            Close();
-        }
+    private void btnOk_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        Close();
     }
 }

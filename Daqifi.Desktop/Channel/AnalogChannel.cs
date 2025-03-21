@@ -1,57 +1,56 @@
 ﻿using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 
-namespace Daqifi.Desktop.Channel
-{
-    public class AnalogChannel : AbstractChannel
-    {       
-        #region Properties
-        public override ChannelType Type => ChannelType.Analog;
+namespace Daqifi.Desktop.Channel;
 
-        public override bool IsAnalog => true;
+public class AnalogChannel : AbstractChannel
+{       
+    #region Properties
+    public override ChannelType Type => ChannelType.Analog;
 
-        public override bool IsDigital => false;
+    public override bool IsAnalog => true;
 
-        public float CalibrationBValue { get; set; }
+    public override bool IsDigital => false;
 
-        public float CalibrationMValue { get; set; }
+    public float CalibrationBValue { get; set; }
 
-        public float InternalScaleMValue { get; set; }
+    public float CalibrationMValue { get; set; }
 
-        public float PortRange { get; set; }
+    public float InternalScaleMValue { get; set; }
 
-        public uint Resolution { get; set; }
+    public float PortRange { get; set; }
 
-        #endregion
+    public uint Resolution { get; set; }
 
-        #region Constructors
-        public AnalogChannel() { }
+    #endregion
 
-        public AnalogChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional, float calibrationBValue, float calibrationMValue, float interalScaleMValue, float portRange, uint resolution)
-        {
-            _owner = owner;
-            Name = name;
-            DeviceName = owner.DevicePartNumber;
-            DeviceSerialNo = owner.DeviceSerialNo;
-            Index = channelId;
-            IsOutput = direction == ChannelDirection.Output;
-            HasAdc = !IsOutput;
-            IsBidirectional = isBidirectional;
-            ChannelColorBrush = ChannelColorManager.Instance.NewColor();
-            CalibrationBValue = calibrationBValue;
-            CalibrationMValue = calibrationMValue;
-            InternalScaleMValue = interalScaleMValue;
-            PortRange = portRange;
-            Resolution = resolution;
-        }
+    #region Constructors
+    public AnalogChannel() { }
 
-        #endregion
-
-        #region Object Overrides
-        public override string ToString()
-        {
-            return Name;
-        }
-        #endregion
+    public AnalogChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional, float calibrationBValue, float calibrationMValue, float interalScaleMValue, float portRange, uint resolution)
+    {
+        _owner = owner;
+        Name = name;
+        DeviceName = owner.DevicePartNumber;
+        DeviceSerialNo = owner.DeviceSerialNo;
+        Index = channelId;
+        IsOutput = direction == ChannelDirection.Output;
+        HasAdc = !IsOutput;
+        IsBidirectional = isBidirectional;
+        ChannelColorBrush = ChannelColorManager.Instance.NewColor();
+        CalibrationBValue = calibrationBValue;
+        CalibrationMValue = calibrationMValue;
+        InternalScaleMValue = interalScaleMValue;
+        PortRange = portRange;
+        Resolution = resolution;
     }
+
+    #endregion
+
+    #region Object Overrides
+    public override string ToString()
+    {
+        return Name;
+    }
+    #endregion
 }

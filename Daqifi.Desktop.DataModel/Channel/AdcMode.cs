@@ -1,8 +1,7 @@
-﻿namespace Daqifi.Desktop.DataModel.Channel
+﻿namespace Daqifi.Desktop.DataModel.Channel;
+
+public enum AdcMode
 {
-    public enum AdcMode
-    {
-        SingleEnded,
-        Differential
-    }
+    SingleEnded,
+    Differential
 }
