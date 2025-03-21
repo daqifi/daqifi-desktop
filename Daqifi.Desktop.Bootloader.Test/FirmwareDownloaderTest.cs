@@ -63,7 +63,7 @@ public class FirmwareDownloaderTest : IDisposable
             })
             .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new ByteArrayContent(new byte[] { 1, 2, 3, 4, 5 })
+                Content = new ByteArrayContent([1, 2, 3, 4, 5])
             });
 
         var httpClient = new HttpClient(mockHandler.Object);

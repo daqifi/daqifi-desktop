@@ -60,7 +60,7 @@ public class WiFiDownloader
                     {
                         fileStream.Write(buffer, 0, read);
                         bytesRead += read;
-                        int progress = (int)((double)bytesRead / totalBytes * 50) + 10;
+                        var progress = (int)((double)bytesRead / totalBytes * 50) + 10;
                         backgroundWorker.ReportProgress(progress, $"Downloading... {progress}%");
                     }
                 }
@@ -77,14 +77,14 @@ public class WiFiDownloader
 
             backgroundWorker.ReportProgress(70, "Extracting files...");
 
-            string extractFolderPath =
+            var extractFolderPath =
                 Path.Combine(daqifiFolderPath, $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}");
 
             if (Directory.Exists(extractFolderPath))
             {
                 await Task.Delay(500);
 
-                for (int i = 0; i < 3; i++)
+                for (var i = 0; i < 3; i++)
                 {
                     try
                     {

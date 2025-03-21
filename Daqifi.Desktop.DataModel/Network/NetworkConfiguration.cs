@@ -18,7 +18,7 @@ public class NetworkConfiguration: ObservableObject
         set
         {
             _mode = value;
-            NotifyPropertyChanged("Mode");
+            NotifyPropertyChanged(nameof(Mode));
         }
     }
 
@@ -28,7 +28,7 @@ public class NetworkConfiguration: ObservableObject
         set
         {
             _securityType = value;
-            NotifyPropertyChanged("SecurityType");
+            NotifyPropertyChanged(nameof(SecurityType));
         }
     }
 
@@ -38,7 +38,7 @@ public class NetworkConfiguration: ObservableObject
         set 
         { 
             _ssid = value;
-            NotifyPropertyChanged("Ssid");
+            NotifyPropertyChanged(nameof(Ssid));
         }
     }
 
@@ -48,7 +48,7 @@ public class NetworkConfiguration: ObservableObject
         set 
         { 
             _password = value;
-            NotifyPropertyChanged("Password");
+            NotifyPropertyChanged(nameof(Password));
         }
     }
     #endregion

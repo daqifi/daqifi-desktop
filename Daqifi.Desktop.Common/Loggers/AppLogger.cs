@@ -11,8 +11,8 @@ public class AppLogger : IAppLogger
     #region Private Data
     private readonly Logger _logger;
     private readonly Client _client;
-    private static readonly NoOpLogger _noOpLogger = new NoOpLogger();
-    private static readonly AppLogger _instance = new AppLogger();
+    private static readonly NoOpLogger _noOpLogger = new();
+    private static readonly AppLogger _instance = new();
     private static readonly bool _isTestMode = IsRunningInTestEnvironment();
     #endregion
 

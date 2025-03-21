@@ -42,17 +42,6 @@ public class Pic32BootloaderMessageProducerTest
     }
 
     [TestMethod]
-    public void CreateProgramFlashMessage_ReturnsCorrectValue()
-    {
-        // TODO
-    }
-
-    public void CreateReadCrcMessage_ReturnsCorrectValue()
-    {
-        // TODO
-    }
-
-    [TestMethod]
     public void CreateJumpToApplicationMessage_ReturnsCorrectValue()
     {
         // SOH RC CRCL CRCH EOT

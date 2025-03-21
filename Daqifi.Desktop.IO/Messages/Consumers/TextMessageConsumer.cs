@@ -33,7 +33,7 @@ public class TextMessageConsumer : AbstractMessageConsumer
                     break;
                 }
 
-                int bytesRead = 0;
+                var bytesRead = 0;
                 try
                 {
                     bytesRead = DataStream.Read(buffer, 0, buffer.Length);
@@ -46,7 +46,7 @@ public class TextMessageConsumer : AbstractMessageConsumer
 
                 if (bytesRead > 0)
                 {
-                    string text = Encoding.ASCII.GetString(buffer, 0, bytesRead);
+                    var text = Encoding.ASCII.GetString(buffer, 0, bytesRead);
                     lock (_stringBuilder)
                     {
                         _stringBuilder.Append(text);

@@ -2,14 +2,9 @@ using System.Text;
 
 namespace Daqifi.Desktop.IO.Messages.MessageTypes;
 
-public class TextMessage : IMessage
+public class TextMessage(string text) : IMessage
 {
-    public object Data { get; set; }
-
-    public TextMessage(string text)
-    {
-        Data = text;
-    }
+    public object Data { get; set; } = text;
 
     public byte[] GetBytes()
     {

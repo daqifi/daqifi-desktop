@@ -1,5 +1,3 @@
-using System;
-
 namespace Daqifi.Desktop.Common.Loggers;
 
 public class NoOpLogger : IAppLogger

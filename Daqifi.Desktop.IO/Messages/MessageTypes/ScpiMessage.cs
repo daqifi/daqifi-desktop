@@ -2,14 +2,9 @@
 
 namespace Daqifi.Desktop.IO.Messages.MessageTypes;
 
-public class ScpiMessage : IMessage
+public class ScpiMessage(string command) : IMessage
 {
-    public object Data { get; set; }
-
-    public ScpiMessage(string command)
-    {
-        Data = command;
-    }
+    public object Data { get; set; } = command;
 
     public byte[] GetBytes()
     {

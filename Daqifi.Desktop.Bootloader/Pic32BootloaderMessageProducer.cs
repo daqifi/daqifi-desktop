@@ -45,7 +45,7 @@ public class Pic32BootloaderMessageProducer
     #region Helper Methods
     private byte[] ConstructDataPacket(byte command)
     {
-        return ConstructDataPacket(new [] {command});
+        return ConstructDataPacket([command]);
     }
 
     private byte[] ConstructDataPacket(byte[] command)

@@ -15,10 +15,9 @@ public class ProtobufDecoderTests
 
         var mockMessage = new DaqifiOutMessage
         {
-            IpAddr = ByteString.CopyFrom(ipAddressBytes),
+            IpAddr = ByteString.CopyFrom(ipAddressBytes)
         };
-
-
+        
         var ipAddress = ProtobufDecoder.GetIpAddressString(mockMessage);
 
         Assert.AreEqual("192.168.0.45", ipAddress);

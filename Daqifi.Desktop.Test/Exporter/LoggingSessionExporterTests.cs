@@ -72,7 +72,7 @@ public class LoggingSessionExporterTests
     [TestMethod]
     public void ExportLoggingSession_ValidInput_ExportsCorrectOutput()
     {
-        var loggingSession = new LoggingSession()
+        var loggingSession = new LoggingSession
         {
             ID = 1,
             Channels = _channels,
@@ -104,7 +104,7 @@ public class LoggingSessionExporterTests
     {
         _dataSamples.Remove(_dataSamples.First(d => d.ID == 5));
 
-        var loggingSession = new LoggingSession()
+        var loggingSession = new LoggingSession
         {
             ID = 1,
             Channels = _channels,
@@ -134,7 +134,7 @@ public class LoggingSessionExporterTests
     [TestMethod]
     public void ExportLoggingSession_NoSamples_NoFileIsExported()
     {
-        var loggingSession = new LoggingSession()
+        var loggingSession = new LoggingSession
         {
             ID = 1,
             Channels = _channels,

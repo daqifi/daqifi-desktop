@@ -25,7 +25,7 @@ public class Pic32Bootloader : ObservableObject, IBootloader, IDisposable
         set
         {
             _version = value;
-            NotifyPropertyChanged("Version");
+            NotifyPropertyChanged(nameof(Version));
         }
     }
     #endregion
@@ -191,18 +191,6 @@ public class Pic32Bootloader : ObservableObject, IBootloader, IDisposable
             }
         }
         return false;
-    }
-
-    public static byte[] Combine(params byte[][] arrays)
-    {
-        byte[] ret = new byte[arrays.Sum(x => x.Length)];
-        int offset = 0;
-        foreach (byte[] data in arrays)
-        {
-            Buffer.BlockCopy(data, 0, ret, offset, data.Length);
-            offset += data.Length;
-        }
-        return ret;
     }
 
     private void OpenDevice()

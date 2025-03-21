@@ -63,7 +63,7 @@ public class AbstractStreamingDeviceTests
     [TestMethod]
     public void Add1stAnd2ndAnalogChannel_SendsCorrectMessage()
     {
-        var actualMessage = GetMessagesFromAddingMultipleChannels(new[] { 0, 1 });
+        var actualMessage = GetMessagesFromAddingMultipleChannels([0, 1]);
         var expectedMessage = new ScpiMessage("ENAble:VOLTage:DC 3");
         CollectionAssert.AreEqual(expectedMessage.GetBytes(), actualMessage.GetBytes());
     }
@@ -71,7 +71,7 @@ public class AbstractStreamingDeviceTests
     [TestMethod]
     public void Add5thtAnd7thAnalogChannel_SendsCorrectMessage()
     {
-        var actualMessage = GetMessagesFromAddingMultipleChannels(new[] { 4, 6 });
+        var actualMessage = GetMessagesFromAddingMultipleChannels([4, 6]);
         var expectedMessage = new ScpiMessage("ENAble:VOLTage:DC 80");
         CollectionAssert.AreEqual(expectedMessage.GetBytes(), actualMessage.GetBytes());
     }
@@ -79,7 +79,7 @@ public class AbstractStreamingDeviceTests
     [TestMethod]
     public void Add1st4th5th6th7thAnd8thAnalogChannel_SendsCorrectMessage()
     {
-        var actualMessage = GetMessagesFromAddingMultipleChannels(new[] { 0, 3, 4, 5, 6, 7 });
+        var actualMessage = GetMessagesFromAddingMultipleChannels([0, 3, 4, 5, 6, 7]);
         var expectedMessage = new ScpiMessage("ENAble:VOLTage:DC 249");
         CollectionAssert.AreEqual(expectedMessage.GetBytes(), actualMessage.GetBytes());
     }
@@ -113,10 +113,7 @@ public class AbstractStreamingDeviceTests
         var device = new DummyAbstractStreamingDevice
         {
             MessageProducer = mockedMessageProducer.Object,
-            DataChannels = new List<IChannel>
-            {
-                mockedChannel.Object
-            }
+            DataChannels = [mockedChannel.Object]
         };
 
         device.AddChannel(mockedChannel.Object);
@@ -146,7 +143,7 @@ public class AbstractStreamingDeviceTests
         var device = new DummyAbstractStreamingDevice
         {
             MessageProducer = mockedMessageProducer.Object,
-            DataChannels = new List<IChannel>()
+            DataChannels = []
         };
 
         foreach (var mockedChannel in mockedChannels)
