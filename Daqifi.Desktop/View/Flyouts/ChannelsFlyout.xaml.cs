@@ -1,13 +1,12 @@
-﻿namespace Daqifi.Desktop.View.Flyouts
+﻿namespace Daqifi.Desktop.View.Flyouts;
+
+/// <summary>
+/// Interaction logic for ChannelsFlyout.xaml
+/// </summary>
+public partial class ChannelsFlyout
 {
-    /// <summary>
-    /// Interaction logic for ChannelsFlyout.xaml
-    /// </summary>
-    public partial class ChannelsFlyout
+    public ChannelsFlyout()
     {
-        public ChannelsFlyout()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

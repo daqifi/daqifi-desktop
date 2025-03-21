@@ -1,17 +1,16 @@
-﻿namespace Daqifi.Desktop.Channel
+﻿namespace Daqifi.Desktop.Channel;
+
+public class ChannelEventArgs
 {
-    public class ChannelEventArgs
+    #region Properties
+    public AbstractChannel Channel { get; }
+
+    #endregion
+
+    #region Constrctors
+    public ChannelEventArgs(AbstractChannel channel)
     {
-        #region Properties
-        public AbstractChannel Channel { get; }
-
-        #endregion
-
-        #region Constrctors
-        public ChannelEventArgs(AbstractChannel channel)
-        {
-            Channel = channel;
-        }
-        #endregion
+        Channel = channel;
     }
+    #endregion
 }

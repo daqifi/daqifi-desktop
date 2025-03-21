@@ -2,69 +2,68 @@
 using Daqifi.Desktop.IO.Messages.MessageTypes;
 using System.Collections.Concurrent;
 
-namespace Daqifi.Desktop.IO.Messages.Producers
+namespace Daqifi.Desktop.IO.Messages.Producers;
+
+public class MessageProducer : IMessageProducer
 {
-    public class MessageProducer : IMessageProducer
+    private Thread _producerThread;
+    private ConcurrentQueue<IMessage> _messageQueue;
+    private bool _isRunning;
+
+    public Stream DataStream { get; protected set; }
+
+    #region Constructor
+    public MessageProducer(Stream stream)
     {
-        private Thread _producerThread;
-        private ConcurrentQueue<IMessage> _messageQueue;
-        private bool _isRunning;
+        DataStream = stream;
+    }
+    #endregion
 
-        public Stream DataStream { get; protected set; }
+    public void Start()
+    {
+        _messageQueue = new ConcurrentQueue<IMessage>();
+        _isRunning = true;
+        _producerThread = new Thread(Run) { IsBackground = true };
+        _producerThread.Start();
+    }
 
-        #region Constructor
-        public MessageProducer(Stream stream)
+    public void Stop()
+    {
+        _isRunning = false;
+        _producerThread.Join(1000);
+    }
+
+    public void StopSafely()
+    {
+        while (!_messageQueue.IsEmpty)
         {
-            DataStream = stream;
+            // Wait for the queue to empty
         }
-        #endregion
+        Stop();
+    }
 
-        public void Start()
-        {
-            _messageQueue = new ConcurrentQueue<IMessage>();
-            _isRunning = true;
-            _producerThread = new Thread(Run) { IsBackground = true };
-            _producerThread.Start();
-        }
+    public void Send(IMessage message)
+    {
+        _messageQueue.Enqueue(message);
+    }
 
-        public void Stop()
+    public void Run()
+    {
+        while (_isRunning)
         {
-            _isRunning = false;
-            _producerThread.Join(1000);
-        }
-
-        public void StopSafely()
-        {
-            while (!_messageQueue.IsEmpty)
+            try
             {
-                // Wait for the queue to empty
+                Thread.Sleep(100);
+                if (_messageQueue.IsEmpty) continue;
+
+                if(!_messageQueue.TryDequeue(out var message)) continue;
+
+                var serializedMessage = message.GetBytes();
+                DataStream.Write(serializedMessage, 0, serializedMessage.Length);
             }
-            Stop();
-        }
-
-        public void Send(IMessage message)
-        {
-            _messageQueue.Enqueue(message);
-        }
-
-        public void Run()
-        {
-            while (_isRunning)
+            catch (Exception ex)
             {
-                try
-                {
-                    Thread.Sleep(100);
-                    if (_messageQueue.IsEmpty) continue;
-
-                    if(!_messageQueue.TryDequeue(out var message)) continue;
-
-                    var serializedMessage = message.GetBytes();
-                    DataStream.Write(serializedMessage, 0, serializedMessage.Length);
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Instance.Error(ex, "Failed running in Message Producer");
-                }
+                AppLogger.Instance.Error(ex, "Failed running in Message Producer");
             }
         }
     }

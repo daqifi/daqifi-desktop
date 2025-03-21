@@ -1,12 +1,11 @@
 using MahApps.Metro.Controls;
 
-namespace Daqifi.Desktop.View
+namespace Daqifi.Desktop.View;
+
+public partial class WarningDialog : MetroWindow
 {
-    public partial class WarningDialog : MetroWindow
+    public WarningDialog()
     {
-        public WarningDialog()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
-} 
+}

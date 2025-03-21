@@ -1,13 +1,12 @@
-﻿namespace Daqifi.Desktop.View.Flyouts
+﻿namespace Daqifi.Desktop.View.Flyouts;
+
+/// <summary>
+/// Interaction logic for DevicesFlyout.xaml
+/// </summary>
+public partial class DevicesFlyout 
 {
-    /// <summary>
-    /// Interaction logic for DevicesFlyout.xaml
-    /// </summary>
-    public partial class DevicesFlyout 
+    public DevicesFlyout()
     {
-        public DevicesFlyout()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

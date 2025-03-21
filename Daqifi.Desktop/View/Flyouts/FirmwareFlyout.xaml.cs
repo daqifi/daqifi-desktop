@@ -1,11 +1,9 @@
-﻿namespace Daqifi.Desktop.View.Flyouts
+﻿namespace Daqifi.Desktop.View.Flyouts;
+
+public partial class FirmwareFlyout 
 {
-   
-    public partial class FirmwareFlyout 
+    public FirmwareFlyout()
     {
-        public FirmwareFlyout()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

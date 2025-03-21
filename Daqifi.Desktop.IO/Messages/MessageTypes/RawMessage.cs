@@ -1,17 +1,16 @@
-﻿namespace Daqifi.Desktop.IO.Messages.MessageTypes
+﻿namespace Daqifi.Desktop.IO.Messages.MessageTypes;
+
+public class RawMessage : IMessage
 {
-    public class RawMessage : IMessage
+    public object Data { get; set; }
+
+    public RawMessage(byte[] data)
     {
-        public object Data { get; set; }
+        Data = data;
+    }
 
-        public RawMessage(byte[] data)
-        {
-            Data = data;
-        }
-
-        public byte[] GetBytes()
-        {
-            return Data as byte[];
-        }
+    public byte[] GetBytes()
+    {
+        return Data as byte[];
     }
 }

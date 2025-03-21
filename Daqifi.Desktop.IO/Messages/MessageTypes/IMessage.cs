@@ -1,10 +1,9 @@
 ﻿
-namespace Daqifi.Desktop.IO.Messages.MessageTypes
-{
-    public interface IMessage
-    {
-        object Data { get; set;}
+namespace Daqifi.Desktop.IO.Messages.MessageTypes;
 
-        byte[] GetBytes();
-    }
+public interface IMessage
+{
+    object Data { get; set;}
+
+    byte[] GetBytes();
 }

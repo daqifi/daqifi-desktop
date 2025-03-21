@@ -1,13 +1,12 @@
-﻿namespace Daqifi.Desktop.View.Flyouts
+﻿namespace Daqifi.Desktop.View.Flyouts;
+
+/// <summary>
+/// Interaction logic for the summary flyout page
+/// </summary>
+public partial class SummaryFlyout
 {
-    /// <summary>
-    /// Interaction logic for the summary flyout page
-    /// </summary>
-    public partial class SummaryFlyout
+    public SummaryFlyout()
     {
-        public SummaryFlyout()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

@@ -5,239 +5,238 @@ using Daqifi.Desktop.Logger;
 using System.ComponentModel;
 using System.Management;
 
-namespace Daqifi.Desktop
+namespace Daqifi.Desktop;
+
+public class ConnectionManager : ObservableObject
 {
-    public class ConnectionManager : ObservableObject
+    #region Private Variables
+    private DAQifiConnectionStatus _connectionStatus = DAQifiConnectionStatus.Disconnected;
+    private List<IStreamingDevice> _connectedDevices;
+    private bool _isDisconnected = true;
+    private bool _notifyConnection = false;
+    private readonly ManagementEventWatcher _deviceRemovedWatcher;
+    #endregion
+
+    #region Properties
+
+    private DAQifiConnectionStatus ConnectionStatus
     {
-        #region Private Variables
-        private DAQifiConnectionStatus _connectionStatus = DAQifiConnectionStatus.Disconnected;
-        private List<IStreamingDevice> _connectedDevices;
-        private bool _isDisconnected = true;
-        private bool _notifyConnection = false;
-        private readonly ManagementEventWatcher _deviceRemovedWatcher;
-        #endregion
-
-        #region Properties
-
-        private DAQifiConnectionStatus ConnectionStatus
+        get => _connectionStatus;
+        set
         {
-            get => _connectionStatus;
-            set
-            {
-                _connectionStatus = value;
-                UpdateStatusString();
-                NotifyPropertyChanged("ConnectionStatus");
+            _connectionStatus = value;
+            UpdateStatusString();
+            NotifyPropertyChanged("ConnectionStatus");
 
-                IsDisconnected = _connectionStatus != DAQifiConnectionStatus.Connected;
+            IsDisconnected = _connectionStatus != DAQifiConnectionStatus.Connected;
+        }
+    }
+
+    public string ConnectionStatusString { get; set; } = "Disconnected";
+
+    public List<IStreamingDevice> ConnectedDevices
+    {
+        get => _connectedDevices;
+        set
+        {
+            _connectedDevices = value;
+            NotifyPropertyChanged("ConnectedDevices");
+        }
+    }
+
+    public bool IsDisconnected
+    {
+        get => _isDisconnected;
+        set
+        {
+            if (value != _isDisconnected)
+            {
+                _isDisconnected = value;
+                NotifyPropertyChanged("IsDisconnected");
             }
         }
-
-        public string ConnectionStatusString { get; set; } = "Disconnected";
-
-        public List<IStreamingDevice> ConnectedDevices
+    }
+    public bool NotifyConnection
+    {
+        get => _notifyConnection;
+        set
         {
-            get => _connectedDevices;
-            set
+            if (value != _notifyConnection)
             {
-                _connectedDevices = value;
-                NotifyPropertyChanged("ConnectedDevices");
+                _notifyConnection = value;
+                NotifyPropertyChanged("NotifyConnection");
             }
         }
+    }
+    #endregion
 
-        public bool IsDisconnected
+    #region Singleton Constructor / Initalization
+    private static readonly ConnectionManager instance = new ConnectionManager();
+
+    private ConnectionManager()
+    {
+        ConnectedDevices = new List<IStreamingDevice>();
+
+
+        try
         {
-            get => _isDisconnected;
-            set
-            {
-                if (value != _isDisconnected)
-                {
-                    _isDisconnected = value;
-                    NotifyPropertyChanged("IsDisconnected");
-                }
-            }
+            // EventType 3 is Device Removal
+            var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
+
+            _deviceRemovedWatcher = new ManagementEventWatcher(deviceRemovedQuery);
+            _deviceRemovedWatcher.EventArrived += (sender, eventArgs) => CheckIfSerialDeviceWasRemoved();
+            _deviceRemovedWatcher.Start();
         }
-        public bool NotifyConnection
+        catch (Exception ex)
         {
-            get => _notifyConnection;
-            set
-            {
-                if (value != _notifyConnection)
-                {
-                    _notifyConnection = value;
-                    NotifyPropertyChanged("NotifyConnection");
-                }
-            }
+            AppLogger.Instance.Error(ex, "Failed to initialize ManagementEventWatcher: " + ex.Message);
         }
-        #endregion
-
-        #region Singleton Constructor / Initalization
-        private static readonly ConnectionManager instance = new ConnectionManager();
-
-        private ConnectionManager()
-        {
-            ConnectedDevices = new List<IStreamingDevice>();
-
-
-                try
-                {
-                    // EventType 3 is Device Removal
-                    var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
-
-                    _deviceRemovedWatcher = new ManagementEventWatcher(deviceRemovedQuery);
-                    _deviceRemovedWatcher.EventArrived += (sender, eventArgs) => CheckIfSerialDeviceWasRemoved();
-                    _deviceRemovedWatcher.Start();
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Instance.Error(ex, "Failed to initialize ManagementEventWatcher: " + ex.Message);
-                }
             
-        }
+    }
 
-        public static ConnectionManager Instance => instance;
+    public static ConnectionManager Instance => instance;
 
-        #endregion
+    #endregion
 
-        public async Task Connect(IStreamingDevice device)
+    public async Task Connect(IStreamingDevice device)
+    {
+        try
         {
-            try
+            ConnectionStatus = DAQifiConnectionStatus.Connecting;
+            bool isConnected = await Task.Run(() => device.Connect());
+            if (!isConnected)
             {
-                ConnectionStatus = DAQifiConnectionStatus.Connecting;
-                bool isConnected = await Task.Run(() => device.Connect());
-                if (!isConnected)
-                {
-                    ConnectionStatus = DAQifiConnectionStatus.Error;
-                    return;
-                }
-                ConnectedDevices.Add(device);
-               await Task.Delay(1000);
-                NotifyPropertyChanged("ConnectedDevices");
-                ConnectionStatus = DAQifiConnectionStatus.Connected;
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Instance.Error(ex, "Failed to Connect in Connection");
                 ConnectionStatus = DAQifiConnectionStatus.Error;
+                return;
             }
+            ConnectedDevices.Add(device);
+            await Task.Delay(1000);
+            NotifyPropertyChanged("ConnectedDevices");
+            ConnectionStatus = DAQifiConnectionStatus.Connected;
         }
-
-        public void Disconnect(IStreamingDevice device)
+        catch (Exception ex)
         {
-            try
-            {
-                device.Disconnect();
-                ConnectedDevices.Remove(device);
-                NotifyPropertyChanged("ConnectedDevices");
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Instance.Error(ex, "Failed in Disconnect");
-            }
+            AppLogger.Instance.Error(ex, "Failed to Connect in Connection");
+            ConnectionStatus = DAQifiConnectionStatus.Error;
         }
+    }
 
-        public void Reboot(IStreamingDevice device)
+    public void Disconnect(IStreamingDevice device)
+    {
+        try
         {
-            try
-            {
-                device.Reboot();
-                ConnectedDevices.Remove(device);
-                NotifyPropertyChanged("ConnectedDevices");
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Instance.Error(ex, "Failed in Reboot");
-            }
+            device.Disconnect();
+            ConnectedDevices.Remove(device);
+            NotifyPropertyChanged("ConnectedDevices");
         }
-
-        public void UpdateStatusString()
+        catch (Exception ex)
         {
-            switch (ConnectionStatus)
-            {
-                case DAQifiConnectionStatus.Disconnected:
-                    ConnectionStatusString = "Disconnected";
-                    break;
-                case DAQifiConnectionStatus.Connecting:
-                    ConnectionStatusString = "Connecting";
-                    break;
-                case DAQifiConnectionStatus.Connected:
-                    ConnectionStatusString = "Connected";
-                    break;
-                case DAQifiConnectionStatus.Error:
-                    ConnectionStatusString = "Error";
-                    break;
-                case DAQifiConnectionStatus.AlreadyConnected:
-                    ConnectionStatusString = "AlreadyConnected";
-                    break;
-                default:
-                    ConnectionStatusString = "Error";
-                    break;
-            }
+            AppLogger.Instance.Error(ex, "Failed in Disconnect");
         }
+    }
 
-        private void CheckIfSerialDeviceWasRemoved()
+    public void Reboot(IStreamingDevice device)
+    {
+        try
         {
-            NotifyConnection = false;
-            var bw = new BackgroundWorker();
-            bw.DoWork += delegate
-            {
-                var availableSerialPorts = SerialDeviceHelper.GetAvailableDaqifiPorts();
-                var devicesToRemove = new List<SerialStreamingDevice>();
-                var lDevicesToRemove = new List<IStreamingDevice>();
+            device.Reboot();
+            ConnectedDevices.Remove(device);
+            NotifyPropertyChanged("ConnectedDevices");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Instance.Error(ex, "Failed in Reboot");
+        }
+    }
 
-                if (availableSerialPorts.Length == 0)
+    public void UpdateStatusString()
+    {
+        switch (ConnectionStatus)
+        {
+            case DAQifiConnectionStatus.Disconnected:
+                ConnectionStatusString = "Disconnected";
+                break;
+            case DAQifiConnectionStatus.Connecting:
+                ConnectionStatusString = "Connecting";
+                break;
+            case DAQifiConnectionStatus.Connected:
+                ConnectionStatusString = "Connected";
+                break;
+            case DAQifiConnectionStatus.Error:
+                ConnectionStatusString = "Error";
+                break;
+            case DAQifiConnectionStatus.AlreadyConnected:
+                ConnectionStatusString = "AlreadyConnected";
+                break;
+            default:
+                ConnectionStatusString = "Error";
+                break;
+        }
+    }
+
+    private void CheckIfSerialDeviceWasRemoved()
+    {
+        NotifyConnection = false;
+        var bw = new BackgroundWorker();
+        bw.DoWork += delegate
+        {
+            var availableSerialPorts = SerialDeviceHelper.GetAvailableDaqifiPorts();
+            var devicesToRemove = new List<SerialStreamingDevice>();
+            var lDevicesToRemove = new List<IStreamingDevice>();
+
+            if (availableSerialPorts.Length == 0)
+            {
+                foreach (var device in ConnectedDevices)
                 {
-                    foreach (var device in ConnectedDevices)
-                    {
-                        lDevicesToRemove.Add(device);
-                    }
+                    lDevicesToRemove.Add(device);
                 }
-                else
+            }
+            else
+            {
+                foreach (var device in ConnectedDevices)
                 {
-                    foreach (var device in ConnectedDevices)
+                    if (device is SerialStreamingDevice serialDevice)
                     {
-                        if (device is SerialStreamingDevice serialDevice)
+                        if (!availableSerialPorts.Contains(serialDevice.Port.PortName))
                         {
-                            if (!availableSerialPorts.Contains(serialDevice.Port.PortName))
-                            {
-                                devicesToRemove.Add(serialDevice);
-                            }
+                            devicesToRemove.Add(serialDevice);
                         }
                     }
                 }
-                foreach (var serialDevice in devicesToRemove)
+            }
+            foreach (var serialDevice in devicesToRemove)
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(delegate
+                {
+                    Disconnect(serialDevice);
+                });
+            }
+            foreach (var serialDevice in lDevicesToRemove)
+            {
+                if (!NotifyConnection)
                 {
                     System.Windows.Application.Current.Dispatcher.Invoke(delegate
                     {
+                        foreach (var channel in serialDevice.DataChannels)
+                        {
+                            LoggingManager.Instance.Unsubscribe(channel);
+                        }
                         Disconnect(serialDevice);
+                        NotifyConnection = true;
                     });
                 }
-                foreach (var serialDevice in lDevicesToRemove)
-                {
-                    if (!NotifyConnection)
-                    {
-                        System.Windows.Application.Current.Dispatcher.Invoke(delegate
-                          {
-                              foreach (var channel in serialDevice.DataChannels)
-                              {
-                                  LoggingManager.Instance.Unsubscribe(channel);
-                              }
-                              Disconnect(serialDevice);
-                              NotifyConnection = true;
-                          });
-                    }
-                }
-            };
+            }
+        };
 
-            bw.RunWorkerAsync();
-        }
+        bw.RunWorkerAsync();
     }
+}
 
-    public enum DAQifiConnectionStatus
-    {
-        Disconnected,
-        Connecting,
-        Connected,
-        Error,
-        AlreadyConnected
-    }
+public enum DAQifiConnectionStatus
+{
+    Disconnected,
+    Connecting,
+    Connected,
+    Error,
+    AlreadyConnected
 }

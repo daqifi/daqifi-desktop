@@ -1,38 +1,37 @@
-﻿namespace Daqifi.Desktop.IO.Messages.Decoders
+﻿namespace Daqifi.Desktop.IO.Messages.Decoders;
+
+public static class ProtobufDecoder
 {
-    public static class ProtobufDecoder
+
+    public static string GetIpAddressString(DaqifiOutMessage protobufMessage)
     {
+        var ipAddressString = string.Empty;
 
-        public static string GetIpAddressString(DaqifiOutMessage protobufMessage)
+        if (protobufMessage.IpAddr.Length < 0) { return ipAddressString; }
+        var ipAddressBytes = protobufMessage.IpAddr.ToByteArray();
+        for (var i = 0; i < ipAddressBytes.Length; i++)
         {
-            var ipAddressString = string.Empty;
-
-            if (protobufMessage.IpAddr.Length < 0) { return ipAddressString; }
-            var ipAddressBytes = protobufMessage.IpAddr.ToByteArray();
-            for (var i = 0; i < ipAddressBytes.Length; i++)
+            if (i == ipAddressBytes.Length - 1)
             {
-                if (i == ipAddressBytes.Length - 1)
-                {
-                    ipAddressString += ipAddressBytes[i].ToString();
-                }
-                else
-                {
-                    ipAddressString += ipAddressBytes[i] + ".";
-                }
+                ipAddressString += ipAddressBytes[i].ToString();
             }
-
-            return ipAddressString;
+            else
+            {
+                ipAddressString += ipAddressBytes[i] + ".";
+            }
         }
 
-        public static string GetMacAddressString(DaqifiOutMessage protobufMessage)
-        {
-            var macAddress = string.Empty;
+        return ipAddressString;
+    }
 
-            if (protobufMessage.MacAddr.Length < 0) { return macAddress; }
+    public static string GetMacAddressString(DaqifiOutMessage protobufMessage)
+    {
+        var macAddress = string.Empty;
 
-            macAddress = BitConverter.ToString(protobufMessage.MacAddr.ToByteArray());
+        if (protobufMessage.MacAddr.Length < 0) { return macAddress; }
 
-            return macAddress;
-        }
+        macAddress = BitConverter.ToString(protobufMessage.MacAddr.ToByteArray());
+
+        return macAddress;
     }
 }
