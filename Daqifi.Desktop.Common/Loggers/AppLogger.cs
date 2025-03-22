@@ -54,12 +54,12 @@ public class AppLogger : IAppLogger
 
         // Step 3. Set target properties 
         fileTarget.CreateDirs = true;
-        fileTarget.FileName = "${specialfolder:folder=CommonApplicationData}\\DAQifi\\Logs\\DAQifiAppLog.log";
+        fileTarget.FileName = @"${specialfolder:folder=CommonApplicationData}\DAQifi\Logs\DAQifiAppLog.log";
         fileTarget.Layout = "${longdate} LEVEL=${level:upperCase=true}: ${message}${newline} (${stacktrace}) ${exception:format=tostring} ${newline}";
         fileTarget.KeepFileOpen = false;
 
         // Setup Archiving
-        fileTarget.ArchiveFileName = "${specialfolder:folder=CommonApplicationData}\\DAQifi\\Logs\\DAQifiAppLog.{#}.log";
+        fileTarget.ArchiveFileName = @"${specialfolder:folder=CommonApplicationData}\DAQifi\Logs\DAQifiAppLog.{#}.log";
 
         // Archive the log if it gets above 10MB
         fileTarget.ArchiveAboveSize = 10000000;

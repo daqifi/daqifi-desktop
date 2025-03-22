@@ -582,9 +582,8 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
 
                     //Xml profiles load
                     LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
-                    ObservableCollection<Daqifi.Desktop.Models.Profile> observableProfileList = new ObservableCollection<Daqifi.Desktop.Models.Profile>(LoggingManager.Instance.LoadProfilesFromXml());
-                    //  Notifications 
 
+                    //  Notifications 
                     _versionNotification = new VersionNotification();
                     _ = LoggingManager.Instance.CheckApplicationVersion(_versionNotification);
 

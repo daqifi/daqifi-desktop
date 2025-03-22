@@ -22,7 +22,6 @@ public class ExportDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.Observ
     private bool _isExporting;
     private int _averageQuantity = 2;
     private int _exportProgress;
-    private readonly IDialogService _dialogService;
     #endregion
 
     #region Properties

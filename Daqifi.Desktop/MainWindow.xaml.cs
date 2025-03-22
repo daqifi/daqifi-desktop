@@ -1,7 +1,6 @@
 ﻿using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.ViewModels;
-using System.Diagnostics;
 using System.Reflection;
 
 namespace Daqifi.Desktop;

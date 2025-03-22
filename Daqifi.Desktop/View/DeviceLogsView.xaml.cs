@@ -1,8 +1,6 @@
-using System.Windows.Controls;
-
 namespace Daqifi.Desktop.View;
 
-public partial class DeviceLogsView : System.Windows.Controls.UserControl
+public partial class DeviceLogsView
 {
     public DeviceLogsView()
     {

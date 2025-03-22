@@ -1,6 +1,5 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
-using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
 using System.Collections;

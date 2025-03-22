@@ -166,12 +166,11 @@ public class DialogService : IDialogService
         // in the ServiceLocator which will cause the Resolve method to throw a ArgumentException.
         if (DesignerProperties.GetIsInDesignMode(target)) return;
 
-        FrameworkElement view = target as FrameworkElement;
+        var view = target as FrameworkElement;
         if (view != null)
         {
             // Cast values
-            bool newValue = (bool)e.NewValue;
-            bool oldValue = (bool)e.OldValue;
+            var newValue = (bool)e.NewValue;
 
             if (newValue)
             {
@@ -274,7 +273,6 @@ public class DialogService : IDialogService
         }
     }
 
-
     /// <summary>
     /// Gets the owning Window of a view.
     /// </summary>
@@ -284,5 +282,4 @@ public class DialogService : IDialogService
     {
         return view as Window ?? Window.GetWindow(view);
     }
-
 }

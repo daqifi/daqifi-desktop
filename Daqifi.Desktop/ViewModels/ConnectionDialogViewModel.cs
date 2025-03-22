@@ -1,5 +1,4 @@
 ﻿using Daqifi.Desktop.Commands;
-using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;

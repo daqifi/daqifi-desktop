@@ -1,4 +1,3 @@
-using System.IO;
 using System.Text;
 using Daqifi.Desktop.IO.Messages.MessageTypes;
 using Timer = System.Threading.Timer;
@@ -10,7 +9,7 @@ public class TextMessageConsumer : AbstractMessageConsumer
     private bool _isDisposed;
     private readonly StringBuilder _stringBuilder;
     private readonly Timer _processTimer;
-    private const int PROCESS_DELAY_MS = 500; // Wait for more data before processing
+    private const int ProcessDelayMs = 500; // Wait for more data before processing
 
     public TextMessageConsumer(Stream stream)
     {
@@ -33,7 +32,7 @@ public class TextMessageConsumer : AbstractMessageConsumer
                     break;
                 }
 
-                var bytesRead = 0;
+                int bytesRead;
                 try
                 {
                     bytesRead = DataStream.Read(buffer, 0, buffer.Length);
@@ -53,7 +52,7 @@ public class TextMessageConsumer : AbstractMessageConsumer
                     }
                         
                     // Reset the timer each time we get data
-                    _processTimer.Change(PROCESS_DELAY_MS, Timeout.Infinite);
+                    _processTimer.Change(ProcessDelayMs, Timeout.Infinite);
                 }
                 else
                 {

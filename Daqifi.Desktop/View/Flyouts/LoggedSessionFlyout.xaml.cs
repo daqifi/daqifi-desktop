@@ -11,7 +11,6 @@ namespace Daqifi.Desktop.View.Flyouts;
 public partial class LoggedSessionFlyout
 {
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
-    private DaqifiViewModel lViewmodel;
     public LoggedSessionFlyout()
     {
         InitializeComponent();
