@@ -31,11 +31,6 @@ public class Pic32BootloaderMessageProducer
         return ConstructDataPacket(command.ToArray());
     }
 
-    public byte[] CreateReadCrcMessage()
-    {
-        throw new NotImplementedException();
-    }
-
     public byte[] CreateJumpToApplicationMessage()
     {
         return ConstructDataPacket(JumpToApplicationCommand);
@@ -43,12 +38,12 @@ public class Pic32BootloaderMessageProducer
     #endregion
 
     #region Helper Methods
-    private byte[] ConstructDataPacket(byte command)
+    private static byte[] ConstructDataPacket(byte command)
     {
         return ConstructDataPacket([command]);
     }
 
-    private byte[] ConstructDataPacket(byte[] command)
+    private static byte[] ConstructDataPacket(byte[] command)
     {
         var packet = new List<byte>();
         var crc = new Crc16(command);

@@ -21,7 +21,7 @@ public partial class MainWindow
             InitializeComponent();
 
             var version = Assembly.GetExecutingAssembly().GetName().Version;
-            this.Title = $"DAQiFi v{version.Major}.{version.Minor}.{version.Build}";
+            Title = $"DAQiFi v{version.Major}.{version.Minor}.{version.Build}";
 
             Closing += (sender, e) =>
             {
@@ -36,15 +36,7 @@ public partial class MainWindow
             _appLogger.Error(ex, "Error in MainWindow");
         }
 
-        this.DataContext =new  DaqifiViewModel();
+        DataContext = new DaqifiViewModel();
     }
     #endregion
-
-    private void Hyperlink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
-    {
-        Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
-        e.Handled = true;
-
-    }
-
 }

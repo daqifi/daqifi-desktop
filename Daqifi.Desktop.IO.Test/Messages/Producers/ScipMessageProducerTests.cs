@@ -341,7 +341,7 @@ public class ScipMessageProducerTests
     }
     #endregion
 
-    private byte[] GetBytes(string data)
+    private static byte[] GetBytes(string data)
     {
         return Encoding.ASCII.GetBytes(data + "\r\n");
     }

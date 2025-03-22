@@ -17,7 +17,7 @@ public class VersionNotification : ObservableObject
         set
         {
             _notificationcount = value;
-            NotifyPropertyChanged("NotificationCount");
+            NotifyPropertyChanged(nameof(NotificationCount));
         }
     }
     private string _versionNumber;
@@ -27,7 +27,7 @@ public class VersionNotification : ObservableObject
         set
         {
             _versionNumber = value;
-            NotifyPropertyChanged("VersionNumber");
+            NotifyPropertyChanged(nameof(VersionNumber));
         }
     }
     #endregion
@@ -36,11 +36,11 @@ public class VersionNotification : ObservableObject
     #region Version Checking Function 
     public async Task CheckForUpdatesAsync()
     {
-        string currentVersion = Assembly.GetExecutingAssembly().GetName().Version.ToString(); 
-        string githubApiUrl = "https://api.github.com/repos/daqifi/daqifi-desktop/releases/latest";
+        var currentVersion = Assembly.GetExecutingAssembly().GetName().Version.ToString(); 
+        const string githubApiUrl = "https://api.github.com/repos/daqifi/daqifi-desktop/releases/latest";
         try
         {
-            using (HttpClient client = new HttpClient())
+            using (var client = new HttpClient())
             {
                 client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"); 
                 var response = await client.GetAsync(githubApiUrl);
@@ -49,11 +49,11 @@ public class VersionNotification : ObservableObject
                     var ex= new HttpRequestException("Unable to fetch release information from GitHub.");
                     AppLogger.Error(ex, $"Error checking for updates: {ex.Message}");
                 }
-                string jsonResponse = await response.Content.ReadAsStringAsync();
-                JObject releaseData = JObject.Parse(jsonResponse);
-                string latestVersion = releaseData["tag_name"].ToString().Trim();
-                Version current = new Version(currentVersion);
-                Version latest = new Version(latestVersion.TrimStart('v'));
+                var jsonResponse = await response.Content.ReadAsStringAsync();
+                var releaseData = JObject.Parse(jsonResponse);
+                var latestVersion = releaseData["tag_name"].ToString().Trim();
+                var current = new Version(currentVersion);
+                var latest = new Version(latestVersion.TrimStart('v'));
                 if (latest > current)
                 {
                     NotificationCount = 1;

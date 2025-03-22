@@ -33,6 +33,9 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     private readonly AppLogger _appLogger = AppLogger.Instance;
         
     #region Private Variables
+    private const int SidePanelWidth = 85;
+    private const int TopToolbarHeight = 30;
+    
     private bool _isBusy;
     private bool _isLoggedDataBusy;
     private bool _isDeviceSettingsOpen;
@@ -45,8 +48,6 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     private bool _isLiveGraphSettingsOpen;
     private int _width = 800;
     private int _height = 600;
-    private int _sidePanelWidth = 85;
-    private int _topToolbarHeight = 30;
     private int _selectedIndex;
     private int _selectedStreamingFrequency;
     public WindowState _viewWindowState;
@@ -162,7 +163,7 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         }
     }
 
-    public string UploadFirmwareProgressText => ($"Upload Progress: {UploadFirmwareProgress}%");
+    public string UploadFirmwareProgressText => $"Upload Progress: {UploadFirmwareProgress}%";
     public bool HasNoHidDevices
     {
         get => _hasNoHidDevices;
@@ -412,9 +413,9 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         {
             if (ViewWindowState == WindowState.Maximized)
             {
-                return SystemParameters.WorkArea.Width - _sidePanelWidth;
+                return SystemParameters.WorkArea.Width - SidePanelWidth;
             }
-            return _width - _sidePanelWidth;
+            return _width - SidePanelWidth;
         }
     }
 
@@ -424,9 +425,9 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         {
             if (ViewWindowState == WindowState.Maximized)
             {
-                return SystemParameters.WorkArea.Height - _topToolbarHeight;
+                return SystemParameters.WorkArea.Height - TopToolbarHeight;
             }
-            return _height - _topToolbarHeight;
+            return _height - TopToolbarHeight;
         }
     }
 
@@ -1508,21 +1509,20 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     {
         try
         {
-            var url = "https://www.daqifi.com/support";
+            const string url = "https://www.daqifi.com/support";
 
-            var processStartInfo = new System.Diagnostics.ProcessStartInfo
+            var processStartInfo = new ProcessStartInfo
             {
                 FileName = url,
                 UseShellExecute = true
             };
 
-            System.Diagnostics.Process.Start(processStartInfo);
+            Process.Start(processStartInfo);
         }
         catch (Exception ex)
         {
             _appLogger.Error(ex, "Error opening help URL");
         }
-
     }
     #endregion
 
@@ -1543,9 +1543,8 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     private HidFirmwareDevice ConnectHid(object selectedItems)
     {
         // Read variable
-        HidFirmwareDevice hidDevice = null;
         var selectedDevices = ((IEnumerable)selectedItems).Cast<HidFirmwareDevice>();
-        hidDevice = selectedDevices.FirstOrDefault();
+        var hidDevice = selectedDevices.FirstOrDefault();
         return hidDevice;
     }
 
@@ -1807,14 +1806,14 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     /// <param name="obj"></param>
     private void RemoveProfile(object obj)
     {
-        var ProfileToRemove = obj as Profile;
+        var profileToRemove = obj as Profile;
         if (LoggingManager.Instance.Active)
         {
             var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while logging");
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
             return;
         }
-        if (ProfileToRemove.IsProfileActive)
+        if (profileToRemove.IsProfileActive)
         {
             var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while profile is active");
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
@@ -1826,10 +1825,10 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
             return;
         }
-        LoggingManager.Instance.UnsubscribeProfile(ProfileToRemove);
+        LoggingManager.Instance.UnsubscribeProfile(profileToRemove);
         ActiveChannels.Clear();
         ActiveInputChannels.Clear();
-        profiles.Remove(ProfileToRemove);
+        profiles.Remove(profileToRemove);
         return;
     }
     /// <summary>

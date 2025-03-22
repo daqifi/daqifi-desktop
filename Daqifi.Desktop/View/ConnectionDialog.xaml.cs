@@ -20,7 +20,7 @@ public partial class ConnectionDialog
 
     private void MetroWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
-        ConnectionDialogViewModel vm = DataContext as ConnectionDialogViewModel;
-        vm.Close();
+        var vm = DataContext as ConnectionDialogViewModel;
+        vm?.Close();
     }
 }

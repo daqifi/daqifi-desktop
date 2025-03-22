@@ -21,7 +21,7 @@ public partial class LoggedSessionFlyout
 
     private void UpdateSessionName(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
-        if ((this.DataContext as DaqifiViewModel)?.SelectedLoggingSession is LoggingSession session)
+        if ((DataContext as DaqifiViewModel)?.SelectedLoggingSession is LoggingSession session)
         {
             var textBox = sender as System.Windows.Controls.TextBox;
             if (textBox != null)

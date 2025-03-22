@@ -1,5 +1,4 @@
-﻿using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Desktop.Device;
+﻿using Daqifi.Desktop.Device;
 using Daqifi.Desktop.ViewModels;
 using System.Collections;
 using System.Windows;
@@ -16,7 +15,6 @@ public partial class AddprofileDialog
     {
         InitializeComponent();
     }
-    private readonly AppLogger AppLogger = AppLogger.Instance;
 
     private void btn_addprofile(object sender, RoutedEventArgs e)
     {
@@ -30,18 +28,18 @@ public partial class AddprofileDialog
     {
         if (SelectedDevice.ItemsSource != null && ChannelList.ItemsSource != null)
         {
-            bool isDeviceSelected = SelectedDevice.SelectedItems.Count > 0;
-            bool isChannelSelected = ChannelList.SelectedItems.Count > 0;
-            bool isProfileName = !string.IsNullOrWhiteSpace(ProfileName.Text);
-            bool isFrequenctSelected = FrequencySlider.Value > 0;
-            btnAdd.IsEnabled = isDeviceSelected && isChannelSelected && isFrequenctSelected && isProfileName;
+            var isDeviceSelected = SelectedDevice.SelectedItems.Count > 0;
+            var isChannelSelected = ChannelList.SelectedItems.Count > 0;
+            var isProfileName = !string.IsNullOrWhiteSpace(ProfileName.Text);
+            var isFrequencySelected = FrequencySlider.Value > 0;
+            btnAdd.IsEnabled = isDeviceSelected && isChannelSelected && isFrequencySelected && isProfileName;
         }
 
     }
 
     private void SelectedDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var datacontext = this.DataContext as AddProfileDialogViewModel;
+        var datacontext = DataContext as AddProfileDialogViewModel;
 
         if (datacontext != null)
         {
