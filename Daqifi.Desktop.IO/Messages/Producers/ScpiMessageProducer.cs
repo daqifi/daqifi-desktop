@@ -134,7 +134,7 @@ public static class ScpiMessageProducer
         
     public static IMessage ApplyLan => new ScpiMessage("SYSTem:COMMunicate:LAN:APPLY");
 
-    public static IMessage SaveLan => new ScpiMessage("SYSTem:COMMunicate:LAN:SAVE");
+    public static IMessage SaveLan => new ScpiMessage("`");
         
     public static IMessage SetLanFWUpdateMode => new ScpiMessage("SYSTem:COMMUnicate:LAN:FWUpdate");
         

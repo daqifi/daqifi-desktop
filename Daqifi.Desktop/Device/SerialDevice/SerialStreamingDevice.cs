@@ -1,7 +1,7 @@
 ﻿using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using System.IO.Ports;
-using System.Threading;
+using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -76,7 +76,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice
             {
                 try
                 {
-                    MessageProducer.Send(ScpiMessageProducer.TurnOnEcho);
+                    MessageProducer.Send(ScpiMessageProducer.EnableDeviceEcho);
                     MessageProducer.StopSafely(); // Use StopSafely to ensure queued messages are sent
                 }
                 catch (Exception ex)
@@ -131,17 +131,17 @@ public class SerialStreamingDevice : AbstractStreamingDevice
     #region Serial Device Only Methods
     public void EnableLanUpdateMode()
     {
-        MessageProducer.Send(ScpiMessageProducer.DeviceOn);
-        MessageProducer.Send(ScpiMessageProducer.SetLanFWUpdateMode);
-        MessageProducer.Send(ScpiMessageProducer.ApplyLan);
+        MessageProducer.Send(ScpiMessageProducer.TurnDeviceOn);
+        MessageProducer.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
+        MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
     }
         
     public void ResetLanAfterUpdate()
     {
         MessageProducer.Send(ScpiMessageProducer.SetUsbTransparencyMode(0));
-        MessageProducer.Send(ScpiMessageProducer.EnableLan);
-        MessageProducer.Send(ScpiMessageProducer.ApplyLan);
-        MessageProducer.Send(ScpiMessageProducer.SaveLan);
+        MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
+        MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
+        MessageProducer.Send(ScpiMessageProducer.SaveNetworkLan);
     }
     #endregion
 }

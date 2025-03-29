@@ -1,6 +1,6 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Desktop.IO.Messages.MessageTypes;
 using System.Collections.Concurrent;
+using Daqifi.Core.Communication.Messages;
 
 namespace Daqifi.Desktop.IO.Messages.Producers;
 
@@ -10,7 +10,7 @@ public class MessageProducer : IMessageProducer
     private ConcurrentQueue<IMessage> _messageQueue;
     private bool _isRunning;
 
-    public Stream DataStream { get; protected set; }
+    public Stream DataStream { get; }
 
     #region Constructor
     public MessageProducer(Stream stream)
@@ -47,7 +47,7 @@ public class MessageProducer : IMessageProducer
         _messageQueue.Enqueue(message);
     }
 
-    public void Run()
+    private void Run()
     {
         while (_isRunning)
         {

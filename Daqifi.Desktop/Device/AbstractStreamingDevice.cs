@@ -4,12 +4,13 @@ using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.IO.Messages.Consumers;
-using Daqifi.Desktop.IO.Messages.Producers;
 using Daqifi.Desktop.IO.Messages.Decoders;
 using Daqifi.Desktop.Models;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using System.IO;
+using Daqifi.Desktop.IO.Messages.Producers;
+using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 
 namespace Daqifi.Desktop.Device;
 
@@ -114,7 +115,7 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
         var message = e.Message.Data as DaqifiOutMessage;
         if (message == null || !IsValidStatusMessage(message))
         {
-            MessageProducer.Send(ScpiMessageProducer.SystemInfo);
+            MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
             return;
         }
 
@@ -408,7 +409,7 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
 
         try
         {
-            MessageProducer.Send(ScpiMessageProducer.EnableSdCard);
+            MessageProducer.Send(ScpiMessageProducer.EnableStorageSd);
             MessageProducer.Send(ScpiMessageProducer.SetSdLoggingFileName($"log_{DateTime.Now:yyyyMMdd_HHmmss}.bin"));
             MessageProducer.Send(ScpiMessageProducer.SetProtobufStreamFormat); // Set format for SD card logging
                 
@@ -448,7 +449,7 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
         {
             // Stop the device logging
             MessageProducer.Send(ScpiMessageProducer.StopStreaming);
-            MessageProducer.Send(ScpiMessageProducer.DisableSdCard);
+            MessageProducer.Send(ScpiMessageProducer.DisableStorageSd);
                 
             IsLoggingToSdCard = false;
             IsStreaming = false;
@@ -569,12 +570,12 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
 
     protected void TurnOffEcho()
     {
-        MessageProducer.Send(ScpiMessageProducer.TurnOffEcho);
+        MessageProducer.Send(ScpiMessageProducer.DisableDeviceEcho);
     }
 
     protected void TurnDeviceOn()
     {
-        MessageProducer.Send(ScpiMessageProducer.DeviceOn);
+        MessageProducer.Send(ScpiMessageProducer.TurnDeviceOn);
     }
 
     protected void SetProtobufMessageFormat()
@@ -753,7 +754,7 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
         }
         if (!string.IsNullOrWhiteSpace(message.DeviceFwRev))
         {
-            DeviceVersion = message.DeviceFwRev.ToString();
+            DeviceVersion = message.DeviceFwRev;
         }
         if (message.IpAddr != null && message.IpAddr.Length > 0)
         {
@@ -787,7 +788,7 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
     public void InitializeDeviceState()
     {
         SetMessageHandler(MessageHandlerType.Status);
-        MessageProducer.Send(ScpiMessageProducer.SystemInfo);
+        MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
     }
 
     private static double ScaleAnalogSample(AnalogChannel channel, double analogValue)
@@ -799,17 +800,41 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
     public void UpdateNetworkConfiguration()
     {
         if (IsStreaming) { StopStreaming(); }
-        MessageProducer.Send(ScpiMessageProducer.SetWifiMode(NetworkConfiguration.Mode));
-        MessageProducer.Send(ScpiMessageProducer.SetSsid(NetworkConfiguration.Ssid));
-        MessageProducer.Send(ScpiMessageProducer.SetSecurity(NetworkConfiguration.SecurityType));
-        MessageProducer.Send(ScpiMessageProducer.SetPassword(NetworkConfiguration.Password));
-        MessageProducer.Send(ScpiMessageProducer.ApplyLan);
-        MessageProducer.Send(ScpiMessageProducer.SaveLan);
+
+        switch (NetworkConfiguration.Mode)
+        {
+            case WifiMode.ExistingNetwork:
+                MessageProducer.Send(ScpiMessageProducer.SetNetworkWifiModeExisting);
+                break;
+            case WifiMode.SelfHosted:
+                MessageProducer.Send(ScpiMessageProducer.SetNetworkWifiModeSelfHosted);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+        
+        MessageProducer.Send(ScpiMessageProducer.SetNetworkWifiSsid(NetworkConfiguration.Ssid));
+
+        switch (NetworkConfiguration.SecurityType)
+        {
+            case WifiSecurityType.None:
+                MessageProducer.Send(ScpiMessageProducer.SetNetworkWifiSecurityOpen);
+                break;
+            case WifiSecurityType.WpaPskPhrase:
+                MessageProducer.Send(ScpiMessageProducer.SetNetworkWifiSecurityWpa);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+        
+        MessageProducer.Send(ScpiMessageProducer.SetNetworkWifiPassword(NetworkConfiguration.Password));
+        MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
+        MessageProducer.Send(ScpiMessageProducer.SaveNetworkLan);
     }
 
     public void Reboot()
     {
-        MessageProducer.Send(ScpiMessageProducer.Reboot);
+        MessageProducer.Send(ScpiMessageProducer.RebootDevice);
         MessageProducer.StopSafely();
         MessageConsumer.Stop();
     }
@@ -817,14 +842,14 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
     // SD and LAN can't both be enabled due to hardware limitations
     private void PrepareSdInterface()
     {
-        MessageProducer.Send(ScpiMessageProducer.DisableLan);
-        MessageProducer.Send(ScpiMessageProducer.EnableSdCard);
+        MessageProducer.Send(ScpiMessageProducer.DisableNetworkLan);
+        MessageProducer.Send(ScpiMessageProducer.EnableStorageSd);
     }
         
     // SD and LAN can't both be enabled due to hardware limitations
     private void PrepareLanInterface()
     {
-        MessageProducer.Send(ScpiMessageProducer.DisableSdCard);
-        MessageProducer.Send(ScpiMessageProducer.EnableLan);
+        MessageProducer.Send(ScpiMessageProducer.DisableStorageSd);
+        MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
     }
 }
