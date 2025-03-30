@@ -4,9 +4,9 @@ using System.IO.Compression;
 
 namespace Daqifi.Desktop.Bootloader;
 
-public class WiFiDownloader
+public class WifiFirmwareDownloader
 {
-    private const string GithubApiUrl = "https://api.github.com/repos/daqifi/winc1500-Manual-UART-Firmware-Update/releases/latest";
+    private const string WifiFirmwareUrl = "https://api.github.com/repos/daqifi/winc1500-Manual-UART-Firmware-Update/releases/latest";
     private const string UserAgent = "Mozilla/5.0 (compatible; DAQiFiApp/1.0)";
     private readonly AppLogger _appLogger = AppLogger.Instance;
 
@@ -18,7 +18,7 @@ public class WiFiDownloader
         {
             using var client = new HttpClient();
             client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
-            var response = await client.GetAsync(GithubApiUrl);
+            var response = await client.GetAsync(WifiFirmwareUrl);
 
             if (!response.IsSuccessStatusCode)
             {

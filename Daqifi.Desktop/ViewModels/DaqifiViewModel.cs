@@ -903,7 +903,7 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     {
         try 
         {
-            var wifiUpdater = new WifiModuleUpdater(_appLogger);
+            var wifiUpdater = new WifiModuleUpdater();
             var progress = new Progress<int>(percent => _updateWiFiBackgroundWorker.ReportProgress(percent));
 
             if (_selectedDevice is not IFirmwareUpdateDevice updateDevice)

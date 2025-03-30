@@ -6,12 +6,7 @@ namespace Daqifi.Desktop.Bootloader
 {
     public class WifiModuleUpdater
     {
-        private readonly AppLogger _logger;
-        
-        public WifiModuleUpdater(AppLogger logger)
-        {
-            _logger = logger;
-        }
+        private readonly AppLogger _appLogger = AppLogger.Instance;
 
         public async Task UpdateWifiModuleAsync(
             IFirmwareUpdateDevice device, 
@@ -21,7 +16,7 @@ namespace Daqifi.Desktop.Bootloader
             try
             {
                 progress.Report(0);
-                var wifiDownloader = new WiFiDownloader();
+                var wifiDownloader = new WifiFirmwareDownloader();
                 var (extractFolderPath, latestVersion) = await wifiDownloader.DownloadAndExtractWiFiAsync(progress);
 
                 if (string.IsNullOrEmpty(extractFolderPath))
@@ -33,7 +28,7 @@ namespace Daqifi.Desktop.Bootloader
                 
                 if (matchingFiles.Length == 0)
                 {
-                    _logger.Error("winc_flash_tool.cmd not found in the extracted folder.");
+                    _appLogger.Error("winc_flash_tool.cmd not found in the extracted folder.");
                     return;
                 }
 
@@ -52,7 +47,7 @@ namespace Daqifi.Desktop.Bootloader
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error updating WiFi firmware");
+                _appLogger.Error(ex, "Error updating WiFi firmware");
                 throw;
             }
         }
@@ -75,6 +70,7 @@ namespace Daqifi.Desktop.Bootloader
         private async Task ExecuteWifiUpdate(string cmdFilePath, string portName, string version, IProgress<int> progress)
         {
             var processCommand = $"\"{cmdFilePath}\" /p {portName} /d WINC1500 /v {version} /k /e /i aio /w";
+            var processOutput = new List<string>();
             
             var processStartInfo = new ProcessStartInfo
             {
@@ -88,53 +84,59 @@ namespace Daqifi.Desktop.Bootloader
                 WorkingDirectory = Path.GetDirectoryName(cmdFilePath)
             };
 
-            using (var process = new Process { StartInfo = processStartInfo })
+            using var process = new Process();
+            process.StartInfo = processStartInfo;
+            process.Start();
+
+            // Handle output stream
+            var outputTask = MonitorProcessOutput(process, progress, processOutput);
+            var errorTask = MonitorProcessError(process, processOutput);
+
+            // Wait for the process to exit and tasks to complete
+            await process.WaitForExitAsync();
+            await Task.WhenAll(outputTask, errorTask);
+
+            if (process.ExitCode != 0)
             {
-                process.Start();
-
-                // Handle output stream
-                var outputTask = MonitorProcessOutput(process, progress);
-                var errorTask = MonitorProcessError(process);
-
-                // Wait for the process to exit and tasks to complete
-                process.WaitForExit();
-                await Task.WhenAll(outputTask, errorTask);
-
-                if (process.ExitCode != 0)
-                {
-                    throw new FirmwareUpdateException("WiFi update process failed");
-                }
+                var outputLog = string.Join(Environment.NewLine, processOutput);
+                throw new FirmwareUpdateException($"WiFi update process failed. Process output:{Environment.NewLine}{outputLog}");
             }
         }
 
-        private async Task MonitorProcessOutput(Process process, IProgress<int> progress)
+        private async Task MonitorProcessOutput(Process process, IProgress<int> progress, List<string> processOutput)
         {
             while (!process.StandardOutput.EndOfStream)
             {
                 var line = await process.StandardOutput.ReadLineAsync();
-                _logger.Information(line);
+                processOutput.Add($"[OUT] {line}");
+                Console.WriteLine(line);
 
                 UpdateProgressBasedOnOutput(line, progress);
 
                 if (line.Contains("Power cycle WINC and set to bootloader mode"))
                 {
-                    await Task.Delay(1000);
+                    Console.WriteLine("waiting for 2 second...");
+                    await Task.Delay(2000);
                     process.StandardInput.WriteLine();
+                    Console.WriteLine("Simulated key press to continue.");
                 }
 
                 if (line.Contains("Programming device failed"))
                 {
-                    throw new FirmwareUpdateException("WiFi module programming failed during firmware update process");
+                    var outputLog = string.Join(Environment.NewLine, processOutput);
+                    throw new FirmwareUpdateException($"WiFi module programming failed during firmware update process. Process output:{Environment.NewLine}{outputLog}");
                 }
             }
         }
 
-        private async Task MonitorProcessError(Process process)
+        private async Task MonitorProcessError(Process process, List<string> processOutput)
         {
             while (!process.StandardError.EndOfStream)
             {
                 var errorLine = await process.StandardError.ReadLineAsync();
-                _logger.Error(errorLine);
+                processOutput.Add($"[ERR] {errorLine}");
+                Console.WriteLine(errorLine);
+                _appLogger.Error(errorLine);
             }
         }
 
