@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using Daqifi.Desktop.Common.Loggers;
 using Newtonsoft.Json.Linq;
 using System.IO.Compression;
@@ -12,7 +11,7 @@ public class WiFiDownloader
     private readonly AppLogger _appLogger = AppLogger.Instance;
 
     public async Task<(string extractFolderPath, string latestVersion)> DownloadAndExtractWiFiAsync(
-        BackgroundWorker backgroundWorker)
+        IProgress<int> progress)
     {
         var daqifiFolderPath = Path.Combine(Path.GetTempPath(), "DAQiFi");
         try
@@ -39,7 +38,7 @@ public class WiFiDownloader
                 return (string.Empty, string.Empty);
             }
 
-            backgroundWorker.ReportProgress(10, "Starting download...");
+            progress.Report(0);
 
             var zipFileName = $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}.zip";
             var zipFilePath = Path.Combine(daqifiFolderPath, zipFileName);
@@ -60,8 +59,8 @@ public class WiFiDownloader
                     {
                         fileStream.Write(buffer, 0, read);
                         bytesRead += read;
-                        var progress = (int)((double)bytesRead / totalBytes * 50) + 10;
-                        backgroundWorker.ReportProgress(progress, $"Downloading... {progress}%");
+                        var progressValue = (int)((double)bytesRead / totalBytes * 50);
+                        progress.Report(progressValue);
                     }
                 }
                 else
@@ -75,7 +74,7 @@ public class WiFiDownloader
                 return (string.Empty, string.Empty);
             }
 
-            backgroundWorker.ReportProgress(70, "Extracting files...");
+            progress.Report(75);
 
             var extractFolderPath =
                 Path.Combine(daqifiFolderPath, $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}");
@@ -102,7 +101,7 @@ public class WiFiDownloader
             Directory.CreateDirectory(extractFolderPath);
             ZipFile.ExtractToDirectory(zipFilePath, extractFolderPath);
 
-            backgroundWorker.ReportProgress(100, "Extraction completed.");
+            progress.Report(100);
             return (extractFolderPath, latestVersion);
         }
         catch (Exception ex)
