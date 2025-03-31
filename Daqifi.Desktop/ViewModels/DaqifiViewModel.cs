@@ -943,6 +943,8 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         else
         {
             IsUploadComplete = true;
+            UploadWiFiProgress = 0;
+            UploadFirmwareProgress = 0;
             ShowUploadSuccessMessage();
         }
     }
@@ -950,6 +952,8 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     {
         if (e.Error != null || e.Cancelled)
         {
+            UploadFirmwareProgress = 0;
+            IsFirmwareUploading = false;
             return;
         }
             
@@ -957,14 +961,15 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         
         if (isManualUpload)
         {
-            // Don't need to update WiFi firmware on manual firmware update. Mark as complete
             IsUploadComplete = true;
+            UploadFirmwareProgress = 0;
             ShowUploadSuccessMessage();
         }
         else
         {
             InitializeUpdateWiFiBackgroundWorker();
         }
+        IsFirmwareUploading = false;
     }
 
     private void UploadFirmware(object o)
