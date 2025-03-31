@@ -10,8 +10,7 @@ namespace Daqifi.Desktop.Bootloader
 
         public async Task UpdateWifiModuleAsync(
             IFirmwareUpdateDevice device, 
-            IProgress<int> progress, 
-            CancellationToken cancellationToken = default)
+            IProgress<int> progress)
         {
             try
             {
@@ -21,7 +20,7 @@ namespace Daqifi.Desktop.Bootloader
 
                 if (string.IsNullOrEmpty(extractFolderPath))
                 {
-                    return;
+                    throw new FirmwareUpdateException("Failed to download WiFi firmware");
                 }
 
                 var matchingFiles = Directory.GetFiles(extractFolderPath, "winc_flash_tool.cmd", SearchOption.AllDirectories);
@@ -84,22 +83,25 @@ namespace Daqifi.Desktop.Bootloader
                 WorkingDirectory = Path.GetDirectoryName(cmdFilePath)
             };
 
-            using var process = new Process();
-            process.StartInfo = processStartInfo;
-            process.Start();
-
-            // Handle output stream
-            var outputTask = MonitorProcessOutput(process, progress, processOutput);
-            var errorTask = MonitorProcessError(process, processOutput);
-
-            // Wait for the process to exit and tasks to complete
-            await process.WaitForExitAsync();
-            await Task.WhenAll(outputTask, errorTask);
-
-            if (process.ExitCode != 0)
+            using (var process = new Process())
             {
-                var outputLog = string.Join(Environment.NewLine, processOutput);
-                throw new FirmwareUpdateException($"WiFi update process failed. Process output:{Environment.NewLine}{outputLog}");
+                process.StartInfo = processStartInfo;
+                process.Start();
+
+                // Handle output stream
+                var outputTask = MonitorProcessOutput(process, progress, processOutput);
+                var errorTask = MonitorProcessError(process, processOutput);
+
+                // Wait for the process to exit and tasks to complete
+                await process.WaitForExitAsync();
+                await Task.WhenAll(outputTask, errorTask);
+
+                if (process.ExitCode != 0)
+                {
+                    var outputLog = string.Join(Environment.NewLine, processOutput);
+                    throw new FirmwareUpdateException(
+                        $"WiFi update process failed. Process output:{Environment.NewLine}{outputLog}");
+                }
             }
         }
 

@@ -74,7 +74,7 @@ public class WifiFirmwareDownloader
                 return (string.Empty, string.Empty);
             }
 
-            progress.Report(75);
+            progress.Report(5);
 
             var extractFolderPath =
                 Path.Combine(daqifiFolderPath, $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}");
@@ -101,7 +101,7 @@ public class WifiFirmwareDownloader
             Directory.CreateDirectory(extractFolderPath);
             ZipFile.ExtractToDirectory(zipFilePath, extractFolderPath);
 
-            progress.Report(100);
+            progress.Report(10);
             return (extractFolderPath, latestVersion);
         }
         catch (Exception ex)
