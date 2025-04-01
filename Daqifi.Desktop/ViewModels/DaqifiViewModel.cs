@@ -943,8 +943,6 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         else
         {
             IsUploadComplete = true;
-            UploadWiFiProgress = 0;
-            UploadFirmwareProgress = 0;
             ShowUploadSuccessMessage();
         }
     }
@@ -952,7 +950,6 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     {
         if (e.Error != null || e.Cancelled)
         {
-            UploadFirmwareProgress = 0;
             IsFirmwareUploading = false;
             return;
         }
@@ -962,7 +959,6 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         if (isManualUpload)
         {
             IsUploadComplete = true;
-            UploadFirmwareProgress = 0;
             ShowUploadSuccessMessage();
         }
         else
@@ -1436,6 +1432,9 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     }
     public async Task UpdateConnectedDeviceUI()
     {
+        UploadFirmwareProgress = 0;
+        UploadWiFiProgress = 0;
+
         foreach (var connectedDevice in ConnectionManager.Instance.ConnectedDevices)
         {
             var SerailDeviceProperty = connectedDevice.GetType().GetProperty("DeviceVersion");
