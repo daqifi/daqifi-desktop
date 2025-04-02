@@ -76,8 +76,7 @@ public class ConnectionManager : ObservableObject
     private ConnectionManager()
     {
         ConnectedDevices = new List<IStreamingDevice>();
-
-
+        
         try
         {
             // EventType 3 is Device Removal

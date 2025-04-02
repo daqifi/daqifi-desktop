@@ -18,11 +18,9 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
-using System.IO;
-using System.IO.Ports;
 using System.Windows;
 using System.Windows.Input;
+using Daqifi.Desktop.Device.SerialDevice;
 using Application = System.Windows.Application;
 using File = System.IO.File;
 
@@ -901,141 +899,19 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         }
     }
 
-    private async Task WiFiBackgroundWorker_DoWorkAsync()
-    {
-        var wifiDownloader = new WiFiDownloader();
-        var (extractFolderPath, latestVersion) =
-            await wifiDownloader.DownloadAndExtractWiFiAsync(_updateWiFiBackgroundWorker);
-
-        if (string.IsNullOrEmpty(extractFolderPath))
-        {
-            return;
-        }
-
-        var matchingFiles =
-            Directory.GetFiles(extractFolderPath, "winc_flash_tool.cmd", SearchOption.AllDirectories);
-            
-        if (matchingFiles.Length > 0)
-        {
-            var cmdFilePath = matchingFiles[0];
-            var availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
-            var autodaqifiport = availableSerialDevices.FirstOrDefault();
-            var manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
-
-            var serialDevice = manualserialdevice ?? autodaqifiport;
-            if (serialDevice != null)
-            {
-                var availablePorts = SerialPort.GetPortNames();
-                if (!availablePorts.Contains(serialDevice.Name))
-                {
-                    _appLogger.Error($"Device port {serialDevice.Name} is not available.");
-                    return;
-                }
-
-                try
-                {
-                    serialDevice.Connect();
-                    serialDevice.EnableLanUpdateMode();
-                    await Task.Delay(1000);
-                    serialDevice.Disconnect();
-                }
-                catch (Exception ex)
-                {
-                    _appLogger.Error($"Error during UART communication: {ex.Message}");
-                    return;
-                }
-
-                var processCommand =
-                    $"\"{cmdFilePath}\" /p {serialDevice.Name} /d WINC1500 /v {latestVersion} /k /e /i aio /w";
-                try
-                {
-                    var processStartInfo = new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = $"/c {processCommand}", // /c ensures the process exits after execution
-                        UseShellExecute = false, // Must be false for redirection
-                        RedirectStandardOutput = true, // Redirect output to monitor it
-                        RedirectStandardError = true,
-                        RedirectStandardInput = true, // Enable input redirection to simulate key press
-                        CreateNoWindow = true,
-                        WorkingDirectory = Path.GetDirectoryName(cmdFilePath) // Set the correct working directory
-                    };
-
-                    using (var process = new Process())
-                    {
-                        process.StartInfo = processStartInfo;
-
-                        // Start the process
-                        process.Start();
-
-                        // Tasks to handle output and error streams
-                        var outputTask = Task.Run(async () =>
-                        {
-                            while (!process.StandardOutput.EndOfStream)
-                            {
-                                var line = process.StandardOutput.ReadLine();
-                                Console.WriteLine(line); // Display in your C# app's console
-                                _appLogger.Information(line);
-
-                                // Check for the pause message
-                                if (line.Contains("Power cycle WINC and set to bootloader mode"))
-                                {
-                                    Console.WriteLine("waiting for 1 second...");
-                                    await Task.Delay(1000); // Wait for 1 second
-                                        
-                                    // Simulate a key press to continue
-                                    process.StandardInput.WriteLine(); // Press Enter
-                                    Console.WriteLine("Simulated key press to continue.");
-                                }
-                            }
-                        });
-
-                        var errorTask = Task.Run(() =>
-                        {
-                            while (!process.StandardError.EndOfStream)
-                            {
-                                var errorLine = process.StandardError.ReadLine();
-                                Console.WriteLine($"[Error] {errorLine}"); // Display errors in your console
-                            }
-                        });
-
-                        // Wait for the process to exit and for the tasks to complete
-                        process.WaitForExit();
-                        Task.WaitAll(outputTask, errorTask);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _appLogger.Error($"Error while starting process: {ex.Message}");
-                }
-
-                serialDevice.Connect();
-                serialDevice.ResetLanAfterUpdate();
-                serialDevice.Reboot();
-            }
-        }
-        else
-        {
-            _appLogger.Error("winc_flash_tool.cmd not found in the extracted folder.");
-        }
-    }
-
-    private void ShowUploadSuccessMessage()
-    {
-        Application.Current.Dispatcher.Invoke(() =>
-        {
-            var successDialogViewModel =
-                new SuccessDialogViewModel("Firmware update completed successfully.");
-            _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
-        });
-        CloseFlyouts();
-    }
-
     private void UpdateWiFiBackgroundWorkerDoWork(object sender, DoWorkEventArgs e)
     {
         try 
         {
-            var task = WiFiBackgroundWorker_DoWorkAsync();
+            var wifiUpdater = new WifiModuleUpdater();
+            var progress = new Progress<int>(percent => _updateWiFiBackgroundWorker.ReportProgress(percent));
+
+            if (_selectedDevice is not IFirmwareUpdateDevice updateDevice)
+            {
+                throw new InvalidOperationException("Selected device does not support firmware updates");
+            }
+
+            var task = wifiUpdater.UpdateWifiModuleAsync(updateDevice, progress);
             task.Wait();
         }
         catch (Exception ex)
@@ -1074,6 +950,7 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     {
         if (e.Error != null || e.Cancelled)
         {
+            IsFirmwareUploading = false;
             return;
         }
             
@@ -1081,7 +958,6 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         
         if (isManualUpload)
         {
-            // Don't need to update WiFi firmware on manual firmware update. Mark as complete
             IsUploadComplete = true;
             ShowUploadSuccessMessage();
         }
@@ -1089,10 +965,16 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         {
             InitializeUpdateWiFiBackgroundWorker();
         }
+        IsFirmwareUploading = false;
     }
 
     private void UploadFirmware(object o)
     {
+        if (_selectedDevice is not SerialStreamingDevice)
+        {
+            return;
+        }
+        
         var isManualUpload = false;
         // Download if a hex file wasn't passed to it.
         if (string.IsNullOrEmpty(FirmwareFilePath))
@@ -1109,85 +991,60 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
             _appLogger.Error("Firmware file path is null or empty.");
             return;
         }
+        
+        (_selectedDevice as SerialStreamingDevice)!.ForceBootloader();
+        _selectedDevice.Disconnect();
+        
+        // Once the DAQiFi resets, the COM serial port is closed,
+        // and the HID port for managing the bootloader must be found
+        StartConnectionFinders();
 
-        var availableSerialDevices = _connectionDialogViewModel.AvailableSerialDevices;
-        var autodaqifiport = availableSerialDevices.FirstOrDefault();
-        var manualserialdevice = _connectionDialogViewModel.ManualSerialDevice;
-
-        var port = manualserialdevice;
-        // Check if serial ports auto/manual are not null
-        if (port == null)
+        // Update the variable 'HasNoHidDevices' in a background task
+        var bw2 = new BackgroundWorker();
+        bw2.DoWork += delegate
         {
-            port = autodaqifiport;
-        }
-
-        if (port != null)
-        {
-            // Send the DAQiFi command "Force Boot"
-            const string command = "SYSTem:FORceBoot\r\n";
-
-            if (port.Write(command))
+            while (HasNoHidDevices)
             {
-                // Once the DAQiFi resets, the COM serial port is closed,
-                // and the HID port for managing the bootloader must be found
-                StartConnectionFinders();
-
-                // Update the variable 'HasNoHidDevices' in a background task
-                var bw2 = new BackgroundWorker();
-                bw2.DoWork += delegate
+                Thread.Sleep(2000);
+                if (HasNoHidDevices == false)
                 {
-                    while (HasNoHidDevices)
+                    // Connect HID if it was found before              
+                    var hidFirmwareDevice = ConnectHid(AvailableHidDevices);
+                    if (hidFirmwareDevice != null)
                     {
-                        Thread.Sleep(2000);
-                        if (HasNoHidDevices == false)
+                        _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
+                        _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
+                        _bootloader.RequestVersion();
+
+                        var bw = new BackgroundWorker();
+                        bw.DoWork += (sender, e) =>
                         {
-                            // Connect HID if it was found before              
-                            var hidFirmwareDevice = ConnectHid(AvailableHidDevices);
-                            if (hidFirmwareDevice != null)
+                            IsFirmwareUploading = true;
+                            if (string.IsNullOrWhiteSpace(FirmwareFilePath))
                             {
-                                _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
-                                _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
-                                _bootloader.RequestVersion();
-
-                                var bw = new BackgroundWorker();
-                                bw.DoWork += (sender, e) =>
-                                {
-                                    IsFirmwareUploading = true;
-                                    if (string.IsNullOrWhiteSpace(FirmwareFilePath))
-                                    {
-                                        return;
-                                    }
-
-                                    if (!File.Exists(FirmwareFilePath))
-                                    {
-                                        return;
-                                    }
-                                        
-                                    if (_bootloader != null)
-                                    {
-                                        _bootloader.LoadFirmware(FirmwareFilePath, bw);
-                                    }
-                                    e.Result = isManualUpload;
-                                };
-                                bw.WorkerReportsProgress = true;
-                                bw.ProgressChanged += UploadFirmwareProgressChanged;
-                                bw.RunWorkerCompleted += HandleFirmwareUploadCompleted;
-                                bw.RunWorkerAsync();
+                                return;
                             }
-                        }
+
+                            if (!File.Exists(FirmwareFilePath))
+                            {
+                                return;
+                            }
+                                
+                            if (_bootloader != null)
+                            {
+                                _bootloader.LoadFirmware(FirmwareFilePath, bw);
+                            }
+                            e.Result = isManualUpload;
+                        };
+                        bw.WorkerReportsProgress = true;
+                        bw.ProgressChanged += UploadFirmwareProgressChanged;
+                        bw.RunWorkerCompleted += HandleFirmwareUploadCompleted;
+                        bw.RunWorkerAsync();
                     }
-                };
-                bw2.RunWorkerAsync();
+                }
             }
-            else
-            {
-                _appLogger.Error("Error writing to COM port");
-            }
-        }
-        else
-        {
-            _appLogger.Error("Error serial COM port detection");
-        }
+        };
+        bw2.RunWorkerAsync();
     }
     #endregion
     private void ShowConnectionDialog(object o)
@@ -1575,6 +1432,9 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     }
     public async Task UpdateConnectedDeviceUI()
     {
+        UploadFirmwareProgress = 0;
+        UploadWiFiProgress = 0;
+
         foreach (var connectedDevice in ConnectionManager.Instance.ConnectedDevices)
         {
             var SerailDeviceProperty = connectedDevice.GetType().GetProperty("DeviceVersion");
@@ -2100,6 +1960,17 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         {
             _appLogger.Error("Error activating Profile: " + ex.Message);
         }
+    }
+
+    private void ShowUploadSuccessMessage()
+    {
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            var successDialogViewModel =
+                new SuccessDialogViewModel("Firmware update completed successfully.");
+            _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
+        });
+        CloseFlyouts();
     }
 
     #endregion

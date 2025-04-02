@@ -1,11 +1,11 @@
 ﻿using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
+using Daqifi.Desktop.Bootloader;
 using System.IO.Ports;
-using System.Threading;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
-public class SerialStreamingDevice : AbstractStreamingDevice
+public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDevice
 {
     #region Properties
     public SerialPort Port { get; set; }
@@ -26,7 +26,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice
     {
         try
         {
-            Task.Delay(1000);
             Port.Open();
             Port.DtrEnable = true;
             MessageProducer = new MessageProducer(Port.BaseStream);
@@ -142,6 +141,11 @@ public class SerialStreamingDevice : AbstractStreamingDevice
         MessageProducer.Send(ScpiMessageProducer.EnableLan);
         MessageProducer.Send(ScpiMessageProducer.ApplyLan);
         MessageProducer.Send(ScpiMessageProducer.SaveLan);
+    }
+
+    public void ForceBootloader()
+    {
+        MessageProducer.Send(ScpiMessageProducer.ForceBootloader);
     }
     #endregion
 }

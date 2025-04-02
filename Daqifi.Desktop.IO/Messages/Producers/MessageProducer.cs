@@ -30,14 +30,23 @@ public class MessageProducer : IMessageProducer
     public void Stop()
     {
         _isRunning = false;
+        _messageQueue = new ConcurrentQueue<IMessage>();
         _producerThread.Join(1000);
     }
 
     public void StopSafely()
     {
+        const int timeoutMs = 1000;
+        var startTime = DateTime.Now;
         while (!_messageQueue.IsEmpty)
         {
-            // Wait for the queue to empty
+            if ((DateTime.Now - startTime).TotalMilliseconds > timeoutMs)
+            {
+                AppLogger.Instance.Warning($"MessageProducer.StopSafely timed out after {timeoutMs}ms with {_messageQueue.Count} messages remaining. Clearing queue.");
+                Stop();
+                break;
+            }
+            Thread.Sleep(10);
         }
         Stop();
     }
