@@ -636,7 +636,7 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     public ICommand UploadFirmwareCommand { get; set; }
     private bool CanUploadFirmware(object o)
     {
-        return _selectedDevice is SerialStreamingDevice;
+        return true;
     }
 
     public ICommand ShowAddProfileDialogCommand { get; private set; }
