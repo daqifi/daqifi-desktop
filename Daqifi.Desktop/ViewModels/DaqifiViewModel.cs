@@ -23,6 +23,7 @@ using System.Windows.Input;
 using Daqifi.Desktop.Device.SerialDevice;
 using Application = System.Windows.Application;
 using File = System.IO.File;
+using Daqifi.Desktop.DataModel.Network;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -435,6 +436,7 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         {
             _selectedDevice = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(IsSelectedDeviceUsb));
         }
     }
 
@@ -545,6 +547,8 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     }
 
     public DeviceLogsViewModel DeviceLogsViewModel { get; private set; }
+
+    public bool IsSelectedDeviceUsb => SelectedDevice is SerialStreamingDevice;
     #endregion
 
     #region Constructor
@@ -632,7 +636,7 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     public ICommand UploadFirmwareCommand { get; set; }
     private bool CanUploadFirmware(object o)
     {
-        return true;
+        return _selectedDevice is SerialStreamingDevice;
     }
 
     public ICommand ShowAddProfileDialogCommand { get; private set; }
