@@ -37,7 +37,7 @@ namespace Daqifi.Desktop.Bootloader
                 {
                     await PrepareDeviceForUpdate(device);
                     await ExecuteWifiUpdate(cmdFilePath, device.Name, latestVersion, progress);
-                    await FinalizeDeviceUpdate(device);
+                    await FinalizeDeviceUpdate(device, progress);
                 }
                 catch (Exception ex)
                 {
@@ -158,12 +158,16 @@ namespace Daqifi.Desktop.Bootloader
             }
         }
 
-        private async Task FinalizeDeviceUpdate(IFirmwareUpdateDevice device)
+        private async Task FinalizeDeviceUpdate(IFirmwareUpdateDevice device, IProgress<int> progress)
         {
             device.Connect();
+            progress.Report(93);
+            await Task.Delay(1000);
             device.ResetLanAfterUpdate();
+            progress.Report(96);
+            await Task.Delay(1000);
             device.Reboot();
-            await Task.Delay(1000); // Give device time to reboot
+            progress.Report(100);
         }
     }
 } 

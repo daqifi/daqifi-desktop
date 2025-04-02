@@ -26,7 +26,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            Task.Delay(1000);
             Port.Open();
             Port.DtrEnable = true;
             MessageProducer = new MessageProducer(Port.BaseStream);
