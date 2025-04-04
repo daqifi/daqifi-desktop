@@ -1,25 +1,24 @@
-using System.ComponentModel;
 using Daqifi.Desktop.Common.Loggers;
 using Newtonsoft.Json.Linq;
 using System.IO.Compression;
 
 namespace Daqifi.Desktop.Bootloader;
 
-public class WiFiDownloader
+public class WifiFirmwareDownloader
 {
-    private const string GithubApiUrl = "https://api.github.com/repos/daqifi/winc1500-Manual-UART-Firmware-Update/releases/latest";
+    private const string WifiFirmwareUrl = "https://api.github.com/repos/daqifi/winc1500-Manual-UART-Firmware-Update/releases/latest";
     private const string UserAgent = "Mozilla/5.0 (compatible; DAQiFiApp/1.0)";
     private readonly AppLogger _appLogger = AppLogger.Instance;
 
     public async Task<(string extractFolderPath, string latestVersion)> DownloadAndExtractWiFiAsync(
-        BackgroundWorker backgroundWorker)
+        IProgress<int> progress)
     {
         var daqifiFolderPath = Path.Combine(Path.GetTempPath(), "DAQiFi");
         try
         {
             using var client = new HttpClient();
             client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
-            var response = await client.GetAsync(GithubApiUrl);
+            var response = await client.GetAsync(WifiFirmwareUrl);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -39,7 +38,7 @@ public class WiFiDownloader
                 return (string.Empty, string.Empty);
             }
 
-            backgroundWorker.ReportProgress(10, "Starting download...");
+            progress.Report(0);
 
             var zipFileName = $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}.zip";
             var zipFilePath = Path.Combine(daqifiFolderPath, zipFileName);
@@ -60,8 +59,8 @@ public class WiFiDownloader
                     {
                         fileStream.Write(buffer, 0, read);
                         bytesRead += read;
-                        var progress = (int)((double)bytesRead / totalBytes * 50) + 10;
-                        backgroundWorker.ReportProgress(progress, $"Downloading... {progress}%");
+                        var progressValue = (int)((double)bytesRead / totalBytes * 50);
+                        progress.Report(progressValue);
                     }
                 }
                 else
@@ -75,7 +74,7 @@ public class WiFiDownloader
                 return (string.Empty, string.Empty);
             }
 
-            backgroundWorker.ReportProgress(70, "Extracting files...");
+            progress.Report(5);
 
             var extractFolderPath =
                 Path.Combine(daqifiFolderPath, $"daqifi-winc1500-Manual-UART-Firmware-Update-{latestVersion}");
@@ -102,7 +101,7 @@ public class WiFiDownloader
             Directory.CreateDirectory(extractFolderPath);
             ZipFile.ExtractToDirectory(zipFilePath, extractFolderPath);
 
-            backgroundWorker.ReportProgress(100, "Extraction completed.");
+            progress.Report(10);
             return (extractFolderPath, latestVersion);
         }
         catch (Exception ex)

@@ -669,9 +669,6 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
     {
         switch (channel.Type)
         {
-            case ChannelType.Analog:
-                MessageProducer.Send(ScpiMessageProducer.SetVoltageLevel(channel.Index, value));
-                break;
             case ChannelType.Digital:
                 MessageProducer.Send(ScpiMessageProducer.SetDioPortState(channel.Index, value));
                 break;

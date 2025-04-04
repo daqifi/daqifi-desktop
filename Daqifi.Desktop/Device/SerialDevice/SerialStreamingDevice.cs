@@ -143,5 +143,10 @@ public class SerialStreamingDevice : AbstractStreamingDevice
         MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
         MessageProducer.Send(ScpiMessageProducer.SaveNetworkLan);
     }
+    
+    public void ForceBootloader()
+    {
+        MessageProducer.Send(ScpiMessageProducer.ForceBootloader);
+    }
     #endregion
 }

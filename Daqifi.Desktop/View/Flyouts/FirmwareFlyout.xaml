@@ -8,6 +8,7 @@
              xmlns:local="clr-namespace:Daqifi.Desktop.View.Flyouts"
                    xmlns:sys="clr-namespace:System;assembly=mscorlib" xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             xmlns:converters="clr-namespace:Daqifi.Desktop.Converters"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800"
                   Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsFirmwareUpdatationFlyoutOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right" Header="Firmware Update">
@@ -26,6 +27,9 @@
                 <x:Type TypeName="networkDataModel:WifiSecurityType" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+        <!-- Converters -->
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <converters:InvertedBoolToVisibilityConverter x:Key="InvertedBoolToVis" />
     </Controls:Flyout.Resources>
 
     <Grid>
@@ -60,26 +64,35 @@
         </GroupBox>
         <!-- Update Firmware -->
         <GroupBox Grid.Column="0" Grid.Row="2" Header="Update Firmware">
-     <Grid>
-         <Grid.ColumnDefinitions>
-             <ColumnDefinition Width="*"/>
-             <ColumnDefinition Width="Auto"/>
-         </Grid.ColumnDefinitions>
-         <Grid.RowDefinitions>
-             <RowDefinition Height="Auto"/>
-             <RowDefinition Height="Auto"/>
-             <RowDefinition Height="Auto"/>
-             <RowDefinition Height="Auto"/>
-         </Grid.RowDefinitions>
+            <StackPanel>
+                <!-- Firmware Update Controls (Visible only for USB) -->
+                <Grid Visibility="{Binding IsSelectedDeviceUsb, Converter={StaticResource BoolToVis}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-         <Label Grid.Column="0" Grid.Row="0" Content="Firmware Update" VerticalAlignment="Center" />
-         <controls:MetroProgressBar Grid.Column="0" Grid.Row="1" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadFirmwareProgress}" />
+                    <Label Grid.Column="0" Grid.Row="0" Content="Firmware Update" VerticalAlignment="Center" />
+                    <controls:MetroProgressBar Grid.Column="0" Grid.Row="1" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadFirmwareProgress}" />
 
-         <Label Grid.Column="0" Grid.Row="2" Content="WIFI Module Update" VerticalAlignment="Center" />
-         <controls:MetroProgressBar Grid.Column="0" Grid.Row="3" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadWiFiProgress}" />
+                    <Label Grid.Column="0" Grid.Row="2" Content="WIFI Module Update" VerticalAlignment="Center" />
+                    <controls:MetroProgressBar Grid.Column="0" Grid.Row="3" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadWiFiProgress}" />
 
-         <Button Grid.Column="1" Grid.Row="3" Width="50" Margin="5,0,0,0" Content="Update" Command="{Binding UploadFirmwareCommand}" />
-     </Grid>
- </GroupBox>
+                    <Button Grid.Column="1" Grid.Row="3" Width="50" Margin="5,0,0,0" Content="Update" Command="{Binding UploadFirmwareCommand}" />
+                </Grid>
+                <!-- Informational Message (Visible only for non-USB) -->
+                <TextBlock Text="Firmware updates require the device to be connected via USB." 
+                           Foreground="#FFCC00" 
+                           Margin="0,10,0,0"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding IsSelectedDeviceUsb, Converter={StaticResource InvertedBoolToVis}}"/>
+            </StackPanel>
+        </GroupBox>
     </Grid>
 </Controls:Flyout>
