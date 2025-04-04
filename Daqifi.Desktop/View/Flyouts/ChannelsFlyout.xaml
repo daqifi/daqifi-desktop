@@ -25,6 +25,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     
                     <TextBlock Text="Status:" Grid.Row="0" Grid.Column="0" Margin="0,0,10,5"/>
@@ -37,6 +38,9 @@
                     
                     <TextBlock Text="Device:" Grid.Row="2" Grid.Column="0" Margin="0,0,10,5"/>
                     <TextBlock Text="{Binding SelectedChannel.DeviceName}" Grid.Row="2" Grid.Column="1"/>
+                    
+                    <TextBlock Text="Voltage Range:" Grid.Row="3" Grid.Column="0" Margin="0,0,10,5"/>
+                    <TextBlock Text="0-5V" Grid.Row="3" Grid.Column="1"/>
                 </Grid>
             </GroupBox>
 
