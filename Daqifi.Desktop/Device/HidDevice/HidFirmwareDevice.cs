@@ -67,11 +67,6 @@ public class HidFirmwareDevice : IFirmwareDevice
         throw new NotImplementedException();
     }
 
-    public void SetAdcMode(IChannel channel, AdcMode mode)
-    {
-        throw new NotImplementedException();
-    }
-
     public void SetAdcRange(int range)
     {
         throw new NotImplementedException();

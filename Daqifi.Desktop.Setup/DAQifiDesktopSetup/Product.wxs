@@ -122,6 +122,9 @@
       </Component>
 
       <!-- DAQiFi Core DLLs -->
+      <Component Id="DAQiFiCore" Guid="5056a4ce-c8e3-4df9-b48f-58cbf1676dc2">
+        <File Source="$(var.SourceDir)\Daqifi.Core.dll"/>
+      </Component>
       <Component Id="DAQiFiDll" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C9">
         <File Source="$(var.SourceDir)\DAQiFi.dll"/>
       </Component>

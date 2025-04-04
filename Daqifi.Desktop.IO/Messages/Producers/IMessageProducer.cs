@@ -1,4 +1,4 @@
-﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
+﻿using Daqifi.Core.Communication.Messages;
 
 namespace Daqifi.Desktop.IO.Messages.Producers;
 
