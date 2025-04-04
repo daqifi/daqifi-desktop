@@ -1,6 +1,6 @@
-﻿using Daqifi.Desktop.Channel;
+﻿using Daqifi.Core.Communication.Messages;
+using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.DataModel.Channel;
-using Daqifi.Desktop.IO.Messages.MessageTypes;
 using Daqifi.Desktop.IO.Messages.Producers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
