@@ -1,11 +1,12 @@
 ﻿using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using System.IO.Ports;
+using Daqifi.Desktop.Bootloader;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
-public class SerialStreamingDevice : AbstractStreamingDevice
+public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDevice
 {
     #region Properties
     public SerialPort Port { get; set; }
