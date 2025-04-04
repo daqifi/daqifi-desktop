@@ -17,7 +17,6 @@ public abstract class AbstractChannel : ObservableObject, IChannel
     private bool _isOutput;
     private bool _hasAdc;
     private bool _isDigitalOn;
-    private string _adcMode;
     private DataSample _activeSample;
     protected IStreamingDevice _owner;
     private string _scaledExpression;
@@ -53,9 +52,6 @@ public abstract class AbstractChannel : ObservableObject, IChannel
             NotifyPropertyChanged("OutputValue");
         }
     }
-
-    [NotMapped]
-    public List<string> AdcModes { get; } = new List<string> { "Single-Ended", "Differential" };
 
     public abstract ChannelType Type { get; }
 

@@ -12,7 +12,6 @@ public class Channel : IChannel
     public ChannelType Type { get; set; }
 
     public ChannelDirection Direction { get; set; }
-    public string AdcMode { get; set; }
 
     public string TypeString { get; set; }
 

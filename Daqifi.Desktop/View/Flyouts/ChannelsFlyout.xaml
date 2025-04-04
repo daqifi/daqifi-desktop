@@ -100,31 +100,6 @@
 
         <StackPanel Grid.Column="1">
 
-            <!-- ADC Mode -->
-            <GroupBox Header="ADC Mode" Visibility="{Binding Path=SelectedChannel.HasAdc, Converter={StaticResource BoolToVis}}">
-                <Grid >
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <ComboBox ItemsSource="{Binding SelectedChannel.AdcModes}" Text="{Binding SelectedChannel.AdcMode}"/>
-                </Grid>
-            </GroupBox>
-
-            <!-- Set Analog Output -->
-            <Grid Visibility="{Binding Path=SelectedChannel.IsAnalog, Converter={StaticResource BoolToVis}}">
-                <GroupBox Header="Analog Output Value" Visibility="{Binding Path=SelectedChannel.IsOutput, Converter={StaticResource BoolToVis}}">
-                    <Grid >
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <TextBox Grid.Row="0" Text="{Binding ElementName=AnalogOutputSlider, Path=Value, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
-                        <Slider Grid.Row="1" Name="AnalogOutputSlider" HorizontalAlignment="Stretch" Minimum="0" Maximum="10" TickFrequency="0.25" IsSnapToTickEnabled="True" Value="{Binding SelectedChannel.OutputValue, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
-                    </Grid>
-                </GroupBox>
-            </Grid>
-
             <!-- Set Direction -->
             <GroupBox Header="I/O Direction" Visibility="{Binding Path=SelectedChannel.IsBidirectional, Converter={StaticResource BoolToVis}}">
                 <Grid >
