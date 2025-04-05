@@ -186,6 +186,47 @@
         
         <Style x:Key="AccentButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonStyle}">
             <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="PART_Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="2">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal"/>
+                                    <VisualState x:Name="MouseOver">
+                                        <Storyboard>
+                                            <!-- Optional: Add slight highlight on hover -->
+                                            <ColorAnimation Storyboard.TargetName="PART_Border" 
+                                                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" 
+                                                            To="#5F9EEA" Duration="0:0:0.1"/> 
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="PART_Border" 
+                                                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" 
+                                                            To="#3A7BC8" Duration="0:0:0.05"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="PART_Border" 
+                                                            Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)" 
+                                                            To="#666666" Duration="0:0:0.1"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- Input Control Styles -->

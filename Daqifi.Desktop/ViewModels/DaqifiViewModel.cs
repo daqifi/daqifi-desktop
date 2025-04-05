@@ -1121,6 +1121,7 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
     public void UpdateNetworkConfiguration(object o)
     {
         SelectedDevice.UpdateNetworkConfiguration();
+        _dialogService.ShowDialog<SuccessDialog>(this, new SuccessDialogViewModel("WiFi settings updated."));
     }
 
     public void BrowseForFirmware(object o)
