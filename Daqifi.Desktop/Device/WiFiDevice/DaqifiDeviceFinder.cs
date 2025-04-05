@@ -22,8 +22,8 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
 
     #region Properties
 
-    public UdpClient Client { get; }
-    public IPEndPoint Destination { get; }
+    private UdpClient Client { get; }
+    private readonly List<IPEndPoint> _broadcastEndpoints = [];
 
     #endregion
 
@@ -40,7 +40,7 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
     {
         try
         {
-            Destination = new IPEndPoint(GetBroadcastAddress(), broadcastPort);
+            _broadcastEndpoints = GetAllBroadcastEndpoints(broadcastPort);
             Client = new UdpClient(broadcastPort);
         }
         catch (Exception ex)
@@ -57,16 +57,33 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
     {
         try
         {
-            if (Client != null)
+            if (Client != null && _broadcastEndpoints.Count > 0)
             {
                 Client.EnableBroadcast = true;
                 Client.BeginReceive(HandleFinderMessageReceived, null);
 
                 while (Running)
                 {
-                    Client.Send(_queryCommandBytes, _queryCommandBytes.Length, Destination);
+                    foreach(var endpoint in _broadcastEndpoints)
+                    {
+                         try
+                         {
+                            Client.Send(_queryCommandBytes, _queryCommandBytes.Length, endpoint);
+                         }
+                         catch (SocketException sockEx)
+                         {
+                             AppLogger.Warning($"Error sending broadcast to {endpoint}, {sockEx}");
+                         }
+                    }
                     Thread.Sleep(1000);
                 }
+            }
+            else if (Client != null)
+            {
+                 AppLogger.Information("DAQiFi device discovery started, but no suitable network interfaces found for broadcasting.");
+                 Client.EnableBroadcast = true; 
+                 Client.BeginReceive(HandleFinderMessageReceived, null);
+                 while(Running) { Thread.Sleep(5000); } 
             }
                 
         }
@@ -108,7 +125,7 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
                 var stream = new MemoryStream(receivedBytes);
                 var message = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
                 var device = GetDeviceFromProtobufMessage(message);
-                ((DaqifiStreamingDevice)device).IpAddress = remoteIpEndPoint.Address.ToString();
+                device.IpAddress = remoteIpEndPoint.Address.ToString();
                 NotifyDeviceFound(this, device);
             }
 
@@ -124,22 +141,22 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
         }
     }
 
-    private bool IsValidDiscoveryMessage(string receivedText)
+    private static bool IsValidDiscoveryMessage(string receivedText)
     {
         return !receivedText.Contains(NativeFinderQuery) &&
                !receivedText.Contains(DaqifiFinderQuery) &&
                !receivedText.Contains(PowerEvent);
     }
 
-    private IDevice GetDeviceFromProtobufMessage(DaqifiOutMessage message)
+    private static DaqifiStreamingDevice GetDeviceFromProtobufMessage(DaqifiOutMessage message)
     {
         var deviceName = message.HostName;
         var macAddress = ProtobufDecoder.GetMacAddressString(message);
         var ipAddress = ProtobufDecoder.GetIpAddressString(message);
         var isPowerOn = message.PwrStatus == 1;
         var port = message.DevicePort;
-        var device_sn = message.DeviceSn;
-        var device_version = message.DeviceFwRev;
+        var deviceSn = message.DeviceSn;
+        var deviceVersion = message.DeviceFwRev;
 
         var deviceInfo = new DeviceInfo
         {
@@ -148,9 +165,8 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
             MacAddress = macAddress,
             Port = port,
             IsPowerOn = isPowerOn,
-            DeviceSerialNo = device_sn.ToString(),
-            DeviceVersion = device_version.ToString()
-
+            DeviceSerialNo = deviceSn.ToString(),
+            DeviceVersion = deviceVersion
         };
 
         var device = new DaqifiStreamingDevice(deviceInfo);
@@ -174,42 +190,59 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
         OnDeviceRemoved?.Invoke(sender, device);
     }
 
-    // TODO move to its own helper class
-    private IPAddress GetBroadcastAddress()
+    private List<IPEndPoint> GetAllBroadcastEndpoints(int port)
     {
-        IPAddress broadcastAddress = IPAddress.None;
+        var endpoints = new List<IPEndPoint>();
         foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
         {
             if (networkInterface.OperationalStatus != OperationalStatus.Up ||
+                !networkInterface.Supports(NetworkInterfaceComponent.IPv4) || 
                 (networkInterface.NetworkInterfaceType != NetworkInterfaceType.Ethernet &&
                  networkInterface.NetworkInterfaceType != NetworkInterfaceType.Wireless80211))
             {
                 continue;
             }
-            foreach (var unicastIpAddressInformation in networkInterface.GetIPProperties().UnicastAddresses)
+            
+            var ipProperties = networkInterface.GetIPProperties();
+            if (ipProperties == null)
             {
-                if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork)
+                continue;
+            }
+
+            foreach (var unicastIpAddressInformation in ipProperties.UnicastAddresses)
+            {
+                if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork ||
+                    unicastIpAddressInformation.IPv4Mask == null || 
+                    unicastIpAddressInformation.IPv4Mask.Equals(IPAddress.Any))
                 {
                     continue;
                 }
+
                 var ipAddress = unicastIpAddressInformation.Address;
                 var subnetMask = unicastIpAddressInformation.IPv4Mask;
-                var broadcastBytes = new byte[ipAddress.GetAddressBytes().Length];
+                
                 var ipBytes = ipAddress.GetAddressBytes();
                 var maskBytes = subnetMask.GetAddressBytes();
-                for (var i = 0; i < broadcastBytes.Length; i++)
+                if (ipBytes.Length != 4 || maskBytes.Length != 4) continue;
+
+                var broadcastBytes = new byte[4];
+                for (var i = 0; i < 4; i++)
                 {
                     broadcastBytes[i] = (byte)(ipBytes[i] | (maskBytes[i] ^ 255));
                 }
-                broadcastAddress = new IPAddress(broadcastBytes);
-                break;
-            }
-            if (broadcastAddress != IPAddress.None)
-            {
-                break;
+                
+                var broadcastAddress = new IPAddress(broadcastBytes);
+
+                endpoints.Add(new IPEndPoint(broadcastAddress, port));
+                
+                break; 
             }
         }
-        return broadcastAddress;
-    }
 
+        AppLogger.Information(endpoints.Count == 0
+            ? "Could not find any suitable network interfaces for DAQiFi discovery broadcast."
+            : $"DAQiFi Discovery broadcasting to: {string.Join(", ", endpoints.Select(ep => ep.Address.ToString()))}");
+
+        return endpoints;
+    }
 }
