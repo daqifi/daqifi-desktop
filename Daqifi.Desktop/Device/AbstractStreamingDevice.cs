@@ -11,8 +11,21 @@ using System.Globalization;
 using System.IO;
 using Daqifi.Desktop.IO.Messages.Producers;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
+using System.Runtime.InteropServices; // Added for P/Invoke
 
 namespace Daqifi.Desktop.Device;
+
+// Added NativeMethods class for P/Invoke
+internal static partial class NativeMethods // Marked as partial
+{
+    // Prevents the system from entering sleep or hibernation.
+    public const uint EsSystemRequired = 0x00000001;
+    // Informs the system that the state should remain in effect until another call resets it.
+    public const uint EsContinuous = 0x80000000;
+
+    [LibraryImport("kernel32.dll", SetLastError = true)] // Changed to LibraryImport
+    public static partial uint SetThreadExecutionState(uint esFlags); // Marked as partial
+}
 
 public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevice
 {
@@ -508,6 +521,19 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
 
     public void InitializeStreaming()
     {
+        if (IsStreaming) return;
+
+        // Prevent computer sleep when starting streaming
+        var previousState = NativeMethods.SetThreadExecutionState(NativeMethods.EsContinuous | NativeMethods.EsSystemRequired);
+        if (previousState == 0) // Check for failure (returns 0 on failure)
+        {
+            AppLogger.Warning("Failed to set computer from sleeping while streaming.");
+        }
+        else
+        {
+            AppLogger.Information("Preventing computer sleep during streaming.");
+        }
+
         if (Mode != DeviceMode.StreamToApp)
         {
             throw new InvalidOperationException("Cannot initialize streaming while in LogToDevice mode");
@@ -520,6 +546,19 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
 
     public void StopStreaming()
     {
+        if (!IsStreaming) return;
+
+        // Allow computer sleep again when stopping streaming
+        var previousState = NativeMethods.SetThreadExecutionState(NativeMethods.EsContinuous);
+        if (previousState == 0) // Check for failure
+        {
+            AppLogger.Warning("Failed to reset thread execution state to allow sleep.");
+        }
+        else
+        {
+            AppLogger.Information("Allowing computer sleep after streaming.");
+        }
+
         IsStreaming = false;
         MessageProducer.Send(ScpiMessageProducer.StopStreaming);
         StopMessageConsumer();

@@ -9,6 +9,7 @@
 		<UseWindowsForms>true</UseWindowsForms>
 		<Version>3.0.0</Version>
 		<InternalsVisibleTo>Daqifi.Desktop.Test</InternalsVisibleTo>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 	</PropertyGroup>
 	<PropertyGroup>
 		<ApplicationIcon>Images\WiFiDAQ.ico</ApplicationIcon>
