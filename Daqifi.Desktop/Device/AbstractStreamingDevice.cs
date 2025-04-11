@@ -200,7 +200,7 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
         }
 
         // Loop through channels for this device
-        foreach (var channel in DataChannels.Where(c => c.IsActive && c.Direction == ChannelDirection.Input))
+        foreach (var channel in DataChannels.Where(c => c.IsActive))
         {
             try
             {
@@ -216,8 +216,11 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
                         bit = (digitalData2 & (1 << digitalCount % 8)) != 0;
                     }
 
-                    // Assign the sample for the digital channel
-                    channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
+                    // Assign the sample for the digital input channel
+                    if (channel.Direction == ChannelDirection.Input)
+                    {
+                        channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
+                    }
                     digitalCount++;
                 }
                 else if (channel.Type == ChannelType.Analog && hasAnalogData)
