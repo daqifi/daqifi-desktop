@@ -87,7 +87,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-                        <Controls:ToggleSwitch Grid.Row="0" IsOn="{Binding SelectedChannel.IsDigitalOn, Mode=TwoWay}" OffContent="On" OnContent="Off" HorizontalAlignment="Center"/>
+                        <Controls:ToggleSwitch Grid.Row="0" IsOn="{Binding SelectedChannel.IsDigitalOn, Mode=TwoWay}" OffContent="Off" OnContent="On" HorizontalAlignment="Center"/>
                     </Grid>
                 </GroupBox>
             </Grid>
