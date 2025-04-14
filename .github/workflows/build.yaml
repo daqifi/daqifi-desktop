@@ -22,7 +22,20 @@ jobs:
       run: dotnet build --no-restore --configuration Release
 
     - name: Test
-      run: dotnet test --no-build --verbosity normal --configuration Release
+      run: dotnet test --no-build --verbosity normal --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults/ /p:CoverletOutputFormat=cobertura
+
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: ./TestResults/**/coverage.cobertura.xml
+        if-no-files-found: warn # Don't fail the build if no tests are found / run
+
+    - name: Upload coverage to Codacy
+      uses: codacy/codacy-coverage-reporter-action@v1
+      with:
+        project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+        coverage-reports: ./TestResults/**/coverage.cobertura.xml # Or specific path if known
 
     - name: Build MSI Installer
       run: |

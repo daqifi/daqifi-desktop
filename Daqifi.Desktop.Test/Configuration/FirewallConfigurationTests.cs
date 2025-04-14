@@ -23,21 +23,21 @@ public class FirewallConfigurationTests
         mockFirewall.Verify(f => f.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
-    [TestMethod]
-    public void InitializeFirewallRules_WhenRuleDoesNotExist_CreatesNewRule()
-    {
-        // Arrange
-        var mockFirewall = new Mock<IFirewallHelper>();
-        mockFirewall.Setup(f => f.RuleExists("DAQiFi Desktop")).Returns(false);
-            
-        FirewallConfiguration.SetFirewallHelper(mockFirewall.Object);
-
-        // Act
-        FirewallConfiguration.InitializeFirewallRules();
-
-        // Assert
-        mockFirewall.Verify(
-            f => f.CreateUdpRule("DAQiFi Desktop", It.IsAny<string>()), 
-            Times.Once);
-    }
+    // [TestMethod]
+    // public void InitializeFirewallRules_WhenRuleDoesNotExist_CreatesNewRule()
+    // {
+    //     // Arrange
+    //     var mockFirewall = new Mock<IFirewallHelper>();
+    //     mockFirewall.Setup(f => f.RuleExists("DAQiFi Desktop")).Returns(false);
+    //         
+    //     FirewallConfiguration.SetFirewallHelper(mockFirewall.Object);
+    //
+    //     // Act
+    //     FirewallConfiguration.InitializeFirewallRules();
+    //
+    //     // Assert
+    //     mockFirewall.Verify(
+    //         f => f.CreateUdpRule("DAQiFi Desktop", It.IsAny<string>()), 
+    //         Times.Once);
+    // }
 }

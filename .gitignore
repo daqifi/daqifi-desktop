@@ -58,3 +58,6 @@ artifacts/
 ._*
 .DS_Store
 thumbs.db
+
+# Code Coverage Reports
+CoverageReport/
