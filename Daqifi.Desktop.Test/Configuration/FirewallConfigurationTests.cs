@@ -11,6 +11,7 @@ public class FirewallConfigurationTests
 {
     private Mock<IFirewallHelper> _mockFirewallHelper;
     private Mock<IMessageBoxService> _mockMessageBoxService;
+    private Mock<IAdminChecker> _mockAdminChecker;
 
     [TestInitialize]
     public void Initialize()
@@ -20,12 +21,16 @@ public class FirewallConfigurationTests
 
         _mockMessageBoxService = new Mock<IMessageBoxService>();
         FirewallConfiguration.SetMessageBoxService(_mockMessageBoxService.Object);
+
+        _mockAdminChecker = new Mock<IAdminChecker>();
+        FirewallConfiguration.SetAdminChecker(_mockAdminChecker.Object);
     }
 
     [TestMethod]
     public void InitializeFirewallRules_WhenRuleExists_DoesNotCreateNewRule()
     {
         // Arrange
+        _mockAdminChecker.Setup(c => c.IsCurrentUserAdmin()).Returns(true);
         _mockFirewallHelper.Setup(f => f.RuleExists("DAQiFi Desktop")).Returns(true);
             
         // Act
@@ -40,6 +45,7 @@ public class FirewallConfigurationTests
     public void InitializeFirewallRules_WhenRuleDoesNotExist_CreatesNewRule()
     {
         // Arrange
+        _mockAdminChecker.Setup(c => c.IsCurrentUserAdmin()).Returns(true);
         _mockFirewallHelper.Setup(f => f.RuleExists("DAQiFi Desktop")).Returns(false);
             
         // Act
@@ -54,8 +60,7 @@ public class FirewallConfigurationTests
     public void InitializeFirewallRules_WhenNotAdmin_ShowsWarningAndDoesNotCheckRule()
     {
         // Arrange
-        // Note: We can't easily mock the admin check (WindowsPrincipal), so we rely on the test runner NOT being elevated.
-        // The key is verifying the message box IS shown and the firewall helper is NOT called.
+        _mockAdminChecker.Setup(c => c.IsCurrentUserAdmin()).Returns(false);
 
         // Act
         FirewallConfiguration.InitializeFirewallRules();

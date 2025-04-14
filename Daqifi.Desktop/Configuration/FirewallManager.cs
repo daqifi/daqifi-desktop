@@ -11,15 +11,22 @@ public static class FirewallConfiguration
     private const string RuleName = "DAQiFi Desktop";
     private static IFirewallHelper _firewallHelper;
     private static IMessageBoxService _messageBoxService;
+    private static IAdminChecker _adminChecker;
 
     static FirewallConfiguration()
     {
         _firewallHelper = new WindowsFirewallWrapper();
         _messageBoxService = new WpfMessageBoxService();
+        _adminChecker = new WindowsPrincipalAdminChecker();
     }
 
     // Added: Method to inject service for testing
-    // Made public for test access
+    public static void SetAdminChecker(IAdminChecker checker)
+    {
+        _adminChecker = checker;
+    }
+
+    // Added: Method to inject service for testing
     public static void SetMessageBoxService(IMessageBoxService service)
     {
         _messageBoxService = service;
@@ -35,11 +42,8 @@ public static class FirewallConfiguration
     {
         try
         {
-            // Check if running with admin privileges
-            var isElevated = new WindowsPrincipal(WindowsIdentity.GetCurrent())
-                .IsInRole(WindowsBuiltInRole.Administrator);
-
-            if (!isElevated)
+            // Check if running with admin privileges using the service
+            if (!_adminChecker.IsCurrentUserAdmin())
             {
                 _messageBoxService.Show(
                     "DAQiFi Desktop requires firewall permissions to discover devices on your network. " +
