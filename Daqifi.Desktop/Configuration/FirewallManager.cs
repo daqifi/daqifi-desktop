@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Security.Principal;
 using System.Windows;
 using WindowsFirewallHelper;
-using MessageBox = System.Windows.MessageBox;
+using Daqifi.Desktop.Services;
 
 namespace Daqifi.Desktop.Configuration;
 
@@ -10,13 +10,22 @@ public static class FirewallConfiguration
 {
     private const string RuleName = "DAQiFi Desktop";
     private static IFirewallHelper _firewallHelper;
+    private static IMessageBoxService _messageBoxService;
 
     static FirewallConfiguration()
     {
         _firewallHelper = new WindowsFirewallWrapper();
+        _messageBoxService = new WpfMessageBoxService();
     }
 
-    // For testing
+    // Added: Method to inject service for testing
+    // Made public for test access
+    public static void SetMessageBoxService(IMessageBoxService service)
+    {
+        _messageBoxService = service;
+    }
+
+    // Made public for test access
     public static void SetFirewallHelper(IFirewallHelper helper)
     {
         _firewallHelper = helper;
@@ -32,7 +41,7 @@ public static class FirewallConfiguration
 
             if (!isElevated)
             {
-                MessageBox.Show(
+                _messageBoxService.Show(
                     "DAQiFi Desktop requires firewall permissions to discover devices on your network. " +
                     "Please run the application as administrator to automatically configure firewall rules, " +
                     "or manually add firewall rules for both private and public networks.",
@@ -58,7 +67,7 @@ public static class FirewallConfiguration
         }
         catch (Exception ex)
         {
-            MessageBox.Show(
+            _messageBoxService.Show(
                 "Unable to configure firewall rules automatically. You may need to manually add firewall rules " +
                 "for both private and public networks.\n\nError: " + ex.Message,
                 "Firewall Configuration Error",
