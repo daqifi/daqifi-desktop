@@ -317,8 +317,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 context.Sessions.Remove(loggingSession);
                 context.ChangeTracker.DetectChanges();
                 context.SaveChanges();
-
-                LoggingManager.Instance.LoggingSessions.Remove(session);
             }
         }
         catch (Exception ex)

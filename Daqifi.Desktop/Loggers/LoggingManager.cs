@@ -37,15 +37,17 @@ public partial class LoggingManager : ObservableObject
     private LoggingSession _session;
 
     [ObservableProperty]
-    private List<LoggingSession> _loggingSessions = [];
+    private ObservableCollection<LoggingSession> _loggingSessions = [];
     #endregion
 
     partial void OnActiveChanged(bool oldValue, bool newValue)
     {
         if (!newValue && oldValue) // Was active, now stopping
         {
-            if (LoggingSessions == null) { LoggingSessions = new List<LoggingSession>(); }
-            if (Session != null) LoggingSessions.Add(Session);
+            if (Session != null)
+            {
+                LoggingSessions.Add(Session);
+            }
         }
         else if (newValue && !oldValue) // Was inactive, now starting
         {

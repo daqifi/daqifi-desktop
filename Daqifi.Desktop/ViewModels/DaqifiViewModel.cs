@@ -24,7 +24,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Daqifi.Desktop.Device.SerialDevice;
 using Application = System.Windows.Application;
 using File = System.IO.File;
-using Daqifi.Desktop.DataModel.Network;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -85,7 +84,7 @@ public class DaqifiViewModel : ObservableObject
     public ObservableCollection<Notifications> notificationlist { get; } = [];
     public ObservableCollection<IChannel> ActiveChannels { get; } = [];
     public ObservableCollection<IChannel> ActiveInputChannels { get; } = [];
-    public ObservableCollection<LoggingSession> LoggingSessions { get; } = [];
+    public ObservableCollection<LoggingSession> LoggingSessions => LoggingManager.Instance.LoggingSessions;
 
     public PlotLogger Plotter { get; private set; }
     public DatabaseLogger DbLogger { get; private set; }
@@ -598,13 +597,19 @@ public class DaqifiViewModel : ObservableObject
 
                     using (var context = _loggingContext.CreateDbContext())
                     {
-                        var savedLoggingSessions = new List<LoggingSession>();
+                        var savedLoggingSessions = new ObservableCollection<LoggingSession>();
                         var previousSampleSessions = (from s in context.Sessions select s).ToList();
                         foreach (var session in previousSampleSessions)
                         {
-                            if (!savedLoggingSessions.Contains(session)) { savedLoggingSessions.Add(session); }
+                            if (!savedLoggingSessions.Any(ls => ls.ID == session.ID))
+                            {
+                                savedLoggingSessions.Add(session);
+                            }
                         }
-                        LoggingManager.Instance.LoggingSessions = savedLoggingSessions;
+                        if (LoggingManager.Instance.LoggingSessions == null || !LoggingManager.Instance.LoggingSessions.Any())
+                        {
+                            LoggingManager.Instance.LoggingSessions = savedLoggingSessions;
+                        }
                     }
 
                     //Configure Default Grid Lines
@@ -1261,43 +1266,56 @@ public class DaqifiViewModel : ObservableObject
     {
         try
         {
-            if (!(o is LoggingSession session))
+            if (!(o is LoggingSession sessionToDelete))
             {
-                _appLogger.Error("Error deleting logging session");
+                _appLogger.Error("Error deleting logging session: Invalid object provided.");
                 return;
             }
 
-            var result = await ShowMessage("Delete Confirmation", "Are you sure you want to delete " + session.Name + "?", MessageDialogStyle.AffirmativeAndNegative).ConfigureAwait(false);
+            var result = await ShowMessage("Delete Confirmation", $"Are you sure you want to delete {sessionToDelete.Name}?", MessageDialogStyle.AffirmativeAndNegative).ConfigureAwait(false);
             if (result != MessageDialogResult.Affirmative)
             {
                 return;
             }
 
             IsLoggedDataBusy = true;
-            LoggedDataBusyReason = "Deleting Logging Session #" + session.ID;
+            LoggedDataBusyReason = $"Deleting Logging Session #{sessionToDelete.ID}";
             var bw = new BackgroundWorker();
             bw.DoWork += delegate
             {
+                bool deleteSucceeded = false;
                 try
                 {
-                    DbLogger.DeleteLoggingSession(session);
+                    // Pass the original object to the DB operation
+                    DbLogger.DeleteLoggingSession(sessionToDelete); 
+                    deleteSucceeded = true;
+                }
+                catch (Exception dbEx)
+                {
+                    _appLogger.Error(dbEx, $"Failed to delete session {sessionToDelete.ID} from database.");
+                    // Optionally show an error message to the user via Dispatcher
+                }
+
+                if (deleteSucceeded)
+                {
+                    // Remove the original object instance from the manager's collection on the UI thread
                     Application.Current.Dispatcher.Invoke(delegate
                     {
-                        LoggingSessions.Remove(session);
+                        LoggingManager.Instance.LoggingSessions.Remove(sessionToDelete); // Use original object
                     });
-                    OnPropertyChanged("LoggingSessions");
                 }
-                finally
-                {
-                    IsLoggedDataBusy = false;
-                }
+            };
+            
+            bw.RunWorkerCompleted += (s, e) => 
+            {
+                IsLoggedDataBusy = false;
             };
 
             bw.RunWorkerAsync();
         }
         catch (System.Exception ex)
         {
-            _appLogger.Error(ex, "Error Deleting Logging Session");
+            _appLogger.Error(ex, "Error initiating logging session deletion");
         }
     }
 
@@ -1305,9 +1323,8 @@ public class DaqifiViewModel : ObservableObject
     {
         try
         {
-            if (LoggingSessions.Count == 0)
+            if (LoggingManager.Instance.LoggingSessions.Count == 0)
             {
-                _appLogger.Error("Error deleting logging session");
                 return;
             }
 
@@ -1322,30 +1339,46 @@ public class DaqifiViewModel : ObservableObject
             var bw = new BackgroundWorker();
             bw.DoWork += delegate
             {
-                try
+                var sessionsToDelete = LoggingManager.Instance.LoggingSessions.ToList();
+                var successfullyDeletedSessions = new List<LoggingSession>(); // Store the session objects
+
+                foreach(var session in sessionsToDelete)
                 {
-                    while (LoggingSessions.Count > 0)
+                    try
                     {
-                        var session = LoggingSessions.ElementAt(0);
                         DbLogger.DeleteLoggingSession(session);
-                        Application.Current.Dispatcher.Invoke(delegate
-                        {
-                            LoggingSessions.Remove(session);
-                        });
+                        successfullyDeletedSessions.Add(session); // Add the object
                     }
-                    OnPropertyChanged("LoggingSessions");
+                    catch (Exception dbEx)
+                    {
+                        _appLogger.Error(dbEx, $"Failed to delete session {session.ID} from database during delete all.");
+                        // Continue trying to delete others
+                    }
                 }
-                finally
+
+                // Remove all successfully deleted sessions from the collection on the UI thread
+                if (successfullyDeletedSessions.Any())
                 {
-                    IsLoggedDataBusy = false;
+                    Application.Current.Dispatcher.Invoke(delegate
+                    {
+                        foreach(var sessionToRemove in successfullyDeletedSessions) // Iterate over the objects
+                        {
+                            LoggingManager.Instance.LoggingSessions.Remove(sessionToRemove);
+                        }
+                    });
                 }
+            };
+
+            bw.RunWorkerCompleted += (s, e) => 
+            {
+                IsLoggedDataBusy = false;
             };
 
             bw.RunWorkerAsync();
         }
         catch (Exception ex)
         {
-            _appLogger.Error(ex, "Error Deleting All Logging Session");
+            _appLogger.Error(ex, "Error initiating deletion of all logging sessions");
         }
     }
 
@@ -1486,13 +1519,6 @@ public class DaqifiViewModel : ObservableObject
                         ActiveInputChannels.Add(channel);
                     }
                     ActiveChannels.Add(channel);
-                }
-                break;
-            case "LoggingSessions":
-                LoggingSessions.Clear();
-                foreach (var session in LoggingManager.Instance.LoggingSessions)
-                {
-                    LoggingSessions.Add(session);
                 }
                 break;
             case "NotificationCount":
