@@ -34,6 +34,7 @@ public class AnalogChannel : AbstractChannel
         DeviceName = owner.DevicePartNumber;
         DeviceSerialNo = owner.DeviceSerialNo;
         Index = channelId;
+        Direction = direction;
         IsOutput = direction == ChannelDirection.Output;
         HasAdc = !IsOutput;
         IsBidirectional = isBidirectional;
