@@ -1,10 +1,11 @@
 ﻿using HidLibrary;
 using System.ComponentModel;
 using System.Globalization;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.Bootloader;
 
-public class Pic32Bootloader : ObservableObject, IBootloader, IDisposable
+public partial class Pic32Bootloader : ObservableObject, IBootloader, IDisposable
 {
     #region Private Data
     // Memory address range that we omit changing so we can preserve calibration values.
@@ -12,22 +13,11 @@ public class Pic32Bootloader : ObservableObject, IBootloader, IDisposable
     private const uint EndProtectedAddress = 0x1D200000;
 
     private readonly HidFastReadDevice _hidDevice;
+    [ObservableProperty]
     private string _version;
     private bool _disposed;
     private ushort _baseAddress;
 
-    #endregion
-
-    #region Properties
-    public string Version
-    {
-        get => _version;
-        set
-        {
-            _version = value;
-            NotifyPropertyChanged(nameof(Version));
-        }
-    }
     #endregion
 
     #region Constructor
