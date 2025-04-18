@@ -1,55 +1,20 @@
-﻿using Daqifi.Desktop.DataModel.Common;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.DataModel.Network;
 
-public class NetworkConfiguration: ObservableObject
+public partial class NetworkConfiguration: ObservableObject
 {
     #region Private Data
+    [ObservableProperty]
     private WifiMode _mode;
+
+    [ObservableProperty]
     private WifiSecurityType _securityType;
+
+    [ObservableProperty]
     private string _ssid;
+
+    [ObservableProperty]
     private string _password;
-    #endregion
-
-    #region Properties
-    public WifiMode Mode
-    {
-        get => _mode;
-        set
-        {
-            _mode = value;
-            NotifyPropertyChanged(nameof(Mode));
-        }
-    }
-
-    public WifiSecurityType SecurityType
-    {
-        get => _securityType;
-        set
-        {
-            _securityType = value;
-            NotifyPropertyChanged(nameof(SecurityType));
-        }
-    }
-
-    public string Ssid
-    {
-        get => _ssid;
-        set 
-        { 
-            _ssid = value;
-            NotifyPropertyChanged(nameof(Ssid));
-        }
-    }
-
-    public string Password
-    {
-        get => _password;
-        set 
-        { 
-            _password = value;
-            NotifyPropertyChanged(nameof(Password));
-        }
-    }
     #endregion
 }
