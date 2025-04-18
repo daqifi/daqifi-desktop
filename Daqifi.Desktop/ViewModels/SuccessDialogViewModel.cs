@@ -1,7 +1,9 @@
 ﻿
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace Daqifi.Desktop.ViewModels;
 
-public class SuccessDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+public class SuccessDialogViewModel : ObservableObject
 {
     #region Private Variables
     private string _successMessage;

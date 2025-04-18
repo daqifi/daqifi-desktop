@@ -12,6 +12,7 @@ using System.IO;
 using Daqifi.Desktop.IO.Messages.Producers;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
+using CommunityToolkit.Mvvm.ComponentModel; // Added using
 
 namespace Daqifi.Desktop.Device;
 
@@ -27,7 +28,8 @@ internal static partial class NativeMethods // Marked as partial
     public static partial uint SetThreadExecutionState(uint esFlags); // Marked as partial
 }
 
-public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevice
+// Changed base class and added partial keyword
+public abstract partial class AbstractStreamingDevice : ObservableObject, IStreamingDevice
 {
     private enum MessageHandlerType
     {
@@ -39,6 +41,9 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
     public abstract ConnectionType ConnectionType { get; }
         
     private const double TickPeriod = 20E-9f;
+    
+    // Converted StreamingFrequency property to [ObservableProperty] field
+    [ObservableProperty]
     private int _streamingFrequency = 1;
 
     private readonly Dictionary<string, DateTime> _previousTimestamps = new();
@@ -67,16 +72,8 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
     public string DeviceVersion { get; set; }
 
     public string IpAddress { get; set; } = string.Empty;
-    public int StreamingFrequency
-    {
-        get => _streamingFrequency;
-        set
-        {
-            if (value < 1) { return; }
-            _streamingFrequency = value;
-            NotifyPropertyChanged("StreamingFrequency");
-        }
-    }
+    
+    // Removed original StreamingFrequency property definition
 
     public NetworkConfiguration NetworkConfiguration { get; set; } = new();
 
@@ -408,7 +405,7 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
                 throw new ArgumentOutOfRangeException();
         }
 
-        NotifyPropertyChanged(nameof(Mode));
+        OnPropertyChanged(nameof(Mode));
     }
 
     public void StartSdCardLogging()
@@ -449,8 +446,8 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
             IsLoggingToSdCard = true;
             IsStreaming = true; // We're streaming to SD card
             AppLogger.Information($"Enabled SD card logging for device {DeviceSerialNo}");
-            NotifyPropertyChanged(nameof(IsLoggingToSdCard));
-            NotifyPropertyChanged(nameof(IsStreaming));
+            OnPropertyChanged(nameof(IsLoggingToSdCard));
+            OnPropertyChanged(nameof(IsStreaming));
         }
         catch (Exception ex)
         {
@@ -470,8 +467,8 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
             IsLoggingToSdCard = false;
             IsStreaming = false;
             AppLogger.Information($"Disabled SD card logging for device {DeviceSerialNo}");
-            NotifyPropertyChanged(nameof(IsLoggingToSdCard));
-            NotifyPropertyChanged(nameof(IsStreaming));
+            OnPropertyChanged(nameof(IsLoggingToSdCard));
+            OnPropertyChanged(nameof(IsStreaming));
         }
         catch (Exception ex)
         {
@@ -516,7 +513,7 @@ public abstract class AbstractStreamingDevice : ObservableObject, IStreamingDevi
     public void UpdateSdCardFiles(List<SdCardFile> files)
     {
         _sdCardFiles = files;
-        NotifyPropertyChanged(nameof(SdCardFiles));
+        OnPropertyChanged(nameof(SdCardFiles));
     }
 
     public void InitializeStreaming()

@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows.Input;
 using System.Windows.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
 using TickStyle = OxyPlot.Axes.TickStyle;
 
 namespace Daqifi.Desktop.Logger;
@@ -31,7 +32,7 @@ public class PlotLogger : ObservableObject, ILogger
         set
         {
             _plotModel = value;
-            NotifyPropertyChanged("PlotModel");
+            OnPropertyChanged();
         }
     }
 
@@ -40,13 +41,13 @@ public class PlotLogger : ObservableObject, ILogger
     public Dictionary<(string deviceSerial, string channelName), List<DataPoint>> LoggedPoints
     {
         get => _loggedPoints;
-        private set { _loggedPoints = value; NotifyPropertyChanged("LoggedPoints"); }
+        private set { _loggedPoints = value; OnPropertyChanged(); }
     }
 
     public Dictionary<(string deviceSerial, string channelName), LineSeries> LoggedChannels
     {
         get => _loggedChannels;
-        set { _loggedChannels = value; NotifyPropertyChanged("LoggedChannels"); }
+        set { _loggedChannels = value; OnPropertyChanged(); }
     }
 
     public int Precision
@@ -57,52 +58,52 @@ public class PlotLogger : ObservableObject, ILogger
             _precision = value;
             PlotModel.Axes[0].StringFormat = "0." + new string('#', _precision);
             PlotModel.InvalidatePlot(true);
-            NotifyPropertyChanged("Precision");
+            OnPropertyChanged();
         }
     }
 
     public bool ShowingMajorXAxisGrid
-    {
-        get => PlotModel.Axes[0].MajorGridlineThickness > 0;
-        set
-        {
-            PlotModel.Axes[0].MajorGridlineThickness = value ? 1 : 0;
-            PlotModel.InvalidatePlot(true);
-            NotifyPropertyChanged("ShowingMajorXAxisGrid");
-        }
-    }
-
-    public bool ShowingMinorXAxisGrid
-    {
-        get => PlotModel.Axes[0].MinorGridlineThickness > 0;
-        set
-        {
-            PlotModel.Axes[0].MinorGridlineThickness = value ? 1 : 0;
-            PlotModel.InvalidatePlot(true);
-
-            NotifyPropertyChanged("ShowingMinorXAxisGrid");
-        }
-    }
-
-    public bool ShowingMajorYAxisGrid
     {
         get => PlotModel.Axes[2].MajorGridlineThickness > 0;
         set
         {
             PlotModel.Axes[2].MajorGridlineThickness = value ? 1 : 0;
             PlotModel.InvalidatePlot(true);
-            NotifyPropertyChanged("ShowingMajorYAxisGrid");
+            OnPropertyChanged();
         }
     }
 
-    public bool ShowingMinorYAxisGrid
+    public bool ShowingMinorXAxisGrid
     {
         get => PlotModel.Axes[2].MinorGridlineThickness > 0;
         set
         {
             PlotModel.Axes[2].MinorGridlineThickness = value ? 1 : 0;
             PlotModel.InvalidatePlot(true);
-            NotifyPropertyChanged("ShowingMinorYAxisGrid");
+
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowingMajorYAxisGrid
+    {
+        get => PlotModel.Axes[0].MajorGridlineThickness > 0;
+        set
+        {
+            PlotModel.Axes[0].MajorGridlineThickness = value ? 1 : 0;
+            PlotModel.InvalidatePlot(true);
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowingMinorYAxisGrid
+    {
+        get => PlotModel.Axes[0].MinorGridlineThickness > 0;
+        set
+        {
+            PlotModel.Axes[0].MinorGridlineThickness = value ? 1 : 0;
+            PlotModel.InvalidatePlot(true);
+            OnPropertyChanged();
         }
     }
     #endregion
@@ -252,7 +253,7 @@ public class PlotLogger : ObservableObject, ILogger
             }
         }
 
-        NotifyPropertyChanged("LoggedPoints");
+        OnPropertyChanged("LoggedPoints");
     }
 
     /// <summary>
@@ -290,7 +291,7 @@ public class PlotLogger : ObservableObject, ILogger
         LoggedChannels.Add(key, newLineSeries);
         PlotModel.Series.Add(newLineSeries);
             
-        NotifyPropertyChanged("PlotModel");
+        OnPropertyChanged("PlotModel");
     }
 
     private void CompositionTargetRendering(object sender, EventArgs e)
@@ -312,9 +313,9 @@ public class PlotLogger : ObservableObject, ILogger
         PlotModel.Series.Clear();
         PlotModel.InvalidatePlot(true);
         FirstTime = null;
-        NotifyPropertyChanged("LoggedChannels");
-        NotifyPropertyChanged("LoggedPoints");
-        NotifyPropertyChanged("PlotModel");
+        OnPropertyChanged("LoggedChannels");
+        OnPropertyChanged("LoggedPoints");
+        OnPropertyChanged("PlotModel");
     }
 
     #region Command Methods

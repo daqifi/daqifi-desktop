@@ -4,71 +4,38 @@ using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Logger;
 using System.ComponentModel;
 using System.Management;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop;
 
-public class ConnectionManager : ObservableObject
+public partial class ConnectionManager : ObservableObject
 {
     #region Private Variables
-    private DAQifiConnectionStatus _connectionStatus = DAQifiConnectionStatus.Disconnected;
-    private List<IStreamingDevice> _connectedDevices;
-    private bool _isDisconnected = true;
-    private bool _notifyConnection = false;
     private readonly ManagementEventWatcher _deviceRemovedWatcher;
     #endregion
 
     #region Properties
+    [ObservableProperty]
+    private DAQifiConnectionStatus _connectionStatus = DAQifiConnectionStatus.Disconnected;
 
-    private DAQifiConnectionStatus ConnectionStatus
-    {
-        get => _connectionStatus;
-        set
-        {
-            _connectionStatus = value;
-            UpdateStatusString();
-            NotifyPropertyChanged("ConnectionStatus");
+    [ObservableProperty]
+    private List<IStreamingDevice> _connectedDevices;
 
-            IsDisconnected = _connectionStatus != DAQifiConnectionStatus.Connected;
-        }
-    }
+    [ObservableProperty]
+    private bool _isDisconnected = true;
 
+    [ObservableProperty]
+    private bool _notifyConnection = false;
+    
     public string ConnectionStatusString { get; set; } = "Disconnected";
-
-    public List<IStreamingDevice> ConnectedDevices
-    {
-        get => _connectedDevices;
-        set
-        {
-            _connectedDevices = value;
-            NotifyPropertyChanged("ConnectedDevices");
-        }
-    }
-
-    public bool IsDisconnected
-    {
-        get => _isDisconnected;
-        set
-        {
-            if (value != _isDisconnected)
-            {
-                _isDisconnected = value;
-                NotifyPropertyChanged("IsDisconnected");
-            }
-        }
-    }
-    public bool NotifyConnection
-    {
-        get => _notifyConnection;
-        set
-        {
-            if (value != _notifyConnection)
-            {
-                _notifyConnection = value;
-                NotifyPropertyChanged("NotifyConnection");
-            }
-        }
-    }
+    
     #endregion
+
+    partial void OnConnectionStatusChanged(DAQifiConnectionStatus value)
+    {
+        UpdateStatusString();
+        IsDisconnected = value != DAQifiConnectionStatus.Connected;
+    }
 
     #region Singleton Constructor / Initalization
     private static readonly ConnectionManager instance = new ConnectionManager();
@@ -110,7 +77,7 @@ public class ConnectionManager : ObservableObject
             }
             ConnectedDevices.Add(device);
             await Task.Delay(1000);
-            NotifyPropertyChanged("ConnectedDevices");
+            OnPropertyChanged("ConnectedDevices");
             ConnectionStatus = DAQifiConnectionStatus.Connected;
         }
         catch (Exception ex)
@@ -126,7 +93,7 @@ public class ConnectionManager : ObservableObject
         {
             device.Disconnect();
             ConnectedDevices.Remove(device);
-            NotifyPropertyChanged("ConnectedDevices");
+            OnPropertyChanged("ConnectedDevices");
         }
         catch (Exception ex)
         {
@@ -140,7 +107,7 @@ public class ConnectionManager : ObservableObject
         {
             device.Reboot();
             ConnectedDevices.Remove(device);
-            NotifyPropertyChanged("ConnectedDevices");
+            OnPropertyChanged("ConnectedDevices");
         }
         catch (Exception ex)
         {

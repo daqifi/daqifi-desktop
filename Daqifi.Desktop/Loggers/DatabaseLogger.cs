@@ -13,32 +13,25 @@ using Exception = System.Exception;
 using TickStyle = OxyPlot.Axes.TickStyle;
 using Microsoft.EntityFrameworkCore;
 using EFCore.BulkExtensions;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.Logger;
 
-public class DatabaseLogger : ObservableObject, ILogger
+public partial class DatabaseLogger : ObservableObject, ILogger
 {
     #region Private Data
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
     private readonly BlockingCollection<DataSample> _buffer = new BlockingCollection<DataSample>();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _sessionPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
 
-    private PlotModel _plotModel;
     private DateTime? _firstTime;
     public AppLogger AppLogger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     #endregion
 
     #region Properties
-    public PlotModel PlotModel
-    {
-        get => _plotModel;
-        set
-        {
-            _plotModel = value;
-            NotifyPropertyChanged("PlotModel");
-        }
-    }
+    [ObservableProperty]
+    private PlotModel _plotModel;
     #endregion
 
     #region Command Properties
@@ -82,7 +75,6 @@ public class DatabaseLogger : ObservableObject, ILogger
     #region Constructor
     public DatabaseLogger(IDbContextFactory<LoggingContext> loggingContext)
     {
-
         _loggingContext = loggingContext;
         SaveGraphCommand = new DelegateCommand(SaveGraph, CanSaveGraph);
         ResetZoomCommand = new DelegateCommand(ResetZoom, CanResetZoom);
@@ -301,7 +293,7 @@ public class DatabaseLogger : ObservableObject, ILogger
                 ((LineSeries)PlotModel.Series[i]).ItemsSource = _allSessionPoints[channelName];
             }
 
-            NotifyPropertyChanged("SessionPoints");
+            OnPropertyChanged("SessionPoints");
             PlotModel.InvalidatePlot(true);
         }
         catch (Exception ex)
@@ -365,7 +357,7 @@ public class DatabaseLogger : ObservableObject, ILogger
         }
 
         PlotModel.Series.Add(newLineSeries);
-        NotifyPropertyChanged("PlotModel");
+        OnPropertyChanged("PlotModel");
     }
 
     #region Command Methods

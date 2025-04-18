@@ -1,65 +1,41 @@
-﻿namespace Daqifi.Desktop.Models;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 
-public class DaqifiBoardConfig : ObservableObject
+namespace Daqifi.Desktop.Models;
+
+public partial class DaqifiBoardConfig : ObservableObject
 {
     #region Private Data
+    [ObservableProperty]
     private string _ipAddress;
+    
+    [ObservableProperty]
     private string _portNumberString;
+
+    [ObservableProperty]
     private int _portNumber;
+
+    [ObservableProperty]
     private SdCardLoggingConfig _sdCardLogging;
     #endregion
 
-    #region Properties
-    public string IpAddress
+    partial void OnPortNumberStringChanged(string value)
     {
-        get => _ipAddress;
-        set 
+        if (int.TryParse(value, out int newPortNumber))
         {
-            if (value == _ipAddress) { return; }
-            _ipAddress = value;
-            NotifyPropertyChanged("IpAddress");
+            if (PortNumber != newPortNumber) 
+            {
+                PortNumber = newPortNumber; 
+            }
         }
     }
 
-    public string PortNumberString
+    partial void OnPortNumberChanged(int value)
     {
-        get => _portNumberString;
-        set
+        if (PortNumberString != value.ToString())
         {
-            _portNumberString = value;
-            _portNumber = Convert.ToInt32(_portNumberString);
-            NotifyPropertyChanged("PortNumberString");
-            NotifyPropertyChanged("PortNumber");
+            PortNumberString = value.ToString();
         }
     }
-
-    public int PortNumber
-    {
-        get => _portNumber;
-        set 
-        {
-            if (value == _portNumber) { return; }
-            _portNumber = value;
-            PortNumberString = _portNumber.ToString();
-            NotifyPropertyChanged("PortNumber");
-            NotifyPropertyChanged("PortNumberString");
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets the SD card logging configuration
-    /// </summary>
-    public SdCardLoggingConfig SdCardLogging
-    {
-        get => _sdCardLogging;
-        set
-        {
-            if (value == _sdCardLogging) { return; }
-            _sdCardLogging = value;
-            NotifyPropertyChanged(nameof(SdCardLogging));
-        }
-    }
-    #endregion
 
     public DaqifiBoardConfig()
     {

@@ -6,10 +6,11 @@ using Daqifi.Desktop.Logger;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class AddChannelDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+public class AddChannelDialogViewModel : ObservableObject
 {
     #region Private Variables
     private IStreamingDevice _selectedDevice;

@@ -8,10 +8,11 @@ using Daqifi.Desktop.Models;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class AddProfileDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+public class AddProfileDialogViewModel : ObservableObject
 {
     #region Private Variables
     private string _profileName = "DaqifiProfile";
@@ -226,7 +227,7 @@ public class AddProfileDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.Ob
                 {
                     var device = new ProfileDevice
                     {
-                        MACAddress = selectedDevice.MacAddress,
+                        MacAddress = selectedDevice.MacAddress,
                         DeviceName = selectedDevice.Name,
                         DevicePartName = selectedDevice.DevicePartNumber,
                         DeviceSerialNo = selectedDevice.DeviceSerialNo,

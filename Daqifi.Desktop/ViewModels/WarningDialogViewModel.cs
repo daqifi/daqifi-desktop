@@ -4,7 +4,7 @@ using Daqifi.Desktop.Commands;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public partial class WarningDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+public partial class WarningDialogViewModel : ObservableObject
 {
     [ObservableProperty]
     private string _message;

@@ -2,37 +2,22 @@
 using Newtonsoft.Json.Linq;
 using System.Net.Http;
 using System.Reflection;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.UpdateVersion;
 
-public class VersionNotification : ObservableObject
+public partial class VersionNotification : ObservableObject
 {
     private readonly AppLogger AppLogger = AppLogger.Instance;
     #region Properties
 
-    private int _notificationcount;
-    public int NotificationCount
-    {
-        get => _notificationcount;
-        set
-        {
-            _notificationcount = value;
-            NotifyPropertyChanged("NotificationCount");
-        }
-    }
+    [ObservableProperty]
+    private int _notificationCount;
+
+    [ObservableProperty]
     private string _versionNumber;
-    public string VersionNumber
-    {
-        get => _versionNumber;
-        set
-        {
-            _versionNumber = value;
-            NotifyPropertyChanged("VersionNumber");
-        }
-    }
     #endregion
-
-
+    
     #region Version Checking Function 
     public async Task CheckForUpdatesAsync()
     {

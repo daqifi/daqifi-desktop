@@ -20,6 +20,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Daqifi.Desktop.Device.SerialDevice;
 using Application = System.Windows.Application;
 using File = System.IO.File;
@@ -27,7 +28,7 @@ using Daqifi.Desktop.DataModel.Network;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+public class DaqifiViewModel : ObservableObject
 {
     private readonly AppLogger _appLogger = AppLogger.Instance;
         
@@ -207,6 +208,7 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
         set
         {
             _isLogging = value;
+            LoggingManager.Instance.Active = value;
             if (_isLogging)
             {
                 foreach (var device in ConnectedDevices)
@@ -235,7 +237,6 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
                     }
                 }
             }
-            LoggingManager.Instance.Active = value;
         }
     }
 
@@ -1835,12 +1836,11 @@ public class DaqifiViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableOb
                 {
                     var device = new ProfileDevice
                     {
-                        MACAddress = selectedDevice.MacAddress,
+                        MacAddress = selectedDevice.MacAddress,
                         DeviceName = selectedDevice.Name,
                         DevicePartName = selectedDevice.DevicePartNumber,
                         DeviceSerialNo = selectedDevice.DeviceSerialNo,
                         SamplingFrequency = selectedDevice.StreamingFrequency,
-                        //SamplingFrequency = SelectedStreamingFrequency,
                         Channels = new List<ProfileChannel>()
                     };
 

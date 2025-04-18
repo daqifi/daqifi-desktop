@@ -1,192 +1,51 @@
 ﻿using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.Models;
 
-public class AddProfileModel : ObservableObject
+public partial class AddProfileModel : ObservableObject
 {
     public List<Profile> ProfileList { get; set; }
 }
 
-public class Profile : ObservableObject
+public partial class Profile : ObservableObject
 {
+    [ObservableProperty]
     private string name;
+    [ObservableProperty]
     private Guid profileId;
+    [ObservableProperty]
     private DateTime createdOn;
+    [ObservableProperty]
     private bool isProfileActive;
+    [ObservableProperty]
     private ObservableCollection<ProfileDevice> devices;
-
-    public string Name
-    {
-        get => name;
-        set
-        {
-            name = value;
-            NotifyPropertyChanged(nameof(Name));
-        }
-    }
-    public DateTime CreatedOn
-    {
-        get => createdOn;
-        set
-        {
-            createdOn = value;
-            NotifyPropertyChanged(nameof(CreatedOn));
-        }
-    }
-
-    public Guid ProfileId
-    {
-        get => profileId;
-        set
-        {
-            profileId = value;
-            NotifyPropertyChanged(nameof(ProfileId));
-        }
-    }
-
-    public bool IsProfileActive
-    {
-        get => isProfileActive;
-        set
-        {
-            isProfileActive = value;
-            NotifyPropertyChanged(nameof(IsProfileActive));
-        }
-    }
-
-    public ObservableCollection<ProfileDevice> Devices
-    {
-        get => devices;
-        set
-        {
-            devices = value;
-            NotifyPropertyChanged(nameof(Devices));
-        }
-    }
-
-
 }
 
-public class ProfileDevice : ObservableObject
+public partial class ProfileDevice : ObservableObject
 {
+    [ObservableProperty]
     private string deviceName;
+    [ObservableProperty]
     private string devicePartName;
+    [ObservableProperty]
     private string deviceSerialNo;
+    [ObservableProperty]
     private string macAddress;
+    [ObservableProperty]
     private int samplingFrequency;
+    [ObservableProperty]
     private List<ProfileChannel> channels;
-
-    public string DeviceName
-    {
-        get => deviceName;
-        set
-        {
-            deviceName = value;
-            NotifyPropertyChanged(nameof(DeviceName));
-        }
-    }
-
-    public string DevicePartName
-    {
-        get => devicePartName;
-        set
-        {
-            devicePartName = value;
-            NotifyPropertyChanged(nameof(DevicePartName));
-        }
-    }
-
-    public string DeviceSerialNo
-    {
-        get => deviceSerialNo;
-        set
-        {
-            deviceSerialNo = value;
-            NotifyPropertyChanged(nameof(DeviceSerialNo));
-        }
-    }
-
-    public string MACAddress
-    {
-        get => macAddress;
-        set
-        {
-            macAddress = value;
-            NotifyPropertyChanged(nameof(MACAddress));
-        }
-    }
-
-    public int SamplingFrequency
-    {
-        get => samplingFrequency;
-        set
-        {
-            samplingFrequency = value;
-            NotifyPropertyChanged(nameof(SamplingFrequency));
-        }
-    }
-
-    public List<ProfileChannel> Channels
-    {
-        get => channels;
-        set
-        {
-            channels = value;
-            NotifyPropertyChanged(nameof(Channels));
-        }
-    }
-
-
 }
 
-public class ProfileChannel : ObservableObject
+public partial class ProfileChannel : ObservableObject
 {
+    [ObservableProperty]
     private string name;
-
-    public string Name
-    {
-        get => name;
-        set
-        {
-            name = value;
-            NotifyPropertyChanged(nameof(Name));
-        }
-    }
+    [ObservableProperty]
     private string serialNo;
-
-    public string SerialNo
-    {
-        get => serialNo;
-        set
-        {
-            serialNo = value;
-            NotifyPropertyChanged(nameof(SerialNo));
-        }
-    }
-
+    [ObservableProperty]
     private string type;
-
-    public string Type
-    {
-        get => type;
-        set
-        {
-            type = value;
-            NotifyPropertyChanged(nameof(Type));
-        }
-    }
-
+    [ObservableProperty]
     private bool isChannelActive;
-
-    public bool IsChannelActive
-    {
-        get => isChannelActive;
-        set
-        {
-            isChannelActive = value;
-            NotifyPropertyChanged(nameof(IsChannelActive));
-        }
-    }
-
-
 }

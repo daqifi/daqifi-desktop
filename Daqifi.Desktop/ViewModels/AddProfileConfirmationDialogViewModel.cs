@@ -5,10 +5,11 @@ using Daqifi.Desktop.DialogService;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class AddProfileConfirmationDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+public class AddProfileConfirmationDialogViewModel : ObservableObject
 {
     #region Private Variables
     private IStreamingDevice _selectedDevice;
