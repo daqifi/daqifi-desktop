@@ -64,8 +64,14 @@ public partial class LoggingManager : ObservableObject
             // Clear loggers
             foreach (var logger in Loggers)
             {
-                if (logger is PlotLogger plotLogger) plotLogger.ClearPlot();
-                else if (logger is DatabaseLogger dbLogger) dbLogger.ClearPlot();
+                if (logger is PlotLogger plotLogger)
+                {
+                    plotLogger.ClearPlot();
+                }
+                else if (logger is DatabaseLogger dbLogger)
+                {
+                    dbLogger.ClearPlot();
+                }
             }
 
             // Resubscribe channels

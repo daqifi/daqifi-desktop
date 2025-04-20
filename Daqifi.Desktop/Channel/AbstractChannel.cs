@@ -145,7 +145,11 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
                     // For now, we just skip scaling
                 }
             }
-            if (_activeSample != null) NotifyChannelUpdated(this, _activeSample);
+
+            if (_activeSample != null)
+            {
+                NotifyChannelUpdated(this, _activeSample);
+            }
             OnPropertyChanged();
         }
     }
