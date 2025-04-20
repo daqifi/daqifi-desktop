@@ -10,7 +10,7 @@ using Daqifi.Desktop.Models;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public partial class DeviceLogsViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+public partial class DeviceLogsViewModel : ObservableObject
 {
     [ObservableProperty]
     private bool _isBusy;

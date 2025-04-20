@@ -1,8 +1,9 @@
-﻿using Daqifi.Desktop.Common.Loggers;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Desktop.Common.Loggers;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class ErrorDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+public class ErrorDialogViewModel : ObservableObject
 {
     #region Private Variables
     private string _errorMessage;

@@ -1,23 +1,16 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
 using Newtonsoft.Json.Linq;
 using System.Net.Http;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.Loggers;
 
-public class FirmwareUpdatationManager : ObservableObject
+public partial class FirmwareUpdatationManager : ObservableObject
 {
     private readonly AppLogger AppLogger = AppLogger.Instance;
         
+    [ObservableProperty]
     private string _latestFirmwareVersion;
-    public string LatestFirmwareVersion
-    {
-        get => _latestFirmwareVersion;
-        set
-        {
-            _latestFirmwareVersion = value;
-            NotifyPropertyChanged(nameof(LatestFirmwareVersion));
-        }
-    }
 
     public static FirmwareUpdatationManager Instance { get; } = new FirmwareUpdatationManager();
 

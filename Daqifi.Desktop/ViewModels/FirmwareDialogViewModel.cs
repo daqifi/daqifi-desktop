@@ -5,10 +5,11 @@ using Daqifi.Desktop.Device.HidDevice;
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace DAQifi.Desktop.ViewModels;
 
-public class FirmwareDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+public class FirmwareDialogViewModel : ObservableObject
 {
     private readonly Pic32Bootloader _bootloader;
     private string _version;

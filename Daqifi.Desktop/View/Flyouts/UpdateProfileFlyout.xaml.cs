@@ -126,7 +126,7 @@ public partial class UpdateProfileFlyout
                             DeviceName = connecteddevice.Name,
                             DevicePartName = connecteddevice.DevicePartNumber,
                             DeviceSerialNo = connecteddevice.DeviceSerialNo,
-                            MACAddress = connecteddevice.MacAddress,
+                            MacAddress = connecteddevice.MacAddress,
                             Channels = channels,
 
 

@@ -8,125 +8,92 @@ using System.Collections.ObjectModel;
 using Daqifi.Desktop.UpdateVersion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.Logger;
 
-public class LoggingManager : ObservableObject
+public partial class LoggingManager : ObservableObject
 {
     #region Private Variables
-    private List<IChannel> _subscribedChannels;
-    private List<LoggingSession> _loggingSessions;
-    private List<Profile> _subscribedProfiles;
-    private bool _active;
     private readonly AppLogger AppLogger = AppLogger.Instance;
     private static string ProfileAppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
     private static readonly string ProfileSettingsXmlPath = ProfileAppDirectory + "\\DAQifiProfilesConfiguration.xml";
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
-    private LoggingMode _currentMode = LoggingMode.Stream;
     #endregion
 
     #region Properties
     public List<ILogger> Loggers { get; }
 
-    public List<IChannel> SubscribedChannels
-    {
-        get => _subscribedChannels;
-        private set
-        {
-            _subscribedChannels = value;
-            NotifyPropertyChanged(nameof(SubscribedChannels));
-        }
-    }
+    [ObservableProperty]
+    private List<IChannel> _subscribedChannels = [];
 
-    public bool Active
-    {
-        get => _active;
-        set
-        {
-            if (!_active && value) // Starting a new logging session
-            {
-                using (var context = _loggingContext.CreateDbContext())
-                {
-                    var ids = (from s in context.Sessions.AsNoTracking() select s.ID).ToList();
-                    var newId = 0;
-                    if (ids.Count > 0) { newId = ids.Max() + 1; }
-                    var name = $"Session_{newId}";
-                    Session = new LoggingSession(newId, name);
-                    context.Sessions.Add(Session);
-                    context.SaveChanges();
-                }
-                    
-                // Clear all loggers when starting a new session
-                foreach (var logger in Loggers)
-                {
-                    if (logger is PlotLogger plotLogger)
-                    {
-                        plotLogger.ClearPlot();
-                    }
-                    else if (logger is DatabaseLogger dbLogger)
-                    {
-                        dbLogger.ClearPlot();
-                    }
-                }
+    [ObservableProperty]
+    private bool _active;
 
-                // Resubscribe all active channels to ensure proper event handling
-                foreach (var channel in SubscribedChannels.ToList())
-                {
-                    // Temporarily remove to ensure clean state
-                    channel.OnChannelUpdated -= HandleChannelUpdate;
-                        
-                    // Only reattach if in Stream mode
-                    if (CurrentMode == LoggingMode.Stream)
-                    {
-                        channel.OnChannelUpdated += HandleChannelUpdate;
-                    }
-                }
-            }
-            else if (_active && !value) // Stopping the current session
-            {
-                if (LoggingSessions == null) { LoggingSessions = new List<LoggingSession>(); }
-                LoggingSessions.Add(Session);
-                NotifyPropertyChanged(nameof(LoggingSessions));
-            }
+    [ObservableProperty]
+    private LoggingMode _currentMode;
 
-            _active = value;
-            NotifyPropertyChanged(nameof(Active));
-        }
-    }
+    [ObservableProperty]
+    private LoggingSession _session;
 
-    public LoggingSession Session { get; private set; }
-
-    public List<LoggingSession> LoggingSessions
-    {
-        get => _loggingSessions;
-        set
-        {
-            _loggingSessions = value;
-            NotifyPropertyChanged(nameof(LoggingSessions));
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets the current logging mode (Stream or SD Card)
-    /// </summary>
-    public LoggingMode CurrentMode
-    {
-        get => _currentMode;
-        set
-        {
-            if (_currentMode != value)
-            {
-                // If switching to SD card mode, stop streaming
-                if (value == LoggingMode.SdCard && Active)
-                {
-                    Active = false;
-                }
-                _currentMode = value;
-                NotifyPropertyChanged(nameof(CurrentMode));
-            }
-        }
-    }
+    [ObservableProperty]
+    private ObservableCollection<LoggingSession> _loggingSessions = [];
     #endregion
+
+    partial void OnActiveChanged(bool oldValue, bool newValue)
+    {
+        if (!newValue && oldValue) // Was active, now stopping
+        {
+            if (Session != null)
+            {
+                LoggingSessions.Add(Session);
+            }
+        }
+        else if (newValue && !oldValue) // Was inactive, now starting
+        {
+            using (var context = _loggingContext.CreateDbContext())
+            {
+                var ids = context.Sessions.AsNoTracking().Select(s => s.ID).ToList();
+                var newId = ids.Count > 0 ? ids.Max() + 1 : 0;
+                var name = $"Session_{newId}";
+                Session = new LoggingSession(newId, name);
+                context.Sessions.Add(Session);
+                context.SaveChanges();
+            }
+
+            // Clear loggers
+            foreach (var logger in Loggers)
+            {
+                if (logger is PlotLogger plotLogger)
+                {
+                    plotLogger.ClearPlot();
+                }
+                else if (logger is DatabaseLogger dbLogger)
+                {
+                    dbLogger.ClearPlot();
+                }
+            }
+
+            // Resubscribe channels
+            foreach (var channel in SubscribedChannels.ToList())
+            {
+                channel.OnChannelUpdated -= HandleChannelUpdate;
+                if (CurrentMode == LoggingMode.Stream)
+                {
+                    channel.OnChannelUpdated += HandleChannelUpdate;
+                }
+            }
+        }
+    }
+
+    partial void OnCurrentModeChanged(LoggingMode value)
+    {
+        // If switching to SD card mode, stop streaming
+        if (value == LoggingMode.SdCard && Active)
+        {
+            Active = false; // Setting Active will trigger OnActiveChanged
+        }
+    }
 
     #region Singleton Constructor / Initalization
     private static readonly LoggingManager instance = new LoggingManager();
@@ -137,7 +104,6 @@ public class LoggingManager : ObservableObject
         SubscribedChannels = new List<IChannel>();
         SubscribedProfiles = new List<Profile>();
         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
-
     }
 
     public static LoggingManager Instance => instance;
@@ -147,59 +113,21 @@ public class LoggingManager : ObservableObject
     #region Profile Subscription
 
     #region Profile feature Properties
-    public List<Profile> SubscribedProfiles
-    {
-        get => _subscribedProfiles;
-        private set
-        {
-            _subscribedProfiles = value;
-            NotifyPropertyChanged("SubscribedProfiles");
-        }
-    }
+    [ObservableProperty]
+    private List<Profile> _subscribedProfiles = new List<Profile>();
+
+    [ObservableProperty]
     private Profile _selectedProfile;
-    public Profile SelectedProfile
-    {
-        get => _selectedProfile;
-        set
-        {
-            _selectedProfile = value;
-            NotifyPropertyChanged("SelectedProfile");
 
-        }
-    }
+    [ObservableProperty]
     private bool _flag;
-    public bool Flag
-    {
-        get => _flag;
-        set
-        {
-            _flag = value;
-            NotifyPropertyChanged("Flag");
 
-        }
-    }
-    private ObservableCollection<ProfileChannel> _SelectedProfileChannels = new ObservableCollection<ProfileChannel>();
-    public ObservableCollection<ProfileChannel> SelectedProfileChannels
-    {
-        get => _SelectedProfileChannels;
-        set
-        {
-            _SelectedProfileChannels = value;
-            NotifyPropertyChanged("SelectedProfileChannels");
-        }
-    }
-    private ObservableCollection<ProfileDevice> _SelectedProfileDevices = new ObservableCollection<ProfileDevice>();
-    public ObservableCollection<ProfileDevice> SelectedProfileDevices
-    {
-        get => _SelectedProfileDevices;
-        set
-        {
-            _SelectedProfileDevices = value;
-            NotifyPropertyChanged("SelectedProfileChannels");
-        }
-    }
+    [ObservableProperty]
+    private ObservableCollection<ProfileChannel> _selectedProfileChannels = new ObservableCollection<ProfileChannel>();
+
+    [ObservableProperty]
+    private ObservableCollection<ProfileDevice> _selectedProfileDevices = new ObservableCollection<ProfileDevice>();
     #endregion
-
 
     public void SubscribeProfile(Profile profile)
     {
@@ -208,20 +136,18 @@ public class LoggingManager : ObservableObject
             if (SubscribedProfiles.Contains(profile)) { return; }
             AddAndRemoveProfileXml(profile, true);
             SubscribedProfiles.Add(profile);
-            NotifyPropertyChanged("SubscribedProfiles");
         }
         catch (Exception ex)
         {
-
             AppLogger.Error(ex, $"Error Subscribe Profile");
         }
-
     }
+
     public void callPropertyChange()
     {
-        NotifyPropertyChanged("SelectedProfileChannels");
-
+        OnPropertyChanged("SelectedProfileChannels");
     }
+
     public void UpdateProfileInXml(Profile profile)
     {
         try
@@ -245,7 +171,7 @@ public class LoggingManager : ObservableObject
                     XElement deviceElement = new XElement("Device",
                         new XElement("DeviceName", device.DeviceName),
                         new XElement("DevicePartNumber", device.DevicePartName),
-                        new XElement("MACAddress", device.MACAddress),
+                        new XElement("MACAddress", device.MacAddress),
                         new XElement("DeviceSerialNo", device.DeviceSerialNo),
                         new XElement("SamplingFrequency", device.SamplingFrequency)
                     );
@@ -297,8 +223,6 @@ public class LoggingManager : ObservableObject
             XDocument doc = XDocument.Load(ProfileSettingsXmlPath);
             if (profile != null)
             {
-
-
                 if (AddProfileFlag)
                 {
                     XElement newProfile = new XElement("Profile",
@@ -310,7 +234,7 @@ public class LoggingManager : ObservableObject
                             select new XElement("Device",
                                 new XElement("DeviceName", device.DeviceName),
                                 new XElement("DevicePartNumber", device.DevicePartName),
-                                new XElement("MACAddress", device.MACAddress),
+                                new XElement("MACAddress", device.MacAddress),
                                 new XElement("DeviceSerialNo", device.DeviceSerialNo),
                                 new XElement("Channels",
                                     from channel in device.Channels
@@ -320,7 +244,6 @@ public class LoggingManager : ObservableObject
                                         new XElement("Type", channel.Type),
                                         new XElement("IsActive", channel.IsChannelActive),
                                         new XElement("SerialNo", device.DeviceSerialNo)
-
                                     )
                                 ),
                                 new XElement("SamplingFrequency", device.SamplingFrequency)
@@ -345,6 +268,7 @@ public class LoggingManager : ObservableObject
             AppLogger.Error(ex, "Error Setting Selected profile");
         }
     }
+
     public List<Profile> LoadProfilesFromXml()
     {
         var profiles = new List<Profile>();
@@ -367,7 +291,7 @@ public class LoggingManager : ObservableObject
                     {
                         DeviceName = (string)d.Element("DeviceName"),
                         DevicePartName = (string)d.Element("DevicePartNumber"),
-                        MACAddress = (string)d.Element("MACAddress"),
+                        MacAddress = (string)d.Element("MACAddress"),
                         DeviceSerialNo = (string)d.Element("DeviceSerialNo"),
                         SamplingFrequency = (int)d.Element("SamplingFrequency"),
                         Channels = d.Element("Channels")?.Elements("Channel").Select(c => new ProfileChannel
@@ -380,7 +304,6 @@ public class LoggingManager : ObservableObject
                     }).ToList())
                 }).ToList();
             }
-
         }
         catch (Exception ex)
         {
@@ -403,13 +326,11 @@ public class LoggingManager : ObservableObject
             var subscribedProfile = SubscribedProfiles[index];
             AddAndRemoveProfileXml(subscribedProfile, false);
             ClearChannelList();
-            NotifyPropertyChanged("SubscribedProfiles");
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Error Unsubscribe Profile");
         }
-
     }
     #endregion
 
@@ -430,7 +351,7 @@ public class LoggingManager : ObservableObject
         }
             
         SubscribedChannels.Add(channel);
-        NotifyPropertyChanged(nameof(SubscribedChannels));
+        OnPropertyChanged(nameof(SubscribedChannels));
     }
 
     public void Unsubscribe(IChannel channel)
@@ -450,7 +371,7 @@ public class LoggingManager : ObservableObject
         subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
             
         SubscribedChannels.RemoveAt(index);
-        NotifyPropertyChanged(nameof(SubscribedChannels));
+        OnPropertyChanged(nameof(SubscribedChannels));
     }
     #endregion
 
@@ -499,19 +420,18 @@ public class LoggingManager : ObservableObject
     public async Task CheckApplicationVersion(VersionNotification versionNotification)
     {
         await versionNotification.CheckForUpdatesAsync();
-        NotifyPropertyChanged("NotificationCount");
-        NotifyPropertyChanged("VersionNumber");
+        OnPropertyChanged("NotificationCount");
+        OnPropertyChanged("VersionNumber");
     }
 
     private void ClearChannelList()
     {
-
         foreach (var channel in SubscribedChannels)
         {
             channel.IsActive = false;
             channel.OnChannelUpdated -= HandleChannelUpdate;
         }
         SubscribedChannels.Clear();
-        NotifyPropertyChanged("SubscribedChannels");
+        OnPropertyChanged("SubscribedChannels");
     }
 }

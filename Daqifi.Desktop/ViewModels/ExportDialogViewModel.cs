@@ -9,10 +9,11 @@ using Microsoft.Extensions.DependencyInjection;
 using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class ExportDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+public class ExportDialogViewModel : ObservableObject
 {
     #region Private Variables
     private readonly List<int> _sessionsIds;

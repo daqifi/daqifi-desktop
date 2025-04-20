@@ -11,10 +11,11 @@ using DAQifi.Desktop.ViewModels;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class ConnectionDialogViewModel : CommunityToolkit.Mvvm.ComponentModel.ObservableObject
+public class ConnectionDialogViewModel : ObservableObject
 {
     #region Private Variables
     private DaqifiDeviceFinder _wifiFinder;

@@ -1,4 +1,5 @@
-﻿using Daqifi.Desktop.Logger;
+﻿using System.Collections.ObjectModel;
+using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,7 +46,7 @@ public partial class LoggedSessionFlyout
         }
         using (var context = _loggingContext.CreateDbContext())
         {
-            var savedLoggingSessions = new List<LoggingSession>();
+            var savedLoggingSessions = new ObservableCollection<LoggingSession>();
             var previousSampleSessions = (from s in context.Sessions select s).ToList();
             foreach (var lsession in previousSampleSessions)
             {

@@ -5,10 +5,11 @@ using System.Collections;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Brush = System.Windows.Media.Brush;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class SelectColorDialogViewModel : ObservableObject
+public partial class SelectColorDialogViewModel : ObservableObject
 {
     #region Private Variables
     private readonly IColorable _colorObject;

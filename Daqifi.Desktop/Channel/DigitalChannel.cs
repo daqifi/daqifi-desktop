@@ -24,6 +24,7 @@ public class DigitalChannel : AbstractChannel
         DeviceName = owner.DevicePartNumber;
         DeviceSerialNo=owner.DeviceSerialNo;
         Index = channelId;
+        Direction = direction;
         IsOutput = direction == ChannelDirection.Output;
         IsBidirectional = isBidirectional;
         ChannelColorBrush = ChannelColorManager.Instance.NewColor();

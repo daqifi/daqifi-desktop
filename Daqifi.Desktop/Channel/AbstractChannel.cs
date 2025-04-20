@@ -3,136 +3,62 @@ using Daqifi.Desktop.Device;
 using NCalc;
 using System.ComponentModel.DataAnnotations.Schema;
 using Brush = System.Windows.Media.Brush;
-
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.Channel;
 
-public abstract class AbstractChannel : ObservableObject, IChannel
+public abstract partial class AbstractChannel : ObservableObject, IChannel
 {
     #region Private Data
-    private string _name;
-    private double _outputValue;
-    private ChannelDirection _direction = ChannelDirection.Unknown;
-    private Brush _channelColorBrush;
-    private bool _isOutput;
-    private bool _hasAdc;
-    private bool _isDigitalOn;
+    private string _scaledExpression;
     private DataSample _activeSample;
     protected IStreamingDevice _owner;
-    private string _scaledExpression;
-    private bool _hasValidExpression;
-    private bool _isScalingActive;
     #endregion
 
     #region Properties
     public int ID { get; set; }
 
-    public string Name
-    {
-        get => _name;
-        set
-        {
-            _name = value;
-            NotifyPropertyChanged("Name");
-        }
-    }
-    public int Index { get; set; }
+    [ObservableProperty]
+    private string _name;
 
+    [ObservableProperty]
+    private double _outputValue;
+
+    [ObservableProperty]
+    private ChannelDirection _direction = ChannelDirection.Unknown;
+
+    [ObservableProperty]
+    private Brush _channelColorBrush;
+
+    [ObservableProperty]
+    private bool _isOutput;
+
+    [ObservableProperty]
+    private bool _hasAdc;
+
+    [ObservableProperty]
+    private bool _isDigitalOn;
+
+    [ObservableProperty]
+    private bool _isScalingActive;
+
+    [ObservableProperty]
+    private bool _hasValidExpression;
+
+    public int Index { get; set; }
     public string DeviceName { get; set; }
     public string DeviceSerialNo { get; set; }
-
-    public double OutputValue
-    {
-        get => _outputValue;
-        set
-        {
-            if (Direction != ChannelDirection.Output) { return; }
-            _outputValue = value;
-            _owner.SetChannelOutputValue(this, value);
-            NotifyPropertyChanged("OutputValue");
-        }
-    }
 
     public abstract ChannelType Type { get; }
 
     [NotMapped]
-    public ChannelDirection Direction
-    {
-        get => _direction;
-        set
-        {
-            if (_direction == value) { return; }
-
-            if (_direction == ChannelDirection.Unknown)
-            {
-                _direction = value;
-                NotifyPropertyChanged("Direction");
-                return;
-            }
-
-            _direction = value;
-            _owner.SetChannelDirection(this, value);
-            NotifyPropertyChanged("Direction");
-        }
-    }
-
-    [NotMapped]
     public bool IsBidirectional { get; set; }
-
-    [NotMapped]
-    public bool IsOutput
-    {
-        get => _isOutput;
-        set
-        {
-            _isOutput = value;
-
-            Direction = _isOutput ? ChannelDirection.Output : ChannelDirection.Input;
-            NotifyPropertyChanged("IsOutput");
-            NotifyPropertyChanged("TypeString");
-        }
-    }
-
-    [NotMapped]
-    public bool HasAdc
-    {
-        get => _hasAdc;
-        set
-        {
-            _hasAdc = value;
-            NotifyPropertyChanged("HasAdc");
-        }
-    }
-
-    [NotMapped]
-    public Brush ChannelColorBrush
-    {
-        get => _channelColorBrush;
-        set
-        {
-            _channelColorBrush = value;
-            _channelColorBrush.Freeze();
-            NotifyPropertyChanged("ChannelColorBrush");
-        }
-    }
 
     [NotMapped]
     public bool IsActive { get; set; }
 
     [NotMapped]
     public abstract bool IsDigital { get; }
-
-    [NotMapped]
-    public bool IsDigitalOn
-    {
-        get => _isDigitalOn;
-        set
-        {
-            _isDigitalOn = value;
-            _owner.SetChannelOutputValue(this, value ? 1 : 0);
-            NotifyPropertyChanged("IsDigitalOn");
-        }
-    }
 
     [NotMapped]
     public abstract bool IsAnalog { get; }
@@ -172,7 +98,12 @@ public abstract class AbstractChannel : ObservableObject, IChannel
         {
             _scaledExpression = value;
 
-            if (string.IsNullOrWhiteSpace(_scaledExpression)) { return; }
+            if (string.IsNullOrWhiteSpace(_scaledExpression)) 
+            {
+                HasValidExpression = false;
+                Expression = null;
+                return; 
+            }
 
             Expression = new Expression(_scaledExpression)
             {
@@ -184,32 +115,12 @@ public abstract class AbstractChannel : ObservableObject, IChannel
                 Expression.Evaluate();
                 HasValidExpression = true;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 HasValidExpression = false;
+                Expression = null;
             }
-        }
-    }
-
-    [NotMapped]
-    public bool IsScalingActive
-    {
-        get => _isScalingActive;
-        set
-        {
-            _isScalingActive = value;
-            NotifyPropertyChanged("IsScalingActive");
-        }
-    }
-
-    [NotMapped]
-    public bool HasValidExpression
-    {
-        get => _hasValidExpression;
-        set
-        {
-            _hasValidExpression = value;
-            NotifyPropertyChanged("HasValidExpression");
+            OnPropertyChanged();
         }
     }
 
@@ -221,15 +132,61 @@ public abstract class AbstractChannel : ObservableObject, IChannel
         set
         {
             _activeSample = value;
-            if (Expression != null)
+            if (Expression != null && HasValidExpression && IsScalingActive && _activeSample != null)
             {
-                Expression.Parameters["x"] = _activeSample.Value;
-                _activeSample.Value = (double)Expression.Evaluate();
+                try
+                {
+                    Expression.Parameters["x"] = _activeSample.Value;
+                    _activeSample.Value = Convert.ToDouble(Expression.Evaluate());
+                }
+                catch (Exception ex)
+                {
+                    // Handle evaluation error, maybe log it or invalidate the sample?
+                    // For now, we just skip scaling
+                }
             }
-            NotifyChannelUpdated(this, _activeSample);
+
+            if (_activeSample != null)
+            {
+                NotifyChannelUpdated(this, _activeSample);
+            }
+            OnPropertyChanged();
         }
     }
     #endregion
+
+    partial void OnOutputValueChanged(double value)
+    {
+        if (Direction == ChannelDirection.Output)
+        {
+            _owner?.SetChannelOutputValue(this, value);
+        }
+    }
+
+    partial void OnDirectionChanged(ChannelDirection value)
+    {
+        if (Direction != ChannelDirection.Unknown && value != Direction)
+        {
+            _owner?.SetChannelDirection(this, value);
+            OnPropertyChanged(nameof(TypeString));
+        }
+    }
+
+    partial void OnIsOutputChanged(bool value)
+    {
+        Direction = value ? ChannelDirection.Output : ChannelDirection.Input;
+        OnPropertyChanged(nameof(TypeString));
+    }
+
+    partial void OnChannelColorBrushChanged(Brush value)
+    {
+        value?.Freeze();
+    }
+
+    partial void OnIsDigitalOnChanged(bool value)
+    {
+        _owner?.SetChannelOutputValue(this, value ? 1 : 0);
+    }
 
     #region Events/Handlers
     public event OnChannelUpdatedHandler OnChannelUpdated;

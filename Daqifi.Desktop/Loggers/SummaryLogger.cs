@@ -4,13 +4,14 @@ using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using System.Text;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.Logger;
 
 /// <summary>
 /// Provaides summary data for incoming samples
 /// </summary>
-public class SummaryLogger : ObservableObject, ILogger
+public partial class SummaryLogger : ObservableObject, ILogger
 {
 
     #region "Private Data"
@@ -243,8 +244,10 @@ public class SummaryLogger : ObservableObject, ILogger
         }
     }
 
+    [ObservableProperty]
     private int _sampleSize;
 
+    [ObservableProperty]
     private bool _enabled;
 
     /// <summary>
@@ -261,27 +264,14 @@ public class SummaryLogger : ObservableObject, ILogger
     /// Application logger
     /// </summary>
     public AppLogger AppLogger = AppLogger.Instance;
+
+    private double _elapsedTime;
+    private DateTime _lastUpdate;
+    private double _sampleRate;
+
     #endregion
 
     #region "Properties"
-    /// <summary>
-    /// Indicates whether the logger is accepting data
-    /// </summary>
-    public bool Enabled
-    {
-        get => _enabled;
-        set { _enabled = value; NotifyPropertyChanged("Enabled"); }
-    }
-
-    /// <summary>
-    /// The number of samples to evaluate
-    /// </summary>
-    public int SampleSize
-    {
-        get => _sampleSize;
-        set { _sampleSize = value; NotifyPropertyChanged("SampleSize"); }
-    }
-
     /// <summary>
     /// The total elapsed time
     /// </summary>
@@ -311,7 +301,6 @@ public class SummaryLogger : ObservableObject, ILogger
     {
         get
         {
-            // FirstSampleTicks is measured from the end of the sample, so we need to drop the first sample
             var delta = new TimeSpan(_current.LastSampleTicks - _current.FirstSampleTicks);
             return delta.Ticks > 0 ? (_current.SampleCount - 1) / delta.TotalSeconds : 0.0;
         }
@@ -355,14 +344,10 @@ public class SummaryLogger : ObservableObject, ILogger
         get
         {
             var result = new List<ChannelSummary>();
-            foreach (var item in _current.Channels)
+            foreach (var pair in _current.Channels)
             {
-                if (item.Value.SampleCount > 0)
-                {
-                    result.Add(new ChannelSummary(item.Key, item.Value));
-                }
+                result.Add(new ChannelSummary(pair.Key, pair.Value));
             }
-
             return result;
         }
     }
@@ -371,22 +356,22 @@ public class SummaryLogger : ObservableObject, ILogger
     {
         get
         {
-            var builder = new StringBuilder();
-            foreach (var status in _current.StatusList)
+            var sb = new StringBuilder();
+            if (_current.StatusList.Count > 0)
             {
-                builder.AppendFormat("{0}, ", status);
-            }
-
-            if (_current.HasRollover)
-            {
-                builder.Append("Rollover: Y");
+                var first = true;
+                foreach (var status in _current.StatusList)
+                {
+                    if (!first) sb.Append(", ");
+                    first = false;
+                    sb.Append(status);
+                }
             }
             else
             {
-                builder.Append("Rollover: N");
+                sb.Append("-");
             }
-
-            return builder.ToString();
+            return sb.ToString();
         }
     }
 
@@ -410,13 +395,11 @@ public class SummaryLogger : ObservableObject, ILogger
 
     public SummaryLogger()
     {
-        _buffer = new SummaryBuffer();
-        _current = new SummaryBuffer();
-
-        _sampleSize = 1000;
-
         ResetCommand = new DelegateCommand(Reset);
         ToggleEnabledCommand = new DelegateCommand(ToggleEnabled);
+        _sampleSize = 1000;
+        _buffer = new SummaryBuffer();
+        _current = new SummaryBuffer();
     }
 
     #endregion
@@ -547,17 +530,17 @@ public class SummaryLogger : ObservableObject, ILogger
 
     private void NotifyResultsChanged()
     {
-        NotifyPropertyChanged("ElapsedTime");
-        NotifyPropertyChanged("LastUpdate");
-        NotifyPropertyChanged("SampleRate");
-        NotifyPropertyChanged("MaxDelta");
-        NotifyPropertyChanged("MinDelta");
-        NotifyPropertyChanged("AverageDelta");
-        NotifyPropertyChanged("MaxLatency");
-        NotifyPropertyChanged("MinLatency");
-        NotifyPropertyChanged("AverageLatency");
-        NotifyPropertyChanged("StatusList");
-        NotifyPropertyChanged("Channels");
+        OnPropertyChanged(nameof(Channels));
+        OnPropertyChanged(nameof(ElapsedTime));
+        OnPropertyChanged(nameof(LastUpdate));
+        OnPropertyChanged(nameof(SampleRate));
+        OnPropertyChanged(nameof(MaxDelta));
+        OnPropertyChanged(nameof(MinDelta));
+        OnPropertyChanged(nameof(AverageDelta));
+        OnPropertyChanged(nameof(MaxLatency));
+        OnPropertyChanged(nameof(MinLatency));
+        OnPropertyChanged(nameof(AverageLatency));
+        OnPropertyChanged(nameof(StatusList));
     }
 
     private void ToggleEnabled(object o)
@@ -579,7 +562,7 @@ public class SummaryLogger : ObservableObject, ILogger
             _enabled = false;
             _buffer.Reset();
             _enabled = true;
-            NotifyPropertyChanged("Enabled");
+            OnPropertyChanged("Enabled");
         }
     }
 
@@ -588,7 +571,7 @@ public class SummaryLogger : ObservableObject, ILogger
         lock (_buffer)
         {
             _enabled = false;
-            NotifyPropertyChanged("Enabled");
+            OnPropertyChanged("Enabled");
         }
     }
 
