@@ -12,8 +12,8 @@ namespace Daqifi.Desktop.Exporter;
 
 public class LoggingSessionExporter
 {
-    private AppLogger AppLogger = AppLogger.Instance;
-    private readonly string Delimiter = DaqifiSettings.Instance.CsvDelimiter;
+    private readonly AppLogger _appLogger = AppLogger.Instance;
+    private readonly string _delimiter = DaqifiSettings.Instance.CsvDelimiter;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     public LoggingSessionExporter()
     {
@@ -40,7 +40,7 @@ public class LoggingSessionExporter
             channelNames.Sort(new OrdinalStringComparer());
 
             var sb = new StringBuilder();
-            sb.Append(exportRelativeTime ? "Relative Time (s)" : "Time").Append(Delimiter).Append(string.Join(Delimiter, channelNames)).AppendLine();
+            sb.Append(exportRelativeTime ? "Relative Time (s)" : "Time").Append(_delimiter).Append(string.Join(_delimiter, channelNames)).AppendLine();
             File.WriteAllText(filepath, sb.ToString());
             sb.Clear();
 
@@ -52,7 +52,7 @@ public class LoggingSessionExporter
             {
                 if (bw.CancellationPending)
                 {
-                    AppLogger.Warning("Export operation cancelled by user.");
+                    _appLogger.Warning("Export operation cancelled by user.");
                     return;
                 }
                 var pagedSampleDictionary = loggingSession.DataSamples
@@ -82,7 +82,7 @@ public class LoggingSessionExporter
 
                     foreach (var sample in sampleDictionary)
                     {
-                        sb.Append(Delimiter);
+                        sb.Append(_delimiter);
                         sb.Append(sample.Value.HasValue ? sample.Value.Value.ToString("G") : string.Empty);
                     }
 
@@ -98,7 +98,7 @@ public class LoggingSessionExporter
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Exception in ExportLoggingSession");
+            _appLogger.Error(ex, "Exception in ExportLoggingSession");
         }
     }
 
@@ -134,7 +134,7 @@ public class LoggingSessionExporter
                 }
 
                 var sb = new StringBuilder();
-                sb.Append(exportRelativeTime ? "Relative Time (s)" : "Time").Append(Delimiter).Append(string.Join(Delimiter, channelNames)).AppendLine();
+                sb.Append(exportRelativeTime ? "Relative Time (s)" : "Time").Append(_delimiter).Append(string.Join(_delimiter, channelNames)).AppendLine();
 
                 var tempTotals = channelNames.ToDictionary(name => name, _ => 0.0);
                 var tempCounts = channelNames.ToDictionary(name => name, _ => 0);
@@ -159,11 +159,11 @@ public class LoggingSessionExporter
                             ? ((timestamp - firstTimestampTicks) / (double)TimeSpan.TicksPerSecond).ToString("F3")
                             : new DateTime(timestamp).ToString("O");
 
-                        sb.Append(timeString).Append(Delimiter);
+                        sb.Append(timeString).Append(_delimiter);
                         foreach (var channelName in channelNames)
                         {
                             var average = tempCounts[channelName] > 0 ? tempTotals[channelName] / tempCounts[channelName] : (double?)null;
-                            sb.Append(average?.ToString("G") ?? string.Empty).Append(Delimiter);
+                            sb.Append(average?.ToString("G") ?? string.Empty).Append(_delimiter);
                         }
                         sb.Length--;
                         sb.AppendLine();
@@ -188,7 +188,7 @@ public class LoggingSessionExporter
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed in ExportAverageSamples");
+            _appLogger.Error(ex, "Failed in ExportAverageSamples");
         }
     }
 }

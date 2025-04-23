@@ -1,7 +1,6 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
 using Microsoft.EntityFrameworkCore;
@@ -23,11 +22,9 @@ public class ExportDialogViewModel : ObservableObject
     private bool _isExporting;
     private int _averageQuantity = 2;
     private int _exportProgress;
-    private readonly IDialogService _dialogService;
     #endregion
 
     #region Properties
-    public AppLogger AppLogger = AppLogger.Instance;
     public string ExportFilePath
     {
         get => _exportFilePath;

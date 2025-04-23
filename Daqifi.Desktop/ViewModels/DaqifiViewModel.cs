@@ -103,7 +103,7 @@ public partial class DaqifiViewModel : ObservableObject
     public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = [];
     public ObservableCollection<Profile> profiles { get; } = [];
 
-    public ObservableCollection<Notifications> notificationlist { get; } = [];
+    public ObservableCollection<Notifications> NotificationList { get; } = [];
     public ObservableCollection<IChannel> ActiveChannels { get; } = [];
     public ObservableCollection<IChannel> ActiveInputChannels { get; } = [];
     public ObservableCollection<LoggingSession> LoggingSessions => LoggingManager.Instance.LoggingSessions;
@@ -1336,9 +1336,9 @@ public partial class DaqifiViewModel : ObservableObject
                         Message = $"Please update latest application version:  {VersionName}",
                         Link = "https://github.com/daqifi/daqifi-desktop/releases"
                     };
-                    if (!notificationlist.Any(n => n.Message == notify.Message || n.Link == notify.Link))
+                    if (!NotificationList.Any(n => n.Message == notify.Message || n.Link == notify.Link))
                     {
-                        notificationlist.Add(notify);
+                        NotificationList.Add(notify);
                     }
                 }
                 break;
@@ -1453,30 +1453,30 @@ public partial class DaqifiViewModel : ObservableObject
     }
     private void RemoveNotification()
     {
-        foreach (var notification in notificationlist.ToList())
+        foreach (var notification in NotificationList.ToList())
         {
             var deviceIsDisconnected = !ConnectionManager.Instance.ConnectedDevices
                 .Any(device => device.DeviceSerialNo == notification.DeviceSerialNo);
 
             if (deviceIsDisconnected)
             {
-                notificationlist.Remove(notification);
+                NotificationList.Remove(notification);
             }
         }
-        NotificationCount = notificationlist.Count;
+        NotificationCount = NotificationList.Count;
     }
 
     private void AddNotification(IStreamingDevice device, string LatestFirmware)
     {
         var message = $"Device With Serial {device.DeviceSerialNo} has Outdated Firmware. Please Update to Version {LatestFirmware}.";
 
-        var existingNotification = notificationlist.FirstOrDefault(n => n.DeviceSerialNo != null
+        var existingNotification = NotificationList.FirstOrDefault(n => n.DeviceSerialNo != null
                                                                         && n.isFirmwareUpdate
                                                                         && n.DeviceSerialNo == device.DeviceSerialNo);
 
         if (existingNotification == null)
         {
-            notificationlist.Add(new Notifications
+            NotificationList.Add(new Notifications
             {
                 DeviceSerialNo = device.DeviceSerialNo,
                 Message = message,
@@ -1484,13 +1484,13 @@ public partial class DaqifiViewModel : ObservableObject
             });
         }
 
-        NotificationCount = notificationlist.Count;
+        NotificationCount = NotificationList.Count;
     }
     private void RemoveNotification(IStreamingDevice deviceToRemove)
     {
-        var notificationsToRemove = notificationlist.FirstOrDefault(x => x.DeviceSerialNo != null && x.DeviceSerialNo == deviceToRemove.DeviceSerialNo && x.isFirmwareUpdate);
-        notificationlist.Remove(notificationsToRemove);
-        NotificationCount = notificationlist.Count;
+        var notificationsToRemove = NotificationList.FirstOrDefault(x => x.DeviceSerialNo != null && x.DeviceSerialNo == deviceToRemove.DeviceSerialNo && x.isFirmwareUpdate);
+        NotificationList.Remove(notificationsToRemove);
+        NotificationCount = NotificationList.Count;
     }
 
     #endregion

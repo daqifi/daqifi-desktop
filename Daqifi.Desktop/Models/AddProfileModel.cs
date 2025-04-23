@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.Models;
 
-public partial class AddProfileModel : ObservableObject
+public class AddProfileModel : ObservableObject
 {
     public List<Profile> ProfileList { get; set; }
 }
