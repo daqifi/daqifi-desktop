@@ -27,7 +27,7 @@ using File = System.IO.File;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class DaqifiViewModel : ObservableObject
+public partial class DaqifiViewModel : ObservableObject
 {
     private readonly AppLogger _appLogger = AppLogger.Instance;
         
@@ -35,15 +35,25 @@ public class DaqifiViewModel : ObservableObject
     private const int SidePanelWidth = 85;
     private const int TopToolbarHeight = 30;
     
+    [ObservableProperty]
     private bool _isBusy;
+    [ObservableProperty]
     private bool _isLoggedDataBusy;
+    [ObservableProperty]
     private bool _isDeviceSettingsOpen;
+    [ObservableProperty]
     private bool _isProfileSettingsOpen;
+    [ObservableProperty]
     private bool _isNotificationsOpen;
+    [ObservableProperty]
     private bool _isFirmwareUpdatationFlyoutOpen;
+    [ObservableProperty]
     private bool _isLogSummaryOpen;
+    [ObservableProperty]
     private bool _isChannelSettingsOpen;
+    [ObservableProperty]
     private bool _isLoggingSessionSettingsOpen;
+    [ObservableProperty]
     private bool _isLiveGraphSettingsOpen;
     private int _width = 800;
     private int _height = 600;
@@ -54,21 +64,32 @@ public class DaqifiViewModel : ObservableObject
     private IStreamingDevice _selectedDevice;
     private VersionNotification? _versionNotification;
     private IStreamingDevice _updateProfileSelectedDevice;
+    [ObservableProperty]
     private IChannel _selectedChannel;
+    [ObservableProperty]
     private Profile _selectedProfile;
+    [ObservableProperty]
     private LoggingSession _selectedLoggingSession;
     private bool _isLogging;
     private bool _canToggleLogging;
+    [ObservableProperty]
     private string _loggedDataBusyReason;
+    [ObservableProperty]
     private string _firmwareFilePath;
     private Pic32Bootloader _bootloader;
+    [ObservableProperty]
     private string _version;
+    [ObservableProperty]
     private bool _isFirmwareUploading;
+    [ObservableProperty]
     private bool _isUploadComplete;
+    [ObservableProperty]
     private bool _hasErrorOccured;
     private int _uploadFirmwareProgress;
+    [ObservableProperty]
     private int _uploadWiFiProgress;
     private HidDeviceFinder _hidDeviceFinder;
+    [ObservableProperty]
     private bool _hasNoHidDevices = true;
     private ConnectionDialogViewModel _connectionDialogViewModel;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
@@ -92,55 +113,6 @@ public class DaqifiViewModel : ObservableObject
     public SummaryLogger SummaryLogger { get; private set; }
     public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
     public ObservableCollection<IChannel> AvailableChannels { get; } = [];
-    public string Version
-    {
-        get => _version;
-        set
-        {
-            _version = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public string FirmwareFilePath
-    {
-        get => _firmwareFilePath;
-        set
-        {
-            _firmwareFilePath = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool IsFirmwareUploading
-    {
-        get => _isFirmwareUploading;
-        set
-        {
-            _isFirmwareUploading = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool IsUploadComplete
-    {
-        get => _isUploadComplete;
-        set
-        {
-            _isUploadComplete = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool HasErrorOccured
-    {
-        get => _hasErrorOccured;
-        set
-        {
-            _hasErrorOccured = value;
-            OnPropertyChanged();
-        }
-    }
 
     public int UploadFirmwareProgress
     {
@@ -152,26 +124,9 @@ public class DaqifiViewModel : ObservableObject
             OnPropertyChanged("UploadFirmwareProgressText");
         }
     }
-    public int UploadWiFiProgress
-    {
-        get => _uploadWiFiProgress;
-        set
-        {
-            _uploadWiFiProgress = value;
-            OnPropertyChanged();
-        }
-    }
 
     public string UploadFirmwareProgressText => ($"Upload Progress: {UploadFirmwareProgress}%");
-    public bool HasNoHidDevices
-    {
-        get => _hasNoHidDevices;
-        set
-        {
-            _hasNoHidDevices = value;
-            OnPropertyChanged();
-        }
-    }
+    
     public IStreamingDevice UpdateProfileSelectedDevice
     {
         get => _updateProfileSelectedDevice;
@@ -179,25 +134,6 @@ public class DaqifiViewModel : ObservableObject
         {
             _updateProfileSelectedDevice = value;
             GetAvailableChannels(_updateProfileSelectedDevice);
-            OnPropertyChanged();
-        }
-    }
-    public bool IsBusy
-    {
-        get => _isBusy;
-        private set
-        {
-            _isBusy = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool IsLoggedDataBusy
-    {
-        get => _isLoggedDataBusy;
-        private set
-        {
-            _isLoggedDataBusy = value;
             OnPropertyChanged();
         }
     }
@@ -250,108 +186,13 @@ public class DaqifiViewModel : ObservableObject
         }
     }
 
-    public bool IsDeviceSettingsOpen
-    {
-        get => _isDeviceSettingsOpen;
-        set
-        {
-            _isDeviceSettingsOpen = value;
-            OnPropertyChanged();
-        }
-    }
-    public bool IsProfileSettingsOpen
-    {
-        get => _isProfileSettingsOpen;
-        set
-        {
-            _isProfileSettingsOpen = value;
-            OnPropertyChanged();
-        }
-    }
-    public bool IsNotificationsOpen
-    {
-        get => _isNotificationsOpen;
-        set
-        {
-            _isNotificationsOpen = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool IsFirmwareUpdatationFlyoutOpen
-    {
-        get => _isFirmwareUpdatationFlyoutOpen;
-        set
-        {
-            _isFirmwareUpdatationFlyoutOpen = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool IsLoggingSessionSettingsOpen
-    {
-        get => _isLoggingSessionSettingsOpen;
-        set
-        {
-            _isLoggingSessionSettingsOpen = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool IsLogSummaryOpen
-    {
-        get => _isLogSummaryOpen;
-        set
-        {
-            _isLogSummaryOpen = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool IsChannelSettingsOpen
-    {
-        get => _isChannelSettingsOpen;
-        set
-        {
-            _isChannelSettingsOpen = value;
-            OnPropertyChanged();
-        }
-    }
-
     public bool IsNotLogging => !IsLogging;
 
+    [ObservableProperty]
     private int _notificationCount;
-
-    public int NotificationCount
-    {
-        get => _notificationCount;
-        set
-        {
-            _notificationCount = value;
-            OnPropertyChanged();
-        }
-    }
-
+    
+    [ObservableProperty]
     private string _versionName;
-    public string VersionName
-    {
-        get => _versionName;
-        set
-        {
-            _versionName = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool IsLiveGraphSettingsOpen
-    {
-        get => _isLiveGraphSettingsOpen;
-        set
-        {
-            _isLiveGraphSettingsOpen = value;
-            OnPropertyChanged();
-        }
-    }
 
     public int Width
     {
@@ -441,46 +282,6 @@ public class DaqifiViewModel : ObservableObject
         }
     }
 
-    public IChannel SelectedChannel
-    {
-        get => _selectedChannel;
-        set
-        {
-            _selectedChannel = value;
-            OnPropertyChanged();
-        }
-    }
-    public Profile SelectedProfile
-    {
-        get => _selectedProfile;
-        set
-        {
-            _selectedProfile = value;
-            OnPropertyChanged();
-
-        }
-    }
-
-    public LoggingSession SelectedLoggingSession
-    {
-        get => _selectedLoggingSession;
-        set
-        {
-            _selectedLoggingSession = value;
-            OnPropertyChanged();
-        }
-    }
-        
-    public string LoggedDataBusyReason
-    {
-        get => _loggedDataBusyReason;
-        set
-        {
-            _loggedDataBusyReason = value;
-            OnPropertyChanged();
-        }
-    }
-
     public WindowState ViewWindowState
     {
         get => _viewWindowState;
@@ -491,18 +292,9 @@ public class DaqifiViewModel : ObservableObject
             OnPropertyChanged("FlyoutHeight");
         }
     }
+    [ObservableProperty]
     private string _loggedSessionName;
-    public string LoggedSessionName
-    {
-        get => _loggedSessionName;
-        set
-        {
-            if (_loggedSessionName == value) { return; }
-
-            _loggedSessionName = value;
-            OnPropertyChanged();
-        }
-    }
+    // LoggedSessionName property is generated by [ObservableProperty]
 
     public string SelectedLoggingMode
     {
@@ -534,6 +326,7 @@ public class DaqifiViewModel : ObservableObject
         }
     }
 
+    // IsLogToDeviceMode property needs manual implementation (private set)
     public bool IsLogToDeviceMode
     {
         get => _isLogToDeviceMode;
@@ -850,8 +643,9 @@ public class DaqifiViewModel : ObservableObject
     }
     #endregion
 
-    #region Register Command 
-    public void RegisterCommands()
+    #region Register Command
+
+    private void RegisterCommands()
     {
         ShowAddProfileConfirmationDialogCommand = new DelegateCommand(ShowAddProfileConfirmation, CanShowAddProfileConfirmationDialogCommand);
         ShowAddProfileDialogCommand = new DelegateCommand(ShowAddProfileDialog, CanShowAddProfileDialog);
@@ -1099,12 +893,14 @@ public class DaqifiViewModel : ObservableObject
             device.RemoveChannel(channel);
             return;
         }
-
     }
 
     private void DisconnectDevice(object o)
     {
-        if (!(o is IStreamingDevice deviceToRemove)) { return; }
+        if (o is not IStreamingDevice deviceToRemove)
+        {
+            return;
+        }
 
         foreach (var channel in deviceToRemove.DataChannels)
         {
@@ -1177,7 +973,7 @@ public class DaqifiViewModel : ObservableObject
 
     private void OpenChannelSettings(object o)
     {
-        if (!(o is IChannel item))
+        if (o is not IChannel item)
         {
             _appLogger.Error("Error opening channel settings");
             return;
@@ -1704,14 +1500,14 @@ public class DaqifiViewModel : ObservableObject
     /// <param name="obj"></param>
     private void RemoveProfile(object obj)
     {
-        var ProfileToRemove = obj as Profile;
+        var profileToRemove = obj as Profile;
         if (LoggingManager.Instance.Active)
         {
             var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while logging");
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
             return;
         }
-        if (ProfileToRemove.IsProfileActive)
+        if (profileToRemove.IsProfileActive)
         {
             var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while profile is active");
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
@@ -1723,10 +1519,10 @@ public class DaqifiViewModel : ObservableObject
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
             return;
         }
-        LoggingManager.Instance.UnsubscribeProfile(ProfileToRemove);
+        LoggingManager.Instance.UnsubscribeProfile(profileToRemove);
         ActiveChannels.Clear();
         ActiveInputChannels.Clear();
-        profiles.Remove(ProfileToRemove);
+        profiles.Remove(profileToRemove);
         return;
     }
     /// <summary>
@@ -1849,7 +1645,7 @@ public class DaqifiViewModel : ObservableObject
             }
             var addProfileModel = new AddProfileModel
             {
-                ProfileList = new List<Profile>()
+                ProfileList = []
             };
 
             var newProfile = new Profile
@@ -1858,7 +1654,7 @@ public class DaqifiViewModel : ObservableObject
                 Name = "DaqifiLastSessionProfile",
                 ProfileId = Guid.NewGuid(),
                 CreatedOn = DateTime.Now,
-                Devices = new ObservableCollection<ProfileDevice>()
+                Devices = []
             };
 
             foreach (var selectedDevice in ConnectedDevices)
@@ -1911,7 +1707,7 @@ public class DaqifiViewModel : ObservableObject
     {
         try
         {
-            if (!(obj is Profile item))
+            if (obj is not Profile item)
             {
                 var errorDialogViewModel = new ErrorDialogViewModel("Error Activating Profile.");
                 _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
