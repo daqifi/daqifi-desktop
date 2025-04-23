@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.DialogService;
 /// </summary>
 static class ServiceLocator
 {
-    private static readonly Dictionary<Type, ServiceInfo> services = new Dictionary<Type, ServiceInfo>();
+    private static readonly Dictionary<Type, ServiceInfo> services = new();
 
 
     /// <summary>

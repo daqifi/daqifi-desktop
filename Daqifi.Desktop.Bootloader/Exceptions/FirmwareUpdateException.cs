@@ -1,5 +1,3 @@
-using System;
-
 namespace Daqifi.Desktop.Bootloader.Exceptions;
 
 public class FirmwareUpdateException : Exception

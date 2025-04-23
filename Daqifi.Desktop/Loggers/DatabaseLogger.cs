@@ -333,8 +333,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private void AddChannelSeries(string channelName, string DeviceSerialNo, ChannelType type, string color)
     {
         var key = (DeviceSerialNo, channelName);
-        _sessionPoints.Add(key, new List<DataPoint>());
-        _allSessionPoints.Add(key, new List<DataPoint>());
+        _sessionPoints.Add(key, []);
+        _allSessionPoints.Add(key, []);
 
         var newLineSeries = new LineSeries()
         {

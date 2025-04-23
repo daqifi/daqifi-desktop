@@ -8,7 +8,6 @@ namespace Daqifi.Desktop.Device.HidDevice;
 
 public class HidFirmwareDevice : IFirmwareDevice
 {
-
     public HidLibrary.HidFastReadDevice Device { get; }
 
     public event PropertyChangedEventHandler PropertyChanged;

@@ -254,7 +254,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             }
         }
 
-        var deviceMessage = new DeviceMessage()
+        var deviceMessage = new DeviceMessage
         {
             DeviceName = Name,
             AnalogChannelCount = analogCount,

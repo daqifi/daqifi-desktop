@@ -15,7 +15,7 @@
              IsOpen="{Binding IsNotificationsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
              Position="Right" Header="Notifications">
     <Grid>
-        <ItemsControl ItemsSource="{Binding notificationlist}">
+        <ItemsControl ItemsSource="{Binding NotificationList}">
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <StackPanel Margin="10" Orientation="Vertical">

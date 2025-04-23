@@ -1,7 +1,5 @@
-﻿using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Desktop.Device;
+﻿using Daqifi.Desktop.Device;
 using Daqifi.Desktop.ViewModels;
-using System.Collections;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -16,7 +14,6 @@ public partial class AddprofileDialog
     {
         InitializeComponent();
     }
-    private readonly AppLogger AppLogger = AppLogger.Instance;
 
     private void btn_addprofile(object sender, RoutedEventArgs e)
     {
@@ -45,7 +42,7 @@ public partial class AddprofileDialog
 
         if (datacontext != null)
         {
-            var selectedDevices = ((IEnumerable)SelectedDevice.SelectedItems).Cast<IStreamingDevice>().ToList();
+            var selectedDevices = SelectedDevice.SelectedItems.Cast<IStreamingDevice>().ToList();
             // Add channels for newly selected devices
             foreach (IStreamingDevice addedDevice in e.AddedItems)
             {

@@ -1,5 +1,4 @@
 ﻿using Daqifi.Desktop.Commands;
-using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;
@@ -28,11 +27,9 @@ public class ConnectionDialogViewModel : ObservableObject
     #endregion
 
     #region Properties
-
-    private readonly AppLogger AppLogger = AppLogger.Instance;
-    public ObservableCollection<DaqifiStreamingDevice> AvailableWiFiDevices { get; } = new ObservableCollection<DaqifiStreamingDevice>();
-    public ObservableCollection<SerialStreamingDevice> AvailableSerialDevices { get; } = new ObservableCollection<SerialStreamingDevice>();
-    public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = new ObservableCollection<HidFirmwareDevice>();
+    public ObservableCollection<DaqifiStreamingDevice> AvailableWiFiDevices { get; } = [];
+    public ObservableCollection<SerialStreamingDevice> AvailableSerialDevices { get; } = [];
+    public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = [];
 
     public bool HasNoWiFiDevices
     {
@@ -202,7 +199,10 @@ public class ConnectionDialogViewModel : ObservableObject
 
     private void HandleWifiDeviceFound(object sender, IDevice device)
     {
-        if (!(device is DaqifiStreamingDevice wifiDevice)) { return; }
+        if (device is not DaqifiStreamingDevice wifiDevice)
+        {
+            return;
+        }
 
         if (AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress) == null)
         {
@@ -216,7 +216,10 @@ public class ConnectionDialogViewModel : ObservableObject
 
     private void HandleWifiDeviceRemoved(object sender, IDevice device)
     {
-        if (!(device is DaqifiStreamingDevice wifiDevice)) { return; }
+        if (device is not DaqifiStreamingDevice wifiDevice)
+        {
+            return;
+        }
 
         var matchingDevice = AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress);
         if (matchingDevice != null)
@@ -230,7 +233,10 @@ public class ConnectionDialogViewModel : ObservableObject
 
     private void HandleSerialDeviceFound(object sender, IDevice device)
     {
-        if (!(device is SerialStreamingDevice serialDevice)) { return; }
+        if (device is not SerialStreamingDevice serialDevice)
+        {
+            return;
+        }
 
         if (AvailableSerialDevices.FirstOrDefault(d => d.Port == serialDevice.Port) == null)
         {
@@ -244,7 +250,10 @@ public class ConnectionDialogViewModel : ObservableObject
 
     private void HandleSerialDeviceRemoved(object sender, IDevice device)
     {
-        if (!(device is SerialStreamingDevice serialDevice)) { return; }
+        if (device is not SerialStreamingDevice serialDevice)
+        {
+            return;
+        }
 
         var matchingDevice = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == serialDevice.Port.PortName);
         if (matchingDevice != null)
@@ -258,7 +267,7 @@ public class ConnectionDialogViewModel : ObservableObject
 
     private void HandleHidDeviceFound(object sender, IDevice device)
     {
-        if (!(device is HidFirmwareDevice hidDevice))
+        if (device is not HidFirmwareDevice hidDevice)
         {
             return;
         }
@@ -272,7 +281,10 @@ public class ConnectionDialogViewModel : ObservableObject
 
     private void HandleHidDeviceRemoved(object sender, IDevice device)
     {
-        if (!(device is HidFirmwareDevice hidDevice)) { return; }
+        if (device is not HidFirmwareDevice hidDevice)
+        {
+            return;
+        }
 
         System.Windows.Application.Current.Dispatcher.Invoke(() =>
         {

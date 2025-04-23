@@ -10,15 +10,10 @@ namespace Daqifi.Desktop;
 
 public partial class App
 {
-    public SplashScreen SplashScreen { get; private set; }
+    private SplashScreen SplashScreen { get; set; }
     public static IServiceProvider ServiceProvider { get; private set; }
-    private bool isWindowInit = false;
 
-    public bool IsWindowInit
-    {
-        get { return isWindowInit; }
-        set { isWindowInit = value; }
-    }
+    public bool IsWindowInit { get; set; }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -45,7 +40,7 @@ public partial class App
         view.Show();
     }
 
-    protected void ShowSplashScreen()
+    private void ShowSplashScreen()
     {
         try
         {

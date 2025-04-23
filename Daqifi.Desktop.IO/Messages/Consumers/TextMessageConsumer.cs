@@ -1,4 +1,3 @@
-using System.IO;
 using System.Text;
 using Daqifi.Desktop.IO.Messages.MessageTypes;
 using Timer = System.Threading.Timer;

@@ -15,8 +15,6 @@ public class DigitalChannel : AbstractChannel
     #endregion
 
     #region Constructors
-    public DigitalChannel() { }
-
     public DigitalChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional)
     {
         _owner = owner;

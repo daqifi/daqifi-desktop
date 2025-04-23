@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Security.Principal;
 using System.Windows;
 using WindowsFirewallHelper;
 using Daqifi.Desktop.Services;

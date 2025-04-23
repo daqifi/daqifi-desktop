@@ -5,8 +5,8 @@ namespace Daqifi.Desktop.Device.HidDevice;
 
 public class HidDeviceFinder : IDeviceFinder
 {
-    private readonly List<HidFirmwareDevice> _firmwareDevices = new List<HidFirmwareDevice>();
-    private readonly HidFastReadEnumerator _hidEnumerator = new HidFastReadEnumerator();
+    private readonly List<HidFirmwareDevice> _firmwareDevices = [];
+    private readonly HidFastReadEnumerator _hidEnumerator = new();
     private readonly BackgroundWorker _hidDeviceFinderWorker;
     private const int VendorId = 0x4D8;
     private const int ProductId = 0x03C;

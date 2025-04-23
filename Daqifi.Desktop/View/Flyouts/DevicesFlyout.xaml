@@ -47,7 +47,6 @@
         <local:BoolToConnectionStatusConverter x:Key="BoolToConnectionStatus"/>
         <local:BoolToStatusColorConverter x:Key="BoolToStatusColor"/>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-        <local:NotNullToBoolConverter x:Key="NotNullToBoolConverter"/>
         <converters:ConnectionTypeToUsbConverter x:Key="ConnectionTypeToUsbConverter"/>
         <local:InvertedBoolToVisibilityConverter x:Key="InvertedBoolToVis" />
         
