@@ -1,20 +1,20 @@
-﻿<Controls:MetroWindow x:Class="Daqifi.Desktop.MainWindow"
+﻿<controls:MetroWindow x:Class="Daqifi.Desktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:oxy="http://oxyplot.org/wpf"
         xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
         xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
         xmlns:flyouts="clr-namespace:Daqifi.Desktop.View.Flyouts"
-        xmlns:Service="clr-namespace:Daqifi.Desktop.DialogService"
-        xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        xmlns:service="clr-namespace:Daqifi.Desktop.DialogService"
+        xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         xmlns:local="clr-namespace:Daqifi.Desktop.View"
-        Service:DialogService.IsRegisteredView="True"
+        service:DialogService.IsRegisteredView="True"
         Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
 
 
-    <Controls:MetroWindow.RightWindowCommands>
-        <Controls:WindowCommands>
+    <controls:MetroWindow.RightWindowCommands>
+        <controls:WindowCommands>
             <Button Command="{Binding ShowDAQifiSettingsDialogCommand}">
                 <Button.Content>
                     <StackPanel Orientation="Horizontal">
@@ -53,8 +53,8 @@
                     </Grid>
                 </Button.Content>
             </Button>
-        </Controls:WindowCommands>
-    </Controls:MetroWindow.RightWindowCommands>
+        </controls:WindowCommands>
+    </controls:MetroWindow.RightWindowCommands>
 
     <Window.Resources>
         <Style TargetType="{x:Type TabItem}">
@@ -90,34 +90,34 @@
 
     </Window.Resources>
 
-    <Controls:MetroWindow.Flyouts>
-        <Controls:FlyoutsControl VerticalAlignment="Bottom">
+    <controls:MetroWindow.Flyouts>
+        <controls:FlyoutsControl VerticalAlignment="Bottom">
             <!--NotificationsFlyout-->
-            <flyouts:NotificationsFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+            <flyouts:NotificationsFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
             <!-- Live Graph Flyout -->
-            <flyouts:LiveGraphFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+            <flyouts:LiveGraphFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
             <!-- Devices Flyout-->
-            <flyouts:DevicesFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+            <flyouts:DevicesFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
             <!-- Channel Settings Flyout -->
-            <flyouts:ChannelsFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+            <flyouts:ChannelsFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
             <!-- Channel Settings Flyout -->
-            <flyouts:UpdateProfileFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+            <flyouts:UpdateProfileFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
             <!-- Logging Session Settings Flyout-->
-            <flyouts:LoggedSessionFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+            <flyouts:LoggedSessionFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
             <!-- Summary Logger Flyout-->
-            <flyouts:SummaryFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+            <flyouts:SummaryFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
             <!--Firmware Updatation Flyout-->
-            <flyouts:FirmwareFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Controls:MetroWindow}}"/>
+            <flyouts:FirmwareFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
-        </Controls:FlyoutsControl>
-    </Controls:MetroWindow.Flyouts>
+        </controls:FlyoutsControl>
+    </controls:MetroWindow.Flyouts>
 
     <Grid>
         <TabControl TabStripPlacement="Left" SelectedIndex="{Binding SelectedIndex}">
@@ -211,7 +211,7 @@
                             </Grid>
                         </Border>
                         
-                        <Controls:ToggleSwitch Grid.Column="2" 
+                        <controls:ToggleSwitch Grid.Column="2" 
                                               IsOn="{Binding IsLogging, Mode=TwoWay}" 
                                               IsEnabled="{Binding CanToggleLogging, Mode=OneWay}" 
                                               OffContent="Logging Off" 
@@ -476,7 +476,7 @@
                     <Grid Grid.RowSpan="2" Visibility="{Binding IsLoggedDataBusy, FallbackValue=Hidden, Converter={StaticResource BoolToVis}}">
                         <Rectangle Fill="White" Opacity="0.75" IsHitTestVisible="False"/>
                         <StackPanel VerticalAlignment="Center">
-                            <Controls:ProgressRing IsActive="{Binding IsLoggedDataBusy, Mode=OneWay}"/>
+                            <controls:ProgressRing IsActive="{Binding IsLoggedDataBusy, Mode=OneWay}"/>
                             <Label Content="{Binding LoggedDataBusyReason}" FontSize="14" HorizontalContentAlignment="Center" Foreground="#CC119EDA" FontWeight="Bold"/>
                         </StackPanel>
                     </Grid>
@@ -791,7 +791,7 @@
 
         </TabControl>
         <Grid Background="Black" Opacity="0.5" Visibility="{Binding IsBusy, FallbackValue=Hidden, Converter={StaticResource BoolToVis}}">
-            <Controls:ProgressRing IsActive="{Binding IsBusy, Mode=OneWay}"/>
+            <controls:ProgressRing IsActive="{Binding IsBusy, Mode=OneWay}"/>
         </Grid>
     </Grid>
-</Controls:MetroWindow>
+</controls:MetroWindow>

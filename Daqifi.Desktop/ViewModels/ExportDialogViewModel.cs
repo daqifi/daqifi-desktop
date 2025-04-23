@@ -140,7 +140,7 @@ public class ExportDialogViewModel : ObservableObject
     public ExportDialogViewModel(int sessionId)
     {
         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
-        _sessionsIds = new List<int>() { sessionId };
+        _sessionsIds = [sessionId];
         ExportSessionCommand = new DelegateCommand(ExportLoggingSessions, CanExportSession);
         BrowseExportPathCommand = new DelegateCommand(BrowseExportPath, CanBrowseExportPath);
         CancelExportCommand = new DelegateCommand(CancelExport, CanCancelExportCommand);

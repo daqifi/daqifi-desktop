@@ -39,7 +39,7 @@ public class DaqifiSettings
     #endregion
 
     #region Singleton Constructor / Initalization
-    private static readonly DaqifiSettings _instance = new DaqifiSettings();
+    private static readonly DaqifiSettings _instance = new();
 
     private DaqifiSettings()
     {

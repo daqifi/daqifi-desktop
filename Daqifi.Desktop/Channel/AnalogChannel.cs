@@ -25,8 +25,6 @@ public class AnalogChannel : AbstractChannel
     #endregion
 
     #region Constructors
-    public AnalogChannel() { }
-
     public AnalogChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional, float calibrationBValue, float calibrationMValue, float interalScaleMValue, float portRange, uint resolution)
     {
         _owner = owner;

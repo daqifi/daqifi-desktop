@@ -32,6 +32,9 @@ public class DaqifiViewModel : ObservableObject
     private readonly AppLogger _appLogger = AppLogger.Instance;
         
     #region Private Variables
+    private const int SidePanelWidth = 85;
+    private const int TopToolbarHeight = 30;
+    
     private bool _isBusy;
     private bool _isLoggedDataBusy;
     private bool _isDeviceSettingsOpen;
@@ -44,11 +47,9 @@ public class DaqifiViewModel : ObservableObject
     private bool _isLiveGraphSettingsOpen;
     private int _width = 800;
     private int _height = 600;
-    private int _sidePanelWidth = 85;
-    private int _topToolbarHeight = 30;
     private int _selectedIndex;
     private int _selectedStreamingFrequency;
-    public WindowState _viewWindowState;
+    private WindowState _viewWindowState;
     private readonly IDialogService _dialogService;
     private IStreamingDevice _selectedDevice;
     private VersionNotification? _versionNotification;
@@ -411,9 +412,9 @@ public class DaqifiViewModel : ObservableObject
         {
             if (ViewWindowState == WindowState.Maximized)
             {
-                return SystemParameters.WorkArea.Width - _sidePanelWidth;
+                return SystemParameters.WorkArea.Width - SidePanelWidth;
             }
-            return _width - _sidePanelWidth;
+            return _width - SidePanelWidth;
         }
     }
 
@@ -423,9 +424,9 @@ public class DaqifiViewModel : ObservableObject
         {
             if (ViewWindowState == WindowState.Maximized)
             {
-                return SystemParameters.WorkArea.Height - _topToolbarHeight;
+                return SystemParameters.WorkArea.Height - TopToolbarHeight;
             }
-            return _height - _topToolbarHeight;
+            return _height - TopToolbarHeight;
         }
     }
 
@@ -1439,15 +1440,14 @@ public class DaqifiViewModel : ObservableObject
     private HidFirmwareDevice ConnectHid(object selectedItems)
     {
         // Read variable
-        HidFirmwareDevice hidDevice = null;
         var selectedDevices = ((IEnumerable)selectedItems).Cast<HidFirmwareDevice>();
-        hidDevice = selectedDevices.FirstOrDefault();
+        var hidDevice = selectedDevices.FirstOrDefault();
         return hidDevice;
     }
 
     private void HandleHidDeviceFound(object sender, IDevice device)
     {
-        if (!(device is HidFirmwareDevice hidDevice))
+        if (device is not HidFirmwareDevice hidDevice)
         {
             return;
         }
@@ -1455,13 +1455,19 @@ public class DaqifiViewModel : ObservableObject
         Application.Current.Dispatcher.Invoke(() =>
         {
             AvailableHidDevices.Add(hidDevice);
-            if (HasNoHidDevices) { HasNoHidDevices = false; }
+            if (HasNoHidDevices)
+            {
+                HasNoHidDevices = false;
+            }
         });
     }
 
     private void HandleHidDeviceRemoved(object sender, IDevice device)
     {
-        if (!(device is HidFirmwareDevice hidDevice)) { return; }
+        if (device is not HidFirmwareDevice hidDevice)
+        {
+            return;
+        }
 
         Application.Current.Dispatcher.Invoke(() =>
         {
@@ -1527,7 +1533,7 @@ public class DaqifiViewModel : ObservableObject
                 if (NotificationCount > 0)
                 {
                     VersionName = data.VersionNumber;
-                    var notify = new Notifications()
+                    var notify = new Notifications
                     {
                         isFirmwareUpdate = false,
                         DeviceSerialNo = null,
@@ -1575,8 +1581,7 @@ public class DaqifiViewModel : ObservableObject
         IsNotificationsOpen = false;
         IsFirmwareUpdatationFlyoutOpen = false;
     }
-
-    #region New Enhancements and developement
+    
     /// <summary>
     /// Show add profile dialog
     /// </summary>
@@ -2003,8 +2008,6 @@ public class DaqifiViewModel : ObservableObject
         });
         CloseFlyouts();
     }
-
-    #endregion
 
     #endregion
 }

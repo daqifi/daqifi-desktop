@@ -37,7 +37,7 @@ public partial class UpdateProfileFlyout
             SelectedDevice.SelectedItems.Clear();
             foreach (var channel in LoggingManager.Instance.SelectedProfileChannels)
             {
-                if (channel.IsChannelActive == true)
+                if (channel.IsChannelActive)
                 {
                     UpdatedProfileChannelList.SelectedItems.Add(channel);
                 }

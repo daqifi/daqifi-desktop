@@ -1,14 +1,14 @@
 ﻿using EFCore.BulkExtensions;
 using Microsoft.Data.Sqlite;
 
-namespace Daqifi.Desktop;
+namespace Daqifi.Desktop.Database;
 
 public class SqliteBulkInsertProvider
 {
     public BulkInsertOptions Options { get; set; }
 
     // Use a method to retrieve the connection string
-    protected string ConnectionString => "Data Source=|DataDirectory|\\DAQifiDatabase.sdf;Max Database Size=4091;Default Lock Timeout=10000";
+    private static string ConnectionString => "Data Source=|DataDirectory|\\DAQifiDatabase.sdf;Max Database Size=4091;Default Lock Timeout=10000";
 
     public void Run<T>(IEnumerable<T> entities)
     {
@@ -39,8 +39,7 @@ public class SqliteBulkInsertProvider
         }
     }
 
-
-    protected SqliteConnection CreateConnection()
+    private SqliteConnection CreateConnection()
     {
         return new SqliteConnection(ConnectionString);
     }

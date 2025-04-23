@@ -4,7 +4,6 @@ using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using Daqifi.Desktop.Models;
-using System.ComponentModel;
 
 namespace Daqifi.Desktop.Device;
 

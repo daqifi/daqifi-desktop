@@ -11,7 +11,8 @@ public abstract class AbstractMessageConsumer : IMessageConsumer
     #endregion
 
     #region Properties
-    public AppLogger AppLogger = AppLogger.Instance;
+
+    protected AppLogger AppLogger = AppLogger.Instance;
 
     public bool Running
     {
