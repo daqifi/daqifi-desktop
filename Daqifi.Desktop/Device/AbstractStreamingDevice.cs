@@ -120,7 +120,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         AppLogger.Information($"Message handler set to: {handlerType}");
     }
 
-    private void HandleStatusMessageReceived(object sender, MessageEventArgs e)
+    private void HandleStatusMessageReceived(object sender, MessageEventArgs<object> e)
     {
         var message = e.Message.Data as DaqifiOutMessage;
         if (message == null || !IsValidStatusMessage(message))
@@ -143,14 +143,15 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
     }
 
-    private void HandleStreamingMessageReceived(object sender, MessageEventArgs e)
+    private void HandleStreamingMessageReceived(object sender, MessageEventArgs<object> e)
     {
         if (!IsStreaming)
         {
             return;
         }
-
-        if (e.Message.Data is not DaqifiOutMessage message)
+        
+        var message = e.Message.Data as DaqifiOutMessage;
+        if (message == null)
         {
             AppLogger.Warning("Issue decoding protobuf message");
             return;
@@ -277,10 +278,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         _previousDeviceTimestamps[deviceId] = message.MsgTimeStamp;
     }
 
-    private void HandleSdCardMessageReceived(object sender, MessageEventArgs e)
+    private void HandleSdCardMessageReceived(object sender, MessageEventArgs<object> e)
     {
-        // The message will be a string containing file paths
-        if (e.Message.Data is not string response)
+        // Cast the data to the expected type
+        var response = e.Message.Data as string;
+        if (response == null)
         {
             AppLogger.Warning("Expected string response for SD card operation");
             return;
