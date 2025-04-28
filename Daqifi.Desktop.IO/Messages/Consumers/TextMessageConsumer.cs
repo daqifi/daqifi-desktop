@@ -1,5 +1,5 @@
 using System.Text;
-using Daqifi.Desktop.IO.Messages.MessageTypes;
+using Daqifi.Core.Communication.Messages;
 using Timer = System.Threading.Timer;
 
 namespace Daqifi.Desktop.IO.Messages.Consumers;
@@ -96,7 +96,7 @@ public class TextMessageConsumer : AbstractMessageConsumer
 
             // Send the entire accumulated text as one message
             var textMessage = new TextMessage(accumulated);
-            var messageArgs = new MessageEventArgs(textMessage);
+            var messageArgs = new MessageEventArgs<object>(textMessage);
             NotifyMessageReceived(this, messageArgs);
         }
         catch (Exception ex)

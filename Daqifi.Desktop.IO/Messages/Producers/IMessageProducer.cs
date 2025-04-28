@@ -7,5 +7,5 @@ public interface IMessageProducer
     void Start();
     void Stop();
     void StopSafely();
-    void Send(IMessage message);
+    void Send(IOutboundMessage<string> message);
 }

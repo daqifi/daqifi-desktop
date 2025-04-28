@@ -1,16 +1,15 @@
-﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
+﻿using Daqifi.Core.Communication.Messages;
 
 namespace Daqifi.Desktop.IO.Messages;
 
-//TODO make all of this a generic message not just protobuf message
-public class MessageEventArgs : EventArgs
+public class MessageEventArgs<T> : EventArgs
 {
     #region Properties
-    public IMessage Message { get; }
+    public IInboundMessage<T> Message { get; }
 
     #endregion
 
-    public MessageEventArgs(IMessage message)
+    public MessageEventArgs(IInboundMessage<T> message)
     {
         Message = message;
     }

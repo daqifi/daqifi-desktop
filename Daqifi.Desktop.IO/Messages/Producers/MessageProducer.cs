@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.IO.Messages.Producers;
 public class MessageProducer : IMessageProducer
 {
     private Thread _producerThread;
-    private ConcurrentQueue<IMessage> _messageQueue;
+    private ConcurrentQueue<IOutboundMessage<string>> _messageQueue;
     private bool _isRunning;
 
     public Stream DataStream { get; }
@@ -21,7 +21,7 @@ public class MessageProducer : IMessageProducer
 
     public void Start()
     {
-        _messageQueue = new ConcurrentQueue<IMessage>();
+        _messageQueue = new ConcurrentQueue<IOutboundMessage<string>>();
         _isRunning = true;
         _producerThread = new Thread(Run) { IsBackground = true };
         _producerThread.Start();
@@ -30,7 +30,7 @@ public class MessageProducer : IMessageProducer
     public void Stop()
     {
         _isRunning = false;
-        _messageQueue = new ConcurrentQueue<IMessage>();
+        _messageQueue = new ConcurrentQueue<IOutboundMessage<string>>();
         _producerThread.Join(1000);
     }
 
@@ -51,7 +51,7 @@ public class MessageProducer : IMessageProducer
         Stop();
     }
 
-    public void Send(IMessage message)
+    public void Send(IOutboundMessage<string> message)
     {
         _messageQueue.Enqueue(message);
     }

@@ -56,7 +56,7 @@ public abstract class AbstractMessageConsumer : IMessageConsumer
         }
     }
 
-    public void NotifyMessageReceived(object sender, MessageEventArgs e)
+    public void NotifyMessageReceived(object sender, MessageEventArgs<object> e)
     {
         OnMessageReceived?.Invoke(sender, e);
     }

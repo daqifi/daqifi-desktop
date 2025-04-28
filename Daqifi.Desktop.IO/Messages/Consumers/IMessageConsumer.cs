@@ -1,6 +1,6 @@
 ﻿namespace Daqifi.Desktop.IO.Messages.Consumers;
 
-public delegate void OnMessageReceivedHandler(object sender, MessageEventArgs e);
+public delegate void OnMessageReceivedHandler(object sender, MessageEventArgs<object> e);
 
 public interface IMessageConsumer
 {
@@ -13,6 +13,6 @@ public interface IMessageConsumer
 
     void Start();
     void Stop();
-    void NotifyMessageReceived(object sender, MessageEventArgs e);
+    void NotifyMessageReceived(object sender, MessageEventArgs<object> e);
     void Run();
 }

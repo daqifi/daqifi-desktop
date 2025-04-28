@@ -1,4 +1,4 @@
-﻿using Daqifi.Desktop.IO.Messages.MessageTypes;
+﻿using Daqifi.Core.Communication.Messages;
 using Google.Protobuf;
 
 namespace Daqifi.Desktop.IO.Messages.Consumers;
@@ -44,7 +44,7 @@ public class MessageConsumer : AbstractMessageConsumer
                         if (outMessage != null)
                         {
                             var protobufMessage = new ProtobufMessage(outMessage);
-                            var daqMessage = new MessageEventArgs(protobufMessage);
+                            var daqMessage = new MessageEventArgs<object>(protobufMessage);
                             NotifyMessageReceived(this, daqMessage);
                         }
                     }
