@@ -91,8 +91,8 @@ public class LoggingSessionExporter
                     sb.Clear();
                 }
                 count += pageSize;
-                int sessionProgress = (int)((double)count / samplesCount * 100);
-                int overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
+                var sessionProgress = (int)((double)count / samplesCount * 100);
+                var overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
                 bw.ReportProgress(Math.Min(100, overallProgress), loggingSession.Name);
             }
         }
@@ -139,9 +139,9 @@ public class LoggingSessionExporter
                 var tempTotals = channelNames.ToDictionary(name => name, _ => 0.0);
                 var tempCounts = channelNames.ToDictionary(name => name, _ => 0);
 
-                long firstTimestampTicks = rows.Keys.Min();
-                int count = 0;
-                int totalRows = rows.Count;
+                var firstTimestampTicks = rows.Keys.Min();
+                var count = 0;
+                var totalRows = rows.Count;
 
                 foreach (var timestamp in rows.Keys.OrderBy(t => t))
                 {
@@ -155,7 +155,7 @@ public class LoggingSessionExporter
 
                     if (count % averageQuantity == 0)
                     {
-                        string timeString = exportRelativeTime
+                        var timeString = exportRelativeTime
                             ? ((timestamp - firstTimestampTicks) / (double)TimeSpan.TicksPerSecond).ToString("F3")
                             : new DateTime(timestamp).ToString("O");
 

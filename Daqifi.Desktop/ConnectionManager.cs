@@ -25,7 +25,7 @@ public partial class ConnectionManager : ObservableObject
     private bool _isDisconnected = true;
 
     [ObservableProperty]
-    private bool _notifyConnection = false;
+    private bool _notifyConnection;
     
     public string ConnectionStatusString { get; set; } = "Disconnected";
     

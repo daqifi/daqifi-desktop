@@ -148,7 +148,10 @@ public partial class Pic32Bootloader : ObservableObject, IBootloader, IDisposabl
             }
 
             // Skip if this is in a protected memory range
-            if (IsProtectedHexRecord(hexLine.ToArray())) continue;
+            if (IsProtectedHexRecord(hexLine.ToArray()))
+            {
+                continue;
+            }
 
             hexRecords.Add(hexLine.ToArray());
         }
@@ -188,7 +191,7 @@ public partial class Pic32Bootloader : ObservableObject, IBootloader, IDisposabl
         _hidDevice.OpenDevice();
     }
 
-    public void CloseDevice()
+    private void CloseDevice()
     {
         _hidDevice.CloseDevice();
     }

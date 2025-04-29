@@ -14,15 +14,21 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class ConnectionDialogViewModel : ObservableObject
+public partial class ConnectionDialogViewModel : ObservableObject
 {
     #region Private Variables
     private DaqifiDeviceFinder _wifiFinder;
     private SerialDeviceFinder _serialFinder;
     private HidDeviceFinder _hidDeviceFinder;
     private readonly IDialogService _dialogService;
+    
+    [ObservableProperty]
     private bool _hasNoWiFiDevices = true;
+    
+    [ObservableProperty]
     private bool _hasNoSerialDevices = true;
+    
+    [ObservableProperty]
     private bool _hasNoHidDevices = true;
     #endregion
 
@@ -30,37 +36,7 @@ public class ConnectionDialogViewModel : ObservableObject
     public ObservableCollection<DaqifiStreamingDevice> AvailableWiFiDevices { get; } = [];
     public ObservableCollection<SerialStreamingDevice> AvailableSerialDevices { get; } = [];
     public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = [];
-
-    public bool HasNoWiFiDevices
-    {
-        get => _hasNoWiFiDevices;
-        set
-        {
-            _hasNoWiFiDevices = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool HasNoSerialDevices
-    {
-        get => _hasNoSerialDevices;
-        set
-        {
-            _hasNoSerialDevices = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool HasNoHidDevices
-    {
-        get => _hasNoHidDevices;
-        set
-        {
-            _hasNoHidDevices = value;
-            OnPropertyChanged();
-        }
-    }
-
+    
     public string ManualPortName { get; set; }
 
     public SerialStreamingDevice ManualSerialDevice { get; set; }

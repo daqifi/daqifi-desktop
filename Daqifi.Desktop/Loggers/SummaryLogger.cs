@@ -259,12 +259,7 @@ public partial class SummaryLogger : ObservableObject, ILogger
     /// The last completed sample set
     /// </summary>
     private SummaryBuffer _current;
-
-    /// <summary>
-    /// Application logger
-    /// </summary>
-    public AppLogger AppLogger = AppLogger.Instance;
-
+    
     private double _elapsedTime;
     private DateTime _lastUpdate;
     private double _sampleRate;

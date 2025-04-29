@@ -9,16 +9,17 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class AddChannelDialogViewModel : ObservableObject
+public partial class AddChannelDialogViewModel : ObservableObject
 {
     #region Private Variables
     private IStreamingDevice _selectedDevice;
+    [ObservableProperty]
+    private ObservableCollection<IStreamingDevice> _availableDevices = [];
+    [ObservableProperty]
+    private ObservableCollection<IChannel> _availableChannels = [];
     #endregion
 
     #region Properties
-    public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
-    public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
-
     public IStreamingDevice SelectedDevice
     {
         get => _selectedDevice;

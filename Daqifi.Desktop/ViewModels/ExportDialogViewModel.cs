@@ -12,15 +12,24 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class ExportDialogViewModel : ObservableObject
+public partial class ExportDialogViewModel : ObservableObject
 {
     #region Private Variables
     private readonly List<int> _sessionsIds;
     private string _exportFilePath;
+    
+    [ObservableProperty]
     private bool _exportAllSelected = true;
+    [ObservableProperty]
     private bool _exportAverageSelected;
+    [ObservableProperty]
     private bool _isExporting;
+    [ObservableProperty]
     private int _averageQuantity = 2;
+    [ObservableProperty]
+    private string _exportProgressText;
+    [ObservableProperty]
+    private bool _exportRelativeTime;
     private int _exportProgress;
     #endregion
 
@@ -35,27 +44,7 @@ public class ExportDialogViewModel : ObservableObject
             CommandManager.InvalidateRequerySuggested();
         }
     }
-
-    public bool _exportRelativeTime;
-    public bool ExportRelativeTime
-    {
-        get => _exportRelativeTime;
-        set
-        {
-            _exportRelativeTime = value;
-            OnPropertyChanged();
-        }
-    }
-    public bool ExportAllSelected
-    {
-        get => _exportAllSelected;
-        set
-        {
-            _exportAllSelected = value;
-            OnPropertyChanged();
-        }
-    }
-
+    
     public int ExportProgress
     {
         get => _exportProgress;
@@ -64,49 +53,7 @@ public class ExportDialogViewModel : ObservableObject
             _exportProgress = value;
             OnPropertyChanged();
             ExportProgressText = $"Exporting progress: {ExportProgress}% completed";
-
         }
-    }
-
-
-    private string _exportProgressText;
-
-    public string ExportProgressText 
-    {
-        get { return _exportProgressText; }
-        set { _exportProgressText = value; OnPropertyChanged("ExportProgressText"); }
-    }
-
-       
-
-    public bool ExportAverageSelected
-    {
-        get => _exportAverageSelected;
-        set
-        {
-            _exportAverageSelected = value;
-            OnPropertyChanged();
-        }
-    }
-    public bool IsExporting
-    {
-        get => _isExporting;
-        set
-        {
-            _isExporting = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public int AverageQuantity
-    {
-        get => _averageQuantity;
-        set
-        {
-            _averageQuantity = value;
-            OnPropertyChanged();
-        }
-
     }
     #endregion
 
@@ -199,16 +146,18 @@ public class ExportDialogViewModel : ObservableObject
         };
         bw.DoWork += async (sender, args) =>
         {
-            int totalSessions = _sessionsIds.Count;
-            for (int i = 0; i < totalSessions; i++)
+            var totalSessions = _sessionsIds.Count;
+            for (var i = 0; i < totalSessions; i++)
             {
                 if (bw.CancellationPending)
+                {
                     return;
+                }
                 var sessionId = _sessionsIds[i];
                 var loggingSession = await GetLoggingSessionFromId(sessionId);
-                var sessionname = LoggingManager.Instance.LoggingSessions.FirstOrDefault(s => s.ID == sessionId).Name;
+                var sessionName = LoggingManager.Instance.LoggingSessions.FirstOrDefault(s => s.ID == sessionId).Name;
                 var filepath = totalSessions > 1
-                    ? Path.Combine(ExportFilePath, $"{sessionname}.csv")
+                    ? Path.Combine(ExportFilePath, $"{sessionName}.csv")
                     : ExportFilePath;
 
                 if (ExportAllSelected)

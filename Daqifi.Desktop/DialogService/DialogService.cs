@@ -13,7 +13,7 @@ public class DialogService : IDialogService
     public DialogService(IWindowViewModelMappings windowViewModelMappings = null)
     {
         _windowViewModelMappings = windowViewModelMappings;
-        _views = new HashSet<FrameworkElement>();
+        _views = [];
     }
 
 

@@ -9,8 +9,7 @@ public class MessageProducer : IMessageProducer
     private Thread _producerThread;
     private ConcurrentQueue<IOutboundMessage<string>> _messageQueue;
     private bool _isRunning;
-
-    public Stream DataStream { get; }
+    private Stream DataStream { get; }
 
     #region Constructor
     public MessageProducer(Stream stream)
@@ -63,9 +62,15 @@ public class MessageProducer : IMessageProducer
             try
             {
                 Thread.Sleep(100);
-                if (_messageQueue.IsEmpty) continue;
+                if (_messageQueue.IsEmpty)
+                {
+                    continue;
+                }
 
-                if(!_messageQueue.TryDequeue(out var message)) continue;
+                if (!_messageQueue.TryDequeue(out var message))
+                {
+                    continue;
+                }
 
                 var serializedMessage = message.GetBytes();
                 DataStream.Write(serializedMessage, 0, serializedMessage.Length);

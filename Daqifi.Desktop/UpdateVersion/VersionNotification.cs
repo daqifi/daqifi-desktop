@@ -8,7 +8,7 @@ namespace Daqifi.Desktop.UpdateVersion;
 
 public partial class VersionNotification : ObservableObject
 {
-    private readonly AppLogger AppLogger = AppLogger.Instance;
+    private readonly AppLogger _appLogger = AppLogger.Instance;
     #region Properties
 
     [ObservableProperty]
@@ -32,7 +32,7 @@ public partial class VersionNotification : ObservableObject
                 if (!response.IsSuccessStatusCode)
                 {
                     var ex= new HttpRequestException("Unable to fetch release information from GitHub.");
-                    AppLogger.Error(ex, $"Error checking for updates: {ex.Message}");
+                    _appLogger.Error(ex, $"Error checking for updates: {ex.Message}");
                 }
                 string jsonResponse = await response.Content.ReadAsStringAsync();
                 JObject releaseData = JObject.Parse(jsonResponse);
@@ -52,7 +52,7 @@ public partial class VersionNotification : ObservableObject
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Error checking for updates: {ex.Message}");
+            _appLogger.Error(ex, $"Error checking for updates: {ex.Message}");
         }
     }
     #endregion

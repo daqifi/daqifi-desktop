@@ -20,16 +20,14 @@ namespace Daqifi.Desktop.Logger;
 public partial class DatabaseLogger : ObservableObject, ILogger
 {
     #region Private Data
-    private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
-    private readonly BlockingCollection<DataSample> _buffer = new BlockingCollection<DataSample>();
-    private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _sessionPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
+    private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
+    private readonly BlockingCollection<DataSample> _buffer = new();
+    private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _sessionPoints = new();
 
     private DateTime? _firstTime;
-    public AppLogger AppLogger = AppLogger.Instance;
+    private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
-    #endregion
-
-    #region Properties
+    
     [ObservableProperty]
     private PlotModel _plotModel;
     #endregion
@@ -208,7 +206,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Failed in Consumer Thread");
+                _appLogger.Error(ex, "Failed in Consumer Thread");
             }
         }
     }
@@ -298,7 +296,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed in DisplayLoggingSession");
+            _appLogger.Error(ex, "Failed in DisplayLoggingSession");
         }
     }
 
@@ -321,7 +319,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed in DeleteLoggingSession");
+            _appLogger.Error(ex, "Failed in DeleteLoggingSession");
         }
         finally
         {
@@ -330,15 +328,15 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         }
     }
 
-    private void AddChannelSeries(string channelName, string DeviceSerialNo, ChannelType type, string color)
+    private void AddChannelSeries(string channelName, string deviceSerialNo, ChannelType type, string color)
     {
-        var key = (DeviceSerialNo, channelName);
+        var key = (DeviceSerialNo: deviceSerialNo, channelName);
         _sessionPoints.Add(key, []);
         _allSessionPoints.Add(key, []);
 
-        var newLineSeries = new LineSeries()
+        var newLineSeries = new LineSeries
         {
-            Title = $"{channelName} : ({DeviceSerialNo})",
+            Title = $"{channelName} : ({deviceSerialNo})",
             ItemsSource = _sessionPoints.Last().Value,
             Color = OxyColor.Parse(color),
 
@@ -379,7 +377,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed in SaveGraph");
+            _appLogger.Error(ex, "Failed in SaveGraph");
         }
     }
 

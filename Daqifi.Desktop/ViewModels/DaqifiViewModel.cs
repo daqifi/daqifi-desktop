@@ -968,7 +968,6 @@ public partial class DaqifiViewModel : ObservableObject
         CloseFlyouts();
         SelectedDevice = item;
         IsFirmwareUpdatationFlyoutOpen = true;
-
     }
 
     private void OpenChannelSettings(object o)
@@ -1037,7 +1036,7 @@ public partial class DaqifiViewModel : ObservableObject
 
     private void ExportLoggingSession(object o)
     {
-        if (!(o is LoggingSession session))
+        if (o is not LoggingSession session)
         {
             _appLogger.Error("Error exporting logging session");
             return;

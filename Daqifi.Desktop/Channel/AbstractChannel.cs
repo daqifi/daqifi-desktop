@@ -200,7 +200,7 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     #region Object overrides
     public override bool Equals(object obj)
     {
-        if (!(obj is AbstractChannel channel)) { return false; }
+        if (obj is not AbstractChannel channel) { return false; }
 
         return channel.Name == Name;
     }
