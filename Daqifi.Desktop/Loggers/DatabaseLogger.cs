@@ -1,5 +1,4 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
@@ -8,7 +7,6 @@ using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Windows.Input;
 using Exception = System.Exception;
 using TickStyle = OxyPlot.Axes.TickStyle;
 using Microsoft.EntityFrameworkCore;

@@ -1,5 +1,4 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
@@ -7,7 +6,6 @@ using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Models;
 using System.Collections;
 using System.Collections.ObjectModel;
-using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 

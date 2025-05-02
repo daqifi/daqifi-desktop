@@ -1,5 +1,4 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
@@ -118,6 +117,7 @@ public partial class ExportDialogViewModel : ObservableObject
             bw.CancelAsync();
         }
     }
+    
     [RelayCommand]
     private void ExportLoggingSessions()
     {

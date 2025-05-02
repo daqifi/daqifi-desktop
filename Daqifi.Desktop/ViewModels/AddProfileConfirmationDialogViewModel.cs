@@ -1,10 +1,8 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
 using System.Collections.ObjectModel;
 using System.Windows;
-using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 

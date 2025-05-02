@@ -76,8 +76,8 @@
         </GroupBox>
 
         <DockPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Grid.RowSpan="3"  HorizontalAlignment="Right" VerticalAlignment="Bottom">
-            <Button Name="btnCancel" Click="btnCancel_Click" Content="Cancel" Width="100" Height="30"  Style="{StaticResource  MahApps.Styles.Button.Square}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
-            <Button Name="btnExport" Content="Export"  Command="{Binding ExportSessionCommand}" IsEnabled="{Binding IsExporting, Converter={StaticResource BooleanToInverse}}"    Width="100" Height="30" Style="{StaticResource MahApps.Styles.Button.Square.Accent }"  controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+            <Button Click="btnCancel_Click" Content="Cancel" Width="100" Height="30"  Style="{StaticResource  MahApps.Styles.Button.Square}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+            <Button Content="Export"  Command="{Binding ExportLoggingSessionsCommand}" IsEnabled="{Binding IsExporting, Converter={StaticResource BooleanToInverse}}"    Width="100" Height="30" Style="{StaticResource MahApps.Styles.Button.Square.Accent }"  controls:ControlsHelper.ContentCharacterCasing="Normal"/>
         </DockPanel>
     </Grid>
 </controls:MetroWindow>

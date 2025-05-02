@@ -1,9 +1,7 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Configuration;
 using System.Collections;
 using System.Collections.ObjectModel;
-using System.Windows.Input;
 using Brush = System.Windows.Media.Brush;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;

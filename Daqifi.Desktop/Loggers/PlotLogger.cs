@@ -1,5 +1,4 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using OxyPlot;
@@ -7,7 +6,6 @@ using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Diagnostics;
 using System.IO;
-using System.Windows.Input;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
