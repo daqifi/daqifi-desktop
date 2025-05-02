@@ -843,24 +843,22 @@ public partial class DaqifiViewModel : ObservableObject
             bw.DoWork += delegate
             {
                 bool deleteSucceeded = false;
+                var sessionToDelete = SelectedLoggingSession;
                 try
                 {
-                    // Pass the original object to the DB operation
-                    DbLogger.DeleteLoggingSession(SelectedLoggingSession); 
+                    DbLogger.DeleteLoggingSession(sessionToDelete);
                     deleteSucceeded = true;
                 }
                 catch (Exception dbEx)
                 {
-                    _appLogger.Error(dbEx, $"Failed to delete session {SelectedLoggingSession.ID} from database.");
-                    // Optionally show an error message to the user via Dispatcher
+                    _appLogger.Error(dbEx, $"Failed to delete session {sessionToDelete.ID} from database.");
                 }
 
                 if (deleteSucceeded)
                 {
-                    // Remove the original object instance from the manager's collection on the UI thread
                     Application.Current.Dispatcher.Invoke(delegate
                     {
-                        LoggingManager.Instance.LoggingSessions.Remove(SelectedLoggingSession); // Use original object
+                        LoggingManager.Instance.LoggingSessions.Remove(sessionToDelete);
                     });
                 }
             };
@@ -899,28 +897,26 @@ public partial class DaqifiViewModel : ObservableObject
             bw.DoWork += delegate
             {
                 var sessionsToDelete = LoggingManager.Instance.LoggingSessions.ToList();
-                var successfullyDeletedSessions = new List<LoggingSession>(); // Store the session objects
+                var successfullyDeletedSessions = new List<LoggingSession>();
 
                 foreach(var session in sessionsToDelete)
                 {
                     try
                     {
                         DbLogger.DeleteLoggingSession(session);
-                        successfullyDeletedSessions.Add(session); // Add the object
+                        successfullyDeletedSessions.Add(session);
                     }
                     catch (Exception dbEx)
                     {
                         _appLogger.Error(dbEx, $"Failed to delete session {session.ID} from database during delete all.");
-                        // Continue trying to delete others
                     }
                 }
 
-                // Remove all successfully deleted sessions from the collection on the UI thread
                 if (successfullyDeletedSessions.Any())
                 {
                     Application.Current.Dispatcher.Invoke(delegate
                     {
-                        foreach(var sessionToRemove in successfullyDeletedSessions) // Iterate over the objects
+                        foreach(var sessionToRemove in successfullyDeletedSessions)
                         {
                             LoggingManager.Instance.LoggingSessions.Remove(sessionToRemove);
                         }
