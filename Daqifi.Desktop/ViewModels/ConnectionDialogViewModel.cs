@@ -1,5 +1,4 @@
-﻿using Daqifi.Desktop.Commands;
-using Daqifi.Desktop.DataModel.Device;
+﻿using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.Device.SerialDevice;
@@ -9,8 +8,8 @@ using DAQifi.Desktop.View;
 using DAQifi.Desktop.ViewModels;
 using System.Collections;
 using System.Collections.ObjectModel;
-using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -50,6 +49,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
     public ConnectionDialogViewModel(IDialogService dialogService)
     {
         _dialogService = dialogService;
+        ConnectCommand = new AsyncRelayCommand<object>(ConnectAsync);
+        ConnectSerialCommand = new AsyncRelayCommand<object>(ConnectSerialAsync);
+        ConnectManualSerialCommand = new AsyncRelayCommand(ConnectManualSerialAsync);
+        ConnectManualWifiCommand = new AsyncRelayCommand(ConnectManualWifiAsync);
     }
 
     public void StartConnectionFinders()
@@ -71,61 +74,26 @@ public partial class ConnectionDialogViewModel : ObservableObject
     }
     #endregion
 
-    #region Command Delegatges
-    public ICommand ConnectCommand => new DelegateCommand(OnConnectSelectedItemsExecute, OnConnectSelectedItemsCanExecute);
+    #region Commands
 
-    public ICommand ConnectSerialCommand => new DelegateCommand(ConnectSerial, CanConnectSerial);
+    public IAsyncRelayCommand ConnectCommand { get; }
+    public IAsyncRelayCommand ConnectSerialCommand { get; }
+    public IAsyncRelayCommand ConnectManualSerialCommand { get; }
+    public IAsyncRelayCommand ConnectManualWifiCommand { get; }
 
-    public ICommand ConnectManualSerialCommand => new DelegateCommand(ConnectManualSerial, CanConnectManualSerial);
-
-    public ICommand ConnectManualWifiCommand => new DelegateCommand(ConnectManualWifi, CanConnectManualWifi);
-
-    public ICommand ConnectHidCommand => new DelegateCommand(ConnectHid, CanConnectHid);
-
-    private bool OnConnectSelectedItemsCanExecute(object selectedItems)
-    {
-        return true;
-    }
-
-    private bool CanConnectSerial(object selectedItems)
-    {
-        return true;
-    }
-
-    private bool CanConnectManualWifi(object selectedItems)
-    {
-        return true;
-    }
-
-    private bool CanConnectManualSerial(object selectedItems)
-    {
-        return true;
-    }
-
-    private bool CanConnectHid(object selectedItems)
-    {
-        return true;
-    }
-
-    private bool CanOpenFirmware(object selectedItems)
-    {
-        return true;
-    }
-
-    private async void OnConnectSelectedItemsExecute(object selectedItems)
+    private async Task ConnectAsync(object selectedItems)
     {
         _wifiFinder.Stop();
 
         var selectedDevices = ((IEnumerable)selectedItems).Cast<IStreamingDevice>();
-
-
+        
         foreach (var device in selectedDevices)
         {
             await ConnectionManager.Instance.Connect(device);
         }
     }
 
-    private async void ConnectSerial(object selectedItems)
+    private async Task ConnectSerialAsync(object selectedItems)
     {
         _serialFinder.Stop();
 
@@ -137,7 +105,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
     }
 
-    private async void ConnectManualSerial(object _)
+    private async Task ConnectManualSerialAsync()
     {
         if (string.IsNullOrWhiteSpace(ManualPortName)) { return; }
 
@@ -145,7 +113,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         await ConnectionManager.Instance.Connect(ManualSerialDevice);
     }
 
-    private async void ConnectManualWifi(object _)
+    private async Task ConnectManualWifiAsync()
     {
         if (string.IsNullOrWhiteSpace(ManualIpAddress)) { return; }
 
@@ -159,6 +127,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         await ConnectionManager.Instance.Connect(device);
     }
 
+    [RelayCommand]
     private void ConnectHid(object selectedItems)
     {
         //_hidDeviceFinder.Stop();

@@ -1,11 +1,10 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
 using System.Collections;
 using System.Collections.ObjectModel;
-using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -53,20 +52,13 @@ public partial class AddChannelDialogViewModel : ObservableObject
         }
     }
 
-    #region Command Delegatges
-    public ICommand AddChannelCommand => new DelegateCommand(OnSelectedChannelExecute, OnSelectedChannelCanExecute);
-
-    private bool OnSelectedChannelCanExecute(object selectedItems)
-    {
-        //TODO might use this later could not find a good way to raise can execute change
-        return true;
-    }
-
-    private void OnSelectedChannelExecute(object selectedItems)
+    #region Commands
+    [RelayCommand]
+    private void AddChannel(object selectedItems)
     {
         var selectedChannels = ((IEnumerable)selectedItems).Cast<IChannel>().ToList();
 
-        if(!selectedChannels.Any())
+        if(selectedChannels.Count == 0)
         {
             return;
         }

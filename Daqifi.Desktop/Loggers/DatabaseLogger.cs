@@ -14,6 +14,7 @@ using TickStyle = OxyPlot.Axes.TickStyle;
 using Microsoft.EntityFrameworkCore;
 using EFCore.BulkExtensions;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Daqifi.Desktop.Logger;
 
@@ -32,54 +33,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private PlotModel _plotModel;
     #endregion
 
-    #region Command Properties
-    public ICommand ZoomOutXCommand { get; }
-    private bool CanZoomOutX(object o)
-    {
-        return true;
-    }
-
-    public ICommand ZoomInXCommand { get; }
-    private bool CanZoomInX(object o)
-    {
-        return true;
-    }
-
-    public ICommand ZoomOutYCommand { get; }
-    private bool CanZoomOutY(object o)
-    {
-        return true;
-    }
-
-    public ICommand ZoomInYCommand { get; }
-    private bool CanZoomInY(object o)
-    {
-        return true;
-    }
-
-    public ICommand SaveGraphCommand { get; }
-    private bool CanSaveGraph(object o)
-    {
-        return true;
-    }
-
-    public ICommand ResetZoomCommand { get; }
-    private bool CanResetZoom(object o)
-    {
-        return true;
-    }
-    #endregion
-
     #region Constructor
     public DatabaseLogger(IDbContextFactory<LoggingContext> loggingContext)
     {
         _loggingContext = loggingContext;
-        SaveGraphCommand = new DelegateCommand(SaveGraph, CanSaveGraph);
-        ResetZoomCommand = new DelegateCommand(ResetZoom, CanResetZoom);
-        ZoomOutXCommand = new DelegateCommand(ZoomOutX, CanZoomOutX);
-        ZoomInXCommand = new DelegateCommand(ZoomInX, CanZoomInX);
-        ZoomOutYCommand = new DelegateCommand(ZoomOutY, CanZoomOutY);
-        ZoomInYCommand = new DelegateCommand(ZoomInY, CanZoomInY);
 
         PlotModel = new PlotModel();
 
@@ -356,61 +313,60 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         OnPropertyChanged("PlotModel");
     }
 
-    #region Command Methods
-    private void SaveGraph(object o)
+    #region Commands
+    [RelayCommand]
+    private void SaveGraph()
     {
-        try
+        var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            var dialog = new Microsoft.Win32.SaveFileDialog
-            {
-                DefaultExt = ".csv",
-                Filter = "Image|*.png"
-            };
+            DefaultExt = ".png",
+            Filter = "PNG|*.png"
+        };
 
-            // Show save file dialog box
-            bool? result = dialog.ShowDialog();
+        var result = dialog.ShowDialog();
 
-            if (result == false) { return; }
+        if (result == false) { return; }
 
-            string filePath = dialog.FileName;
-            OxyPlot.Wpf.PngExporter.Export(PlotModel, filePath, 1920, 1080);
-        }
-        catch (Exception ex)
+        var pngExporter = new OxyPlot.Wpf.PngExporter { Width = 1024, Height = 768 };
+        using (var stream = System.IO.File.Create(dialog.FileName))
         {
-            _appLogger.Error(ex, "Failed in SaveGraph");
+            pngExporter.Export(PlotModel, stream);
         }
     }
 
-    private void ResetZoom(object o)
+    [RelayCommand]
+    private void ResetZoom()
     {
-        PlotModel.Axes[0].Reset();
-        PlotModel.Axes[2].Reset();
-        PlotModel.Axes[2].Maximum = double.NaN;
+        PlotModel.ResetAllAxes();
         PlotModel.InvalidatePlot(true);
     }
 
-    private void ZoomOutX(object o)
+    [RelayCommand]
+    private void ZoomOutX()
     {
-        PlotModel.Axes[2].ZoomAtCenter(1 / 1.5);
-        PlotModel.InvalidatePlot(false);
+        PlotModel.Axes[2].ZoomAtCenter(0.8);
+        PlotModel.InvalidatePlot(true);
     }
 
-    private void ZoomInX(object o)
+    [RelayCommand]
+    private void ZoomInX()
     {
-        PlotModel.Axes[2].ZoomAtCenter(1.5);
-        PlotModel.InvalidatePlot(false);
+        PlotModel.Axes[2].ZoomAtCenter(1.25);
+        PlotModel.InvalidatePlot(true);
     }
 
-    private void ZoomOutY(object o)
+    [RelayCommand]
+    private void ZoomOutY()
     {
-        PlotModel.Axes[0].ZoomAtCenter(1 / 1.5);
-        PlotModel.InvalidatePlot(false);
+        PlotModel.Axes[0].ZoomAtCenter(0.8);
+        PlotModel.InvalidatePlot(true);
     }
 
-    private void ZoomInY(object o)
+    [RelayCommand]
+    private void ZoomInY()
     {
-        PlotModel.Axes[0].ZoomAtCenter(1.5);
-        PlotModel.InvalidatePlot(false);
+        PlotModel.Axes[0].ZoomAtCenter(1.25);
+        PlotModel.InvalidatePlot(true);
     }
     #endregion
 }

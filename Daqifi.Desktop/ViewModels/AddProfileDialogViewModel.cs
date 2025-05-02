@@ -9,10 +9,11 @@ using System.Collections;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class AddProfileDialogViewModel : ObservableObject
+public partial class AddProfileDialogViewModel : ObservableObject
 {
     #region Private Variables
     private string _profileName = "DaqifiProfile";
@@ -171,16 +172,9 @@ public class AddProfileDialogViewModel : ObservableObject
     }
 
 
-    #region Command Delegatges
-    public ICommand AddProfileCommand => new DelegateCommand(OnSelectedProfileExecute, OnSelectedProfileCanExecute);
-
-    private bool OnSelectedProfileCanExecute(object o)
-    {
-        return true;
-    }
-
-
-    private void OnSelectedProfileExecute(object parameter)
+    #region Commands
+    [RelayCommand]
+    private void AddProfile(object parameter)
     {
         try
         {

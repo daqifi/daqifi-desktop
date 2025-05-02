@@ -9,6 +9,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -57,25 +58,8 @@ public partial class ExportDialogViewModel : ObservableObject
     }
     #endregion
 
-    #region Command Properties
-    public ICommand BrowseExportPathCommand { get; }
-    private bool CanBrowseExportPath(object o)
-    {
-        return true;
-    }
-
-    public ICommand ExportSessionCommand { get; }
-    private bool CanExportSession(object o)
-    {
-        return true;
-    }
-
-
-    public ICommand CancelExportCommand { get; set; }
-    private bool CanCancelExportCommand(object o)
-    {
-        return true;
-    }
+    #region Commands
+    public ICommand BrowseCommand { get; private set; }
     #endregion
 
     #region Constructor
@@ -85,24 +69,21 @@ public partial class ExportDialogViewModel : ObservableObject
     {
         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
         _sessionsIds = [sessionId];
-        ExportSessionCommand = new DelegateCommand(ExportLoggingSessions, CanExportSession);
-        BrowseExportPathCommand = new DelegateCommand(BrowseExportPath, CanBrowseExportPath);
-        CancelExportCommand = new DelegateCommand(CancelExport, CanCancelExportCommand);
-
+        BrowseCommand = BrowseExportPathCommand;
     }
 
     public ExportDialogViewModel(IEnumerable<LoggingSession> sessions)
     {
         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
         _sessionsIds = sessions.Select(s => s.ID).ToList();
-        ExportSessionCommand = new DelegateCommand(ExportLoggingSessions, CanExportSession);
-        BrowseExportPathCommand = new DelegateCommand(BrowseExportDirectory, CanBrowseExportPath);
+        BrowseCommand = BrowseExportDirectoryCommand;
     }
     #endregion
 
     #region Private Methods
 
-    private void BrowseExportPath(object o)
+    [RelayCommand]
+    private void BrowseExportPath()
     {
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
@@ -117,7 +98,8 @@ public partial class ExportDialogViewModel : ObservableObject
         ExportFilePath = dialog.FileName;
     }
 
-    private void BrowseExportDirectory(object o)
+    [RelayCommand]
+    private void BrowseExportDirectory()
     {
         var dialog = new FolderBrowserDialog();
 
@@ -128,14 +110,16 @@ public partial class ExportDialogViewModel : ObservableObject
         ExportFilePath = dialog.SelectedPath;
     }
     private BackgroundWorker bw;
-    private void CancelExport(object o)
+    [RelayCommand]
+    private void CancelExport()
     {
         if (bw != null && bw.WorkerSupportsCancellation)
         {
             bw.CancelAsync();
         }
     }
-    private void ExportLoggingSessions(object o)
+    [RelayCommand]
+    private void ExportLoggingSessions()
     {
         IsExporting = true;
         if (string.IsNullOrWhiteSpace(ExportFilePath)) { return; }

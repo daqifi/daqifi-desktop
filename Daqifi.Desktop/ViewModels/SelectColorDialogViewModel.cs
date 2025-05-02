@@ -6,6 +6,7 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using Brush = System.Windows.Media.Brush;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -35,15 +36,9 @@ public partial class SelectColorDialogViewModel : ObservableObject
 
     #endregion
 
-    #region Command Delegatges
-    public ICommand SelectColorCommand => new DelegateCommand(OnSelectChannelExecute, OnSelectChannelCanExecute);
-
-    private bool OnSelectChannelCanExecute(object selectedItems)
-    {
-        return true;
-    }
-
-    private void OnSelectChannelExecute(object selectedItems)
+    #region Commands
+    [RelayCommand]
+    private void SelectColor(object selectedItems)
     {
         if (!((IEnumerable)selectedItems).Cast<Brush>().Any()) { return; }
 

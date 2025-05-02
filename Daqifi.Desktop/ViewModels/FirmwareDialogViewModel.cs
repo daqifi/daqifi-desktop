@@ -6,10 +6,11 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace DAQifi.Desktop.ViewModels;
 
-public class FirmwareDialogViewModel : ObservableObject
+public partial class FirmwareDialogViewModel : ObservableObject
 {
     private readonly Pic32Bootloader _bootloader;
     private string _version;
@@ -82,26 +83,11 @@ public class FirmwareDialogViewModel : ObservableObject
 
     public string UploadFirmwareProgressText => ($"Upload Progress: {UploadFirmwareProgress}%");
 
-    public ICommand BrowseFirmwarePathCommand { get; }
-    private bool CanBrowseFirmwarePath(object o)
-    {
-        return true;
-    }
-
-    public ICommand UploadFirmwareCommand { get; }
-    private bool CanUploadFirmware(object o)
-    {
-        return true;
-    }
-
     public FirmwareDialogViewModel(HidFirmwareDevice hidFirmwareDevice)
     {
         _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
         _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
         _bootloader.RequestVersion();
-
-        BrowseFirmwarePathCommand = new DelegateCommand(BrowseFirmwarePath, CanBrowseFirmwarePath);
-        UploadFirmwareCommand = new DelegateCommand(UploadFirmware, CanUploadFirmware);
     }
 
     private void OnHidDevicePropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -112,6 +98,7 @@ public class FirmwareDialogViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
     private void BrowseFirmwarePath(object o)
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
@@ -127,6 +114,7 @@ public class FirmwareDialogViewModel : ObservableObject
         FirmwareFilePath = dialog.FileName;
     }
 
+    [RelayCommand]
     private void UploadFirmware(object obj)
     {
         var bw = new BackgroundWorker();
@@ -145,7 +133,6 @@ public class FirmwareDialogViewModel : ObservableObject
         bw.ProgressChanged += UploadFirmwareProgressChanged;
         bw.RunWorkerCompleted += HandleUploadCompleted;
         bw.RunWorkerAsync();
-
     }
 
     void UploadFirmwareProgressChanged(object sender, ProgressChangedEventArgs e)
