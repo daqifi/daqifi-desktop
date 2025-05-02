@@ -12,7 +12,7 @@ public partial class AddProfileConfirmationDialog
         InitializeComponent();       
     }
 
-    private void ExixtingProfileBtn_Click(object sender, RoutedEventArgs e)
+    private void ExistingProfileBtn_Click(object sender, RoutedEventArgs e)
     {
         Close();
     }

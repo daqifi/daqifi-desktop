@@ -738,17 +738,7 @@
                                                             <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                         </Button.Content>
                                                     </Button>
-                                                    <Button  Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveProfileList, Path=DataContext.IsprofileActiveCommand}" CommandParameter="{Binding}"  ToolTip="Active Profile">
-                                                        <!--<Button.Style>
-                                                            <Style TargetType="Button">
-                                                                <Setter Property="Foreground" Value="IndianRed"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsProfileActive}" Value="True">
-                                                                        <Setter Property="Foreground" Value="LightGreen"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>-->
+                                                    <Button  Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveProfileList, Path=DataContext.ActivateProfileCommand}" CommandParameter="{Binding}"  ToolTip="Active Profile">
                                                         <Button.Content>
                                                             <iconPacks:PackIconMaterial Kind="CheckCircle" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                         </Button.Content>
@@ -769,7 +759,7 @@
                                 </Border>
 
                                 <!-- Add profile Button -->
-                                <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="50" Height="50" Command="{Binding ShowAddProfileConfirmationDialogCommand}" Style="{DynamicResource MetroCircleButtonStyle}" Margin="10" Background="#CC119EDA" >
+                                <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="50" Height="50" Command="{Binding ShowAddProfileConfirmationCommand}" Style="{DynamicResource MetroCircleButtonStyle}" Margin="10" Background="#CC119EDA" >
                                     <Button.Content>
                                         <iconPacks:PackIconMaterial Kind="Plus" HorizontalAlignment="Center" Height="20" Width="20" Foreground="White"/>
                                     </Button.Content>

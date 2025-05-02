@@ -1103,17 +1103,20 @@ public partial class DaqifiViewModel : ObservableObject
 
     #endregion
 
-    [RelayCommand(CanExecute = nameof(CanRemoveProfileCommand))]
-    private void RemoveProfile()
+    [RelayCommand]
+    private void RemoveProfile(Profile? profile)
     {
-        var profileToRemove = SelectedProfile;
+        if (profile == null)
+        {
+            return;
+        }
         if (LoggingManager.Instance.Active)
         {
             var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while logging");
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
             return;
         }
-        if (profileToRemove.IsProfileActive)
+        if (profile.IsProfileActive)
         {
             var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while profile is active");
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
@@ -1125,10 +1128,10 @@ public partial class DaqifiViewModel : ObservableObject
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
             return;
         }
-        LoggingManager.Instance.UnsubscribeProfile(profileToRemove);
+        LoggingManager.Instance.UnsubscribeProfile(profile);
         ActiveChannels.Clear();
         ActiveInputChannels.Clear();
-        profiles.Remove(profileToRemove);
+        profiles.Remove(profile);
     }
 
     [RelayCommand]
@@ -1246,12 +1249,13 @@ public partial class DaqifiViewModel : ObservableObject
                 ProfileList = []
             };
 
+            var createdDate = DateTime.Now;
             var newProfile = new Profile
             {
 
-                Name = "DaqifiLastSessionProfile",
+                Name = "DAQiFi Profile " + createdDate,
                 ProfileId = Guid.NewGuid(),
-                CreatedOn = DateTime.Now,
+                CreatedOn = createdDate,
                 Devices = []
             };
 
@@ -1290,6 +1294,7 @@ public partial class DaqifiViewModel : ObservableObject
             }
             addProfileModel.ProfileList.Add(newProfile);
             LoggingManager.Instance.SubscribeProfile(newProfile);
+            profiles.Add(newProfile);
         }
         catch (Exception ex)
         {
@@ -1298,17 +1303,16 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void GetSelectedProfileActive()
+    private void ActivateProfile(Profile? profile)
     {
         try
         {
-            if (SelectedProfile == null)
+            if (profile == null)
             {
-                var errorDialogViewModel = new ErrorDialogViewModel("Error Activating Profile.");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                _appLogger.Error("Error Activating Profile");
                 return;
             }
+            
+            SelectedProfile = profile;
 
             // Check for multiple active profiles
             var anyActiveProfile = profiles.FirstOrDefault(x => x.IsProfileActive);
@@ -1323,8 +1327,7 @@ public partial class DaqifiViewModel : ObservableObject
             var connectedDevices = ConnectedDevices
                 .Where(cd => SelectedProfile.Devices.Any(id => id.DeviceSerialNo == cd.DeviceSerialNo))
                 .ToList();
-
-
+            
             if (connectedDevices == null || connectedDevices.Count == 0)
             {
                 var errorDialogViewModel = new ErrorDialogViewModel("Profile cannot be active. No connected devices.");
@@ -1559,11 +1562,6 @@ public partial class DaqifiViewModel : ObservableObject
         IsLogSummaryOpen = false;
         IsNotificationsOpen = false;
         IsFirmwareUpdatationFlyoutOpen = false;
-    }
-
-    private bool CanRemoveProfileCommand()
-    {
-        return SelectedProfile != null;
     }
 
     private bool CanExportAllLoggingSession()
