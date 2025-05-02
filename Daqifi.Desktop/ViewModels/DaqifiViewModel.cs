@@ -111,7 +111,7 @@ public partial class DaqifiViewModel : ObservableObject
 
     public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = [];
     public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = [];
-    public ObservableCollection<Profile> profiles { get; } = [];
+    public ObservableCollection<Profile> profiles { get; } = LoggingManager.Instance.SubscribedProfiles;
 
     public ObservableCollection<Notifications> NotificationList { get; } = [];
     public ObservableCollection<IChannel> ActiveChannels { get; } = [];
@@ -1294,7 +1294,6 @@ public partial class DaqifiViewModel : ObservableObject
             }
             addProfileModel.ProfileList.Add(newProfile);
             LoggingManager.Instance.SubscribeProfile(newProfile);
-            profiles.Add(newProfile);
         }
         catch (Exception ex)
         {

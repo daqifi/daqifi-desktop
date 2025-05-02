@@ -123,9 +123,8 @@ public partial class AddProfileDialogViewModel : ObservableObject
             else { canAddProfile = false; }
 
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
-
             AppLogger.Error(ex, "Error in adding profile ");
         }
     }
@@ -168,7 +167,6 @@ public partial class AddProfileDialogViewModel : ObservableObject
             AppLogger.Error(ex, "Error in removing Available Channels");
         }
     }
-
 
     #region Commands
     [RelayCommand]
@@ -247,7 +245,7 @@ public partial class AddProfileDialogViewModel : ObservableObject
             addProfileModel.ProfileList.Add(newProfile);
             LoggingManager.Instance.SubscribeProfile(newProfile);
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             AppLogger.Error(ex, "Error in OnSelectedProfileExecute");
         }
