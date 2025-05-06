@@ -1,5 +1,4 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using OxyPlot;
@@ -7,14 +6,14 @@ using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Diagnostics;
 using System.IO;
-using System.Windows.Input;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using TickStyle = OxyPlot.Axes.TickStyle;
 
 namespace Daqifi.Desktop.Logger;
 
-public class PlotLogger : ObservableObject, ILogger
+public partial class PlotLogger : ObservableObject, ILogger
 {
     #region Private Data
     private PlotModel _plotModel;
@@ -108,54 +107,9 @@ public class PlotLogger : ObservableObject, ILogger
     }
     #endregion
 
-    #region Command Properties
-    public ICommand ZoomInXCommand { get; }
-    private bool CanZoomInX(object o)
-    {
-        return true;
-    }
-
-    public ICommand ZoomOutXCommand { get; }
-    private bool CanZoomOutX(object o)
-    {
-        return true;
-    }
-
-    public ICommand ZoomInYCommand { get; }
-    private bool CanZoomInY(object o)
-    {
-        return true;
-    }
-
-    public ICommand ZoomOutYCommand { get; }
-    private bool CanZoomOutY(object o)
-    {
-        return true;
-    }
-
-    public ICommand SaveLiveGraphCommand { get; }
-    private bool CanSaveLiveGraph(object o)
-    {
-        return true;
-    }
-
-    public ICommand ResetZoomLiveGraphCommand { get; }
-    private bool CanResetZoomLiveGraph(object o)
-    {
-        return true;
-    }
-    #endregion
-
     #region Constructor
     public PlotLogger()
     {
-        ZoomInXCommand = new DelegateCommand(ZoomInX, CanZoomInX);
-        ZoomOutXCommand = new DelegateCommand(ZoomOutX, CanZoomOutX);
-        ZoomInYCommand = new DelegateCommand(ZoomInY, CanZoomInY);
-        ZoomOutYCommand = new DelegateCommand(ZoomOutY, CanZoomOutY);
-        ResetZoomLiveGraphCommand = new DelegateCommand(ResetZoomLiveGraph, CanResetZoomLiveGraph);
-        SaveLiveGraphCommand = new DelegateCommand(SaveLiveGraph, CanSaveLiveGraph);
-            
         LoggedPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
         PlotModel = new PlotModel();
 
@@ -318,79 +272,60 @@ public class PlotLogger : ObservableObject, ILogger
         OnPropertyChanged("PlotModel");
     }
 
-    #region Command Methods
-    private void ZoomInX(object o)
+    #region Commands
+    [RelayCommand]
+    private void ZoomInX()
     {
-        PlotModel.Axes[2].ZoomAtCenter(1.5);
-        PlotModel.InvalidatePlot(false);
+        PlotModel.Axes[2].ZoomAtCenter(1.25);
+        PlotModel.InvalidatePlot(true);
     }
 
-    private void ZoomOutX(object o)
+    [RelayCommand]
+    private void ZoomOutX()
     {
-        PlotModel.Axes[2].ZoomAtCenter(1 / 1.5);
-        PlotModel.InvalidatePlot(false);
+        PlotModel.Axes[2].ZoomAtCenter(0.8);
+        PlotModel.InvalidatePlot(true);
     }
 
-    private void ZoomInY(object o)
+    [RelayCommand]
+    private void ZoomInY()
     {
-        PlotModel.Axes[0].ZoomAtCenter(1.5);
-        PlotModel.InvalidatePlot(false);
+        PlotModel.Axes[0].ZoomAtCenter(1.25);
+        PlotModel.InvalidatePlot(true);
     }
 
-    private void ZoomOutY(object o)
+    [RelayCommand]
+    private void ZoomOutY()
     {
-        PlotModel.Axes[0].ZoomAtCenter(1 / 1.5);
-        PlotModel.InvalidatePlot(false);
-    }
-    private void ResetZoomLiveGraph(object o)
-    {
-        PlotModel.Axes[0].Reset();
-        PlotModel.Axes[2].Reset();
+        PlotModel.Axes[0].ZoomAtCenter(0.8);
+        PlotModel.InvalidatePlot(true);
     }
 
-    private void SaveLiveGraph(object o)
+    [RelayCommand]
+    private void ResetZoomLiveGraph()
     {
-        //For copying to memeory and need to put on clipboard
-        /*using (var stream = new MemoryStream())
+        PlotModel.ResetAllAxes();
+        PlotModel.InvalidatePlot(true);
+    }
+
+    [RelayCommand]
+    private void SaveLiveGraph()
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            var pngExporter = new PngExporter();
-            pngExporter.Export(_plotter.PlotModel, stream);
-        }*/
+            DefaultExt = ".png",
+            Filter = "PNG|*.png"
+        };
 
-        string picturesDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures) + "\\DAQifi";
+        var result = dialog.ShowDialog();
 
-        //Check if the folder exists
-        if (!Directory.Exists(picturesDirectory))
+        if (result == false) { return; }
+
+        var pngExporter = new OxyPlot.Wpf.PngExporter { Width = 1024, Height = 768 };
+        using (var stream = File.Create(dialog.FileName))
         {
-            Directory.CreateDirectory(picturesDirectory);
-        }
-
-        //Check if File Name Exists. If so, find a unique name.
-        string fileName = "Live Graph";
-        int count = 1;
-
-        while (true)
-        {
-            if (count == 1)
-            {
-                if (!File.Exists(picturesDirectory + "\\" + fileName + ".png")) { break; }
-            }
-
-            count++;
-
-            if (!File.Exists(picturesDirectory + "\\" + fileName + count + ".png"))
-            {
-                fileName += count;
-                break;
-            }
-        }
-
-        using (var stream = File.Create(picturesDirectory + "\\" + fileName + ".png"))
-        {
-            var pngExporter = new OxyPlot.Wpf.PngExporter();
             pngExporter.Export(PlotModel, stream);
         }
     }
-
-    #endregion 
+    #endregion
 }

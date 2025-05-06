@@ -477,7 +477,7 @@
                                  Margin="0,0,0,15"/>
                         
                         <!-- Firmware Update Controls (Visible only for USB) -->
-                        <StackPanel Visibility="{Binding IsSelectedDeviceUsb, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Visibility="{Binding SelectedDeviceSupportsFirmwareUpdate, Converter={StaticResource BoolToVis}}">
                             <DockPanel LastChildFill="True" Margin="0,0,0,15">
                                 <Button DockPanel.Dock="Right"
                                         Content="browse"
@@ -509,7 +509,7 @@
                                    Foreground="#FFCC00" 
                                    Margin="0,10,0,0"
                                    TextWrapping="Wrap"
-                                   Visibility="{Binding IsSelectedDeviceUsb, Converter={StaticResource InvertedBoolToVis}}"/>
+                                   Visibility="{Binding SelectedDeviceSupportsFirmwareUpdate, Converter={StaticResource InvertedBoolToVis}}"/>
 
                     </StackPanel>
                 </ScrollViewer>

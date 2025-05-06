@@ -102,7 +102,6 @@ public partial class LoggingManager : ObservableObject
     {
         Loggers = new List<ILogger>();
         SubscribedChannels = new List<IChannel>();
-        SubscribedProfiles = new List<Profile>();
         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
     }
 
@@ -113,8 +112,8 @@ public partial class LoggingManager : ObservableObject
     #region Profile Subscription
 
     #region Profile feature Properties
-    [ObservableProperty]
-    private List<Profile> _subscribedProfiles = new List<Profile>();
+
+    [ObservableProperty] private ObservableCollection<Profile> _subscribedProfiles = [];
 
     [ObservableProperty]
     private Profile _selectedProfile;
@@ -123,10 +122,10 @@ public partial class LoggingManager : ObservableObject
     private bool _flag;
 
     [ObservableProperty]
-    private ObservableCollection<ProfileChannel> _selectedProfileChannels = new ObservableCollection<ProfileChannel>();
+    private ObservableCollection<ProfileChannel> _selectedProfileChannels = [];
 
     [ObservableProperty]
-    private ObservableCollection<ProfileDevice> _selectedProfileDevices = new ObservableCollection<ProfileDevice>();
+    private ObservableCollection<ProfileDevice> _selectedProfileDevices = [];
     #endregion
 
     public void SubscribeProfile(Profile profile)
@@ -271,7 +270,7 @@ public partial class LoggingManager : ObservableObject
 
     public List<Profile> LoadProfilesFromXml()
     {
-        var profiles = new List<Profile>();
+        SubscribedProfiles.Clear();
 
         try
         {
@@ -279,10 +278,10 @@ public partial class LoggingManager : ObservableObject
             if (File.Exists(ProfileSettingsXmlPath))
             {
                 // Load the XML document
-                XDocument doc = XDocument.Load(ProfileSettingsXmlPath);
+                var doc = XDocument.Load(ProfileSettingsXmlPath);
 
                 // Parse the XML and retrieve the profiles
-                profiles = doc.Descendants("Profile").Select(p => new Profile
+                var loadedProfiles = doc.Descendants("Profile").Select(p => new Profile
                 {
                     Name = (string)p.Element("Name"),
                     ProfileId = (Guid)p.Element("ProfileID"),
@@ -303,27 +302,34 @@ public partial class LoggingManager : ObservableObject
                         }).ToList()
                     }).ToList())
                 }).ToList();
+
+                // Add each profile to the existing collection
+                foreach (var profile in loadedProfiles)
+                {
+                    SubscribedProfiles.Add(profile);
+                }
+                
+                return loadedProfiles;
             }
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, "Error Loading Profiles from XML");
         }
-        SubscribedProfiles = profiles;
-        return profiles;
+        
+        return SubscribedProfiles.ToList();
     }
 
     public void UnsubscribeProfile(Profile profile)
     {
         try
         {
-            var index = SubscribedProfiles
-                .FindIndex(x => x.ProfileId == profile.ProfileId);
-            if (index == -1)
+            var subscribedProfile = SubscribedProfiles.FirstOrDefault(x => x.ProfileId == profile.ProfileId);
+            if (subscribedProfile == null)
             {
                 return;
             }
-            var subscribedProfile = SubscribedProfiles[index];
+            
             AddAndRemoveProfileXml(subscribedProfile, false);
             ClearChannelList();
         }
@@ -356,21 +362,20 @@ public partial class LoggingManager : ObservableObject
 
     public void Unsubscribe(IChannel channel)
     {
-        var index = SubscribedChannels
-            .FindIndex(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
+        var subscribedChannel = SubscribedChannels
+            .FirstOrDefault(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
             
-        if (index == -1)
+        if (subscribedChannel == null)
         {
             return;
         }
             
-        var subscribedChannel = SubscribedChannels[index];
         subscribedChannel.IsActive = false;
             
         // Remove event handler if it's attached
         subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
             
-        SubscribedChannels.RemoveAt(index);
+        SubscribedChannels.Remove(subscribedChannel);
         OnPropertyChanged(nameof(SubscribedChannels));
     }
     #endregion

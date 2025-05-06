@@ -1,5 +1,4 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
@@ -7,12 +6,12 @@ using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Models;
 using System.Collections;
 using System.Collections.ObjectModel;
-using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class AddProfileDialogViewModel : ObservableObject
+public partial class AddProfileDialogViewModel : ObservableObject
 {
     #region Private Variables
     private string _profileName = "DaqifiProfile";
@@ -124,9 +123,8 @@ public class AddProfileDialogViewModel : ObservableObject
             else { canAddProfile = false; }
 
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
-
             AppLogger.Error(ex, "Error in adding profile ");
         }
     }
@@ -170,17 +168,9 @@ public class AddProfileDialogViewModel : ObservableObject
         }
     }
 
-
-    #region Command Delegatges
-    public ICommand AddProfileCommand => new DelegateCommand(OnSelectedProfileExecute, OnSelectedProfileCanExecute);
-
-    private bool OnSelectedProfileCanExecute(object o)
-    {
-        return true;
-    }
-
-
-    private void OnSelectedProfileExecute(object parameter)
+    #region Commands
+    [RelayCommand]
+    private void AddProfile(object parameter)
     {
         try
         {
@@ -255,7 +245,7 @@ public class AddProfileDialogViewModel : ObservableObject
             addProfileModel.ProfileList.Add(newProfile);
             LoggingManager.Instance.SubscribeProfile(newProfile);
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             AppLogger.Error(ex, "Error in OnSelectedProfileExecute");
         }

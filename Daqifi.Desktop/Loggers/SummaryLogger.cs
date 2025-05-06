@@ -1,10 +1,8 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Commands;
-using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using System.Text;
-using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Daqifi.Desktop.Logger;
 
@@ -372,29 +370,26 @@ public partial class SummaryLogger : ObservableObject, ILogger
 
     #endregion
 
-    #region "Command Properties"
-
-    /// <summary>
-    /// Resets the summary logger
-    /// </summary>
-    public ICommand ResetCommand { get; }
-
-    /// <summary>
-    /// Starts or stops the summary logger
-    /// </summary>
-    public ICommand ToggleEnabledCommand { get; }
-
-    #endregion
-
     #region "Constructor"
 
     public SummaryLogger()
     {
-        ResetCommand = new DelegateCommand(Reset);
-        ToggleEnabledCommand = new DelegateCommand(ToggleEnabled);
         _sampleSize = 1000;
         _buffer = new SummaryBuffer();
         _current = new SummaryBuffer();
+    }
+
+    /// <summary>
+    /// Creates a new instance
+    /// </summary>
+    /// <param name="sampleSize">The size of the sample set</param>
+    public SummaryLogger(int sampleSize)
+    {
+        _sampleSize = sampleSize;
+        _buffer = new SummaryBuffer();
+        _current = new SummaryBuffer();
+        _enabled = true;
+        Start();
     }
 
     #endregion
@@ -538,7 +533,8 @@ public partial class SummaryLogger : ObservableObject, ILogger
         OnPropertyChanged(nameof(StatusList));
     }
 
-    private void ToggleEnabled(object o)
+    [RelayCommand]
+    private void ToggleEnabled()
     {
         if (Enabled)
         {
@@ -570,7 +566,8 @@ public partial class SummaryLogger : ObservableObject, ILogger
         }
     }
 
-    private void Reset(object o)
+    [RelayCommand]
+    private void Reset()
     {
         lock(_buffer)
         {

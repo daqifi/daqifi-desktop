@@ -1,15 +1,14 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Commands;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
 using System.Collections.ObjectModel;
 using System.Windows;
-using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class AddProfileConfirmationDialogViewModel : ObservableObject
+public partial class AddProfileConfirmationDialogViewModel : ObservableObject
 {
     #region Private Variables
     private IStreamingDevice _selectedDevice;
@@ -83,30 +82,18 @@ public class AddProfileConfirmationDialogViewModel : ObservableObject
     }
     #endregion
 
-    #region Command Delegatges
-    public ICommand AddNewProfileCommand => new DelegateCommand(AddNewProfileExecute, OnSelectedProfileCanExecute);
-    public ICommand ExistingProfileCommand => new DelegateCommand(SaveExistingProfileExecute, OnSelectedProfileCanExecute);
-
-    private bool OnSelectedProfileCanExecute(object o)
+    #region Commands
+    [RelayCommand]
+    private void AddNewProfile()
     {
-        return true;
-            
+        _daqifiViewModel.ShowAddProfileDialog();
     }
 
-    private void AddNewProfileExecute(object o)
+    [RelayCommand]
+    private void SaveExistingProfile()
     {
-           
-        _daqifiViewModel.ShowAddProfileDialog(null);
-            
-
-    }
-    private void SaveExistingProfileExecute(object o)
-    {
-          
         _daqifiViewModel.SaveExistingSetting();
-            
     }
-
     #endregion
 
 }
