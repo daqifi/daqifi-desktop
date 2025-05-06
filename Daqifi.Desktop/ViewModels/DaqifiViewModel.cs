@@ -1091,9 +1091,10 @@ public partial class DaqifiViewModel : ObservableObject
     }
     private void RemoveNotification(IStreamingDevice deviceToRemove)
     {
-        if (deviceToRemove?.DeviceSerialNo == null) 
+        if (deviceToRemove?.DeviceSerialNo == null)
         {
             return;
+        }
 
         var notificationsToRemove = NotificationList
             .FirstOrDefault(x => x.DeviceSerialNo != null && x.DeviceSerialNo == deviceToRemove.DeviceSerialNo && x.isFirmwareUpdate);
