@@ -619,7 +619,7 @@
                                                         </StackPanel>
                                                         <Button Grid.RowSpan="3" Grid.Column="1" 
                                                             HorizontalAlignment="Right" VerticalAlignment="Bottom" 
-                                                            Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.OpenFirmwareUpdateCommand}" 
+                                                            Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.OpenFirmwareUpdateSettingsCommand}" 
                                                             CommandParameter="{Binding}" ToolTip="Update Firmware">
 
                                                             <Button.Content>

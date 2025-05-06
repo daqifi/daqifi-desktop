@@ -69,7 +69,6 @@ public partial class DaqifiViewModel : ObservableObject
     private readonly IDialogService _dialogService;
     
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSelectedDeviceUsb))]
     private IStreamingDevice? _selectedDevice;
     
     private VersionNotification? _versionNotification;
@@ -95,9 +94,12 @@ public partial class DaqifiViewModel : ObservableObject
     private bool _isUploadComplete;
     [ObservableProperty]
     private bool _hasErrorOccured;
+    [ObservableProperty]
     private int _uploadFirmwareProgress;
     [ObservableProperty]
     private int _uploadWiFiProgress;
+    [ObservableProperty]
+    private bool _selectedDeviceSupportsFirmwareUpdate;
     private HidDeviceFinder _hidDeviceFinder;
     [ObservableProperty]
     private bool _hasNoHidDevices = true;
@@ -105,6 +107,8 @@ public partial class DaqifiViewModel : ObservableObject
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     private string _selectedLoggingMode = "Stream to App";
     private bool _isLogToDeviceMode;
+    // Add a field to store the device being updated during firmware update process
+    private IStreamingDevice? _deviceBeingUpdated;
     #endregion
 
     #region Properties
@@ -123,19 +127,6 @@ public partial class DaqifiViewModel : ObservableObject
     public SummaryLogger SummaryLogger { get; private set; }
     public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
     public ObservableCollection<IChannel> AvailableChannels { get; } = [];
-
-    public int UploadFirmwareProgress
-    {
-        get => _uploadFirmwareProgress;
-        set
-        {
-            _uploadFirmwareProgress = value;
-            OnPropertyChanged();
-            OnPropertyChanged("UploadFirmwareProgressText");
-        }
-    }
-
-    public string UploadFirmwareProgressText => ($"Upload Progress: {UploadFirmwareProgress}%");
     
     public IStreamingDevice UpdateProfileSelectedDevice
     {
@@ -315,8 +306,6 @@ public partial class DaqifiViewModel : ObservableObject
 
     public DeviceLogsViewModel DeviceLogsViewModel { get; private set; }
 
-    public bool IsSelectedDeviceUsb => SelectedDevice is SerialStreamingDevice;
-
     // Re-add properties for manually instantiated commands
     public ICommand DeleteLoggingSessionCommand { get; private set; }
     public ICommand DeleteAllLoggingSessionCommand { get; private set; }
@@ -452,7 +441,8 @@ public partial class DaqifiViewModel : ObservableObject
             var wifiUpdater = new WifiModuleUpdater();
             var progress = new Progress<int>(percent => _updateWiFiBackgroundWorker.ReportProgress(percent));
 
-            if (_selectedDevice is not IFirmwareUpdateDevice updateDevice)
+            // Use the stored device reference instead of SelectedDevice (which might be null)
+            if (_deviceBeingUpdated is not IFirmwareUpdateDevice updateDevice)
             {
                 throw new InvalidOperationException("Selected device does not support firmware updates");
             }
@@ -491,12 +481,16 @@ public partial class DaqifiViewModel : ObservableObject
             IsUploadComplete = true;
             ShowUploadSuccessMessage();
         }
+        
+        // Clear the device reference after update completion
+        _deviceBeingUpdated = null;
     }
     private void HandleFirmwareUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
     {
         if (e.Error != null || e.Cancelled)
         {
             IsFirmwareUploading = false;
+            _deviceBeingUpdated = null; // Clear reference on error
             return;
         }
             
@@ -506,6 +500,7 @@ public partial class DaqifiViewModel : ObservableObject
         {
             IsUploadComplete = true;
             ShowUploadSuccessMessage();
+            _deviceBeingUpdated = null; // Clear reference after manual upload
         }
         else
         {
@@ -517,10 +512,15 @@ public partial class DaqifiViewModel : ObservableObject
     [RelayCommand]
     private void UploadFirmware()
     {
-        if (_selectedDevice is not SerialStreamingDevice)
+        if (SelectedDevice is not SerialStreamingDevice serialStreamingDevice)
         {
             return;
         }
+        
+        SelectedDeviceSupportsFirmwareUpdate = true;
+        
+        // Store a reference to the device being updated
+        _deviceBeingUpdated = SelectedDevice;
         
         var isManualUpload = false;
         // Download if a hex file wasn't passed to it.
@@ -539,8 +539,8 @@ public partial class DaqifiViewModel : ObservableObject
             return;
         }
         
-        (_selectedDevice as SerialStreamingDevice)!.ForceBootloader();
-        _selectedDevice.Disconnect();
+        serialStreamingDevice.ForceBootloader();
+        serialStreamingDevice.Disconnect();
         
         // Once the DAQiFi resets, the COM serial port is closed,
         // and the HID port for managing the bootloader must be found
@@ -710,15 +710,17 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void OpenFirmwareUpdateSettings()
+    private void OpenFirmwareUpdateSettings(IStreamingDevice? device)
     {
-        var item = SelectedDevice;
-        if (item == null)
+        if (device == null)
         {
-            _appLogger.Error("Error opening firmware settings");
+            return;
         }
+
+        SelectedDeviceSupportsFirmwareUpdate = device is SerialStreamingDevice;
+        
         CloseFlyouts();
-        SelectedDevice = item;
+        SelectedDevice = device;
         IsFirmwareUpdatationFlyoutOpen = true;
     }
 

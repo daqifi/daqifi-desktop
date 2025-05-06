@@ -66,7 +66,7 @@
         <GroupBox Grid.Column="0" Grid.Row="2" Header="Update Firmware">
             <StackPanel>
                 <!-- Firmware Update Controls (Visible only for USB) -->
-                <Grid Visibility="{Binding IsSelectedDeviceUsb, Converter={StaticResource BoolToVis}}">
+                <Grid Visibility="{Binding SelectedDeviceSupportsFirmwareUpdate, Converter={StaticResource BoolToVis}}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -91,7 +91,7 @@
                            Foreground="#FFCC00" 
                            Margin="0,10,0,0"
                            TextWrapping="Wrap"
-                           Visibility="{Binding IsSelectedDeviceUsb, Converter={StaticResource InvertedBoolToVis}}"/>
+                           Visibility="{Binding SelectedDeviceSupportsFirmwareUpdate, Converter={StaticResource InvertedBoolToVis}}"/>
             </StackPanel>
         </GroupBox>
     </Grid>
