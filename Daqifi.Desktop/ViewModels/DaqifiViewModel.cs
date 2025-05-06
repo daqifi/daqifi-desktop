@@ -1091,7 +1091,9 @@ public partial class DaqifiViewModel : ObservableObject
     }
     private void RemoveNotification(IStreamingDevice deviceToRemove)
     {
-        if (deviceToRemove?.DeviceSerialNo == null) return;
+        if (deviceToRemove?.DeviceSerialNo == null) 
+        {
+            return;
 
         var notificationsToRemove = NotificationList
             .FirstOrDefault(x => x.DeviceSerialNo != null && x.DeviceSerialNo == deviceToRemove.DeviceSerialNo && x.isFirmwareUpdate);
@@ -1163,7 +1165,7 @@ public partial class DaqifiViewModel : ObservableObject
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
             return;
         }
-        SelectedProfile = SelectedProfile;
+
         LoggingManager.Instance.SelectedProfile = SelectedProfile;
         LoggingManager.Instance.Flag = false;
         LoggingManager.Instance.SelectedProfileChannels.Clear();
