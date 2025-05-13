@@ -1,7 +1,17 @@
 version: 2
-updates: 
+updates:
   - package-ecosystem: "nuget"
-    directory: “/Daqifi.Desktop”
-    schedule: 
-      interval: "daily"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "nuget"
 
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "github-actions"
