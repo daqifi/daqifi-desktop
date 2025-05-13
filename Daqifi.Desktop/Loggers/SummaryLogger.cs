@@ -370,6 +370,73 @@ public partial class SummaryLogger : ObservableObject, ILogger
 
     #endregion
 
+    #region "Performance Monitor Properties"
+
+    /// <summary>
+    /// The current measured sample rate (samples/sec)
+    /// </summary>
+    [ObservableProperty]
+    private double _actualSampleRate;
+
+    /// <summary>
+    /// The target sample rate (samples/sec)
+    /// </summary>
+    [ObservableProperty]
+    private double _targetSampleRate;
+
+    /// <summary>
+    /// System load as a percentage (0-100)
+    /// </summary>
+    [ObservableProperty]
+    private double _systemLoadPercentage;
+
+    /// <summary>
+    /// System load status (Good, Warning, Critical)
+    /// </summary>
+    [ObservableProperty]
+    private string _systemLoadStatus = "Good";
+
+    /// <summary>
+    /// Buffer fullness as a percentage (0-100)
+    /// </summary>
+    [ObservableProperty]
+    private double _bufferPercentage;
+
+    /// <summary>
+    /// Buffer status (Good, Warning, Critical)
+    /// </summary>
+    [ObservableProperty]
+    private string _bufferStatus = "Good";
+
+    /// <summary>
+    /// Overall system status (Healthy, Warning, Critical)
+    /// </summary>
+    [ObservableProperty]
+    private string _overallSystemStatus = "Healthy";
+
+    /// <summary>
+    /// Overall system status message (System Healthy, Performance Warning, Performance Critical)
+    /// </summary>
+    [ObservableProperty]
+    private string _overallSystemStatusMessage = "System Healthy";
+
+    /// <summary>
+    /// Controls the visibility of the detailed view section
+    /// </summary>
+    [ObservableProperty]
+    private bool _isDetailedViewVisible = false;
+
+    /// <summary>
+    /// Command to toggle the detailed view section
+    /// </summary>
+    [RelayCommand]
+    private void ToggleDetailedView()
+    {
+        IsDetailedViewVisible = !IsDetailedViewVisible;
+    }
+
+    #endregion
+
     #region "Constructor"
 
     public SummaryLogger()
@@ -531,6 +598,54 @@ public partial class SummaryLogger : ObservableObject, ILogger
         OnPropertyChanged(nameof(MinLatency));
         OnPropertyChanged(nameof(AverageLatency));
         OnPropertyChanged(nameof(StatusList));
+
+        // Performance Monitor properties
+        ActualSampleRate = SampleRate;
+        // For now, TargetSampleRate is a placeholder (could be set externally or from device config)
+        // System Load: map AverageLatency to a 0-100% scale (demo: 0-1000 ticks = 0-100%)
+        double latency = AverageLatency;
+        SystemLoadPercentage = Math.Min(100, Math.Max(0, latency / 10.0));
+        if (SystemLoadPercentage < 50)
+            SystemLoadStatus = "Good";
+        else if (SystemLoadPercentage < 80)
+            SystemLoadStatus = "Warning";
+        else
+            SystemLoadStatus = "Critical";
+
+        // Buffer: percent of sample window filled
+        BufferPercentage = _current.SampleCount > 0 && _sampleSize > 0 ? Math.Min(100, 100.0 * _current.SampleCount / _sampleSize) : 0;
+        if (BufferPercentage < 70)
+            BufferStatus = "Good";
+        else if (BufferPercentage < 90)
+            BufferStatus = "Warning";
+        else
+            BufferStatus = "Critical";
+
+        // Overall status: worst of the two
+        if (SystemLoadStatus == "Critical" || BufferStatus == "Critical")
+        {
+            OverallSystemStatus = "Critical";
+            OverallSystemStatusMessage = "Performance Critical";
+        }
+        else if (SystemLoadStatus == "Warning" || BufferStatus == "Warning")
+        {
+            OverallSystemStatus = "Warning";
+            OverallSystemStatusMessage = "Performance Warning";
+        }
+        else
+        {
+            OverallSystemStatus = "Healthy";
+            OverallSystemStatusMessage = "System Healthy";
+        }
+
+        OnPropertyChanged(nameof(ActualSampleRate));
+        OnPropertyChanged(nameof(TargetSampleRate));
+        OnPropertyChanged(nameof(SystemLoadPercentage));
+        OnPropertyChanged(nameof(SystemLoadStatus));
+        OnPropertyChanged(nameof(BufferPercentage));
+        OnPropertyChanged(nameof(BufferStatus));
+        OnPropertyChanged(nameof(OverallSystemStatus));
+        OnPropertyChanged(nameof(OverallSystemStatusMessage));
     }
 
     [RelayCommand]

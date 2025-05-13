@@ -13,9 +13,26 @@
     - [x] Update all usages of `IsLogSummaryOpen` to `IsPerformanceMonitorOpen`.
     - [x] Update all usages of `OpenLogSummaryCommand` to `OpenPerformanceMonitorCommand`.
 
----
+### 2. ViewModel (`SummaryLogger.cs`) Changes
+- [x] Add observable properties for all key metrics and UI state.
+- [x] Wire up these properties in `NotifyResultsChanged()` for live updates.
 
-_Next: Proceed to Step 3 (Update the ViewModel `SummaryLogger.cs` to add new observable properties and commands for the simplified metrics and UI)._
+### 3. View (`PerformanceMonitorFlyout.xaml`) Changes
+- [x] Update header, description, and remove old settings/sample size controls.
+- [x] Add status indicator, key metrics, and new controls.
+- [x] Make detailed view collapsible.
+
+### 4. Converters
+- [x] Implement and register `OverallStatusToBrushConverter` for status indicator color.
+- [x] Implement and register `MonitoringButtonContentConverter` for Start/Stop button.
+- [x] Confirmed `BooleanToVisibilityConverter` is available for detailed view.
+
+### 5. Testing
+- [x] UI matches the design and is ready for live data testing.
+- [ ] Test with live data to ensure metrics update and controls function as expected.
+
+---
+_Next: Test with live data and verify real-time updates and control behavior._
 
 ### 2. ViewModel (`SummaryLogger.cs`) Changes
 

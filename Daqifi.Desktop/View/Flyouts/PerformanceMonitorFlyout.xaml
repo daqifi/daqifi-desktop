@@ -4,209 +4,241 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             xmlns:local="clr-namespace:Daqifi.Desktop.Converters"
              mc:Ignorable="d" 
              d:DesignHeight="600" d:DesignWidth="600"
              Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsPerformanceMonitorOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right"
-             Header="Log Summary">
+             Header="Performance Monitor">
+    <Controls:Flyout.Resources>
+        <local:OverallStatusToBrushConverter x:Key="OverallStatusToBrushConverter" />
+        <local:MonitoringButtonContentConverter x:Key="MonitoringButtonContentConverter" />
+        <!-- BooleanToVisibilityConverter is already in App.xaml as BoolToVis -->
+    </Controls:Flyout.Resources>
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
-
         <Grid.RowDefinitions>
-            <RowDefinition Height="auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <GroupBox Header="Settings" Grid.Row="0" Grid.Column="0" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
-            <Grid Margin="15">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="150"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="75"/>
-                </Grid.ColumnDefinitions>
+        <!-- Description -->
+        <TextBlock Grid.Row="0" Text="Monitor data acquisition performance" FontSize="16" Margin="10,0,0,10"/>
 
-                <Grid.RowDefinitions>
-                    <RowDefinition/>
-                    <RowDefinition/>
-                    <RowDefinition/>
-                </Grid.RowDefinitions>
+        <!-- Status Indicator and Message -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,10">
+            <Ellipse Width="32" Height="32" Margin="10,0,10,0">
+                <Ellipse.Fill>
+                    <Binding Path="SummaryLogger.OverallSystemStatus" Converter="{StaticResource OverallStatusToBrushConverter}"/>
+                </Ellipse.Fill>
+            </Ellipse>
+            <TextBlock Text="{Binding SummaryLogger.OverallSystemStatusMessage}" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+        </StackPanel>
 
-                <Label Grid.Row="0" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Log Session" />
-                <Label Grid.Row="0" Grid.Column="1"
-                             Content="{Binding SelectedLoggingSession.Name}" FontSize="16" HorizontalContentAlignment="Center"/>
+        <!-- Key Metrics -->
+        <StackPanel Grid.Row="2" Orientation="Vertical" Margin="10,0,10,10">
+            <!-- Sample Rate -->
+            <StackPanel Orientation="Horizontal" Margin="0,5">
+                <TextBlock Text="Sample Rate: " FontWeight="Bold"/>
+                <TextBlock Text="{Binding SummaryLogger.ActualSampleRate, StringFormat={}{0:F0}/sec}"/>
+                <TextBlock Text=" [target: " Foreground="Gray"/>
+                <TextBlock Text="{Binding SummaryLogger.TargetSampleRate, StringFormat={}{0:F0}}" Foreground="Gray"/>
+                <TextBlock Text="]" Foreground="Gray"/>
+            </StackPanel>
+            <!-- System Load -->
+            <StackPanel Orientation="Horizontal" Margin="0,5">
+                <TextBlock Text="System Load: " FontWeight="Bold"/>
+                <TextBlock Text="{Binding SummaryLogger.SystemLoadPercentage, StringFormat={}{0:F0}%}"/>
+                <ProgressBar Width="120" Height="16" Margin="10,0,0,0" Value="{Binding SummaryLogger.SystemLoadPercentage}" Maximum="100">
+                    <!-- TODO: Color code bar by SummaryLogger.SystemLoadStatus (Style/Trigger or converter) -->
+                </ProgressBar>
+            </StackPanel>
+            <!-- Buffer Status -->
+            <StackPanel Orientation="Horizontal" Margin="0,5">
+                <TextBlock Text="Buffer: " FontWeight="Bold"/>
+                <TextBlock Text="{Binding SummaryLogger.BufferPercentage, StringFormat={}{0:F0}%}"/>
+                <ProgressBar Width="120" Height="16" Margin="10,0,0,0" Value="{Binding SummaryLogger.BufferPercentage}" Maximum="100">
+                    <!-- TODO: Color code bar by SummaryLogger.BufferStatus (Style/Trigger or converter) -->
+                </ProgressBar>
+            </StackPanel>
+        </StackPanel>
 
-                <Label Grid.Row="1" Grid.Column="0"
-                           Content="Sample Size" FontSize="16" FontWeight="Bold" Margin="5"/>
-                <Controls:NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding SummaryLogger.SampleSize}" Minimum="1" Interval="1" Width="150" HorizontalAlignment="Left" ></Controls:NumericUpDown>
+        <!-- Controls -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Left" Margin="10,0,0,10">
+            <Button Width="160" Height="36" Margin="0,0,10,0"
+                    Command="{Binding SummaryLogger.ToggleEnabledCommand}">
+                <Button.Content>
+                    <TextBlock>
+                        <Run Text="{Binding SummaryLogger.Enabled, Converter={StaticResource MonitoringButtonContentConverter}}"/>
+                    </TextBlock>
+                </Button.Content>
+            </Button>
+            <Button Width="120" Height="36" Command="{Binding SummaryLogger.ToggleDetailedViewCommand}">
+                <Button.Content>View Details</Button.Content>
+            </Button>
+        </StackPanel>
 
-                <Label Grid.Row="2" Grid.Column="0"
-                           Content="Status" FontSize="16" FontWeight="Bold" Margin="5"/>
-                <Controls:ToggleSwitch Grid.Row="2" Grid.Column="1"
-                                           Command="{Binding SummaryLogger.ToggleEnabledCommand}"
-                                           IsOn="{Binding SummaryLogger.Enabled, Mode=OneWay}" OffContent="Stopped" OnContent="Running" HorizontalAlignment="Left"/>
-                <Button Grid.Row="2" Grid.Column="2" Content="Reset"  Command="{Binding SummaryLogger.ResetCommand}"/>
-            </Grid>
-        </GroupBox>
+        <!-- Detailed View (collapsible) -->
+        <Border Grid.Row="4" Margin="0,10,0,0" BorderBrush="#DDD" BorderThickness="1" CornerRadius="4"
+                Visibility="{Binding SummaryLogger.IsDetailedViewVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <ScrollViewer HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-        <ScrollViewer Grid.Row="1" Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
+                    <GroupBox Header="Device" Grid.Row="0">
+                        <Grid Margin="5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
 
-                <GroupBox Header="Device" Grid.Row="0">
-                    <Grid Margin="5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="150"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
 
-                        <Grid.RowDefinitions>
-                            <RowDefinition/>
-                            <RowDefinition/>
-                            <RowDefinition/>
-                            <RowDefinition/>
-                            <RowDefinition/>
-                            <RowDefinition/>
-                            <RowDefinition/>
-                        </Grid.RowDefinitions>
+                            <Label Grid.Row="0" Grid.Column="0"
+                               FontSize="16" FontWeight="Bold" Content="Updated" />
+                            <Label Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3"
+                                FontSize="16"
+                                Content="{Binding SummaryLogger.LastUpdate}"
+                                ContentStringFormat="HH:mm:ss.fffffff"
+                                HorizontalContentAlignment="Left"/>
 
-                        <Label Grid.Row="0" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Updated" />
-                        <Label Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3"
-                            FontSize="16"
-                            Content="{Binding SummaryLogger.LastUpdate}"
-                            ContentStringFormat="HH:mm:ss.fffffff"
-                            HorizontalContentAlignment="Left"/>
-
-                        <Label Grid.Row="1" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Elapsed Time (ms)" />
-                        <Label Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
-                           FontSize="16"
-                           Content="{Binding SummaryLogger.ElapsedTime}"
-                           HorizontalContentAlignment="Left" />
-
-                        <Label Grid.Row="2" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Sample Rate (hz)" />
-                        <Label Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3"
-                           FontSize="16"
-                           Content="{Binding SummaryLogger.SampleRate}" HorizontalContentAlignment="Center"/>
-
-                        <Label Grid.Row="3" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Statuses" />
-                        <Label Grid.Row="3" Grid.Column="1"
+                            <Label Grid.Row="1" Grid.Column="0"
+                               FontSize="16" FontWeight="Bold" Content="Elapsed Time (ms)" />
+                            <Label Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3"
                                FontSize="16"
-                               Content="{Binding SummaryLogger.StatusList}" HorizontalContentAlignment="Right"/>
+                               Content="{Binding SummaryLogger.ElapsedTime}"
+                               HorizontalContentAlignment="Left" />
 
-                        <Label Grid.Row="4" Grid.Column="1"
-                           FontSize="16" FontWeight="Bold" Content="Min" />
-                        <Label Grid.Row="4" Grid.Column="2"
-                           FontSize="16" FontWeight="Bold" Content="Avg" />
-                        <Label Grid.Row="4" Grid.Column="3"
-                           FontSize="16" FontWeight="Bold" Content="Max" />
-
-                        <Label Grid.Row="5" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Delta (ticks)" />
-                        <Label Grid.Row="5" Grid.Column="1"
+                            <Label Grid.Row="2" Grid.Column="0"
+                               FontSize="16" FontWeight="Bold" Content="Sample Rate (hz)" />
+                            <Label Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3"
                                FontSize="16"
-                               Content="{Binding SummaryLogger.MinDelta}" HorizontalContentAlignment="Right"/>
-                        <Label Grid.Row="5" Grid.Column="2"
-                               FontSize="16"
-                               Content="{Binding SummaryLogger.AverageDelta}" HorizontalContentAlignment="Right"/>
-                        <Label Grid.Row="5" Grid.Column="3"
-                               FontSize="16"
-                               Content="{Binding SummaryLogger.MaxDelta}" HorizontalContentAlignment="Right"/>
+                               Content="{Binding SummaryLogger.SampleRate}" HorizontalContentAlignment="Center"/>
 
-                        <Label Grid.Row="6" Grid.Column="0"
-                           FontSize="16" FontWeight="Bold" Content="Latency (ticks)" />
-                        <Label Grid.Row="6" Grid.Column="1"
-                               FontSize="16"
-                               Content="{Binding SummaryLogger.MinLatency}" HorizontalContentAlignment="Right"/>
-                        <Label Grid.Row="6" Grid.Column="2"
-                               FontSize="16"
-                               Content="{Binding SummaryLogger.AverageLatency}" HorizontalContentAlignment="Right"/>
-                        <Label Grid.Row="6" Grid.Column="3"
-                               FontSize="16"
-                               Content="{Binding SummaryLogger.MaxLatency}" HorizontalContentAlignment="Right"/>
-                    </Grid>
-                </GroupBox>
-                <GroupBox Header="Channels" Grid.Row="1">
-                    <ListView ItemsSource="{Binding SummaryLogger.Channels}">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <Grid Margin="5">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="150"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
+                            <Label Grid.Row="3" Grid.Column="0"
+                               FontSize="16" FontWeight="Bold" Content="Statuses" />
+                            <Label Grid.Row="3" Grid.Column="1"
+                                   FontSize="16"
+                                   Content="{Binding SummaryLogger.StatusList}" HorizontalContentAlignment="Right"/>
 
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition />
-                                        <RowDefinition />
-                                        <RowDefinition />
-                                        <RowDefinition />
-                                    </Grid.RowDefinitions>
+                            <Label Grid.Row="4" Grid.Column="1"
+                               FontSize="16" FontWeight="Bold" Content="Min" />
+                            <Label Grid.Row="4" Grid.Column="2"
+                               FontSize="16" FontWeight="Bold" Content="Avg" />
+                            <Label Grid.Row="4" Grid.Column="3"
+                               FontSize="16" FontWeight="Bold" Content="Max" />
 
-                                    <Label Grid.Row="0" Grid.Column="0"
-                                       FontSize="16"
-                                       Content="{Binding Name}" HorizontalContentAlignment="Left" />
+                            <Label Grid.Row="5" Grid.Column="0"
+                               FontSize="16" FontWeight="Bold" Content="Delta (ticks)" />
+                            <Label Grid.Row="5" Grid.Column="1"
+                                   FontSize="16"
+                                   Content="{Binding SummaryLogger.MinDelta}" HorizontalContentAlignment="Right"/>
+                            <Label Grid.Row="5" Grid.Column="2"
+                                   FontSize="16"
+                                   Content="{Binding SummaryLogger.AverageDelta}" HorizontalContentAlignment="Right"/>
+                            <Label Grid.Row="5" Grid.Column="3"
+                                   FontSize="16"
+                                   Content="{Binding SummaryLogger.MaxDelta}" HorizontalContentAlignment="Right"/>
 
-                                    <Label Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="1"
-                                       FontSize="16"
-                                       Content="{Binding LastUpdate}"
-                                       ContentStringFormat="HH:mm:ss.fffffff"
-                                       HorizontalContentAlignment="Left" />
+                            <Label Grid.Row="6" Grid.Column="0"
+                               FontSize="16" FontWeight="Bold" Content="Latency (ticks)" />
+                            <Label Grid.Row="6" Grid.Column="1"
+                                   FontSize="16"
+                                   Content="{Binding SummaryLogger.MinLatency}" HorizontalContentAlignment="Right"/>
+                            <Label Grid.Row="6" Grid.Column="2"
+                                   FontSize="16"
+                                   Content="{Binding SummaryLogger.AverageLatency}" HorizontalContentAlignment="Right"/>
+                            <Label Grid.Row="6" Grid.Column="3"
+                                   FontSize="16"
+                                   Content="{Binding SummaryLogger.MaxLatency}" HorizontalContentAlignment="Right"/>
+                        </Grid>
+                    </GroupBox>
+                    <GroupBox Header="Channels" Grid.Row="1">
+                        <ListView ItemsSource="{Binding SummaryLogger.Channels}">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
 
-                                    <Label Grid.Row="0" Grid.Column="2"
-                                       FontSize="16"
-                                       Content="Count" HorizontalContentAlignment="Right" />
-                                    
-                                    <Label Grid.Row="0" Grid.Column="3"
-                                       FontSize="16"
-                                       Content="{Binding SampleCount}" HorizontalContentAlignment="Right" />
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                            <RowDefinition />
+                                        </Grid.RowDefinitions>
 
-                                    <Label Grid.Row="1" Grid.Column="0"
-                                       FontSize="16" FontWeight="Bold" Content="Sample Rate (hz)" />
-                                    <Label Grid.Row="1" Grid.Column="2"
-                                       FontSize="16"
-                                       Content="{Binding SampleRate}" HorizontalContentAlignment="Right"/>
-                                    
-                                    <Label Grid.Row="2" Grid.Column="0"
-                                        FontSize="16" FontWeight="Bold" Content="Delta" />
-                                    <Label Grid.Row="2" Grid.Column="1"
-                                       FontSize="16"
-                                       Content="{Binding MinDelta}" HorizontalContentAlignment="Right" />
-                                    <Label Grid.Row="2" Grid.Column="2"
-                                       FontSize="16"
-                                       Content="{Binding AverageDelta}" HorizontalContentAlignment="Right" />
-                                    <Label Grid.Row="2" Grid.Column="3"
-                                       FontSize="16"
-                                       Content="{Binding MaxDelta}" HorizontalContentAlignment="Right" />
+                                        <Label Grid.Row="0" Grid.Column="0"
+                                           FontSize="16"
+                                           Content="{Binding Name}" HorizontalContentAlignment="Left" />
 
-                                    <Label Grid.Row="3" Grid.Column="0"
-                                        FontSize="16" FontWeight="Bold" Content="Value" />
-                                    <Label Grid.Row="3" Grid.Column="1"
-                                        FontSize="16"
-                                        Content="{Binding MinValue}" HorizontalContentAlignment="Right" />
-                                    <Label Grid.Row="3" Grid.Column="2"
-                                       FontSize="16"
-                                       Content="{Binding AverageValue}" HorizontalContentAlignment="Right" />
-                                    <Label Grid.Row="3" Grid.Column="3"
-                                       FontSize="16"
-                                       Content="{Binding MaxValue}" HorizontalContentAlignment="Right" />
-                                </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </GroupBox>
-            </Grid>
-        </ScrollViewer>
+                                        <Label Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="1"
+                                           FontSize="16"
+                                           Content="{Binding LastUpdate}"
+                                           ContentStringFormat="HH:mm:ss.fffffff"
+                                           HorizontalContentAlignment="Left" />
+
+                                        <Label Grid.Row="0" Grid.Column="2"
+                                           FontSize="16"
+                                           Content="Count" HorizontalContentAlignment="Right" />
+                                        
+                                        <Label Grid.Row="0" Grid.Column="3"
+                                           FontSize="16"
+                                           Content="{Binding SampleCount}" HorizontalContentAlignment="Right" />
+
+                                        <Label Grid.Row="1" Grid.Column="0"
+                                           FontSize="16" FontWeight="Bold" Content="Sample Rate (hz)" />
+                                        <Label Grid.Row="1" Grid.Column="2"
+                                           FontSize="16"
+                                           Content="{Binding SampleRate}" HorizontalContentAlignment="Right"/>
+                                        
+                                        <Label Grid.Row="2" Grid.Column="0"
+                                            FontSize="16" FontWeight="Bold" Content="Delta" />
+                                        <Label Grid.Row="2" Grid.Column="1"
+                                           FontSize="16"
+                                           Content="{Binding MinDelta}" HorizontalContentAlignment="Right" />
+                                        <Label Grid.Row="2" Grid.Column="2"
+                                           FontSize="16"
+                                           Content="{Binding AverageDelta}" HorizontalContentAlignment="Right" />
+                                        <Label Grid.Row="2" Grid.Column="3"
+                                           FontSize="16"
+                                           Content="{Binding MaxDelta}" HorizontalContentAlignment="Right" />
+
+                                        <Label Grid.Row="3" Grid.Column="0"
+                                            FontSize="16" FontWeight="Bold" Content="Value" />
+                                        <Label Grid.Row="3" Grid.Column="1"
+                                            FontSize="16"
+                                            Content="{Binding MinValue}" HorizontalContentAlignment="Right" />
+                                        <Label Grid.Row="3" Grid.Column="2"
+                                           FontSize="16"
+                                           Content="{Binding AverageValue}" HorizontalContentAlignment="Right" />
+                                        <Label Grid.Row="3" Grid.Column="3"
+                                           FontSize="16"
+                                           Content="{Binding MaxValue}" HorizontalContentAlignment="Right" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </GroupBox>
+                </Grid>
+            </ScrollViewer>
+        </Border>
     </Grid>
 </Controls:Flyout>
