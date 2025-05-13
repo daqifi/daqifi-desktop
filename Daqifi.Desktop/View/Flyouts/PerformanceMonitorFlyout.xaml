@@ -1,4 +1,4 @@
-﻿<Controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.SummaryFlyout"
+﻿<Controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.PerformanceMonitorFlyout"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
@@ -6,7 +6,7 @@
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              mc:Ignorable="d" 
              d:DesignHeight="600" d:DesignWidth="600"
-             Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsLogSummaryOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right"
+             Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsPerformanceMonitorOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right"
              Header="Log Summary">
     <Grid>
         <Grid.ColumnDefinitions>

@@ -48,7 +48,7 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     private bool _isFirmwareUpdatationFlyoutOpen;
     [ObservableProperty]
-    private bool _isLogSummaryOpen;
+    private bool _isPerformanceMonitorOpen;
     [ObservableProperty]
     private bool _isChannelSettingsOpen;
     [ObservableProperty]
@@ -738,10 +738,10 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void OpenLogSummary()
+    private void OpenPerformanceMonitor()
     {
         CloseFlyouts();
-        IsLogSummaryOpen = true;
+        IsPerformanceMonitorOpen = true;
     }
 
     [RelayCommand]
@@ -1563,7 +1563,7 @@ public partial class DaqifiViewModel : ObservableObject
         IsChannelSettingsOpen = false;
         IsLoggingSessionSettingsOpen = false;
         IsLiveGraphSettingsOpen = false;
-        IsLogSummaryOpen = false;
+        IsPerformanceMonitorOpen = false;
         IsNotificationsOpen = false;
         IsFirmwareUpdatationFlyoutOpen = false;
     }

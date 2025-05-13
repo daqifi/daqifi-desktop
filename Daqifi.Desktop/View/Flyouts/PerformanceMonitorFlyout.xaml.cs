@@ -3,9 +3,9 @@
 /// <summary>
 /// Interaction logic for the summary flyout page
 /// </summary>
-public partial class SummaryFlyout
+public partial class PerformanceMonitorFlyout
 {
-    public SummaryFlyout()
+    public PerformanceMonitorFlyout()
     {
         InitializeComponent();
     }

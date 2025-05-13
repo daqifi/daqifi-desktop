@@ -111,7 +111,7 @@
             <flyouts:LoggedSessionFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
             <!-- Summary Logger Flyout-->
-            <flyouts:SummaryFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
+            <flyouts:PerformanceMonitorFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
             <!--Firmware Updatation Flyout-->
             <flyouts:FirmwareFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
@@ -230,7 +230,7 @@
 
                     <DockPanel Grid.Column="0" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom">
 
-                        <Button Command="{Binding OpenLogSummaryCommand}" ToolTip="Debug"  Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
+                        <Button Command="{Binding OpenPerformanceMonitorCommand}" ToolTip="Debug"  Style="{StaticResource FadeButton}" VerticalAlignment="Bottom">
                             <Button.Content>
                                 <iconPacks:PackIconMaterial Kind="Bug" HorizontalAlignment="Center" Height="15" Width="15"/>
                             </Button.Content>
