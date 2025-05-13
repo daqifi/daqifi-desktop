@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: PR Conventional Commit Validation
         id: check_title
-        uses: ytanikin/PRConventionalCommits@1.2.0
+        uses: ytanikin/PRConventionalCommits@1.3.0
         with:
           task_types: '["feat","fix","docs", "deps", "chore"]'
           add_label: 'false'
