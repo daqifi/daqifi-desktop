@@ -124,7 +124,7 @@ public partial class DaqifiViewModel : ObservableObject
 
     public PlotLogger Plotter { get; private set; }
     public DatabaseLogger DbLogger { get; private set; }
-    public SummaryLogger SummaryLogger { get; private set; }
+    public PerformanceMonitorViewModel PerformanceMonitorViewModel { get; private set; }
     public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
     public ObservableCollection<IChannel> AvailableChannels { get; } = [];
     
@@ -148,6 +148,24 @@ public partial class DaqifiViewModel : ObservableObject
             LoggingManager.Instance.Active = value;
             if (_isLogging)
             {
+                double totalTargetSampleRate = 0;
+                if (LoggingManager.Instance.SubscribedChannels != null)
+                {
+                    foreach (var subscribedChannel in LoggingManager.Instance.SubscribedChannels)
+                    {
+                        var parentDevice = ConnectedDevices.FirstOrDefault(d => d.DeviceSerialNo == subscribedChannel.DeviceSerialNo);
+                        if (parentDevice != null)
+                        {
+                            totalTargetSampleRate += parentDevice.StreamingFrequency;
+                        }
+                    }
+                }
+
+                if (PerformanceMonitorViewModel != null)
+                {
+                    PerformanceMonitorViewModel.TargetSampleRate = totalTargetSampleRate;
+                }
+
                 foreach (var device in ConnectedDevices)
                 {
                     if (device.Mode == DeviceMode.StreamToApp)
@@ -162,6 +180,11 @@ public partial class DaqifiViewModel : ObservableObject
             }
             else
             {
+                if (PerformanceMonitorViewModel != null)
+                {
+                    PerformanceMonitorViewModel.TargetSampleRate = 0; // Reset to 0
+                }
+
                 foreach (var device in ConnectedDevices)
                 {
                     if (device.Mode == DeviceMode.StreamToApp)
@@ -351,9 +374,9 @@ public partial class DaqifiViewModel : ObservableObject
 
                     GetUpdateProfileAvailableDevice();
 
-                    // Summary Logger
-                    SummaryLogger = new SummaryLogger();
-                    LoggingManager.Instance.AddLogger(SummaryLogger);
+                    // Summary Logger is now Performance Monitor ViewModel
+                    PerformanceMonitorViewModel = new PerformanceMonitorViewModel();
+                    LoggingManager.Instance.AddLogger(PerformanceMonitorViewModel);
 
                     using (var context = _loggingContext.CreateDbContext())
                     {
