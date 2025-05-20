@@ -100,9 +100,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         PlotModel.IsLegendVisible = true;
         PlotModel.Legends.Add(legend);
 
-        // Explicitly handle legend click for series visibility toggling
-        PlotModel.LegendItemClicked += OnLegendItemClicked;
-
         var consumerThread = new Thread(Consumer) { IsBackground = true };
         consumerThread.Start();
     }
