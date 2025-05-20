@@ -30,6 +30,15 @@ namespace Daqifi.Desktop.Test.ViewModels
             return viewModel;
         }
 
+        [ClassInitialize]
+        public static void ClassInit(TestContext context)
+        {
+            // Set up a minimal App.ServiceProvider to satisfy static dependencies in LoggingManager, etc.
+            var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+            // Register any required services here if needed for future tests
+            Daqifi.Desktop.App.ServiceProvider = services.BuildServiceProvider();
+        }
+
         [TestMethod]
         public void ActivateProfile_NoDevices_ShowsError()
         {
