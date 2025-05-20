@@ -274,24 +274,26 @@
                         </StackPanel>
                     </DockPanel>
 
-                    <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList" Width="150" ItemsSource="{Binding ActiveInputChannels}" Background="Transparent" BorderThickness="0">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <DockPanel Margin="5" Height="40" LastChildFill="True" HorizontalAlignment="Left">
-                                    <Rectangle Width="25" Height="25" Fill="{Binding ChannelColorBrush}"/>
-                                    <StackPanel Orientation="Vertical" >
-                                        <Label Content="{Binding Name}" BorderThickness="0" VerticalAlignment="Center" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
-                                        <Label Content="{Binding DeviceSerialNo}" 
-                                               BorderThickness="0"
-                                               FontSize="8" VerticalAlignment="Top"
-                                               HorizontalAlignment="Stretch" 
-                                               HorizontalContentAlignment="Stretch"/>
-                                    </StackPanel>
-
-                                </DockPanel>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                    <ScrollViewer Grid.Row="1" Grid.Column="1" VerticalScrollBarVisibility="Auto" Width="150">
+                        <ListView Name="ActiveChannelList" ItemsSource="{Binding ActiveInputChannels}" Background="Transparent" BorderThickness="0">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="5" Height="40" LastChildFill="True" HorizontalAlignment="Left">
+                                        <CheckBox IsChecked="{Binding IsVisibleForPlot, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                        <Rectangle Width="25" Height="25" Fill="{Binding ChannelColorBrush}" VerticalAlignment="Center"/>
+                                        <StackPanel Orientation="Vertical" VerticalAlignment="Center" Margin="5,0,0,0">
+                                            <Label Content="{Binding Name}" BorderThickness="0" VerticalAlignment="Center" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
+                                            <Label Content="{Binding DeviceSerialNo}" 
+                                                   BorderThickness="0"
+                                                   FontSize="8" VerticalAlignment="Top"
+                                                   HorizontalAlignment="Stretch" 
+                                                   HorizontalContentAlignment="Stretch"/>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </ScrollViewer>
                     <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -337,7 +339,9 @@
 
                                 <!-- Logged Data Plot-->
                                 <Grid Grid.Row="0">
-                                    <oxy:PlotView Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Margin="5,5,20,5" TabIndex="0">
+                                        <oxy:PlotView Model="{Binding DbLogger.PlotModel}"/>
+                                    </ScrollViewer>
                                     <DockPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top">
                                         <Button Command="{Binding DbLogger.SaveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
                                             <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>

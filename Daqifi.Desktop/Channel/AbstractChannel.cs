@@ -45,6 +45,9 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     [ObservableProperty]
     private bool _hasValidExpression;
 
+    [ObservableProperty]
+    private bool _isVisibleForPlot = true;
+
     public int Index { get; set; }
     public string DeviceName { get; set; }
     public string DeviceSerialNo { get; set; }

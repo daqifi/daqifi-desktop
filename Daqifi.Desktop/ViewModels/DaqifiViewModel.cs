@@ -1514,13 +1514,40 @@ public partial class DaqifiViewModel : ObservableObject
                 GetUpdateProfileAvailableDevice();
                 break;
             case "SubscribedChannels":
+                // Unsubscribe from old channels
+                foreach (var oldChannel in ActiveChannels)
+                {
+                    if (oldChannel is INotifyPropertyChanged notifyChannel)
+                    {
+                        notifyChannel.PropertyChanged -= OnChannelPropertyChanged;
+                    }
+                }
                 ActiveChannels.Clear();
+
+                // Unsubscribe from old input channels (though they are also in ActiveChannels, good for clarity)
+                foreach (var oldChannel in ActiveInputChannels)
+                {
+                    if (oldChannel is INotifyPropertyChanged notifyChannel)
+                    {
+                        // Avoid double unsubscribing if already handled by ActiveChannels loop
+                        // However, PropertyChanged event unsubscription is idempotent.
+                        notifyChannel.PropertyChanged -= OnChannelPropertyChanged;
+                    }
+                }
                 ActiveInputChannels.Clear();
+
                 foreach (var channel in LoggingManager.Instance.SubscribedChannels)
                 {
+                    if (channel is INotifyPropertyChanged notifyChannel)
+                    {
+                        notifyChannel.PropertyChanged += OnChannelPropertyChanged;
+                    }
+
                     if (!channel.IsOutput)
                     {
                         ActiveInputChannels.Add(channel);
+                        // Ensure initial visibility is set when channel is added/becomes active
+                        Plotter?.UpdateSeriesVisibility(channel.Name, channel.IsVisibleForPlot);
                     }
                     ActiveChannels.Add(channel);
                 }
@@ -1583,6 +1610,14 @@ public partial class DaqifiViewModel : ObservableObject
     private bool CanExportAllLoggingSession()
     {
         return LoggingSessions.Count > 0;
+    }
+
+    private void OnChannelPropertyChanged(object sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IChannel.IsVisibleForPlot) && sender is IChannel channel)
+        {
+            Plotter?.UpdateSeriesVisibility(channel.Name, channel.IsVisibleForPlot);
+        }
     }
     #endregion
 }

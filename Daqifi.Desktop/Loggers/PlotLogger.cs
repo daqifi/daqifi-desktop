@@ -22,6 +22,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     private int _precision = 4;
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
     private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = new Dictionary<(string deviceSerial, string channelName), LineSeries>();
+    private Dictionary<string, bool> _pendingVisibility = new Dictionary<string, bool>();
     #endregion
 
     #region Properties
@@ -232,6 +233,13 @@ public partial class PlotLogger : ObservableObject, ILogger
             Color = OxyColor.Parse(newColor)
         };
 
+        if (_pendingVisibility.TryGetValue(channelName, out bool intendedVisibility))
+        {
+            newLineSeries.IsVisible = intendedVisibility;
+            _pendingVisibility.Remove(channelName);
+        }
+        // Default is true, so no else needed if not in _pendingVisibility
+
         switch(channelType)
         {
             case ChannelType.Analog:
@@ -270,6 +278,26 @@ public partial class PlotLogger : ObservableObject, ILogger
         OnPropertyChanged("LoggedChannels");
         OnPropertyChanged("LoggedPoints");
         OnPropertyChanged("PlotModel");
+    }
+
+    public void UpdateSeriesVisibility(string channelName, bool isVisible)
+    {
+        if (PlotModel?.Series == null) return;
+
+        var seriesToUpdate = PlotModel.Series.FirstOrDefault(s => s.Title == channelName) as LineSeries;
+        if (seriesToUpdate != null)
+        {
+            if (seriesToUpdate.IsVisible != isVisible)
+            {
+                seriesToUpdate.IsVisible = isVisible;
+                PlotModel.InvalidatePlot(true);
+            }
+        }
+        else
+        {
+            // Series does not exist yet, store its intended visibility
+            _pendingVisibility[channelName] = isVisible;
+        }
     }
 
     #region Commands

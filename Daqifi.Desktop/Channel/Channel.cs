@@ -1,9 +1,17 @@
 ﻿using Daqifi.Desktop.DataModel.Channel;
+using System.ComponentModel;
 
 namespace Daqifi.Desktop.Channel;
 
-public class Channel : IChannel
+public class Channel : IChannel, INotifyPropertyChanged
 {
+    public event PropertyChangedEventHandler PropertyChanged;
+
+    protected virtual void OnPropertyChanged(string propertyName)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
     public int ID { get; set; }
     public string Name { get; set; }
     public int Index { get; set; }
@@ -32,6 +40,20 @@ public class Channel : IChannel
     public DataSample ActiveSample { get; set; }
     public string DeviceName { get ; set ; }
     public string DeviceSerialNo { get ; set; }
+
+    private bool _isVisibleForPlot = true;
+    public bool IsVisibleForPlot
+    {
+        get => _isVisibleForPlot;
+        set
+        {
+            if (_isVisibleForPlot != value)
+            {
+                _isVisibleForPlot = value;
+                OnPropertyChanged(nameof(IsVisibleForPlot));
+            }
+        }
+    }
 
     public event OnChannelUpdatedHandler OnChannelUpdated;
 
