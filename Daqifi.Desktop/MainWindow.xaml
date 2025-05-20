@@ -274,7 +274,7 @@
                         </StackPanel>
                     </DockPanel>
 
-                    <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList" Width="150" ItemsSource="{Binding ActiveInputChannels}" Background="Transparent" BorderThickness="0">
+                    <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList" ItemsSource="{Binding ActiveInputChannels}" Background="Transparent" BorderThickness="0">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <DockPanel Margin="5" Height="40" LastChildFill="True" HorizontalAlignment="Left">

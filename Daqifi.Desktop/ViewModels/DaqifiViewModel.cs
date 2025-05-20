@@ -1506,11 +1506,11 @@ public partial class DaqifiViewModel : ObservableObject
                 ActiveInputChannels.Clear();
                 foreach (var channel in LoggingManager.Instance.SubscribedChannels)
                 {
-                    if (!channel.IsOutput)
+                    if (!channel.IsOutput && channel.IsVisible) // Modified condition
                     {
                         ActiveInputChannels.Add(channel);
                     }
-                    ActiveChannels.Add(channel);
+                    ActiveChannels.Add(channel); // Assuming ActiveChannels does not need this visibility filter for now
                 }
                 break;
             case "NotificationCount":
