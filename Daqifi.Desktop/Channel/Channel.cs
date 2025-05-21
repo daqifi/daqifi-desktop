@@ -30,6 +30,7 @@ public class Channel : IChannel
     public bool IsScalingActive { get; set; }
     public bool HasValidExpression { get; set; }
     public DataSample ActiveSample { get; set; }
+    public bool IsVisible { get; set; } = true;
     public string DeviceName { get ; set ; }
     public string DeviceSerialNo { get ; set; }
 

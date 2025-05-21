@@ -309,6 +309,8 @@ public partial class DaqifiViewModel : ObservableObject
     // Re-add properties for manually instantiated commands
     public ICommand DeleteLoggingSessionCommand { get; private set; }
     public ICommand DeleteAllLoggingSessionCommand { get; private set; }
+    public ICommand ToggleChannelVisibilityCommand { get; private set; }
+    public ICommand ToggleLoggedSeriesVisibilityCommand { get; private set; }
     #endregion
 
     #region Constructor
@@ -404,9 +406,33 @@ public partial class DaqifiViewModel : ObservableObject
     {
         DeleteLoggingSessionCommand = new AsyncRelayCommand<LoggingSession?>(DeleteLoggingSessionAsync);
         DeleteAllLoggingSessionCommand = new AsyncRelayCommand(DeleteAllLoggingSessionAsync, CanDeleteAllLoggingSession);
+        ToggleChannelVisibilityCommand = new RelayCommand<IChannel>(ToggleChannelVisibility);
+        ToggleLoggedSeriesVisibilityCommand = new RelayCommand<LoggedSeriesLegendItem>(ToggleLoggedSeriesVisibility);
 
         // Keep registration for external commands if necessary
         // HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand); // This would need adjustment if ShutdownCommand is generated
+    }
+    #endregion
+
+    #region Command Logic
+    private void ToggleChannelVisibility(IChannel? channel)
+    {
+        if (channel != null)
+        {
+            channel.IsVisible = !channel.IsVisible;
+            // The PropertyChanged event on IsVisible should trigger UI updates in PlotLogger and the legend's DataTrigger.
+            // No need to manually call UpdateUi here for ActiveInputChannels if it's already correctly populated.
+        }
+    }
+
+    private void ToggleLoggedSeriesVisibility(LoggedSeriesLegendItem? item)
+    {
+        if (item != null)
+        {
+            item.IsVisible = !item.IsVisible;
+            // The IsVisible setter in LoggedSeriesLegendItem handles updating
+            // the ActualSeries.IsVisible and invalidating the plot.
+        }
     }
     #endregion
 
@@ -1518,11 +1544,11 @@ public partial class DaqifiViewModel : ObservableObject
                 ActiveInputChannels.Clear();
                 foreach (var channel in LoggingManager.Instance.SubscribedChannels)
                 {
-                    if (!channel.IsOutput)
+                    if (!channel.IsOutput) // Condition changed to remove IsVisible filter
                     {
                         ActiveInputChannels.Add(channel);
                     }
-                    ActiveChannels.Add(channel);
+                    ActiveChannels.Add(channel); 
                 }
                 break;
             case "NotificationCount":

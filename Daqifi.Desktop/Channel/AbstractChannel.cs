@@ -126,6 +126,9 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
 
     public Expression Expression { get; set; }
 
+    [ObservableProperty]
+    private bool _isVisible = true;
+
     public DataSample ActiveSample
     {
         get => _activeSample;

@@ -232,6 +232,20 @@ public partial class PlotLogger : ObservableObject, ILogger
             Color = OxyColor.Parse(newColor)
         };
 
+        // Synchronize IsVisible with the IChannel
+        if (LoggingManager.Instance != null)
+        {
+            var subscribedChannel = LoggingManager.Instance.SubscribedChannels
+                .FirstOrDefault(ch => ch.DeviceSerialNo == DeviceSerialNo && ch.Name == channelName);
+
+            if (subscribedChannel != null)
+            {
+                newLineSeries.IsVisible = subscribedChannel.IsVisible;
+            }
+            // Optional: else, default to true or log a warning if channel not found
+            // For now, if not found, it will use the default LineSeries.IsVisible (which is true)
+        }
+
         switch(channelType)
         {
             case ChannelType.Analog:
@@ -250,11 +264,26 @@ public partial class PlotLogger : ObservableObject, ILogger
 
     private void CompositionTargetRendering(object sender, EventArgs e)
     {
-        if (_stopwatch.ElapsedMilliseconds > _lastUpdateMilliSeconds + 1000)
+        if (_stopwatch.ElapsedMilliseconds > _lastUpdateMilliSeconds + 1000) // Or your existing update interval
         {
             lock (PlotModel.SyncRoot)
             {
-                PlotModel.InvalidatePlot(true);
+                // Iterate through subscribed channels to update series visibility
+                if (LoggingManager.Instance != null) // Ensure LoggingManager instance is available
+                {
+                    foreach (var channel in LoggingManager.Instance.SubscribedChannels)
+                    {
+                        var key = (channel.DeviceSerialNo, channel.Name);
+                        if (LoggedChannels.TryGetValue(key, out LineSeries series))
+                        {
+                            if (series.IsVisible != channel.IsVisible)
+                            {
+                                series.IsVisible = channel.IsVisible;
+                            }
+                        }
+                    }
+                }
+                PlotModel.InvalidatePlot(true); // This will redraw the plot with updated series visibility
                 _lastUpdateMilliSeconds = _stopwatch.ElapsedMilliseconds;
             }
         }

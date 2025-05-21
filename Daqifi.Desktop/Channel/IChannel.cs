@@ -29,6 +29,7 @@ public interface IChannel : IColorable
     bool IsScalingActive { get; set; }
     bool HasValidExpression { get; set; }
     DataSample ActiveSample { get; set; }
+    bool IsVisible { get; set; }
     #endregion
 
     #region Events
