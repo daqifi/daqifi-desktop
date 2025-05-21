@@ -3,6 +3,8 @@ using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;
 using OxyPlot;
+using Brushes = System.Windows.Media.Brushes;
+using Color = System.Windows.Media.Color;
 
 namespace Daqifi.Desktop.Converters
 {

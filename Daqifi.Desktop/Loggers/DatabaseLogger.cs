@@ -7,6 +7,7 @@ using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Windows; // Added for Application.Current.Dispatcher
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Exception = System.Exception;
 using TickStyle = OxyPlot.Axes.TickStyle;
@@ -14,6 +15,8 @@ using Microsoft.EntityFrameworkCore;
 using EFCore.BulkExtensions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Application = System.Windows.Application;
+using FontWeights = OxyPlot.FontWeights;
 
 namespace Daqifi.Desktop.Logger;
 
