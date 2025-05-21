@@ -1357,12 +1357,24 @@ public partial class DaqifiViewModel : ObservableObject
             var connectedDevices = ConnectedDevices
                 .Where(cd => SelectedProfile.Devices.Any(id => id.DeviceSerialNo == cd.DeviceSerialNo))
                 .ToList();
-            
+
+            // Block only if no devices are connected
             if (connectedDevices == null || connectedDevices.Count == 0)
             {
                 var errorDialogViewModel = new ErrorDialogViewModel("Profile cannot be active. No connected devices.");
                 _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
                 return;
+            }
+
+            // Warn if some devices are missing
+            var missingDevices = SelectedProfile.Devices
+                .Where(pd => !ConnectedDevices.Any(cd => cd.DeviceSerialNo == pd.DeviceSerialNo))
+                .ToList();
+            if (missingDevices.Count > 0)
+            {
+                var warningMsg = $"Warning: The following devices from the profile are not currently connected: {string.Join(", ", missingDevices.Select(d => d.DeviceName))}. Profile will be loaded with available devices.";
+                var warningDialogViewModel = new ErrorDialogViewModel(warningMsg);
+                _dialogService.ShowDialog<ErrorDialog>(this, warningDialogViewModel);
             }
 
             // Check if logging is active
