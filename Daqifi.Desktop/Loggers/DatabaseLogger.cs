@@ -5,7 +5,6 @@ using Daqifi.Desktop.Device;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
-using System.Windows; // Added for Application.Current.Dispatcher
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
