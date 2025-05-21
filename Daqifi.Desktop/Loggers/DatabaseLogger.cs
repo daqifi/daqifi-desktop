@@ -5,6 +5,7 @@ using Daqifi.Desktop.Device;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
+using System.Windows; // Added for Application.Current.Dispatcher
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Exception = System.Exception;
@@ -33,7 +34,7 @@ public partial class LoggedSeriesLegendItem : ObservableObject
             if (SetProperty(ref _isVisible, value) && ActualSeries != null)
             {
                 ActualSeries.IsVisible = _isVisible;
-                _plotModel?.InvalidatePlot(true);
+                Application.Current.Dispatcher.Invoke(() => _plotModel?.InvalidatePlot(true));
             }
         }
     }
@@ -207,67 +208,79 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
     public void ClearPlot()
     {
-        _firstTime = null;
-        _sessionPoints.Clear();
-        _allSessionPoints.Clear();
-        PlotModel.Series.Clear();
-        PlotModel.Title = string.Empty;
-        PlotModel.Subtitle = string.Empty;
-        PlotModel.InvalidatePlot(true);
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            _firstTime = null;
+            _sessionPoints.Clear();
+            _allSessionPoints.Clear();
+            PlotModel.Series.Clear();
+            LegendItems.Clear(); 
+            PlotModel.Title = string.Empty;
+            PlotModel.Subtitle = string.Empty;
+            PlotModel.InvalidatePlot(true);
+        });
     }
 
     public void DisplayLoggingSession(LoggingSession session)
     {
         try
         {
-            ClearPlot();
-            PlotModel.Title = session.Name;
+            // ClearPlot is already dispatcher-wrapped
+            ClearPlot(); 
+
+            // Data fetching and processing (can be on background thread)
+            string sessionName = session.Name;
+            string subtitle = string.Empty;
+            List<DataSample> allSamplesData = new List<DataSample>(); // Temp store for all sample values for all series
+            
+            var tempSeriesList = new List<LineSeries>();
+            var tempLegendItemsList = new List<LoggedSeriesLegendItem>();
 
             using (var context = _loggingContext.CreateDbContext())
             {
                 context.ChangeTracker.AutoDetectChangesEnabled = false;
 
-                var samples = context.Samples.AsNoTracking()
+                var dbSamples = context.Samples.AsNoTracking()
                     .Where(s => s.LoggingSessionID == session.ID)
-                    .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color, s.TimestampTicks, s.Value });
+                    .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color, s.TimestampTicks, s.Value })
+                    .ToList(); // Bring data into memory
 
-                var samplesCount = context.Samples
-                    .AsNoTracking()
-                    .Count(s => s.LoggingSessionID == session.ID);
+                var samplesCount = dbSamples.Count;
                 const int dataPointsToShow = 1000000;
 
-                if (samplesCount > 1000000)
+                if (samplesCount > dataPointsToShow)
                 {
-                    PlotModel.Subtitle += $"\nOnly showing {dataPointsToShow:n0} out of {samplesCount:n0} data points";
+                    subtitle = $"\nOnly showing {dataPointsToShow:n0} out of {samplesCount:n0} data points";
                 }
 
-                var channelNames = samples.Select(s => new { s.ChannelName, s.DeviceSerialNo }).Distinct().ToList();
+                var channelInfoList = dbSamples
+                    .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color })
+                    .Distinct()
+                    .OrderBy(s => s.ChannelName)
+                    .ToList();
 
-                // Sort channel-device pairs
-                channelNames.Sort((x, y) => string.Compare(x.ChannelName, y.ChannelName, StringComparison.Ordinal));
-                foreach (var pair in channelNames)
+                foreach (var chInfo in channelInfoList)
                 {
-                    var channel = samples
-                        .FirstOrDefault(s => s.ChannelName == pair.ChannelName && s.DeviceSerialNo == pair.DeviceSerialNo);
-
-                    if (channel != null)
-                    {
-                        AddChannelSeries(channel.ChannelName, channel.DeviceSerialNo, channel.Type, channel.Color);
-                    }
+                    var (series, legendItem) = AddChannelSeries(chInfo.ChannelName, chInfo.DeviceSerialNo, chInfo.Type, chInfo.Color);
+                    tempSeriesList.Add(series);
+                    tempLegendItemsList.Add(legendItem);
                 }
-
-                var dataSampleCount = 0;
-                foreach (var sample in samples)
+                
+                // This part still needs to be careful about _allSessionPoints access if it's used by UI directly
+                // For now, _allSessionPoints is used to populate series ItemsSource later on UI thread
+                int dataSampleCount = 0;
+                foreach (var sample in dbSamples)
                 {
                     var key = (sample.DeviceSerialNo, sample.ChannelName);
                     if (_firstTime == null) { _firstTime = new DateTime(sample.TimestampTicks); }
                     var deltaTime = (sample.TimestampTicks - _firstTime.Value.Ticks) / 10000.0;
 
-                    // Add new datapoint
-                    _allSessionPoints[key].Add(new DataPoint(deltaTime, sample.Value));
-
+                    if (_allSessionPoints.TryGetValue(key, out var points))
+                    {
+                        points.Add(new DataPoint(deltaTime, sample.Value));
+                    }
+                    
                     dataSampleCount++;
-
                     if (dataSampleCount >= dataPointsToShow)
                     {
                         break;
@@ -275,17 +288,45 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 }
             }
 
-            // Downsample
-            for (var i = 0; i < _sessionPoints.Keys.Count; i++)
+            // Update UI-bound collections and properties on the UI thread
+            Application.Current.Dispatcher.Invoke(() =>
             {
-                var channelName = _sessionPoints.Keys.ElementAt(i);
-                //TODO Figure out best way to integrate LTTB
-                //(PlotModel.Series[i] as LineSeries).ItemsSource = LargestTriangleThreeBucket.DownSample(_allSessionPoints[channelName], 1000);
-                ((LineSeries)PlotModel.Series[i]).ItemsSource = _allSessionPoints[channelName];
-            }
+                PlotModel.Title = sessionName;
+                PlotModel.Subtitle = subtitle;
 
-            OnPropertyChanged("SessionPoints");
-            PlotModel.InvalidatePlot(true);
+                foreach (var legendItem in tempLegendItemsList)
+                {
+                    LegendItems.Add(legendItem);
+                }
+
+                foreach (var series in tempSeriesList)
+                {
+                    PlotModel.Series.Add(series);
+                    // Assign data to series (ItemsSource)
+                    // The key for _allSessionPoints must match how it was populated
+                    var key = (series.Title.Split(new[] { " : (" }, StringSplitOptions.None)[1].TrimEnd(')'), series.Title.Split(new[] { " : (" }, StringSplitOptions.None)[0]);
+                    if(_allSessionPoints.TryGetValue(key, out var points))
+                    {
+                         ((LineSeries)series).ItemsSource = points;
+                    }
+                }
+                
+                // The old downsampling loop:
+                // for (var i = 0; i < _sessionPoints.Keys.Count; i++)
+                // {
+                //     var channelKey = _sessionPoints.Keys.ElementAt(i); // This was based on _sessionPoints, which is now populated on UI thread
+                //     // Find the series in PlotModel.Series that corresponds to this key
+                //     var correspondingSeries = PlotModel.Series.OfType<LineSeries>().FirstOrDefault(s => s.Title == $"{channelKey.channelName} : ({channelKey.deviceSerial})");
+                //     if (correspondingSeries != null && _allSessionPoints.TryGetValue(channelKey, out var points))
+                //     {
+                //         correspondingSeries.ItemsSource = points;
+                //     }
+                // }
+
+
+                OnPropertyChanged("SessionPoints"); // If SessionPoints is still relevant
+                PlotModel.InvalidatePlot(true);
+            });
         }
         catch (Exception ex)
         {
@@ -321,7 +362,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         }
     }
 
-    private void AddChannelSeries(string channelName, string deviceSerialNo, ChannelType type, string color)
+    private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(string channelName, string deviceSerialNo, ChannelType type, string color)
     {
         var key = (DeviceSerialNo: deviceSerialNo, channelName);
         _sessionPoints.Add(key, []);
@@ -341,7 +382,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             newLineSeries.IsVisible,
             newLineSeries,
             PlotModel);
-        LegendItems.Add(legendItem);
+        // LegendItems.Add(legendItem); // Removed: To be added in DisplayLoggingSession on UI thread
 
         switch (type)
         {
@@ -353,8 +394,9 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 break;
         }
 
-        PlotModel.Series.Add(newLineSeries);
-        OnPropertyChanged("PlotModel");
+        // PlotModel.Series.Add(newLineSeries); // Removed: To be added in DisplayLoggingSession on UI thread
+        // OnPropertyChanged("PlotModel"); // Removed: To be called in DisplayLoggingSession on UI thread
+        return (newLineSeries, legendItem);
     }
 
     #region Commands
