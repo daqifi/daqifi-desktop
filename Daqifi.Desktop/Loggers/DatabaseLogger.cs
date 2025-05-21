@@ -16,9 +16,46 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Daqifi.Desktop.Logger;
 
+public partial class LoggedSeriesLegendItem : ObservableObject
+{
+    [ObservableProperty]
+    private string _displayName;
+
+    [ObservableProperty]
+    private OxyColor _seriesColor;
+
+    private bool _isVisible;
+    public bool IsVisible
+    {
+        get => _isVisible;
+        set
+        {
+            if (SetProperty(ref _isVisible, value) && ActualSeries != null)
+            {
+                ActualSeries.IsVisible = _isVisible;
+                _plotModel?.InvalidatePlot(true);
+            }
+        }
+    }
+
+    public LineSeries ActualSeries { get; }
+    private readonly PlotModel _plotModel;
+
+    public LoggedSeriesLegendItem(string displayName, OxyColor seriesColor, bool isVisible, LineSeries actualSeries, PlotModel plotModel)
+    {
+        _displayName = displayName;
+        _seriesColor = seriesColor;
+        _isVisible = isVisible; // Initialize the backing field
+        ActualSeries = actualSeries;
+        ActualSeries.IsVisible = isVisible; // Ensure series visibility matches
+        _plotModel = plotModel;
+    }
+}
+
 public partial class DatabaseLogger : ObservableObject, ILogger
 {
     #region Private Data
+    public ObservableCollection<LoggedSeriesLegendItem> LegendItems { get; } = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
     private readonly BlockingCollection<DataSample> _buffer = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _sessionPoints = new();
@@ -88,17 +125,18 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             Title = "Time (ms)"
         };
 
-        OxyPlot.Legends.Legend legend = new OxyPlot.Legends.Legend
-        {
-            LegendOrientation = OxyPlot.Legends.LegendOrientation.Vertical,
-            LegendPlacement = OxyPlot.Legends.LegendPlacement.Outside
-        };
+        // OxyPlot.Legends.Legend legend = new OxyPlot.Legends.Legend
+        // {
+        //     LegendOrientation = OxyPlot.Legends.LegendOrientation.Vertical,
+        //     LegendPlacement = OxyPlot.Legends.LegendPlacement.Outside,
+        //     LegendItemMode = LegendItemMode.ToggleVisibility // Attempt to set direct interactivity
+        // };
 
         PlotModel.Axes.Add(analogAxis);
         PlotModel.Axes.Add(digitalAxis);
         PlotModel.Axes.Add(timeAxis);
-        PlotModel.IsLegendVisible = true;
-        PlotModel.Legends.Add(legend);
+        PlotModel.IsLegendVisible = false; // Disable the built-in legend
+        // PlotModel.Legends.Add(legend); // Remove legend from plot model
 
         var consumerThread = new Thread(Consumer) { IsBackground = true };
         consumerThread.Start();
@@ -292,10 +330,18 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         var newLineSeries = new LineSeries
         {
             Title = $"{channelName} : ({deviceSerialNo})",
-            ItemsSource = _sessionPoints.Last().Value,
+            ItemsSource = _sessionPoints.Last().Value, // This will be empty initially, data is added later
             Color = OxyColor.Parse(color),
-
+            IsVisible = true // Default to visible
         };
+
+        var legendItem = new LoggedSeriesLegendItem(
+            newLineSeries.Title,
+            newLineSeries.Color,
+            newLineSeries.IsVisible,
+            newLineSeries,
+            PlotModel);
+        LegendItems.Add(legendItem);
 
         switch (type)
         {

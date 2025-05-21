@@ -62,14 +62,6 @@
                             Command="{Binding ShowSelectColorDialogCommand}" 
                             CommandParameter="{Binding SelectedChannel}"
                             Margin="0,0,0,10"/>
-
-                    <Label Content="Show on Graph:"/>
-                    <Controls:ToggleSwitch 
-                        IsOn="{Binding SelectedChannel.IsVisible, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
-                        OffContent="Hidden" 
-                        OnContent="Visible" 
-                        HorizontalAlignment="Left"
-                        Margin="0,0,0,10"/>
                 </StackPanel>
             </GroupBox>
         </StackPanel>
