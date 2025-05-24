@@ -124,6 +124,8 @@ public partial class DaqifiViewModel : ObservableObject
 
     public PlotLogger Plotter { get; private set; }
     public DatabaseLogger DbLogger { get; private set; }
+    public PlotModel? MinimapPlotModel => DbLogger?.MinimapPlotModel;
+    public PlotController MinimapPlotController { get; private set; }
     public SummaryLogger SummaryLogger { get; private set; }
     public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
     public ObservableCollection<IChannel> AvailableChannels { get; } = [];
@@ -339,6 +341,14 @@ public partial class DaqifiViewModel : ObservableObject
                     // Database logging
                     DbLogger = new DatabaseLogger(_loggingContext);
                     LoggingManager.Instance.AddLogger(DbLogger);
+                    OnPropertyChanged(nameof(MinimapPlotModel)); // Notify that MinimapPlotModel is now available
+
+                    // Setup Minimap Controller
+                    MinimapPlotController = new PlotController();
+                    MinimapPlotController.MouseDown += OnMinimapMouseDown;
+                    MinimapPlotController.MouseMove += OnMinimapMouseMove;
+                    MinimapPlotController.MouseUp += OnMinimapMouseUp;
+
 
                     // Device Logs View Model
                     DeviceLogsViewModel = new DeviceLogsViewModel();
@@ -387,6 +397,125 @@ public partial class DaqifiViewModel : ObservableObject
                 }
             }
             app.IsWindowInit = true;
+        }
+    }
+
+    private bool _isMinimapSelecting;
+    private ScreenPoint _minimapMouseDownPosition;
+    private double _initialSelectionRectMinX;
+    private double _initialSelectionRectMaxX;
+
+    private void OnMinimapMouseDown(object? sender, OxyMouseDownEventArgs e)
+    {
+        if (e.ChangedButton == OxyMouseButton.Left && MinimapPlotModel != null && DbLogger.SelectionRectangle != null)
+        {
+            var xAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+            if (xAxis == null) return;
+
+            _isMinimapSelecting = true;
+            _minimapMouseDownPosition = e.Position;
+            
+            // Convert screen coordinate to data coordinate
+            double clickX = xAxis.InverseTransform(e.Position.X);
+
+            // Check if click is inside the existing selection rectangle (for dragging)
+            // Or start a new selection
+            if (clickX >= DbLogger.SelectionRectangle.MinimumX && clickX <= DbLogger.SelectionRectangle.MaximumX)
+            {
+                // Click is inside: prepare for dragging
+                _initialSelectionRectMinX = DbLogger.SelectionRectangle.MinimumX;
+                _initialSelectionRectMaxX = DbLogger.SelectionRectangle.MaximumX;
+            }
+            else
+            {
+                // Click is outside: start new selection
+                DbLogger.SelectionRectangle.MinimumX = clickX;
+                DbLogger.SelectionRectangle.MaximumX = clickX; // Start with zero width
+                _initialSelectionRectMinX = clickX; // Store initial for resizing
+                _initialSelectionRectMaxX = clickX;
+            }
+            
+            MinimapPlotModel.InvalidatePlot(false);
+            e.Handled = true;
+        }
+    }
+
+    private void OnMinimapMouseMove(object? sender, OxyMouseEventArgs e)
+    {
+        if (_isMinimapSelecting && MinimapPlotModel != null && DbLogger.SelectionRectangle != null)
+        {
+            var xAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+            if (xAxis == null) return;
+
+            double currentX = xAxis.InverseTransform(e.Position.X);
+            double mouseDownX = xAxis.InverseTransform(_minimapMouseDownPosition.X);
+
+            // If click was inside, drag the rectangle
+            if (mouseDownX >= _initialSelectionRectMinX && mouseDownX <= _initialSelectionRectMaxX && 
+                _initialSelectionRectMinX != _initialSelectionRectMaxX) // Check if it was a drag scenario
+            {
+                double deltaX = currentX - mouseDownX;
+                double newMinX = _initialSelectionRectMinX + deltaX;
+                double newMaxX = _initialSelectionRectMaxX + deltaX;
+
+                // Keep within bounds of the minimap X-axis
+                if (newMinX < xAxis.ActualMinimum) {
+                    newMaxX = xAxis.ActualMinimum + (newMaxX - newMinX);
+                    newMinX = xAxis.ActualMinimum;
+                }
+                if (newMaxX > xAxis.ActualMaximum) {
+                    newMinX = xAxis.ActualMaximum - (newMaxX - newMinX);
+                    newMaxX = xAxis.ActualMaximum;
+                }
+                DbLogger.SelectionRectangle.MinimumX = newMinX;
+                DbLogger.SelectionRectangle.MaximumX = newMaxX;
+            }
+            else // It's a new selection or resizing an effectively zero-width initial selection
+            {
+                DbLogger.SelectionRectangle.MinimumX = Math.Min(_initialSelectionRectMinX, currentX);
+                DbLogger.SelectionRectangle.MaximumX = Math.Max(_initialSelectionRectMinX, currentX);
+            }
+            
+            // Ensure min < max and clamp to axis boundaries
+            if (DbLogger.SelectionRectangle.MinimumX < xAxis.ActualMinimum) DbLogger.SelectionRectangle.MinimumX = xAxis.ActualMinimum;
+            if (DbLogger.SelectionRectangle.MaximumX > xAxis.ActualMaximum) DbLogger.SelectionRectangle.MaximumX = xAxis.ActualMaximum;
+            if (DbLogger.SelectionRectangle.MinimumX > DbLogger.SelectionRectangle.MaximumX) 
+            {
+                // Swap if selection dragged leftwards past start
+                 (_initialSelectionRectMinX, currentX) = (currentX, _initialSelectionRectMinX);
+                 DbLogger.SelectionRectangle.MinimumX = Math.Min(_initialSelectionRectMinX, currentX);
+                 DbLogger.SelectionRectangle.MaximumX = Math.Max(_initialSelectionRectMinX, currentX);
+            }
+
+
+            MinimapPlotModel.InvalidatePlot(false);
+            e.Handled = true;
+        }
+    }
+
+    private void OnMinimapMouseUp(object? sender, OxyMouseEventArgs e)
+    {
+        if (_isMinimapSelecting && MinimapPlotModel != null && DbLogger.SelectionRectangle != null)
+        {
+            _isMinimapSelecting = false;
+            // Ensure MinX is less than MaxX
+            if (DbLogger.SelectionRectangle.MinimumX > DbLogger.SelectionRectangle.MaximumX)
+            {
+                (DbLogger.SelectionRectangle.MaximumX, DbLogger.SelectionRectangle.MinimumX) = (DbLogger.SelectionRectangle.MinimumX, DbLogger.SelectionRectangle.MaximumX);
+            }
+
+            // Prevent zero or negative width selection from triggering update if it's too small
+            if (DbLogger.SelectionRectangle.MaximumX - DbLogger.SelectionRectangle.MinimumX > 1e-6) // Small epsilon
+            {
+                 DbLogger.UpdateMainPlotData(DbLogger.SelectionRectangle.MinimumX, DbLogger.SelectionRectangle.MaximumX);
+            }
+            else // Reset to a default small window or do nothing if selection is too small
+            {
+                // Optionally, could reset the selection rectangle to its state before this interaction
+                // or simply invalidate to show its current (tiny) state.
+                MinimapPlotModel.InvalidatePlot(true);
+            }
+            e.Handled = true;
         }
     }
 

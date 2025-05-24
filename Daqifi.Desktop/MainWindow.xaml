@@ -364,20 +364,29 @@
                             </TabItem.Header>
                             <Grid>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition Height="2*"/>
-                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="3*"/> <!-- Changed from 2* to 3* to give more relative space to plot area -->
+                                    <RowDefinition Height="1*"/> <!-- For Logged Data List, kept as 1* -->
                                 </Grid.RowDefinitions>
 
-                                <!-- Logged Data Plot-->
+                                <!-- Grid for Main Plot, Minimap, and Legend -->
                                 <Grid Grid.Row="0">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>      <!-- PlotView -->
-                                        <ColumnDefinition Width="Auto"/>   <!-- New Legend -->
+                                        <ColumnDefinition Width="*"/>      <!-- PlotView(s) column -->
+                                        <ColumnDefinition Width="Auto"/>   <!-- Legend column -->
                                     </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="3*"/> <!-- Main Plot: adjusted from 3* to 2* if previous was 2* total for plot area -->
+                                        <RowDefinition Height="1*"/> <!-- Minimap: adjusted from 1* -->
+                                    </Grid.RowDefinitions>
 
-                                    <oxy:PlotView Grid.Column="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
+                                    <!-- Main Plot -->
+                                    <oxy:PlotView Grid.Row="0" Grid.Column="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
+                                    
+                                    <!-- Minimap -->
+                                    <oxy:PlotView Grid.Row="1" Grid.Column="0" Model="{Binding DbLogger.MinimapPlotModel}" Controller="{Binding MinimapPlotController}" Margin="5,0,20,5"/>
 
-                                    <ListView Grid.Column="1"
+                                    <!-- Legend for Main Plot (Spanning both rows) -->
+                                    <ListView Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
                                               ItemsSource="{Binding DbLogger.LegendItems}"
                                               Background="Transparent"
                                               BorderThickness="0"
@@ -448,8 +457,45 @@
                                     </DockPanel>
                                 </Grid>
 
+                                <!-- Plot control buttons (overlaying the main plot, should remain in correct visual place) -->
+                                    <DockPanel Grid.Row="0" Grid.Column="0" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                        <Button Command="{Binding DbLogger.SaveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
+                                            <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                        </Button>
+                                    </DockPanel>
+                                    <DockPanel Grid.Row="0" Grid.Column="0" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                        <Button Command="{Binding DbLogger.ZoomOutXCommand}" ToolTip="Zoom Out (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
+                                            <Button.Content>
+                                                <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                            </Button.Content>
+                                        </Button>
+                                        <Button Command="{Binding DbLogger.ZoomInXCommand}" ToolTip="Zoom In (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
+                                            <Button.Content>
+                                                <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                            </Button.Content>
+                                        </Button>
+                                        <StackPanel>
+                                            <Button Command="{Binding DbLogger.ZoomInYCommand}" ToolTip="Zoom In (Analog)" Style="{StaticResource FadeButton}">
+                                                <Button.Content>
+                                                    <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                                </Button.Content>
+                                            </Button>
+                                            <Button Command="{Binding DbLogger.ZoomOutYCommand}" ToolTip="Zoom Out (Analog)" Style="{StaticResource FadeButton}">
+                                                <Button.Content>
+                                                    <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                                </Button.Content>
+                                            </Button>
+                                            <Button Command="{Binding DbLogger.ResetZoomCommand }" CommandParameter="{Binding}" Style="{StaticResource FadeButton}" ToolTip="Reset Zoom" VerticalAlignment="Bottom" >
+                                                <Button.Content>
+                                                    <iconPacks:PackIconMaterial Kind="Crosshairs" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                                </Button.Content>
+                                            </Button>
+                                        </StackPanel>
+                                    </DockPanel>
+                                </Grid>
+
                                 <!-- Logged Data List -->
-                                <ContentPresenter Content="{Binding}" Grid.Row="1">
+                                <ContentPresenter Content="{Binding}" Grid.Row="1"> <!-- This Grid.Row is for the parent Grid -->
                                     <ContentPresenter.ContentTemplate>
                                         <DataTemplate>
                                             <Grid>
