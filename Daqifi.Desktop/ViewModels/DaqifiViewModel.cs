@@ -346,9 +346,7 @@ public partial class DaqifiViewModel : ObservableObject
 
                     // Setup Minimap Controller
                     MinimapPlotController = new PlotController();
-                    MinimapPlotController.MouseDown += OnMinimapMouseDown;
-                    MinimapPlotController.MouseMove += OnMinimapMouseMove;
-                    MinimapPlotController.MouseUp += OnMinimapMouseUp;
+                    // Event subscriptions are removed here, will be handled by PlotView in XAML
 
 
                     // Device Logs View Model
@@ -406,7 +404,7 @@ public partial class DaqifiViewModel : ObservableObject
     private double _initialSelectionRectMinX;
     private double _initialSelectionRectMaxX;
 
-    private void OnMinimapMouseDown(object? sender, OxyMouseDownEventArgs e)
+    public void OnMinimapMouseDown(object sender, OxyMouseDownEventArgs e)
     {
         if (e.ChangedButton == OxyMouseButton.Left && MinimapPlotModel != null && DbLogger.SelectionRectangle != null)
         {
@@ -441,7 +439,7 @@ public partial class DaqifiViewModel : ObservableObject
         }
     }
 
-    private void OnMinimapMouseMove(object? sender, OxyMouseEventArgs e)
+    public void OnMinimapMouseMove(object sender, OxyMouseEventArgs e)
     {
         if (_isMinimapSelecting && MinimapPlotModel != null && DbLogger.SelectionRectangle != null)
         {
@@ -494,7 +492,7 @@ public partial class DaqifiViewModel : ObservableObject
         }
     }
 
-    private void OnMinimapMouseUp(object? sender, OxyMouseEventArgs e)
+    public void OnMinimapMouseUp(object sender, OxyMouseEventArgs e)
     {
         if (_isMinimapSelecting && MinimapPlotModel != null && DbLogger.SelectionRectangle != null)
         {

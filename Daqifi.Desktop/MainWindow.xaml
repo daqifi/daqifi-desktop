@@ -383,7 +383,13 @@
                                     <oxy:PlotView Grid.Row="0" Grid.Column="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
                                     
                                     <!-- Minimap -->
-                                    <oxy:PlotView Grid.Row="1" Grid.Column="0" Model="{Binding DbLogger.MinimapPlotModel}" Controller="{Binding MinimapPlotController}" Margin="5,0,20,5"/>
+                                    <oxy:PlotView Grid.Row="1" Grid.Column="0" 
+                                                  Model="{Binding DbLogger.MinimapPlotModel}" 
+                                                  Controller="{Binding MinimapPlotController}" 
+                                                  Margin="5,0,20,5"
+                                                  MouseDown="OnMinimapMouseDown_FromXaml"
+                                                  MouseMove="OnMinimapMouseMove_FromXaml"
+                                                  MouseUp="OnMinimapMouseUp_FromXaml"/>
 
                                     <!-- Legend for Main Plot (Spanning both rows) -->
                                     <ListView Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"

@@ -319,13 +319,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
                 foreach (var chInfo in channelInfoList)
                 {
-                    var (mainSeries, legendItem) = AddChannelSeries(chInfo.ChannelName, chInfo.DeviceSerialNo, chInfo.Type, chInfo.Color, isForMinimap: false);
+                    var (mainSeries, legendItem) = AddChannelSeries((string)chInfo.ChannelName, (string)chInfo.DeviceSerialNo, chInfo.Type, (string)chInfo.Color, isForMinimap: false);
                     tempMainPlotSeriesList.Add(mainSeries);
                     if(legendItem != null) tempLegendItemsList.Add(legendItem);
 
-                    var (minimapSeries, _) = AddChannelSeries(chInfo.ChannelName, chInfo.DeviceSerialNo, chInfo.Type, chInfo.Color, isForMinimap: true);
+                    var (minimapSeries, _) = AddChannelSeries((string)chInfo.ChannelName, (string)chInfo.DeviceSerialNo, chInfo.Type, (string)chInfo.Color, isForMinimap: true);
                     tempMinimapSeriesList.Add(minimapSeries);
-                    minimapData[(chInfo.DeviceSerialNo, chInfo.ChannelName)] = new List<DataPoint>();
+                    minimapData[(deviceSerial: (string)chInfo.DeviceSerialNo, channelName: (string)chInfo.ChannelName)] = new List<DataPoint>();
                 }
 
                 // Load and downsample data for Minimap using interval-based sampling
@@ -342,7 +342,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 foreach (var chInfo in channelInfoList)
                 {
                     var currentChannelMinimapPoints = new List<DataPoint>();
-                    minimapData[(chInfo.DeviceSerialNo, chInfo.ChannelName)] = currentChannelMinimapPoints;
+                    // Ensure the key used here matches the dictionary's expected tuple element names
+                    minimapData[(deviceSerial: (string)chInfo.DeviceSerialNo, channelName: (string)chInfo.ChannelName)] = currentChannelMinimapPoints;
 
                     if (totalDurationTicks == 0) // Handle sessions with zero duration (e.g. single data point)
                     {
@@ -421,7 +422,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
                 foreach (var sample in samplesToDisplayInMainPlot)
                 {
-                    var key = (sample.DeviceSerialNo, sample.ChannelName);
+                    var key = (deviceSerial: (string)sample.DeviceSerialNo, channelName: (string)sample.ChannelName);
                     var deltaTime = (sample.TimestampTicks - _firstTime.Value.Ticks) / 10000.0;
                     if (_allSessionPoints.TryGetValue(key, out var points))
                     {
@@ -578,7 +579,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
                 foreach (var sample in samplesToDisplayInMainPlot)
                 {
-                    var key = (sample.DeviceSerialNo, sample.ChannelName);
+                    var key = (deviceSerial: (string)sample.DeviceSerialNo, channelName: (string)sample.ChannelName);
                     var deltaTime = (sample.TimestampTicks - _firstTime.Value.Ticks) / 10000.0;
                     if (newWindowData.TryGetValue(key, out var points))
                     {
@@ -655,7 +656,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
     private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(string channelName, string deviceSerialNo, ChannelType type, string color, bool isForMinimap)
     {
-        var key = (deviceSerialNo, channelName);
+        // Ensure parameters are treated as strings for key creation.
+        var key = (deviceSerial: deviceSerialNo, channelName: channelName);
        
         // Ensure dictionary entry exists for _allSessionPoints (main plot data) if it's for the main plot
         if (!isForMinimap && !_allSessionPoints.ContainsKey(key))
