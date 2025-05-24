@@ -111,37 +111,20 @@
 
     <controls:MetroWindow.Flyouts>
         <controls:FlyoutsControl VerticalAlignment="Bottom">
-            <!--NotificationsFlyout-->
             <flyouts:NotificationsFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
-
-            <!-- Live Graph Flyout -->
             <flyouts:LiveGraphFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
-
-            <!-- Devices Flyout-->
             <flyouts:DevicesFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
-
-            <!-- Channel Settings Flyout -->
             <flyouts:ChannelsFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
-
-            <!-- Channel Settings Flyout -->
             <flyouts:UpdateProfileFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
-
-            <!-- Logging Session Settings Flyout-->
             <flyouts:LoggedSessionFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
-
-            <!-- Summary Logger Flyout-->
             <flyouts:SummaryFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
-
-            <!--Firmware Updatation Flyout-->
             <flyouts:FirmwareFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
-
         </controls:FlyoutsControl>
     </controls:MetroWindow.Flyouts>
 
     <Grid>
         <TabControl TabStripPlacement="Left" SelectedIndex="{Binding SelectedIndex}">
 
-            <!-- Live Graph -->
             <TabItem>
                 <TabItem.Header>
                     <Label>
@@ -159,9 +142,10 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/> <!-- Row 0: Session Status Panel -->
+                        <RowDefinition Height="*"/>    <!-- Row 1: Main Plot -->
+                        <RowDefinition Height="Auto"/> <!-- Row 2: Minimap -->
+                        <RowDefinition Height="Auto"/> <!-- Row 3: Original empty Grid -->
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Grid.ColumnSpan="2">
                         <Grid.ColumnDefinitions>
@@ -237,9 +221,9 @@
                                               OnContent="Logging On" 
                                               HorizontalAlignment="Right"/>
                     </Grid>
-                    <oxy:PlotView x:Name="DataLog" Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Model="{Binding Plotter.PlotModel}" Margin="5,5,20,5" TabIndex="0" />
+                    <oxy:PlotView x:Name="DataLog" Grid.Row="1" Grid.Column="0" Model="{Binding Plotter.PlotModel}" Margin="5,5,20,5" TabIndex="0" />
 
-                    <DockPanel Grid.Column="0" Grid.Row="0" HorizontalAlignment="Right" Margin="5,5,20,5">
+                    <DockPanel Grid.Row="1" Grid.Column="0" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="5,5,20,5">
                         <Button Command="{Binding Plotter.SaveLiveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
                             <Button.Content>
                                 <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
@@ -325,7 +309,13 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-                    <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2">
+                    <oxy:PlotView x:Name="MinimapView" 
+                                  Grid.Row="2" 
+                                  Grid.Column="0" 
+                                  Model="{Binding MinimapPlotModel}" 
+                                  Margin="5,0,20,5" 
+                                  Height="100"/>
+                    <Grid Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -335,7 +325,6 @@
                 </Grid>
             </TabItem>
 
-            <!-- Logged Data -->
             <TabItem>
                 <TabItem.Header>
                     <Label>
@@ -383,7 +372,7 @@
                                               BorderThickness="0"
                                               HorizontalContentAlignment="Stretch"
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                              MaxHeight="400"> <!-- Optional: Constrain height if needed -->
+                                              MaxHeight="400">
                                         <ListView.ItemTemplate>
                                             <DataTemplate DataType="{x:Type logger:LoggedSeriesLegendItem}">
                                                 <Button Command="{Binding DataContext.ToggleLoggedSeriesVisibilityCommand, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"
@@ -557,7 +546,6 @@
                 </Grid>
             </TabItem>
 
-            <!-- Channels -->
             <TabItem>
                 <TabItem.Header>
                     <Label>
@@ -637,7 +625,6 @@
                 </ContentPresenter>
             </TabItem>
 
-            <!-- Devices -->
             <TabItem>
                 <TabItem.Header>
                     <Label>
@@ -753,7 +740,6 @@
                 </ContentPresenter>
             </TabItem>
 
-            <!--profile-->
             <TabItem>
                 <TabItem.Header>
                     <Label>

@@ -1,6 +1,4 @@
 ﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.DataModel.Channel;
-using Daqifi.Desktop.Device;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
@@ -8,6 +6,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using System;
+using System.Linq;
 using CommunityToolkit.Mvvm.Input;
 using TickStyle = OxyPlot.Axes.TickStyle;
 
@@ -22,6 +22,13 @@ public partial class PlotLogger : ObservableObject, ILogger
     private int _precision = 4;
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
     private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = new Dictionary<(string deviceSerial, string channelName), LineSeries>();
+    #endregion
+
+    #region Events
+    /// <summary>
+    /// Occurs when the plot data is cleared.
+    /// </summary>
+    public event Action OnDataCleared;
     #endregion
 
     #region Properties
@@ -186,7 +193,6 @@ public partial class PlotLogger : ObservableObject, ILogger
         }
         else
         {
-            //Check for a change in color
             if (LoggedChannels[key].Color.ToString().ToLower() != dataSample.Color.ToLower())
             {
                 LoggedChannels[key].Color = OxyColor.Parse(dataSample.Color.ToLower());
@@ -283,7 +289,7 @@ public partial class PlotLogger : ObservableObject, ILogger
                         }
                     }
                 }
-                PlotModel.InvalidatePlot(true); // This will redraw the plot with updated series visibility
+                PlotModel.InvalidatePlot(true);
                 _lastUpdateMilliSeconds = _stopwatch.ElapsedMilliseconds;
             }
         }
@@ -299,6 +305,37 @@ public partial class PlotLogger : ObservableObject, ILogger
         OnPropertyChanged("LoggedChannels");
         OnPropertyChanged("LoggedPoints");
         OnPropertyChanged("PlotModel");
+
+        OnDataCleared?.Invoke();
+    }
+
+    /// <summary>
+    /// Gets the current data points from the first available/visible series, intended for minimap display.
+    /// Returns a copy of the data points.
+    /// </summary>
+    /// <returns>A list of <see cref="DataPoint"/> for the minimap, or an empty list if no suitable data is found.</returns>
+    public List<DataPoint> GetCurrentDataForMinimap()
+    {
+        lock (PlotModel.SyncRoot) // Use PlotModel.SyncRoot if access to LoggedPoints/LoggedChannels needs sync
+        {
+            // Prioritize a series that is explicitly marked as primary for minimap if such a concept exists/is added later.
+            // For now, use the first visible series.
+            var visibleSeriesKey = LoggedChannels.FirstOrDefault(kvp => kvp.Value.IsVisible && LoggedPoints.ContainsKey(kvp.Key) && LoggedPoints[kvp.Key].Any()).Key;
+
+            if (visibleSeriesKey != default && LoggedPoints.TryGetValue(visibleSeriesKey, out var dataPoints) && dataPoints.Any())
+            {
+                return new List<DataPoint>(dataPoints); // Return a copy
+            }
+            
+            // Fallback: If no visible series with points, try the first series with any points.
+            var anySeriesWithDataKey = LoggedPoints.FirstOrDefault(kvp => kvp.Value.Any()).Key;
+            if (anySeriesWithDataKey != default && LoggedPoints.TryGetValue(anySeriesWithDataKey, out var anyDataPoints) && anyDataPoints.Any())
+            {
+                return new List<DataPoint>(anyDataPoints); // Return a copy
+            }
+
+            return new List<DataPoint>(); // Return empty list if no suitable data
+        }
     }
 
     #region Commands

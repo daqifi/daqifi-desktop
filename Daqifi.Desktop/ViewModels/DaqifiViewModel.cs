@@ -24,6 +24,7 @@ using Daqifi.Desktop.Device.SerialDevice;
 using Application = System.Windows.Application;
 using File = System.IO.File;
 using CommunityToolkit.Mvvm.Input;
+using OxyPlot; // For PlotModel
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -107,8 +108,7 @@ public partial class DaqifiViewModel : ObservableObject
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     private string _selectedLoggingMode = "Stream to App";
     private bool _isLogToDeviceMode;
-    // Add a field to store the device being updated during firmware update process
-    private IStreamingDevice? _deviceBeingUpdated;
+    private IStreamingDevice? _deviceBeingUpdated; // Stores the device being updated during firmware update process
     #endregion
 
     #region Properties
@@ -123,6 +123,8 @@ public partial class DaqifiViewModel : ObservableObject
     public ObservableCollection<LoggingSession> LoggingSessions => LoggingManager.Instance.LoggingSessions;
 
     public PlotLogger Plotter { get; private set; }
+    public MinimapViewModel MinimapViewModel { get; private set; }
+    public PlotModel MinimapPlotModel => MinimapViewModel?.PlotModel;
     public DatabaseLogger DbLogger { get; private set; }
     public SummaryLogger SummaryLogger { get; private set; }
     public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
@@ -306,7 +308,6 @@ public partial class DaqifiViewModel : ObservableObject
 
     public DeviceLogsViewModel DeviceLogsViewModel { get; private set; }
 
-    // Re-add properties for manually instantiated commands
     public ICommand DeleteLoggingSessionCommand { get; private set; }
     public ICommand DeleteAllLoggingSessionCommand { get; private set; }
     public ICommand ToggleChannelVisibilityCommand { get; private set; }
@@ -328,32 +329,31 @@ public partial class DaqifiViewModel : ObservableObject
                     _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
                     RegisterCommands();
 
-                    // Manage connected streamingDevice list
                     ConnectionManager.Instance.PropertyChanged += UpdateUi;
-
-                    // Manage data for plotting
                     LoggingManager.Instance.PropertyChanged += UpdateUi;
                     Plotter = new PlotLogger();
                     LoggingManager.Instance.AddLogger(Plotter);
 
-                    // Database logging
+                    MinimapViewModel = new MinimapViewModel();
+                    if (Plotter != null)
+                    {
+                        Plotter.OnDataCleared += HandlePlotterDataCleared;
+                    }
+                    InitializeMinimap(); 
+
                     DbLogger = new DatabaseLogger(_loggingContext);
                     LoggingManager.Instance.AddLogger(DbLogger);
 
-                    // Device Logs View Model
                     DeviceLogsViewModel = new DeviceLogsViewModel();
 
-                    //Xml profiles load
                     LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
                     ObservableCollection<Daqifi.Desktop.Models.Profile> observableProfileList = new ObservableCollection<Daqifi.Desktop.Models.Profile>(LoggingManager.Instance.LoadProfilesFromXml());
-                    //  Notifications 
-
+                    
                     _versionNotification = new VersionNotification();
                     _ = LoggingManager.Instance.CheckApplicationVersion(_versionNotification);
 
                     GetUpdateProfileAvailableDevice();
 
-                    // Summary Logger
                     SummaryLogger = new SummaryLogger();
                     LoggingManager.Instance.AddLogger(SummaryLogger);
 
@@ -374,7 +374,6 @@ public partial class DaqifiViewModel : ObservableObject
                         }
                     }
 
-                    //Configure Default Grid Lines
                     Plotter.ShowingMinorXAxisGrid = false;
                     Plotter.ShowingMinorYAxisGrid = false;
 
@@ -408,9 +407,6 @@ public partial class DaqifiViewModel : ObservableObject
         DeleteAllLoggingSessionCommand = new AsyncRelayCommand(DeleteAllLoggingSessionAsync, CanDeleteAllLoggingSession);
         ToggleChannelVisibilityCommand = new RelayCommand<IChannel>(ToggleChannelVisibility);
         ToggleLoggedSeriesVisibilityCommand = new RelayCommand<LoggedSeriesLegendItem>(ToggleLoggedSeriesVisibility);
-
-        // Keep registration for external commands if necessary
-        // HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand); // This would need adjustment if ShutdownCommand is generated
     }
     #endregion
 
@@ -544,12 +540,9 @@ public partial class DaqifiViewModel : ObservableObject
         }
         
         SelectedDeviceSupportsFirmwareUpdate = true;
-        
-        // Store a reference to the device being updated
         _deviceBeingUpdated = SelectedDevice;
         
         var isManualUpload = false;
-        // Download if a hex file wasn't passed to it.
         if (string.IsNullOrEmpty(FirmwareFilePath))
         {
             FirmwareFilePath = new FirmwareDownloader().Download();
@@ -698,6 +691,13 @@ public partial class DaqifiViewModel : ObservableObject
         {
             device.Disconnect();
         }
+
+        // Cleanup for MinimapViewModel
+        if (Plotter != null)
+        {
+            Plotter.OnDataCleared -= HandlePlotterDataCleared;
+        }
+        MinimapViewModel?.Cleanup();
     }
 
     [RelayCommand]
@@ -810,6 +810,13 @@ public partial class DaqifiViewModel : ObservableObject
             try
             {
                 DbLogger.DisplayLoggingSession(SelectedLoggingSession);
+                if (Plotter != null && MinimapViewModel != null)
+                {
+                    Application.Current.Dispatcher.Invoke(() => // Ensure UI updates on the main thread
+                    {
+                        MinimapViewModel.SetDataAndMainPlot(Plotter.GetCurrentDataForMinimap(), Plotter.PlotModel);
+                    });
+                }
             }
             finally
             {
@@ -1234,7 +1241,6 @@ public partial class DaqifiViewModel : ObservableObject
 
                             };
                             // Add channels not in the selected profile channels
-                            //profileChannel.SerialNo = selectedDevice.DeviceSerialNo; // Associate the serial number
                             LoggingManager.Instance.SelectedProfileChannels.Add(profileChannel);
                         }
 
@@ -1413,11 +1419,11 @@ public partial class DaqifiViewModel : ObservableObject
 
                         if (profileChannel != null)
                         {
-                            if (SelectedProfile.IsProfileActive)
+                            if (SelectedProfile.IsProfileActive) // This means we are deactivating
                             {
                                 LoggingManager.Instance.Unsubscribe(profileChannel);
                             }
-                            else
+                            else // This means we are activating
                             {
                                 LoggingManager.Instance.Subscribe(profileChannel);
                             }
@@ -1427,6 +1433,18 @@ public partial class DaqifiViewModel : ObservableObject
             }
             // Toggle profile's active state
             SelectedProfile.IsProfileActive = !SelectedProfile.IsProfileActive;
+
+            if (SelectedProfile.IsProfileActive) // Only update minimap if profile was activated
+            {
+                if (Plotter != null && MinimapViewModel != null)
+                {
+                    MinimapViewModel.SetDataAndMainPlot(Plotter.GetCurrentDataForMinimap(), Plotter.PlotModel);
+                }
+            }
+            else // If profile was deactivated, clear the minimap or set to default state
+            {
+                HandlePlotterDataCleared(); // Or a more specific minimap clear
+            }
         }
         catch (Exception ex)
         {
@@ -1463,7 +1481,6 @@ public partial class DaqifiViewModel : ObservableObject
 
     private HidFirmwareDevice ConnectHid(object selectedItems)
     {
-        // Read variable
         var selectedDevices = ((IEnumerable)selectedItems).Cast<HidFirmwareDevice>();
         var hidDevice = selectedDevices.FirstOrDefault();
         return hidDevice;
@@ -1575,12 +1592,13 @@ public partial class DaqifiViewModel : ObservableObject
                 if (DeviceConnection)
                 {
                     var errorDialogViewModel = new ErrorDialogViewModel("Device disconnected..");
-                    if (errorDialogViewModel != null)
-                    {
-                        // To do  work giving error 
-                        //_dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-
-                    }
+                    // The dialog service call was commented out, potentially due to issues.
+                    // If this notification is important, the dialog call might need to be re-evaluated or fixed.
+                    // For now, respecting the commented-out state of the dialog call itself.
+                    // if (errorDialogViewModel != null)
+                    // {
+                    // _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+                    // }
                     ConnectionManager.Instance.NotifyConnection = false;
                 }
                 break;
@@ -1609,6 +1627,23 @@ public partial class DaqifiViewModel : ObservableObject
     private bool CanExportAllLoggingSession()
     {
         return LoggingSessions.Count > 0;
+    }
+
+    private void InitializeMinimap()
+    {
+        if (Plotter != null && Plotter.PlotModel != null && MinimapViewModel != null)
+        {
+            MinimapViewModel.SetDataAndMainPlot(Plotter.GetCurrentDataForMinimap(), Plotter.PlotModel);
+            OnPropertyChanged(nameof(MinimapPlotModel)); // Ensure UI picks up MinimapPlotModel if it was null initially
+        }
+    }
+
+    private void HandlePlotterDataCleared()
+    {
+        if (Plotter != null && Plotter.PlotModel != null && MinimapViewModel != null)
+        {
+            MinimapViewModel.SetDataAndMainPlot(new List<DataPoint>(), Plotter.PlotModel);
+        }
     }
     #endregion
 }
