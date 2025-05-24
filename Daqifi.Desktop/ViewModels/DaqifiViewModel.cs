@@ -24,6 +24,7 @@ using Daqifi.Desktop.Device.SerialDevice;
 using Application = System.Windows.Application;
 using File = System.IO.File;
 using CommunityToolkit.Mvvm.Input;
+using OxyPlot; // Added for OxyPlot types
 
 namespace Daqifi.Desktop.ViewModels;
 
