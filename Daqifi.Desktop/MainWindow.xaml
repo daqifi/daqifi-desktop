@@ -456,46 +456,10 @@
                                         </StackPanel>
                                     </DockPanel>
                                 </Grid>
-
-                                <!-- Plot control buttons (overlaying the main plot, should remain in correct visual place) -->
-                                    <DockPanel Grid.Row="0" Grid.Column="0" HorizontalAlignment="Right" VerticalAlignment="Top">
-                                        <Button Command="{Binding DbLogger.SaveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
-                                            <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                        </Button>
-                                    </DockPanel>
-                                    <DockPanel Grid.Row="0" Grid.Column="0" HorizontalAlignment="Right" VerticalAlignment="Bottom">
-                                        <Button Command="{Binding DbLogger.ZoomOutXCommand}" ToolTip="Zoom Out (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
-                                            <Button.Content>
-                                                <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                            </Button.Content>
-                                        </Button>
-                                        <Button Command="{Binding DbLogger.ZoomInXCommand}" ToolTip="Zoom In (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
-                                            <Button.Content>
-                                                <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                            </Button.Content>
-                                        </Button>
-                                        <StackPanel>
-                                            <Button Command="{Binding DbLogger.ZoomInYCommand}" ToolTip="Zoom In (Analog)" Style="{StaticResource FadeButton}">
-                                                <Button.Content>
-                                                    <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                                </Button.Content>
-                                            </Button>
-                                            <Button Command="{Binding DbLogger.ZoomOutYCommand}" ToolTip="Zoom Out (Analog)" Style="{StaticResource FadeButton}">
-                                                <Button.Content>
-                                                    <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                                </Button.Content>
-                                            </Button>
-                                            <Button Command="{Binding DbLogger.ResetZoomCommand }" CommandParameter="{Binding}" Style="{StaticResource FadeButton}" ToolTip="Reset Zoom" VerticalAlignment="Bottom" >
-                                                <Button.Content>
-                                                    <iconPacks:PackIconMaterial Kind="Crosshairs" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                                </Button.Content>
-                                            </Button>
-                                        </StackPanel>
-                                    </DockPanel>
-                                </Grid>
+                                <!-- End of Inner Grid for Plot Area. The plot controls are children of this inner grid, associated with its first row. -->
 
                                 <!-- Logged Data List -->
-                                <ContentPresenter Content="{Binding}" Grid.Row="1"> <!-- This Grid.Row is for the parent Grid -->
+                                <ContentPresenter Content="{Binding}" Grid.Row="1"> <!-- This Grid.Row is for the parent Grid (child of TabItem -> Grid) -->
                                     <ContentPresenter.ContentTemplate>
                                         <DataTemplate>
                                             <Grid>
