@@ -70,6 +70,23 @@ public partial class DaqifiViewModel : ObservableObject
     
     [ObservableProperty]
     private IStreamingDevice? _selectedDevice;
+    public IStreamingDevice? SelectedDevice
+    {
+        get => _selectedDevice;
+        set
+        {
+            _selectedDevice = value;
+            if (_selectedDevice != null)
+            {
+                SummaryLogger.UpdateTargetSampleRate(_selectedDevice.StreamingFrequency);
+            }
+            else
+            {
+                SummaryLogger.UpdateTargetSampleRate(0);
+            }
+            OnPropertyChanged();
+        }
+    }
     
     private VersionNotification? _versionNotification;
     private IStreamingDevice _updateProfileSelectedDevice;
@@ -220,6 +237,7 @@ public partial class DaqifiViewModel : ObservableObject
 
             SelectedDevice.StreamingFrequency = value;
             _selectedStreamingFrequency = SelectedDevice.StreamingFrequency;
+            SummaryLogger.UpdateTargetSampleRate(_selectedStreamingFrequency);
             OnPropertyChanged();
         }
     }
