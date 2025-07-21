@@ -16,7 +16,7 @@ namespace Daqifi.Desktop.ViewModels;
 public partial class ConnectionDialogViewModel : ObservableObject
 {
     #region Private Variables
-    private DaqifiDeviceFinder _wifiFinder;
+    private IDeviceFinder _wifiFinder;
     private SerialDeviceFinder _serialFinder;
     private HidDeviceFinder _hidDeviceFinder;
     private readonly IDialogService _dialogService;
@@ -57,7 +57,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     public void StartConnectionFinders()
     {
-        _wifiFinder = new DaqifiDeviceFinder(30303);
+        // Use the backward-compatible finder that handles firmware responding to port 30303
+        _wifiFinder = new DaqifiDeviceFinderBackwardCompatible(30303);
         _wifiFinder.OnDeviceFound += HandleWifiDeviceFound;
         _wifiFinder.OnDeviceRemoved += HandleWifiDeviceRemoved;
         _wifiFinder.Start();

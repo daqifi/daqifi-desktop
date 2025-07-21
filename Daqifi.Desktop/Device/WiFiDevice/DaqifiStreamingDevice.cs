@@ -1,6 +1,7 @@
 ﻿using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
+using System.Net;
 using System.Net.Sockets;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
@@ -16,6 +17,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     public bool IsPowerOn { get; set; }
     public string DeviceSerialNo { get; set; }
     public string DeviceVersion { get; set; }
+    public string LocalInterfaceAddress { get; set; }  // The local interface that discovered this device
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
 
     #endregion
@@ -42,12 +44,29 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         try
         {
             Client = new TcpClient();
+            
+            // If we know which local interface discovered this device, bind to it
+            if (!string.IsNullOrEmpty(LocalInterfaceAddress))
+            {
+                try
+                {
+                    var localEndpoint = new IPEndPoint(IPAddress.Parse(LocalInterfaceAddress), 0);
+                    Client = new TcpClient(localEndpoint);
+                    AppLogger.Information($"Binding TCP connection to local interface {LocalInterfaceAddress} for device at {IpAddress}");
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Failed to bind to local interface {LocalInterfaceAddress}: {ex.Message}. Using default.");
+                    Client = new TcpClient();
+                }
+            }
+            
             var result = Client.BeginConnect(IpAddress, Port, null, null);
             var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
 
             if (!success)
             {
-                AppLogger.Error("Timeout connecting to DAQiFi Device.");
+                AppLogger.Error($"Timeout connecting to DAQiFi Device at {IpAddress}:{Port}");
                 return false;
             }
 
