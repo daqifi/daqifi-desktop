@@ -13,6 +13,7 @@ using Daqifi.Desktop.IO.Messages.Producers;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
+using System.Threading;
 
 namespace Daqifi.Desktop.Device;
 
@@ -839,6 +840,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         if (IsStreaming) { StopStreaming(); }
 
+        // Ensure WiFi is enabled before configuring it
+        // SD and WiFi share the same SPI bus, so disable SD first
+        MessageProducer.Send(ScpiMessageProducer.DisableStorageSd);
+        MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
+
         switch (NetworkConfiguration.Mode)
         {
             case WifiMode.ExistingNetwork:
@@ -867,6 +873,19 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         
         MessageProducer.Send(ScpiMessageProducer.SetNetworkWifiPassword(NetworkConfiguration.Password));
         MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
+        
+        // Wait for WiFi module to restart after applying settings
+        Thread.Sleep(2000);
+        
+        // Re-enable WiFi after the module restarts, but only if we're in StreamToApp mode
+        // The ApplyNetworkLan command causes the WiFi module to restart,
+        // so we need to re-enable it after the restart completes.
+        // SD and WiFi share the same SPI bus and cannot be enabled simultaneously.
+        if (Mode == DeviceMode.StreamToApp)
+        {
+            MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
+        }
+        
         MessageProducer.Send(ScpiMessageProducer.SaveNetworkLan);
     }
 
