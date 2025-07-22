@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Globalization;
+using System.Windows.Data;
 using Daqifi.Desktop.Helpers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -9,21 +10,21 @@ namespace Daqifi.Desktop.Test.Converters
     [TestClass]
     public class EnumDescriptionConverterTests
     {
-        private EnumDescriptionConverter _converter;
+        private IValueConverter _converter;
 
         // Test enum with Description attributes
         private enum TestEnum
         {
-            [Description("First Option Description")]
+            [System.ComponentModel.Description("First Option Description")]
             FirstOption,
             
-            [Description("Second Option Description")]
+            [System.ComponentModel.Description("Second Option Description")]
             SecondOption,
             
             // No description attribute
             ThirdOption,
             
-            [Description("")]
+            [System.ComponentModel.Description("")]
             EmptyDescription
         }
 
