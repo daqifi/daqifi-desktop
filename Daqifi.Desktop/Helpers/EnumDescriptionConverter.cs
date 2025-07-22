@@ -24,7 +24,16 @@ public class EnumDescriptionConverter : IValueConverter
 
     object IValueConverter.Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        var myEnum = (Enum)value;
+        if (value == null)
+        {
+            return string.Empty;
+        }
+
+        if (value is not Enum myEnum)
+        {
+            return value.ToString();
+        }
+
         var description = GetEnumDescription(myEnum);
         return description;
     }
