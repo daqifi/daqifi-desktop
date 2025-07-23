@@ -1,0 +1,58 @@
+# Set default behavior to automatically normalize line endings to CRLF
+* text=auto eol=crlf
+
+# Explicitly declare text files you want to always be normalized and converted
+# to native line endings on checkout.
+*.cs text eol=crlf
+*.xaml text eol=crlf
+*.xml text eol=crlf
+*.json text eol=crlf
+*.md text eol=crlf
+*.txt text eol=crlf
+*.yml text eol=crlf
+*.yaml text eol=crlf
+*.sln text eol=crlf
+*.csproj text eol=crlf
+*.props text eol=crlf
+*.targets text eol=crlf
+*.config text eol=crlf
+*.resx text eol=crlf
+*.settings text eol=crlf
+*.manifest text eol=crlf
+*.rc text eol=crlf
+*.def text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.sh text eol=lf
+*.gitignore text eol=crlf
+*.gitattributes text eol=crlf
+
+# Denote all files that are truly binary and should not be modified.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.lib binary
+*.a binary
+*.pdb binary
+*.pfx binary
+*.snk binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.tgz binary
+*.bz2 binary
+*.7z binary
+*.nupkg binary
+
+# Preserve specific line endings where required
+Makefile text eol=lf
+makefile text eol=lf
+*.mk text eol=lf
