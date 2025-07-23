@@ -56,3 +56,7 @@
 Makefile text eol=lf
 makefile text eol=lf
 *.mk text eol=lf
+
+# Note: We intentionally use eol=crlf as the default (line 2) rather than auto
+# because this is a Windows desktop application (.NET/WPF) and we want consistent
+# CRLF line endings across all development environments (Windows, WSL, etc.)
