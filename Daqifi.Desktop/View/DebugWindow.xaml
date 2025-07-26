@@ -1,0 +1,197 @@
+<mah:MetroWindow x:Class="Daqifi.Desktop.View.DebugWindow"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+                  xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+                  Title="DAQiFi Debug Console" 
+                  Height="600" 
+                  Width="1000"
+                  WindowStartupLocation="CenterOwner"
+                  ShowInTaskbar="False"
+                  ResizeMode="CanResize">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Accent}" Padding="10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <iconPacks:PackIconMaterial Kind="Bug" 
+                                              Foreground="White" 
+                                              Width="24" 
+                                              Height="24" 
+                                              VerticalAlignment="Center"/>
+                    <TextBlock Text="Real-time Device Data Flow Debug Console" 
+                             Foreground="White" 
+                             FontSize="16" 
+                             FontWeight="Bold" 
+                             Margin="10,0,0,0"
+                             VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <Button Grid.Column="1" 
+                        Content="Clear" 
+                        Command="{Binding ClearDebugDataCommand}"
+                        Style="{DynamicResource MahApps.Styles.Button.Dialogs.Accent}"
+                        Margin="0,0,10,0"/>
+                
+                <Button Grid.Column="2" 
+                        Content="Close" 
+                        Click="CloseButton_Click"
+                        Style="{DynamicResource MahApps.Styles.Button.Dialogs.Accent}"/>
+            </Grid>
+        </Border>
+
+        <!-- Main Content -->
+        <Grid Grid.Row="1" Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="3*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Panel - Latest Data -->
+            <Border Grid.Column="0" BorderBrush="{DynamicResource MahApps.Brushes.Accent}" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Gray10}" Padding="10">
+                        <TextBlock Text="Latest Data Packet" FontWeight="Bold" FontSize="14"/>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" Padding="10" VerticalScrollBarVisibility="Auto">
+                        <StackPanel DataContext="{Binding DebugData.LatestEntry}">
+                            <TextBlock Text="{Binding Timestamp, StringFormat='Timestamp: {0:HH:mm:ss.fff}'}" 
+                                     FontFamily="Consolas" Margin="0,0,0,5"/>
+                            <TextBlock Text="{Binding DeviceId, StringFormat='Device ID: {0}'}" 
+                                     FontFamily="Consolas" Margin="0,0,0,5"/>
+                            <TextBlock Text="{Binding AnalogDataCount, StringFormat='Data Count: {0}'}" 
+                                     FontFamily="Consolas" Margin="0,0,0,5"/>
+                            <TextBlock Text="{Binding ChannelEnableMask, StringFormat='Enable Mask: {0}'}" 
+                                     FontFamily="Consolas" Margin="0,0,0,5"/>
+                            <TextBlock Text="{Binding ChannelEnableBinary, StringFormat='Enable Binary: {0}'}" 
+                                     FontFamily="Consolas" Margin="0,0,0,10"/>
+                            
+                            <TextBlock Text="Active Channels:" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <ItemsControl ItemsSource="{Binding ActiveChannelNames}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" FontFamily="Consolas" Margin="10,0,0,2"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Raw Values:" FontWeight="Bold" Margin="0,10,0,5"/>
+                            <ItemsControl ItemsSource="{Binding RawAnalogValues}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{DynamicResource MahApps.Brushes.Gray9}" 
+                                              Padding="5" Margin="2">
+                                            <TextBlock Text="{Binding}" FontFamily="Consolas"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Data Flow Visualization:" FontWeight="Bold" Margin="0,10,0,5"/>
+                            <TextBlock Text="{Binding DataFlowVisualization}" 
+                                     FontFamily="Consolas" 
+                                     Background="{DynamicResource MahApps.Brushes.Gray9}"
+                                     Padding="10"
+                                     TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <GridSplitter Grid.Column="1" 
+                        HorizontalAlignment="Stretch" 
+                        Background="{DynamicResource MahApps.Brushes.Gray7}"/>
+
+            <!-- Right Panel - History -->
+            <Border Grid.Column="2" BorderBrush="{DynamicResource MahApps.Brushes.Accent}" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Gray10}" Padding="10">
+                        <TextBlock Text="Debug History (Last 100 packets)" FontWeight="Bold" FontSize="14"/>
+                    </Border>
+
+                    <DataGrid Grid.Row="1" 
+                            ItemsSource="{Binding DebugData.Entries}"
+                            AutoGenerateColumns="False"
+                            IsReadOnly="True"
+                            GridLinesVisibility="Horizontal"
+                            HeadersVisibility="Column"
+                            CanUserReorderColumns="False"
+                            CanUserResizeColumns="True"
+                            CanUserSortColumns="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Time" 
+                                              Binding="{Binding Timestamp, StringFormat=HH:mm:ss.fff}" 
+                                              Width="80"/>
+                            <DataGridTextColumn Header="Device" 
+                                              Binding="{Binding DeviceId}" 
+                                              Width="60"/>
+                            <DataGridTextColumn Header="Count" 
+                                              Binding="{Binding AnalogDataCount}" 
+                                              Width="50"/>
+                            <DataGridTextColumn Header="Channels" 
+                                              Binding="{Binding ActiveChannelNames, Converter={StaticResource ListToStringConverter}}" 
+                                              Width="100"/>
+                            <DataGridTextColumn Header="Raw Data" 
+                                              Binding="{Binding RawAnalogValues, Converter={StaticResource ListToStringConverter}}" 
+                                              Width="120"/>
+                            <DataGridTextColumn Header="Scaled Data" 
+                                              Binding="{Binding ScaledAnalogValues, Converter={StaticResource ListToStringConverter}}" 
+                                              Width="120"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="{DynamicResource MahApps.Brushes.Gray10}" Padding="10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock Grid.Column="0" 
+                         Text="Debug mode provides real-time visibility into device data flow for firmware correlation"
+                         VerticalAlignment="Center"/>
+                
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="Packets: " VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding DebugData.Entries.Count}" 
+                             FontWeight="Bold" 
+                             VerticalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</mah:MetroWindow>

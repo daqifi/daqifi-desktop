@@ -25,6 +25,22 @@
                     </StackPanel>
                 </Button.Content>
             </Button>
+            <ToggleButton IsChecked="{Binding IsDebugModeEnabled}" ToolTip="Toggle Debug Mode">
+                <ToggleButton.Content>
+                    <StackPanel Orientation="Horizontal">
+                        <iconPacks:PackIconMaterial Kind="Bug" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        <TextBlock Margin="4 0 0 0" VerticalAlignment="Center" Text="debug" />
+                    </StackPanel>
+                </ToggleButton.Content>
+            </ToggleButton>
+            <Button Command="{Binding OpenDebugWindowCommand}" ToolTip="Open Debug Console" Visibility="{Binding IsDebugModeEnabled, Converter={StaticResource BoolToVis}}">
+                <Button.Content>
+                    <StackPanel Orientation="Horizontal">
+                        <iconPacks:PackIconMaterial Kind="Console" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        <TextBlock Margin="4 0 0 0" VerticalAlignment="Center" Text="console" />
+                    </StackPanel>
+                </Button.Content>
+            </Button>
             <Button Command="{Binding OpenHelpCommand}">
                 <Button.Content>
                     <StackPanel Orientation="Horizontal">

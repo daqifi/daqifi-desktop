@@ -43,6 +43,7 @@
             <helpers:BooleanToInverseBoolConverter x:Key="BooleanToInverse"/>
             <converters:BoolToActiveStatusConverter x:Key="BoolToActiveStatus"/>
             <converters:BoolToStatusColorConverter x:Key="BoolToStatusColor"/>
+            <converters:ListToStringConverter x:Key="ListToStringConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
