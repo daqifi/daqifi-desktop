@@ -80,6 +80,12 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     private LoggingSession _selectedLoggingSession;
     private bool _isLogging;
+
+    [ObservableProperty]
+    private bool _isDebugModeEnabled;
+
+    [ObservableProperty]
+    private DebugDataCollection _debugData = new();
     private bool _canToggleLogging;
     [ObservableProperty]
     private string _loggedDataBusyReason;
@@ -1514,6 +1520,13 @@ public partial class DaqifiViewModel : ObservableObject
             }
 
             ConnectedDevices.Add(connectedDevice);
+
+            // Subscribe to debug events if this is a streaming device
+            if (connectedDevice is AbstractStreamingDevice streamingDevice)
+            {
+                streamingDevice.DebugDataReceived += OnDebugDataReceived;
+                streamingDevice.SetDebugMode(IsDebugModeEnabled);
+            }
         }
     }
     public async void UpdateUi(object sender, PropertyChangedEventArgs args)
@@ -1610,5 +1623,68 @@ public partial class DaqifiViewModel : ObservableObject
     {
         return LoggingSessions.Count > 0;
     }
+
+    /// <summary>
+    /// Handles debug mode toggle changes
+    /// </summary>
+    partial void OnIsDebugModeEnabledChanged(bool value)
+    {
+        if (value)
+        {
+            _appLogger.Information("[DEBUG_MODE] Debug mode enabled - detailed diagnostics will be logged");
+            DebugData.Clear();
+        }
+        else
+        {
+            _appLogger.Information("[DEBUG_MODE] Debug mode disabled");
+        }
+
+        // Notify all connected devices about debug mode change
+        foreach (var device in ConnectedDevices)
+        {
+            if (device is AbstractStreamingDevice streamingDevice)
+            {
+                streamingDevice.SetDebugMode(value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Command to toggle debug mode
+    /// </summary>
+    [RelayCommand]
+    private void ToggleDebugMode()
+    {
+        IsDebugModeEnabled = !IsDebugModeEnabled;
+    }
+
+    /// <summary>
+    /// Command to clear debug data
+    /// </summary>
+    [RelayCommand]
+    private void ClearDebugData()
+    {
+        DebugData.Clear();
+        _appLogger.Information("[DEBUG_MODE] Debug data cleared");
+    }
+
+    /// <summary>
+    /// Command to open debug window
+    /// </summary>
+    [RelayCommand]
+    private void OpenDebugWindow()
+    {
+        var debugWindow = new Daqifi.Desktop.View.DebugWindow(this);
+        debugWindow.Show();
+    }
+
+    /// <summary>
+    /// Handles debug data received from devices
+    /// </summary>
+    private void OnDebugDataReceived(DebugDataModel debugData)
+    {
+        DebugData.AddEntry(debugData);
+    }
+
     #endregion
 }
