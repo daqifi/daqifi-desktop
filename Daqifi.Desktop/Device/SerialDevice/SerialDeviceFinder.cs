@@ -71,7 +71,25 @@ public class SerialDeviceFinder : IDeviceFinder
                 foreach (var portName in addedPorts)
                 {
                     var device = new SerialStreamingDevice(portName);
-                    NotifyDeviceFound(this, device);
+                    
+                    // Try to get device information during discovery
+                    // This will populate DeviceSerialNo, DeviceVersion, etc. if successful
+                    Task.Run(() =>
+                    {
+                        try
+                        {
+                            device.TryGetDeviceInfo();
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log but don't fail discovery if device info retrieval fails
+                            // Device will still show with port name only
+                        }
+                        finally
+                        {
+                            NotifyDeviceFound(this, device);
+                        }
+                    });
                 }
 
                 foreach (var portName in removedPorts)
