@@ -142,7 +142,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         PopulateAnalogOutChannels(message);
     }
 
-    private bool IsValidStatusMessage(DaqifiOutMessage message)
+    protected bool IsValidStatusMessage(DaqifiOutMessage message)
     {
         return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
     }
@@ -797,7 +797,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    private void HydrateDeviceMetadata(DaqifiOutMessage message)
+    protected void HydrateDeviceMetadata(DaqifiOutMessage message)
     {
         if (!string.IsNullOrWhiteSpace(message.Ssid))
         {
