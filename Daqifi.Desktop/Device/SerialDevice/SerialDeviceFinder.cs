@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Management;
+using Daqifi.Desktop.Common.Loggers;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -9,6 +10,7 @@ public class SerialDeviceFinder : IDeviceFinder
     private string[] _serialPorts = { };
     private static ManagementEventWatcher _deviceAddedWatcher;
     private static ManagementEventWatcher _deviceRemovedWatcher;
+    private readonly AppLogger AppLogger = AppLogger.Instance;
     public event OnDeviceFoundHandler OnDeviceFound;
     public event OnDeviceRemovedHandler OnDeviceRemoved;
     #endregion
@@ -91,6 +93,7 @@ public class SerialDeviceFinder : IDeviceFinder
                         catch (Exception ex)
                         {
                             // Log but don't fail - device still shows with port name only
+                            AppLogger.Warning($"Failed to retrieve device info for port {portName}: {ex.Message}");
                         }
                     });
                 }
