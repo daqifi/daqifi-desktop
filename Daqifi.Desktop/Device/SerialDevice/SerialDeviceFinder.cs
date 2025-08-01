@@ -72,22 +72,25 @@ public class SerialDeviceFinder : IDeviceFinder
                 {
                     var device = new SerialStreamingDevice(portName);
                     
-                    // Try to get device information during discovery
-                    // This will populate DeviceSerialNo, DeviceVersion, etc. if successful
-                    Task.Run(() =>
+                    // Immediately notify device found so it appears in UI right away
+                    NotifyDeviceFound(this, device);
+                    
+                    // Try to get device information in background and update UI when complete
+                    Task.Run(async () =>
                     {
                         try
                         {
-                            device.TryGetDeviceInfo();
+                            await Task.Delay(500); // Brief delay to let UI settle
+                            if (device.TryGetDeviceInfo())
+                            {
+                                // Notify again with updated device info
+                                // This will trigger UI refresh with the new information
+                                NotifyDeviceUpdated(this, device);
+                            }
                         }
                         catch (Exception ex)
                         {
-                            // Log but don't fail discovery if device info retrieval fails
-                            // Device will still show with port name only
-                        }
-                        finally
-                        {
-                            NotifyDeviceFound(this, device);
+                            // Log but don't fail - device still shows with port name only
                         }
                     });
                 }
@@ -142,5 +145,12 @@ public class SerialDeviceFinder : IDeviceFinder
     public void NotifyDeviceRemoved(object sender, IDevice device)
     {
         OnDeviceRemoved?.Invoke(sender, device);
+    }
+
+    public void NotifyDeviceUpdated(object sender, IDevice device)
+    {
+        // Trigger a device removal and re-addition to refresh the UI
+        OnDeviceRemoved?.Invoke(sender, device);
+        OnDeviceFound?.Invoke(sender, device);
     }
 }

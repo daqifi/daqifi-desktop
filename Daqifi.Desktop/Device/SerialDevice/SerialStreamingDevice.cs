@@ -41,11 +41,14 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
         try
         {
-            // Quick connection attempt with shorter timeout
-            Port.ReadTimeout = 1000;
-            Port.WriteTimeout = 1000;
+            // Quick connection attempt with shorter timeouts for discovery
+            Port.ReadTimeout = 500;
+            Port.WriteTimeout = 500;
             Port.Open();
             Port.DtrEnable = true;
+
+            // Small delay to let port stabilize
+            Thread.Sleep(100);
 
             MessageProducer = new MessageProducer(Port.BaseStream);
             MessageProducer.Start();
@@ -60,21 +63,33 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
             // Set up a temporary status handler to get device info
             var deviceInfoReceived = false;
-            var timeout = DateTime.Now.AddSeconds(3);
+            var timeout = DateTime.Now.AddSeconds(2); // Reduced timeout for discovery
 
-            MessageConsumer.OnMessageReceived += (sender, args) =>
+            EventHandler<MessageEventArgs<object>> handler = null;
+            handler = (sender, args) =>
             {
-                if (args.Message.Data is DaqifiOutMessage message && IsValidStatusMessage(message))
+                try
                 {
-                    HydrateDeviceMetadata(message);
-                    // Set Name to device part number if available, otherwise keep port name
-                    if (!string.IsNullOrWhiteSpace(DevicePartNumber))
+                    if (args.Message.Data is DaqifiOutMessage message && IsValidStatusMessage(message))
                     {
-                        Name = DevicePartNumber;
+                        HydrateDeviceMetadata(message);
+                        // Set Name to device part number if available, otherwise keep port name
+                        if (!string.IsNullOrWhiteSpace(DevicePartNumber))
+                        {
+                            Name = DevicePartNumber;
+                        }
+                        deviceInfoReceived = true;
+                        // Remove handler to prevent multiple calls
+                        MessageConsumer.OnMessageReceived -= handler;
                     }
-                    deviceInfoReceived = true;
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Error processing device info message: {ex.Message}");
                 }
             };
+
+            MessageConsumer.OnMessageReceived += handler;
 
             // Request device info
             MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
@@ -82,7 +97,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             // Wait for response with timeout
             while (!deviceInfoReceived && DateTime.Now < timeout)
             {
-                Thread.Sleep(100);
+                Thread.Sleep(50); // Shorter sleep for more responsive checking
             }
 
             // Clean up the quick connection
@@ -102,13 +117,46 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            MessageProducer?.Stop();
-            MessageConsumer?.Stop();
+            // Stop message processing first
+            if (MessageConsumer != null)
+            {
+                try
+                {
+                    MessageConsumer.Stop();
+                    Thread.Sleep(50); // Give it time to stop
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Error stopping message consumer: {ex.Message}");
+                }
+            }
+
+            if (MessageProducer != null)
+            {
+                try
+                {
+                    MessageProducer.Stop();
+                    Thread.Sleep(50); // Give it time to stop
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Error stopping message producer: {ex.Message}");
+                }
+            }
             
+            // Close the port
             if (Port != null && Port.IsOpen)
             {
-                Port.DtrEnable = false;
-                Port.Close();
+                try
+                {
+                    Port.DtrEnable = false;
+                    Thread.Sleep(100); // Give DTR time to be processed
+                    Port.Close();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Error closing serial port: {ex.Message}");
+                }
             }
         }
         catch (Exception ex)
