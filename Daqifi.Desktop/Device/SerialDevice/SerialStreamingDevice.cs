@@ -65,7 +65,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             var deviceInfoReceived = false;
             var timeout = DateTime.Now.AddSeconds(2); // Reduced timeout for discovery
 
-            EventHandler<MessageEventArgs<object>> handler = null;
+            Daqifi.Desktop.IO.Messages.Consumers.OnMessageReceivedHandler handler = null;
             handler = (sender, args) =>
             {
                 try
