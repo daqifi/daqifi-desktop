@@ -67,6 +67,11 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 if (args.Message.Data is DaqifiOutMessage message && IsValidStatusMessage(message))
                 {
                     HydrateDeviceMetadata(message);
+                    // Set Name to device part number if available, otherwise keep port name
+                    if (!string.IsNullOrWhiteSpace(DevicePartNumber))
+                    {
+                        Name = DevicePartNumber;
+                    }
                     deviceInfoReceived = true;
                 }
             };
@@ -117,27 +122,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         }
     }
 
-    private bool IsValidStatusMessage(DaqifiOutMessage message)
-    {
-        return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
-    }
-
-    private void HydrateDeviceMetadata(DaqifiOutMessage message)
-    {
-        if (!string.IsNullOrWhiteSpace(message.DevicePn))
-        {
-            DevicePartNumber = message.DevicePn;
-            Name = message.DevicePn; // Use part number as device name
-        }
-        if (message.DeviceSn != 0)
-        {
-            DeviceSerialNo = message.DeviceSn.ToString();
-        }
-        if (!string.IsNullOrWhiteSpace(message.DeviceFwRev))
-        {
-            DeviceVersion = message.DeviceFwRev;
-        }
-    }
     #endregion
 
     #region Override Methods
