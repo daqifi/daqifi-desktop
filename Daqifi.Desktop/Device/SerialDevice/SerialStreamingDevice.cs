@@ -48,6 +48,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             Port.DtrEnable = true;
 
             // Longer delay to let device wake up and stabilize
+            // Suppressed: Thread.Sleep required for hardware timing - device power-on sequence
             Thread.Sleep(1000); // Device needs time to power on and initialize
 
             MessageProducer = new MessageProducer(Port.BaseStream);
@@ -114,6 +115,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                     }
                 }
                 
+                // Suppressed: Thread.Sleep required for device communication polling
                 Thread.Sleep(100); // Check more frequently for response
             }
 
@@ -134,7 +136,14 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Failed to get device info for port {Port.PortName}");
-            try { QuickDisconnect(); } catch { }
+            try 
+            { 
+                QuickDisconnect(); 
+            } 
+            catch (Exception disconnectEx) 
+            { 
+                AppLogger.Warning($"Error during cleanup disconnect for port {Port.PortName}: {disconnectEx.Message}");
+            }
             return false;
         }
     }
