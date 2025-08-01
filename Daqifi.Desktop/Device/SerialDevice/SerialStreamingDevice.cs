@@ -42,13 +42,13 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         try
         {
             // Quick connection attempt with shorter timeouts for discovery
-            Port.ReadTimeout = 500;
-            Port.WriteTimeout = 500;
+            Port.ReadTimeout = 1000; // Increased for device wake-up
+            Port.WriteTimeout = 1000;
             Port.Open();
             Port.DtrEnable = true;
 
-            // Small delay to let port stabilize
-            Thread.Sleep(100);
+            // Longer delay to let device wake up and stabilize
+            Thread.Sleep(1000); // Device needs time to power on and initialize
 
             MessageProducer = new MessageProducer(Port.BaseStream);
             MessageProducer.Start();
@@ -63,7 +63,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
             // Set up a temporary status handler to get device info
             var deviceInfoReceived = false;
-            var timeout = DateTime.Now.AddSeconds(2); // Reduced timeout for discovery
+            var timeout = DateTime.Now.AddSeconds(4); // Increased timeout for device wake-up
 
             Daqifi.Desktop.IO.Messages.Consumers.OnMessageReceivedHandler handler = null;
             handler = (sender, args) =>
@@ -91,17 +91,43 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
             MessageConsumer.OnMessageReceived += handler;
 
-            // Request device info
-            MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
-
-            // Wait for response with timeout
+            // Request device info with retry logic
+            var retryCount = 0;
+            var maxRetries = 3;
+            var lastRequestTime = DateTime.MinValue;
+            
             while (!deviceInfoReceived && DateTime.Now < timeout)
             {
-                Thread.Sleep(50); // Shorter sleep for more responsive checking
+                // Send GetDeviceInfo request every 1 second, up to maxRetries times
+                if (DateTime.Now - lastRequestTime > TimeSpan.FromSeconds(1) && retryCount < maxRetries)
+                {
+                    try
+                    {
+                        MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
+                        lastRequestTime = DateTime.Now;
+                        retryCount++;
+                        AppLogger.Information($"Requesting device info (attempt {retryCount}/{maxRetries}) for port {Port.PortName}");
+                    }
+                    catch (Exception ex)
+                    {
+                        AppLogger.Warning($"Failed to send GetDeviceInfo command: {ex.Message}");
+                    }
+                }
+                
+                Thread.Sleep(100); // Check more frequently for response
             }
 
             // Clean up the quick connection
             QuickDisconnect();
+
+            if (deviceInfoReceived)
+            {
+                AppLogger.Information($"Successfully retrieved device info for {Port.PortName}: {Name} (S/N: {DeviceSerialNo}, FW: {DeviceVersion})");
+            }
+            else
+            {
+                AppLogger.Information($"Could not retrieve device info for {Port.PortName} - device may be off or not responding");
+            }
 
             return deviceInfoReceived;
         }
