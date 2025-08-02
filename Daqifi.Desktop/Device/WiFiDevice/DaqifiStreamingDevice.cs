@@ -50,17 +50,20 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             // Create CoreDeviceAdapter for TCP connection
             _coreAdapter = CoreDeviceAdapter.CreateTcpAdapter(IpAddress, Port);
             
-            // Wire up event handlers to maintain existing behavior
-            _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
+            // Wire up event handlers BEFORE connecting
             _coreAdapter.ConnectionStatusChanged += OnCoreAdapterConnectionStatusChanged;
-            _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
             
-            // Attempt connection with timeout
+            // Attempt connection
             if (!_coreAdapter.Connect())
             {
                 AppLogger.Error("Failed to connect to DAQiFi Device using CoreDeviceAdapter.");
                 return false;
             }
+
+            // Wire up message events AFTER connection is established
+            // (MessageConsumer is null until after Connect() succeeds)
+            _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
+            _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
 
             // Setup legacy MessageProducer and MessageConsumer to maintain compatibility
             // Get the underlying stream from the adapter for legacy components
@@ -138,10 +141,13 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             // Disconnect CoreDeviceAdapter first
             if (_coreAdapter != null)
             {
+                // Unsubscribe from events in reverse order
+                _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
                 _coreAdapter.MessageReceived -= OnCoreAdapterMessageReceived;
                 _coreAdapter.ConnectionStatusChanged -= OnCoreAdapterConnectionStatusChanged;
-                _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
+                
                 _coreAdapter.Disconnect();
+                _coreAdapter.Dispose();
                 _coreAdapter = null;
             }
             
