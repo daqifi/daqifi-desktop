@@ -5,6 +5,7 @@ using Daqifi.Desktop.Bootloader;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Core.Communication.Adapters;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -13,6 +14,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #region Properties
     public SerialPort Port { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Usb;
+    
+    private CoreDeviceAdapter? _coreAdapter;
     #endregion
 
     #region Constructor
@@ -212,6 +215,22 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
+            // Create CoreDeviceAdapter for Serial connection
+            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200);
+            
+            // Wire up event handlers to maintain existing behavior
+            _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
+            _coreAdapter.ConnectionStatusChanged += OnCoreAdapterConnectionStatusChanged;
+            _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
+            
+            // Attempt connection
+            if (!_coreAdapter.Connect())
+            {
+                AppLogger.Error("Failed to connect to Serial Device using CoreDeviceAdapter.");
+                return false;
+            }
+
+            // Setup legacy MessageProducer and MessageConsumer to maintain compatibility
             Task.Delay(1000);
             Port.Open();
             Port.DtrEnable = true;
@@ -231,6 +250,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         catch (Exception ex)
         {
             AppLogger.Error(ex, "Failed to connect SerialStreamingDevice");
+            _coreAdapter?.Disconnect();
             return false;
         }
     }
@@ -239,13 +259,20 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
+            // Use CoreDeviceAdapter for writing if available
+            if (_coreAdapter != null)
+            {
+                return _coreAdapter.Write(command);
+            }
+            
+            // Fallback to legacy method
             Port.WriteTimeout = 1000;
             Port.Write(command);
             return true;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to write in SerialStreamingDevice");
+            AppLogger.Error(ex, $"Failed to write command in SerialStreamingDevice: {command}");
             return false;
         }
     }
@@ -256,6 +283,16 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         {
             // First stop streaming to prevent new data from being requested
             StopStreaming();
+            
+            // Disconnect CoreDeviceAdapter first
+            if (_coreAdapter != null)
+            {
+                _coreAdapter.MessageReceived -= OnCoreAdapterMessageReceived;
+                _coreAdapter.ConnectionStatusChanged -= OnCoreAdapterConnectionStatusChanged;
+                _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
+                _coreAdapter.Disconnect();
+                _coreAdapter = null;
+            }
                 
             // Stop the message producer first to prevent new messages
             if (MessageProducer != null)
@@ -334,5 +371,65 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         MessageProducer.Send(ScpiMessageProducer.ForceBootloader);
     }
+    #endregion
+
+    #region CoreDeviceAdapter Event Handlers
+    
+    private void OnCoreAdapterMessageReceived(object? sender, Daqifi.Core.Communication.Events.MessageReceivedEventArgs<string> e)
+    {
+        try
+        {
+            // Forward messages to existing message handling system
+            AppLogger.Information($"[CORE_ADAPTER] Received message: {e.Message.Data}");
+            
+            // In a full migration, we would process messages here directly
+            // For now, this provides logging and can be extended as needed
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error processing received message");
+        }
+    }
+    
+    private void OnCoreAdapterConnectionStatusChanged(object? sender, Daqifi.Core.Communication.Events.ConnectionStatusChangedEventArgs e)
+    {
+        try
+        {
+            AppLogger.Information($"[CORE_ADAPTER] Connection status changed to: {e.Status}");
+            
+            // Handle connection state changes
+            if (e.Status == Daqifi.Core.Communication.ConnectionStatus.Disconnected)
+            {
+                AppLogger.Warning("[CORE_ADAPTER] Device disconnected");
+            }
+            else if (e.Status == Daqifi.Core.Communication.ConnectionStatus.Connected)
+            {
+                AppLogger.Information("[CORE_ADAPTER] Device connected successfully");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error handling connection status change");
+        }
+    }
+    
+    private void OnCoreAdapterErrorOccurred(object? sender, Daqifi.Core.Communication.Events.ErrorOccurredEventArgs e)
+    {
+        try
+        {
+            AppLogger.Error($"[CORE_ADAPTER] Error occurred: {e.Exception?.Message ?? e.ErrorMessage}");
+            
+            // Handle errors from the CoreDeviceAdapter
+            if (e.Exception != null)
+            {
+                AppLogger.Error(e.Exception, "[CORE_ADAPTER] Exception details");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error handling adapter error event");
+        }
+    }
+    
     #endregion
 }

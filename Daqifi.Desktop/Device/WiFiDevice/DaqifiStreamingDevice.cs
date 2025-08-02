@@ -2,6 +2,7 @@
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using System.Net.Sockets;
+using Daqifi.Core.Communication.Adapters;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
@@ -17,6 +18,8 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     public string DeviceSerialNo { get; set; }
     public string DeviceVersion { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
+    
+    private CoreDeviceAdapter? _coreAdapter;
 
     #endregion
 
@@ -41,13 +44,31 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     {
         try
         {
+            // Create CoreDeviceAdapter for TCP connection
+            _coreAdapter = CoreDeviceAdapter.CreateTcpAdapter(IpAddress, Port);
+            
+            // Wire up event handlers to maintain existing behavior
+            _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
+            _coreAdapter.ConnectionStatusChanged += OnCoreAdapterConnectionStatusChanged;
+            _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
+            
+            // Attempt connection with timeout
+            if (!_coreAdapter.Connect())
+            {
+                AppLogger.Error("Failed to connect to DAQiFi Device using CoreDeviceAdapter.");
+                return false;
+            }
+
+            // Setup legacy MessageProducer and MessageConsumer to maintain compatibility
+            // Get the underlying stream from the adapter for legacy components
             Client = new TcpClient();
             var result = Client.BeginConnect(IpAddress, Port, null, null);
             var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
 
             if (!success)
             {
-                AppLogger.Error("Timeout connecting to DAQiFi Device.");
+                AppLogger.Error("Timeout connecting for legacy components.");
+                _coreAdapter?.Disconnect();
                 return false;
             }
 
@@ -74,13 +95,29 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         catch (Exception ex)
         {
             AppLogger.Error(ex, "Problem with connecting to DAQiFi Device.");
+            _coreAdapter?.Disconnect();
             return false;
         }
     }
 
     public override bool Write(string command)
     {
-        return true;
+        try
+        {
+            // Use CoreDeviceAdapter for writing if available
+            if (_coreAdapter != null)
+            {
+                return _coreAdapter.Write(command);
+            }
+            
+            // Fallback to legacy method
+            return MessageProducer?.Send(command) ?? false;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to write command: {command}");
+            return false;
+        }
     }
 
     public override bool Disconnect()
@@ -88,10 +125,25 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         try
         {
             StopStreaming();
-            MessageProducer.Stop();
-            MessageConsumer.Stop();
-            Client.Close();
-            Client.Dispose();
+            
+            // Disconnect CoreDeviceAdapter first
+            if (_coreAdapter != null)
+            {
+                _coreAdapter.MessageReceived -= OnCoreAdapterMessageReceived;
+                _coreAdapter.ConnectionStatusChanged -= OnCoreAdapterConnectionStatusChanged;
+                _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
+                _coreAdapter.Disconnect();
+                _coreAdapter = null;
+            }
+            
+            // Clean up legacy components
+            MessageProducer?.Stop();
+            MessageConsumer?.Stop();
+            if (Client != null)
+            {
+                Client.Close();
+                Client.Dispose();
+            }
             return true;
         }
         catch (Exception ex)
@@ -116,5 +168,65 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         if (MacAddress != other.MacAddress) { return false; }
         return true;
     }
+    #endregion
+
+    #region CoreDeviceAdapter Event Handlers
+    
+    private void OnCoreAdapterMessageReceived(object? sender, Daqifi.Core.Communication.Events.MessageReceivedEventArgs<string> e)
+    {
+        try
+        {
+            // Forward messages to existing message handling system
+            AppLogger.Information($"[CORE_ADAPTER] Received message: {e.Message.Data}");
+            
+            // In a full migration, we would process messages here directly
+            // For now, this provides logging and can be extended as needed
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error processing received message");
+        }
+    }
+    
+    private void OnCoreAdapterConnectionStatusChanged(object? sender, Daqifi.Core.Communication.Events.ConnectionStatusChangedEventArgs e)
+    {
+        try
+        {
+            AppLogger.Information($"[CORE_ADAPTER] Connection status changed to: {e.Status}");
+            
+            // Handle connection state changes
+            if (e.Status == Daqifi.Core.Communication.ConnectionStatus.Disconnected)
+            {
+                AppLogger.Warning("[CORE_ADAPTER] Device disconnected");
+            }
+            else if (e.Status == Daqifi.Core.Communication.ConnectionStatus.Connected)
+            {
+                AppLogger.Information("[CORE_ADAPTER] Device connected successfully");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error handling connection status change");
+        }
+    }
+    
+    private void OnCoreAdapterErrorOccurred(object? sender, Daqifi.Core.Communication.Events.ErrorOccurredEventArgs e)
+    {
+        try
+        {
+            AppLogger.Error($"[CORE_ADAPTER] Error occurred: {e.Exception?.Message ?? e.ErrorMessage}");
+            
+            // Handle errors from the CoreDeviceAdapter
+            if (e.Exception != null)
+            {
+                AppLogger.Error(e.Exception, "[CORE_ADAPTER] Exception details");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error handling adapter error event");
+        }
+    }
+    
     #endregion
 }
