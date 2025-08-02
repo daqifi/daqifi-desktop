@@ -2,7 +2,9 @@
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using System.Net.Sockets;
-using Daqifi.Core.Communication.Adapters;
+using Daqifi.Core.Integration.Desktop;
+using Daqifi.Core.Communication.Consumers;
+using Daqifi.Core.Communication.Transport;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
@@ -172,7 +174,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
 
     #region CoreDeviceAdapter Event Handlers
     
-    private void OnCoreAdapterMessageReceived(object? sender, Daqifi.Core.Communication.Events.MessageReceivedEventArgs<string> e)
+    private void OnCoreAdapterMessageReceived(object? sender, MessageReceivedEventArgs<string> e)
     {
         try
         {
@@ -188,18 +190,18 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         }
     }
     
-    private void OnCoreAdapterConnectionStatusChanged(object? sender, Daqifi.Core.Communication.Events.ConnectionStatusChangedEventArgs e)
+    private void OnCoreAdapterConnectionStatusChanged(object? sender, TransportStatusEventArgs e)
     {
         try
         {
-            AppLogger.Information($"[CORE_ADAPTER] Connection status changed to: {e.Status}");
+            AppLogger.Information($"[CORE_ADAPTER] Connection status changed to: {e.IsConnected}");
             
             // Handle connection state changes
-            if (e.Status == Daqifi.Core.Communication.ConnectionStatus.Disconnected)
+            if (!e.IsConnected)
             {
                 AppLogger.Warning("[CORE_ADAPTER] Device disconnected");
             }
-            else if (e.Status == Daqifi.Core.Communication.ConnectionStatus.Connected)
+            else
             {
                 AppLogger.Information("[CORE_ADAPTER] Device connected successfully");
             }
@@ -210,16 +212,16 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         }
     }
     
-    private void OnCoreAdapterErrorOccurred(object? sender, Daqifi.Core.Communication.Events.ErrorOccurredEventArgs e)
+    private void OnCoreAdapterErrorOccurred(object? sender, MessageConsumerErrorEventArgs e)
     {
         try
         {
-            AppLogger.Error($"[CORE_ADAPTER] Error occurred: {e.Exception?.Message ?? e.ErrorMessage}");
+            AppLogger.Error($"[CORE_ADAPTER] Error occurred: {e.Error?.Message ?? "Unknown error"}");
             
             // Handle errors from the CoreDeviceAdapter
-            if (e.Exception != null)
+            if (e.Error != null)
             {
-                AppLogger.Error(e.Exception, "[CORE_ADAPTER] Exception details");
+                AppLogger.Error(e.Error, "[CORE_ADAPTER] Exception details");
             }
         }
         catch (Exception ex)

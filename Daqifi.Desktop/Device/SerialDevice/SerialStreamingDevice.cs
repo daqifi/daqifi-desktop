@@ -5,7 +5,9 @@ using Daqifi.Desktop.Bootloader;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Core.Communication.Adapters;
+using Daqifi.Core.Integration.Desktop;
+using Daqifi.Core.Communication.Consumers;
+using Daqifi.Core.Communication.Transport;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -375,7 +377,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
     #region CoreDeviceAdapter Event Handlers
     
-    private void OnCoreAdapterMessageReceived(object? sender, Daqifi.Core.Communication.Events.MessageReceivedEventArgs<string> e)
+    private void OnCoreAdapterMessageReceived(object? sender, MessageReceivedEventArgs<string> e)
     {
         try
         {
@@ -391,18 +393,18 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         }
     }
     
-    private void OnCoreAdapterConnectionStatusChanged(object? sender, Daqifi.Core.Communication.Events.ConnectionStatusChangedEventArgs e)
+    private void OnCoreAdapterConnectionStatusChanged(object? sender, TransportStatusEventArgs e)
     {
         try
         {
-            AppLogger.Information($"[CORE_ADAPTER] Connection status changed to: {e.Status}");
+            AppLogger.Information($"[CORE_ADAPTER] Connection status changed to: {e.IsConnected}");
             
             // Handle connection state changes
-            if (e.Status == Daqifi.Core.Communication.ConnectionStatus.Disconnected)
+            if (!e.IsConnected)
             {
                 AppLogger.Warning("[CORE_ADAPTER] Device disconnected");
             }
-            else if (e.Status == Daqifi.Core.Communication.ConnectionStatus.Connected)
+            else
             {
                 AppLogger.Information("[CORE_ADAPTER] Device connected successfully");
             }
@@ -413,16 +415,16 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         }
     }
     
-    private void OnCoreAdapterErrorOccurred(object? sender, Daqifi.Core.Communication.Events.ErrorOccurredEventArgs e)
+    private void OnCoreAdapterErrorOccurred(object? sender, MessageConsumerErrorEventArgs e)
     {
         try
         {
-            AppLogger.Error($"[CORE_ADAPTER] Error occurred: {e.Exception?.Message ?? e.ErrorMessage}");
+            AppLogger.Error($"[CORE_ADAPTER] Error occurred: {e.Error?.Message ?? "Unknown error"}");
             
             // Handle errors from the CoreDeviceAdapter
-            if (e.Exception != null)
+            if (e.Error != null)
             {
-                AppLogger.Error(e.Exception, "[CORE_ADAPTER] Exception details");
+                AppLogger.Error(e.Error, "[CORE_ADAPTER] Exception details");
             }
         }
         catch (Exception ex)
