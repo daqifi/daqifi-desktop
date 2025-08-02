@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using Daqifi.Core.Integration.Desktop;
 using Daqifi.Core.Communication.Consumers;
 using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Communication.Messages;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
@@ -113,7 +114,13 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             }
             
             // Fallback to legacy method
-            return MessageProducer?.Send(command) ?? false;
+            if (MessageProducer != null)
+            {
+                var scpiMessage = new ScpiMessage(command);
+                MessageProducer.Send(scpiMessage);
+                return true;
+            }
+            return false;
         }
         catch (Exception ex)
         {

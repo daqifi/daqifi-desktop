@@ -8,6 +8,7 @@ using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Core.Integration.Desktop;
 using Daqifi.Core.Communication.Consumers;
 using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Communication.Messages;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -267,7 +268,15 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 return _coreAdapter.Write(command);
             }
             
-            // Fallback to legacy method
+            // Fallback to legacy method - but use MessageProducer for consistency
+            if (MessageProducer != null)
+            {
+                var scpiMessage = new ScpiMessage(command);
+                MessageProducer.Send(scpiMessage);
+                return true;
+            }
+            
+            // Last resort: direct port write
             Port.WriteTimeout = 1000;
             Port.Write(command);
             return true;
