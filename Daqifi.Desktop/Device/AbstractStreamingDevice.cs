@@ -129,7 +129,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         var message = e.Message.Data as DaqifiOutMessage;
         if (message == null || !IsValidStatusMessage(message))
         {
-            Write(ScpiMessageProducer.GetDeviceInfo);
+            Write(ScpiMessageProducer.GetDeviceInfo.Data);
             return;
         }
 
@@ -455,9 +455,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         try
         {
-            Write(ScpiMessageProducer.EnableStorageSd);
-            Write(ScpiMessageProducer.SetSdLoggingFileName($"log_{DateTime.Now:yyyyMMdd_HHmmss}.bin"));
-            Write(ScpiMessageProducer.SetProtobufStreamFormat); // Set format for SD card logging
+            Write(ScpiMessageProducer.EnableStorageSd.Data);
+            Write(ScpiMessageProducer.SetSdLoggingFileName($"log_{DateTime.Now:yyyyMMdd_HHmmss}.bin").Data);
+            Write(ScpiMessageProducer.SetProtobufStreamFormat.Data); // Set format for SD card logging
                 
             // Enable any active channels
             foreach (var channel in DataChannels.Where(c => c.IsActive))
@@ -465,16 +465,16 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 if (channel.Type == ChannelType.Analog)
                 {
                     var channelSetByte = 1u << channel.Index; // Use unsigned int for consistency
-                    Write(ScpiMessageProducer.EnableAdcChannels(channelSetByte.ToString()));
+                    Write(ScpiMessageProducer.EnableAdcChannels(channelSetByte.ToString()).Data);
                 }
                 else if (channel.Type == ChannelType.Digital)
                 {
-                    Write(ScpiMessageProducer.EnableDioPorts());
+                    Write(ScpiMessageProducer.EnableDioPorts().Data);
                 }
             }
 
             // Start the device logging at the configured frequency
-            Write(ScpiMessageProducer.StartStreaming(StreamingFrequency));
+            Write(ScpiMessageProducer.StartStreaming(StreamingFrequency).Data);
                 
             IsLoggingToSdCard = true;
             IsStreaming = true; // We're streaming to SD card
@@ -494,8 +494,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         try
         {
             // Stop the device logging
-            Write(ScpiMessageProducer.StopStreaming);
-            Write(ScpiMessageProducer.DisableStorageSd);
+            Write(ScpiMessageProducer.StopStreaming.Data);
+            Write(ScpiMessageProducer.DisableStorageSd.Data);
                 
             IsLoggingToSdCard = false;
             IsStreaming = false;
@@ -540,7 +540,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         Thread.Sleep(100);
             
         // Now request the file list
-        Write(ScpiMessageProducer.GetSdFileList);
+        Write(ScpiMessageProducer.GetSdFileList.Data);
     }
 
     public void UpdateSdCardFiles(List<SdCardFile> files)
@@ -569,7 +569,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             throw new InvalidOperationException("Cannot initialize streaming while in LogToDevice mode");
         }
             
-        Write(ScpiMessageProducer.StartStreaming(StreamingFrequency));
+        Write(ScpiMessageProducer.StartStreaming(StreamingFrequency).Data);
         IsStreaming = true;
         StartStreamingMessageConsumer();
     }
@@ -590,7 +590,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         IsStreaming = false;
-        Write(ScpiMessageProducer.StopStreaming);
+        Write(ScpiMessageProducer.StopStreaming.Data);
         StopMessageConsumer();
 
         foreach (var channel in DataChannels)
@@ -642,17 +642,17 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     protected void TurnOffEcho()
     {
-        Write(ScpiMessageProducer.DisableDeviceEcho);
+        Write(ScpiMessageProducer.DisableDeviceEcho.Data);
     }
 
     protected void TurnDeviceOn()
     {
-        Write(ScpiMessageProducer.TurnDeviceOn);
+        Write(ScpiMessageProducer.TurnDeviceOn.Data);
     }
 
     protected void SetProtobufMessageFormat()
     {
-        Write(ScpiMessageProducer.SetProtobufStreamFormat);
+        Write(ScpiMessageProducer.SetProtobufStreamFormat.Data);
     }
     #endregion
 
@@ -686,10 +686,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 var channelSetString = Convert.ToString(channelSetByte);
 
                 // Send the command to add the channel
-                Write(ScpiMessageProducer.EnableAdcChannels(channelSetString));
+                Write(ScpiMessageProducer.EnableAdcChannels(channelSetString).Data);
                 break;
             case ChannelType.Digital:
-                Write(ScpiMessageProducer.EnableDioPorts());
+                Write(ScpiMessageProducer.EnableDioPorts().Data);
                 break;
         }
 
@@ -717,7 +717,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 var channelSetString = Convert.ToString(channelSetByte);
 
                 //Send the command to remove the channel
-                Write(ScpiMessageProducer.EnableAdcChannels(channelSetString));
+                Write(ScpiMessageProducer.EnableAdcChannels(channelSetString).Data);
                 break;
         }
 
@@ -742,7 +742,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         switch (channel.Type)
         {
             case ChannelType.Digital:
-                Write(ScpiMessageProducer.SetDioPortState(channel.Index, value));
+                Write(ScpiMessageProducer.SetDioPortState(channel.Index, value).Data);
                 break;
         }
     }
@@ -752,10 +752,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         switch (direction)
         {
             case ChannelDirection.Input:
-                Write(ScpiMessageProducer.SetDioPortDirection(channel.Index, 0));
+                Write(ScpiMessageProducer.SetDioPortDirection(channel.Index, 0).Data);
                 break;
             case ChannelDirection.Output:
-                Write(ScpiMessageProducer.SetDioPortDirection(channel.Index, 1));
+                Write(ScpiMessageProducer.SetDioPortDirection(channel.Index, 1).Data);
                 break;
         }
     }
@@ -857,7 +857,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public void InitializeDeviceState()
     {
         SetMessageHandler(MessageHandlerType.Status);
-        Write(ScpiMessageProducer.GetDeviceInfo);
+        Write(ScpiMessageProducer.GetDeviceInfo.Data);
     }
 
     private static double ScaleAnalogSample(AnalogChannel channel, double analogValue)
@@ -873,37 +873,37 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         switch (NetworkConfiguration.Mode)
         {
             case WifiMode.ExistingNetwork:
-                Write(ScpiMessageProducer.SetNetworkWifiModeExisting);
+                Write(ScpiMessageProducer.SetNetworkWifiModeExisting.Data);
                 break;
             case WifiMode.SelfHosted:
-                Write(ScpiMessageProducer.SetNetworkWifiModeSelfHosted);
+                Write(ScpiMessageProducer.SetNetworkWifiModeSelfHosted.Data);
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
         }
         
-        Write(ScpiMessageProducer.SetNetworkWifiSsid(NetworkConfiguration.Ssid));
+        Write(ScpiMessageProducer.SetNetworkWifiSsid(NetworkConfiguration.Ssid).Data);
 
         switch (NetworkConfiguration.SecurityType)
         {
             case WifiSecurityType.None:
-                Write(ScpiMessageProducer.SetNetworkWifiSecurityOpen);
+                Write(ScpiMessageProducer.SetNetworkWifiSecurityOpen.Data);
                 break;
             case WifiSecurityType.WpaPskPhrase:
-                Write(ScpiMessageProducer.SetNetworkWifiSecurityWpa);
+                Write(ScpiMessageProducer.SetNetworkWifiSecurityWpa.Data);
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
         }
         
-        Write(ScpiMessageProducer.SetNetworkWifiPassword(NetworkConfiguration.Password));
-        Write(ScpiMessageProducer.ApplyNetworkLan);
-        Write(ScpiMessageProducer.SaveNetworkLan);
+        Write(ScpiMessageProducer.SetNetworkWifiPassword(NetworkConfiguration.Password).Data);
+        Write(ScpiMessageProducer.ApplyNetworkLan.Data);
+        Write(ScpiMessageProducer.SaveNetworkLan.Data);
     }
 
     public void Reboot()
     {
-        Write(ScpiMessageProducer.RebootDevice);
+        Write(ScpiMessageProducer.RebootDevice.Data);
         MessageProducer.StopSafely();
         MessageConsumer.Stop();
     }
@@ -911,15 +911,15 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     // SD and LAN can't both be enabled due to hardware limitations
     private void PrepareSdInterface()
     {
-        Write(ScpiMessageProducer.DisableNetworkLan);
-        Write(ScpiMessageProducer.EnableStorageSd);
+        Write(ScpiMessageProducer.DisableNetworkLan.Data);
+        Write(ScpiMessageProducer.EnableStorageSd.Data);
     }
         
     // SD and LAN can't both be enabled due to hardware limitations
     private void PrepareLanInterface()
     {
-        Write(ScpiMessageProducer.DisableStorageSd);
-        Write(ScpiMessageProducer.EnableNetworkLan);
+        Write(ScpiMessageProducer.DisableStorageSd.Data);
+        Write(ScpiMessageProducer.EnableNetworkLan.Data);
     }
 
     #region Debug Mode Methods

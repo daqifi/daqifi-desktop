@@ -110,7 +110,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 {
                     try
                     {
-                        Write(ScpiMessageProducer.GetDeviceInfo);
+                        Write(ScpiMessageProducer.GetDeviceInfo.Data);
                         lastRequestTime = DateTime.Now;
                         retryCount++;
                         AppLogger.Information($"Requesting device info (attempt {retryCount}/{maxRetries}) for port {Port.PortName}");
@@ -326,7 +326,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             {
                 try
                 {
-                    Write(ScpiMessageProducer.EnableDeviceEcho);
+                    Write(ScpiMessageProducer.EnableDeviceEcho.Data);
                     MessageProducer.StopSafely(); // Use StopSafely to ensure queued messages are sent
                 }
                 catch (Exception ex)
@@ -381,22 +381,22 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #region Serial Device Only Methods
     public void EnableLanUpdateMode()
     {
-        Write(ScpiMessageProducer.TurnDeviceOn);
-        Write(ScpiMessageProducer.SetLanFirmwareUpdateMode);
-        Write(ScpiMessageProducer.ApplyNetworkLan);
+        Write(ScpiMessageProducer.TurnDeviceOn.Data);
+        Write(ScpiMessageProducer.SetLanFirmwareUpdateMode.Data);
+        Write(ScpiMessageProducer.ApplyNetworkLan.Data);
     }
         
     public void ResetLanAfterUpdate()
     {
-        Write(ScpiMessageProducer.SetUsbTransparencyMode(0));
-        Write(ScpiMessageProducer.EnableNetworkLan);
-        Write(ScpiMessageProducer.ApplyNetworkLan);
-        Write(ScpiMessageProducer.SaveNetworkLan);
+        Write(ScpiMessageProducer.SetUsbTransparencyMode(0).Data);
+        Write(ScpiMessageProducer.EnableNetworkLan.Data);
+        Write(ScpiMessageProducer.ApplyNetworkLan.Data);
+        Write(ScpiMessageProducer.SaveNetworkLan.Data);
     }
     
     public void ForceBootloader()
     {
-        Write(ScpiMessageProducer.ForceBootloader);
+        Write(ScpiMessageProducer.ForceBootloader.Data);
     }
     #endregion
 
