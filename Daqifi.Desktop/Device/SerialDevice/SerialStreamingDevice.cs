@@ -280,7 +280,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             if (MessageProducer != null)
             {
                 var scpiMessage = new ScpiMessage(command);
-                Write(scpiMessage);
+                MessageProducer.Send(scpiMessage);
                 return true;
             }
             
