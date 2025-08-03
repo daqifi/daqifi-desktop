@@ -6,6 +6,9 @@ using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProdu
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Core.Communication.Messages;
+using Daqifi.Core.Integration.Desktop;
+using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Communication.Consumers;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -14,6 +17,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #region Properties
     public SerialPort Port { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Usb;
+    
+    private CoreDeviceAdapter? _coreAdapter;
     
     #endregion
 
@@ -214,20 +219,30 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // Phase 1 Integration: Use existing transport with new Core 0.4.0 ScpiMessageProducer
-            // CoreDeviceAdapter doesn't exist yet in Core 0.4.0, so we use the proven transport layer
+            // Phase 2: Full CoreDeviceAdapter Integration
+            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200);
             
-            Port.Open();
-            Port.DtrEnable = true;
+            // Wire up event handlers BEFORE connecting
+            _coreAdapter.ConnectionStatusChanged += OnCoreAdapterConnectionStatusChanged;
+            _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
+            _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
+            
+            // Attempt connection
+            if (!_coreAdapter.Connect())
+            {
+                AppLogger.Error("Failed to connect to Serial Device using CoreDeviceAdapter.");
+                return false;
+            }
 
-            // Create message producer and consumer using existing proven implementation
-            MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageProducer.Start();
-
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
-            MessageConsumer.Start();
-
-            // Send device initialization commands using new Core ScpiMessageProducer
+            // Create a bridge MessageConsumer for compatibility with existing message handling
+            // This allows existing device initialization and channel discovery to work
+            if (_coreAdapter.DataStream != null)
+            {
+                MessageConsumer = new MessageConsumer(_coreAdapter.DataStream);
+                MessageConsumer.Start();
+            }
+            
+            // Send device initialization commands through CoreDeviceAdapter
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();
@@ -239,6 +254,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         catch (Exception ex)
         {
             AppLogger.Error(ex, "Failed to connect SerialStreamingDevice");
+            _coreAdapter?.Disconnect();
             return false;
         }
     }
@@ -247,15 +263,13 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // Use existing MessageProducer with new Core ScpiMessage
-            if (MessageProducer != null)
+            // Use CoreDeviceAdapter for writing
+            if (_coreAdapter != null)
             {
-                var scpiMessage = new ScpiMessage(command);
-                MessageProducer.Send(scpiMessage);
-                return true;
+                return _coreAdapter.Write(command);
             }
             
-            // Fallback: direct port write if MessageProducer not available
+            // Fallback: direct port write if CoreDeviceAdapter not available
             if (Port != null && Port.IsOpen)
             {
                 Port.WriteTimeout = 1000;
@@ -278,53 +292,33 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         {
             // First stop streaming to prevent new data from being requested
             StopStreaming();
-                
-            // Stop the message producer first to prevent new messages
-            if (MessageProducer != null)
+            
+            // Clean up bridge MessageConsumer
+            MessageConsumer?.Stop();
+            
+            // Disconnect CoreDeviceAdapter
+            if (_coreAdapter != null)
             {
+                // Re-enable echo before disconnecting
                 try
                 {
                     Write(ScpiMessageProducer.EnableDeviceEcho.Data);
-                    MessageProducer.StopSafely(); // Use StopSafely to ensure queued messages are sent
                 }
                 catch (Exception ex)
                 {
-                    AppLogger.Warning($"Error stopping message producer: {ex.Message}");
+                    AppLogger.Warning($"Error re-enabling echo: {ex.Message}");
                 }
+                
+                // Unsubscribe from events in reverse order
+                _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
+                _coreAdapter.MessageReceived -= OnCoreAdapterMessageReceived;
+                _coreAdapter.ConnectionStatusChanged -= OnCoreAdapterConnectionStatusChanged;
+                
+                _coreAdapter.Disconnect();
+                _coreAdapter.Dispose();
+                _coreAdapter = null;
             }
-
-            // Stop the consumer next
-            if (MessageConsumer != null)
-            {
-                try
-                {
-                    MessageConsumer.Stop();
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error stopping message consumer: {ex.Message}");
-                }
-            }
-
-            // Finally close the port
-            if (Port != null)
-            {
-                try
-                {
-                    if (Port.IsOpen)
-                    {
-                        Port.DtrEnable = false;
-                        // Give a small delay to ensure DTR state change is processed
-                        Thread.Sleep(50);
-                        Port.Close();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error closing serial port: {ex.Message}");
-                }
-            }
-
+            
             return true;
         }
         catch (Exception ex)
@@ -356,6 +350,72 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         Write(ScpiMessageProducer.ForceBootloader.Data);
     }
+    #endregion
+
+    #region CoreDeviceAdapter Event Handlers
+    
+    private void OnCoreAdapterMessageReceived(object? sender, MessageReceivedEventArgs<string> e)
+    {
+        try
+        {
+            // Process messages directly through CoreDeviceAdapter events
+            // This replaces the legacy MessageConsumer pattern
+            AppLogger.Information($"[CORE_ADAPTER] Received message: {e.Message.Data}");
+            
+            // TODO: For Phase 3, process protobuf messages directly here
+            // For now, we'll just log that we received a message
+            var message = e.Message.Data;
+            if (!string.IsNullOrEmpty(message))
+            {
+                AppLogger.Information($"[CORE_ADAPTER] Processing message of length: {message.Length}");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error processing received message");
+        }
+    }
+    
+    private void OnCoreAdapterConnectionStatusChanged(object? sender, TransportStatusEventArgs e)
+    {
+        try
+        {
+            AppLogger.Information($"[CORE_ADAPTER] Connection status changed to: {e.IsConnected}");
+            
+            // Handle connection state changes
+            if (!e.IsConnected)
+            {
+                AppLogger.Warning("[CORE_ADAPTER] Device disconnected");
+            }
+            else
+            {
+                AppLogger.Information("[CORE_ADAPTER] Device connected successfully");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error handling connection status change");
+        }
+    }
+    
+    private void OnCoreAdapterErrorOccurred(object? sender, MessageConsumerErrorEventArgs e)
+    {
+        try
+        {
+            AppLogger.Error($"[CORE_ADAPTER] Error occurred: {e.Error?.Message ?? "Unknown error"}");
+            
+            // Handle errors from the CoreDeviceAdapter
+            if (e.Error != null)
+            {
+                AppLogger.Error(e.Error, "[CORE_ADAPTER] Exception details");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error handling adapter error event");
+        }
+    }
+    
     #endregion
 
 }

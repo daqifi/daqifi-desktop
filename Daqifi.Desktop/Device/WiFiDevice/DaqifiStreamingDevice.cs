@@ -3,6 +3,9 @@ using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using System.Net.Sockets;
 using Daqifi.Core.Communication.Messages;
+using Daqifi.Core.Integration.Desktop;
+using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Communication.Consumers;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
@@ -18,6 +21,8 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     public string DeviceSerialNo { get; set; }
     public string DeviceVersion { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
+    
+    private CoreDeviceAdapter? _coreAdapter;
     
 
     #endregion
@@ -43,22 +48,31 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     {
         try
         {
-            // Phase 1 Integration: Use existing transport with new Core 0.4.0 ScpiMessageProducer
-            // CoreDeviceAdapter doesn't exist yet in Core 0.4.0, so we use the proven transport layer
+            // Phase 2: Full CoreDeviceAdapter Integration
+            _coreAdapter = CoreDeviceAdapter.CreateTcpAdapter(IpAddress, Port);
             
-            Client = new TcpClient();
-            Client.Connect(IpAddress, Port);
-            var networkStream = Client.GetStream();
+            // Wire up event handlers BEFORE connecting
+            _coreAdapter.ConnectionStatusChanged += OnCoreAdapterConnectionStatusChanged;
+            _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
+            _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
+            
+            // Attempt connection
+            if (!_coreAdapter.Connect())
+            {
+                AppLogger.Error("Failed to connect to DAQiFi Device using CoreDeviceAdapter.");
+                return false;
+            }
 
-            // Create message producer and consumer using existing proven implementation
-            MessageProducer = new MessageProducer(networkStream);
-            MessageProducer.Start();
-
-            MessageConsumer = new MessageConsumer(networkStream);
-            ((MessageConsumer)MessageConsumer).IsWifiDevice = true;
-            MessageConsumer.Start();
-
-            // Send device initialization commands using new Core ScpiMessageProducer
+            // Create a bridge MessageConsumer for compatibility with existing message handling
+            // This allows existing device initialization and channel discovery to work
+            if (_coreAdapter.DataStream != null)
+            {
+                MessageConsumer = new MessageConsumer(_coreAdapter.DataStream);
+                ((MessageConsumer)MessageConsumer).IsWifiDevice = true;
+                MessageConsumer.Start();
+            }
+            
+            // Send device initialization commands through CoreDeviceAdapter
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();
@@ -70,6 +84,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         catch (Exception ex)
         {
             AppLogger.Error(ex, "Problem with connecting to DAQiFi Device.");
+            _coreAdapter?.Disconnect();
             return false;
         }
     }
@@ -78,12 +93,10 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     {
         try
         {
-            // Use existing MessageProducer with new Core ScpiMessage
-            if (MessageProducer != null)
+            // Use CoreDeviceAdapter for writing
+            if (_coreAdapter != null)
             {
-                var scpiMessage = new ScpiMessage(command);
-                MessageProducer.Send(scpiMessage);
-                return true;
+                return _coreAdapter.Write(command);
             }
             
             return false;
@@ -101,17 +114,22 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         {
             StopStreaming();
             
-            // Clean up message components
-            MessageProducer?.Stop();
+            // Clean up bridge MessageConsumer
             MessageConsumer?.Stop();
             
-            // Close TCP client
-            if (Client != null)
+            // Disconnect CoreDeviceAdapter
+            if (_coreAdapter != null)
             {
-                Client.Close();
-                Client.Dispose();
-                Client = null;
+                // Unsubscribe from events in reverse order
+                _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
+                _coreAdapter.MessageReceived -= OnCoreAdapterMessageReceived;
+                _coreAdapter.ConnectionStatusChanged -= OnCoreAdapterConnectionStatusChanged;
+                
+                _coreAdapter.Disconnect();
+                _coreAdapter.Dispose();
+                _coreAdapter = null;
             }
+            
             return true;
         }
         catch (Exception ex)
@@ -136,6 +154,72 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         if (MacAddress != other.MacAddress) { return false; }
         return true;
     }
+    #endregion
+
+    #region CoreDeviceAdapter Event Handlers
+    
+    private void OnCoreAdapterMessageReceived(object? sender, MessageReceivedEventArgs<string> e)
+    {
+        try
+        {
+            // Process messages directly through CoreDeviceAdapter events
+            // This replaces the legacy MessageConsumer pattern
+            AppLogger.Information($"[CORE_ADAPTER] Received message: {e.Message.Data}");
+            
+            // TODO: For Phase 3, process protobuf messages directly here
+            // For now, we'll just log that we received a message
+            var message = e.Message.Data;
+            if (!string.IsNullOrEmpty(message))
+            {
+                AppLogger.Information($"[CORE_ADAPTER] Processing message of length: {message.Length}");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error processing received message");
+        }
+    }
+    
+    private void OnCoreAdapterConnectionStatusChanged(object? sender, TransportStatusEventArgs e)
+    {
+        try
+        {
+            AppLogger.Information($"[CORE_ADAPTER] Connection status changed to: {e.IsConnected}");
+            
+            // Handle connection state changes
+            if (!e.IsConnected)
+            {
+                AppLogger.Warning("[CORE_ADAPTER] Device disconnected");
+            }
+            else
+            {
+                AppLogger.Information("[CORE_ADAPTER] Device connected successfully");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error handling connection status change");
+        }
+    }
+    
+    private void OnCoreAdapterErrorOccurred(object? sender, MessageConsumerErrorEventArgs e)
+    {
+        try
+        {
+            AppLogger.Error($"[CORE_ADAPTER] Error occurred: {e.Error?.Message ?? "Unknown error"}");
+            
+            // Handle errors from the CoreDeviceAdapter
+            if (e.Error != null)
+            {
+                AppLogger.Error(e.Error, "[CORE_ADAPTER] Exception details");
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error handling adapter error event");
+        }
+    }
+    
     #endregion
 
 }
