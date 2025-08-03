@@ -56,8 +56,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             // Phase 2: Full CoreDeviceAdapter integration with v0.4.1
             // v0.4.1 includes CompositeMessageParser for protobuf support
             
-            var tcpTransport = new TcpTransport(IpAddress, Port);
-            _coreAdapter = new CoreDeviceAdapter(tcpTransport);
+            _coreAdapter = CoreDeviceAdapter.CreateTcpAdapter(IpAddress, Port);
             
             // Subscribe to CoreDeviceAdapter events
             _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
@@ -65,7 +64,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
             
             // Connect using CoreDeviceAdapter
-            var connected = _coreAdapter.ConnectAsync().Result;
+            var connected = _coreAdapter.Connect();
             if (!connected)
             {
                 AppLogger.Error("Failed to connect using CoreDeviceAdapter");
@@ -73,13 +72,13 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             }
             
             // Send device initialization commands using CoreDeviceAdapter
-            _coreAdapter.SendAsync(ScpiMessageProducer.DisableDeviceEcho.Data).Wait();
-            _coreAdapter.SendAsync(ScpiMessageProducer.StopDevice.Data).Wait();
-            _coreAdapter.SendAsync(ScpiMessageProducer.TurnDeviceOn.Data).Wait();
-            _coreAdapter.SendAsync(ScpiMessageProducer.SetProtobufMessageFormat.Data).Wait();
+            _coreAdapter.Write(ScpiMessageProducer.DisableDeviceEcho.Data);
+            _coreAdapter.Write(ScpiMessageProducer.StopStreaming.Data);
+            _coreAdapter.Write(ScpiMessageProducer.TurnDeviceOn.Data);
+            _coreAdapter.Write(ScpiMessageProducer.SetProtobufStreamFormat.Data);
             
             // Request device info to populate metadata and channels
-            _coreAdapter.SendAsync(ScpiMessageProducer.GetDeviceInfo.Data).Wait();
+            _coreAdapter.Write(ScpiMessageProducer.GetDeviceInfo.Data);
             
             AppLogger.Information("WiFi device connected successfully using CoreDeviceAdapter v0.4.1");
             return true;
@@ -98,8 +97,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             // Phase 2: Use CoreDeviceAdapter for all communication
             if (_coreAdapter != null)
             {
-                _coreAdapter.SendAsync(command).Wait();
-                return true;
+                return _coreAdapter.Write(command);
             }
             
             return false;
@@ -126,7 +124,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
                 
                 // Disconnect and dispose
-                _coreAdapter.DisconnectAsync().Wait();
+                _coreAdapter.Disconnect();
                 _coreAdapter.Dispose();
                 _coreAdapter = null;
             }
@@ -159,39 +157,38 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     
     #region CoreDeviceAdapter Event Handlers
     
-    private void OnCoreAdapterMessageReceived(object sender, MessageReceivedEventArgs<string> e)
+    private void OnCoreAdapterMessageReceived(object sender, MessageReceivedEventArgs<object> e)
     {
         try
         {
-            AppLogger.Information($"[CORE_ADAPTER] Received message: {e.Data?.Substring(0, Math.Min(100, e.Data.Length ?? 0))}...");
+            var messageData = e.Message.Data;
+            AppLogger.Information($"[CORE_ADAPTER] Received message type: {messageData?.GetType().Name}");
             
-            if (string.IsNullOrEmpty(e.Data))
-                return;
-                
-            // Try to parse as protobuf message
-            try
+            // Handle different message types
+            switch (messageData)
             {
-                var bytes = System.Text.Encoding.UTF8.GetBytes(e.Data);
-                using var stream = new System.IO.MemoryStream(bytes);
-                var outMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
-                
-                if (outMessage != null && IsValidStatusMessage(outMessage))
-                {
-                    AppLogger.Information("[CORE_ADAPTER] Processing device status message");
+                case string textMessage:
+                    AppLogger.Information($"[CORE_ADAPTER] Text response: {textMessage.Substring(0, Math.Min(100, textMessage.Length))}...");
+                    break;
                     
-                    // Process device metadata
-                    HydrateDeviceMetadata(outMessage);
+                case DaqifiOutMessage protobufMessage:
+                    AppLogger.Information("[CORE_ADAPTER] Processing protobuf device status message");
                     
-                    // Populate channels
-                    PopulateChannelsFromMessage(outMessage);
+                    if (IsValidStatusMessage(protobufMessage))
+                    {
+                        // Process device metadata
+                        HydrateDeviceMetadata(protobufMessage);
+                        
+                        // Populate channels
+                        PopulateChannelsFromMessage(protobufMessage);
+                        
+                        AppLogger.Information($"[CORE_ADAPTER] Device initialized with {DataChannels.Count} channels");
+                    }
+                    break;
                     
-                    AppLogger.Information($"[CORE_ADAPTER] Device initialized with {DataChannels.Count} channels");
-                }
-            }
-            catch (Exception parseEx)
-            {
-                AppLogger.Debug($"[CORE_ADAPTER] Message not protobuf format: {parseEx.Message}");
-                // This might be a text response, which is normal for some commands
+                default:
+                    AppLogger.Debug($"[CORE_ADAPTER] Unknown message type: {messageData?.GetType()}");
+                    break;
             }
         }
         catch (Exception ex)
