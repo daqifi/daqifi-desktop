@@ -110,7 +110,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 {
                     try
                     {
-                        MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
+                        Write(ScpiMessageProducer.GetDeviceInfo);
                         lastRequestTime = DateTime.Now;
                         retryCount++;
                         AppLogger.Information($"Requesting device info (attempt {retryCount}/{maxRetries}) for port {Port.PortName}");
@@ -280,7 +280,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             if (MessageProducer != null)
             {
                 var scpiMessage = new ScpiMessage(command);
-                MessageProducer.Send(scpiMessage);
+                Write(scpiMessage);
                 return true;
             }
             
@@ -326,7 +326,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             {
                 try
                 {
-                    MessageProducer.Send(ScpiMessageProducer.EnableDeviceEcho);
+                    Write(ScpiMessageProducer.EnableDeviceEcho);
                     MessageProducer.StopSafely(); // Use StopSafely to ensure queued messages are sent
                 }
                 catch (Exception ex)
@@ -381,22 +381,22 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #region Serial Device Only Methods
     public void EnableLanUpdateMode()
     {
-        MessageProducer.Send(ScpiMessageProducer.TurnDeviceOn);
-        MessageProducer.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
-        MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
+        Write(ScpiMessageProducer.TurnDeviceOn);
+        Write(ScpiMessageProducer.SetLanFirmwareUpdateMode);
+        Write(ScpiMessageProducer.ApplyNetworkLan);
     }
         
     public void ResetLanAfterUpdate()
     {
-        MessageProducer.Send(ScpiMessageProducer.SetUsbTransparencyMode(0));
-        MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
-        MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
-        MessageProducer.Send(ScpiMessageProducer.SaveNetworkLan);
+        Write(ScpiMessageProducer.SetUsbTransparencyMode(0));
+        Write(ScpiMessageProducer.EnableNetworkLan);
+        Write(ScpiMessageProducer.ApplyNetworkLan);
+        Write(ScpiMessageProducer.SaveNetworkLan);
     }
     
     public void ForceBootloader()
     {
-        MessageProducer.Send(ScpiMessageProducer.ForceBootloader);
+        Write(ScpiMessageProducer.ForceBootloader);
     }
     #endregion
 
