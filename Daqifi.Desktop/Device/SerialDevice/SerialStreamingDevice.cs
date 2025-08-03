@@ -5,9 +5,6 @@ using Daqifi.Desktop.Bootloader;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Core.Integration.Desktop;
-using Daqifi.Core.Communication.Consumers;
-using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Messages;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
@@ -18,7 +15,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     public SerialPort Port { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Usb;
     
-    private CoreDeviceAdapter? _coreAdapter;
     #endregion
 
     #region Constructor
@@ -218,60 +214,31 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // Create CoreDeviceAdapter for Serial connection
-            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200);
+            // Phase 1 Integration: Use existing transport with new Core 0.4.0 ScpiMessageProducer
+            // CoreDeviceAdapter doesn't exist yet in Core 0.4.0, so we use the proven transport layer
             
-            // Wire up event handlers BEFORE connecting
-            _coreAdapter.ConnectionStatusChanged += OnCoreAdapterConnectionStatusChanged;
-            
-            // Attempt connection
-            if (!_coreAdapter.Connect())
-            {
-                AppLogger.Error("Failed to connect to Serial Device using CoreDeviceAdapter.");
-                return false;
-            }
+            Port.Open();
+            Port.DtrEnable = true;
 
-            // For Phase 1 integration, we'll use CoreDeviceAdapter for connection only
-            // and let the legacy MessageConsumer handle all message processing
-            // This avoids conflicts between dual message consumers
-            
-            // Wire up error events but skip message events to avoid conflicts
-            _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
+            // Create message producer and consumer using existing proven implementation
+            MessageProducer = new MessageProducer(Port.BaseStream);
+            MessageProducer.Start();
 
-            // Stop CoreDeviceAdapter's internal MessageConsumer to prevent conflicts
-            if (_coreAdapter.MessageConsumer != null)
-            {
-                _coreAdapter.MessageConsumer.Stop();
-                AppLogger.Information("[CORE_ADAPTER] Stopped internal MessageConsumer to prevent conflicts");
-            }
+            MessageConsumer = new MessageConsumer(Port.BaseStream);
+            MessageConsumer.Start();
 
-            // For now, skip legacy components since CoreDeviceAdapter handles the connection
-            // In a full migration, we would use CoreDeviceAdapter's MessageProducer/Consumer
-            // but for Phase 1 integration, we'll use CoreDeviceAdapter for connection management
-            // and keep the existing device initialization commands
-            
-            // Send device initialization commands through CoreDeviceAdapter
+            // Send device initialization commands using new Core ScpiMessageProducer
             TurnOffEcho();
             StopStreaming();
-            TurnDeviceOn();   
+            TurnDeviceOn();
             SetProtobufMessageFormat();
-            
-            // For Phase 1: Use CoreDeviceAdapter's underlying transport stream directly
-            // This avoids conflicts with CoreDeviceAdapter's internal MessageConsumer
-            var transport = _coreAdapter.Transport;
-            if (transport?.Stream != null)
-            {
-                MessageConsumer = new MessageConsumer(transport.Stream);
-                MessageConsumer.Start();
-            }
-            
+
             InitializeDeviceState();
             return true;
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, "Failed to connect SerialStreamingDevice");
-            _coreAdapter?.Disconnect();
             return false;
         }
     }
@@ -280,13 +247,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // Use CoreDeviceAdapter for writing if available
-            if (_coreAdapter != null)
-            {
-                return _coreAdapter.Write(command);
-            }
-            
-            // Fallback to legacy method only if CoreDeviceAdapter is not available
+            // Use existing MessageProducer with new Core ScpiMessage
             if (MessageProducer != null)
             {
                 var scpiMessage = new ScpiMessage(command);
@@ -294,7 +255,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 return true;
             }
             
-            // Last resort: direct port write (should not be needed with CoreDeviceAdapter)
+            // Fallback: direct port write if MessageProducer not available
             if (Port != null && Port.IsOpen)
             {
                 Port.WriteTimeout = 1000;
@@ -317,18 +278,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         {
             // First stop streaming to prevent new data from being requested
             StopStreaming();
-            
-            // Disconnect CoreDeviceAdapter first
-            if (_coreAdapter != null)
-            {
-                // Unsubscribe from events in reverse order
-                _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
-                _coreAdapter.ConnectionStatusChanged -= OnCoreAdapterConnectionStatusChanged;
-                
-                _coreAdapter.Disconnect();
-                _coreAdapter.Dispose();
-                _coreAdapter = null;
-            }
                 
             // Stop the message producer first to prevent new messages
             if (MessageProducer != null)
@@ -409,63 +358,4 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     }
     #endregion
 
-    #region CoreDeviceAdapter Event Handlers
-    
-    private void OnCoreAdapterMessageReceived(object? sender, MessageReceivedEventArgs<string> e)
-    {
-        try
-        {
-            // Forward messages to existing message handling system
-            AppLogger.Information($"[CORE_ADAPTER] Received message: {e.Message.Data}");
-            
-            // In a full migration, we would process messages here directly
-            // For now, this provides logging and can be extended as needed
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "[CORE_ADAPTER] Error processing received message");
-        }
-    }
-    
-    private void OnCoreAdapterConnectionStatusChanged(object? sender, TransportStatusEventArgs e)
-    {
-        try
-        {
-            AppLogger.Information($"[CORE_ADAPTER] Connection status changed to: {e.IsConnected}");
-            
-            // Handle connection state changes
-            if (!e.IsConnected)
-            {
-                AppLogger.Warning("[CORE_ADAPTER] Device disconnected");
-            }
-            else
-            {
-                AppLogger.Information("[CORE_ADAPTER] Device connected successfully");
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "[CORE_ADAPTER] Error handling connection status change");
-        }
-    }
-    
-    private void OnCoreAdapterErrorOccurred(object? sender, MessageConsumerErrorEventArgs e)
-    {
-        try
-        {
-            AppLogger.Error($"[CORE_ADAPTER] Error occurred: {e.Error?.Message ?? "Unknown error"}");
-            
-            // Handle errors from the CoreDeviceAdapter
-            if (e.Error != null)
-            {
-                AppLogger.Error(e.Error, "[CORE_ADAPTER] Exception details");
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "[CORE_ADAPTER] Error handling adapter error event");
-        }
-    }
-    
-    #endregion
 }
