@@ -8,7 +8,7 @@ using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProdu
 using Daqifi.Core.Integration.Desktop;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Consumers;
-using Daqifi.Desktop.Device.Channel;
+using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
 using Google.Protobuf;
 

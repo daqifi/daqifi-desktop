@@ -9,7 +9,7 @@ using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Integration.Desktop;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Consumers;
-using Daqifi.Desktop.Device.Channel;
+using Daqifi.Desktop.Channel;
 using Google.Protobuf;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
