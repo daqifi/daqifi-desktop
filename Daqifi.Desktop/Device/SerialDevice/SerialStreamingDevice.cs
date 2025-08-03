@@ -6,11 +6,11 @@ using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProdu
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Core.Communication.Messages;
-using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Core.Integration.Desktop;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Consumers;
+using Daqifi.Desktop.Device.Channel;
+using Google.Protobuf;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -20,7 +20,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     public SerialPort Port { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Usb;
     
-    private CoreDeviceAdapter? _coreAdapter;
+    // Phase 2: CoreDeviceAdapter integration
+    private CoreDeviceAdapter _coreAdapter;
     
     #endregion
 
@@ -221,38 +222,40 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // Phase 2: Full CoreDeviceAdapter Integration
-            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200);
+            // Phase 2: Full CoreDeviceAdapter integration with v0.4.1
+            // v0.4.1 includes CompositeMessageParser for protobuf support
             
-            // Wire up event handlers BEFORE connecting
-            _coreAdapter.ConnectionStatusChanged += OnCoreAdapterConnectionStatusChanged;
+            var serialTransport = new SerialTransport(Port.PortName);
+            _coreAdapter = new CoreDeviceAdapter(serialTransport);
+            
+            // Subscribe to CoreDeviceAdapter events
             _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
+            _coreAdapter.ConnectionStatusChanged += OnCoreAdapterConnectionStatusChanged;
             _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
             
-            // Attempt connection
-            if (!_coreAdapter.Connect())
+            // Connect using CoreDeviceAdapter
+            var connected = _coreAdapter.ConnectAsync().Result;
+            if (!connected)
             {
-                AppLogger.Error("Failed to connect to Serial Device using CoreDeviceAdapter.");
+                AppLogger.Error("Failed to connect using CoreDeviceAdapter");
                 return false;
             }
-
-            // No bridge MessageConsumer needed - we'll use CoreDeviceAdapter events directly
-            // This eliminates dual consumer conflicts on the same stream
             
-            // Send device initialization commands through CoreDeviceAdapter
-            TurnOffEcho();
-            StopStreaming();
-            TurnDeviceOn();
-            SetProtobufMessageFormat();
-
-            // Initialize device state using CoreDeviceAdapter instead of legacy MessageConsumer
-            InitializeDeviceStateWithCoreAdapter();
+            // Send device initialization commands using CoreDeviceAdapter
+            _coreAdapter.SendAsync(ScpiMessageProducer.DisableDeviceEcho.Data).Wait();
+            _coreAdapter.SendAsync(ScpiMessageProducer.StopDevice.Data).Wait();
+            _coreAdapter.SendAsync(ScpiMessageProducer.TurnDeviceOn.Data).Wait();
+            _coreAdapter.SendAsync(ScpiMessageProducer.SetProtobufMessageFormat.Data).Wait();
+            
+            // Request device info to populate metadata and channels
+            _coreAdapter.SendAsync(ScpiMessageProducer.GetDeviceInfo.Data).Wait();
+            
+            AppLogger.Information("Serial device connected successfully using CoreDeviceAdapter v0.4.1");
             return true;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to connect SerialStreamingDevice");
-            _coreAdapter?.Disconnect();
+            AppLogger.Error(ex, "Failed to connect SerialStreamingDevice using CoreDeviceAdapter");
             return false;
         }
     }
@@ -261,17 +264,10 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // Use CoreDeviceAdapter for writing
+            // Phase 2: Use CoreDeviceAdapter for all communication
             if (_coreAdapter != null)
             {
-                return _coreAdapter.Write(command);
-            }
-            
-            // Fallback: direct port write if CoreDeviceAdapter not available
-            if (Port != null && Port.IsOpen)
-            {
-                Port.WriteTimeout = 1000;
-                Port.Write(command);
+                _coreAdapter.SendAsync(command).Wait();
                 return true;
             }
             
@@ -279,7 +275,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to write command in SerialStreamingDevice: {command}");
+            AppLogger.Error(ex, $"Failed to write command using CoreDeviceAdapter: {command}");
             return false;
         }
     }
@@ -288,30 +284,18 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // First stop streaming to prevent new data from being requested
             StopStreaming();
             
-            // No MessageConsumer to clean up - using CoreDeviceAdapter events only
-            
-            // Disconnect CoreDeviceAdapter
+            // Phase 2: Clean up CoreDeviceAdapter
             if (_coreAdapter != null)
             {
-                // Re-enable echo before disconnecting
-                try
-                {
-                    Write(ScpiMessageProducer.EnableDeviceEcho.Data);
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error re-enabling echo: {ex.Message}");
-                }
-                
-                // Unsubscribe from events in reverse order
-                _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
+                // Unsubscribe from events
                 _coreAdapter.MessageReceived -= OnCoreAdapterMessageReceived;
                 _coreAdapter.ConnectionStatusChanged -= OnCoreAdapterConnectionStatusChanged;
+                _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
                 
-                _coreAdapter.Disconnect();
+                // Disconnect and dispose
+                _coreAdapter.DisconnectAsync().Wait();
                 _coreAdapter.Dispose();
                 _coreAdapter = null;
             }
@@ -320,7 +304,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Error during device disconnect");
+            AppLogger.Error(ex, "Error during device disconnect using CoreDeviceAdapter");
             return false;
         }
     }
@@ -348,93 +332,42 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         Write(ScpiMessageProducer.ForceBootloader.Data);
     }
     #endregion
-
-    #region CoreDeviceAdapter Device Initialization
     
-    /// <summary>
-    /// Initialize device state using CoreDeviceAdapter events instead of legacy MessageConsumer
-    /// </summary>
-    private void InitializeDeviceStateWithCoreAdapter()
-    {
-        // Send GetDeviceInfo command through CoreDeviceAdapter
-        // The response will be handled by OnCoreAdapterMessageReceived event
-        Write(ScpiMessageProducer.GetDeviceInfo.Data);
-        AppLogger.Information("[CORE_ADAPTER] Sent GetDeviceInfo command for device initialization");
-    }
-    
-    #endregion
-
     #region CoreDeviceAdapter Event Handlers
     
-    private void OnCoreAdapterMessageReceived(object? sender, MessageReceivedEventArgs<string> e)
+    private void OnCoreAdapterMessageReceived(object sender, MessageReceivedEventArgs<string> e)
     {
         try
         {
-            // Process messages directly through CoreDeviceAdapter events
-            // This replaces the legacy MessageConsumer pattern completely
-            var messageData = e.Message.Data;
-            AppLogger.Information($"[CORE_ADAPTER] Received message: {messageData}");
+            AppLogger.Information($"[CORE_ADAPTER] Received message: {e.Data?.Substring(0, Math.Min(100, e.Data.Length ?? 0))}...");
             
-            if (!string.IsNullOrEmpty(messageData))
+            if (string.IsNullOrEmpty(e.Data))
+                return;
+                
+            // Try to parse as protobuf message
+            try
             {
-                // Try to parse as protobuf message for device initialization
-                try
+                var bytes = System.Text.Encoding.UTF8.GetBytes(e.Data);
+                using var stream = new System.IO.MemoryStream(bytes);
+                var outMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
+                
+                if (outMessage != null && IsValidStatusMessage(outMessage))
                 {
-                    var bytes = System.Text.Encoding.UTF8.GetBytes(messageData);
-                    using var stream = new System.IO.MemoryStream(bytes);
-                    var outMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
+                    AppLogger.Information("[CORE_ADAPTER] Processing device status message");
                     
-                    if (outMessage != null && IsValidStatusMessage(outMessage))
-                    {
-                        AppLogger.Information("[CORE_ADAPTER] Processing device status message");
-                        
-                        // Replicate HandleStatusMessageReceived logic
-                        HydrateDeviceMetadata(outMessage);
-                        
-                        // Manually populate channels since the methods are private
-                        // Digital channels
-                        if (outMessage.DigitalPortNum > 0)
-                        {
-                            for (var i = 0; i < outMessage.DigitalPortNum; i++)
-                            {
-                                DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
-                            }
-                        }
-                        
-                        // Analog input channels
-                        if (outMessage.AnalogInPortNum > 0)
-                        {
-                            var analogInPortRanges = outMessage.AnalogInPortRange;
-                            var analogInCalibrationBValues = outMessage.AnalogInCalB;
-                            var analogInCalibrationMValues = outMessage.AnalogInCalM;
-                            var analogInInternalScaleMValues = outMessage.AnalogInIntScaleM;
-                            var analogInResolution = outMessage.AnalogInRes;
-
-                            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) =>
-                            {
-                                if (list.Count > idx) return list[idx];
-                                return def;
-                            };
-
-                            for (var i = 0; i < outMessage.AnalogInPortNum; i++)
-                            {
-                                DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false,
-                                    getWithDefault(analogInCalibrationBValues, i, 0.0f),
-                                    getWithDefault(analogInCalibrationMValues, i, 1.0f),
-                                    getWithDefault(analogInInternalScaleMValues, i, 1.0f),
-                                    getWithDefault(analogInPortRanges, i, 1.0f),
-                                    analogInResolution));
-                            }
-                        }
-                        
-                        AppLogger.Information($"[CORE_ADAPTER] Device initialized with {DataChannels.Count} channels");
-                    }
+                    // Process device metadata
+                    HydrateDeviceMetadata(outMessage);
+                    
+                    // Populate channels
+                    PopulateChannelsFromMessage(outMessage);
+                    
+                    AppLogger.Information($"[CORE_ADAPTER] Device initialized with {DataChannels.Count} channels");
                 }
-                catch (Exception parseEx)
-                {
-                    AppLogger.Warning($"[CORE_ADAPTER] Could not parse as protobuf: {parseEx.Message}");
-                    // This might be a text response, which is normal for some commands
-                }
+            }
+            catch (Exception parseEx)
+            {
+                AppLogger.Debug($"[CORE_ADAPTER] Message not protobuf format: {parseEx.Message}");
+                // This might be a text response, which is normal for some commands
             }
         }
         catch (Exception ex)
@@ -443,13 +376,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         }
     }
     
-    private void OnCoreAdapterConnectionStatusChanged(object? sender, TransportStatusEventArgs e)
+    private void OnCoreAdapterConnectionStatusChanged(object sender, TransportStatusEventArgs e)
     {
         try
         {
             AppLogger.Information($"[CORE_ADAPTER] Connection status changed to: {e.IsConnected}");
             
-            // Handle connection state changes
             if (!e.IsConnected)
             {
                 AppLogger.Warning("[CORE_ADAPTER] Device disconnected");
@@ -465,13 +397,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         }
     }
     
-    private void OnCoreAdapterErrorOccurred(object? sender, MessageConsumerErrorEventArgs e)
+    private void OnCoreAdapterErrorOccurred(object sender, MessageConsumerErrorEventArgs e)
     {
         try
         {
             AppLogger.Error($"[CORE_ADAPTER] Error occurred: {e.Error?.Message ?? "Unknown error"}");
             
-            // Handle errors from the CoreDeviceAdapter
             if (e.Error != null)
             {
                 AppLogger.Error(e.Error, "[CORE_ADAPTER] Exception details");
@@ -480,6 +411,54 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         catch (Exception ex)
         {
             AppLogger.Error(ex, "[CORE_ADAPTER] Error handling adapter error event");
+        }
+    }
+    
+    private void PopulateChannelsFromMessage(DaqifiOutMessage outMessage)
+    {
+        try
+        {
+            // Clear existing channels
+            DataChannels.Clear();
+            
+            // Digital channels
+            if (outMessage.DigitalPortNum > 0)
+            {
+                for (var i = 0; i < outMessage.DigitalPortNum; i++)
+                {
+                    DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
+                }
+            }
+            
+            // Analog input channels
+            if (outMessage.AnalogInPortNum > 0)
+            {
+                var analogInPortRanges = outMessage.AnalogInPortRange;
+                var analogInCalibrationBValues = outMessage.AnalogInCalB;
+                var analogInCalibrationMValues = outMessage.AnalogInCalM;
+                var analogInInternalScaleMValues = outMessage.AnalogInIntScaleM;
+                var analogInResolution = outMessage.AnalogInRes;
+
+                Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) =>
+                {
+                    if (list.Count > idx) return list[idx];
+                    return def;
+                };
+
+                for (var i = 0; i < outMessage.AnalogInPortNum; i++)
+                {
+                    DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false,
+                        getWithDefault(analogInCalibrationBValues, i, 0.0f),
+                        getWithDefault(analogInCalibrationMValues, i, 1.0f),
+                        getWithDefault(analogInInternalScaleMValues, i, 1.0f),
+                        getWithDefault(analogInPortRanges, i, 1.0f),
+                        analogInResolution));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "[CORE_ADAPTER] Error populating channels from message");
         }
     }
     
