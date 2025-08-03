@@ -67,6 +67,13 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             // Wire up error events but skip message events to avoid conflicts
             _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
 
+            // Stop CoreDeviceAdapter's internal MessageConsumer to prevent conflicts
+            if (_coreAdapter.MessageConsumer != null)
+            {
+                _coreAdapter.MessageConsumer.Stop();
+                AppLogger.Information("[CORE_ADAPTER] Stopped internal MessageConsumer to prevent conflicts");
+            }
+
             // For now, skip duplicate legacy connection since CoreDeviceAdapter handles it
             // In a full migration, we would use CoreDeviceAdapter's MessageProducer/Consumer
             // but for Phase 1 integration, we'll use CoreDeviceAdapter for connection management

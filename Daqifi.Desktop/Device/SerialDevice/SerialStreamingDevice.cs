@@ -238,6 +238,13 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             // Wire up error events but skip message events to avoid conflicts
             _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
 
+            // Stop CoreDeviceAdapter's internal MessageConsumer to prevent conflicts
+            if (_coreAdapter.MessageConsumer != null)
+            {
+                _coreAdapter.MessageConsumer.Stop();
+                AppLogger.Information("[CORE_ADAPTER] Stopped internal MessageConsumer to prevent conflicts");
+            }
+
             // For now, skip legacy components since CoreDeviceAdapter handles the connection
             // In a full migration, we would use CoreDeviceAdapter's MessageProducer/Consumer
             // but for Phase 1 integration, we'll use CoreDeviceAdapter for connection management
@@ -249,11 +256,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             TurnDeviceOn();   
             SetProtobufMessageFormat();
             
-            // Set up a minimal legacy MessageConsumer using CoreDeviceAdapter's stream
-            // This maintains compatibility with existing message handling
-            if (_coreAdapter.DataStream != null)
+            // For Phase 1: Use CoreDeviceAdapter's underlying transport stream directly
+            // This avoids conflicts with CoreDeviceAdapter's internal MessageConsumer
+            var transport = _coreAdapter.Transport;
+            if (transport?.Stream != null)
             {
-                MessageConsumer = new MessageConsumer(_coreAdapter.DataStream);
+                MessageConsumer = new MessageConsumer(transport.Stream);
                 MessageConsumer.Start();
             }
             
