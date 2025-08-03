@@ -231,9 +231,11 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 return false;
             }
 
-            // Wire up message events AFTER connection is established
-            // (MessageConsumer is null until after Connect() succeeds)
-            _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
+            // For Phase 1 integration, we'll use CoreDeviceAdapter for connection only
+            // and let the legacy MessageConsumer handle all message processing
+            // This avoids conflicts between dual message consumers
+            
+            // Wire up error events but skip message events to avoid conflicts
             _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
 
             // For now, skip legacy components since CoreDeviceAdapter handles the connection
@@ -313,7 +315,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             {
                 // Unsubscribe from events in reverse order
                 _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
-                _coreAdapter.MessageReceived -= OnCoreAdapterMessageReceived;
                 _coreAdapter.ConnectionStatusChanged -= OnCoreAdapterConnectionStatusChanged;
                 
                 _coreAdapter.Disconnect();

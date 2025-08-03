@@ -60,9 +60,11 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 return false;
             }
 
-            // Wire up message events AFTER connection is established
-            // (MessageConsumer is null until after Connect() succeeds)
-            _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
+            // For Phase 1 integration, we'll use CoreDeviceAdapter for connection only
+            // and let the legacy MessageConsumer handle all message processing
+            // This avoids conflicts between dual message consumers
+            
+            // Wire up error events but skip message events to avoid conflicts
             _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
 
             // For now, skip duplicate legacy connection since CoreDeviceAdapter handles it
@@ -133,7 +135,6 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             {
                 // Unsubscribe from events in reverse order
                 _coreAdapter.ErrorOccurred -= OnCoreAdapterErrorOccurred;
-                _coreAdapter.MessageReceived -= OnCoreAdapterMessageReceived;
                 _coreAdapter.ConnectionStatusChanged -= OnCoreAdapterConnectionStatusChanged;
                 
                 _coreAdapter.Disconnect();
