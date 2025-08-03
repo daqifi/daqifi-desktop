@@ -236,20 +236,25 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
             _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
 
-            // Setup legacy MessageProducer and MessageConsumer to maintain compatibility
-            Task.Delay(1000);
-            Port.Open();
-            Port.DtrEnable = true;
-            MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageProducer.Start();
-
+            // For now, skip legacy components since CoreDeviceAdapter handles the connection
+            // In a full migration, we would use CoreDeviceAdapter's MessageProducer/Consumer
+            // but for Phase 1 integration, we'll use CoreDeviceAdapter for connection management
+            // and keep the existing device initialization commands
+            
+            // Send device initialization commands through CoreDeviceAdapter
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();   
             SetProtobufMessageFormat();
-
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
-            MessageConsumer.Start();
+            
+            // Set up a minimal legacy MessageConsumer using CoreDeviceAdapter's stream
+            // This maintains compatibility with existing message handling
+            if (_coreAdapter.DataStream != null)
+            {
+                MessageConsumer = new MessageConsumer(_coreAdapter.DataStream);
+                MessageConsumer.Start();
+            }
+            
             InitializeDeviceState();
             return true;
         }
@@ -271,7 +276,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 return _coreAdapter.Write(command);
             }
             
-            // Fallback to legacy method - but use MessageProducer for consistency
+            // Fallback to legacy method only if CoreDeviceAdapter is not available
             if (MessageProducer != null)
             {
                 var scpiMessage = new ScpiMessage(command);
@@ -279,10 +284,15 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 return true;
             }
             
-            // Last resort: direct port write
-            Port.WriteTimeout = 1000;
-            Port.Write(command);
-            return true;
+            // Last resort: direct port write (should not be needed with CoreDeviceAdapter)
+            if (Port != null && Port.IsOpen)
+            {
+                Port.WriteTimeout = 1000;
+                Port.Write(command);
+                return true;
+            }
+            
+            return false;
         }
         catch (Exception ex)
         {

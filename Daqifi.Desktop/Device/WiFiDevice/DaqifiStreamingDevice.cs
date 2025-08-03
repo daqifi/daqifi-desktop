@@ -65,36 +65,25 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             _coreAdapter.MessageReceived += OnCoreAdapterMessageReceived;
             _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
 
-            // Setup legacy MessageProducer and MessageConsumer to maintain compatibility
-            // Get the underlying stream from the adapter for legacy components
-            Client = new TcpClient();
-            var result = Client.BeginConnect(IpAddress, Port, null, null);
-            var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
-
-            if (!success)
-            {
-                AppLogger.Error("Timeout connecting for legacy components.");
-                _coreAdapter?.Disconnect();
-                return false;
-            }
-
-            MessageProducer = new MessageProducer(Client.GetStream());
-            MessageProducer.Start();
-
+            // For now, skip duplicate legacy connection since CoreDeviceAdapter handles it
+            // In a full migration, we would use CoreDeviceAdapter's MessageProducer/Consumer
+            // but for Phase 1 integration, we'll use CoreDeviceAdapter for connection management
+            
+            // Send device initialization commands through CoreDeviceAdapter
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();
             SetProtobufMessageFormat();
 
-            var stream = Client.GetStream();
-            MessageConsumer = new MessageConsumer(stream);
-            ((MessageConsumer)MessageConsumer).IsWifiDevice = true;
-            if (stream.DataAvailable)
+            // Set up a minimal legacy MessageConsumer using CoreDeviceAdapter's stream
+            // This maintains compatibility with existing message handling
+            if (_coreAdapter.DataStream != null)
             {
-                ((MessageConsumer)MessageConsumer).ClearBuffer();
+                MessageConsumer = new MessageConsumer(_coreAdapter.DataStream);
+                ((MessageConsumer)MessageConsumer).IsWifiDevice = true;
+                MessageConsumer.Start();
             }
 
-            MessageConsumer.Start();
             InitializeDeviceState();
             return true;
         }
@@ -116,13 +105,14 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 return _coreAdapter.Write(command);
             }
             
-            // Fallback to legacy method
+            // Fallback to legacy method (should not be needed with CoreDeviceAdapter)
             if (MessageProducer != null)
             {
                 var scpiMessage = new ScpiMessage(command);
                 MessageProducer.Send(scpiMessage);
                 return true;
             }
+            
             return false;
         }
         catch (Exception ex)
@@ -151,13 +141,16 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 _coreAdapter = null;
             }
             
-            // Clean up legacy components
+            // Clean up legacy components (MessageProducer no longer used in Phase 1)
             MessageProducer?.Stop();
             MessageConsumer?.Stop();
+            
+            // Client is no longer created separately in Phase 1 integration
             if (Client != null)
             {
                 Client.Close();
                 Client.Dispose();
+                Client = null;
             }
             return true;
         }
