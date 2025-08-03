@@ -6,6 +6,8 @@ using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProdu
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Core.Communication.Messages;
+using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Core.Integration.Desktop;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Consumers;
@@ -234,13 +236,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 return false;
             }
 
-            // Create a bridge MessageConsumer for compatibility with existing message handling
-            // This allows existing device initialization and channel discovery to work
-            if (_coreAdapter.DataStream != null)
-            {
-                MessageConsumer = new MessageConsumer(_coreAdapter.DataStream);
-                MessageConsumer.Start();
-            }
+            // No bridge MessageConsumer needed - we'll use CoreDeviceAdapter events directly
+            // This eliminates dual consumer conflicts on the same stream
             
             // Send device initialization commands through CoreDeviceAdapter
             TurnOffEcho();
@@ -248,7 +245,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             TurnDeviceOn();
             SetProtobufMessageFormat();
 
-            InitializeDeviceState();
+            // Initialize device state using CoreDeviceAdapter instead of legacy MessageConsumer
+            InitializeDeviceStateWithCoreAdapter();
             return true;
         }
         catch (Exception ex)
@@ -293,8 +291,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             // First stop streaming to prevent new data from being requested
             StopStreaming();
             
-            // Clean up bridge MessageConsumer
-            MessageConsumer?.Stop();
+            // No MessageConsumer to clean up - using CoreDeviceAdapter events only
             
             // Disconnect CoreDeviceAdapter
             if (_coreAdapter != null)
@@ -352,6 +349,21 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     }
     #endregion
 
+    #region CoreDeviceAdapter Device Initialization
+    
+    /// <summary>
+    /// Initialize device state using CoreDeviceAdapter events instead of legacy MessageConsumer
+    /// </summary>
+    private void InitializeDeviceStateWithCoreAdapter()
+    {
+        // Send GetDeviceInfo command through CoreDeviceAdapter
+        // The response will be handled by OnCoreAdapterMessageReceived event
+        Write(ScpiMessageProducer.GetDeviceInfo.Data);
+        AppLogger.Information("[CORE_ADAPTER] Sent GetDeviceInfo command for device initialization");
+    }
+    
+    #endregion
+
     #region CoreDeviceAdapter Event Handlers
     
     private void OnCoreAdapterMessageReceived(object? sender, MessageReceivedEventArgs<string> e)
@@ -359,15 +371,70 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         try
         {
             // Process messages directly through CoreDeviceAdapter events
-            // This replaces the legacy MessageConsumer pattern
-            AppLogger.Information($"[CORE_ADAPTER] Received message: {e.Message.Data}");
+            // This replaces the legacy MessageConsumer pattern completely
+            var messageData = e.Message.Data;
+            AppLogger.Information($"[CORE_ADAPTER] Received message: {messageData}");
             
-            // TODO: For Phase 3, process protobuf messages directly here
-            // For now, we'll just log that we received a message
-            var message = e.Message.Data;
-            if (!string.IsNullOrEmpty(message))
+            if (!string.IsNullOrEmpty(messageData))
             {
-                AppLogger.Information($"[CORE_ADAPTER] Processing message of length: {message.Length}");
+                // Try to parse as protobuf message for device initialization
+                try
+                {
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(messageData);
+                    using var stream = new System.IO.MemoryStream(bytes);
+                    var outMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
+                    
+                    if (outMessage != null && IsValidStatusMessage(outMessage))
+                    {
+                        AppLogger.Information("[CORE_ADAPTER] Processing device status message");
+                        
+                        // Replicate HandleStatusMessageReceived logic
+                        HydrateDeviceMetadata(outMessage);
+                        
+                        // Manually populate channels since the methods are private
+                        // Digital channels
+                        if (outMessage.DigitalPortNum > 0)
+                        {
+                            for (var i = 0; i < outMessage.DigitalPortNum; i++)
+                            {
+                                DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
+                            }
+                        }
+                        
+                        // Analog input channels
+                        if (outMessage.AnalogInPortNum > 0)
+                        {
+                            var analogInPortRanges = outMessage.AnalogInPortRange;
+                            var analogInCalibrationBValues = outMessage.AnalogInCalB;
+                            var analogInCalibrationMValues = outMessage.AnalogInCalM;
+                            var analogInInternalScaleMValues = outMessage.AnalogInIntScaleM;
+                            var analogInResolution = outMessage.AnalogInRes;
+
+                            Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) =>
+                            {
+                                if (list.Count > idx) return list[idx];
+                                return def;
+                            };
+
+                            for (var i = 0; i < outMessage.AnalogInPortNum; i++)
+                            {
+                                DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false,
+                                    getWithDefault(analogInCalibrationBValues, i, 0.0f),
+                                    getWithDefault(analogInCalibrationMValues, i, 1.0f),
+                                    getWithDefault(analogInInternalScaleMValues, i, 1.0f),
+                                    getWithDefault(analogInPortRanges, i, 1.0f),
+                                    analogInResolution));
+                            }
+                        }
+                        
+                        AppLogger.Information($"[CORE_ADAPTER] Device initialized with {DataChannels.Count} channels");
+                    }
+                }
+                catch (Exception parseEx)
+                {
+                    AppLogger.Warning($"[CORE_ADAPTER] Could not parse as protobuf: {parseEx.Message}");
+                    // This might be a text response, which is normal for some commands
+                }
             }
         }
         catch (Exception ex)
