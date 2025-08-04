@@ -53,7 +53,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         try
         {
             // Use CoreDeviceAdapter for device discovery instead of legacy MessageConsumer
-            var discoveryAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName);
+            using var discoveryAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName);
             
             var deviceInfoReceived = false;
             var timeout = DateTime.Now.AddSeconds(4);
@@ -100,7 +100,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             if (!discoveryAdapter.Connect())
             {
                 AppLogger.Warning($"[DISCOVERY] Failed to connect to {Port.PortName} for device discovery");
-                discoveryAdapter.Dispose();
                 return false;
             }
             
@@ -139,17 +138,14 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 Thread.Sleep(100); // Check more frequently for response
             }
 
-            // Clean up discovery adapter
-            try
-            {
-                discoveryAdapter.MessageReceived -= discoveryHandler;
-                discoveryAdapter.Disconnect();
-                discoveryAdapter.Dispose();
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Warning($"[DISCOVERY] Error during cleanup: {ex.Message}");
-            }
+            // Explicit cleanup before using statement auto-disposes
+            AppLogger.Information("[DISCOVERY] Cleaning up discovery adapter...");
+            discoveryAdapter.MessageReceived -= discoveryHandler;
+            discoveryAdapter.Disconnect();
+            AppLogger.Information("[DISCOVERY] Discovery adapter cleaned up successfully");
+            
+            // Give the port time to be released by the OS before using statement disposes
+            Thread.Sleep(500);
 
             if (deviceInfoReceived)
             {
@@ -243,6 +239,10 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         {
             // Phase 2: Full CoreDeviceAdapter integration with v0.4.1
             // v0.4.1 includes CompositeMessageParser for protobuf support
+            
+            // Add delay to ensure discovery adapter has fully released the port
+            AppLogger.Information($"[CORE_ADAPTER] Waiting for port {Port.PortName} to be available...");
+            Thread.Sleep(1000);
             
             _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName);
             
