@@ -10,6 +10,7 @@ using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Consumers;
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.DataModel.Channel;
 using Google.Protobuf;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
@@ -191,7 +192,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                     break;
                     
                 default:
-                    AppLogger.Debug($"[CORE_ADAPTER] Unknown message type: {messageData?.GetType()}");
+                    AppLogger.Information($"[CORE_ADAPTER] Unknown message type: {messageData?.GetType()}");
                     break;
             }
         }
