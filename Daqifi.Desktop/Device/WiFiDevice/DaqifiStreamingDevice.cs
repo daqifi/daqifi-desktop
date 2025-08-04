@@ -78,9 +78,13 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             _coreAdapter.Write(ScpiMessageProducer.SetProtobufStreamFormat.Data);
             
             // Request device info to populate metadata and channels
+            AppLogger.Information("[CORE_ADAPTER] Sending GetDeviceInfo command to populate channels");
             _coreAdapter.Write(ScpiMessageProducer.GetDeviceInfo.Data);
             
-            AppLogger.Information("WiFi device connected successfully using CoreDeviceAdapter v0.4.1");
+            // Give some time for the device to respond and populate channels
+            Thread.Sleep(2000);
+            
+            AppLogger.Information($"WiFi device connected successfully using CoreDeviceAdapter v0.4.1 - Channels: {DataChannels.Count}");
             return true;
         }
         catch (Exception ex)
@@ -162,7 +166,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         try
         {
             var messageData = e.Message.Data;
-            AppLogger.Information($"[CORE_ADAPTER] Received message type: {messageData?.GetType().Name}");
+            AppLogger.Information($"[CORE_ADAPTER] *** MESSAGE RECEIVED *** Type: {messageData?.GetType().Name}, Timestamp: {e.Timestamp}");
             
             // Handle different message types
             switch (messageData)

@@ -51,57 +51,59 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
         try
         {
-            // Quick connection attempt with shorter timeouts for discovery
-            Port.ReadTimeout = 1000; // Increased for device wake-up
-            Port.WriteTimeout = 1000;
-            Port.Open();
-            Port.DtrEnable = true;
-
-            // Longer delay to let device wake up and stabilize
-            // Suppressed: Thread.Sleep required for hardware timing - device power-on sequence
-            Thread.Sleep(1000); // Device needs time to power on and initialize
-
-            MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageProducer.Start();
-
-            TurnOffEcho();
-            StopStreaming();
-            TurnDeviceOn();
-            SetProtobufMessageFormat();
-
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
-            MessageConsumer.Start();
-
-            // Set up a temporary status handler to get device info
+            // Use CoreDeviceAdapter for device discovery instead of legacy MessageConsumer
+            var discoveryAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName);
+            
             var deviceInfoReceived = false;
-            var timeout = DateTime.Now.AddSeconds(4); // Increased timeout for device wake-up
-
-            Daqifi.Desktop.IO.Messages.Consumers.OnMessageReceivedHandler handler = null;
-            handler = (sender, args) =>
+            var timeout = DateTime.Now.AddSeconds(4);
+            
+            // Set up temporary message handler for device discovery
+            EventHandler<MessageReceivedEventArgs<object>> discoveryHandler = null;
+            discoveryHandler = (sender, args) =>
             {
                 try
                 {
-                    if (args.Message.Data is DaqifiOutMessage message && IsValidStatusMessage(message))
+                    var messageData = args.Message.Data;
+                    AppLogger.Information($"[DISCOVERY] Received message type: {messageData?.GetType().Name}");
+                    
+                    if (messageData is DaqifiOutMessage protobufMessage && IsValidStatusMessage(protobufMessage))
                     {
-                        HydrateDeviceMetadata(message);
+                        AppLogger.Information("[DISCOVERY] Processing device status message for discovery");
+                        HydrateDeviceMetadata(protobufMessage);
+                        
                         // Set Name to device part number if available, otherwise keep port name
                         if (!string.IsNullOrWhiteSpace(DevicePartNumber))
                         {
                             Name = DevicePartNumber;
                         }
                         deviceInfoReceived = true;
+                        
                         // Remove handler to prevent multiple calls
-                        MessageConsumer.OnMessageReceived -= handler;
+                        discoveryAdapter.MessageReceived -= discoveryHandler;
                     }
                 }
                 catch (Exception ex)
                 {
-                    AppLogger.Warning($"Error processing device info message: {ex.Message}");
+                    AppLogger.Warning($"[DISCOVERY] Error processing device info message: {ex.Message}");
                 }
             };
-
-            MessageConsumer.OnMessageReceived += handler;
-
+            
+            discoveryAdapter.MessageReceived += discoveryHandler;
+            
+            // Connect using CoreDeviceAdapter
+            if (!discoveryAdapter.Connect())
+            {
+                AppLogger.Warning($"[DISCOVERY] Failed to connect to {Port.PortName} for device discovery");
+                discoveryAdapter.Dispose();
+                return false;
+            }
+            
+            // Send device initialization and info request
+            discoveryAdapter.Write(ScpiMessageProducer.DisableDeviceEcho.Data);
+            discoveryAdapter.Write(ScpiMessageProducer.StopStreaming.Data);
+            discoveryAdapter.Write(ScpiMessageProducer.TurnDeviceOn.Data);
+            discoveryAdapter.Write(ScpiMessageProducer.SetProtobufStreamFormat.Data);
+            
             // Request device info with retry logic
             var retryCount = 0;
             var maxRetries = 3;
@@ -114,14 +116,14 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 {
                     try
                     {
-                        Write(ScpiMessageProducer.GetDeviceInfo.Data);
+                        discoveryAdapter.Write(ScpiMessageProducer.GetDeviceInfo.Data);
                         lastRequestTime = DateTime.Now;
                         retryCount++;
-                        AppLogger.Information($"Requesting device info (attempt {retryCount}/{maxRetries}) for port {Port.PortName}");
+                        AppLogger.Information($"[DISCOVERY] Requesting device info (attempt {retryCount}/{maxRetries}) for port {Port.PortName}");
                     }
                     catch (Exception ex)
                     {
-                        AppLogger.Warning($"Failed to send GetDeviceInfo command: {ex.Message}");
+                        AppLogger.Warning($"[DISCOVERY] Failed to send GetDeviceInfo command: {ex.Message}");
                     }
                 }
                 
@@ -129,8 +131,17 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 Thread.Sleep(100); // Check more frequently for response
             }
 
-            // Clean up the quick connection
-            QuickDisconnect();
+            // Clean up discovery adapter
+            try
+            {
+                discoveryAdapter.MessageReceived -= discoveryHandler;
+                discoveryAdapter.Disconnect();
+                discoveryAdapter.Dispose();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"[DISCOVERY] Error during cleanup: {ex.Message}");
+            }
 
             if (deviceInfoReceived)
             {
@@ -247,9 +258,13 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             _coreAdapter.Write(ScpiMessageProducer.SetProtobufStreamFormat.Data);
             
             // Request device info to populate metadata and channels
+            AppLogger.Information("[CORE_ADAPTER] Sending GetDeviceInfo command to populate channels");
             _coreAdapter.Write(ScpiMessageProducer.GetDeviceInfo.Data);
             
-            AppLogger.Information("Serial device connected successfully using CoreDeviceAdapter v0.4.1");
+            // Give some time for the device to respond and populate channels
+            Thread.Sleep(2000);
+            
+            AppLogger.Information($"Serial device connected successfully using CoreDeviceAdapter v0.4.1 - Channels: {DataChannels.Count}");
             return true;
         }
         catch (Exception ex)
@@ -338,7 +353,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         try
         {
             var messageData = e.Message.Data;
-            AppLogger.Information($"[CORE_ADAPTER] Received message type: {messageData?.GetType().Name}");
+            AppLogger.Information($"[CORE_ADAPTER] *** MESSAGE RECEIVED *** Type: {messageData?.GetType().Name}, Timestamp: {e.Timestamp}");
             
             // Handle different message types
             switch (messageData)
