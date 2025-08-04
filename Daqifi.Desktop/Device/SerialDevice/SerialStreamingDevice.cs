@@ -5,6 +5,8 @@ using Daqifi.Desktop.Bootloader;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Core.Integration.Desktop;
+using Daqifi.Desktop.Device.Core;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -12,6 +14,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 {
     #region Properties
     public SerialPort Port { get; set; }
+    private CoreDeviceAdapter? _coreAdapter;
     public override ConnectionType ConnectionType => ConnectionType.Usb;
     #endregion
 
@@ -41,26 +44,25 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
         try
         {
-            // Quick connection attempt with shorter timeouts for discovery
-            Port.ReadTimeout = 1000; // Increased for device wake-up
-            Port.WriteTimeout = 1000;
-            Port.Open();
-            Port.DtrEnable = true;
+            // Create temporary CoreDeviceAdapter for quick connection
+            using var tempAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200);
+            
+            var connected = tempAdapter.Connect();
+            if (!connected)
+            {
+                AppLogger.Information($"Could not connect to device on port {Port.PortName} during discovery");
+                return false;
+            }
 
-            // Longer delay to let device wake up and stabilize
-            // Suppressed: Thread.Sleep required for hardware timing - device power-on sequence
-            Thread.Sleep(1000); // Device needs time to power on and initialize
-
-            MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageProducer.Start();
+            // Set up temporary wrappers for device info discovery
+            MessageProducer = new CoreMessageProducerWrapper(tempAdapter);
+            MessageConsumer = new CoreMessageConsumerWrapper(tempAdapter);
+            MessageConsumer.Start();
 
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();
             SetProtobufMessageFormat();
-
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
-            MessageConsumer.Start();
 
             // Set up a temporary status handler to get device info
             var deviceInfoReceived = false;
@@ -119,8 +121,9 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 Thread.Sleep(100); // Check more frequently for response
             }
 
-            // Clean up the quick connection
-            QuickDisconnect();
+            // Clean up the quick connection - CoreDeviceAdapter handles this automatically with 'using'
+            MessageProducer = null;
+            MessageConsumer = null;
 
             if (deviceInfoReceived)
             {
@@ -136,74 +139,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Failed to get device info for port {Port.PortName}");
-            try 
-            { 
-                QuickDisconnect(); 
-            } 
-            catch (Exception disconnectEx) 
-            { 
-                AppLogger.Warning($"Error during cleanup disconnect for port {Port.PortName}: {disconnectEx.Message}");
-            }
+            MessageProducer = null;
+            MessageConsumer = null;
             return false;
         }
     }
 
-    private void QuickDisconnect()
-    {
-        try
-        {
-            // Stop message processing first
-            if (MessageConsumer != null)
-            {
-                try
-                {
-                    MessageConsumer.Stop();
-                    Thread.Sleep(50); // Give it time to stop
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error stopping message consumer: {ex.Message}");
-                }
-            }
-
-            if (MessageProducer != null)
-            {
-                try
-                {
-                    MessageProducer.Stop();
-                    Thread.Sleep(50); // Give it time to stop
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error stopping message producer: {ex.Message}");
-                }
-            }
-            
-            // Close the port
-            if (Port != null && Port.IsOpen)
-            {
-                try
-                {
-                    Port.DtrEnable = false;
-                    Thread.Sleep(100); // Give DTR time to be processed
-                    Port.Close();
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error closing serial port: {ex.Message}");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Warning($"Error during quick disconnect: {ex.Message}");
-        }
-        finally
-        {
-            MessageProducer = null;
-            MessageConsumer = null;
-        }
-    }
 
     #endregion
 
@@ -212,102 +153,84 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            Task.Delay(1000);
-            Port.Open();
-            Port.DtrEnable = true;
-            MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageProducer.Start();
+            // Create CoreDeviceAdapter for Serial connection
+            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200);
+            
+            // Connect using Core adapter
+            var connected = _coreAdapter.Connect();
+            if (!connected)
+            {
+                AppLogger.Error($"Failed to connect to DAQiFi device on port {Port.PortName}");
+                return false;
+            }
 
+            // Set up compatibility with existing AbstractStreamingDevice expectations
+            MessageProducer = new CoreMessageProducerWrapper(_coreAdapter);
+            MessageConsumer = new CoreMessageConsumerWrapper(_coreAdapter);
+
+            // Initialize device as per existing pattern
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();   
             SetProtobufMessageFormat();
 
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
+            // Start the message consumer
             MessageConsumer.Start();
+            
+            // Initialize device state
             InitializeDeviceState();
+            
+            AppLogger.Information($"Successfully connected to DAQiFi device on port {Port.PortName} using Core adapter");
             return true;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to connect SerialStreamingDevice");
+            AppLogger.Error(ex, $"Failed to connect SerialStreamingDevice on port {Port.PortName} using Core adapter");
             return false;
         }
     }
 
     public override bool Write(string command)
     {
-        try
+        if (_coreAdapter == null)
         {
-            Port.WriteTimeout = 1000;
-            Port.Write(command);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "Failed to write in SerialStreamingDevice");
+            AppLogger.Warning("CoreDeviceAdapter is not initialized");
             return false;
         }
+
+        return _coreAdapter.Write(command);
     }
 
     public override bool Disconnect()
     {
         try
         {
+            if (_coreAdapter == null)
+            {
+                return true; // Already disconnected
+            }
+
             // First stop streaming to prevent new data from being requested
             StopStreaming();
-                
-            // Stop the message producer first to prevent new messages
-            if (MessageProducer != null)
-            {
-                try
-                {
-                    MessageProducer.Send(ScpiMessageProducer.EnableDeviceEcho);
-                    MessageProducer.StopSafely(); // Use StopSafely to ensure queued messages are sent
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error stopping message producer: {ex.Message}");
-                }
-            }
+            
+            // Stop message consumer
+            MessageConsumer?.Stop();
 
-            // Stop the consumer next
-            if (MessageConsumer != null)
-            {
-                try
-                {
-                    MessageConsumer.Stop();
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error stopping message consumer: {ex.Message}");
-                }
-            }
+            // Disconnect using Core adapter
+            var disconnected = _coreAdapter.Disconnect();
+            
+            // Clean up
+            _coreAdapter.Dispose();
+            _coreAdapter = null;
+            MessageProducer = null;
+            MessageConsumer = null;
 
-            // Finally close the port
-            if (Port != null)
-            {
-                try
-                {
-                    if (Port.IsOpen)
-                    {
-                        Port.DtrEnable = false;
-                        // Give a small delay to ensure DTR state change is processed
-                        Thread.Sleep(50);
-                        Port.Close();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error closing serial port: {ex.Message}");
-                }
-            }
-
-            return true;
+            AppLogger.Information($"Successfully disconnected from DAQiFi device on port {Port.PortName}");
+            return disconnected;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Error during device disconnect");
+            AppLogger.Error(ex, $"Error during device disconnect on port {Port.PortName}");
             return false;
         }
     }
