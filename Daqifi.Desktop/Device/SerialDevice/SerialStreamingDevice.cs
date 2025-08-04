@@ -278,6 +278,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             }
             
             // Send device initialization commands using CoreDeviceAdapter
+            AppLogger.Information($"[CORE_ADAPTER] Sending SCPI commands:");
+            AppLogger.Information($"  DisableDeviceEcho: '{ScpiMessageProducer.DisableDeviceEcho.Data}'");
+            AppLogger.Information($"  StopStreaming: '{ScpiMessageProducer.StopStreaming.Data}'");
+            AppLogger.Information($"  TurnDeviceOn: '{ScpiMessageProducer.TurnDeviceOn.Data}'");
+            AppLogger.Information($"  SetProtobufStreamFormat: '{ScpiMessageProducer.SetProtobufStreamFormat.Data}'");
+            
             var cmd1 = _coreAdapter.Write(ScpiMessageProducer.DisableDeviceEcho.Data);
             var cmd2 = _coreAdapter.Write(ScpiMessageProducer.StopStreaming.Data);
             var cmd3 = _coreAdapter.Write(ScpiMessageProducer.TurnDeviceOn.Data);
@@ -285,15 +291,24 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             
             AppLogger.Information($"[CORE_ADAPTER] Command results - Echo: {cmd1}, Stop: {cmd2}, TurnOn: {cmd3}, Protobuf: {cmd4}");
             
-            // Test with simple IDN command first
-            AppLogger.Information("[CORE_ADAPTER] Testing with simple *IDN? command");
+            // Test with multiple simple commands to see if device responds
+            AppLogger.Information("[CORE_ADAPTER] Testing basic device communication...");
+            
             var idnCmd = _coreAdapter.Write("*IDN?");
             AppLogger.Information($"[CORE_ADAPTER] *IDN? Write result: {idnCmd}");
+            Thread.Sleep(500);
             
-            Thread.Sleep(1000); // Wait for response
+            var testCmd = _coreAdapter.Write("*TST?");
+            AppLogger.Information($"[CORE_ADAPTER] *TST? Write result: {testCmd}");
+            Thread.Sleep(500);
+            
+            var statusCmd = _coreAdapter.Write("*ESR?");
+            AppLogger.Information($"[CORE_ADAPTER] *ESR? Write result: {statusCmd}");
+            Thread.Sleep(1000);
             
             // Request device info to populate metadata and channels
             AppLogger.Information("[CORE_ADAPTER] Sending GetDeviceInfo command to populate channels");
+            AppLogger.Information($"  GetDeviceInfo command: '{ScpiMessageProducer.GetDeviceInfo.Data}'");
             var infoCmd = _coreAdapter.Write(ScpiMessageProducer.GetDeviceInfo.Data);
             AppLogger.Information($"[CORE_ADAPTER] GetDeviceInfo Write result: {infoCmd}");
             
