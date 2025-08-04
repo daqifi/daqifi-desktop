@@ -64,11 +64,18 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             _coreAdapter.ConnectionStatusChanged += OnCoreAdapterConnectionStatusChanged;
             _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
             
+            // Add error event handler for connection debugging
+            _coreAdapter.ErrorOccurred += (sender, args) => {
+                AppLogger.Error($"[CORE_ADAPTER] Connection error: {args.Error?.Message}");
+            };
+            
             // Connect using CoreDeviceAdapter
             var connected = _coreAdapter.Connect();
-            if (!connected)
+            AppLogger.Information($"[CORE_ADAPTER] Connect() returned: {connected}, IsConnected: {_coreAdapter.IsConnected}");
+            
+            if (!connected || !_coreAdapter.IsConnected)
             {
-                AppLogger.Error("Failed to connect using CoreDeviceAdapter");
+                AppLogger.Error($"Failed to connect using CoreDeviceAdapter. Connect result: {connected}, IsConnected: {_coreAdapter.IsConnected}");
                 return false;
             }
             

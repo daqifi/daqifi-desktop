@@ -91,6 +91,11 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             
             discoveryAdapter.MessageReceived += discoveryHandler;
             
+            // Add error event handler for discovery debugging
+            discoveryAdapter.ErrorOccurred += (sender, args) => {
+                AppLogger.Error($"[DISCOVERY] CoreDeviceAdapter error: {args.Error?.Message}");
+            };
+            
             // Connect using CoreDeviceAdapter
             if (!discoveryAdapter.Connect())
             {
@@ -98,6 +103,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 discoveryAdapter.Dispose();
                 return false;
             }
+            
+            AppLogger.Information($"[DISCOVERY] Connected to {Port.PortName}, IsConnected: {discoveryAdapter.IsConnected}");
             
             // Send device initialization and info request
             discoveryAdapter.Write(ScpiMessageProducer.DisableDeviceEcho.Data);
@@ -117,10 +124,10 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 {
                     try
                     {
-                        discoveryAdapter.Write(ScpiMessageProducer.GetDeviceInfo.Data);
+                        var writeSuccess = discoveryAdapter.Write(ScpiMessageProducer.GetDeviceInfo.Data);
                         lastRequestTime = DateTime.Now;
                         retryCount++;
-                        AppLogger.Information($"[DISCOVERY] Requesting device info (attempt {retryCount}/{maxRetries}) for port {Port.PortName}");
+                        AppLogger.Information($"[DISCOVERY] Requesting device info (attempt {retryCount}/{maxRetries}) for port {Port.PortName}, Write success: {writeSuccess}, IsConnected: {discoveryAdapter.IsConnected}");
                     }
                     catch (Exception ex)
                     {
@@ -244,23 +251,51 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             _coreAdapter.ConnectionStatusChanged += OnCoreAdapterConnectionStatusChanged;
             _coreAdapter.ErrorOccurred += OnCoreAdapterErrorOccurred;
             
+            // Add error event handler for connection debugging
+            _coreAdapter.ErrorOccurred += (sender, args) => {
+                AppLogger.Error($"[CORE_ADAPTER] Connection error: {args.Error?.Message}");
+            };
+            
             // Connect using CoreDeviceAdapter
             var connected = _coreAdapter.Connect();
-            if (!connected)
+            AppLogger.Information($"[CORE_ADAPTER] Connect() returned: {connected}, IsConnected: {_coreAdapter.IsConnected}");
+            
+            if (!connected || !_coreAdapter.IsConnected)
             {
-                AppLogger.Error("Failed to connect using CoreDeviceAdapter");
+                AppLogger.Error($"Failed to connect using CoreDeviceAdapter. Connect result: {connected}, IsConnected: {_coreAdapter.IsConnected}");
+                return false;
+            }
+            
+            // Check if MessageProducer and MessageConsumer are initialized
+            var hasProducer = _coreAdapter.MessageProducer != null;
+            var hasConsumer = _coreAdapter.MessageConsumer != null;
+            AppLogger.Information($"[CORE_ADAPTER] MessageProducer initialized: {hasProducer}, MessageConsumer initialized: {hasConsumer}");
+            
+            if (!hasProducer || !hasConsumer)
+            {
+                AppLogger.Error("[CORE_ADAPTER] MessageProducer or MessageConsumer not initialized after connection");
                 return false;
             }
             
             // Send device initialization commands using CoreDeviceAdapter
-            _coreAdapter.Write(ScpiMessageProducer.DisableDeviceEcho.Data);
-            _coreAdapter.Write(ScpiMessageProducer.StopStreaming.Data);
-            _coreAdapter.Write(ScpiMessageProducer.TurnDeviceOn.Data);
-            _coreAdapter.Write(ScpiMessageProducer.SetProtobufStreamFormat.Data);
+            var cmd1 = _coreAdapter.Write(ScpiMessageProducer.DisableDeviceEcho.Data);
+            var cmd2 = _coreAdapter.Write(ScpiMessageProducer.StopStreaming.Data);
+            var cmd3 = _coreAdapter.Write(ScpiMessageProducer.TurnDeviceOn.Data);
+            var cmd4 = _coreAdapter.Write(ScpiMessageProducer.SetProtobufStreamFormat.Data);
+            
+            AppLogger.Information($"[CORE_ADAPTER] Command results - Echo: {cmd1}, Stop: {cmd2}, TurnOn: {cmd3}, Protobuf: {cmd4}");
+            
+            // Test with simple IDN command first
+            AppLogger.Information("[CORE_ADAPTER] Testing with simple *IDN? command");
+            var idnCmd = _coreAdapter.Write("*IDN?");
+            AppLogger.Information($"[CORE_ADAPTER] *IDN? Write result: {idnCmd}");
+            
+            Thread.Sleep(1000); // Wait for response
             
             // Request device info to populate metadata and channels
             AppLogger.Information("[CORE_ADAPTER] Sending GetDeviceInfo command to populate channels");
-            _coreAdapter.Write(ScpiMessageProducer.GetDeviceInfo.Data);
+            var infoCmd = _coreAdapter.Write(ScpiMessageProducer.GetDeviceInfo.Data);
+            AppLogger.Information($"[CORE_ADAPTER] GetDeviceInfo Write result: {infoCmd}");
             
             // Give some time for the device to respond and populate channels
             Thread.Sleep(2000);
