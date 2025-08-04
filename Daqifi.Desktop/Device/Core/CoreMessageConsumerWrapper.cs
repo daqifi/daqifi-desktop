@@ -2,6 +2,7 @@ using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Core.Integration.Desktop;
 using Daqifi.Core.Communication.Consumers;
 using Daqifi.Desktop.IO.Messages;
+using Daqifi.Desktop.Common.Loggers;
 using System.IO;
 
 namespace Daqifi.Desktop.Device.Core;
@@ -18,11 +19,8 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
     {
         _coreAdapter = coreAdapter ?? throw new ArgumentNullException(nameof(coreAdapter));
         
-        // Bridge Core events to desktop events
-        if (_coreAdapter.MessageConsumer != null)
-        {
-            _coreAdapter.MessageConsumer.MessageReceived += OnCoreMessageReceived;
-        }
+        // Note: MessageConsumer will be null until CoreDeviceAdapter.Connect() is called
+        // We'll subscribe to events in Start() method instead
     }
 
     public bool Running { get; set; }
@@ -34,13 +32,28 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
     public void Start()
     {
         Running = true;
-        // CoreDeviceAdapter handles starting automatically in Connect()
+        
+        // Subscribe to events now that CoreDeviceAdapter.Connect() has been called
+        if (_coreAdapter.MessageConsumer != null)
+        {
+            _coreAdapter.MessageConsumer.MessageReceived += OnCoreMessageReceived;
+            AppLogger.Instance.Information($"[CORE_WRAPPER] Subscribed to MessageReceived events");
+        }
+        else
+        {
+            AppLogger.Instance.Warning($"[CORE_WRAPPER] MessageConsumer is null, cannot subscribe to events");
+        }
     }
 
     public void Stop()
     {
         Running = false;
-        // CoreDeviceAdapter handles stopping in Disconnect()
+        
+        // Unsubscribe from events
+        if (_coreAdapter.MessageConsumer != null)
+        {
+            _coreAdapter.MessageConsumer.MessageReceived -= OnCoreMessageReceived;
+        }
     }
 
     public void NotifyMessageReceived(object sender, MessageEventArgs<object> e)
@@ -57,6 +70,7 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs<object> e)
     {
         // Convert Core event to desktop event format
+        AppLogger.Instance.Information($"[CORE_WRAPPER] Received message from Core: {e.Message?.Data?.GetType()?.Name ?? "null"}");
         var desktopArgs = new MessageEventArgs<object>(e.Message);
         OnMessageReceived?.Invoke(sender, desktopArgs);
     }
