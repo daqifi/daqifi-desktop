@@ -44,8 +44,9 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
         try
         {
-            // Create temporary CoreDeviceAdapter for quick connection
-            using var tempAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200);
+            // Create temporary CoreDeviceAdapter with delimited protobuf parser for DAQiFi devices
+            var delimitedParser = new DelimitedProtobufMessageParser();
+            using var tempAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200, delimitedParser);
             
             var connected = tempAdapter.Connect();
             if (!connected)
@@ -156,8 +157,9 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // Create CoreDeviceAdapter for Serial connection
-            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200);
+            // Create CoreDeviceAdapter for Serial connection with delimited protobuf parser
+            var delimitedParser = new DelimitedProtobufMessageParser();
+            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200, delimitedParser);
             
             // Connect using Core adapter
             var connected = _coreAdapter.Connect();
