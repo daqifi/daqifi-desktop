@@ -64,6 +64,9 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             TurnDeviceOn();
             SetProtobufMessageFormat();
 
+            // Give device time to process initialization commands
+            Thread.Sleep(500);
+
             // Set up a temporary status handler to get device info
             var deviceInfoReceived = false;
             var timeout = DateTime.Now.AddSeconds(4); // Increased timeout for device wake-up
@@ -173,6 +176,9 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             StopStreaming();
             TurnDeviceOn();   
             SetProtobufMessageFormat();
+
+            // Give device time to process initialization commands
+            Thread.Sleep(500);
 
             // Start the message consumer
             MessageConsumer.Start();
