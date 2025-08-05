@@ -77,9 +77,20 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
             // Log the raw message type and content
             AppLogger.Instance.Information($"[CORE_WRAPPER] Received message from Core: {e.Message?.Data?.GetType()?.Name ?? "null"}");
             
+            // Handle case where we already have a DaqifiOutMessage protobuf object
+            if (e.Message?.Data is DaqifiOutMessage outMessage)
+            {
+                AppLogger.Instance.Information($"[CORE_WRAPPER] Received parsed DaqifiOutMessage directly");
+                var protobufMessage = new ProtobufMessage(outMessage);
+                var desktopArgs = new MessageEventArgs<object>(protobufMessage);
+                OnMessageReceived?.Invoke(sender, desktopArgs);
+                return;
+            }
+            
+            // Handle case where we have raw string data (could be binary protobuf)
             if (e.Message?.Data is string rawMessage)
             {
-                AppLogger.Instance.Information($"[CORE_WRAPPER] Raw message content: {rawMessage}");
+                AppLogger.Instance.Information($"[CORE_WRAPPER] Raw message content (first 100 chars): {rawMessage.Substring(0, Math.Min(100, rawMessage.Length))}");
                 
                 // Try to parse the string as a protobuf message like the original MessageConsumer
                 try
@@ -87,27 +98,34 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
                     // Convert string to bytes and parse as DaqifiOutMessage
                     var messageBytes = Encoding.UTF8.GetBytes(rawMessage);
                     using var stream = new MemoryStream(messageBytes);
-                    var outMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
+                    var parsedMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
                     
-                    if (outMessage != null)
+                    if (parsedMessage != null)
                     {
-                        var protobufMessage = new ProtobufMessage(outMessage);
+                        var protobufMessage = new ProtobufMessage(parsedMessage);
                         var desktopArgs = new MessageEventArgs<object>(protobufMessage);
                         OnMessageReceived?.Invoke(sender, desktopArgs);
-                        AppLogger.Instance.Information($"[CORE_WRAPPER] Successfully parsed protobuf message: {outMessage.GetType().Name}");
+                        AppLogger.Instance.Information($"[CORE_WRAPPER] Successfully parsed protobuf message from string");
                         return;
                     }
                 }
                 catch (Exception parseEx)
                 {
                     AppLogger.Instance.Warning($"[CORE_WRAPPER] Failed to parse as protobuf: {parseEx.Message}");
-                    // Fall back to passing the raw message
+                    
+                    // The raw message might contain device info as plain text, let's check for it
+                    if (rawMessage.Contains("NYQUIST") || rawMessage.Contains("DAQiFi"))
+                    {
+                        AppLogger.Instance.Information($"[CORE_WRAPPER] Message appears to contain device info");
+                        // This might be status message data that needs to be handled differently
+                    }
                 }
             }
             
-            // Fall back to passing the original message if parsing fails
+            // Fall back to passing the original message
             var fallbackArgs = new MessageEventArgs<object>(e.Message);
             OnMessageReceived?.Invoke(sender, fallbackArgs);
+            AppLogger.Instance.Information($"[CORE_WRAPPER] Passed message as fallback");
         }
         catch (Exception ex)
         {
