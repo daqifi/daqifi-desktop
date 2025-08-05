@@ -81,6 +81,7 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
             if (e.Message?.Data is DaqifiOutMessage outMessage)
             {
                 AppLogger.Instance.Information($"[CORE_WRAPPER] Received parsed DaqifiOutMessage directly");
+                // Wrap in ProtobufMessage like the original MessageConsumer does
                 var protobufMessage = new ProtobufMessage(outMessage);
                 var desktopArgs = new MessageEventArgs<object>(protobufMessage);
                 OnMessageReceived?.Invoke(sender, desktopArgs);
@@ -102,6 +103,7 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
                     
                     if (parsedMessage != null)
                     {
+                        // Wrap in ProtobufMessage like the original MessageConsumer does
                         var protobufMessage = new ProtobufMessage(parsedMessage);
                         var desktopArgs = new MessageEventArgs<object>(protobufMessage);
                         OnMessageReceived?.Invoke(sender, desktopArgs);
