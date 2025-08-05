@@ -3,7 +3,10 @@ using Daqifi.Core.Integration.Desktop;
 using Daqifi.Core.Communication.Consumers;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Core.Communication.Messages;
+using Google.Protobuf;
 using System.IO;
+using System.Text;
 
 namespace Daqifi.Desktop.Device.Core;
 
@@ -69,10 +72,47 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
 
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs<object> e)
     {
-        // Convert Core event to desktop event format
-        AppLogger.Instance.Information($"[CORE_WRAPPER] Received message from Core: {e.Message?.Data?.GetType()?.Name ?? "null"}");
-        var desktopArgs = new MessageEventArgs<object>(e.Message);
-        OnMessageReceived?.Invoke(sender, desktopArgs);
+        try
+        {
+            // Log the raw message type and content
+            AppLogger.Instance.Information($"[CORE_WRAPPER] Received message from Core: {e.Message?.Data?.GetType()?.Name ?? "null"}");
+            
+            if (e.Message?.Data is string rawMessage)
+            {
+                AppLogger.Instance.Information($"[CORE_WRAPPER] Raw message content: {rawMessage}");
+                
+                // Try to parse the string as a protobuf message like the original MessageConsumer
+                try
+                {
+                    // Convert string to bytes and parse as DaqifiOutMessage
+                    var messageBytes = Encoding.UTF8.GetBytes(rawMessage);
+                    using var stream = new MemoryStream(messageBytes);
+                    var outMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
+                    
+                    if (outMessage != null)
+                    {
+                        var protobufMessage = new ProtobufMessage(outMessage);
+                        var desktopArgs = new MessageEventArgs<object>(protobufMessage);
+                        OnMessageReceived?.Invoke(sender, desktopArgs);
+                        AppLogger.Instance.Information($"[CORE_WRAPPER] Successfully parsed protobuf message: {outMessage.GetType().Name}");
+                        return;
+                    }
+                }
+                catch (Exception parseEx)
+                {
+                    AppLogger.Instance.Warning($"[CORE_WRAPPER] Failed to parse as protobuf: {parseEx.Message}");
+                    // Fall back to passing the raw message
+                }
+            }
+            
+            // Fall back to passing the original message if parsing fails
+            var fallbackArgs = new MessageEventArgs<object>(e.Message);
+            OnMessageReceived?.Invoke(sender, fallbackArgs);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Instance.Error(ex, $"[CORE_WRAPPER] Error processing message from Core");
+        }
     }
 
     public void Dispose()
