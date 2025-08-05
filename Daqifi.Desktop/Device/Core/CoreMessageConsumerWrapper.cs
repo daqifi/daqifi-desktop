@@ -77,15 +77,35 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
             // Log the raw message type and content
             AppLogger.Instance.Information($"[CORE_WRAPPER] Received message from Core: {e.Message?.Data?.GetType()?.Name ?? "null"}");
             
-            // Handle case where we already have a DaqifiOutMessage protobuf object
+            // Handle case where we already have a DaqifiOutMessage protobuf object (CoreDeviceAdapter already parsed it)
             if (e.Message?.Data is DaqifiOutMessage outMessage)
             {
-                AppLogger.Instance.Information($"[CORE_WRAPPER] Received parsed DaqifiOutMessage directly");
-                AppLogger.Instance.Information($"[CORE_WRAPPER] Port counts - Digital: {outMessage.DigitalPortNum}, AnalogIn: {outMessage.AnalogInPortNum}, AnalogOut: {outMessage.AnalogOutPortNum}");
+                AppLogger.Instance.Information($"[CORE_WRAPPER] Received parsed DaqifiOutMessage directly from CoreDeviceAdapter");
                 
-                // Check if this would pass IsValidStatusMessage
+                // Log detailed port information for diagnostics
+                // These should be simple integer properties, not arrays, based on IsValidStatusMessage check
+                AppLogger.Instance.Information($"[CORE_WRAPPER] DigitalPortNum: {outMessage.DigitalPortNum}");
+                AppLogger.Instance.Information($"[CORE_WRAPPER] AnalogInPortNum: {outMessage.AnalogInPortNum}");
+                AppLogger.Instance.Information($"[CORE_WRAPPER] AnalogOutPortNum: {outMessage.AnalogOutPortNum}");
+                
+                // The legacy IsValidStatusMessage checks these exact conditions:
+                // (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0)
                 bool isValid = (outMessage.DigitalPortNum != 0 || outMessage.AnalogInPortNum != 0 || outMessage.AnalogOutPortNum != 0);
                 AppLogger.Instance.Information($"[CORE_WRAPPER] Would pass IsValidStatusMessage: {isValid}");
+                
+                // Also log other key fields that might indicate device status
+                if (!string.IsNullOrEmpty(outMessage.DevicePn))
+                {
+                    AppLogger.Instance.Information($"[CORE_WRAPPER] Device Part Number: {outMessage.DevicePn}");
+                }
+                if (outMessage.DeviceSn != 0)
+                {
+                    AppLogger.Instance.Information($"[CORE_WRAPPER] Device Serial Number: {outMessage.DeviceSn}");
+                }
+                if (!string.IsNullOrEmpty(outMessage.DeviceFwRev))
+                {
+                    AppLogger.Instance.Information($"[CORE_WRAPPER] Device Firmware Version: {outMessage.DeviceFwRev}");
+                }
                 
                 // Wrap in ProtobufMessage like the original MessageConsumer does
                 var protobufMessage = new ProtobufMessage(outMessage);
@@ -94,46 +114,17 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
                 return;
             }
             
-            // Handle case where we have raw string data (could be binary protobuf)
-            if (e.Message?.Data is string rawMessage)
+            // Handle case where we have string data (SCPI responses)
+            if (e.Message?.Data is string textMessage)
             {
-                AppLogger.Instance.Information($"[CORE_WRAPPER] Raw message content (first 100 chars): {rawMessage.Substring(0, Math.Min(100, rawMessage.Length))}");
-                
-                // Try to parse the string as a protobuf message like the original MessageConsumer
-                try
-                {
-                    // Convert string to bytes and parse as DaqifiOutMessage
-                    var messageBytes = Encoding.UTF8.GetBytes(rawMessage);
-                    using var stream = new MemoryStream(messageBytes);
-                    var parsedMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
-                    
-                    if (parsedMessage != null)
-                    {
-                        // Wrap in ProtobufMessage like the original MessageConsumer does
-                        var protobufMessage = new ProtobufMessage(parsedMessage);
-                        var desktopArgs = new MessageEventArgs<object>(protobufMessage);
-                        OnMessageReceived?.Invoke(sender, desktopArgs);
-                        AppLogger.Instance.Information($"[CORE_WRAPPER] Successfully parsed protobuf message from string");
-                        return;
-                    }
-                }
-                catch (Exception parseEx)
-                {
-                    AppLogger.Instance.Warning($"[CORE_WRAPPER] Failed to parse as protobuf: {parseEx.Message}");
-                    
-                    // The raw message might contain device info as plain text, let's check for it
-                    if (rawMessage.Contains("NYQUIST") || rawMessage.Contains("DAQiFi"))
-                    {
-                        AppLogger.Instance.Information($"[CORE_WRAPPER] Message appears to contain device info");
-                        // This might be status message data that needs to be handled differently
-                    }
-                }
+                AppLogger.Instance.Information($"[CORE_WRAPPER] Received text message: {textMessage.Substring(0, Math.Min(100, textMessage.Length))}");
+                // Text messages are typically SCPI responses, not protobuf data
+                // Don't try to parse as protobuf - CoreDeviceAdapter already handles that
+                // Just log for now - most device discovery relies on protobuf messages
+                return;
             }
             
-            // Fall back to passing the original message
-            var fallbackArgs = new MessageEventArgs<object>(e.Message);
-            OnMessageReceived?.Invoke(sender, fallbackArgs);
-            AppLogger.Instance.Information($"[CORE_WRAPPER] Passed message as fallback");
+            AppLogger.Instance.Warning($"[CORE_WRAPPER] Received unknown message type: {e.Message?.Data?.GetType()?.FullName}");
         }
         catch (Exception ex)
         {
