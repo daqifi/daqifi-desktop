@@ -81,6 +81,12 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
             if (e.Message?.Data is DaqifiOutMessage outMessage)
             {
                 AppLogger.Instance.Information($"[CORE_WRAPPER] Received parsed DaqifiOutMessage directly");
+                AppLogger.Instance.Information($"[CORE_WRAPPER] Port counts - Digital: {outMessage.DigitalPortNum}, AnalogIn: {outMessage.AnalogInPortNum}, AnalogOut: {outMessage.AnalogOutPortNum}");
+                
+                // Check if this would pass IsValidStatusMessage
+                bool isValid = (outMessage.DigitalPortNum != 0 || outMessage.AnalogInPortNum != 0 || outMessage.AnalogOutPortNum != 0);
+                AppLogger.Instance.Information($"[CORE_WRAPPER] Would pass IsValidStatusMessage: {isValid}");
+                
                 // Wrap in ProtobufMessage like the original MessageConsumer does
                 var protobufMessage = new ProtobufMessage(outMessage);
                 var desktopArgs = new MessageEventArgs<object>(protobufMessage);
