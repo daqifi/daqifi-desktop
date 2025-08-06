@@ -44,22 +44,24 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
         try
         {
-            // Create temporary CoreDeviceAdapter with delimited protobuf parser for DAQiFi devices  
-            // Try 9600 baud first (legacy default) then 115200 if that fails
-            var delimitedParser = new DelimitedProtobufMessageParser();
-            using var tempAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 9600, delimitedParser);
-            AppLogger.Information($"[BAUD_TEST] Trying connection with 9600 baud on {Port.PortName}");
+            // EMERGENCY FALLBACK: Use direct SerialPort like legacy to isolate CoreDeviceAdapter issues
+            AppLogger.Information($"[DIRECT_TEST] Attempting direct SerialPort connection on {Port.PortName}");
             
-            var connected = tempAdapter.Connect();
-            if (!connected)
+            if (!Port.IsOpen)
             {
-                AppLogger.Information($"Could not connect to device on port {Port.PortName} during discovery");
+                Port.Open();
+            }
+            
+            if (!Port.IsOpen)
+            {
+                AppLogger.Information($"Could not open serial port {Port.PortName}");
                 return false;
             }
 
-            // Set up temporary wrappers for device info discovery
-            MessageProducer = new CoreMessageProducerWrapper(tempAdapter);
-            MessageConsumer = new CoreMessageConsumerWrapper(tempAdapter);
+            // Set up direct serial messaging like the legacy version  
+            MessageProducer = new MessageProducer(Port.BaseStream);
+            MessageConsumer = new MessageConsumer(Port.BaseStream);
+            MessageProducer.Start();
             MessageConsumer.Start();
 
             TurnOffEcho();
@@ -127,9 +129,15 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 Thread.Sleep(100); // Check more frequently for response
             }
 
-            // Clean up the quick connection - CoreDeviceAdapter handles this automatically with 'using'
+            // Clean up the direct serial connection
+            MessageProducer?.Stop();
+            MessageConsumer?.Stop();
             MessageProducer = null;
             MessageConsumer = null;
+            if (Port.IsOpen)
+            {
+                Port.Close();
+            }
 
             if (deviceInfoReceived)
             {
@@ -159,23 +167,24 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // Create CoreDeviceAdapter for Serial connection with delimited protobuf parser
-            // Use 9600 baud (legacy SerialPort default) instead of 115200
-            var delimitedParser = new DelimitedProtobufMessageParser();
-            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 9600, delimitedParser);
-            AppLogger.Information($"[BAUD_TEST] Connecting with 9600 baud on {Port.PortName}");
+            // EMERGENCY FALLBACK: Use direct SerialPort instead of CoreDeviceAdapter
+            AppLogger.Information($"[DIRECT_CONNECT] Using direct SerialPort connection on {Port.PortName}");
             
-            // Connect using Core adapter
-            var connected = _coreAdapter.Connect();
-            if (!connected)
+            if (!Port.IsOpen)
             {
-                AppLogger.Error($"Failed to connect to DAQiFi device on port {Port.PortName}");
+                Port.Open();
+            }
+            
+            if (!Port.IsOpen)
+            {
+                AppLogger.Error($"Failed to open serial port {Port.PortName}");
                 return false;
             }
 
-            // Set up compatibility with existing AbstractStreamingDevice expectations
-            MessageProducer = new CoreMessageProducerWrapper(_coreAdapter);
-            MessageConsumer = new CoreMessageConsumerWrapper(_coreAdapter);
+            // Set up direct serial messaging - NO CoreDeviceAdapter
+            MessageProducer = new MessageProducer(Port.BaseStream);
+            MessageConsumer = new MessageConsumer(Port.BaseStream);
+            MessageProducer.Start();
 
             // Initialize device as per existing pattern
             TurnOffEcho();
@@ -192,7 +201,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             // Initialize device state
             InitializeDeviceState();
             
-            AppLogger.Information($"Successfully connected to DAQiFi device on port {Port.PortName} using Core adapter");
+            AppLogger.Information($"Successfully connected to DAQiFi device on port {Port.PortName} using direct SerialPort");
             return true;
         }
         catch (Exception ex)
@@ -204,20 +213,29 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
     public override bool Write(string command)
     {
-        if (_coreAdapter == null)
+        if (MessageProducer == null)
         {
-            AppLogger.Warning("CoreDeviceAdapter is not initialized");
+            AppLogger.Warning("MessageProducer is not initialized");
             return false;
         }
 
-        return _coreAdapter.Write(command);
+        try 
+        {
+            MessageProducer.Send(new Daqifi.Core.Communication.Messages.ScpiMessage(command));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to write command: {command}");
+            return false;
+        }
     }
 
     public override bool Disconnect()
     {
         try
         {
-            if (_coreAdapter == null)
+            if (MessageProducer == null && MessageConsumer == null)
             {
                 return true; // Already disconnected
             }
@@ -225,20 +243,22 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             // First stop streaming to prevent new data from being requested
             StopStreaming();
             
-            // Stop message consumer
+            // Stop message producer and consumer
+            MessageProducer?.Stop();
             MessageConsumer?.Stop();
 
-            // Disconnect using Core adapter
-            var disconnected = _coreAdapter.Disconnect();
-            
             // Clean up
-            _coreAdapter.Dispose();
-            _coreAdapter = null;
             MessageProducer = null;
             MessageConsumer = null;
+            
+            // Close serial port
+            if (Port.IsOpen)
+            {
+                Port.Close();
+            }
 
             AppLogger.Information($"Successfully disconnected from DAQiFi device on port {Port.PortName}");
-            return disconnected;
+            return true;
         }
         catch (Exception ex)
         {
