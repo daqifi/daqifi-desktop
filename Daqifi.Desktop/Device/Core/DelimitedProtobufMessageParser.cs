@@ -46,24 +46,43 @@ public class DelimitedProtobufMessageParser : IMessageParser<object>
                 // DAQiFi devices send mixed text echoes + protobuf, we need to find the protobuf parts
                 var foundProtobuf = false;
                 
-                while (bufferIndex < _buffer.Count - 1 && !foundProtobuf)
+                while (bufferIndex < _buffer.Count - 2 && !foundProtobuf)
                 {
-                    // Look for potential varint length prefix followed by protobuf field markers
-                    // Common protobuf field markers for DaqifiOutMessage: 08 (field 1), 48 (field 9), 50 (field 10)
+                    // Look for varint-encoded length prefix followed by protobuf field markers
+                    // The data shows patterns like AF 04 08... where AF is a varint length
                     if (bufferIndex < _buffer.Count - 3)
                     {
-                        var potentialLength = _buffer[bufferIndex];
-                        // Check if next few bytes look like protobuf (field markers with wire types)
-                        if (potentialLength > 0 && potentialLength < 255 && bufferIndex + potentialLength + 1 < _buffer.Count)
+                        // Try to decode varint length at current position
+                        var varintStartIndex = bufferIndex;
+                        try
                         {
-                            var nextByte = _buffer[bufferIndex + 1];
-                            // Look for protobuf field markers (tag numbers with wire types)
-                            if (nextByte == 0x08 || nextByte == 0x48 || nextByte == 0x50 || nextByte == 0x88 || nextByte == 0x90)
+                            using var stream = new MemoryStream(_buffer.ToArray(), bufferIndex, _buffer.Count - bufferIndex);
+                            using var codedInput = new CodedInputStream(stream);
+                            
+                            if (TryReadVarint32(codedInput, out var messageLength))
                             {
-                                foundProtobuf = true;
-                                AppLogger.Instance.Information($"[DELIMITED_PARSER] Found potential protobuf start at index {bufferIndex}, length: {potentialLength}");
-                                break;
+                                var varintSize = (int)stream.Position;
+                                var dataStartIndex = bufferIndex + varintSize;
+                                
+                                // Check if we have enough data and if the data after varint looks like protobuf
+                                if (dataStartIndex < _buffer.Count && 
+                                    bufferIndex + varintSize + messageLength <= _buffer.Count &&
+                                    messageLength > 0 && messageLength < 10000) // Reasonable size limit
+                                {
+                                    var nextByte = _buffer[dataStartIndex];
+                                    // Look for protobuf field markers (tag numbers with wire types)
+                                    if (nextByte == 0x08 || nextByte == 0x48 || nextByte == 0x50 || nextByte == 0x88 || nextByte == 0x90)
+                                    {
+                                        foundProtobuf = true;
+                                        AppLogger.Instance.Information($"[DELIMITED_PARSER] Found protobuf at index {bufferIndex}, varint size: {varintSize}, message length: {messageLength}");
+                                        break;
+                                    }
+                                }
                             }
+                        }
+                        catch
+                        {
+                            // Not a valid varint, continue searching
                         }
                     }
                     bufferIndex++;

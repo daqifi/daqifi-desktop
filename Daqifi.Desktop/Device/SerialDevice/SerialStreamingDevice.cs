@@ -239,9 +239,22 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             AppLogger.Information($"[CORE_SERIAL] Created CoreDeviceAdapter for {Port.PortName}");
             
             // Connect using Core
-            if (!_coreAdapter.Connect())
+            try
             {
-                AppLogger.Error("Failed to connect via CoreDeviceAdapter");
+                var connectResult = _coreAdapter.Connect();
+                AppLogger.Information($"[CORE_SERIAL] Connect result: {connectResult}");
+                
+                if (!connectResult)
+                {
+                    AppLogger.Error($"[CORE_SERIAL] CoreDeviceAdapter.Connect() returned false");
+                    AppLogger.Error($"[CORE_SERIAL] Transport IsConnected: {_coreAdapter.Transport?.IsConnected}");
+                    AppLogger.Error($"[CORE_SERIAL] Transport Info: {_coreAdapter.Transport?.ConnectionInfo}");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, $"[CORE_SERIAL] Exception during CoreDeviceAdapter.Connect()");
                 return false;
             }
             
