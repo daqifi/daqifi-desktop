@@ -44,9 +44,13 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
         try
         {
+            AppLogger.Information($"[CORE_SERIAL] TryGetDeviceInfo: Starting discovery connection to {Port.PortName}");
+            
             // Create CoreDeviceAdapter with DelimitedProtobufMessageParser for discovery
             var parser = new DelimitedProtobufMessageParser();
             _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200, parser);
+            
+            AppLogger.Information($"[CORE_SERIAL] TryGetDeviceInfo: Created CoreDeviceAdapter");
             
             // Connect using Core
             if (!_coreAdapter.Connect())
@@ -54,6 +58,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 AppLogger.Error("Failed to connect via CoreDeviceAdapter during discovery");
                 return false;
             }
+            
+            AppLogger.Information($"[CORE_SERIAL] TryGetDeviceInfo: Connected successfully");
 
             // Create wrapper classes to bridge Core interfaces to Desktop interfaces
             MessageProducer = new CoreMessageProducerWrapper(_coreAdapter);
@@ -221,9 +227,13 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
+            AppLogger.Information($"[CORE_SERIAL] Starting connection to {Port.PortName}");
+            
             // Create CoreDeviceAdapter with DelimitedProtobufMessageParser
             var parser = new DelimitedProtobufMessageParser();
             _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200, parser);
+            
+            AppLogger.Information($"[CORE_SERIAL] Created CoreDeviceAdapter for {Port.PortName}");
             
             // Connect using Core
             if (!_coreAdapter.Connect())
@@ -231,13 +241,23 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 AppLogger.Error("Failed to connect via CoreDeviceAdapter");
                 return false;
             }
+            
+            AppLogger.Information($"[CORE_SERIAL] CoreDeviceAdapter connected successfully");
+            AppLogger.Information($"[CORE_SERIAL] IsConnected: {_coreAdapter.IsConnected}");
+            AppLogger.Information($"[CORE_SERIAL] ConnectionInfo: {_coreAdapter.ConnectionInfo}");
 
             // Create wrapper classes to bridge Core interfaces to Desktop interfaces
             MessageProducer = new CoreMessageProducerWrapper(_coreAdapter);
             MessageConsumer = new CoreMessageConsumerWrapper(_coreAdapter);
             
+            AppLogger.Information($"[CORE_SERIAL] Created wrapper classes");
+            AppLogger.Information($"[CORE_SERIAL] CoreAdapter.MessageProducer null: {_coreAdapter.MessageProducer == null}");
+            AppLogger.Information($"[CORE_SERIAL] CoreAdapter.MessageConsumer null: {_coreAdapter.MessageConsumer == null}");
+            
             MessageProducer.Start();
             MessageConsumer.Start();
+            
+            AppLogger.Information($"[CORE_SERIAL] Started message producer and consumer");
 
             // Send initialization commands
             TurnOffEcho();
