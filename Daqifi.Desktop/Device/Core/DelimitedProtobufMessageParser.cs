@@ -56,25 +56,25 @@ public class DelimitedProtobufMessageParser : IMessageParser<object>
                         var varintStartIndex = bufferIndex;
                         try
                         {
-                            using var stream = new MemoryStream(_buffer.ToArray(), bufferIndex, _buffer.Count - bufferIndex);
-                            using var codedInput = new CodedInputStream(stream);
+                            using var testStream = new MemoryStream(_buffer.ToArray(), bufferIndex, _buffer.Count - bufferIndex);
+                            using var testCodedInput = new CodedInputStream(testStream);
                             
-                            if (TryReadVarint32(codedInput, out var messageLength))
+                            if (TryReadVarint32(testCodedInput, out var testMessageLength))
                             {
-                                var varintSize = (int)stream.Position;
+                                var varintSize = (int)testStream.Position;
                                 var dataStartIndex = bufferIndex + varintSize;
                                 
                                 // Check if we have enough data and if the data after varint looks like protobuf
                                 if (dataStartIndex < _buffer.Count && 
-                                    bufferIndex + varintSize + messageLength <= _buffer.Count &&
-                                    messageLength > 0 && messageLength < 10000) // Reasonable size limit
+                                    bufferIndex + varintSize + testMessageLength <= _buffer.Count &&
+                                    testMessageLength > 0 && testMessageLength < 10000) // Reasonable size limit
                                 {
                                     var nextByte = _buffer[dataStartIndex];
                                     // Look for protobuf field markers (tag numbers with wire types)
                                     if (nextByte == 0x08 || nextByte == 0x48 || nextByte == 0x50 || nextByte == 0x88 || nextByte == 0x90)
                                     {
                                         foundProtobuf = true;
-                                        AppLogger.Instance.Information($"[DELIMITED_PARSER] Found protobuf at index {bufferIndex}, varint size: {varintSize}, message length: {messageLength}");
+                                        AppLogger.Instance.Information($"[DELIMITED_PARSER] Found protobuf at index {bufferIndex}, varint size: {varintSize}, message length: {testMessageLength}");
                                         break;
                                     }
                                 }
