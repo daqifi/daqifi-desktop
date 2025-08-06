@@ -1,6 +1,7 @@
 using Daqifi.Desktop.IO.Messages.Producers;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Integration.Desktop;
+using Daqifi.Desktop.Common.Loggers;
 
 namespace Daqifi.Desktop.Device.Core;
 
@@ -39,7 +40,12 @@ public class CoreMessageProducerWrapper : IMessageProducer
     {
         if (_coreAdapter.MessageProducer != null)
         {
+            AppLogger.Instance.Information($"[CORE_PRODUCER] Sending command: {message.Data}");
             _coreAdapter.MessageProducer.Send(message);
+        }
+        else
+        {
+            AppLogger.Instance.Warning($"[CORE_PRODUCER] Cannot send command - MessageProducer is null: {message.Data}");
         }
     }
 }

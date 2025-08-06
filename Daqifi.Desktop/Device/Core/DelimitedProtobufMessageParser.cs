@@ -25,6 +25,13 @@ public class DelimitedProtobufMessageParser : IMessageParser<object>
             return messages;
         }
 
+        AppLogger.Instance.Information($"[DELIMITED_PARSER] Received {data.Length} bytes: {BitConverter.ToString(data).Replace("-", " ")}");
+        
+        // Log first few bytes as hex and as ASCII for debugging
+        var hexData = BitConverter.ToString(data, 0, Math.Min(32, data.Length)).Replace("-", " ");
+        var asciiData = System.Text.Encoding.ASCII.GetString(data, 0, Math.Min(32, data.Length)).Replace("\r", "\\r").Replace("\n", "\\n");
+        AppLogger.Instance.Information($"[DELIMITED_PARSER] First 32 bytes - Hex: {hexData}, ASCII: '{asciiData}'");
+
         // Add new data to buffer
         _buffer.AddRange(data);
         consumedBytes = data.Length;

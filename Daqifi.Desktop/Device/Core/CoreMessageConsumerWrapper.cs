@@ -74,6 +74,8 @@ public class CoreMessageConsumerWrapper : IMessageConsumer
     {
         try
         {
+            AppLogger.Instance.Information($"[CORE_WRAPPER] OnCoreMessageReceived called - sender: {sender?.GetType()?.Name ?? "null"}");
+            
             // Log the raw message type and content
             AppLogger.Instance.Information($"[CORE_WRAPPER] Received message from Core: {e.Message?.Data?.GetType()?.Name ?? "null"}");
             
