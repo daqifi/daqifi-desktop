@@ -84,6 +84,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public bool IsStreaming { get; set; }
     public bool IsFirmwareOutdated { get; set; }
+
+    // Debug mode properties
+    public bool IsDebugModeEnabled { get; private set; }
+    public event Action<DebugDataModel>? DebugDataReceived;
     #endregion
 
     #region Abstract Methods
@@ -139,7 +143,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         PopulateAnalogOutChannels(message);
     }
 
-    private bool IsValidStatusMessage(DaqifiOutMessage message)
+    protected bool IsValidStatusMessage(DaqifiOutMessage message)
     {
         return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
     }
@@ -150,7 +154,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             return;
         }
-        
+
         var message = e.Message.Data as DaqifiOutMessage;
         if (message == null)
         {
@@ -205,27 +209,69 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         var hasDigitalData = message.DigitalData.Length > 0;
         var hasAnalogData = message.AnalogInData.Count > 0;
 
+
+
         if (hasDigitalData)
         {
             digitalData1 = message.DigitalData.ElementAtOrDefault(0);
             digitalData2 = message.DigitalData.ElementAtOrDefault(1);
         }
 
-        // Loop through channels for this device
-        foreach (var channel in DataChannels.Where(c => c.IsActive))
+        // Process analog channels - device sends data in channel index order, not activation order
+        if (hasAnalogData)
         {
             try
             {
-                if (channel.Type == ChannelType.Digital && hasDigitalData)
+                var activeAnalogChannels = DataChannels.Where(c => c.IsActive && c.Type == ChannelType.Analog)
+                                                      .Cast<AnalogChannel>()
+                                                      .OrderBy(c => c.Index)
+                                                      .ToList();
+
+
+                for (int dataIndex = 0; dataIndex < message.AnalogInData.Count && dataIndex < activeAnalogChannels.Count; dataIndex++)
                 {
+                    var channel = activeAnalogChannels[dataIndex];
+                    var rawValue = message.AnalogInData.ElementAt(dataIndex);
+                    var scaledValue = ScaleAnalogSample(channel, rawValue);
+                    var sample = new DataSample(this, channel, messageTimestamp, scaledValue);
+                    channel.ActiveSample = sample;
+                }
+
+                if (message.AnalogInData.Count != activeAnalogChannels.Count)
+                {
+                    AppLogger.Warning($"[CHANNEL_MAPPING] Analog data count mismatch: received {message.AnalogInData.Count} data points for {activeAnalogChannels.Count} active channels");
+                }
+
+                // Send debug data if debug mode is enabled
+                SendDebugData(message, activeAnalogChannels, messageTimestamp);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"[CHANNEL_MAPPING] Error processing analog channel data: {ex.Message}");
+            }
+        }
+
+        // Process digital channels - device sends data in channel index order, not activation order
+        if (hasDigitalData)
+        {
+            try
+            {
+                var activeDigitalChannels = DataChannels.Where(c => c.IsActive && c.Type == ChannelType.Digital)
+                                                       .OrderBy(c => c.Index)
+                                                       .ToList();
+
+                for (int dataIndex = 0; dataIndex < activeDigitalChannels.Count; dataIndex++)
+                {
+                    var channel = activeDigitalChannels[dataIndex];
+
                     bool bit;
-                    if (digitalCount < 8)
+                    if (dataIndex < 8)
                     {
-                        bit = (digitalData1 & (1 << digitalCount)) != 0;
+                        bit = (digitalData1 & (1 << dataIndex)) != 0;
                     }
                     else
                     {
-                        bit = (digitalData2 & (1 << digitalCount % 8)) != 0;
+                        bit = (digitalData2 & (1 << (dataIndex % 8))) != 0;
                     }
 
                     // Assign the sample for the digital input channel
@@ -233,26 +279,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                     {
                         channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
                     }
-                    digitalCount++;
-                }
-                else if (channel.Type == ChannelType.Analog && hasAnalogData)
-                {
-                    if (analogCount >= message.AnalogInData.Count)
-                    {
-                        AppLogger.Error("Trying to access more analog channels than received data. " +
-                                        $"Expected {analogCount} but messaged had {message.AnalogInData.Count} ");
-                        break;
-                    }
-
-                    // Process the analog sample
-                    var sample = new DataSample(this, channel, messageTimestamp, ScaleAnalogSample(channel as AnalogChannel, message.AnalogInData.ElementAt(analogCount)));
-                    channel.ActiveSample = sample;
-                    analogCount++;
                 }
             }
             catch (Exception ex)
             {
-                AppLogger.Error($"Error processing channel data: {ex.Message}");
+                AppLogger.Error($"Error processing digital channel data: {ex.Message}");
             }
         }
 
@@ -267,7 +298,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             AppTicks = DateTime.Now.Ticks,
             DeviceStatus = (int)message.DeviceStatus,
             BatteryStatus = (int)message.BattStatus,
-            PowerStatus = (int)message.PwrStatus,
+            PowerStatus = (int)message.PowerStatus,
             TempStatus = message.TempStatus,
             TargetFrequency = (int)message.TimestampFreq,
             Rollover = rollover,
@@ -434,7 +465,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             {
                 if (channel.Type == ChannelType.Analog)
                 {
-                    var channelSetByte = 1 << channel.Index;
+                    var channelSetByte = 1u << channel.Index; // Use unsigned int for consistency
                     MessageProducer.Send(ScpiMessageProducer.EnableAdcChannels(channelSetByte.ToString()));
                 }
                 else if (channel.Type == ChannelType.Digital)
@@ -641,16 +672,16 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             case ChannelType.Analog:
                 var activeAnalogChannels = GetActiveAnalogChannels();
-                var channelSetByte = 0;
+                var channelSetByte = 0u; // Use unsigned int to handle higher channel numbers
 
                 // Get Exsiting Channel Set Byte
                 foreach (var activeChannel in activeAnalogChannels)
                 {
-                    channelSetByte = channelSetByte | (1 << activeChannel.Index);
+                    channelSetByte = channelSetByte | (1u << activeChannel.Index);
                 }
 
                 // Add Channel Bit to the Channel Set Byte
-                channelSetByte = channelSetByte | (1 << channel.Index);
+                channelSetByte = channelSetByte | (1u << channel.Index);
 
                 // Convert to a string
                 var channelSetString = Convert.ToString(channelSetByte);
@@ -672,21 +703,21 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             case ChannelType.Analog:
                 var activeAnalogChannels = GetActiveAnalogChannels();
-                var channelSetByte = 0;
+                var channelSetByte = 0u; // Use unsigned int to handle higher channel numbers
 
                 //Get Exsiting Channel Set Byte
                 foreach (var activeChannel in activeAnalogChannels)
                 {
-                    channelSetByte = channelSetByte | (1 << activeChannel.Index);
+                    channelSetByte = channelSetByte | (1u << activeChannel.Index);
                 }
 
-                //Add Channel Bit to the Channel Set Byte
-                channelSetByte = channelSetByte | (1 >> channelToRemove.Index);
+                //Remove Channel Bit from the Channel Set Byte
+                channelSetByte = channelSetByte & ~(1u << channelToRemove.Index);
 
                 //Convert to a string
                 var channelSetString = Convert.ToString(channelSetByte);
 
-                //Send the command to add the channel
+                //Send the command to remove the channel
                 MessageProducer.Send(ScpiMessageProducer.EnableAdcChannels(channelSetString));
                 break;
         }
@@ -767,7 +798,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    private void HydrateDeviceMetadata(DaqifiOutMessage message)
+    protected void HydrateDeviceMetadata(DaqifiOutMessage message)
     {
         if (!string.IsNullOrWhiteSpace(message.Ssid))
         {
@@ -836,6 +867,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             channel.InternalScaleMValue + channel.CalibrationBValue;
     }
 
+    public void SetStreamingFrequency(int freq)
+    {
+        StreamingFrequency = freq;
+    }
+
+    #region Network Configuration
     public void UpdateNetworkConfiguration()
     {
         if (IsStreaming) { StopStreaming(); }
@@ -889,24 +926,92 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         MessageProducer.Send(ScpiMessageProducer.SaveNetworkLan);
     }
 
-    public void Reboot()
+    protected abstract void ApplyNetworkLan();
+    protected abstract void PrepareLanInterface();
+    protected abstract void PrepareSdInterface();
+
+    public void ApplyAnyChangedNetworkSetting()
     {
-        MessageProducer.Send(ScpiMessageProducer.RebootDevice);
-        MessageProducer.StopSafely();
-        MessageConsumer.Stop();
+        var settingChanged = false;
+
+        if (NetworkConfiguration.DhcpEnabled == null) return;
+
+        if (NetworkConfiguration.DhcpEnabled == false)
+        {
+            if (NetworkConfiguration.StaticIpAddress != null && !IsEqualIpAddress(IpAddress, NetworkConfiguration.StaticIpAddress))
+            {
+                settingChanged = true;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(NetworkConfiguration.Ssid))
+        {
+            settingChanged = true;
+        }
+
+        if (settingChanged)
+        {
+            UpdateNetworkConfiguration();
+        }
     }
 
-    // SD and LAN can't both be enabled due to hardware limitations
-    private void PrepareSdInterface()
+    protected bool IsEqualIpAddress(string current, string requested)
     {
-        MessageProducer.Send(ScpiMessageProducer.DisableNetworkLan);
-        MessageProducer.Send(ScpiMessageProducer.EnableStorageSd);
+        if (string.IsNullOrWhiteSpace(current) || string.IsNullOrWhiteSpace(requested))
+        {
+            return false;
+        }
+
+        // Handle cases where we might be comparing "192.168.1.100,0.0.0.0,0.0.0.0" with "192.168.1.100"
+        var currentClean = current.Split(',')[0];
+        var requestedClean = requested.Split(',')[0];
+
+        return string.Equals(currentClean, requestedClean, StringComparison.OrdinalIgnoreCase);
     }
-        
-    // SD and LAN can't both be enabled due to hardware limitations
-    private void PrepareLanInterface()
+    #endregion
+
+    #region Debug Mode
+    public void EnableDebugMode()
     {
-        MessageProducer.Send(ScpiMessageProducer.DisableStorageSd);
-        MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
+        if (IsDebugModeEnabled) return;
+
+        IsDebugModeEnabled = true;
+        AppLogger.Information("Debug mode enabled for device streaming");
+        OnPropertyChanged(nameof(IsDebugModeEnabled));
     }
+
+    public void DisableDebugMode()
+    {
+        if (!IsDebugModeEnabled) return;
+
+        IsDebugModeEnabled = false;
+        AppLogger.Information("Debug mode disabled for device streaming");
+        OnPropertyChanged(nameof(IsDebugModeEnabled));
+    }
+
+    private void SendDebugData(DaqifiOutMessage message, List<AnalogChannel> activeChannels, DateTime timestamp)
+    {
+        if (!IsDebugModeEnabled) return;
+
+        try
+        {
+            var debugData = new DebugDataModel
+            {
+                DeviceId = DeviceSerialNo,
+                Timestamp = timestamp,
+                MessageTimestamp = message.MsgTimeStamp,
+                AnalogDataCount = message.AnalogInData.Count,
+                ActiveChannelCount = activeChannels.Count,
+                AnalogValues = message.AnalogInData.ToList(),
+                ChannelMapping = activeChannels.ToDictionary(c => c.Index, c => c.Name)
+            };
+
+            DebugDataReceived?.Invoke(debugData);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"Error sending debug data: {ex.Message}");
+        }
+    }
+    #endregion
 }
