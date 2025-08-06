@@ -5,8 +5,6 @@ using Daqifi.Desktop.Bootloader;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Core.Integration.Desktop;
-using Daqifi.Desktop.Device.Core;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -14,7 +12,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 {
     #region Properties
     public SerialPort Port { get; set; }
-    private CoreDeviceAdapter? _coreAdapter;
     public override ConnectionType ConnectionType => ConnectionType.Usb;
     #endregion
 
@@ -44,33 +41,26 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
         try
         {
-            // EMERGENCY FALLBACK: Use direct SerialPort like legacy to isolate CoreDeviceAdapter issues
-            AppLogger.Information($"[DIRECT_TEST] Attempting direct SerialPort connection on {Port.PortName}");
-            
-            if (!Port.IsOpen)
-            {
-                Port.Open();
-            }
-            
-            if (!Port.IsOpen)
-            {
-                AppLogger.Information($"Could not open serial port {Port.PortName}");
-                return false;
-            }
+            // Quick connection attempt with shorter timeouts for discovery
+            Port.ReadTimeout = 1000; // Increased for device wake-up
+            Port.WriteTimeout = 1000;
+            Port.Open();
+            Port.DtrEnable = true;
 
-            // Set up direct serial messaging like the legacy version  
+            // Longer delay to let device wake up and stabilize
+            // Suppressed: Thread.Sleep required for hardware timing - device power-on sequence
+            Thread.Sleep(1000); // Device needs time to power on and initialize
+
             MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
             MessageProducer.Start();
-            MessageConsumer.Start();
 
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();
             SetProtobufMessageFormat();
 
-            // Give device time to process initialization commands
-            Thread.Sleep(500);
+            MessageConsumer = new MessageConsumer(Port.BaseStream);
+            MessageConsumer.Start();
 
             // Set up a temporary status handler to get device info
             var deviceInfoReceived = false;
@@ -129,15 +119,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 Thread.Sleep(100); // Check more frequently for response
             }
 
-            // Clean up the direct serial connection
-            MessageProducer?.Stop();
-            MessageConsumer?.Stop();
-            MessageProducer = null;
-            MessageConsumer = null;
-            if (Port.IsOpen)
-            {
-                Port.Close();
-            }
+            // Clean up the quick connection
+            QuickDisconnect();
 
             if (deviceInfoReceived)
             {
@@ -153,12 +136,74 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Failed to get device info for port {Port.PortName}");
-            MessageProducer = null;
-            MessageConsumer = null;
+            try 
+            { 
+                QuickDisconnect(); 
+            } 
+            catch (Exception disconnectEx) 
+            { 
+                AppLogger.Warning($"Error during cleanup disconnect for port {Port.PortName}: {disconnectEx.Message}");
+            }
             return false;
         }
     }
 
+    private void QuickDisconnect()
+    {
+        try
+        {
+            // Stop message processing first
+            if (MessageConsumer != null)
+            {
+                try
+                {
+                    MessageConsumer.Stop();
+                    Thread.Sleep(50); // Give it time to stop
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Error stopping message consumer: {ex.Message}");
+                }
+            }
+
+            if (MessageProducer != null)
+            {
+                try
+                {
+                    MessageProducer.Stop();
+                    Thread.Sleep(50); // Give it time to stop
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Error stopping message producer: {ex.Message}");
+                }
+            }
+            
+            // Close the port
+            if (Port != null && Port.IsOpen)
+            {
+                try
+                {
+                    Port.DtrEnable = false;
+                    Thread.Sleep(100); // Give DTR time to be processed
+                    Port.Close();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Error closing serial port: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Warning($"Error during quick disconnect: {ex.Message}");
+        }
+        finally
+        {
+            MessageProducer = null;
+            MessageConsumer = null;
+        }
+    }
 
     #endregion
 
@@ -167,66 +212,40 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // EMERGENCY FALLBACK: Use direct SerialPort instead of CoreDeviceAdapter
-            AppLogger.Information($"[DIRECT_CONNECT] Using direct SerialPort connection on {Port.PortName}");
-            
-            if (!Port.IsOpen)
-            {
-                Port.Open();
-            }
-            
-            if (!Port.IsOpen)
-            {
-                AppLogger.Error($"Failed to open serial port {Port.PortName}");
-                return false;
-            }
-
-            // Set up direct serial messaging - NO CoreDeviceAdapter
+            Task.Delay(1000);
+            Port.Open();
+            Port.DtrEnable = true;
             MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
             MessageProducer.Start();
 
-            // Initialize device as per existing pattern
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();   
             SetProtobufMessageFormat();
 
-            // Give device time to process initialization commands
-            Thread.Sleep(500);
-
-            // Start the message consumer
+            MessageConsumer = new MessageConsumer(Port.BaseStream);
             MessageConsumer.Start();
-            
-            // Initialize device state
             InitializeDeviceState();
-            
-            AppLogger.Information($"Successfully connected to DAQiFi device on port {Port.PortName} using direct SerialPort");
             return true;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to connect SerialStreamingDevice on port {Port.PortName} using Core adapter");
+            AppLogger.Error(ex, "Failed to connect SerialStreamingDevice");
             return false;
         }
     }
 
     public override bool Write(string command)
     {
-        if (MessageProducer == null)
+        try
         {
-            AppLogger.Warning("MessageProducer is not initialized");
-            return false;
-        }
-
-        try 
-        {
-            MessageProducer.Send(new Daqifi.Core.Communication.Messages.ScpiMessage(command));
+            Port.WriteTimeout = 1000;
+            Port.Write(command);
             return true;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to write command: {command}");
+            AppLogger.Error(ex, "Failed to write in SerialStreamingDevice");
             return false;
         }
     }
@@ -235,34 +254,60 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            if (MessageProducer == null && MessageConsumer == null)
-            {
-                return true; // Already disconnected
-            }
-
             // First stop streaming to prevent new data from being requested
             StopStreaming();
-            
-            // Stop message producer and consumer
-            MessageProducer?.Stop();
-            MessageConsumer?.Stop();
-
-            // Clean up
-            MessageProducer = null;
-            MessageConsumer = null;
-            
-            // Close serial port
-            if (Port.IsOpen)
+                
+            // Stop the message producer first to prevent new messages
+            if (MessageProducer != null)
             {
-                Port.Close();
+                try
+                {
+                    MessageProducer.Send(ScpiMessageProducer.EnableDeviceEcho);
+                    MessageProducer.StopSafely(); // Use StopSafely to ensure queued messages are sent
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Error stopping message producer: {ex.Message}");
+                }
             }
 
-            AppLogger.Information($"Successfully disconnected from DAQiFi device on port {Port.PortName}");
+            // Stop the consumer next
+            if (MessageConsumer != null)
+            {
+                try
+                {
+                    MessageConsumer.Stop();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Error stopping message consumer: {ex.Message}");
+                }
+            }
+
+            // Finally close the port
+            if (Port != null)
+            {
+                try
+                {
+                    if (Port.IsOpen)
+                    {
+                        Port.DtrEnable = false;
+                        // Give a small delay to ensure DTR state change is processed
+                        Thread.Sleep(50);
+                        Port.Close();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Error closing serial port: {ex.Message}");
+                }
+            }
+
             return true;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Error during device disconnect on port {Port.PortName}");
+            AppLogger.Error(ex, "Error during device disconnect");
             return false;
         }
     }
