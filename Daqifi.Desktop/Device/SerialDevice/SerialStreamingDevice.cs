@@ -5,6 +5,8 @@ using Daqifi.Desktop.Bootloader;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Core.Integration.Desktop;
+using Daqifi.Desktop.Device.Core;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -13,6 +15,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #region Properties
     public SerialPort Port { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Usb;
+    private CoreDeviceAdapter? _coreAdapter;
     #endregion
 
     #region Constructor
@@ -41,26 +44,32 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
         try
         {
-            // Quick connection attempt with shorter timeouts for discovery
-            Port.ReadTimeout = 1000; // Increased for device wake-up
-            Port.WriteTimeout = 1000;
-            Port.Open();
-            Port.DtrEnable = true;
+            // Create CoreDeviceAdapter with DelimitedProtobufMessageParser for discovery
+            var parser = new DelimitedProtobufMessageParser();
+            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200, parser);
+            
+            // Connect using Core
+            if (!_coreAdapter.Connect())
+            {
+                AppLogger.Error("Failed to connect via CoreDeviceAdapter during discovery");
+                return false;
+            }
+
+            // Create wrapper classes to bridge Core interfaces to Desktop interfaces
+            MessageProducer = new CoreMessageProducerWrapper(_coreAdapter);
+            MessageConsumer = new CoreMessageConsumerWrapper(_coreAdapter);
+            
+            MessageProducer.Start();
+            MessageConsumer.Start();
 
             // Longer delay to let device wake up and stabilize
             // Suppressed: Thread.Sleep required for hardware timing - device power-on sequence
             Thread.Sleep(1000); // Device needs time to power on and initialize
 
-            MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageProducer.Start();
-
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();
             SetProtobufMessageFormat();
-
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
-            MessageConsumer.Start();
 
             // Set up a temporary status handler to get device info
             var deviceInfoReceived = false;
@@ -179,18 +188,17 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 }
             }
             
-            // Close the port
-            if (Port != null && Port.IsOpen)
+            // Disconnect and dispose CoreDeviceAdapter
+            if (_coreAdapter != null)
             {
                 try
                 {
-                    Port.DtrEnable = false;
-                    Thread.Sleep(100); // Give DTR time to be processed
-                    Port.Close();
+                    _coreAdapter.Disconnect();
+                    _coreAdapter.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    AppLogger.Warning($"Error closing serial port: {ex.Message}");
+                    AppLogger.Warning($"Error disconnecting CoreDeviceAdapter: {ex.Message}");
                 }
             }
         }
@@ -202,6 +210,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         {
             MessageProducer = null;
             MessageConsumer = null;
+            _coreAdapter = null;
         }
     }
 
@@ -212,25 +221,38 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            Task.Delay(1000);
-            Port.Open();
-            Port.DtrEnable = true;
-            MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageProducer.Start();
+            // Create CoreDeviceAdapter with DelimitedProtobufMessageParser
+            var parser = new DelimitedProtobufMessageParser();
+            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200, parser);
+            
+            // Connect using Core
+            if (!_coreAdapter.Connect())
+            {
+                AppLogger.Error("Failed to connect via CoreDeviceAdapter");
+                return false;
+            }
 
+            // Create wrapper classes to bridge Core interfaces to Desktop interfaces
+            MessageProducer = new CoreMessageProducerWrapper(_coreAdapter);
+            MessageConsumer = new CoreMessageConsumerWrapper(_coreAdapter);
+            
+            MessageProducer.Start();
+            MessageConsumer.Start();
+
+            // Send initialization commands
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();   
             SetProtobufMessageFormat();
 
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
-            MessageConsumer.Start();
             InitializeDeviceState();
             return true;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to connect SerialStreamingDevice");
+            AppLogger.Error(ex, "Failed to connect SerialStreamingDevice via CoreDeviceAdapter");
+            _coreAdapter?.Dispose();
+            _coreAdapter = null;
             return false;
         }
     }
@@ -239,13 +261,17 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            Port.WriteTimeout = 1000;
-            Port.Write(command);
-            return true;
+            if (_coreAdapter == null)
+            {
+                AppLogger.Error("CoreDeviceAdapter is null in Write method");
+                return false;
+            }
+            
+            return _coreAdapter.Write(command);
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to write in SerialStreamingDevice");
+            AppLogger.Error(ex, "Failed to write via CoreDeviceAdapter");
             return false;
         }
     }
@@ -284,22 +310,18 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 }
             }
 
-            // Finally close the port
-            if (Port != null)
+            // Disconnect and dispose CoreDeviceAdapter
+            if (_coreAdapter != null)
             {
                 try
                 {
-                    if (Port.IsOpen)
-                    {
-                        Port.DtrEnable = false;
-                        // Give a small delay to ensure DTR state change is processed
-                        Thread.Sleep(50);
-                        Port.Close();
-                    }
+                    _coreAdapter.Disconnect();
+                    _coreAdapter.Dispose();
+                    _coreAdapter = null;
                 }
                 catch (Exception ex)
                 {
-                    AppLogger.Warning($"Error closing serial port: {ex.Message}");
+                    AppLogger.Warning($"Error disconnecting CoreDeviceAdapter: {ex.Message}");
                 }
             }
 
