@@ -44,9 +44,11 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
         try
         {
-            // Create temporary CoreDeviceAdapter with delimited protobuf parser for DAQiFi devices
+            // Create temporary CoreDeviceAdapter with delimited protobuf parser for DAQiFi devices  
+            // Try 9600 baud first (legacy default) then 115200 if that fails
             var delimitedParser = new DelimitedProtobufMessageParser();
-            using var tempAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200, delimitedParser);
+            using var tempAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 9600, delimitedParser);
+            AppLogger.Information($"[BAUD_TEST] Trying connection with 9600 baud on {Port.PortName}");
             
             var connected = tempAdapter.Connect();
             if (!connected)
@@ -158,8 +160,10 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         try
         {
             // Create CoreDeviceAdapter for Serial connection with delimited protobuf parser
+            // Use 9600 baud (legacy SerialPort default) instead of 115200
             var delimitedParser = new DelimitedProtobufMessageParser();
-            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 115200, delimitedParser);
+            _coreAdapter = CoreDeviceAdapter.CreateSerialAdapter(Port.PortName, 9600, delimitedParser);
+            AppLogger.Information($"[BAUD_TEST] Connecting with 9600 baud on {Port.PortName}");
             
             // Connect using Core adapter
             var connected = _coreAdapter.Connect();
