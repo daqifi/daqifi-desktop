@@ -145,6 +145,9 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             {
                 AppLogger.Information($"Could not retrieve device info for {Port.PortName} - device may be off or not responding");
             }
+            
+            // Add a small delay to ensure port is fully released before potential reconnection
+            Thread.Sleep(100);
 
             return deviceInfoReceived;
         }

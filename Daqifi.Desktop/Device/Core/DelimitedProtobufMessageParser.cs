@@ -42,6 +42,39 @@ public class DelimitedProtobufMessageParser : IMessageParser<object>
         {
             try
             {
+                // Skip any text data by looking for potential protobuf varint prefixes
+                // DAQiFi devices send mixed text echoes + protobuf, we need to find the protobuf parts
+                var foundProtobuf = false;
+                
+                while (bufferIndex < _buffer.Count - 1 && !foundProtobuf)
+                {
+                    // Look for potential varint length prefix followed by protobuf field markers
+                    // Common protobuf field markers for DaqifiOutMessage: 08 (field 1), 48 (field 9), 50 (field 10)
+                    if (bufferIndex < _buffer.Count - 3)
+                    {
+                        var potentialLength = _buffer[bufferIndex];
+                        // Check if next few bytes look like protobuf (field markers with wire types)
+                        if (potentialLength > 0 && potentialLength < 255 && bufferIndex + potentialLength + 1 < _buffer.Count)
+                        {
+                            var nextByte = _buffer[bufferIndex + 1];
+                            // Look for protobuf field markers (tag numbers with wire types)
+                            if (nextByte == 0x08 || nextByte == 0x48 || nextByte == 0x50 || nextByte == 0x88 || nextByte == 0x90)
+                            {
+                                foundProtobuf = true;
+                                AppLogger.Instance.Information($"[DELIMITED_PARSER] Found potential protobuf start at index {bufferIndex}, length: {potentialLength}");
+                                break;
+                            }
+                        }
+                    }
+                    bufferIndex++;
+                }
+                
+                if (!foundProtobuf)
+                {
+                    // No protobuf data found in remaining buffer
+                    break;
+                }
+
                 // Try to parse a length-delimited message starting at bufferIndex
                 var remainingBytes = _buffer.Count - bufferIndex;
                 var bufferArray = _buffer.ToArray();
