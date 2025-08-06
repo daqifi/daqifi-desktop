@@ -877,11 +877,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         if (IsStreaming) { StopStreaming(); }
 
-        // Ensure WiFi is enabled before configuring it
-        // SD and WiFi share the same SPI bus, so disable SD first
-        MessageProducer.Send(ScpiMessageProducer.DisableStorageSd);
-        MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
-
         switch (NetworkConfiguration.Mode)
         {
             case WifiMode.ExistingNetwork:
