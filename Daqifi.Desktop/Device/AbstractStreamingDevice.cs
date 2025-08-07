@@ -542,6 +542,17 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             
         // Now request the file list
         MessageProducer.Send(ScpiMessageProducer.GetSdFileList);
+        
+        // Give time for the file list response to be received
+        Thread.Sleep(500);
+        
+        // After getting the file list, restore LAN interface if we're in StreamToApp mode
+        // SD and LAN share the same SPI bus and cannot be enabled simultaneously
+        if (Mode == DeviceMode.StreamToApp)
+        {
+            MessageProducer.Send(ScpiMessageProducer.DisableStorageSd);
+            MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
+        }
     }
 
     public void UpdateSdCardFiles(List<SdCardFile> files)
