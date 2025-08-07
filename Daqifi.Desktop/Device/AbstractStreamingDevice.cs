@@ -909,6 +909,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // SD and WiFi share the same SPI bus and cannot be enabled simultaneously.
         if (Mode == DeviceMode.StreamToApp)
         {
+            MessageProducer.Send(ScpiMessageProducer.DisableStorageSd);
             MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
         }
 
