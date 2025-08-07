@@ -72,5 +72,5 @@ public interface IStreamingDevice : IDevice
 
     void SetChannelDirection(IChannel channel, ChannelDirection direction);
 
-    void UpdateNetworkConfiguration();
+    Task UpdateNetworkConfiguration();
 }

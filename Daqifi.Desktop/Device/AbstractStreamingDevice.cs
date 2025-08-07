@@ -867,7 +867,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             channel.InternalScaleMValue + channel.CalibrationBValue;
     }
 
-    public void UpdateNetworkConfiguration()
+    public async Task UpdateNetworkConfiguration()
     {
         if (IsStreaming) { StopStreaming(); }
 
