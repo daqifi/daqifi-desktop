@@ -707,9 +707,9 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void UpdateNetworkConfiguration()
+    public async Task UpdateNetworkConfiguration()
     {
-        SelectedDevice.UpdateNetworkConfiguration();
+        await SelectedDevice.UpdateNetworkConfiguration();
         _dialogService.ShowDialog<SuccessDialog>(this, new SuccessDialogViewModel("WiFi settings updated."));
     }
 

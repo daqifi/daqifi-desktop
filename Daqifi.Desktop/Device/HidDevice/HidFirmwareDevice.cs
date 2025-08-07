@@ -91,7 +91,7 @@ public class HidFirmwareDevice : IFirmwareDevice
         throw new NotImplementedException();
     }
 
-    public void UpdateNetworkConfiguration()
+    public Task UpdateNetworkConfiguration()
     {
         throw new NotImplementedException();
     }
