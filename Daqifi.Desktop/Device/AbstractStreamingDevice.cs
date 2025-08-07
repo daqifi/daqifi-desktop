@@ -901,7 +901,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
 
         // Wait for WiFi module to restart after applying settings
-        Thread.Sleep(2000);
+        await Task.Delay(2000);
 
         // Re-enable WiFi after the module restarts, but only if we're in StreamToApp mode
         // The ApplyNetworkLan command causes the WiFi module to restart,
