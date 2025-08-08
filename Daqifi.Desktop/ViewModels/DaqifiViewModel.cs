@@ -1061,6 +1061,7 @@ public partial class DaqifiViewModel : ObservableObject
     #region Firmware version checking methods 
 
     private string latestFirmwareVersion;
+    public string LatestFirmwareVersionText => latestFirmwareVersion;
     [RelayCommand]
     public async Task GetFirmwareupdatationList()
     {
@@ -1070,6 +1071,7 @@ public partial class DaqifiViewModel : ObservableObject
 
             var ldata = await FirmwareUpdatationManager.Instance.CheckFirmwareVersion();
             latestFirmwareVersion = ldata;
+            OnPropertyChanged(nameof(LatestFirmwareVersionText));
 
             if (latestFirmwareVersion == null)
             {
@@ -1077,11 +1079,21 @@ public partial class DaqifiViewModel : ObservableObject
             }
             foreach (var device in connectedDevices)
             {
-                var deviceVersion = new Version(device.DeviceVersion);
-                var latestVersion = new Version(latestFirmwareVersion);
-                if (device.DeviceSerialNo != null && deviceVersion < latestVersion)
                 {
-                    AddNotification(device, latestFirmwareVersion);
+                    var cmp = Helpers.VersionHelper.Compare(device.DeviceVersion, latestFirmwareVersion);
+                    var isOutdated = cmp < 0; // device < latest
+                    device.IsFirmwareOutdated = isOutdated;
+                    if (device.DeviceSerialNo != null)
+                    {
+                        if (isOutdated)
+                        {
+                            AddNotification(device, latestFirmwareVersion);
+                        }
+                        else
+                        {
+                            RemoveNotification(device);
+                        }
+                    }
                 }
             }
         }
@@ -1514,9 +1526,9 @@ public partial class DaqifiViewModel : ObservableObject
         {
             var SerailDeviceProperty = connectedDevice.GetType().GetProperty("DeviceVersion");
             var DeviceVersion = SerailDeviceProperty.GetValue(connectedDevice)?.ToString();
-            if (DeviceVersion != latestFirmwareVersion && (connectedDevice.Name.StartsWith("COM")))
+            if (!string.IsNullOrEmpty(latestFirmwareVersion))
             {
-                connectedDevice.IsFirmwareOutdated = true;
+                connectedDevice.IsFirmwareOutdated = Helpers.VersionHelper.Compare(DeviceVersion, latestFirmwareVersion) < 0;
             }
 
             ConnectedDevices.Add(connectedDevice);
