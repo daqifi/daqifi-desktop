@@ -2,6 +2,7 @@
 using Newtonsoft.Json.Linq;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Desktop.Helpers;
 
 namespace Daqifi.Desktop.Loggers;
 
@@ -16,7 +17,7 @@ public partial class FirmwareUpdatationManager : ObservableObject
 
     private static DateTime CacheTimestamp;
 
-    public async Task<string> CheckFirmwareVersion()
+    public async Task<string?> CheckFirmwareVersion()
     {
 
         if (!string.IsNullOrEmpty(LatestFirmwareVersion) && (DateTime.Now - CacheTimestamp).TotalMinutes < 60)
@@ -49,13 +50,16 @@ public partial class FirmwareUpdatationManager : ObservableObject
 
             string jsonResponse = await response.Content.ReadAsStringAsync();
             var releaseData = JArray.Parse(jsonResponse);
-            var latestRelease = releaseData.FirstOrDefault();
-            LatestFirmwareVersion = latestRelease["tag_name"]?.ToString()?.Trim();
+            // Prefer latest non-draft, including pre-releases; if both exist, pick the highest semver
+            var ordered = releaseData
+                .Where(t => t != null && t["draft"]?.ToObject<bool>() == false)
+                .Select(t => new { Tag = t["tag_name"]?.ToString()?.Trim(), IsPrerelease = t["prerelease"]?.ToObject<bool>() ?? false })
+                .Where(x => !string.IsNullOrEmpty(x.Tag))
+                .OrderByDescending(x => VersionHelper.TryParseVersionInfo(x.Tag, out var vi) ? vi : default)
+                .ToList();
+            var tag = ordered.FirstOrDefault()?.Tag;
+            LatestFirmwareVersion = VersionHelper.NormalizeVersionString(tag) ?? tag;
             CacheTimestamp = DateTime.Now;
-            if (!string.IsNullOrEmpty(LatestFirmwareVersion) && LatestFirmwareVersion.StartsWith("v"))
-            {
-                LatestFirmwareVersion = LatestFirmwareVersion.Substring(1, LatestFirmwareVersion.Length - 3).TrimEnd('.');
-            }
             return LatestFirmwareVersion;
         }
         catch (Exception ex)
