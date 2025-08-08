@@ -2,6 +2,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Helpers;
 using Newtonsoft.Json.Linq;
+using System.Linq;
 
 namespace Daqifi.Desktop.Test.Loggers;
 
