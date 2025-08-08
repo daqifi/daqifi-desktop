@@ -39,8 +39,8 @@ public class FirmwareUpdatationManagerTests
 
         // Act - Simulate the release selection logic from FirmwareUpdatationManager
         var ordered = mockReleases
-            .Where(t => t != null && t['draft']?.ToObject<bool>() == false)
-            .Select(t => new { Tag = t['tag_name']?.ToString()?.Trim(), IsPrerelease = t['prerelease']?.ToObject<bool>() ?? false })
+            .Where(t => t != null && t["draft"]?.ToObject<bool>() == false)
+            .Select(t => new { Tag = t["tag_name"]?.ToString()?.Trim(), IsPrerelease = t["prerelease"]?.ToObject<bool>() ?? false })
             .Where(x => !string.IsNullOrEmpty(x.Tag))
             .OrderByDescending(x => VersionHelper.TryParseVersionInfo(x.Tag, out var vi) ? vi : default)
             .ToList();
@@ -70,8 +70,8 @@ public class FirmwareUpdatationManagerTests
 
         // Act
         var ordered = mockReleases
-            .Where(t => t != null && t['draft']?.ToObject<bool>() == false)
-            .Select(t => new { Tag = t['tag_name']?.ToString()?.Trim(), IsPrerelease = t['prerelease']?.ToObject<bool>() ?? false })
+            .Where(t => t != null && t["draft"]?.ToObject<bool>() == false)
+            .Select(t => new { Tag = t["tag_name"]?.ToString()?.Trim(), IsPrerelease = t["prerelease"]?.ToObject<bool>() ?? false })
             .Where(x => !string.IsNullOrEmpty(x.Tag))
             .OrderByDescending(x => VersionHelper.TryParseVersionInfo(x.Tag, out var vi) ? vi : default)
             .ToList();
@@ -101,8 +101,8 @@ public class FirmwareUpdatationManagerTests
 
         // Act
         var ordered = mockReleases
-            .Where(t => t != null && t['draft']?.ToObject<bool>() == false)
-            .Select(t => new { Tag = t['tag_name']?.ToString()?.Trim(), IsPrerelease = t['prerelease']?.ToObject<bool>() ?? false })
+            .Where(t => t != null && t["draft"]?.ToObject<bool>() == false)
+            .Select(t => new { Tag = t["tag_name"]?.ToString()?.Trim(), IsPrerelease = t["prerelease"]?.ToObject<bool>() ?? false })
             .Where(x => !string.IsNullOrEmpty(x.Tag))
             .OrderByDescending(x => VersionHelper.TryParseVersionInfo(x.Tag, out var vi) ? vi : default)
             .ToList();
@@ -121,8 +121,8 @@ public class FirmwareUpdatationManagerTests
 
         // Act
         var ordered = mockReleases
-            .Where(t => t != null && t['draft']?.ToObject<bool>() == false)
-            .Select(t => new { Tag = t['tag_name']?.ToString()?.Trim(), IsPrerelease = t['prerelease']?.ToObject<bool>() ?? false })
+            .Where(t => t != null && t["draft"]?.ToObject<bool>() == false)
+            .Select(t => new { Tag = t["tag_name"]?.ToString()?.Trim(), IsPrerelease = t["prerelease"]?.ToObject<bool>() ?? false })
             .Where(x => !string.IsNullOrEmpty(x.Tag))
             .OrderByDescending(x => VersionHelper.TryParseVersionInfo(x.Tag, out var vi) ? vi : default)
             .ToList();
@@ -151,8 +151,8 @@ public class FirmwareUpdatationManagerTests
 
         // Act
         var ordered = mockReleases
-            .Where(t => t != null && t['draft']?.ToObject<bool>() == false)
-            .Select(t => new { Tag = t['tag_name']?.ToString()?.Trim(), IsPrerelease = t['prerelease']?.ToObject<bool>() ?? false })
+            .Where(t => t != null && t["draft"]?.ToObject<bool>() == false)
+            .Select(t => new { Tag = t["tag_name"]?.ToString()?.Trim(), IsPrerelease = t["prerelease"]?.ToObject<bool>() ?? false })
             .Where(x => !string.IsNullOrEmpty(x.Tag))
             .OrderByDescending(x => VersionHelper.TryParseVersionInfo(x.Tag, out var vi) ? vi : default)
             .ToList();
