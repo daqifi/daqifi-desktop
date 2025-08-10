@@ -194,7 +194,7 @@ public class ExportPerformanceTests
             DataSamples = samples
         };
 
-        var exporter = new LoggingSessionExporter();
+        var exporter = new OptimizedLoggingSessionExporter();
         var bw = new BackgroundWorker
         {
             WorkerReportsProgress = true,
