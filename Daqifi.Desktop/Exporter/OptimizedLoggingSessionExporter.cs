@@ -10,6 +10,8 @@ using System.ComponentModel;
 
 namespace Daqifi.Desktop.Exporter;
 
+public record SampleData(long TimestampTicks, string DeviceChannel, double Value);
+
 public class OptimizedLoggingSessionExporter
 {
     private readonly AppLogger _appLogger = AppLogger.Instance;
@@ -117,7 +119,7 @@ public class OptimizedLoggingSessionExporter
                 .OrderBy(s => s.TimestampTicks)
                 .Skip(skip)
                 .Take(BATCH_SIZE)
-                .Select(s => new { s.TimestampTicks, DeviceChannel = $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value })
+                .Select(s => new SampleData(s.TimestampTicks, $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value))
                 .ToList();
 
             if (!batchSamples.Any())
@@ -136,7 +138,7 @@ public class OptimizedLoggingSessionExporter
         }
     }
 
-    private void WriteTimestampBatch(StreamWriter writer, List<dynamic> batchSamples, List<string> channelNames, 
+    private void WriteTimestampBatch(StreamWriter writer, List<SampleData> batchSamples, List<string> channelNames, 
         long firstTimestamp, bool exportRelativeTime)
     {
         var sb = new StringBuilder(1024 * 16); // Reuse StringBuilder with good capacity
@@ -162,7 +164,7 @@ public class OptimizedLoggingSessionExporter
                 sb.Append(_delimiter);
                 if (sampleLookup.TryGetValue(channelName, out var value))
                 {
-                    sb.Append(((double)value).ToString("G"));
+                    sb.Append(value.ToString("G"));
                 }
             }
 
@@ -229,7 +231,7 @@ public class OptimizedLoggingSessionExporter
             .AsNoTracking()
             .Where(s => s.LoggingSessionID == sessionId)
             .OrderBy(s => s.TimestampTicks)
-            .Select(s => new { s.TimestampTicks, DeviceChannel = $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value });
+            .Select(s => new SampleData(s.TimestampTicks, $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value));
 
         var totalSamples = context.Samples
             .AsNoTracking()
