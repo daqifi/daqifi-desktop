@@ -178,7 +178,7 @@ public class ExportPerformanceTests
                     LoggingSessionID = 1,
                     ChannelName = $"Channel {channel}",
                     TimestampTicks = timestamp.Ticks,
-                    Value = Math.Sin(timeStep * 0.01 * channel) * channel + Math.Random.Shared.NextDouble()
+                    Value = Math.Sin(timeStep * 0.01 * channel) * channel + Random.Shared.NextDouble()
                 });
             }
         }
