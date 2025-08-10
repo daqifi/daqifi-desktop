@@ -79,12 +79,8 @@ public class OptimizedLoggingSessionExporter
         using var writer = new StreamWriter(filepath, false, Encoding.UTF8, BUFFER_SIZE);
         WriteHeaderToWriter(writer, channelNames, exportRelativeTime);
 
-        // Process data in batches to avoid memory spikes
-        var allSamples = loggingSession.DataSamples
-            .Select(s => new SampleData(s.TimestampTicks, $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value))
-            .ToList();
-
-        WriteMemoryDataInBatches(writer, allSamples, channelNames, firstTimestamp, exportRelativeTime, bw, sessionIndex, totalSessions);
+        // Process data without creating intermediate collections
+        WriteMemoryDataDirectly(writer, loggingSession.DataSamples, channelNames, firstTimestamp, exportRelativeTime, bw, sessionIndex, totalSessions);
     }
 
     private void ExportFromDatabase(LoggingSession loggingSession, string filepath, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
@@ -144,18 +140,17 @@ public class OptimizedLoggingSessionExporter
         writer.WriteLine();
     }
 
-    private void WriteMemoryDataInBatches(StreamWriter writer, List<SampleData> allSamples, List<string> channelNames, 
+    private void WriteMemoryDataDirectly(StreamWriter writer, ICollection<DataSample> dataSamples, List<string> channelNames, 
         long firstTimestamp, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
     {
-        var sb = new StringBuilder(1024 * 16);
+        var sb = new StringBuilder(1024 * 4); // Smaller buffer to reduce memory usage
         var processedSamples = 0;
-        var totalSamples = allSamples.Count;
+        var totalSamples = dataSamples.Count;
 
-        // Group by timestamp and process in chunks
-        var timestampGroups = allSamples
+        // Group by timestamp efficiently using LINQ streaming
+        var timestampGroups = dataSamples
             .GroupBy(s => s.TimestampTicks)
-            .OrderBy(g => g.Key)
-            .ToList();
+            .OrderBy(g => g.Key);
 
         foreach (var timestampGroup in timestampGroups)
         {
@@ -173,25 +168,30 @@ public class OptimizedLoggingSessionExporter
             sb.Clear();
             sb.Append(timeString);
 
-            // Create lookup for faster channel value retrieval
-            var sampleLookup = timestampGroup.ToDictionary(s => s.DeviceChannel, s => s.Value);
-
+            // Create minimal lookup without extra allocations
+            var samplesAtTimestamp = timestampGroup.ToArray(); // Single allocation per timestamp
+            
             foreach (var channelName in channelNames)
             {
                 sb.Append(_delimiter);
-                if (sampleLookup.TryGetValue(channelName, out var value))
+                
+                // Find value for this channel at this timestamp
+                var sample = Array.Find(samplesAtTimestamp, s => 
+                    $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}" == channelName);
+                    
+                if (sample != null)
                 {
-                    sb.Append(value.ToString("G"));
+                    sb.Append(sample.Value.ToString("G"));
                 }
             }
 
             sb.AppendLine();
             writer.Write(sb.ToString());
 
-            processedSamples += timestampGroup.Count();
+            processedSamples += samplesAtTimestamp.Length;
             
-            // Update progress periodically
-            if (processedSamples % 1000 == 0 || processedSamples == totalSamples)
+            // Update progress less frequently to reduce overhead
+            if (processedSamples % 5000 == 0 || processedSamples == totalSamples)
             {
                 var sessionProgress = Math.Min(100, (int)((double)processedSamples / totalSamples * 100));
                 var overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
