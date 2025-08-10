@@ -101,14 +101,21 @@ public class ExportPerformanceTests
         }
         
         // Check for linear memory growth (bad pattern)
-        var memoryGrowthRatio = (double)results.Last().MemoryMB / results.First().MemoryMB;
+        var firstMemory = results.First().MemoryMB;
+        var lastMemory = results.Last().MemoryMB;
+        var memoryGrowthRatio = firstMemory > 0 ? (double)lastMemory / firstMemory : double.PositiveInfinity;
         var dataGrowthRatio = (double)results.Last().SampleCount / results.First().SampleCount;
         
-        Console.WriteLine($"Memory growth ratio: {memoryGrowthRatio:F1}x");
+        Console.WriteLine($"Memory growth ratio: {(memoryGrowthRatio == double.PositiveInfinity ? "∞" : memoryGrowthRatio.ToString("F1"))}x");
         Console.WriteLine($"Data growth ratio: {dataGrowthRatio:F1}x");
         
         // If memory growth is linear with data size, it indicates the problem
-        if (memoryGrowthRatio > dataGrowthRatio * 0.8)
+        // Handle the case where initial memory is 0 (which indicates infinite growth when memory increases)
+        if (firstMemory == 0 && lastMemory > 0)
+        {
+            Assert.Fail($"Memory growth (∞x) indicates memory loading all data into memory - inefficient for large datasets");
+        }
+        else if (memoryGrowthRatio > dataGrowthRatio * 0.8 && memoryGrowthRatio != double.PositiveInfinity)
         {
             Assert.Fail($"Memory growth ({memoryGrowthRatio:F1}x) is nearly linear with data growth ({dataGrowthRatio:F1}x) - indicates memory inefficiency");
         }

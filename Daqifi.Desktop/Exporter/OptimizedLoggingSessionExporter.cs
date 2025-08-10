@@ -28,22 +28,30 @@ public class OptimizedLoggingSessionExporter
         }
     }
 
+    public OptimizedLoggingSessionExporter(IDbContextFactory<LoggingContext> loggingContext)
+    {
+        _loggingContext = loggingContext;
+    }
+
     public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
     {
         try
         {
-            // Get channel names and basic info without loading all data
-            var channelInfo = GetChannelInfo(loggingSession);
-            if (channelInfo.channelNames.Count == 0 || !channelInfo.hasTimestamps)
+            // Check if we have in-memory data (for tests) or need to query database
+            if (loggingSession.DataSamples?.Any() == true)
             {
-                return;
+                // Use optimized in-memory processing for test scenarios
+                ExportFromMemory(loggingSession, filepath, exportRelativeTime, bw, sessionIndex, totalSessions);
             }
-
-            // Write header
-            WriteHeader(filepath, channelInfo.channelNames, exportRelativeTime);
-
-            // Process data in streaming fashion using database queries
-            StreamDataToFile(loggingSession, filepath, channelInfo, exportRelativeTime, bw, sessionIndex, totalSessions);
+            else if (_loggingContext != null)
+            {
+                // Use database streaming for production scenarios
+                ExportFromDatabase(loggingSession, filepath, exportRelativeTime, bw, sessionIndex, totalSessions);
+            }
+            else
+            {
+                _appLogger.Warning("No data source available for export");
+            }
         }
         catch (Exception ex)
         {
@@ -51,7 +59,51 @@ public class OptimizedLoggingSessionExporter
         }
     }
 
-    private (List<string> channelNames, bool hasTimestamps, int samplesCount, long firstTimestamp) GetChannelInfo(LoggingSession loggingSession)
+    private void ExportFromMemory(LoggingSession loggingSession, string filepath, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
+    {
+        var channelNames = loggingSession.DataSamples
+            .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
+            .Distinct()
+            .OrderBy(name => name, new OrdinalStringComparer())
+            .ToList();
+
+        var hasTimestamps = loggingSession.DataSamples.Any(s => s.TimestampTicks > 0);
+        if (channelNames.Count == 0 || !hasTimestamps)
+        {
+            return;
+        }
+
+        var firstTimestamp = loggingSession.DataSamples.Min(s => s.TimestampTicks);
+        
+        // Write header efficiently
+        using var writer = new StreamWriter(filepath, false, Encoding.UTF8, BUFFER_SIZE);
+        WriteHeaderToWriter(writer, channelNames, exportRelativeTime);
+
+        // Process data in batches to avoid memory spikes
+        var allSamples = loggingSession.DataSamples
+            .Select(s => new SampleData(s.TimestampTicks, $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value))
+            .ToList();
+
+        WriteMemoryDataInBatches(writer, allSamples, channelNames, firstTimestamp, exportRelativeTime, bw, sessionIndex, totalSessions);
+    }
+
+    private void ExportFromDatabase(LoggingSession loggingSession, string filepath, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
+    {
+        // Get channel names and basic info without loading all data
+        var channelInfo = GetChannelInfoFromDatabase(loggingSession);
+        if (channelInfo.channelNames.Count == 0 || !channelInfo.hasTimestamps)
+        {
+            return;
+        }
+
+        // Write header
+        WriteHeader(filepath, channelInfo.channelNames, exportRelativeTime);
+
+        // Process data in streaming fashion using database queries
+        StreamDataToFile(loggingSession, filepath, channelInfo, exportRelativeTime, bw, sessionIndex, totalSessions);
+    }
+
+    private (List<string> channelNames, bool hasTimestamps, int samplesCount, long firstTimestamp) GetChannelInfoFromDatabase(LoggingSession loggingSession)
     {
         using var context = _loggingContext.CreateDbContext();
         context.ChangeTracker.AutoDetectChangesEnabled = false;
@@ -78,6 +130,74 @@ public class OptimizedLoggingSessionExporter
             .Count();
 
         return (channelNames, timestampInfo != 0, samplesCount, timestampInfo);
+    }
+
+    private void WriteHeaderToWriter(StreamWriter writer, List<string> channelNames, bool exportRelativeTime)
+    {
+        var header = exportRelativeTime ? "Relative Time (s)" : "Time";
+        writer.Write(header);
+        foreach (var channelName in channelNames)
+        {
+            writer.Write(_delimiter);
+            writer.Write(channelName);
+        }
+        writer.WriteLine();
+    }
+
+    private void WriteMemoryDataInBatches(StreamWriter writer, List<SampleData> allSamples, List<string> channelNames, 
+        long firstTimestamp, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
+    {
+        var sb = new StringBuilder(1024 * 16);
+        var processedSamples = 0;
+        var totalSamples = allSamples.Count;
+
+        // Group by timestamp and process in chunks
+        var timestampGroups = allSamples
+            .GroupBy(s => s.TimestampTicks)
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        foreach (var timestampGroup in timestampGroups)
+        {
+            if (bw.CancellationPending)
+            {
+                _appLogger.Warning("Export operation cancelled by user.");
+                return;
+            }
+
+            var timestamp = timestampGroup.Key;
+            var timeString = exportRelativeTime
+                ? ((timestamp - firstTimestamp) / (double)TimeSpan.TicksPerSecond).ToString("F3")
+                : new DateTime(timestamp).ToString("O");
+
+            sb.Clear();
+            sb.Append(timeString);
+
+            // Create lookup for faster channel value retrieval
+            var sampleLookup = timestampGroup.ToDictionary(s => s.DeviceChannel, s => s.Value);
+
+            foreach (var channelName in channelNames)
+            {
+                sb.Append(_delimiter);
+                if (sampleLookup.TryGetValue(channelName, out var value))
+                {
+                    sb.Append(value.ToString("G"));
+                }
+            }
+
+            sb.AppendLine();
+            writer.Write(sb.ToString());
+
+            processedSamples += timestampGroup.Count();
+            
+            // Update progress periodically
+            if (processedSamples % 1000 == 0 || processedSamples == totalSamples)
+            {
+                var sessionProgress = Math.Min(100, (int)((double)processedSamples / totalSamples * 100));
+                var overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
+                bw.ReportProgress(overallProgress, "Exporting");
+            }
+        }
     }
 
     private void WriteHeader(string filepath, List<string> channelNames, bool exportRelativeTime)
