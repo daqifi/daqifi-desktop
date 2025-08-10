@@ -211,9 +211,13 @@ public class OptimizedLoggingSessionExporter
         sb.Clear();
         sb.Append(timeString);
 
-        // Create lookup for this timestamp's samples
-        var sampleLookup = timestampSamples.ToDictionary(s => 
-            $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s => s.Value);
+        // Create lookup for this timestamp's samples - handle duplicates by taking the last value
+        var sampleLookup = new Dictionary<string, double>();
+        foreach (var sample in timestampSamples)
+        {
+            var channelKey = $"{sample.DeviceName}:{sample.DeviceSerialNo}:{sample.ChannelName}";
+            sampleLookup[channelKey] = sample.Value; // Overwrite duplicates like original implementation
+        }
 
         foreach (var channelName in channelNames)
         {
@@ -320,8 +324,12 @@ public class OptimizedLoggingSessionExporter
         sb.Clear();
         sb.Append(timeString);
 
-        // Create lookup for fast channel value retrieval
-        var sampleLookup = timestampSamples.ToDictionary(s => s.DeviceChannel, s => s.Value);
+        // Create lookup for fast channel value retrieval - handle duplicates by taking the last value
+        var sampleLookup = new Dictionary<string, double>();
+        foreach (var sample in timestampSamples)
+        {
+            sampleLookup[sample.DeviceChannel] = sample.Value; // Overwrite duplicates like original implementation
+        }
 
         foreach (var channelName in channelNames)
         {
@@ -350,7 +358,7 @@ public class OptimizedLoggingSessionExporter
                 .Where(s => s.LoggingSessionID == session.ID)
                 .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
                 .Distinct()
-                .OrderBy(name => name, new OrdinalStringComparer())
+                .OrderBy(name => name)
                 .ToList();
 
             if (!channelNames.Any())
