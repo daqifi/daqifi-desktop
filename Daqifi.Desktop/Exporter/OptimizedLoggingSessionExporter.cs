@@ -65,7 +65,7 @@ public class OptimizedLoggingSessionExporter
         var channelNames = loggingSession.DataSamples
             .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
             .Distinct()
-            .OrderBy(name => name, new OrdinalStringComparer())
+            .OrderBy(name => name, StringComparer.Ordinal) // Use StringComparer.Ordinal for consistent sorting
             .ToList();
 
         var hasTimestamps = loggingSession.DataSamples.Any(s => s.TimestampTicks > 0);
@@ -105,28 +105,30 @@ public class OptimizedLoggingSessionExporter
         using var context = _loggingContext.CreateDbContext();
         context.ChangeTracker.AutoDetectChangesEnabled = false;
 
-        var channelNames = context.Samples
+        var query = context.Samples
             .AsNoTracking()
-            .Where(s => s.LoggingSessionID == loggingSession.ID)
+            .Where(s => s.LoggingSessionID == loggingSession.ID);
+
+        // Get channel names with EF Core compatible ordering
+        var channelNames = query
             .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
             .Distinct()
-            .OrderBy(name => name, new OrdinalStringComparer())
+            .OrderBy(name => name) // Use default string ordering instead of OrdinalStringComparer
             .ToList();
 
-        var timestampInfo = context.Samples
-            .AsNoTracking()
-            .Where(s => s.LoggingSessionID == loggingSession.ID)
-            .Select(s => s.TimestampTicks)
-            .Distinct()
-            .OrderBy(t => t)
+        // Get min timestamp and count in a single query to avoid logic errors and reduce roundtrips
+        var stats = query
+            .GroupBy(s => 1) // Dummy groupby to use aggregate functions
+            .Select(g => new { 
+                MinTimestamp = g.Min(s => (long?)s.TimestampTicks) ?? 0L,
+                Count = g.Count()
+            })
             .FirstOrDefault();
 
-        var samplesCount = context.Samples
-            .AsNoTracking()
-            .Where(s => s.LoggingSessionID == loggingSession.ID)
-            .Count();
+        var firstTimestamp = stats?.MinTimestamp ?? 0L;
+        var samplesCount = stats?.Count ?? 0;
 
-        return (channelNames, timestampInfo != 0, samplesCount, timestampInfo);
+        return (channelNames, samplesCount > 0, samplesCount, firstTimestamp);
     }
 
     private void WriteHeaderToWriter(StreamWriter writer, List<string> channelNames, bool exportRelativeTime)
@@ -144,16 +146,17 @@ public class OptimizedLoggingSessionExporter
     private void WriteMemoryDataDirectly(StreamWriter writer, ICollection<DataSample> dataSamples, List<string> channelNames, 
         long firstTimestamp, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
     {
-        var sb = new StringBuilder(1024 * 4); // Smaller buffer to reduce memory usage
+        var sb = new StringBuilder(1024 * 4);
         var processedSamples = 0;
         var totalSamples = dataSamples.Count;
 
-        // Group by timestamp efficiently using LINQ streaming
-        var timestampGroups = dataSamples
-            .GroupBy(s => s.TimestampTicks)
-            .OrderBy(g => g.Key);
-
-        foreach (var timestampGroup in timestampGroups)
+        // Stream process by timestamp to avoid materializing all groups in memory
+        var orderedSamples = dataSamples.OrderBy(s => s.TimestampTicks);
+        
+        long? currentTimestamp = null;
+        var timestampBucket = new List<DataSample>();
+        
+        foreach (var sample in orderedSamples)
         {
             if (bw.CancellationPending)
             {
@@ -161,44 +164,68 @@ public class OptimizedLoggingSessionExporter
                 return;
             }
 
-            var timestamp = timestampGroup.Key;
-            var timeString = exportRelativeTime
-                ? ((timestamp - firstTimestamp) / (double)TimeSpan.TicksPerSecond).ToString("F3")
-                : new DateTime(timestamp).ToString("O");
-
-            sb.Clear();
-            sb.Append(timeString);
-
-            // Create minimal lookup without extra allocations
-            var samplesAtTimestamp = timestampGroup.ToArray(); // Single allocation per timestamp
-            
-            foreach (var channelName in channelNames)
+            // Check if we've moved to a new timestamp
+            if (currentTimestamp.HasValue && sample.TimestampTicks != currentTimestamp.Value)
             {
-                sb.Append(_delimiter);
+                // Write the completed timestamp group
+                WriteTimestampGroup(writer, sb, timestampBucket, channelNames, firstTimestamp, exportRelativeTime);
+                processedSamples += timestampBucket.Count;
                 
-                // Find value for this channel at this timestamp
-                var sample = Array.Find(samplesAtTimestamp, s => 
-                    $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}" == channelName);
-                    
-                if (sample != null)
+                // Update progress periodically
+                if (processedSamples % 5000 == 0)
                 {
-                    sb.Append(sample.Value.ToString("G"));
+                    var sessionProgress = Math.Min(100, (int)((double)processedSamples / totalSamples * 100));
+                    var overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
+                    bw.ReportProgress(overallProgress, "Exporting");
                 }
+
+                timestampBucket.Clear();
             }
 
-            sb.AppendLine();
-            writer.Write(sb.ToString());
+            currentTimestamp = sample.TimestampTicks;
+            timestampBucket.Add(sample);
+        }
 
-            processedSamples += samplesAtTimestamp.Length;
+        // Write the final timestamp group
+        if (timestampBucket.Count > 0)
+        {
+            WriteTimestampGroup(writer, sb, timestampBucket, channelNames, firstTimestamp, exportRelativeTime);
+            processedSamples += timestampBucket.Count;
             
-            // Update progress less frequently to reduce overhead
-            if (processedSamples % 5000 == 0 || processedSamples == totalSamples)
+            // Final progress update
+            var finalProgress = (int)((sessionIndex + 1.0) * (100.0 / totalSessions));
+            bw.ReportProgress(finalProgress, "Exporting");
+        }
+    }
+
+    private void WriteTimestampGroup(StreamWriter writer, StringBuilder sb, List<DataSample> timestampSamples, 
+        List<string> channelNames, long firstTimestamp, bool exportRelativeTime)
+    {
+        if (!timestampSamples.Any()) return;
+        
+        var timestamp = timestampSamples.First().TimestampTicks;
+        var timeString = exportRelativeTime
+            ? ((timestamp - firstTimestamp) / (double)TimeSpan.TicksPerSecond).ToString("F3")
+            : new DateTime(timestamp).ToString("O");
+
+        sb.Clear();
+        sb.Append(timeString);
+
+        // Create lookup for this timestamp's samples
+        var sampleLookup = timestampSamples.ToDictionary(s => 
+            $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s => s.Value);
+
+        foreach (var channelName in channelNames)
+        {
+            sb.Append(_delimiter);
+            if (sampleLookup.TryGetValue(channelName, out var value))
             {
-                var sessionProgress = Math.Min(100, (int)((double)processedSamples / totalSamples * 100));
-                var overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
-                bw.ReportProgress(overallProgress, "Exporting");
+                sb.Append(value.ToString("G"));
             }
         }
+
+        sb.AppendLine();
+        writer.Write(sb.ToString());
     }
 
     private void WriteHeader(string filepath, List<string> channelNames, bool exportRelativeTime)
@@ -222,8 +249,10 @@ public class OptimizedLoggingSessionExporter
         context.ChangeTracker.AutoDetectChangesEnabled = false;
 
         using var writer = new StreamWriter(filepath, true, Encoding.UTF8, BUFFER_SIZE);
+        var sb = new StringBuilder(1024 * 4);
+        
         var processedSamples = 0;
-        var skip = 0;
+        long? lastProcessedTimestamp = null;
 
         while (processedSamples < channelInfo.samplesCount)
         {
@@ -233,24 +262,43 @@ public class OptimizedLoggingSessionExporter
                 return;
             }
 
-            // Get batch of samples ordered by timestamp
-            var batchSamples = context.Samples
+            // Get distinct timestamps in batch to ensure we don't split timestamp groups
+            var timestampBatch = context.Samples
                 .AsNoTracking()
-                .Where(s => s.LoggingSessionID == loggingSession.ID)
+                .Where(s => s.LoggingSessionID == loggingSession.ID &&
+                          (lastProcessedTimestamp == null || s.TimestampTicks > lastProcessedTimestamp.Value))
                 .OrderBy(s => s.TimestampTicks)
-                .Skip(skip)
-                .Take(BATCH_SIZE)
-                .Select(s => new SampleData(s.TimestampTicks, $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value))
+                .Select(s => s.TimestampTicks)
+                .Distinct()
+                .Take(BATCH_SIZE / channelInfo.channelNames.Count) // Estimate timestamps per batch
                 .ToList();
 
-            if (!batchSamples.Any())
+            if (!timestampBatch.Any())
                 break;
 
-            // Group by timestamp and write efficiently
-            WriteTimestampBatch(writer, batchSamples, channelInfo.channelNames, channelInfo.firstTimestamp, exportRelativeTime);
+            // Process each timestamp completely to maintain data integrity
+            foreach (var timestamp in timestampBatch)
+            {
+                if (bw.CancellationPending)
+                {
+                    _appLogger.Warning("Export operation cancelled by user.");
+                    return;
+                }
 
-            processedSamples += batchSamples.Count;
-            skip += BATCH_SIZE;
+                // Get all samples for this specific timestamp
+                var timestampSamples = context.Samples
+                    .AsNoTracking()
+                    .Where(s => s.LoggingSessionID == loggingSession.ID && s.TimestampTicks == timestamp)
+                    .Select(s => new SampleData(s.TimestampTicks, $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value))
+                    .ToList();
+
+                // Write complete timestamp group
+                WriteCompleteTimestampRow(writer, sb, timestampSamples, channelInfo.channelNames, 
+                    channelInfo.firstTimestamp, exportRelativeTime);
+
+                processedSamples += timestampSamples.Count;
+                lastProcessedTimestamp = timestamp;
+            }
 
             // Update progress
             var sessionProgress = Math.Min(100, (int)((double)processedSamples / channelInfo.samplesCount * 100));
@@ -259,41 +307,35 @@ public class OptimizedLoggingSessionExporter
         }
     }
 
-    private void WriteTimestampBatch(StreamWriter writer, List<SampleData> batchSamples, List<string> channelNames, 
-        long firstTimestamp, bool exportRelativeTime)
+    private void WriteCompleteTimestampRow(StreamWriter writer, StringBuilder sb, List<SampleData> timestampSamples,
+        List<string> channelNames, long firstTimestamp, bool exportRelativeTime)
     {
-        var sb = new StringBuilder(1024 * 16); // Reuse StringBuilder with good capacity
-        var timestampGroups = batchSamples
-            .GroupBy(s => s.TimestampTicks)
-            .OrderBy(g => g.Key);
+        if (!timestampSamples.Any()) return;
 
-        foreach (var timestampGroup in timestampGroups)
+        var timestamp = timestampSamples.First().TimestampTicks;
+        var timeString = exportRelativeTime
+            ? ((timestamp - firstTimestamp) / (double)TimeSpan.TicksPerSecond).ToString("F3")
+            : new DateTime(timestamp).ToString("O");
+
+        sb.Clear();
+        sb.Append(timeString);
+
+        // Create lookup for fast channel value retrieval
+        var sampleLookup = timestampSamples.ToDictionary(s => s.DeviceChannel, s => s.Value);
+
+        foreach (var channelName in channelNames)
         {
-            var timestamp = timestampGroup.Key;
-            var timeString = exportRelativeTime
-                ? ((timestamp - firstTimestamp) / (double)TimeSpan.TicksPerSecond).ToString("F3")
-                : new DateTime(timestamp).ToString("O");
-
-            sb.Clear();
-            sb.Append(timeString);
-
-            // Create lookup for faster channel value retrieval
-            var sampleLookup = timestampGroup.ToDictionary(s => s.DeviceChannel, s => s.Value);
-
-            foreach (var channelName in channelNames)
+            sb.Append(_delimiter);
+            if (sampleLookup.TryGetValue(channelName, out var value))
             {
-                sb.Append(_delimiter);
-                if (sampleLookup.TryGetValue(channelName, out var value))
-                {
-                    sb.Append(value.ToString("G"));
-                }
+                sb.Append(value.ToString("G"));
             }
-
-            sb.AppendLine();
         }
 
+        sb.AppendLine();
         writer.Write(sb.ToString());
     }
+
 
     public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity, 
         bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
