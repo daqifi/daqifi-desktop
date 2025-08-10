@@ -13,7 +13,7 @@ using System.Text;
 namespace Daqifi.Desktop.Test.Exporter;
 
 [TestClass]
-public class LoggingSessionExporterTests
+public class OptimizedLoggingSessionExporterTests
 {
     private const string ExportFileName = "testExportFile.csv";
     private const string TestDirectoryPath = @"C:\ProgramData\DAQifi\Tests";
@@ -81,7 +81,7 @@ public class LoggingSessionExporterTests
             DataSamples = _dataSamples
         };
 
-        var exporter = new LoggingSessionExporter();
+        var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
             
         var bw = new BackgroundWorker
@@ -114,7 +114,7 @@ public class LoggingSessionExporterTests
         };
 
 
-        var exporter = new LoggingSessionExporter();
+        var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
 
         var bw = new BackgroundWorker
@@ -143,7 +143,7 @@ public class LoggingSessionExporterTests
             DataSamples = new List<DataSample>()
         };
 
-        var exporter = new LoggingSessionExporter();
+        var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
 
         var bw = new BackgroundWorker
@@ -167,7 +167,7 @@ public class LoggingSessionExporterTests
             DataSamples = _dataSamples
         };
 
-        var exporter = new LoggingSessionExporter();
+        var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, "relative_" + ExportFileName);
             
         var bw = new BackgroundWorker
@@ -200,7 +200,7 @@ public class LoggingSessionExporterTests
             DataSamples = largeDataSamples
         };
 
-        var exporter = new LoggingSessionExporter();
+        var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, "large_" + ExportFileName);
             
         var bw = new BackgroundWorker
@@ -238,7 +238,7 @@ public class LoggingSessionExporterTests
             DataSamples = performanceDataSamples
         };
 
-        var exporter = new LoggingSessionExporter();
+        var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, "performance_" + ExportFileName);
             
         var bw = new BackgroundWorker
@@ -298,7 +298,7 @@ public class LoggingSessionExporterTests
             DataSamples = multiDeviceDataSamples
         };
 
-        var exporter = new LoggingSessionExporter();
+        var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, "multidevice_" + ExportFileName);
             
         var bw = new BackgroundWorker
