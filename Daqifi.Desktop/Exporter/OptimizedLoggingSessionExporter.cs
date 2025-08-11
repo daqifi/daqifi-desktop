@@ -68,7 +68,7 @@ public class OptimizedLoggingSessionExporter
             .OrderBy(name => name, StringComparer.Ordinal) // Use StringComparer.Ordinal for consistent sorting
             .ToList();
 
-        var hasTimestamps = loggingSession.DataSamples.Any(s => s.TimestampTicks > 0);
+        var hasTimestamps = loggingSession.DataSamples.Any(); // Check if we have samples, not if timestamps > 0
         if (channelNames.Count == 0 || !hasTimestamps)
         {
             return;
