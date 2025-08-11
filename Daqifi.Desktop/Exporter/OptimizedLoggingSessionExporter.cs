@@ -65,7 +65,7 @@ public class OptimizedLoggingSessionExporter
         var channelNames = loggingSession.DataSamples
             .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
             .Distinct()
-            .OrderBy(name => name, StringComparer.Ordinal) // Use StringComparer.Ordinal for consistent sorting
+            .OrderBy(name => name) // Use default string ordering to match database path
             .ToList();
 
         var hasTimestamps = loggingSession.DataSamples.Any(); // Check if we have samples, not if timestamps > 0
