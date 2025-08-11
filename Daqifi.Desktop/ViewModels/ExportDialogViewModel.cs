@@ -176,13 +176,13 @@ public partial class ExportDialogViewModel : ObservableObject
 
     private void ExportAllSamples(LoggingSession session, string filepath, BackgroundWorker bw, int sessionIndex, int totalSessions)
     {
-        var loggingSessionExporter = new LoggingSessionExporter();
+        var loggingSessionExporter = new OptimizedLoggingSessionExporter();
         loggingSessionExporter.ExportLoggingSession(session, filepath, ExportRelativeTime, bw, sessionIndex, totalSessions);
     }
 
     private void ExportAverageSamples(LoggingSession session, string filepath, BackgroundWorker bw, int sessionIndex, int totalSessions)
     {
-        var loggingSessionExporter = new LoggingSessionExporter();
+        var loggingSessionExporter = new OptimizedLoggingSessionExporter();
         loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime, bw, sessionIndex, totalSessions);
     }
 
