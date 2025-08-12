@@ -19,7 +19,15 @@ Windows desktop application (.NET) that is used to communicate with DAQiFi hardw
 
 ## CI/CD
 
-None yet as this Requires `.NET6` to build with GitHub Actions.
+The project uses GitHub Actions for continuous integration and deployment:
+
+- **Build & Test**: Automated build, testing, and code coverage on every pull request
+- **Code Coverage**: Reports sent to Codacy for quality monitoring
+- **MSI Installer**: Automated Windows installer builds using Wix Toolset
+- **Release**: Automatic release asset publishing when GitHub releases are created
+- **Dependency Updates**: Dependabot manages NuGet and GitHub Actions dependencies weekly
+
+All workflows run on .NET 8.0 with Windows runners for compatibility with WPF.
 
 ## Observability
 

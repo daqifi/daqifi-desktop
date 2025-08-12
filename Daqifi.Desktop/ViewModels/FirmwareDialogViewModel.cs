@@ -6,7 +6,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace DAQifi.Desktop.ViewModels;
+namespace Daqifi.Desktop.ViewModels;
 
 public partial class FirmwareDialogViewModel : ObservableObject
 {
