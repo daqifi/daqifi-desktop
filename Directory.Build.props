@@ -12,6 +12,6 @@
     
     <!-- Common settings -->
     <Nullable>enable</Nullable>
-    <ImplicitUsings>disable</ImplicitUsings>
+    <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 </Project>
