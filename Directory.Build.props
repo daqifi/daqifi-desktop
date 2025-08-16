@@ -13,8 +13,5 @@
     <!-- Common settings -->
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
-    
-    <!-- Code style settings -->
-    <CodeAnalysisRuleSet>$(MSBuildThisFileDirectory).editorconfig</CodeAnalysisRuleSet>
   </PropertyGroup>
 </Project>
