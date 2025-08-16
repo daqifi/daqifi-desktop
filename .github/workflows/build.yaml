@@ -18,24 +18,34 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
 
-    - name: Build
-      run: dotnet build --no-restore --configuration Release
+    - name: Build with Analysis
+      run: dotnet build --no-restore --configuration Release /p:EnforceCodeStyleInBuild=true
 
-    - name: Test
-      run: dotnet test --no-build --verbosity normal --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults/ /p:CoverletOutputFormat=cobertura
+    - name: Test with Coverage
+      run: dotnet test --no-build --verbosity normal --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults/
 
-    - name: Upload coverage reports
+    - name: Install ReportGenerator
+      run: dotnet tool install -g dotnet-reportgenerator-globaltool
+
+    - name: Generate Coverage Report
+      run: reportgenerator -reports:"./TestResults/**/coverage.cobertura.xml" -targetdir:"./CoverageReport" -reporttypes:"HtmlInline_AzurePipelines;TextSummary;MarkdownSummaryGithub" -verbosity:Warning
+
+    - name: Upload Coverage Report
       uses: actions/upload-artifact@v4
       with:
         name: coverage-report
-        path: ./TestResults/**/coverage.cobertura.xml
-        if-no-files-found: warn # Don't fail the build if no tests are found / run
+        path: ./CoverageReport/
+        if-no-files-found: warn
 
-    - name: Upload coverage to Codacy
-      uses: codacy/codacy-coverage-reporter-action@v1
-      with:
-        project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
-        coverage-reports: ./TestResults/**/coverage.cobertura.xml # Or specific path if known
+    - name: Comment Coverage Summary
+      if: github.event_name == 'pull_request'
+      run: |
+        if (Test-Path "./CoverageReport/SummaryGithub.md") {
+          $summary = Get-Content "./CoverageReport/SummaryGithub.md" -Raw
+          echo "## Code Coverage Report" >> $env:GITHUB_STEP_SUMMARY
+          echo "$summary" >> $env:GITHUB_STEP_SUMMARY
+        }
+      shell: pwsh
 
     - name: Build MSI Installer
       run: |
