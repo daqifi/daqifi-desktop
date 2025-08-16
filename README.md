@@ -17,34 +17,16 @@ Windows desktop application (.NET) that is used to communicate with DAQiFi hardw
 
 ## CI/CD
 
-The project uses GitHub Actions with native .NET tools for continuous integration and deployment:
+The project uses GitHub Actions for continuous integration and deployment:
 
-### Code Quality & Analysis
-- **Static Analysis**: Native .NET SDK analyzers with `latest-recommended` analysis level
-- **Enhanced Rules**: Roslynator analyzers providing 500+ additional code quality rules
-- **Style Enforcement**: Code style rules enforced at build time with `EnforceCodeStyleInBuild`
-- **Zero External Dependencies**: No third-party SaaS tools required for code analysis
+- **Build & Test**: Automated build, testing, and code coverage on every pull request
+- **Static Analysis**: .NET SDK analyzers and Roslynator for code quality enforcement
+- **Code Coverage**: ReportGenerator creates HTML reports and posts summaries to PRs (80% minimum required)
+- **MSI Installer**: Automated Windows installer builds using Wix Toolset
+- **Release**: Automatic release asset publishing when GitHub releases are created
+- **Dependency Updates**: Dependabot manages NuGet and GitHub Actions dependencies weekly
 
-### Testing & Coverage
-- **Automated Testing**: MSTest framework with Moq for mocking
-- **Code Coverage**: Native XPlat Code Coverage collector with Cobertura format
-- **Coverage Reports**: ReportGenerator produces HTML reports and markdown summaries
-- **PR Integration**: Coverage reports automatically posted as pull request comments
-- **Coverage Artifacts**: Detailed HTML reports available as downloadable build artifacts
-- **80% Minimum**: Maintains project requirement for 80% test coverage
-
-### Build & Deployment
-- **Build Pipeline**: Automated build with static analysis on every pull request
-- **MSI Installer**: Windows installer builds using Wix Toolset
-- **Release Assets**: Automatic installer publishing when GitHub releases are created
-- **Dependency Management**: Dependabot handles NuGet and GitHub Actions updates weekly
-- **Conventional Commits**: PR title validation ensures consistent commit messages
-
-### Infrastructure
-- **Platform**: Windows runners for WPF compatibility
-- **Runtime**: .NET 8.0 framework
-- **Package Management**: NuGet with version consistency across projects
-- **Security**: All analysis and coverage generation runs locally without external data transmission
+All workflows run on .NET 8.0 with Windows runners for WPF compatibility.
 
 ## Observability
 
