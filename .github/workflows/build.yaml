@@ -65,8 +65,8 @@ jobs:
           $existingComment = gh pr view ${{ github.event.number }} --json comments --jq '.comments[] | select(.author.login == "github-actions[bot]" and (.body | contains("Code Coverage Report"))) | .id'
           
           if ($existingComment) {
-            # Update existing comment
-            $commentBody | gh pr comment ${{ github.event.number }} --edit-last --body-file -
+            # Update existing comment using the comment ID
+            echo $commentBody | gh api repos/${{ github.repository }}/issues/comments/$existingComment --method PATCH --field body=@-
           } else {
             # Create new comment
             $commentBody | gh pr comment ${{ github.event.number }} --body-file -
