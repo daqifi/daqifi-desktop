@@ -414,9 +414,6 @@
       <Component Id="SystemIdentityModelTokensJwt" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6E4">
         <File Source="$(var.SourceDir)\System.IdentityModel.Tokens.Jwt.dll"/>
       </Component>
-      <Component Id="SystemRuntimeCaching" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6E5">
-        <File Source="$(var.SourceDir)\System.Runtime.Caching.dll"/>
-      </Component>
 
       <!-- Add SQLite native DLL to root directory -->
       <Component Id="ESqlite3Root" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA7A4">
@@ -437,8 +434,6 @@
               Source="$(var.SourceDir)\runtimes\win\lib\net8.0\System.IO.Ports.dll"/>
         <File Id="WinSystemDiagnosticsEventLog"
               Source="$(var.SourceDir)\runtimes\win\lib\net8.0\System.Diagnostics.EventLog.dll"/>
-        <File Id="WinSystemRuntimeCaching"
-              Source="$(var.SourceDir)\runtimes\win\lib\net8.0\System.Runtime.Caching.dll"/>
         <File Id="WinMicrosoftDataSqlClient"
               Source="$(var.SourceDir)\runtimes\win\lib\net8.0\Microsoft.Data.SqlClient.dll"/>
       </Component>
