@@ -1,9 +1,11 @@
-﻿namespace DAQifi.Desktop.View;
+﻿using MahApps.Metro.Controls;
+
+namespace Daqifi.Desktop.View;
 
 /// <summary>
 /// Interaction logic for FirmwareDialog.xaml
 /// </summary>
-public partial class FirmwareDialog
+public partial class FirmwareDialog : MetroWindow
 {
     public FirmwareDialog()
     {
