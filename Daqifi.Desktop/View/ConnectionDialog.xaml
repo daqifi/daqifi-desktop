@@ -78,8 +78,14 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="1" Orientation="Vertical">
-                                                    <Label Content="{Binding Port.PortName}"/>
+                                                <StackPanel Grid.Column="1" Margin="5" Orientation="Vertical">
+                                                    <Label Content="{Binding Name}" Padding="0"/>
+                                                    <Label Content="{Binding Port.PortName}" FontSize="10" Padding="0"/>
+                                                    <Label Content="{Binding DeviceSerialNo}" FontSize="10" Padding="0"/>
+                                                    <TextBlock FontSize="10" Padding="0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Label}}">
+                                                        <Run Text="Firmware version :" />
+                                                        <Run Text="{Binding DeviceVersion}" />
+                                                    </TextBlock>
                                                 </StackPanel>
                                                 <Image Grid.Column="0" Source="../Images/Nq.png" Width="50" Height="50"/>
                                             </Grid>

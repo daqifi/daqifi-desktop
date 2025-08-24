@@ -25,6 +25,22 @@
                     </StackPanel>
                 </Button.Content>
             </Button>
+            <ToggleButton IsChecked="{Binding IsDebugModeEnabled}" ToolTip="Toggle Debug Mode">
+                <ToggleButton.Content>
+                    <StackPanel Orientation="Horizontal">
+                        <iconPacks:PackIconMaterial Kind="Bug" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        <TextBlock Margin="4 0 0 0" VerticalAlignment="Center" Text="debug" />
+                    </StackPanel>
+                </ToggleButton.Content>
+            </ToggleButton>
+            <Button Command="{Binding OpenDebugWindowCommand}" ToolTip="Open Debug Console" Visibility="{Binding IsDebugModeEnabled, Converter={StaticResource BoolToVis}}">
+                <Button.Content>
+                    <StackPanel Orientation="Horizontal">
+                        <iconPacks:PackIconMaterial Kind="Console" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                        <TextBlock Margin="4 0 0 0" VerticalAlignment="Center" Text="console" />
+                    </StackPanel>
+                </Button.Content>
+            </Button>
             <Button Command="{Binding OpenHelpCommand}">
                 <Button.Content>
                     <StackPanel Orientation="Horizontal">
@@ -33,7 +49,7 @@
                     </StackPanel>
                 </Button.Content>
             </Button>
-            <Button Command="{Binding NotificationCommand}">
+            <Button Command="{Binding OpenNotificationsCommand}">
                 <Button.Content>
                     <Grid>
                         <iconPacks:PackIconMaterial Kind="BellOutline" VerticalAlignment="Center" HorizontalAlignment="Center" Height="20" Width="20"/>
@@ -691,11 +707,12 @@
                                                             </TextBlock>
 
                                                         </StackPanel>
-                                                        <Button Grid.RowSpan="3" Grid.Column="1" 
-                                                            HorizontalAlignment="Right" VerticalAlignment="Bottom" 
-                                                            Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.OpenFirmwareUpdateSettingsCommand}" 
-                                                            CommandParameter="{Binding}" ToolTip="Update Firmware">
-
+                                                        <Button Grid.RowSpan="3" Grid.Column="1"
+                                                                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                                Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.OpenFirmwareUpdateSettingsCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                ToolTip="Update Firmware"
+                                                                Visibility="{Binding IsFirmwareOutdated, Converter={StaticResource BoolToVis}}">
                                                             <Button.Content>
                                                                 <iconPacks:PackIconMaterial Kind="Update" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                             </Button.Content>

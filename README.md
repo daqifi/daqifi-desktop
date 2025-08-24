@@ -1,7 +1,5 @@
 # DAQiFi Desktop
 
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/9819d20e349c465a8d6c73e57d0bbf76)](https://www.codacy.com/gh/daqifi/daqifi-desktop/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=daqifi/daqifi-desktop&amp;utm_campaign=Badge_Grade)
-
 Windows desktop application (.NET) that is used to communicate with DAQiFi hardware.
 
 ## Tech Stack
@@ -19,7 +17,16 @@ Windows desktop application (.NET) that is used to communicate with DAQiFi hardw
 
 ## CI/CD
 
-None yet as this Requires `.NET6` to build with GitHub Actions.
+The project uses GitHub Actions for continuous integration and deployment:
+
+- **Build & Test**: Automated build, testing, and code coverage on every pull request
+- **Static Analysis**: .NET SDK analyzers and Roslynator for code quality enforcement
+- **Code Coverage**: ReportGenerator creates HTML reports and posts summaries to PRs (80% minimum required)
+- **MSI Installer**: Automated Windows installer builds using Wix Toolset
+- **Release**: Automatic release asset publishing when GitHub releases are created
+- **Dependency Updates**: Dependabot manages NuGet and GitHub Actions dependencies weekly
+
+All workflows run on .NET 8.0 with Windows runners for WPF compatibility.
 
 ## Observability
 

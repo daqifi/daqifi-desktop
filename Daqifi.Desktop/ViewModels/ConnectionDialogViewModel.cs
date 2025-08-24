@@ -4,8 +4,7 @@ using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Device.WiFiDevice;
 using Daqifi.Desktop.DialogService;
-using DAQifi.Desktop.View;
-using DAQifi.Desktop.ViewModels;
+using Daqifi.Desktop.View;
 using System.Collections;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -16,7 +15,7 @@ namespace Daqifi.Desktop.ViewModels;
 public partial class ConnectionDialogViewModel : ObservableObject
 {
     #region Private Variables
-    private IDeviceFinder _wifiFinder;
+    private DaqifiDeviceFinder _wifiFinder;
     private SerialDeviceFinder _serialFinder;
     private HidDeviceFinder _hidDeviceFinder;
     private readonly IDialogService _dialogService;
@@ -57,8 +56,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     public void StartConnectionFinders()
     {
-        // Use the backward-compatible finder that handles firmware responding to port 30303
-        _wifiFinder = new DaqifiDeviceFinderBackwardCompatible(30303);
+        _wifiFinder = new DaqifiDeviceFinder(30303);
         _wifiFinder.OnDeviceFound += HandleWifiDeviceFound;
         _wifiFinder.OnDeviceRemoved += HandleWifiDeviceRemoved;
         _wifiFinder.Start();

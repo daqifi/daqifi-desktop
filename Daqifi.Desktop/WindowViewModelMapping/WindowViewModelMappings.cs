@@ -1,7 +1,5 @@
 ﻿using Daqifi.Desktop.View;
 using Daqifi.Desktop.ViewModels;
-using DAQifi.Desktop.View;
-using DAQifi.Desktop.ViewModels;
 
 namespace Daqifi.Desktop.WindowViewModelMapping;
 

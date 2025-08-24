@@ -80,6 +80,12 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     private LoggingSession _selectedLoggingSession;
     private bool _isLogging;
+
+    [ObservableProperty]
+    private bool _isDebugModeEnabled;
+
+    [ObservableProperty]
+    private DebugDataCollection _debugData = new();
     private bool _canToggleLogging;
     [ObservableProperty]
     private string _loggedDataBusyReason;
@@ -701,9 +707,9 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void UpdateNetworkConfiguration()
+    public async Task UpdateNetworkConfiguration()
     {
-        SelectedDevice.UpdateNetworkConfiguration();
+        await SelectedDevice.UpdateNetworkConfiguration();
         _dialogService.ShowDialog<SuccessDialog>(this, new SuccessDialogViewModel("WiFi settings updated."));
     }
 
@@ -1055,6 +1061,7 @@ public partial class DaqifiViewModel : ObservableObject
     #region Firmware version checking methods 
 
     private string latestFirmwareVersion;
+    public string LatestFirmwareVersionText => latestFirmwareVersion;
     [RelayCommand]
     public async Task GetFirmwareupdatationList()
     {
@@ -1064,6 +1071,7 @@ public partial class DaqifiViewModel : ObservableObject
 
             var ldata = await FirmwareUpdatationManager.Instance.CheckFirmwareVersion();
             latestFirmwareVersion = ldata;
+            OnPropertyChanged(nameof(LatestFirmwareVersionText));
 
             if (latestFirmwareVersion == null)
             {
@@ -1071,11 +1079,21 @@ public partial class DaqifiViewModel : ObservableObject
             }
             foreach (var device in connectedDevices)
             {
-                var deviceVersion = new Version(device.DeviceVersion);
-                var latestVersion = new Version(latestFirmwareVersion);
-                if (device.DeviceSerialNo != null && deviceVersion < latestVersion)
                 {
-                    AddNotification(device, latestFirmwareVersion);
+                    var cmp = Helpers.VersionHelper.Compare(device.DeviceVersion, latestFirmwareVersion);
+                    var isOutdated = cmp < 0; // device < latest
+                    device.IsFirmwareOutdated = isOutdated;
+                    if (device.DeviceSerialNo != null)
+                    {
+                        if (isOutdated)
+                        {
+                            AddNotification(device, latestFirmwareVersion);
+                        }
+                        else
+                        {
+                            RemoveNotification(device);
+                        }
+                    }
                 }
             }
         }
@@ -1508,12 +1526,19 @@ public partial class DaqifiViewModel : ObservableObject
         {
             var SerailDeviceProperty = connectedDevice.GetType().GetProperty("DeviceVersion");
             var DeviceVersion = SerailDeviceProperty.GetValue(connectedDevice)?.ToString();
-            if (DeviceVersion != latestFirmwareVersion && (connectedDevice.Name.StartsWith("COM")))
+            if (!string.IsNullOrEmpty(latestFirmwareVersion))
             {
-                connectedDevice.IsFirmwareOutdated = true;
+                connectedDevice.IsFirmwareOutdated = Helpers.VersionHelper.Compare(DeviceVersion, latestFirmwareVersion) < 0;
             }
 
             ConnectedDevices.Add(connectedDevice);
+
+            // Subscribe to debug events if this is a streaming device
+            if (connectedDevice is AbstractStreamingDevice streamingDevice)
+            {
+                streamingDevice.DebugDataReceived += OnDebugDataReceived;
+                streamingDevice.SetDebugMode(IsDebugModeEnabled);
+            }
         }
     }
     public async void UpdateUi(object sender, PropertyChangedEventArgs args)
@@ -1610,5 +1635,68 @@ public partial class DaqifiViewModel : ObservableObject
     {
         return LoggingSessions.Count > 0;
     }
+
+    /// <summary>
+    /// Handles debug mode toggle changes
+    /// </summary>
+    partial void OnIsDebugModeEnabledChanged(bool value)
+    {
+        if (value)
+        {
+            _appLogger.Information("[DEBUG_MODE] Debug mode enabled - detailed diagnostics will be logged");
+            DebugData.Clear();
+        }
+        else
+        {
+            _appLogger.Information("[DEBUG_MODE] Debug mode disabled");
+        }
+
+        // Notify all connected devices about debug mode change
+        foreach (var device in ConnectedDevices)
+        {
+            if (device is AbstractStreamingDevice streamingDevice)
+            {
+                streamingDevice.SetDebugMode(value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Command to toggle debug mode
+    /// </summary>
+    [RelayCommand]
+    private void ToggleDebugMode()
+    {
+        IsDebugModeEnabled = !IsDebugModeEnabled;
+    }
+
+    /// <summary>
+    /// Command to clear debug data
+    /// </summary>
+    [RelayCommand]
+    private void ClearDebugData()
+    {
+        DebugData.Clear();
+        _appLogger.Information("[DEBUG_MODE] Debug data cleared");
+    }
+
+    /// <summary>
+    /// Command to open debug window
+    /// </summary>
+    [RelayCommand]
+    private void OpenDebugWindow()
+    {
+        var debugWindow = new Daqifi.Desktop.View.DebugWindow(this);
+        debugWindow.Show();
+    }
+
+    /// <summary>
+    /// Handles debug data received from devices
+    /// </summary>
+    private void OnDebugDataReceived(DebugDataModel debugData)
+    {
+        DebugData.AddEntry(debugData);
+    }
+
     #endregion
 }
