@@ -227,9 +227,6 @@
       </Component>
 
       <!-- Microsoft Extensions -->
-      <Component Id="MicrosoftExtensionsObjectPool" Guid="55928926-96EA-4648-AD81-048DE42273B9">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.ObjectPool.dll"/>
-      </Component>
       <Component Id="MicrosoftXamlBehaviors" Guid="29C5C050-CD4A-4B7D-9444-8F4A8C933160">
         <File Source="$(var.SourceDir)\Microsoft.Xaml.Behaviors.dll"/>
       </Component>
@@ -251,31 +248,6 @@
         <File Source="$(var.SourceDir)\EFCore.BulkExtensions.SqlServer.dll"/>
       </Component>
 
-      <!-- Microsoft Extensions and Framework Components -->
-      <Component Id="MicrosoftExtensionsDependencyInjectionAbstractions" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5F3">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyInjection.Abstractions.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsDependencyInjection" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5F4">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyInjection.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsLogging" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5F5">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsLoggingAbstractions" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5F6">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Abstractions.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsOptions" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5F7">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Options.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsPrimitives" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5F8">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Primitives.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsConfiguration" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5F9">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsConfigurationAbstractions" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6A1">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.Abstractions.dll"/>
-      </Component>
 
       <!-- Entity Framework Core Components -->
       <Component Id="MicrosoftEntityFrameworkCore" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6A2">
@@ -307,57 +279,7 @@
         <File Source="$(var.SourceDir)\System.IO.Ports.dll"/>
       </Component>
 
-      <!-- Add these new Microsoft.Extensions.Caching components -->
-      <Component Id="MicrosoftExtensionsCachingAbstractions" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6B1">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Caching.Abstractions.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsCachingMemory" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6B2">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Caching.Memory.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsConfigurationBinder" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6B3">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.Binder.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsDependencyModel" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6B4">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyModel.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsDiagnosticAdapter" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6B5">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.DiagnosticAdapter.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsFileProvidersAbstractions" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6B6">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.FileProviders.Abstractions.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsHostingAbstractions" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6B7">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Hosting.Abstractions.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsLoggingConfiguration" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6B8">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Configuration.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsLoggingConsole" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6B9">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Console.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsLoggingTraceSource" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6C1">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.TraceSource.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsOptionsConfigurationExtensions" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6C2">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Options.ConfigurationExtensions.dll"/>
-      </Component>
 
-      <!-- Microsoft.AspNetCore Components -->
-      <Component Id="MicrosoftAspNetCoreHttp" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6C3">
-        <File Source="$(var.SourceDir)\Microsoft.AspNetCore.Http.dll"/>
-      </Component>
-      <Component Id="MicrosoftAspNetCoreHttpAbstractions" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6C4">
-        <File Source="$(var.SourceDir)\Microsoft.AspNetCore.Http.Abstractions.dll"/>
-      </Component>
-      <Component Id="MicrosoftAspNetCoreHttpExtensions" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6C5">
-        <File Source="$(var.SourceDir)\Microsoft.AspNetCore.Http.Extensions.dll"/>
-      </Component>
-      <Component Id="MicrosoftAspNetCoreHttpFeatures" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6C6">
-        <File Source="$(var.SourceDir)\Microsoft.AspNetCore.Http.Features.dll"/>
-      </Component>
-      <Component Id="MicrosoftAspNetCoreWebUtilities" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6C7">
-        <File Source="$(var.SourceDir)\Microsoft.AspNetCore.WebUtilities.dll"/>
-      </Component>
 
       <!-- Additional Microsoft Components -->
       <Component Id="MicrosoftBclAsyncInterfaces" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6C8">
