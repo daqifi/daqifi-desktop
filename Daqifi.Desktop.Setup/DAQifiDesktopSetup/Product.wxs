@@ -288,9 +288,6 @@
       <Component Id="MicrosoftDataSqlite" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6C9">
         <File Source="$(var.SourceDir)\Microsoft.Data.Sqlite.dll"/>
       </Component>
-      <Component Id="MicrosoftNetHttpHeaders" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D1">
-        <File Source="$(var.SourceDir)\Microsoft.Net.Http.Headers.dll"/>
-      </Component>
       
       <!-- Firewall Helper -->
       <Component Id="WindowsFirewallHelper" Guid="c6ee9767-649e-460d-925c-8469caefd274">
@@ -318,9 +315,6 @@
       </Component>
       <Component Id="SystemDiagnosticsEventLog" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D8">
         <File Source="$(var.SourceDir)\System.Diagnostics.EventLog.dll"/>
-      </Component>
-      <Component Id="SystemIOPipelines" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D9">
-        <File Source="$(var.SourceDir)\System.IO.Pipelines.dll"/>
       </Component>
       <Component Id="SystemMemoryData" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6E1">
         <File Source="$(var.SourceDir)\System.Memory.Data.dll"/>
