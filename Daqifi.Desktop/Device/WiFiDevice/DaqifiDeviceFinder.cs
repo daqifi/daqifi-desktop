@@ -62,9 +62,21 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
             // Create receiver on port 30303 for firmware that responds to this port by design
             try
             {
-                // Create UDP client directly with the port to ensure proper binding
-                _legacyReceiver = new UdpClient(new IPEndPoint(IPAddress.Any, _broadcastPort));
+                // Create UDP client and set socket options before binding for maximum compatibility
+                _legacyReceiver = new UdpClient(AddressFamily.InterNetwork);
                 _legacyReceiver.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                
+                // For Windows, explicitly allow multiple processes to bind to same port
+                if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+                {
+                    try 
+                    { 
+                        _legacyReceiver.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, false);
+                    } 
+                    catch { /* ExclusiveAddressUse might not be available on all systems */ }
+                }
+                
+                _legacyReceiver.Client.Bind(new IPEndPoint(IPAddress.Any, _broadcastPort));
                 AppLogger.Information($"Receiver listening on 0.0.0.0:{_broadcastPort} for firmware responses");
             }
             catch (Exception ex)
