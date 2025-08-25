@@ -62,24 +62,42 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             }
             
             var result = Client.BeginConnect(IpAddress, Port, null, null);
-            var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
-
-            if (!success)
-            {
-                AppLogger.Error($"Timeout connecting to DAQiFi Device at {IpAddress}:{Port} from local interface {LocalInterfaceAddress ?? "default"}");
-                try { Client.Close(); } catch { }
-                return false;
-            }
+            bool connectionSuccessful = false;
             
-            // Complete the connection
             try
             {
-                Client.EndConnect(result);
+                var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
+
+                if (!success)
+                {
+                    AppLogger.Error($"Timeout connecting to DAQiFi Device at {IpAddress}:{Port} from local interface {LocalInterfaceAddress ?? "default"}");
+                    try { Client.Close(); } catch { }
+                    return false;
+                }
+                
+                // Complete the connection
+                try
+                {
+                    Client.EndConnect(result);
+                    // Set NoDelay for lower latency
+                    try { Client.NoDelay = true; } catch { }
+                    connectionSuccessful = true;
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Error(ex, $"Failed to complete connection to {IpAddress}:{Port}");
+                    try { Client.Close(); } catch { }
+                    return false;
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                AppLogger.Error(ex, $"Failed to complete connection to {IpAddress}:{Port}");
-                try { Client.Close(); } catch { }
+                // Always dispose the wait handle to prevent resource leaks
+                try { result.AsyncWaitHandle?.Close(); } catch { }
+            }
+            
+            if (!connectionSuccessful)
+            {
                 return false;
             }
 

@@ -61,9 +61,11 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
             // Create receiver on port 30303 for firmware that responds to this port by design
             try
             {
-                _legacyReceiver = new UdpClient(_broadcastPort);
+                var legacyEndpoint = new IPEndPoint(IPAddress.Any, _broadcastPort);
+                _legacyReceiver = new UdpClient(AddressFamily.InterNetwork);
                 _legacyReceiver.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                AppLogger.Information($"Receiver listening on port {_broadcastPort} for firmware responses");
+                _legacyReceiver.Client.Bind(legacyEndpoint);
+                AppLogger.Information($"Receiver listening on {legacyEndpoint} for firmware responses");
             }
             catch (Exception ex)
             {
@@ -270,46 +272,100 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
         var broadcaster = res.AsyncState as InterfaceBroadcaster;
         if (broadcaster == null) return;
         
+        byte[] receivedBytes = null;
+        IPEndPoint remoteIpEndPoint = null;
+        
         try
         {
-            var remoteIpEndPoint = new IPEndPoint(IPAddress.Any, 0);
-            var receivedBytes = broadcaster.Client.EndReceive(res, ref remoteIpEndPoint);
+            remoteIpEndPoint = new IPEndPoint(IPAddress.Any, 0);
+            receivedBytes = broadcaster.Client.EndReceive(res, ref remoteIpEndPoint);
             
-            ProcessDiscoveryResponse(receivedBytes, remoteIpEndPoint, broadcaster.InterfaceName, broadcaster.InterfaceAddress);
-            
-            // Continue receiving on this broadcaster
-            broadcaster.Client.BeginReceive(HandleFinderMessageReceived, broadcaster);
+            if (receivedBytes != null && receivedBytes.Length > 0)
+            {
+                ProcessDiscoveryResponse(receivedBytes, remoteIpEndPoint, broadcaster.InterfaceName, broadcaster.InterfaceAddress);
+            }
         }
         catch (ObjectDisposedException)
         {
             // Expected when stopping
+            return;
+        }
+        catch (SocketException sockEx)
+        {
+            AppLogger.Warning($"Socket error on {broadcaster?.InterfaceName}: {sockEx.Message}");
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Problem receiving on {broadcaster?.InterfaceName}: {ex.Message}");
         }
+        finally
+        {
+            // Re-arm the receive only if we're still running and the client is valid
+            if (Running && broadcaster?.Client != null)
+            {
+                try 
+                { 
+                    broadcaster.Client.BeginReceive(HandleFinderMessageReceived, broadcaster); 
+                } 
+                catch (ObjectDisposedException) 
+                { 
+                    // Socket was closed during shutdown
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Could not re-arm receive for {broadcaster.InterfaceName}: {ex.Message}");
+                }
+            }
+        }
     }
     
     private void HandleLegacyMessageReceived(IAsyncResult res)
     {
+        byte[] receivedBytes = null;
+        IPEndPoint remoteIpEndPoint = null;
+        
         try
         {
-            var remoteIpEndPoint = new IPEndPoint(IPAddress.Any, 0);
-            var receivedBytes = _legacyReceiver.EndReceive(res, ref remoteIpEndPoint);
+            remoteIpEndPoint = new IPEndPoint(IPAddress.Any, 0);
+            receivedBytes = _legacyReceiver.EndReceive(res, ref remoteIpEndPoint);
             
-            // For legacy receiver, we don't know the specific interface
-            ProcessDiscoveryResponse(receivedBytes, remoteIpEndPoint, "Legacy Port 30303", null);
-            
-            // Continue receiving
-            _legacyReceiver.BeginReceive(HandleLegacyMessageReceived, null);
+            if (receivedBytes != null && receivedBytes.Length > 0)
+            {
+                // For legacy receiver, we don't know the specific interface
+                ProcessDiscoveryResponse(receivedBytes, remoteIpEndPoint, "Legacy Port 30303", null);
+            }
         }
         catch (ObjectDisposedException)
         {
             // Expected when stopping
+            return;
+        }
+        catch (SocketException sockEx)
+        {
+            AppLogger.Warning($"Socket error on legacy port: {sockEx.Message}");
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Problem receiving on legacy port: {ex.Message}");
+        }
+        finally
+        {
+            // Re-arm the receive only if we're still running
+            if (Running && _legacyReceiver != null)
+            {
+                try 
+                { 
+                    _legacyReceiver.BeginReceive(HandleLegacyMessageReceived, null); 
+                } 
+                catch (ObjectDisposedException) 
+                { 
+                    // Socket was closed during shutdown
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Could not re-arm legacy receive: {ex.Message}");
+                }
+            }
         }
     }
     
