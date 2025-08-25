@@ -23,7 +23,8 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
     private readonly byte[] _queryCommandBytes = Encoding.ASCII.GetBytes(DaqifiFinderQuery);
     private readonly int _broadcastPort;
     private readonly object _deviceLock = new object();
-    private readonly HashSet<string> _discoveredDevices = new();
+    private readonly Dictionary<string, DateTime> _discoveredDevices = new();
+    private readonly TimeSpan _deviceTtl = TimeSpan.FromMinutes(5); // TTL for discovered devices
 
     #endregion
 
@@ -61,11 +62,10 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
             // Create receiver on port 30303 for firmware that responds to this port by design
             try
             {
-                var legacyEndpoint = new IPEndPoint(IPAddress.Any, _broadcastPort);
-                _legacyReceiver = new UdpClient(AddressFamily.InterNetwork);
+                // Create UDP client directly with the port to ensure proper binding
+                _legacyReceiver = new UdpClient(new IPEndPoint(IPAddress.Any, _broadcastPort));
                 _legacyReceiver.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                _legacyReceiver.Client.Bind(legacyEndpoint);
-                AppLogger.Information($"Receiver listening on {legacyEndpoint} for firmware responses");
+                AppLogger.Information($"Receiver listening on 0.0.0.0:{_broadcastPort} for firmware responses");
             }
             catch (Exception ex)
             {
@@ -390,13 +390,33 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
                     device.LocalInterfaceAddress = localInterface.ToString();
                 }
                 
-                // Prevent duplicate device notifications
+                // Prevent duplicate device notifications with TTL support
                 lock (_deviceLock)
                 {
                     var deviceKey = $"{device.MacAddress}_{device.IpAddress}";
-                    if (_discoveredDevices.Add(deviceKey))
+                    var now = DateTime.UtcNow;
+                    
+                    // Clean up expired entries
+                    var expiredKeys = _discoveredDevices
+                        .Where(kvp => now - kvp.Value > _deviceTtl)
+                        .Select(kvp => kvp.Key)
+                        .ToList();
+                    
+                    foreach (var key in expiredKeys)
                     {
+                        _discoveredDevices.Remove(key);
+                    }
+                    
+                    // Check if this is a new device or an expired one
+                    if (!_discoveredDevices.ContainsKey(deviceKey))
+                    {
+                        _discoveredDevices[deviceKey] = now;
                         NotifyDeviceFound(this, device);
+                    }
+                    else
+                    {
+                        // Update the timestamp for existing device
+                        _discoveredDevices[deviceKey] = now;
                     }
                 }
             }
