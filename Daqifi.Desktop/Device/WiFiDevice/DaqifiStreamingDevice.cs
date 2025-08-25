@@ -66,7 +66,20 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
 
             if (!success)
             {
-                AppLogger.Error($"Timeout connecting to DAQiFi Device at {IpAddress}:{Port}");
+                AppLogger.Error($"Timeout connecting to DAQiFi Device at {IpAddress}:{Port} from local interface {LocalInterfaceAddress ?? "default"}");
+                try { Client.Close(); } catch { }
+                return false;
+            }
+            
+            // Complete the connection
+            try
+            {
+                Client.EndConnect(result);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, $"Failed to complete connection to {IpAddress}:{Port}");
+                try { Client.Close(); } catch { }
                 return false;
             }
 
