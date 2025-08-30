@@ -11,7 +11,9 @@ Windows desktop application (.NET) that is used to communicate with DAQiFi hardw
 ## Dependencies
 
 - EntityFramework (ORM)
+- EFCore.BulkExtensions (optimized bulk insert operations)
 - Google Protocol Buffers (read incoming data from DAQiFi hardware)
+- protobuf-net (serialization support in tests)
 - MahApps (UI components)
 - Oxyplot (for graphing)
 
