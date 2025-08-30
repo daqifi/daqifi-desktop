@@ -1,4 +1,4 @@
-﻿using Daqifi.Desktop.DataModel.Device;
+using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Decoders;
 using System.IO;
@@ -9,21 +9,37 @@ using System.Text;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
+/// <summary>
+/// Device finder that handles both old firmware (responds to port 30303)
+/// and new firmware (responds to source port) with multi-interface support
+/// </summary>
 public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
 {
     #region Private Data
 
     private const string DaqifiFinderQuery = "DAQiFi?\r\n";
     private const string NativeFinderQuery = "Discovery: Who is out there?\r\n";
-    private const string PowerEvent = "Power event occurred"; // TODO check if this is still needed
+    private const string PowerEvent = "Power event occurred";
     private readonly byte[] _queryCommandBytes = Encoding.ASCII.GetBytes(DaqifiFinderQuery);
+    private readonly int _broadcastPort;
+    private readonly object _deviceLock = new object();
+    private readonly Dictionary<string, DateTime> _discoveredDevices = new();
+    private readonly TimeSpan _deviceTtl = TimeSpan.FromMinutes(5); // TTL for discovered devices
 
     #endregion
 
     #region Properties
 
-    private UdpClient Client { get; }
-    private readonly List<IPEndPoint> _broadcastEndpoints = [];
+    private class InterfaceBroadcaster
+    {
+        public UdpClient Client { get; set; }
+        public IPEndPoint BroadcastEndpoint { get; set; }
+        public IPAddress InterfaceAddress { get; set; }
+        public string InterfaceName { get; set; }
+    }
+
+    private readonly List<InterfaceBroadcaster> _broadcasters = [];
+    private UdpClient _legacyReceiver; // For firmware that responds to port 30303 by design
 
     #endregion
 
@@ -38,10 +54,36 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
 
     public DaqifiDeviceFinder(int broadcastPort)
     {
+        _broadcastPort = broadcastPort;
         try
         {
-            _broadcastEndpoints = GetAllBroadcastEndpoints(broadcastPort);
-            Client = new UdpClient(broadcastPort);
+            InitializeBroadcasters();
+            
+            // Create receiver on port 30303 for firmware that responds to this port by design
+            try
+            {
+                // Create UDP client and set socket options before binding for maximum compatibility
+                _legacyReceiver = new UdpClient(AddressFamily.InterNetwork);
+                _legacyReceiver.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                
+                // For Windows, explicitly allow multiple processes to bind to same port
+                if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+                {
+                    try 
+                    { 
+                        _legacyReceiver.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ExclusiveAddressUse, false);
+                    } 
+                    catch { /* ExclusiveAddressUse might not be available on all systems */ }
+                }
+                
+                _legacyReceiver.Client.Bind(new IPEndPoint(IPAddress.Any, _broadcastPort));
+                AppLogger.Information($"Receiver listening on 0.0.0.0:{_broadcastPort} for firmware responses");
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"Could not create receiver on port {_broadcastPort}: {ex.Message}");
+                // Continue without it - direct responses will still work
+            }
         }
         catch (Exception ex)
         {
@@ -51,41 +93,151 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
 
     #endregion
 
+    private void InitializeBroadcasters()
+    {
+        AppLogger.Information("=== Initializing multi-interface UDP broadcasters ===");
+        
+        foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (networkInterface.OperationalStatus != OperationalStatus.Up ||
+                !networkInterface.Supports(NetworkInterfaceComponent.IPv4))
+            {
+                continue;
+            }
+            
+            // Skip only loopback and tunnel interfaces
+            if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Loopback ||
+                networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
+            {
+                continue;
+            }
+            
+            var ipProperties = networkInterface.GetIPProperties();
+            if (ipProperties == null)
+            {
+                continue;
+            }
+
+            foreach (var unicastAddress in ipProperties.UnicastAddresses)
+            {
+                if (unicastAddress.Address.AddressFamily != AddressFamily.InterNetwork ||
+                    unicastAddress.IPv4Mask == null || 
+                    unicastAddress.IPv4Mask.Equals(IPAddress.Any))
+                {
+                    continue;
+                }
+
+                var ipAddress = unicastAddress.Address;
+                var subnetMask = unicastAddress.IPv4Mask;
+                
+                var ipBytes = ipAddress.GetAddressBytes();
+                var maskBytes = subnetMask.GetAddressBytes();
+                if (ipBytes.Length != 4 || maskBytes.Length != 4) continue;
+
+                var broadcastBytes = new byte[4];
+                for (var i = 0; i < 4; i++)
+                {
+                    broadcastBytes[i] = (byte)(ipBytes[i] | (maskBytes[i] ^ 255));
+                }
+                
+                var broadcastAddress = new IPAddress(broadcastBytes);
+
+                try
+                {
+                    // Create a UDP client bound to this specific interface
+                    var client = new UdpClient(new IPEndPoint(ipAddress, 0));
+                    client.EnableBroadcast = true;
+                    
+                    var broadcaster = new InterfaceBroadcaster
+                    {
+                        Client = client,
+                        BroadcastEndpoint = new IPEndPoint(broadcastAddress, _broadcastPort),
+                        InterfaceAddress = ipAddress,
+                        InterfaceName = networkInterface.Name
+                    };
+                    
+                    _broadcasters.Add(broadcaster);
+                    AppLogger.Information($"Created broadcaster for {networkInterface.Name} ({ipAddress}) -> {broadcastAddress}:{_broadcastPort}");
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Failed to create UDP client for interface {networkInterface.Name}: {ex.Message}");
+                }
+                
+                break; // Only use first valid IPv4 address per interface
+            }
+        }
+
+        AppLogger.Information($"=== Created {_broadcasters.Count} UDP broadcasters ===");
+    }
+
     #region AbstractMessageConsumer overrides
 
     public override void Run()
     {
         try
         {
-            if (Client != null && _broadcastEndpoints.Count > 0)
+            if (_broadcasters.Count > 0)
             {
-                Client.EnableBroadcast = true;
-                Client.BeginReceive(HandleFinderMessageReceived, null);
+                // Set up receiving on each broadcaster's socket (for new firmware)
+                foreach (var broadcaster in _broadcasters)
+                {
+                    broadcaster.Client.BeginReceive(HandleFinderMessageReceived, broadcaster);
+                }
+                
+                // Set up receiving on legacy port (for old firmware)
+                if (_legacyReceiver != null)
+                {
+                    _legacyReceiver.BeginReceive(HandleLegacyMessageReceived, null);
+                }
 
                 while (Running)
                 {
-                    foreach(var endpoint in _broadcastEndpoints)
+                    // Create a copy to avoid collection modified exceptions
+                    var currentBroadcasters = _broadcasters.ToList();
+                    
+                    foreach (var broadcaster in currentBroadcasters)
                     {
-                         try
-                         {
-                            Client.Send(_queryCommandBytes, _queryCommandBytes.Length, endpoint);
-                         }
-                         catch (SocketException sockEx)
-                         {
-                             AppLogger.Warning($"Error sending broadcast to {endpoint}, {sockEx}");
-                         }
+                        try
+                        {
+                            // Check if the client is still valid before sending
+                            if (broadcaster?.Client?.Client != null && broadcaster.Client.Client.IsBound)
+                            {
+                                broadcaster.Client.Send(_queryCommandBytes, _queryCommandBytes.Length, broadcaster.BroadcastEndpoint);
+                                
+                                // Log only periodically to avoid spam
+                                if (DateTime.Now.Second % 10 == 0)
+                                {
+                                    AppLogger.Information($"Broadcasting from {broadcaster.InterfaceName} ({broadcaster.InterfaceAddress}) to {broadcaster.BroadcastEndpoint}");
+                                }
+                            }
+                        }
+                        catch (SocketException sockEx)
+                        {
+                            AppLogger.Warning($"Error broadcasting from {broadcaster.InterfaceName}: {sockEx.Message}");
+                            // Don't remove the broadcaster - it might recover
+                        }
+                        catch (ObjectDisposedException)
+                        {
+                            // Socket was disposed, skip this broadcaster
+                            AppLogger.Warning($"Broadcaster for {broadcaster?.InterfaceName} was disposed");
+                        }
                     }
                     Thread.Sleep(1000);
                 }
             }
-            else if (Client != null)
+            else
             {
-                 AppLogger.Information("DAQiFi device discovery started, but no suitable network interfaces found for broadcasting.");
-                 Client.EnableBroadcast = true; 
-                 Client.BeginReceive(HandleFinderMessageReceived, null);
-                 while(Running) { Thread.Sleep(5000); } 
-            }
+                AppLogger.Information("No suitable network interfaces found for broadcasting.");
                 
+                // Still listen on legacy port if available
+                if (_legacyReceiver != null)
+                {
+                    _legacyReceiver.BeginReceive(HandleLegacyMessageReceived, null);
+                }
+                
+                while (Running) { Thread.Sleep(5000); }
+            }
         }
         catch (Exception ex)
         {
@@ -99,45 +251,191 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
     {
         try
         {
-            if (Client != null)
+            Running = false;
+            
+            // Close all broadcaster clients
+            foreach (var broadcaster in _broadcasters)
             {
-                Running = false;
-                Client.Close();
+                try
+                {
+                    broadcaster.Client?.Close();
+                }
+                catch { }
             }
+            _broadcasters.Clear();
+            
+            // Close legacy receiver
+            try
+            {
+                _legacyReceiver?.Close();
+            }
+            catch { }
+            
             base.Stop();
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Error Stopping Device Finder");
+            AppLogger.Error(ex, "Error stopping device finder");
         }
     }
 
     private void HandleFinderMessageReceived(IAsyncResult res)
     {
+        var broadcaster = res.AsyncState as InterfaceBroadcaster;
+        if (broadcaster == null) return;
+        
+        byte[] receivedBytes = null;
+        IPEndPoint remoteIpEndPoint = null;
+        
         try
         {
-            var remoteIpEndPoint = new IPEndPoint(IPAddress.Any, 8000);
-            var receivedBytes = Client.EndReceive(res, ref remoteIpEndPoint);
-            var receivedText = Encoding.ASCII.GetString(receivedBytes);
+            remoteIpEndPoint = new IPEndPoint(IPAddress.Any, 0);
+            receivedBytes = broadcaster.Client.EndReceive(res, ref remoteIpEndPoint);
+            
+            if (receivedBytes != null && receivedBytes.Length > 0)
+            {
+                ProcessDiscoveryResponse(receivedBytes, remoteIpEndPoint, broadcaster.InterfaceName, broadcaster.InterfaceAddress);
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+            // Expected when stopping
+            return;
+        }
+        catch (SocketException sockEx)
+        {
+            AppLogger.Warning($"Socket error on {broadcaster?.InterfaceName}: {sockEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Problem receiving on {broadcaster?.InterfaceName}: {ex.Message}");
+        }
+        finally
+        {
+            // Re-arm the receive only if we're still running and the client is valid
+            if (Running && broadcaster?.Client != null)
+            {
+                try 
+                { 
+                    broadcaster.Client.BeginReceive(HandleFinderMessageReceived, broadcaster); 
+                } 
+                catch (ObjectDisposedException) 
+                { 
+                    // Socket was closed during shutdown
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Could not re-arm receive for {broadcaster.InterfaceName}: {ex.Message}");
+                }
+            }
+        }
+    }
+    
+    private void HandleLegacyMessageReceived(IAsyncResult res)
+    {
+        byte[] receivedBytes = null;
+        IPEndPoint remoteIpEndPoint = null;
+        
+        try
+        {
+            remoteIpEndPoint = new IPEndPoint(IPAddress.Any, 0);
+            receivedBytes = _legacyReceiver.EndReceive(res, ref remoteIpEndPoint);
+            
+            if (receivedBytes != null && receivedBytes.Length > 0)
+            {
+                // For legacy receiver, we don't know the specific interface
+                ProcessDiscoveryResponse(receivedBytes, remoteIpEndPoint, "Legacy Port 30303", null);
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+            // Expected when stopping
+            return;
+        }
+        catch (SocketException sockEx)
+        {
+            AppLogger.Warning($"Socket error on legacy port: {sockEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Problem receiving on legacy port: {ex.Message}");
+        }
+        finally
+        {
+            // Re-arm the receive only if we're still running
+            if (Running && _legacyReceiver != null)
+            {
+                try 
+                { 
+                    _legacyReceiver.BeginReceive(HandleLegacyMessageReceived, null); 
+                } 
+                catch (ObjectDisposedException) 
+                { 
+                    // Socket was closed during shutdown
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Warning($"Could not re-arm legacy receive: {ex.Message}");
+                }
+            }
+        }
+    }
+    
+    private void ProcessDiscoveryResponse(byte[] receivedBytes, IPEndPoint remoteEndPoint, string source, IPAddress localInterface)
+    {
+        var receivedText = Encoding.ASCII.GetString(receivedBytes);
+        
+        AppLogger.Information($"Received response on {source} from {remoteEndPoint.Address}:{remoteEndPoint.Port}");
 
-            if (IsValidDiscoveryMessage(receivedText))
+        if (IsValidDiscoveryMessage(receivedText))
+        {
+            try
             {
                 var stream = new MemoryStream(receivedBytes);
                 var message = DaqifiOutMessage.Parser.ParseDelimitedFrom(stream);
                 var device = GetDeviceFromProtobufMessage(message);
-                device.IpAddress = remoteIpEndPoint.Address.ToString();
-                NotifyDeviceFound(this, device);
+                device.IpAddress = remoteEndPoint.Address.ToString();
+                
+                // Store the local interface that received this response
+                if (localInterface != null)
+                {
+                    device.LocalInterfaceAddress = localInterface.ToString();
+                }
+                
+                // Prevent duplicate device notifications with TTL support
+                lock (_deviceLock)
+                {
+                    var deviceKey = $"{device.MacAddress}_{device.IpAddress}";
+                    var now = DateTime.UtcNow;
+                    
+                    // Clean up expired entries
+                    var expiredKeys = _discoveredDevices
+                        .Where(kvp => now - kvp.Value > _deviceTtl)
+                        .Select(kvp => kvp.Key)
+                        .ToList();
+                    
+                    foreach (var key in expiredKeys)
+                    {
+                        _discoveredDevices.Remove(key);
+                    }
+                    
+                    // Check if this is a new device or an expired one
+                    if (!_discoveredDevices.ContainsKey(deviceKey))
+                    {
+                        _discoveredDevices[deviceKey] = now;
+                        NotifyDeviceFound(this, device);
+                    }
+                    else
+                    {
+                        // Update the timestamp for existing device
+                        _discoveredDevices[deviceKey] = now;
+                    }
+                }
             }
-
-            Client.BeginReceive(HandleFinderMessageReceived, null);
-        }
-        catch (ObjectDisposedException)
-        {
-            // hide this exception for now. TODO find a better way.
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "Problem in DaqifiDeviceFinder");
+            catch (Exception ex)
+            {
+                AppLogger.Error(ex, "Error parsing discovery response");
+            }
         }
     }
 
@@ -179,7 +477,6 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
         return device;
     }
 
-
     public void NotifyDeviceFound(object sender, IDevice device)
     {
         OnDeviceFound?.Invoke(sender, device);
@@ -188,61 +485,5 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
     public void NotifyDeviceRemoved(object sender, IDevice device)
     {
         OnDeviceRemoved?.Invoke(sender, device);
-    }
-
-    private List<IPEndPoint> GetAllBroadcastEndpoints(int port)
-    {
-        var endpoints = new List<IPEndPoint>();
-        foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
-        {
-            if (networkInterface.OperationalStatus != OperationalStatus.Up ||
-                !networkInterface.Supports(NetworkInterfaceComponent.IPv4) || 
-                (networkInterface.NetworkInterfaceType != NetworkInterfaceType.Ethernet &&
-                 networkInterface.NetworkInterfaceType != NetworkInterfaceType.Wireless80211))
-            {
-                continue;
-            }
-            
-            var ipProperties = networkInterface.GetIPProperties();
-            if (ipProperties == null)
-            {
-                continue;
-            }
-
-            foreach (var unicastIpAddressInformation in ipProperties.UnicastAddresses)
-            {
-                if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork ||
-                    unicastIpAddressInformation.IPv4Mask == null || 
-                    unicastIpAddressInformation.IPv4Mask.Equals(IPAddress.Any))
-                {
-                    continue;
-                }
-
-                var ipAddress = unicastIpAddressInformation.Address;
-                var subnetMask = unicastIpAddressInformation.IPv4Mask;
-                
-                var ipBytes = ipAddress.GetAddressBytes();
-                var maskBytes = subnetMask.GetAddressBytes();
-                if (ipBytes.Length != 4 || maskBytes.Length != 4) continue;
-
-                var broadcastBytes = new byte[4];
-                for (var i = 0; i < 4; i++)
-                {
-                    broadcastBytes[i] = (byte)(ipBytes[i] | (maskBytes[i] ^ 255));
-                }
-                
-                var broadcastAddress = new IPAddress(broadcastBytes);
-
-                endpoints.Add(new IPEndPoint(broadcastAddress, port));
-                
-                break; 
-            }
-        }
-
-        AppLogger.Information(endpoints.Count == 0
-            ? "Could not find any suitable network interfaces for DAQiFi discovery broadcast."
-            : $"DAQiFi Discovery broadcasting to: {string.Join(", ", endpoints.Select(ep => ep.Address.ToString()))}");
-
-        return endpoints;
     }
 }
