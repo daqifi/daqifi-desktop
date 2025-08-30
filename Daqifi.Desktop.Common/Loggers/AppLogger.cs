@@ -63,7 +63,7 @@ public class AppLogger : IAppLogger
 
         // Archive the log if it gets above 10MB
         fileTarget.ArchiveAboveSize = 10000000;
-        fileTarget.ArchiveNumbering = ArchiveNumberingMode.Sequence;
+        fileTarget.ArchiveSuffixFormat = "{#}";
 
         // Keep a maximum of 5 archives
         fileTarget.MaxArchiveFiles = 5;
