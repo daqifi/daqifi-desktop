@@ -289,10 +289,7 @@
         <File Source="$(var.SourceDir)\Microsoft.Data.Sqlite.dll"/>
       </Component>
       
-      <!-- Firewall Helper -->
-      <Component Id="WindowsFirewallHelper" Guid="c6ee9767-649e-460d-925c-8469caefd274">
-        <File Source="$(var.SourceDir)\WindowsFirewallHelper.dll"/>
-      </Component>
+      
 
       <!-- System Components -->
       <Component Id="SystemCompositionAttributedModel" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D2">
