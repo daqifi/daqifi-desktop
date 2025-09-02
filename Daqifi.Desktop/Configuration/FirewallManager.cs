@@ -88,21 +88,22 @@ public interface IFirewallHelper
 
 internal class WindowsFirewallWrapper : IFirewallHelper
 {
-    private static INetFwPolicy2 GetPolicy()
+    private static object GetPolicy()
     {
         var type = Type.GetTypeFromProgID("HNetCfg.FwPolicy2")
                    ?? throw new InvalidOperationException("HNetCfg.FwPolicy2 COM type not available");
-        return (INetFwPolicy2)Activator.CreateInstance(type)!;
+        return Activator.CreateInstance(type)!;
     }
 
     public bool RuleExists(string ruleName)
     {
         try
         {
-            var policy = GetPolicy();
+            dynamic policy = GetPolicy();
+            dynamic rules = policy.Rules;
             try
             {
-                var _ = policy.Rules.Item(ruleName);
+                var _ = rules.Item(ruleName);
                 return true;
             }
             catch (COMException)
@@ -118,78 +119,19 @@ internal class WindowsFirewallWrapper : IFirewallHelper
 
     public void CreateUdpRule(string ruleName, string applicationPath)
     {
-        var policy = GetPolicy();
-
+        dynamic policy = GetPolicy();
         var ruleType = Type.GetTypeFromProgID("HNetCfg.FWRule")
                     ?? throw new InvalidOperationException("HNetCfg.FWRule COM type not available");
-        var rule = (INetFwRule)Activator.CreateInstance(ruleType)!;
+        dynamic rule = Activator.CreateInstance(ruleType)!;
 
         rule.Name = ruleName;
         rule.ApplicationName = applicationPath;
-        rule.Protocol = (int)NET_FW_IP_PROTOCOL_.NET_FW_IP_PROTOCOL_UDP;
-        rule.Direction = NET_FW_RULE_DIRECTION_.NET_FW_RULE_DIR_IN;
-        rule.Action = NET_FW_ACTION_.NET_FW_ACTION_ALLOW;
+        rule.Protocol = 17; // UDP
+        rule.Direction = 1; // Inbound
+        rule.Action = 1;    // Allow
         rule.Enabled = true;
-        // Apply to all profiles: Domain(1) | Private(2) | Public(4) = 7
-        rule.Profiles = 7;
+        rule.Profiles = 7;  // Domain|Private|Public
 
         policy.Rules.Add(rule);
     }
-}
-
-// Minimal COM interop definitions for Windows Firewall API
-[ComImport, Guid("98325047-C671-4174-8D81-DEFCD3F03186"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface INetFwPolicy2
-{
-    int CurrentProfileTypes { get; }
-    INetFwRules Rules { get; }
-}
-
-[ComImport, Guid("9C4C6277-5027-441E-AFAE-CA1F542DA009"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface INetFwRules
-{
-    int Count { get; }
-    void Add([In] INetFwRule rule);
-    void Remove([MarshalAs(UnmanagedType.BStr)] string name);
-    INetFwRule Item([MarshalAs(UnmanagedType.BStr)] string name);
-}
-
-[ComImport, Guid("AF230D27-BABA-4E42-ACED-F524F22CFCE2"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface INetFwRule
-{
-    string Name { get; set; }
-    string Description { get; set; }
-    string ApplicationName { get; set; }
-    string ServiceName { get; set; }
-    int Protocol { get; set; }
-    string LocalPorts { get; set; }
-    string RemotePorts { get; set; }
-    string LocalAddresses { get; set; }
-    string RemoteAddresses { get; set; }
-    NET_FW_RULE_DIRECTION_ Direction { get; set; }
-    object Interfaces { get; set; }
-    string InterfaceTypes { get; set; }
-    bool Enabled { get; set; }
-    string Grouping { get; set; }
-    int Profiles { get; set; }
-    bool EdgeTraversal { get; set; }
-    NET_FW_ACTION_ Action { get; set; }
-}
-
-internal enum NET_FW_IP_PROTOCOL_
-{
-    NET_FW_IP_PROTOCOL_TCP = 6,
-    NET_FW_IP_PROTOCOL_UDP = 17,
-}
-
-internal enum NET_FW_RULE_DIRECTION_
-{
-    NET_FW_RULE_DIR_IN = 1,
-    NET_FW_RULE_DIR_OUT = 2,
-}
-
-internal enum NET_FW_ACTION_
-{
-    NET_FW_ACTION_BLOCK = 0,
-    NET_FW_ACTION_ALLOW = 1,
 }
