@@ -14,7 +14,15 @@ public static class FirewallConfiguration
 
     static FirewallConfiguration()
     {
-        _firewallHelper = new WindowsFirewallWrapper();
+        try
+        {
+            _firewallHelper = new WindowsFirewallWrapper();
+        }
+        catch (Exception)
+        {
+            // Fallback to no-op implementation if COM registration fails
+            _firewallHelper = new NoOpFirewallHelper();
+        }
         _messageBoxService = new WpfMessageBoxService();
         _adminChecker = new WindowsPrincipalAdminChecker();
     }
@@ -104,5 +112,22 @@ internal class WindowsFirewallWrapper : IFirewallHelper
         rule.Protocol = FirewallProtocol.UDP;
             
         FirewallManager.Instance.Rules.Add(rule);
+    }
+}
+
+internal class NoOpFirewallHelper : IFirewallHelper
+{
+    public bool RuleExists(string ruleName)
+    {
+        // Always return false to indicate rule doesn't exist, 
+        // which will trigger manual configuration message
+        return false;
+    }
+
+    public void CreateUdpRule(string ruleName, string applicationPath)
+    {
+        // No-op implementation - firewall rules cannot be created
+        // This will cause the calling method to show appropriate error message
+        throw new NotSupportedException("Firewall COM interface is not available. Please configure firewall rules manually.");
     }
 }
