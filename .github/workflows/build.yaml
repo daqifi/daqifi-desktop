@@ -94,5 +94,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: DAQifiDesktop-Installer
-        path: Daqifi.Desktop.Setup/DAQifiDesktopSetup/bin/Release/DAQifiDesktop_Setup.msi
+        path: Daqifi.Desktop.Setup/DAQifiDesktopSetup/bin/x86/Release/DAQifiDesktop_Setup.msi
         if-no-files-found: error
