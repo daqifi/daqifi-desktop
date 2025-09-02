@@ -13,7 +13,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 9.0.x
 
     - name: Restore dependencies
       run: dotnet restore
@@ -91,5 +91,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: DAQifiDesktop-Installer
-        path: Daqifi.Desktop.Setup/DAQifiDesktopSetup/bin/x86/Release/DAQifiDesktop_Setup.msi
+        path: Daqifi.Desktop.Setup/DAQifiDesktopSetup/bin/x64/Release/DAQifiDesktop_Setup.msi
         if-no-files-found: error
