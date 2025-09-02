@@ -169,9 +169,6 @@
       <Component Id="HidLibrary" Guid="919CEA39-D40A-478D-AD1C-51CE83DC5135">
         <File Source="$(var.SourceDir)\HidLibrary.dll"/>
       </Component>
-      <Component Id="Humanizer" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5D7">
-        <File Source="$(var.SourceDir)\Humanizer.dll"/>
-      </Component>
       <Component Id="MahAppsMetro" Guid="D2955D07-F5C2-499E-A2B3-280746E1F4EF">
         <File Source="$(var.SourceDir)\MahApps.Metro.dll"/>
       </Component>
@@ -235,9 +232,6 @@
       <Component Id="EFCoreBulkExtensionsCore" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5E7">
         <File Source="$(var.SourceDir)\EFCore.BulkExtensions.Core.dll"/>
       </Component>
-      <Component Id="EFCoreBulkExtensionsMySql" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5E8">
-        <File Source="$(var.SourceDir)\EFCore.BulkExtensions.MySql.dll"/>
-      </Component>
       <Component Id="EFCoreBulkExtensionsPostgreSql" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5E9">
         <File Source="$(var.SourceDir)\EFCore.BulkExtensions.PostgreSql.dll"/>
       </Component>
@@ -292,27 +286,6 @@
       
 
       <!-- System Components -->
-      <Component Id="SystemCompositionAttributedModel" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D2">
-        <File Source="$(var.SourceDir)\System.Composition.AttributedModel.dll"/>
-      </Component>
-      <Component Id="SystemCompositionConvention" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D3">
-        <File Source="$(var.SourceDir)\System.Composition.Convention.dll"/>
-      </Component>
-      <Component Id="SystemCompositionHosting" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D4">
-        <File Source="$(var.SourceDir)\System.Composition.Hosting.dll"/>
-      </Component>
-      <Component Id="SystemCompositionRuntime" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D5">
-        <File Source="$(var.SourceDir)\System.Composition.Runtime.dll"/>
-      </Component>
-      <Component Id="SystemCompositionTypedParts" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D6">
-        <File Source="$(var.SourceDir)\System.Composition.TypedParts.dll"/>
-      </Component>
-      <Component Id="SystemConfigurationConfigurationManager" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D7">
-        <File Source="$(var.SourceDir)\System.Configuration.ConfigurationManager.dll"/>
-      </Component>
-      <Component Id="SystemDiagnosticsEventLog" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6D8">
-        <File Source="$(var.SourceDir)\System.Diagnostics.EventLog.dll"/>
-      </Component>
       <Component Id="SystemMemoryData" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6E1">
         <File Source="$(var.SourceDir)\System.Memory.Data.dll"/>
       </Component>
@@ -345,8 +318,6 @@
               KeyPath="yes"/>
         <File Id="WinSystemIOPorts"
               Source="$(var.SourceDir)\runtimes\win\lib\net9.0\System.IO.Ports.dll"/>
-        <File Id="WinSystemDiagnosticsEventLog"
-              Source="$(var.SourceDir)\runtimes\win\lib\net9.0\System.Diagnostics.EventLog.dll"/>
         <File Id="WinMicrosoftDataSqlClient"
               Source="$(var.SourceDir)\runtimes\win\lib\net9.0\Microsoft.Data.SqlClient.dll"/>
       </Component>
