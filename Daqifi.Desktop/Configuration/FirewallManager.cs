@@ -20,8 +20,16 @@ public static class FirewallConfiguration
         }
         catch (Exception)
         {
-            // Fallback to no-op implementation if COM registration fails
-            _firewallHelper = new NoOpFirewallHelper();
+            // Try P/Invoke-based implementation as fallback
+            try
+            {
+                _firewallHelper = new NetshFirewallHelper();
+            }
+            catch (Exception)
+            {
+                // Final fallback to no-op implementation
+                _firewallHelper = new NoOpFirewallHelper();
+            }
         }
         _messageBoxService = new WpfMessageBoxService();
         _adminChecker = new WindowsPrincipalAdminChecker();
@@ -98,20 +106,97 @@ internal class WindowsFirewallWrapper : IFirewallHelper
 {
     public bool RuleExists(string ruleName)
     {
-        return FirewallManager.Instance.Rules.Any(r => r.Name == ruleName);
+        try
+        {
+            return FirewallManager.Instance.Rules.Any(r => r.Name == ruleName);
+        }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+            // COM interface not available, assume rule doesn't exist
+            return false;
+        }
     }
 
     public void CreateUdpRule(string ruleName, string applicationPath)
     {
-        var rule = FirewallManager.Instance.CreateApplicationRule(
-            ruleName,
-            FirewallAction.Allow,
-            applicationPath);
+        try
+        {
+            var rule = FirewallManager.Instance.CreateApplicationRule(
+                ruleName,
+                FirewallAction.Allow,
+                applicationPath);
 
-        rule.Direction = FirewallDirection.Inbound;
-        rule.Protocol = FirewallProtocol.UDP;
+            rule.Direction = FirewallDirection.Inbound;
+            rule.Protocol = FirewallProtocol.UDP;
+                
+            FirewallManager.Instance.Rules.Add(rule);
+        }
+        catch (System.Runtime.InteropServices.COMException ex)
+        {
+            throw new NotSupportedException(
+                "Windows Firewall COM interface is not available in .NET 9. " +
+                "Please configure firewall rules manually.", ex);
+        }
+    }
+}
+
+internal class NetshFirewallHelper : IFirewallHelper
+{
+    public bool RuleExists(string ruleName)
+    {
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "netsh",
+                Arguments = $"advfirewall firewall show rule name=\"{ruleName}\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process == null) return false;
             
-        FirewallManager.Instance.Rules.Add(rule);
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            
+            return process.ExitCode == 0 && !output.Contains("No rules match");
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public void CreateUdpRule(string ruleName, string applicationPath)
+    {
+        // Create inbound rule
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "netsh",
+            Arguments = $"advfirewall firewall add rule name=\"{ruleName}\" dir=in action=allow program=\"{applicationPath}\" protocol=UDP",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            Verb = "runas" // Request admin privileges
+        };
+
+        using var process = Process.Start(startInfo);
+        if (process == null)
+        {
+            throw new InvalidOperationException("Failed to start netsh process");
+        }
+        
+        process.WaitForExit();
+        
+        if (process.ExitCode != 0)
+        {
+            var error = process.StandardError.ReadToEnd();
+            throw new InvalidOperationException($"Failed to create firewall rule: {error}");
+        }
     }
 }
 

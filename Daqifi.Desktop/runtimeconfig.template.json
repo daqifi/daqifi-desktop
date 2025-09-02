@@ -1,5 +1,9 @@
 {
   "configProperties": {
-    "System.Runtime.InteropServices.EnableConsistentCOMActivation": false
+    "System.Runtime.InteropServices.EnableConsistentCOMActivation": false,
+    "System.Runtime.InteropServices.EnableCOMRegistrationFreeActivation": false,
+    "System.Runtime.InteropServices.BuiltInComInterop.IsSupported": true,
+    "System.Runtime.InteropServices.ComWrappers.RuntimeCallableWrapper.GlobalLock": false,
+    "COMPLUS_ReadyToRun": 0
   }
 }
