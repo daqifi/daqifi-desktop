@@ -21,6 +21,9 @@ jobs:
     - name: Build with Analysis
       run: dotnet build --no-restore --configuration Release /p:EnforceCodeStyleInBuild=true
 
+    - name: Publish app (framework-dependent)
+      run: dotnet publish Daqifi.Desktop/Daqifi.Desktop.csproj -c Release --no-restore
+
     - name: Test with Coverage
       run: dotnet test --no-build --verbosity normal --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults/ /p:CoverletOutputFormat=cobertura
 

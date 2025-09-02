@@ -7,7 +7,8 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <DaqifiSourceDir>$(SolutionDir)..\Daqifi.Desktop\bin\$(Configuration)\net9.0-windows</DaqifiSourceDir>
+    <!-- Use published output so all dependencies are present -->
+    <DaqifiSourceDir>$(SolutionDir)..\Daqifi.Desktop\bin\$(Configuration)\net9.0-windows\publish</DaqifiSourceDir>
     <DaqifiSourceDirShort>$([System.IO.Path]::GetFullPath('$(DaqifiSourceDir)'))</DaqifiSourceDirShort>
     <MainExeName>DAQiFi.exe</MainExeName>
   </PropertyGroup>
