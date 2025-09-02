@@ -4,7 +4,7 @@ Windows desktop application (.NET) that is used to communicate with DAQiFi hardw
 
 ## Tech Stack
 
-- .NET 8.0
+- .NET 9.0
 - WPF
 - SQLite
 
@@ -26,7 +26,7 @@ The project uses GitHub Actions for continuous integration and deployment:
 - **Release**: Automatic release asset publishing when GitHub releases are created
 - **Dependency Updates**: Dependabot manages NuGet and GitHub Actions dependencies weekly
 
-All workflows run on .NET 8.0 with Windows runners for WPF compatibility.
+All workflows run on .NET 9.0 with Windows runners for WPF compatibility.
 
 ## Observability
 

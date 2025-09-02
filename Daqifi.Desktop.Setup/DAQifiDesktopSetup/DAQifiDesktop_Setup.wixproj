@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <DaqifiSourceDir>$(SolutionDir)..\Daqifi.Desktop\bin\$(Configuration)\net8.0-windows</DaqifiSourceDir>
+    <DaqifiSourceDir>$(SolutionDir)..\Daqifi.Desktop\bin\$(Configuration)\net9.0-windows</DaqifiSourceDir>
     <DaqifiSourceDirShort>$([System.IO.Path]::GetFullPath('$(DaqifiSourceDir)'))</DaqifiSourceDirShort>
     <MainExeName>DAQiFi.exe</MainExeName>
   </PropertyGroup>

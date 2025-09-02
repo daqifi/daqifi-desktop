@@ -14,7 +14,7 @@
           <Directory Id="RUNTIMESFOLDER" Name="runtimes">
             <Directory Id="RUNTIMESWIN" Name="win">
               <Directory Id="RUNTIMESWINLIB" Name="lib">
-                <Directory Id="RUNTIMESWINLIBNET" Name="net8.0"/>
+                <Directory Id="RUNTIMESWINLIBNET" Name="net9.0"/>
               </Directory>
             </Directory>
             <Directory Id="RUNTIMESWIN_X64" Name="win-x64">
@@ -344,14 +344,14 @@
       <!-- Windows Runtime Libraries -->
       <Component Id="RuntimeWinLib" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA7A1">
         <File Id="WinSystemManagement"
-              Source="$(var.SourceDir)\runtimes\win\lib\net8.0\System.Management.dll"
+              Source="$(var.SourceDir)\runtimes\win\lib\net9.0\System.Management.dll"
               KeyPath="yes"/>
         <File Id="WinSystemIOPorts"
-              Source="$(var.SourceDir)\runtimes\win\lib\net8.0\System.IO.Ports.dll"/>
+              Source="$(var.SourceDir)\runtimes\win\lib\net9.0\System.IO.Ports.dll"/>
         <File Id="WinSystemDiagnosticsEventLog"
-              Source="$(var.SourceDir)\runtimes\win\lib\net8.0\System.Diagnostics.EventLog.dll"/>
+              Source="$(var.SourceDir)\runtimes\win\lib\net9.0\System.Diagnostics.EventLog.dll"/>
         <File Id="WinMicrosoftDataSqlClient"
-              Source="$(var.SourceDir)\runtimes\win\lib\net8.0\Microsoft.Data.SqlClient.dll"/>
+              Source="$(var.SourceDir)\runtimes\win\lib\net9.0\Microsoft.Data.SqlClient.dll"/>
       </Component>
 
       <!-- Windows x64 Native Libraries -->

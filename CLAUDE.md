@@ -9,7 +9,7 @@ This document provides context for Claude to assist with the DAQiFi Desktop appl
 DAQiFi Desktop is a Windows desktop application for communicating with DAQiFi hardware products. Our goal is to modernize data acquisition with user-friendly and intuitive products.
 
 ### Technology Stack
-- .NET 8.0 and WPF for the desktop application
+- .NET 9.0 and WPF for the desktop application
 - SQLite for local data storage
 - Google Protocol Buffers for device communication
 - EntityFramework for database operations
