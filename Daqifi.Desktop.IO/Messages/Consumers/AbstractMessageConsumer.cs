@@ -43,7 +43,7 @@ public abstract class AbstractMessageConsumer : IMessageConsumer
     public virtual void Stop()
     {
         _running = false;
-            
+
         // Give the thread up to 2 seconds to stop gracefully
         if (_consumerThread != null && _consumerThread.IsAlive)
         {

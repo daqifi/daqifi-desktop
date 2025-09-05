@@ -38,11 +38,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         Streaming,
         SdCard
     }
-        
+
     public abstract ConnectionType ConnectionType { get; }
-        
+
     private const double TickPeriod = 20E-9f;
-    
+
     // Converted StreamingFrequency property to [ObservableProperty] field
     [ObservableProperty]
     private int _streamingFrequency = 1;
@@ -73,7 +73,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public string DeviceVersion { get; set; }
 
     public string IpAddress { get; set; } = string.Empty;
-    
+
     // Removed original StreamingFrequency property definition
 
     public NetworkConfiguration NetworkConfiguration { get; set; } = new();
@@ -121,7 +121,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             default:
                 throw new ArgumentOutOfRangeException(nameof(handlerType), handlerType, null);
         }
-            
+
         AppLogger.Information($"Message handler set to: {handlerType}");
     }
 
@@ -350,10 +350,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
                 // Remove the Daqifi/ prefix if present and get just the filename
                 var fileName = Path.GetFileName(cleanPath);
-                    
+
                 // For log files, try to parse the date from the filename
                 var createdDate = TryParseLogFileDate(fileName) ?? DateTime.MinValue;
-                    
+
                 return new SdCardFile
                 {
                     FileName = fileName,
@@ -376,10 +376,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             var dateStr = match.Groups[1].Value;
             var timeStr = match.Groups[2].Value;
             if (DateTime.TryParseExact(
-                    dateStr + timeStr, 
-                    "yyyyMMddHHmmss", 
-                    CultureInfo.InvariantCulture, 
-                    DateTimeStyles.None, 
+                    dateStr + timeStr,
+                    "yyyyMMddHHmmss",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
                     out var result))
             {
                 return result;
@@ -401,7 +401,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             return;
         }
-            
+
         // Stop any current activity
         if (IsStreaming)
         {
@@ -411,7 +411,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             StopSdCardLogging();
         }
-            
+
         // Clean up old mode
         switch (Mode)
         {
@@ -459,7 +459,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             MessageProducer.Send(ScpiMessageProducer.EnableStorageSd);
             MessageProducer.Send(ScpiMessageProducer.SetSdLoggingFileName($"log_{DateTime.Now:yyyyMMdd_HHmmss}.bin"));
             MessageProducer.Send(ScpiMessageProducer.SetProtobufStreamFormat); // Set format for SD card logging
-                
+
             // Enable any active channels
             foreach (var channel in DataChannels.Where(c => c.IsActive))
             {
@@ -476,7 +476,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             // Start the device logging at the configured frequency
             MessageProducer.Send(ScpiMessageProducer.StartStreaming(StreamingFrequency));
-                
+
             IsLoggingToSdCard = true;
             IsStreaming = true; // We're streaming to SD card
             AppLogger.Information($"Enabled SD card logging for device {DeviceSerialNo}");
@@ -497,7 +497,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             // Stop the device logging
             MessageProducer.Send(ScpiMessageProducer.StopStreaming);
             MessageProducer.Send(ScpiMessageProducer.DisableStorageSd);
-                
+
             IsLoggingToSdCard = false;
             IsStreaming = false;
             AppLogger.Information($"Disabled SD card logging for device {DeviceSerialNo}");
@@ -519,7 +519,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         var stream = MessageConsumer.DataStream;
-            
+
         // Stop existing consumer first
         if (MessageConsumer != null && MessageConsumer.Running)
         {
@@ -530,22 +530,22 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         MessageConsumer = new TextMessageConsumer(stream);
         SetMessageHandler(MessageHandlerType.SdCard);
         MessageConsumer.Start();
-            
+
         // Give the consumer a moment to fully initialize
         Thread.Sleep(50);
 
         // Now that we're listening, prepare the SD interface
         PrepareSdInterface();
-            
+
         // Give the interface time to switch and send any responses
         Thread.Sleep(100);
-            
+
         // Now request the file list
         MessageProducer.Send(ScpiMessageProducer.GetSdFileList);
-        
+
         // Give time for the file list response to be received
         Thread.Sleep(500);
-        
+
         // After getting the file list, restore LAN interface if we're in StreamToApp mode
         // SD and LAN share the same SPI bus and cannot be enabled simultaneously
         if (Mode == DeviceMode.StreamToApp)
@@ -580,7 +580,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             throw new InvalidOperationException("Cannot initialize streaming while in LogToDevice mode");
         }
-            
+
         MessageProducer.Send(ScpiMessageProducer.StartStreaming(StreamingFrequency));
         IsStreaming = true;
         StartStreamingMessageConsumer();
@@ -634,7 +634,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             {
                 msgConsumer.ClearBuffer();
             }
-                
+
             SetMessageHandler(MessageHandlerType.Streaming);
             MessageConsumer.Start();
         }
@@ -893,7 +893,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             default:
                 throw new ArgumentOutOfRangeException();
         }
-        
+
         MessageProducer.Send(ScpiMessageProducer.SetNetworkWifiSsid(NetworkConfiguration.Ssid));
 
         switch (NetworkConfiguration.SecurityType)
@@ -907,7 +907,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             default:
                 throw new ArgumentOutOfRangeException();
         }
-        
+
         MessageProducer.Send(ScpiMessageProducer.SetNetworkWifiPassword(NetworkConfiguration.Password));
         MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
 
@@ -940,7 +940,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         MessageProducer.Send(ScpiMessageProducer.DisableNetworkLan);
         MessageProducer.Send(ScpiMessageProducer.EnableStorageSd);
     }
-        
+
     // SD and LAN can't both be enabled due to hardware limitations
     private void PrepareLanInterface()
     {

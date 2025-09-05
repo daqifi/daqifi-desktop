@@ -11,9 +11,9 @@ public class AppLogger : IAppLogger
     #region Private Data
     private readonly Logger _logger;
     private readonly Client _client;
-    private static readonly NoOpLogger _noOpLogger = new();
+    private static readonly NoOpLogger NoOpLogger = new();
     private static readonly AppLogger _instance = new();
-    private static readonly bool _isTestMode = IsRunningInTestEnvironment();
+    private static readonly bool IsTestMode = IsRunningInTestEnvironment();
     #endregion
 
     public static AppLogger Instance => _instance;
@@ -25,7 +25,7 @@ public class AppLogger : IAppLogger
             // Check if we're running under a test runner by looking for test assemblies
             var assemblies = AppDomain.CurrentDomain.GetAssemblies();
             var testAssemblies = new[] { "Microsoft.VisualStudio.TestPlatform", "nunit.framework", "xunit" };
-                
+
             return assemblies.Any(a => testAssemblies.Any(t => a.FullName?.Contains(t) == true));
         }
         catch
@@ -37,7 +37,7 @@ public class AppLogger : IAppLogger
 
     private AppLogger()
     {
-        if (_isTestMode)
+        if (IsTestMode)
         {
             // In test mode, don't initialize real logging
             _logger = null;
@@ -87,9 +87,9 @@ public class AppLogger : IAppLogger
     #region Logger Methods
     public void Information(string message)
     {
-        if (_isTestMode)
+        if (IsTestMode)
         {
-            _noOpLogger.Information(message);
+            NoOpLogger.Information(message);
             return;
         }
         _logger.Info(message);
@@ -97,9 +97,9 @@ public class AppLogger : IAppLogger
 
     public void Warning(string message)
     {
-        if (_isTestMode)
+        if (IsTestMode)
         {
-            _noOpLogger.Warning(message);
+            NoOpLogger.Warning(message);
             return;
         }
         _logger.Warn(message);
@@ -107,9 +107,9 @@ public class AppLogger : IAppLogger
 
     public void Error(string message)
     {
-        if (_isTestMode)
+        if (IsTestMode)
         {
-            _noOpLogger.Error(message);
+            NoOpLogger.Error(message);
             return;
         }
         _logger.Error(message);
@@ -118,9 +118,9 @@ public class AppLogger : IAppLogger
 
     public void Error(Exception ex, string message)
     {
-        if (_isTestMode)
+        if (IsTestMode)
         {
-            _noOpLogger.Error(ex, message);
+            NoOpLogger.Error(ex, message);
             return;
         }
         _logger.Error(ex, message);

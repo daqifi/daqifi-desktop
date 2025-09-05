@@ -1,8 +1,4 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using Daqifi.Core.Communication.Messages;
+﻿using Daqifi.Core.Communication.Messages;
 using Daqifi.Desktop.IO.Messages.Producers;
 
 namespace Daqifi.Desktop.IO.Test.Messages.Producers;

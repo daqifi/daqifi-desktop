@@ -73,10 +73,10 @@ public class SerialDeviceFinder : IDeviceFinder
                 foreach (var portName in addedPorts)
                 {
                     var device = new SerialStreamingDevice(portName);
-                    
+
                     // Immediately notify device found so it appears in UI right away
                     NotifyDeviceFound(this, device);
-                    
+
                     // Try to get device information in background and update UI when complete
                     Task.Run(async () =>
                     {
@@ -109,7 +109,7 @@ public class SerialDeviceFinder : IDeviceFinder
         };
 
         bw.RunWorkerAsync();
-            
+
     }
 
     public void Start()

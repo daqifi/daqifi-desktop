@@ -33,7 +33,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         // Check if this device is already connected
         var connectionManager = ConnectionManager.Instance;
-        if (connectionManager.ConnectedDevices.Any(d => d is SerialStreamingDevice serial && 
+        if (connectionManager.ConnectedDevices.Any(d => d is SerialStreamingDevice serial &&
                                                        serial.Port.PortName == Port.PortName))
         {
             return false; // Device is already connected, don't interfere
@@ -96,7 +96,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             var retryCount = 0;
             var maxRetries = 3;
             var lastRequestTime = DateTime.MinValue;
-            
+
             while (!deviceInfoReceived && DateTime.Now < timeout)
             {
                 // Send GetDeviceInfo request every 1 second, up to maxRetries times
@@ -114,7 +114,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                         AppLogger.Warning($"Failed to send GetDeviceInfo command: {ex.Message}");
                     }
                 }
-                
+
                 // Suppressed: Thread.Sleep required for device communication polling
                 Thread.Sleep(100); // Check more frequently for response
             }
@@ -136,12 +136,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Failed to get device info for port {Port.PortName}");
-            try 
-            { 
-                QuickDisconnect(); 
-            } 
-            catch (Exception disconnectEx) 
-            { 
+            try
+            {
+                QuickDisconnect();
+            }
+            catch (Exception disconnectEx)
+            {
                 AppLogger.Warning($"Error during cleanup disconnect for port {Port.PortName}: {disconnectEx.Message}");
             }
             return false;
@@ -178,7 +178,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                     AppLogger.Warning($"Error stopping message producer: {ex.Message}");
                 }
             }
-            
+
             // Close the port
             if (Port != null && Port.IsOpen)
             {
@@ -220,7 +220,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
             TurnOffEcho();
             StopStreaming();
-            TurnDeviceOn();   
+            TurnDeviceOn();
             SetProtobufMessageFormat();
 
             MessageConsumer = new MessageConsumer(Port.BaseStream);
@@ -256,7 +256,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         {
             // First stop streaming to prevent new data from being requested
             StopStreaming();
-                
+
             // Stop the message producer first to prevent new messages
             if (MessageProducer != null)
             {
@@ -313,7 +313,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     }
 
     #endregion
-        
+
     #region Serial Device Only Methods
     public void EnableLanUpdateMode()
     {
@@ -321,7 +321,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         MessageProducer.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
         MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
     }
-        
+
     public void ResetLanAfterUpdate()
     {
         MessageProducer.Send(ScpiMessageProducer.SetUsbTransparencyMode(0));
@@ -329,7 +329,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
         MessageProducer.Send(ScpiMessageProducer.SaveNetworkLan);
     }
-    
+
     public void ForceBootloader()
     {
         MessageProducer.Send(ScpiMessageProducer.ForceBootloader);

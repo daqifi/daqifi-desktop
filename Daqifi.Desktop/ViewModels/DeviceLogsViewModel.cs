@@ -31,10 +31,10 @@ public partial class DeviceLogsViewModel : ObservableObject
     private bool _canRefreshFiles;
 
     public bool CanAccessSdCard => SelectedDevice?.ConnectionType == ConnectionType.Usb;
-        
+
     public string ConnectionTypeMessage => SelectedDevice == null ? string.Empty :
-        SelectedDevice.ConnectionType == ConnectionType.Usb ? 
-            "USB Connected - SD Card Access Available" : 
+        SelectedDevice.ConnectionType == ConnectionType.Usb ?
+            "USB Connected - SD Card Access Available" :
             "WiFi Connected - SD Card Access Requires USB Connection";
 
     public ICommand RefreshFilesCommand { get; }
@@ -43,7 +43,7 @@ public partial class DeviceLogsViewModel : ObservableObject
     {
         ConnectedDevices = new ObservableCollection<IStreamingDevice>();
         DeviceFiles = new ObservableCollection<SdCardFile>();
-            
+
         // Initialize commands
         RefreshFilesCommand = new RelayCommand(RefreshFiles, () => CanAccessSdCard);
 

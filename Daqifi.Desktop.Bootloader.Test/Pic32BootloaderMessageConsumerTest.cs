@@ -1,6 +1,4 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-
-namespace Daqifi.Desktop.Bootloader.Test;
+﻿namespace Daqifi.Desktop.Bootloader.Test;
 
 [TestClass]
 public class Pic32BootloaderMessageConsumerTest

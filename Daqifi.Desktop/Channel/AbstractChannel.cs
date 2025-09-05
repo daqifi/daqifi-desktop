@@ -98,11 +98,11 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
         {
             _scaledExpression = value;
 
-            if (string.IsNullOrWhiteSpace(_scaledExpression)) 
+            if (string.IsNullOrWhiteSpace(_scaledExpression))
             {
                 HasValidExpression = false;
                 Expression = null;
-                return; 
+                return;
             }
 
             Expression = new Expression(_scaledExpression)

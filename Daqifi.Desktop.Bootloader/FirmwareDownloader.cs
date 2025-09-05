@@ -22,7 +22,7 @@ public class FirmwareDownloader
             _client = client;
         }
     }
-    
+
     public string Download()
     {
         try

@@ -32,7 +32,7 @@ public partial class MainWindow
             };
         }
         catch (Exception ex)
-        {  
+        {
             _appLogger.Error(ex, "Error in MainWindow");
         }
 

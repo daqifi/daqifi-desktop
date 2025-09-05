@@ -1,9 +1,6 @@
-using System;
-using System.ComponentModel;
 using System.Globalization;
 using System.Windows.Data;
 using Daqifi.Desktop.Helpers;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Daqifi.Desktop.Test.Converters
 {

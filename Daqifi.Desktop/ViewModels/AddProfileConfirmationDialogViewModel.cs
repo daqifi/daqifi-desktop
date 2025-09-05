@@ -59,7 +59,7 @@ public partial class AddProfileConfirmationDialogViewModel : ObservableObject
     public AddProfileConfirmationDialogViewModel(IDialogService dialogService)
     {
         _dialogService=dialogService;
-           
+
         if (_dialogService != null && _dialogService.Views.Count > 0 && _dialogService.Views[0] is Daqifi.Desktop.MainWindow mainWindow)
         {
             if (mainWindow.DataContext is DaqifiViewModel daqifiViewModel)
@@ -69,11 +69,11 @@ public partial class AddProfileConfirmationDialogViewModel : ObservableObject
                 if (_daqifiViewModel != null)
                 {
                     if (_daqifiViewModel.ActiveChannels != null && _daqifiViewModel.ActiveChannels.Count > 0)
-                    { 
+                    {
                         SaveProfileExisting = Visibility.Visible;
                     }
-                    else 
-                    { 
+                    else
+                    {
                         SaveProfileExisting = Visibility.Collapsed;
                     }
                 }

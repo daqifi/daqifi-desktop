@@ -19,13 +19,13 @@ public partial class ConnectionDialogViewModel : ObservableObject
     private SerialDeviceFinder _serialFinder;
     private HidDeviceFinder _hidDeviceFinder;
     private readonly IDialogService _dialogService;
-    
+
     [ObservableProperty]
     private bool _hasNoWiFiDevices = true;
-    
+
     [ObservableProperty]
     private bool _hasNoSerialDevices = true;
-    
+
     [ObservableProperty]
     private bool _hasNoHidDevices = true;
     #endregion
@@ -34,7 +34,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
     public ObservableCollection<DaqifiStreamingDevice> AvailableWiFiDevices { get; } = [];
     public ObservableCollection<SerialStreamingDevice> AvailableSerialDevices { get; } = [];
     public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = [];
-    
+
     public string ManualPortName { get; set; }
 
     public SerialStreamingDevice ManualSerialDevice { get; set; }
@@ -85,7 +85,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         _wifiFinder.Stop();
 
         var selectedDevices = ((IEnumerable)selectedItems).Cast<IStreamingDevice>();
-        
+
         foreach (var device in selectedDevices)
         {
             await ConnectionManager.Instance.Connect(device);

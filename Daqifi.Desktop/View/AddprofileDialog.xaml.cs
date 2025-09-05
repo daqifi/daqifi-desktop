@@ -57,7 +57,7 @@ public partial class AddprofileDialog
             {
                 if (!selectedDevices.Any(x => x.DeviceSerialNo == removedDevice.DeviceSerialNo))
                 {
-                    datacontext.RemoveAvailableChannels(removedDevice); 
+                    datacontext.RemoveAvailableChannels(removedDevice);
                 }
             }
         }

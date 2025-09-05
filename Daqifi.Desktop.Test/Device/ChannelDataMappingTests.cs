@@ -239,7 +239,7 @@ public class TestableStreamingDevice : AbstractStreamingDevice
                                                   .OrderBy(c => c.Index)
                                                   .ToList();
 
-            for (int dataIndex = 0; dataIndex < message.AnalogInData.Count && dataIndex < activeAnalogChannels.Count; dataIndex++)
+            for (var dataIndex = 0; dataIndex < message.AnalogInData.Count && dataIndex < activeAnalogChannels.Count; dataIndex++)
             {
                 var channel = activeAnalogChannels[dataIndex];
                 var rawValue = message.AnalogInData.ElementAt(dataIndex);

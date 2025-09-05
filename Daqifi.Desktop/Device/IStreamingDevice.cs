@@ -19,7 +19,7 @@ public enum ConnectionType
     /// Device is connected via USB
     /// </summary>
     Usb,
-        
+
     /// <summary>
     /// Device is connected via WiFi
     /// </summary>

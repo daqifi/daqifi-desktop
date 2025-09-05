@@ -17,17 +17,17 @@ public partial class VersionNotification : ObservableObject
     [ObservableProperty]
     private string _versionNumber;
     #endregion
-    
+
     #region Version Checking Function 
     public async Task CheckForUpdatesAsync()
     {
-        string currentVersion = Assembly.GetExecutingAssembly().GetName().Version.ToString(); 
+        string currentVersion = Assembly.GetExecutingAssembly().GetName().Version.ToString();
         string githubApiUrl = "https://api.github.com/repos/daqifi/daqifi-desktop/releases/latest";
         try
         {
             using (HttpClient client = new HttpClient())
             {
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"); 
+                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
                 var response = await client.GetAsync(githubApiUrl);
                 if (!response.IsSuccessStatusCode)
                 {

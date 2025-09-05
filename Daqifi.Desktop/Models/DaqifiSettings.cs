@@ -26,7 +26,7 @@ public class DaqifiSettings
             SaveSettings();
         }
     }
-        
+
     public bool CanReportErrors
     {
         get => _canReportErrors;
@@ -74,7 +74,7 @@ public class DaqifiSettings
                     _canReportErrors = temp;
                 }
             }
-                
+
             if (xml.Element("CsvDelimiter") != null)
             {
                 _csvDelimiter = xml.Element("CsvDelimiter").Value;

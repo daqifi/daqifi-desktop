@@ -50,7 +50,7 @@ public class TextMessageConsumer : AbstractMessageConsumer
                     {
                         _stringBuilder.Append(text);
                     }
-                        
+
                     // Reset the timer each time we get data
                     _processTimer.Change(PROCESS_DELAY_MS, Timeout.Infinite);
                 }
@@ -118,7 +118,7 @@ public class TextMessageConsumer : AbstractMessageConsumer
 
             // Process any remaining data before stopping
             ProcessAccumulatedData(null);
-                
+
             base.Stop();
         }
         catch (Exception ex)

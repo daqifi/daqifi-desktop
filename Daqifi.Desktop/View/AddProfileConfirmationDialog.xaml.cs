@@ -5,11 +5,11 @@ namespace Daqifi.Desktop.View;
 /// <summary>
 /// Interaction logic for AddProfileConfirmationDialog.xaml
 /// </summary>
-public partial class AddProfileConfirmationDialog 
+public partial class AddProfileConfirmationDialog
 {
     public AddProfileConfirmationDialog()
     {
-        InitializeComponent();       
+        InitializeComponent();
     }
 
     private void ExistingProfileBtn_Click(object sender, RoutedEventArgs e)

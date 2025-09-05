@@ -10,7 +10,7 @@ public class IntToVisibilityConverter : IValueConverter
     {
         if (value is int count)
         {
-            return count > 0 ? Visibility.Visible : Visibility.Collapsed; 
+            return count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         return Visibility.Collapsed;
     }

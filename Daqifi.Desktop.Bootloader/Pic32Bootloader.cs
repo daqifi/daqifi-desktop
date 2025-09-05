@@ -56,7 +56,7 @@ public partial class Pic32Bootloader : ObservableObject, IBootloader, IDisposabl
         var consumer = new Pic32BootloaderMessageConsumer();
         var version = consumer.DecodeVersionResponse(inputReport.Data);
         Version = version.ToLower().Equals("error") ? VersionErrorMessage : version;
-            
+
         _resetEvent.Set();
     }
 

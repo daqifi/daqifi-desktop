@@ -75,7 +75,7 @@ public class OptimizedLoggingSessionExporter
         }
 
         var firstTimestamp = loggingSession.DataSamples.Min(s => s.TimestampTicks);
-        
+
         // Write header efficiently
         using var writer = new StreamWriter(filepath, false, Encoding.UTF8, BUFFER_SIZE);
         WriteHeaderToWriter(writer, channelNames, exportRelativeTime);
@@ -119,7 +119,7 @@ public class OptimizedLoggingSessionExporter
         // Get min timestamp and count in a single query to avoid logic errors and reduce roundtrips
         var stats = query
             .GroupBy(s => 1) // Dummy groupby to use aggregate functions
-            .Select(g => new { 
+            .Select(g => new {
                 MinTimestamp = g.Min(s => (long?)s.TimestampTicks) ?? 0L,
                 Count = g.Count()
             })
@@ -143,7 +143,7 @@ public class OptimizedLoggingSessionExporter
         writer.WriteLine();
     }
 
-    private void WriteMemoryDataDirectly(StreamWriter writer, ICollection<DataSample> dataSamples, List<string> channelNames, 
+    private void WriteMemoryDataDirectly(StreamWriter writer, ICollection<DataSample> dataSamples, List<string> channelNames,
         long firstTimestamp, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
     {
         var sb = new StringBuilder(1024 * 4);
@@ -152,10 +152,10 @@ public class OptimizedLoggingSessionExporter
 
         // Stream process by timestamp to avoid materializing all groups in memory
         var orderedSamples = dataSamples.OrderBy(s => s.TimestampTicks);
-        
+
         long? currentTimestamp = null;
         var timestampBucket = new List<DataSample>();
-        
+
         foreach (var sample in orderedSamples)
         {
             if (bw.CancellationPending)
@@ -170,7 +170,7 @@ public class OptimizedLoggingSessionExporter
                 // Write the completed timestamp group
                 WriteTimestampGroup(writer, sb, timestampBucket, channelNames, firstTimestamp, exportRelativeTime);
                 processedSamples += timestampBucket.Count;
-                
+
                 // Update progress periodically
                 if (processedSamples % 5000 == 0)
                 {
@@ -191,18 +191,18 @@ public class OptimizedLoggingSessionExporter
         {
             WriteTimestampGroup(writer, sb, timestampBucket, channelNames, firstTimestamp, exportRelativeTime);
             processedSamples += timestampBucket.Count;
-            
+
             // Final progress update
             var finalProgress = (int)((sessionIndex + 1.0) * (100.0 / totalSessions));
             bw.ReportProgress(finalProgress, "Exporting");
         }
     }
 
-    private void WriteTimestampGroup(StreamWriter writer, StringBuilder sb, List<DataSample> timestampSamples, 
+    private void WriteTimestampGroup(StreamWriter writer, StringBuilder sb, List<DataSample> timestampSamples,
         List<string> channelNames, long firstTimestamp, bool exportRelativeTime)
     {
         if (!timestampSamples.Any()) return;
-        
+
         var timestamp = timestampSamples.First().TimestampTicks;
         var timeString = exportRelativeTime
             ? ((timestamp - firstTimestamp) / (double)TimeSpan.TicksPerSecond).ToString("F3")
@@ -245,7 +245,7 @@ public class OptimizedLoggingSessionExporter
         writer.WriteLine();
     }
 
-    private void StreamDataToFile(LoggingSession loggingSession, string filepath, 
+    private void StreamDataToFile(LoggingSession loggingSession, string filepath,
         (List<string> channelNames, bool hasTimestamps, int samplesCount, long firstTimestamp) channelInfo,
         bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
     {
@@ -254,7 +254,7 @@ public class OptimizedLoggingSessionExporter
 
         using var writer = new StreamWriter(filepath, true, Encoding.UTF8, BUFFER_SIZE);
         var sb = new StringBuilder(1024 * 4);
-        
+
         var processedSamples = 0;
         long? lastProcessedTimestamp = null;
 
@@ -297,7 +297,7 @@ public class OptimizedLoggingSessionExporter
                     .ToList();
 
                 // Write complete timestamp group
-                WriteCompleteTimestampRow(writer, sb, timestampSamples, channelInfo.channelNames, 
+                WriteCompleteTimestampRow(writer, sb, timestampSamples, channelInfo.channelNames,
                     channelInfo.firstTimestamp, exportRelativeTime);
 
                 processedSamples += timestampSamples.Count;
@@ -345,7 +345,7 @@ public class OptimizedLoggingSessionExporter
     }
 
 
-    public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity, 
+    public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity,
         bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
     {
         try
@@ -365,7 +365,7 @@ public class OptimizedLoggingSessionExporter
                 return;
 
             using var writer = new StreamWriter(filepath, false, Encoding.UTF8, BUFFER_SIZE);
-            
+
             // Write header
             var header = exportRelativeTime ? "Relative Time (s)" : "Time";
             writer.Write(header);
@@ -385,8 +385,8 @@ public class OptimizedLoggingSessionExporter
         }
     }
 
-    private void StreamAverageData(LoggingContext context, int sessionId, StreamWriter writer, 
-        List<string> channelNames, double averageQuantity, bool exportRelativeTime, 
+    private void StreamAverageData(LoggingContext context, int sessionId, StreamWriter writer,
+        List<string> channelNames, double averageQuantity, bool exportRelativeTime,
         BackgroundWorker bw, int sessionIndex, int totalSessions)
     {
         var tempTotals = channelNames.ToDictionary(name => name, _ => 0.0);
