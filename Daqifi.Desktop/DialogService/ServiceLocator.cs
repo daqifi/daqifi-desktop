@@ -1,6 +1,4 @@
-﻿using System.Reflection;
-
-namespace Daqifi.Desktop.DialogService;
+﻿namespace Daqifi.Desktop.DialogService;
 
 /// <summary>
 /// A very simple service locator.
@@ -99,7 +97,7 @@ static class ServiceLocator
                 return services[type].ServiceImplementation;
             }
 
-            ConstructorInfo ctor = type.GetConstructors().First();
+            var ctor = type.GetConstructors().First();
 
             var parameters =
                 from parameter in ctor.GetParameters()

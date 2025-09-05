@@ -17,7 +17,7 @@ public static class VersionHelper
 
         public int CompareTo(VersionInfo other)
         {
-            int cmp = Major.CompareTo(other.Major);
+            var cmp = Major.CompareTo(other.Major);
             if (cmp != 0) return cmp;
             cmp = Minor.CompareTo(other.Minor);
             if (cmp != 0) return cmp;
@@ -25,8 +25,8 @@ public static class VersionHelper
             if (cmp != 0) return cmp;
 
             // Numeric equal; compare prerelease precedence
-            int thisRank = GetPrecedenceRank(PreLabel);
-            int otherRank = GetPrecedenceRank(other.PreLabel);
+            var thisRank = GetPrecedenceRank(PreLabel);
+            var otherRank = GetPrecedenceRank(other.PreLabel);
             if (thisRank != otherRank) return thisRank.CompareTo(otherRank);
             // Same label
             return PreNumber.CompareTo(other.PreNumber);
@@ -58,13 +58,13 @@ public static class VersionHelper
         var m = FullVersionRegex.Match(input.Trim());
         if (!m.Success) return false;
 
-        int major = int.Parse(m.Groups["maj"].Value);
-        int minor = int.TryParse(m.Groups["min"].Value, out var mi) ? mi : 0;
-        int patch = int.TryParse(m.Groups["pat"].Value, out var pa) ? pa : 0;
+        var major = int.Parse(m.Groups["maj"].Value);
+        var minor = int.TryParse(m.Groups["min"].Value, out var mi) ? mi : 0;
+        var patch = int.TryParse(m.Groups["pat"].Value, out var pa) ? pa : 0;
 
-        string? suffix = m.Groups["suffix"].Success ? m.Groups["suffix"].Value : null;
+        var suffix = m.Groups["suffix"].Success ? m.Groups["suffix"].Value : null;
         string? label = null;
-        int preNum = 0;
+        var preNum = 0;
         if (!string.IsNullOrEmpty(suffix))
         {
             // Split letters and trailing digits

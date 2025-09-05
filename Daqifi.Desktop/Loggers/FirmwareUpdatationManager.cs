@@ -26,21 +26,21 @@ public partial class FirmwareUpdatationManager : ObservableObject
         }
         try
         {
-            string githubApiUrl = "https://api.github.com/repos/daqifi/daqifi-nyquist-firmware/releases";
-            string userAgent = "Mozilla/5.0 (compatible; AcmeApp/1.0)";
-            HttpClientHandler handler = new HttpClientHandler { AllowAutoRedirect = true };
-            using HttpClient client = new HttpClient(handler);
+            var githubApiUrl = "https://api.github.com/repos/daqifi/daqifi-nyquist-firmware/releases";
+            var userAgent = "Mozilla/5.0 (compatible; AcmeApp/1.0)";
+            var handler = new HttpClientHandler { AllowAutoRedirect = true };
+            using var client = new HttpClient(handler);
             client.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
 
-            HttpResponseMessage response = client.GetAsync(githubApiUrl).Result;
+            var response = client.GetAsync(githubApiUrl).Result;
             if (!response.IsSuccessStatusCode)
             {
                 if (response.Headers.Contains("X-RateLimit-Reset"))
                 {
-                    string resetTimeString = response.Headers.GetValues("X-RateLimit-Reset").FirstOrDefault();
-                    if (long.TryParse(resetTimeString, out long resetTimeUnix))
+                    var resetTimeString = response.Headers.GetValues("X-RateLimit-Reset").FirstOrDefault();
+                    if (long.TryParse(resetTimeString, out var resetTimeUnix))
                     {
-                        DateTime resetTime = DateTimeOffset.FromUnixTimeSeconds(resetTimeUnix).UtcDateTime;
+                        var resetTime = DateTimeOffset.FromUnixTimeSeconds(resetTimeUnix).UtcDateTime;
                         AppLogger.Error($"Rate limit reached. Next attempt allowed after: {resetTime} UTC.");
                     }
                 }
@@ -48,7 +48,7 @@ public partial class FirmwareUpdatationManager : ObservableObject
                 return null;
             }
 
-            string jsonResponse = await response.Content.ReadAsStringAsync();
+            var jsonResponse = await response.Content.ReadAsStringAsync();
             var releaseData = JArray.Parse(jsonResponse);
             // Prefer latest non-draft, including pre-releases; if both exist, pick the highest semver
             var ordered = releaseData

@@ -1,6 +1,3 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-
 namespace Daqifi.Desktop.Test.Device;
 
 [TestClass]
@@ -18,11 +15,11 @@ public class AnalogChannelFixVerificationTests
         // Previously, the bug in RemoveChannel would have caused issues with channel 8
         
         // Arrange
-        int channelIndex = 8;
+        var channelIndex = 8;
         
         // Act
-        uint bitMask = 1u << channelIndex;
-        string bitMaskString = Convert.ToString(bitMask);
+        var bitMask = 1u << channelIndex;
+        var bitMaskString = Convert.ToString(bitMask);
         
         // Assert
         Assert.AreEqual(256u, bitMask, "Channel 8 should produce bit mask 256");
@@ -36,11 +33,11 @@ public class AnalogChannelFixVerificationTests
         // This is the highest channel that was reported as problematic
         
         // Arrange
-        int channelIndex = 15;
+        var channelIndex = 15;
         
         // Act
-        uint bitMask = 1u << channelIndex;
-        string bitMaskString = Convert.ToString(bitMask);
+        var bitMask = 1u << channelIndex;
+        var bitMaskString = Convert.ToString(bitMask);
         
         // Assert
         Assert.AreEqual(32768u, bitMask, "Channel 15 should produce bit mask 32768");
@@ -53,10 +50,10 @@ public class AnalogChannelFixVerificationTests
         // This test verifies that all problematic channels (8-15) can be combined correctly
         
         // Arrange
-        uint combinedMask = 0u;
+        var combinedMask = 0u;
         
         // Act - Add all channels 8-15 to the mask
-        for (int i = 8; i <= 15; i++)
+        for (var i = 8; i <= 15; i++)
         {
             combinedMask |= 1u << i;
         }
@@ -66,9 +63,9 @@ public class AnalogChannelFixVerificationTests
         Assert.AreEqual(65280u, combinedMask, "Combined mask for channels 8-15 should be 65280");
         
         // Verify each individual channel is set in the combined mask
-        for (int i = 8; i <= 15; i++)
+        for (var i = 8; i <= 15; i++)
         {
-            uint channelMask = 1u << i;
+            var channelMask = 1u << i;
             Assert.IsTrue((combinedMask & channelMask) != 0, $"Channel {i} should be set in combined mask");
         }
     }
@@ -80,14 +77,14 @@ public class AnalogChannelFixVerificationTests
         // Previously, it used right shift (>>) instead of left shift (<<)
         
         // Arrange
-        uint originalMask = (1u << 8) | (1u << 12) | (1u << 15); // Channels 8, 12, 15 active
-        int channelToRemove = 12;
+        var originalMask = (1u << 8) | (1u << 12) | (1u << 15); // Channels 8, 12, 15 active
+        var channelToRemove = 12;
         
         // Act - Remove channel 12 using correct bit logic
-        uint updatedMask = originalMask & ~(1u << channelToRemove);
+        var updatedMask = originalMask & ~(1u << channelToRemove);
         
         // Assert
-        uint expectedMask = (1u << 8) | (1u << 15); // Only channels 8 and 15 should remain
+        var expectedMask = (1u << 8) | (1u << 15); // Only channels 8 and 15 should remain
         Assert.AreEqual(expectedMask, updatedMask, "After removing channel 12, only channels 8 and 15 should remain");
         
         // Verify specific channels
@@ -103,14 +100,14 @@ public class AnalogChannelFixVerificationTests
         // with higher channel numbers
         
         // Arrange & Act
-        uint channel31Mask = 1u << 31; // This would overflow with signed int
+        var channel31Mask = 1u << 31; // This would overflow with signed int
         
         // Assert
         Assert.AreEqual(2147483648u, channel31Mask, "Channel 31 should produce correct unsigned value");
         Assert.IsTrue(channel31Mask > 0, "Channel 31 mask should be positive with unsigned int");
         
         // Verify string conversion works correctly
-        string maskString = Convert.ToString(channel31Mask);
+        var maskString = Convert.ToString(channel31Mask);
         Assert.AreEqual("2147483648", maskString, "Channel 31 mask should convert to correct string");
     }
 
@@ -124,15 +121,15 @@ public class AnalogChannelFixVerificationTests
         int[] testChannels = { 0, 4, 8, 12, 15 }; // Mix of low and high channels
         
         // Act & Assert
-        foreach (int channelIndex in testChannels)
+        foreach (var channelIndex in testChannels)
         {
             // Test individual channel mask
-            uint individualMask = 1u << channelIndex;
+            var individualMask = 1u << channelIndex;
             Assert.IsTrue(individualMask > 0, $"Channel {channelIndex} should produce positive mask");
             
             // Test that the mask has exactly one bit set
             uint bitCount = 0;
-            uint temp = individualMask;
+            var temp = individualMask;
             while (temp > 0)
             {
                 bitCount += temp & 1;
@@ -141,9 +138,9 @@ public class AnalogChannelFixVerificationTests
             Assert.AreEqual(1u, bitCount, $"Channel {channelIndex} mask should have exactly one bit set");
             
             // Test string conversion
-            string maskString = Convert.ToString(individualMask);
+            var maskString = Convert.ToString(individualMask);
             Assert.IsFalse(string.IsNullOrEmpty(maskString), $"Channel {channelIndex} mask string should not be empty");
-            Assert.IsTrue(uint.TryParse(maskString, out uint parsedValue), $"Channel {channelIndex} mask string should be parseable");
+            Assert.IsTrue(uint.TryParse(maskString, out var parsedValue), $"Channel {channelIndex} mask string should be parseable");
             Assert.AreEqual(individualMask, parsedValue, $"Channel {channelIndex} mask should round-trip through string conversion");
         }
     }
@@ -154,11 +151,11 @@ public class AnalogChannelFixVerificationTests
         // This test demonstrates the original bug and confirms it's fixed
         
         // Arrange
-        int channelIndex = 8;
+        var channelIndex = 8;
         
         // Act
-        int buggyRightShift = 1 >> channelIndex;  // Original buggy code
-        uint correctLeftShift = 1u << channelIndex; // Fixed code
+        var buggyRightShift = 1 >> channelIndex;  // Original buggy code
+        var correctLeftShift = 1u << channelIndex; // Fixed code
         
         // Assert
         Assert.AreEqual(0, buggyRightShift, "Right shift produces 0 for channel 8 - this was the bug!");

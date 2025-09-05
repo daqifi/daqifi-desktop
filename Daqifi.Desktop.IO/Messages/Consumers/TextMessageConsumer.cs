@@ -32,7 +32,7 @@ public class TextMessageConsumer : AbstractMessageConsumer
                     break;
                 }
 
-                var bytesRead = 0;
+                int bytesRead;
                 try
                 {
                     bytesRead = DataStream.Read(buffer, 0, buffer.Length);

@@ -5,7 +5,7 @@ namespace Daqifi.Desktop.Models;
 
 public class AddProfileModel : ObservableObject
 {
-    public List<Profile> ProfileList { get; set; }
+    public List<Profile> ProfileList { get; init; }
 }
 
 public partial class Profile : ObservableObject

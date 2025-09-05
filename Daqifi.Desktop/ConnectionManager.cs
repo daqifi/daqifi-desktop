@@ -38,7 +38,7 @@ public partial class ConnectionManager : ObservableObject
     }
 
     #region Singleton Constructor / Initalization
-    private static readonly ConnectionManager instance = new ConnectionManager();
+    private static readonly ConnectionManager instance = new();
 
     private ConnectionManager()
     {
@@ -69,7 +69,7 @@ public partial class ConnectionManager : ObservableObject
         try
         {
             ConnectionStatus = DAQifiConnectionStatus.Connecting;
-            bool isConnected = await Task.Run(() => device.Connect());
+            var isConnected = await Task.Run(() => device.Connect());
             if (!isConnected)
             {
                 ConnectionStatus = DAQifiConnectionStatus.Error;
@@ -117,27 +117,15 @@ public partial class ConnectionManager : ObservableObject
 
     public void UpdateStatusString()
     {
-        switch (ConnectionStatus)
+        ConnectionStatusString = ConnectionStatus switch
         {
-            case DAQifiConnectionStatus.Disconnected:
-                ConnectionStatusString = "Disconnected";
-                break;
-            case DAQifiConnectionStatus.Connecting:
-                ConnectionStatusString = "Connecting";
-                break;
-            case DAQifiConnectionStatus.Connected:
-                ConnectionStatusString = "Connected";
-                break;
-            case DAQifiConnectionStatus.Error:
-                ConnectionStatusString = "Error";
-                break;
-            case DAQifiConnectionStatus.AlreadyConnected:
-                ConnectionStatusString = "AlreadyConnected";
-                break;
-            default:
-                ConnectionStatusString = "Error";
-                break;
-        }
+            DAQifiConnectionStatus.Disconnected => "Disconnected",
+            DAQifiConnectionStatus.Connecting => "Connecting",
+            DAQifiConnectionStatus.Connected => "Connected",
+            DAQifiConnectionStatus.Error => "Error",
+            DAQifiConnectionStatus.AlreadyConnected => "AlreadyConnected",
+            _ => "Error"
+        };
     }
 
     private void CheckIfSerialDeviceWasRemoved()

@@ -10,12 +10,8 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     #region Properties
 
     public TcpClient Client { get; set; }
-    public string IpAddress { get; set; }
-    public string MacAddress { get; set; }
     public int Port { get; set; }
     public bool IsPowerOn { get; set; }
-    public string DeviceSerialNo { get; set; }
-    public string DeviceVersion { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
 
     #endregion
@@ -110,7 +106,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
 
     public override bool Equals(object obj)
     {
-        if (!(obj is DaqifiStreamingDevice other)) { return false; }
+        if (obj is not DaqifiStreamingDevice other) { return false; }
         if (Name != other.Name) { return false; }
         if (IpAddress != other.IpAddress) { return false; }
         if (MacAddress != other.MacAddress) { return false; }

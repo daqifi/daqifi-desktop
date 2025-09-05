@@ -1,14 +1,8 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Text;
 
 namespace Daqifi.Desktop.Test.Exporter;
 
@@ -274,18 +268,15 @@ public class OptimizedLoggingSessionExporterTests
     {
         var multiDeviceDataSamples = new List<DataSample>
         {
-            new DataSample
-            {
+            new() {
                 ID = 1, DeviceName = "device1", DeviceSerialNo = "123", LoggingSessionID = 1,
                 ChannelName = "Channel 1", TimestampTicks = _firstTime.Ticks, Value = 0.01
             },
-            new DataSample
-            {
+            new() {
                 ID = 2, DeviceName = "device2", DeviceSerialNo = "456", LoggingSessionID = 1,
                 ChannelName = "Channel 1", TimestampTicks = _firstTime.Ticks, Value = 0.02
             },
-            new DataSample
-            {
+            new() {
                 ID = 3, DeviceName = "device1", DeviceSerialNo = "123", LoggingSessionID = 1,
                 ChannelName = "Channel 2", TimestampTicks = _firstTime.Ticks, Value = 0.03
             }
@@ -325,11 +316,11 @@ public class OptimizedLoggingSessionExporterTests
         var samples = new List<DataSample>();
         var baseTime = new DateTime(2018, 2, 9, 1, 0, 0);
         
-        for (int timeStep = 0; timeStep < samplesPerChannel; timeStep++)
+        for (var timeStep = 0; timeStep < samplesPerChannel; timeStep++)
         {
             var timestamp = baseTime.AddSeconds(timeStep);
             
-            for (int channel = 1; channel <= channelCount; channel++)
+            for (var channel = 1; channel <= channelCount; channel++)
             {
                 samples.Add(new DataSample
                 {

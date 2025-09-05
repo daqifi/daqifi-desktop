@@ -23,7 +23,7 @@ public partial class AddProfileDialogViewModel : ObservableObject
     private readonly AppLogger AppLogger = AppLogger.Instance;
 
 
-    private ObservableCollection<IStreamingDevice> _availableDevices = new ObservableCollection<IStreamingDevice>();
+    private ObservableCollection<IStreamingDevice> _availableDevices = [];
     public ObservableCollection<IStreamingDevice> AvailableDevices
     {
         get => _availableDevices;
@@ -35,7 +35,7 @@ public partial class AddProfileDialogViewModel : ObservableObject
         }
     }
 
-    private ObservableCollection<IChannel> _availableChannels = new ObservableCollection<IChannel>();
+    private ObservableCollection<IChannel> _availableChannels = [];
     public ObservableCollection<IChannel> AvailableChannels
     {
         get => _availableChannels;
@@ -140,7 +140,7 @@ public partial class AddProfileDialogViewModel : ObservableObject
                 }
             }
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             AppLogger.Error(ex, "Error in getting Available Channels");
         }
@@ -162,7 +162,7 @@ public partial class AddProfileDialogViewModel : ObservableObject
                 AvailableChannels.RemoveAt(channelToRemove);
             }
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             AppLogger.Error(ex, "Error in removing Available Channels");
         }

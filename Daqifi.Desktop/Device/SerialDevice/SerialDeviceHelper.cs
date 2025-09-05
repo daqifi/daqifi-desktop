@@ -9,7 +9,7 @@ public static class SerialDeviceHelper
         var portNames = new List<string>();
 
         ManagementObjectCollection collection;
-        using (var searcher = new ManagementObjectSearcher(@"Select * From WIN32_SerialPort"))
+        using (var searcher = new ManagementObjectSearcher("Select * From WIN32_SerialPort"))
             collection = searcher.Get();
 
         foreach (var serialDevice in collection)
@@ -20,7 +20,7 @@ public static class SerialDeviceHelper
             var device = UsbDevice.Get((string)pnpDeviceId);
             var deviceReportedDescription = device.BusReportedDeviceDescription;
 
-            if ((deviceReportedDescription != null) && (deviceReportedDescription.ToLower() == "nyquist"))
+            if (deviceReportedDescription != null && deviceReportedDescription.ToLower() == "nyquist")
             {
                 portNames.Add((string)deviceId);
             }

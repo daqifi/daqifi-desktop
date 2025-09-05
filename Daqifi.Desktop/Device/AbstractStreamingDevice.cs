@@ -13,7 +13,6 @@ using Daqifi.Desktop.IO.Messages.Producers;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
-using System.Threading;
 
 namespace Daqifi.Desktop.Device;
 
@@ -47,8 +46,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     [ObservableProperty]
     private int _streamingFrequency = 1;
 
-    private readonly Dictionary<string, DateTime> _previousTimestamps = new();
-    private readonly Dictionary<string, uint?> _previousDeviceTimestamps = new();
+    private readonly Dictionary<string, DateTime> _previousTimestamps = [];
+    private readonly Dictionary<string, uint?> _previousDeviceTimestamps = [];
     private List<SdCardFile> _sdCardFiles = [];
 
     #region Properties
@@ -107,28 +106,20 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         MessageConsumer.OnMessageReceived -= HandleSdCardMessageReceived;
 
         // Add the new handler
-        switch (handlerType)
+        MessageConsumer.OnMessageReceived += handlerType switch
         {
-            case MessageHandlerType.Status:
-                MessageConsumer.OnMessageReceived += HandleStatusMessageReceived;
-                break;
-            case MessageHandlerType.Streaming:
-                MessageConsumer.OnMessageReceived += HandleStreamingMessageReceived;
-                break;
-            case MessageHandlerType.SdCard:
-                MessageConsumer.OnMessageReceived += HandleSdCardMessageReceived;
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(handlerType), handlerType, null);
-        }
+            MessageHandlerType.Status => HandleStatusMessageReceived,
+            MessageHandlerType.Streaming => HandleStreamingMessageReceived,
+            MessageHandlerType.SdCard => HandleSdCardMessageReceived,
+            _ => throw new ArgumentOutOfRangeException(nameof(handlerType), handlerType, null)
+        };
 
         AppLogger.Information($"Message handler set to: {handlerType}");
     }
 
     private void HandleStatusMessageReceived(object sender, MessageEventArgs<object> e)
     {
-        var message = e.Message.Data as DaqifiOutMessage;
-        if (message == null || !IsValidStatusMessage(message))
+        if (e.Message.Data is not DaqifiOutMessage message || !IsValidStatusMessage(message))
         {
             MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
             return;
@@ -145,7 +136,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     protected bool IsValidStatusMessage(DaqifiOutMessage message)
     {
-        return (message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0);
+        return message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0;
     }
 
     private void HandleStreamingMessageReceived(object sender, MessageEventArgs<object> e)
@@ -155,8 +146,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return;
         }
 
-        var message = e.Message.Data as DaqifiOutMessage;
-        if (message == null)
+        if (e.Message.Data is not DaqifiOutMessage message)
         {
             AppLogger.Warning("Issue decoding protobuf message");
             return;
@@ -228,10 +218,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                                                       .ToList();
 
 
-                for (int dataIndex = 0; dataIndex < message.AnalogInData.Count && dataIndex < activeAnalogChannels.Count; dataIndex++)
+                for (var dataIndex = 0; dataIndex < message.AnalogInData.Count && dataIndex < activeAnalogChannels.Count; dataIndex++)
                 {
                     var channel = activeAnalogChannels[dataIndex];
-                    var rawValue = message.AnalogInData.ElementAt(dataIndex);
+                    var rawValue = message.AnalogInData[dataIndex];
                     var scaledValue = ScaleAnalogSample(channel, rawValue);
                     var sample = new DataSample(this, channel, messageTimestamp, scaledValue);
                     channel.ActiveSample = sample;
@@ -260,7 +250,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                                                        .OrderBy(c => c.Index)
                                                        .ToList();
 
-                for (int dataIndex = 0; dataIndex < activeDigitalChannels.Count; dataIndex++)
+                for (var dataIndex = 0; dataIndex < activeDigitalChannels.Count; dataIndex++)
                 {
                     var channel = activeDigitalChannels[dataIndex];
 
@@ -313,8 +303,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private void HandleSdCardMessageReceived(object sender, MessageEventArgs<object> e)
     {
         // Cast the data to the expected type
-        var response = e.Message.Data as string;
-        if (response == null)
+        if (e.Message.Data is not string response)
         {
             AppLogger.Warning("Expected string response for SD card operation");
             return;
@@ -788,7 +777,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             // TODO handle mismatch.  Probably not add any channels and warn the user something went wrong.
         }
 
-        Func<IList<float>, int, float, float> getWithDefault = (IList<float> list, int idx, float def) =>
+        var getWithDefault = (IList<float> list, int idx, float def) =>
         {
             if (list.Count > idx)
             {
@@ -874,7 +863,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     private static double ScaleAnalogSample(AnalogChannel channel, double analogValue)
     {
-        return (analogValue / channel.Resolution) * channel.PortRange * channel.CalibrationMValue *
+        return analogValue / channel.Resolution * channel.PortRange * channel.CalibrationMValue *
             channel.InternalScaleMValue + channel.CalibrationBValue;
     }
 
@@ -990,20 +979,20 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             // Calculate scaled values
             debugData.ScaledAnalogValues = new List<double>();
-            for (int i = 0; i < Math.Min(message.AnalogInData.Count, activeChannels.Count); i++)
+            for (var i = 0; i < Math.Min(message.AnalogInData.Count, activeChannels.Count); i++)
             {
                 var channel = activeChannels[i];
-                var rawValue = message.AnalogInData.ElementAt(i);
+                var rawValue = message.AnalogInData[i];
                 var scaledValue = ScaleAnalogSample(channel, rawValue);
                 debugData.ScaledAnalogValues.Add(scaledValue);
             }
 
             // Create data flow mapping
             debugData.DataFlowMapping = new List<string>();
-            for (int i = 0; i < Math.Min(message.AnalogInData.Count, activeChannels.Count); i++)
+            for (var i = 0; i < Math.Min(message.AnalogInData.Count, activeChannels.Count); i++)
             {
                 var channel = activeChannels[i];
-                var rawValue = message.AnalogInData.ElementAt(i);
+                var rawValue = message.AnalogInData[i];
                 var scaledValue = debugData.ScaledAnalogValues[i];
                 debugData.DataFlowMapping.Add($"data[{i}]={rawValue} → {channel.Name}(idx:{channel.Index})={scaledValue:F3}V");
             }

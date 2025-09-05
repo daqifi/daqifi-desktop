@@ -231,9 +231,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             ClearPlot();
 
             // Data fetching and processing (can be on background thread)
-            string sessionName = session.Name;
-            string subtitle = string.Empty;
-            List<DataSample> allSamplesData = new List<DataSample>(); // Temp store for all sample values for all series
+            var sessionName = session.Name;
+            var subtitle = string.Empty;
 
             var tempSeriesList = new List<LineSeries>();
             var tempLegendItemsList = new List<LoggedSeriesLegendItem>();
@@ -270,7 +269,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
                 // This part still needs to be careful about _allSessionPoints access if it's used by UI directly
                 // For now, _allSessionPoints is used to populate series ItemsSource later on UI thread
-                int dataSampleCount = 0;
+                var dataSampleCount = 0;
                 foreach (var sample in dbSamples)
                 {
                     var key = (sample.DeviceSerialNo, sample.ChannelName);
@@ -386,15 +385,12 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             PlotModel);
         // LegendItems.Add(legendItem); // Removed: To be added in DisplayLoggingSession on UI thread
 
-        switch (type)
+        newLineSeries.YAxisKey = type switch
         {
-            case ChannelType.Analog:
-                newLineSeries.YAxisKey = "Analog";
-                break;
-            case ChannelType.Digital:
-                newLineSeries.YAxisKey = "Digital";
-                break;
-        }
+            ChannelType.Analog => "Analog",
+            ChannelType.Digital => "Digital",
+            _ => newLineSeries.YAxisKey
+        };
 
         // PlotModel.Series.Add(newLineSeries); // Removed: To be added in DisplayLoggingSession on UI thread
         // OnPropertyChanged("PlotModel"); // Removed: To be called in DisplayLoggingSession on UI thread

@@ -24,7 +24,7 @@ public partial class FirmwareDialogViewModel : ObservableObject
         set
         {
             _version = value;
-            OnPropertyChanged(nameof(Version));
+            OnPropertyChanged();
         }
     }
 
@@ -75,11 +75,11 @@ public partial class FirmwareDialogViewModel : ObservableObject
         {
             _uploadFirmwareProgress = value;
             OnPropertyChanged();
-            OnPropertyChanged("UploadFirmwareProgressText");
+            OnPropertyChanged(nameof(UploadFirmwareProgressText));
         }
     }
 
-    public string UploadFirmwareProgressText => ($"Upload Progress: {UploadFirmwareProgress}%");
+    public string UploadFirmwareProgressText => $"Upload Progress: {UploadFirmwareProgress}%";
 
     public FirmwareDialogViewModel(HidFirmwareDevice hidFirmwareDevice)
     {
@@ -88,7 +88,7 @@ public partial class FirmwareDialogViewModel : ObservableObject
         _bootloader.RequestVersion();
     }
 
-    private void OnHidDevicePropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnHidDevicePropertyChanged(object sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == "Version")
         {

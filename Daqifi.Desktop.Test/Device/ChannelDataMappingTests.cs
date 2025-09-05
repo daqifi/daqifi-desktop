@@ -1,12 +1,6 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
-using Daqifi.Desktop.IO.Messages;
-using Daqifi.Core.Communication.Messages;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Daqifi.Desktop.Test.Device;
 

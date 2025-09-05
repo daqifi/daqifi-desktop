@@ -1,6 +1,6 @@
 ﻿namespace Daqifi.Desktop.Bootloader;
 
-public class Pic32BootloaderMessageConsumer
+public static class Pic32BootloaderMessageConsumer
 {
     #region Private Data
     private const byte StartOfHeader = 0x01;
@@ -11,7 +11,7 @@ public class Pic32BootloaderMessageConsumer
     private const byte ProgramFlashCommand = 0x03;
     #endregion
 
-    public string DecodeVersionResponse(byte[] data)
+    public static string DecodeVersionResponse(byte[] data)
     {
         var majorVersion = 0;
         var minorVersion = 0;
@@ -35,7 +35,7 @@ public class Pic32BootloaderMessageConsumer
         return $"{majorVersion}.{minorVersion}";
     }
 
-    public bool DecodeProgramFlashResponse(byte[] data)
+    public static bool DecodeProgramFlashResponse(byte[] data)
     {
         if (data.Length < 2) return false;
 
@@ -44,12 +44,10 @@ public class Pic32BootloaderMessageConsumer
 
         // Determine what type of response this is
         // Request Version Response
-        if (data[1] != ProgramFlashCommand) return false;
-
-        return true;
+        return data[1] == ProgramFlashCommand;
     }
 
-    public bool DecodeEraseFlashResponse(byte[] data)
+    public static bool DecodeEraseFlashResponse(byte[] data)
     {
         if (data.Length < 2) return false;
 
@@ -58,8 +56,6 @@ public class Pic32BootloaderMessageConsumer
 
         // Determine what type of response this is
         // Erase Flash Response
-        if (data[1] != EraseFlashCommand) return false;
-
-        return true;
+        return data[1] == EraseFlashCommand;
     }
 }

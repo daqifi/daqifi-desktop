@@ -18,8 +18,8 @@ public partial class AddProfileConfirmationDialogViewModel : ObservableObject
 
     #region Properties
     private readonly DaqifiViewModel _daqifiViewModel;
-    public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = new ObservableCollection<IStreamingDevice>();
-    public ObservableCollection<IChannel> AvailableChannels { get; } = new ObservableCollection<IChannel>();
+    public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
+    public ObservableCollection<IChannel> AvailableChannels { get; } = [];
 
 
     public IStreamingDevice SelectedDevice
@@ -60,7 +60,7 @@ public partial class AddProfileConfirmationDialogViewModel : ObservableObject
     {
         _dialogService=dialogService;
 
-        if (_dialogService != null && _dialogService.Views.Count > 0 && _dialogService.Views[0] is Daqifi.Desktop.MainWindow mainWindow)
+        if (_dialogService != null && _dialogService.Views.Count > 0 && _dialogService.Views[0] is MainWindow mainWindow)
         {
             if (mainWindow.DataContext is DaqifiViewModel daqifiViewModel)
             {

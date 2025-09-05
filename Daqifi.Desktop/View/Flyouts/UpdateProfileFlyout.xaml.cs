@@ -21,7 +21,8 @@ public partial class UpdateProfileFlyout
     #endregion
 
     public UpdateProfileFlyout() : this(ServiceLocator.Resolve<IDialogService>()) { }
-    public UpdateProfileFlyout(IDialogService dialogService)
+
+    private UpdateProfileFlyout(IDialogService dialogService)
     {
         _dialogService = dialogService;
         InitializeComponent();

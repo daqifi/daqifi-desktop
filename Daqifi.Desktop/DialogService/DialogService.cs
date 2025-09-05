@@ -22,7 +22,7 @@ public class DialogService : IDialogService
     /// <summary>
     /// Gets the registered views.
     /// </summary>
-    public ReadOnlyCollection<FrameworkElement> Views => new ReadOnlyCollection<FrameworkElement>(_views.ToList());
+    public ReadOnlyCollection<FrameworkElement> Views => new(_views.ToList());
 
 
     /// <summary>
@@ -32,7 +32,7 @@ public class DialogService : IDialogService
     public void Register(FrameworkElement view)
     {
         // Get owner window
-        Window owner = GetOwner(view);
+        var owner = GetOwner(view);
         if (owner == null)
         {
             // Perform a late register when the View hasn't been loaded yet.
@@ -74,7 +74,7 @@ public class DialogService : IDialogService
     /// </returns>
     public bool? ShowDialog(object ownerViewModel, object viewModel)
     {
-        Type dialogType = _windowViewModelMappings.GetWindowTypeFromViewModelType(viewModel.GetType());
+        var dialogType = _windowViewModelMappings.GetWindowTypeFromViewModelType(viewModel.GetType());
         return ShowDialog(ownerViewModel, viewModel, dialogType);
     }
 
@@ -166,12 +166,12 @@ public class DialogService : IDialogService
         // in the ServiceLocator which will cause the Resolve method to throw a ArgumentException.
         if (DesignerProperties.GetIsInDesignMode(target)) return;
 
-        FrameworkElement view = target as FrameworkElement;
+        var view = target as FrameworkElement;
         if (view != null)
         {
             // Cast values
-            bool newValue = (bool)e.NewValue;
-            bool oldValue = (bool)e.OldValue;
+            var newValue = (bool)e.NewValue;
+            var oldValue = (bool)e.OldValue;
 
             if (newValue)
             {
@@ -200,7 +200,7 @@ public class DialogService : IDialogService
     private bool? ShowDialog(object ownerViewModel, object viewModel, Type dialogType)
     {
         // Create dialog and set properties
-        Window dialog = (Window)Activator.CreateInstance(dialogType);
+        var dialog = (Window)Activator.CreateInstance(dialogType);
         dialog.Owner = FindOwnerWindow(ownerViewModel);
         dialog.DataContext = viewModel;
         dialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -221,7 +221,7 @@ public class DialogService : IDialogService
         }
 
         // Get owner window
-        Window owner = view as Window ?? Window.GetWindow(view);
+        var owner = view as Window ?? Window.GetWindow(view);
 
         // Make sure owner window was found
         if (owner == null)
@@ -239,7 +239,7 @@ public class DialogService : IDialogService
     /// </summary>
     private void LateRegister(object sender, RoutedEventArgs e)
     {
-        FrameworkElement view = sender as FrameworkElement;
+        var view = sender as FrameworkElement;
         if (view != null)
         {
             // Unregister loaded event
@@ -257,7 +257,7 @@ public class DialogService : IDialogService
     /// </summary>
     private void OwnerClosed(object sender, EventArgs e)
     {
-        Window owner = sender as Window;
+        var owner = sender as Window;
         if (owner != null)
         {
             // Find Views acting within closed window
@@ -267,7 +267,7 @@ public class DialogService : IDialogService
                 select view;
 
             // Unregister Views in window
-            foreach (FrameworkElement view in windowViews.ToArray())
+            foreach (var view in windowViews.ToArray())
             {
                 Unregister(view);
             }

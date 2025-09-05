@@ -1,13 +1,8 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 
 namespace Daqifi.Desktop.Test.Exporter;
 
@@ -162,11 +157,11 @@ public class ExportPerformanceTests
         var baseTime = new DateTime(2018, 1, 1, 0, 0, 0);
         
         // Generate time-series data
-        for (int timeStep = 0; timeStep < samplesPerChannel; timeStep++)
+        for (var timeStep = 0; timeStep < samplesPerChannel; timeStep++)
         {
             var timestamp = baseTime.AddMilliseconds(timeStep * 10); // 100Hz equivalent
             
-            for (int channel = 1; channel <= channelCount; channel++)
+            for (var channel = 1; channel <= channelCount; channel++)
             {
                 samples.Add(new DataSample
                 {

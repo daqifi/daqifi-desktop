@@ -20,14 +20,14 @@ public static class WeakEventHandlerManager
         {
             // Take a snapshot of the handlers before we call out to them since the handlers
             // could cause the array to me modified while we are reading it.
-            EventHandler[] callees = new EventHandler[handlers.Count];
-            int count = 0;
+            var callees = new EventHandler[handlers.Count];
+            var count = 0;
 
             //Clean up handlers
             count = CleanupOldHandlers(handlers, callees, count);
 
             // Call the handlers that we snapshotted
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
             {
                 CallHandler(sender, callees[i]);
             }
@@ -51,11 +51,10 @@ public static class WeakEventHandlerManager
 
     private static int CleanupOldHandlers(List<WeakReference> handlers, EventHandler[] callees, int count)
     {
-        for (int i = handlers.Count - 1; i >= 0; i--)
+        for (var i = handlers.Count - 1; i >= 0; i--)
         {
-            WeakReference reference = handlers[i];
-            EventHandler handler = reference.Target as EventHandler;
-            if (handler == null)
+            var reference = handlers[i];
+            if (reference.Target is not EventHandler handler)
             {
                 // Clean up old handlers that have been collected
                 handlers.RemoveAt(i);
@@ -94,11 +93,11 @@ public static class WeakEventHandlerManager
     {
         if (handlers != null)
         {
-            for (int i = handlers.Count - 1; i >= 0; i--)
+            for (var i = handlers.Count - 1; i >= 0; i--)
             {
-                WeakReference reference = handlers[i];
-                EventHandler existingHandler = reference.Target as EventHandler;
-                if ((existingHandler == null) || (existingHandler == handler))
+                var reference = handlers[i];
+                var existingHandler = reference.Target as EventHandler;
+                if (existingHandler == null || existingHandler == handler)
                 {
                     // Clean up old handlers that have been collected
                     // in addition to the handler that is to be removed.

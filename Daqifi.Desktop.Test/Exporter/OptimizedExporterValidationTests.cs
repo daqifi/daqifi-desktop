@@ -1,12 +1,8 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
 
 namespace Daqifi.Desktop.Test.Exporter;
 
@@ -111,11 +107,11 @@ public class OptimizedExporterValidationTests
         var samples = new List<DataSample>();
         var baseTime = new DateTime(2018, 1, 1, 0, 0, 0);
         
-        for (int timeStep = 0; timeStep < samplesPerChannel; timeStep++)
+        for (var timeStep = 0; timeStep < samplesPerChannel; timeStep++)
         {
             var timestamp = baseTime.AddMilliseconds(timeStep * 10); // 100Hz equivalent
             
-            for (int channel = 1; channel <= channelCount; channel++)
+            for (var channel = 1; channel <= channelCount; channel++)
             {
                 samples.Add(new DataSample
                 {
@@ -139,12 +135,12 @@ public class OptimizedExporterValidationTests
         var baseTime = new DateTime(2018, 1, 1, 0, 0, 0);
         
         // Generate irregular data pattern
-        for (int timeStep = 0; timeStep < 10; timeStep++)
+        for (var timeStep = 0; timeStep < 10; timeStep++)
         {
             var timestamp = baseTime.AddSeconds(timeStep);
             
             // Sometimes skip channel 2
-            for (int channel = 1; channel <= 3; channel++)
+            for (var channel = 1; channel <= 3; channel++)
             {
                 if (channel == 2 && timeStep % 3 == 0) continue; // Skip channel 2 every 3rd timestamp
                 

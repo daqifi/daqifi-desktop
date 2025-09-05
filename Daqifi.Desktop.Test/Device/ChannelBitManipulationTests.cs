@@ -1,6 +1,3 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-
 namespace Daqifi.Desktop.Test.Device;
 
 [TestClass]
@@ -54,10 +51,10 @@ public class ChannelBitManipulationTests
     public void BitShift_ChannelIndex16_ShouldReturn65536()
     {
         // Arrange
-        int channelIndex = 16;
+        var channelIndex = 16;
         
         // Act
-        int result = 1 << channelIndex;
+        var result = 1 << channelIndex;
         
         // Assert
         Assert.AreEqual(65536, result, "Channel 16 bit mask should be 65536");
@@ -67,11 +64,11 @@ public class ChannelBitManipulationTests
     public void CombinedBitMask_Channels0And8_ShouldReturn257()
     {
         // Arrange
-        int channel0Mask = 1 << 0;  // 1
-        int channel8Mask = 1 << 8;  // 256
+        var channel0Mask = 1 << 0;  // 1
+        var channel8Mask = 1 << 8;  // 256
         
         // Act
-        int combinedMask = channel0Mask | channel8Mask;
+        var combinedMask = channel0Mask | channel8Mask;
         
         // Assert
         Assert.AreEqual(257, combinedMask, "Combined mask for channels 0 and 8 should be 257");
@@ -81,12 +78,12 @@ public class ChannelBitManipulationTests
     public void CombinedBitMask_Channels8And12And15_ShouldReturn36864()
     {
         // Arrange
-        int channel8Mask = 1 << 8;   // 256
-        int channel12Mask = 1 << 12; // 4096
-        int channel15Mask = 1 << 15; // 32768
+        var channel8Mask = 1 << 8;   // 256
+        var channel12Mask = 1 << 12; // 4096
+        var channel15Mask = 1 << 15; // 32768
         
         // Act
-        int combinedMask = channel8Mask | channel12Mask | channel15Mask;
+        var combinedMask = channel8Mask | channel12Mask | channel15Mask;
         
         // Assert
         // 256 + 4096 + 32768 = 37120
@@ -97,12 +94,12 @@ public class ChannelBitManipulationTests
     public void RemoveBitFromMask_RemoveChannel8FromCombined_ShouldReturnCorrectMask()
     {
         // Arrange
-        int channel8Mask = 1 << 8;   // 256
-        int channel12Mask = 1 << 12; // 4096
-        int combinedMask = channel8Mask | channel12Mask; // 4352
+        var channel8Mask = 1 << 8;   // 256
+        var channel12Mask = 1 << 12; // 4096
+        var combinedMask = channel8Mask | channel12Mask; // 4352
         
         // Act - Remove channel 8 from the combined mask
-        int resultMask = combinedMask & ~channel8Mask;
+        var resultMask = combinedMask & ~channel8Mask;
         
         // Assert
         Assert.AreEqual(4096, resultMask, "After removing channel 8, only channel 12 should remain (4096)");
@@ -112,11 +109,11 @@ public class ChannelBitManipulationTests
     public void IncorrectRightShift_Channel8_ShouldNotEqualLeftShift()
     {
         // Arrange
-        int channelIndex = 8;
+        var channelIndex = 8;
         
         // Act
-        int correctLeftShift = 1 << channelIndex;  // Correct: 256
-        int incorrectRightShift = 1 >> channelIndex; // Incorrect: 0 (this is the bug!)
+        var correctLeftShift = 1 << channelIndex;  // Correct: 256
+        var incorrectRightShift = 1 >> channelIndex; // Incorrect: 0 (this is the bug!)
         
         // Assert
         Assert.AreNotEqual(correctLeftShift, incorrectRightShift, 
@@ -129,11 +126,11 @@ public class ChannelBitManipulationTests
     public void DataTypeOverflow_IntVsUint_ChannelIndex31()
     {
         // Arrange
-        int channelIndex = 31;
+        var channelIndex = 31;
         
         // Act
-        int intResult = 1 << channelIndex;
-        uint uintResult = 1u << channelIndex;
+        var intResult = 1 << channelIndex;
+        var uintResult = 1u << channelIndex;
         
         // Assert
         // For channel 31, int will overflow to negative, uint will not
@@ -145,10 +142,10 @@ public class ChannelBitManipulationTests
     public void ConvertToString_LargeBitMask_ShouldReturnCorrectString()
     {
         // Arrange
-        int channel15Mask = 1 << 15; // 32768
+        var channel15Mask = 1 << 15; // 32768
         
         // Act
-        string result = Convert.ToString(channel15Mask);
+        var result = Convert.ToString(channel15Mask);
         
         // Assert
         Assert.AreEqual("32768", result, "String conversion should produce '32768'");
@@ -158,10 +155,10 @@ public class ChannelBitManipulationTests
     public void ConvertToString_CombinedMask_ShouldReturnCorrectString()
     {
         // Arrange
-        int combinedMask = (1 << 8) | (1 << 12) | (1 << 15); // 256 + 4096 + 32768 = 37120
+        var combinedMask = (1 << 8) | (1 << 12) | (1 << 15); // 256 + 4096 + 32768 = 37120
         
         // Act
-        string result = Convert.ToString(combinedMask);
+        var result = Convert.ToString(combinedMask);
         
         // Assert
         Assert.AreEqual("37120", result, "String conversion should produce '37120'");
@@ -172,16 +169,16 @@ public class ChannelBitManipulationTests
     {
         // Arrange & Act
         var bitMasks = new int[16];
-        for (int i = 0; i < 16; i++)
+        for (var i = 0; i < 16; i++)
         {
             bitMasks[i] = 1 << i;
         }
         
         // Assert
         // Verify all bit masks are unique
-        for (int i = 0; i < 16; i++)
+        for (var i = 0; i < 16; i++)
         {
-            for (int j = i + 1; j < 16; j++)
+            for (var j = i + 1; j < 16; j++)
             {
                 Assert.AreNotEqual(bitMasks[i], bitMasks[j], 
                     $"Bit mask for channel {i} should not equal bit mask for channel {j}");

@@ -52,13 +52,8 @@ public class SerialDeviceFinder : IDeviceFinder
 
             }
         }
-        else
-        {
-
-        }
     }
-
-
+    
     private void RaisePortsChangedIfNecessary()
     {
         var bw = new BackgroundWorker();

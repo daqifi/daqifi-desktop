@@ -16,8 +16,7 @@ public class Pic32BootloaderMessageProducerTest
         // EndOfTransmission = 0x04 (4)
         var correctValue = new byte[] {1, 16, 1, 33, 16, 16, 4};
 
-        var messageProducer = new Pic32BootloaderMessageProducer();
-        var actualValue = messageProducer.CreateRequestVersionMessage();
+        var actualValue = Pic32BootloaderMessageProducer.CreateRequestVersionMessage();
 
         CollectionAssert.AreEqual(correctValue,actualValue);
     }
@@ -33,8 +32,7 @@ public class Pic32BootloaderMessageProducerTest
         // EndOfTransmission = 0x04 (4)
         var correctValue = new byte[] {1, 2, 66, 32, 4};
 
-        var messageProducer = new Pic32BootloaderMessageProducer();
-        var actualValue = messageProducer.CreateEraseFlashMessage();
+        var actualValue = Pic32BootloaderMessageProducer.CreateEraseFlashMessage();
 
         CollectionAssert.AreEqual(correctValue, actualValue);
     }
@@ -50,8 +48,7 @@ public class Pic32BootloaderMessageProducerTest
         // EndOfTransmission = 0x04 (4)
         var correctValue = new byte[] { 1, 5, 165, 80, 4 };
 
-        var messageProducer = new Pic32BootloaderMessageProducer();
-        var actualValue = messageProducer.CreateJumpToApplicationMessage();
+        var actualValue = Pic32BootloaderMessageProducer.CreateJumpToApplicationMessage();
 
         CollectionAssert.AreEqual(correctValue, actualValue);
     }
