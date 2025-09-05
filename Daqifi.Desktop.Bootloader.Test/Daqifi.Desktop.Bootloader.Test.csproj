@@ -3,7 +3,7 @@
     <OutputType>Library</OutputType>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <TargetFramework>net9.0-windows</TargetFramework>
-    <NoWarn>CA1707</NoWarn>
+    <NoWarn>CA1707;CA1416</NoWarn>
   </PropertyGroup>
   <Choose>
     <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">
