@@ -96,12 +96,12 @@ public partial class LoggingManager : ObservableObject
     }
 
     #region Singleton Constructor / Initalization
-    private static readonly LoggingManager instance = new LoggingManager();
+    private static readonly LoggingManager instance = new();
 
     private LoggingManager()
     {
-        Loggers = new List<ILogger>();
-        SubscribedChannels = new List<IChannel>();
+        Loggers = [];
+        SubscribedChannels = [];
         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
     }
 
@@ -138,7 +138,7 @@ public partial class LoggingManager : ObservableObject
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Error Subscribe Profile");
+            AppLogger.Error(ex, "Error Subscribe Profile");
         }
     }
 
@@ -156,7 +156,7 @@ public partial class LoggingManager : ObservableObject
                 AppLogger.Error("Profile settings XML file does not exist.");
                 return;
             }
-            XDocument doc = XDocument.Load(ProfileSettingsXmlPath);
+            var doc = XDocument.Load(ProfileSettingsXmlPath);
             var profileToUpdate = doc.Descendants("Profile")
                 .FirstOrDefault(p => (Guid)p.Element("ProfileID") == profile.ProfileId);
             if (profileToUpdate != null)
@@ -167,7 +167,7 @@ public partial class LoggingManager : ObservableObject
                 devicesElement?.RemoveAll();
                 foreach (var device in profile.Devices)
                 {
-                    XElement deviceElement = new XElement("Device",
+                    var deviceElement = new XElement("Device",
                         new XElement("DeviceName", device.DeviceName),
                         new XElement("DevicePartNumber", device.DevicePartName),
                         new XElement("MACAddress", device.MacAddress),
@@ -214,17 +214,17 @@ public partial class LoggingManager : ObservableObject
             }
             if (!File.Exists(ProfileSettingsXmlPath))
             {
-                XDocument newDoc = new XDocument(
+                var newDoc = new XDocument(
                     new XElement("Profiles")
                 );
                 newDoc.Save(ProfileSettingsXmlPath);
             }
-            XDocument doc = XDocument.Load(ProfileSettingsXmlPath);
+            var doc = XDocument.Load(ProfileSettingsXmlPath);
             if (profile != null)
             {
                 if (AddProfileFlag)
                 {
-                    XElement newProfile = new XElement("Profile",
+                    var newProfile = new XElement("Profile",
                         new XElement("Name", profile.Name),
                         new XElement("ProfileID", profile.ProfileId),
                         new XElement("CreatedOn", profile.CreatedOn),
@@ -335,7 +335,7 @@ public partial class LoggingManager : ObservableObject
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Error Unsubscribe Profile");
+            AppLogger.Error(ex, "Error Unsubscribe Profile");
         }
     }
     #endregion
@@ -437,6 +437,6 @@ public partial class LoggingManager : ObservableObject
             channel.OnChannelUpdated -= HandleChannelUpdate;
         }
         SubscribedChannels.Clear();
-        OnPropertyChanged("SubscribedChannels");
+        OnPropertyChanged(nameof(SubscribedChannels));
     }
 }

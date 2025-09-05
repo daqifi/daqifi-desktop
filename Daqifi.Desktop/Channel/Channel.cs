@@ -9,7 +9,7 @@ public class Channel : IChannel
     public int Index { get; set; }
     public double OutputValue { get; set; }
 
-    public ChannelType Type { get; set; }
+    public ChannelType Type { get; init; }
 
     public ChannelDirection Direction { get; set; }
 

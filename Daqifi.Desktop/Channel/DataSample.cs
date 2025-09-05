@@ -8,15 +8,15 @@ namespace Daqifi.Desktop.Channel;
 public class DataSample
 {
     #region Properties
-    public int ID { get; set; }
+    public int ID { get; init; }
     public int LoggingSessionID { get; set; }
     public double Value { get; set; }
-    public long TimestampTicks { get; set; }
-    public string DeviceName { get; set; }
-    public string ChannelName { get; set; }
-    public string DeviceSerialNo { get; set; }
-    public string Color { get; set; }
-    public ChannelType Type { get; set; }
+    public long TimestampTicks { get; init; }
+    public string DeviceName { get; init; }
+    public string ChannelName { get; init; }
+    public string DeviceSerialNo { get; init; }
+    public string Color { get; init; }
+    public ChannelType Type { get; init; }
 
     [Required]
     public LoggingSession LoggingSession { get; set; }

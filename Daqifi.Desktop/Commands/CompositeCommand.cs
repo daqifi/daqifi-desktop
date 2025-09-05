@@ -45,7 +45,7 @@ public class CompositeCommand : ICommand
     /// <param name="command">The command to register.</param>
     public virtual void RegisterCommand(ICommand command)
     {
-        if (command == null) { throw new ArgumentNullException("command"); }
+        ArgumentNullException.ThrowIfNull(command);
         if (command == this)
         {
             throw new ArgumentException();
@@ -79,7 +79,7 @@ public class CompositeCommand : ICommand
     /// <param name="command">The command to unregister.</param>
     public virtual void UnregisterCommand(ICommand command)
     {
-        if (command == null) { throw new ArgumentNullException("command"); }
+        ArgumentNullException.ThrowIfNull(command);
         bool removed;
         lock (registeredCommands)
         {
@@ -118,14 +118,14 @@ public class CompositeCommand : ICommand
     /// <returns><see langword="true" /> if all of the commands return <see langword="true" />; otherwise, <see langword="false" />.</returns>
     public virtual bool CanExecute(object parameter)
     {
-        bool hasEnabledCommandsThatShouldBeExecuted = false;
+        var hasEnabledCommandsThatShouldBeExecuted = false;
 
         ICommand[] commandList;
         lock (registeredCommands)
         {
             commandList = registeredCommands.ToArray();
         }
-        foreach (ICommand command in commandList)
+        foreach (var command in commandList)
         {
             if (ShouldExecute(command))
             {
@@ -183,7 +183,7 @@ public class CompositeCommand : ICommand
 
         while (commands.Count > 0)
         {
-            ICommand command = commands.Dequeue();
+            var command = commands.Dequeue();
             command.Execute(parameter);
         }
     }

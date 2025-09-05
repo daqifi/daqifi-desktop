@@ -277,7 +277,7 @@ public partial class DaqifiViewModel : ObservableObject
                 _selectedLoggingMode = value;
 
                 // Handle ComboBoxItem content
-                string mode = value;
+                var mode = value;
                 if (value?.Contains("ComboBoxItem") == true)
                 {
                     mode = value.Split(':').Last().Trim();
@@ -351,7 +351,7 @@ public partial class DaqifiViewModel : ObservableObject
 
                     //Xml profiles load
                     LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
-                    ObservableCollection<Daqifi.Desktop.Models.Profile> observableProfileList = new ObservableCollection<Daqifi.Desktop.Models.Profile>(LoggingManager.Instance.LoadProfilesFromXml());
+                    var observableProfileList = new ObservableCollection<Profile>(LoggingManager.Instance.LoadProfilesFromXml());
                     //  Notifications 
 
                     _versionNotification = new VersionNotification();
@@ -876,7 +876,7 @@ public partial class DaqifiViewModel : ObservableObject
             var bw = new BackgroundWorker();
             bw.DoWork += delegate
             {
-                bool deleteSucceeded = false;
+                var deleteSucceeded = false;
                 var sessionToDelete = SelectedLoggingSession;
                 try
                 {
@@ -904,7 +904,7 @@ public partial class DaqifiViewModel : ObservableObject
 
             bw.RunWorkerAsync();
         }
-        catch (System.Exception ex)
+        catch (Exception ex)
         {
             _appLogger.Error(ex, "Error initiating logging session deletion");
         }
@@ -1118,7 +1118,7 @@ public partial class DaqifiViewModel : ObservableObject
         var message = $"Device With Serial {device.DeviceSerialNo} has Outdated Firmware. Please Update to Version {LatestFirmware}.";
 
         var existingNotification = NotificationList.FirstOrDefault(n => n.DeviceSerialNo != null
-                                                                        && n.isFirmwareUpdate
+                                                                        && n.IsFirmwareUpdate
                                                                         && n.DeviceSerialNo == device.DeviceSerialNo);
 
         if (existingNotification == null)
@@ -1127,7 +1127,7 @@ public partial class DaqifiViewModel : ObservableObject
             {
                 DeviceSerialNo = device.DeviceSerialNo,
                 Message = message,
-                isFirmwareUpdate = true
+                IsFirmwareUpdate = true
             });
         }
 
@@ -1141,7 +1141,7 @@ public partial class DaqifiViewModel : ObservableObject
         }
 
         var notificationsToRemove = NotificationList
-            .FirstOrDefault(x => x.DeviceSerialNo != null && x.DeviceSerialNo == deviceToRemove.DeviceSerialNo && x.isFirmwareUpdate);
+            .FirstOrDefault(x => x.DeviceSerialNo != null && x.DeviceSerialNo == deviceToRemove.DeviceSerialNo && x.IsFirmwareUpdate);
 
         if (notificationsToRemove != null)
         {
@@ -1584,7 +1584,7 @@ public partial class DaqifiViewModel : ObservableObject
                     VersionName = data.VersionNumber;
                     var notify = new Notifications
                     {
-                        isFirmwareUpdate = false,
+                        IsFirmwareUpdate = false,
                         DeviceSerialNo = null,
                         Message = $"Please update latest application version:  {VersionName}",
                         Link = "https://github.com/daqifi/daqifi-desktop/releases"
@@ -1686,7 +1686,7 @@ public partial class DaqifiViewModel : ObservableObject
     [RelayCommand]
     private void OpenDebugWindow()
     {
-        var debugWindow = new Daqifi.Desktop.View.DebugWindow(this);
+        var debugWindow = new DebugWindow(this);
         debugWindow.Show();
     }
 

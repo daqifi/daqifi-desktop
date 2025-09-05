@@ -17,11 +17,11 @@ public partial class PlotLogger : ObservableObject, ILogger
 {
     #region Private Data
     private PlotModel _plotModel;
-    private readonly Stopwatch _stopwatch = new Stopwatch();
+    private readonly Stopwatch _stopwatch = new();
     private long _lastUpdateMilliSeconds;
     private int _precision = 4;
-    private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
-    private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = new Dictionary<(string deviceSerial, string channelName), LineSeries>();
+    private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = [];
+    private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = [];
     #endregion
 
     #region Properties
@@ -110,7 +110,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     #region Constructor
     public PlotLogger()
     {
-        LoggedPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
+        LoggedPoints = [];
         PlotModel = new PlotModel();
 
         var analogAxis = new LinearAxis
@@ -246,20 +246,17 @@ public partial class PlotLogger : ObservableObject, ILogger
             // For now, if not found, it will use the default LineSeries.IsVisible (which is true)
         }
 
-        switch(channelType)
+        newLineSeries.YAxisKey = channelType switch
         {
-            case ChannelType.Analog:
-                newLineSeries.YAxisKey = "Analog";
-                break;
-            case ChannelType.Digital:
-                newLineSeries.YAxisKey = "Digital";
-                break;
-        }
+            ChannelType.Analog => "Analog",
+            ChannelType.Digital => "Digital",
+            _ => newLineSeries.YAxisKey
+        };
 
         LoggedChannels.Add(key, newLineSeries);
         PlotModel.Series.Add(newLineSeries);
 
-        OnPropertyChanged("PlotModel");
+        OnPropertyChanged(nameof(PlotModel));
     }
 
     private void CompositionTargetRendering(object sender, EventArgs e)

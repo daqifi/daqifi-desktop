@@ -1,6 +1,5 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using System.IO;
 using System.Text;
@@ -113,7 +112,7 @@ public class OptimizedLoggingSessionExporter
         var channelNames = query
             .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
             .Distinct()
-            .OrderBy(name => name) // Use default string ordering instead of OrdinalStringComparer
+            .OrderBy(name => name)
             .ToList();
 
         // Get min timestamp and count in a single query to avoid logic errors and reduce roundtrips
@@ -203,7 +202,7 @@ public class OptimizedLoggingSessionExporter
     {
         if (!timestampSamples.Any()) return;
 
-        var timestamp = timestampSamples.First().TimestampTicks;
+        var timestamp = timestampSamples[0].TimestampTicks;
         var timeString = exportRelativeTime
             ? ((timestamp - firstTimestamp) / (double)TimeSpan.TicksPerSecond).ToString("F3")
             : new DateTime(timestamp).ToString("O");
@@ -316,7 +315,7 @@ public class OptimizedLoggingSessionExporter
     {
         if (!timestampSamples.Any()) return;
 
-        var timestamp = timestampSamples.First().TimestampTicks;
+        var timestamp = timestampSamples[0].TimestampTicks;
         var timeString = exportRelativeTime
             ? ((timestamp - firstTimestamp) / (double)TimeSpan.TicksPerSecond).ToString("F3")
             : new DateTime(timestamp).ToString("O");
@@ -406,8 +405,7 @@ public class OptimizedLoggingSessionExporter
 
         var totalSamples = context.Samples
             .AsNoTracking()
-            .Where(s => s.LoggingSessionID == sessionId)
-            .Count();
+            .Count(s => s.LoggingSessionID == sessionId);
 
         foreach (var sample in samplesQuery)
         {

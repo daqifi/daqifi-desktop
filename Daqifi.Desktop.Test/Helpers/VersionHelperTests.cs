@@ -1,4 +1,3 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Daqifi.Desktop.Helpers;
 
 namespace Daqifi.Desktop.Test.Helpers;

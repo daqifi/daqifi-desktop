@@ -73,18 +73,12 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
             if (IsDigital) { typeString = "Digital "; }
             if (IsAnalog) {typeString = "Analog "; }
 
-            switch (Direction)
+            typeString += Direction switch
             {
-                case ChannelDirection.Input:
-                    typeString += "Input";
-                    break;
-                case ChannelDirection.Output:
-                    typeString += "Output";
-                    break;
-                default:
-                    typeString += "Unknown";
-                    break;
-            }
+                ChannelDirection.Input => "Input",
+                ChannelDirection.Output => "Output",
+                _ => "Unknown"
+            };
 
             return typeString;
         }

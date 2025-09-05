@@ -3,8 +3,6 @@ using Daqifi.Desktop.IO.Messages.Producers;
 using System.IO.Ports;
 using Daqifi.Desktop.Bootloader;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
-using Daqifi.Desktop.IO.Messages;
-using Daqifi.Desktop.Common.Loggers;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -66,7 +64,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             var deviceInfoReceived = false;
             var timeout = DateTime.Now.AddSeconds(4); // Increased timeout for device wake-up
 
-            Daqifi.Desktop.IO.Messages.Consumers.OnMessageReceivedHandler handler = null;
+            OnMessageReceivedHandler handler = null;
             handler = (sender, args) =>
             {
                 try

@@ -30,7 +30,7 @@ public partial class Pic32Bootloader : ObservableObject, IBootloader, IDisposabl
 
     #region IBootloader Methods
 
-    private readonly ManualResetEvent _resetEvent = new ManualResetEvent(false);
+    private readonly ManualResetEvent _resetEvent = new(false);
     private const string VersionErrorMessage = "Error communicating with device.  \nPlease disconnect / connect USB from your computer and try again.";
     public void RequestVersion()
     {
@@ -46,24 +46,21 @@ public partial class Pic32Bootloader : ObservableObject, IBootloader, IDisposabl
 
     private void RequestVersionDoWork(object stateInfo)
     {
-        var messageProducer = new Pic32BootloaderMessageProducer();
-        var requestVersionMessage = messageProducer.CreateRequestVersionMessage();
+        var requestVersionMessage = Pic32BootloaderMessageProducer.CreateRequestVersionMessage();
         var outputReport = CreateDeviceOutputReport(requestVersionMessage);
 
         _hidDevice.WriteReport(outputReport);
 
         var inputReport = _hidDevice.ReadReport();
-        var consumer = new Pic32BootloaderMessageConsumer();
-        var version = consumer.DecodeVersionResponse(inputReport.Data);
-        Version = version.ToLower().Equals("error") ? VersionErrorMessage : version;
+        var version = Pic32BootloaderMessageConsumer.DecodeVersionResponse(inputReport.Data);
+        Version = version.Equals("error", StringComparison.OrdinalIgnoreCase) ? VersionErrorMessage : version;
 
         _resetEvent.Set();
     }
 
     public void JumpToApplication()
     {
-        var messageProducer = new Pic32BootloaderMessageProducer();
-        var jumpToApplicationMessage = messageProducer.CreateJumpToApplicationMessage();
+        var jumpToApplicationMessage = Pic32BootloaderMessageProducer.CreateJumpToApplicationMessage();
         var outputReport = CreateDeviceOutputReport(jumpToApplicationMessage);
 
         _hidDevice.WriteReport(outputReport);
@@ -71,15 +68,13 @@ public partial class Pic32Bootloader : ObservableObject, IBootloader, IDisposabl
 
     public bool EraseFlash()
     {
-        var messageProducer = new Pic32BootloaderMessageProducer();
-        var eraseFlashMessage = messageProducer.CreateEraseFlashMessage();
+        var eraseFlashMessage = Pic32BootloaderMessageProducer.CreateEraseFlashMessage();
         var outputReport = CreateDeviceOutputReport(eraseFlashMessage);
 
         _hidDevice.WriteReport(outputReport);
 
         var inputReport = _hidDevice.ReadReport();
-        var consumer = new Pic32BootloaderMessageConsumer();
-        return consumer.DecodeEraseFlashResponse(inputReport.Data);
+        return Pic32BootloaderMessageConsumer.DecodeEraseFlashResponse(inputReport.Data);
     }
 
     /// <summary>
@@ -90,8 +85,6 @@ public partial class Pic32Bootloader : ObservableObject, IBootloader, IDisposabl
     public bool LoadFirmware(string filePath, BackgroundWorker backgroundWorker)
     {
         var hexRecords = GetHexRecordsFromFile(filePath);
-        var messageProducer = new Pic32BootloaderMessageProducer();
-        var messageConsumer = new Pic32BootloaderMessageConsumer();
 
         if (!EraseFlash())
         {
@@ -103,13 +96,13 @@ public partial class Pic32Bootloader : ObservableObject, IBootloader, IDisposabl
             backgroundWorker.ReportProgress(i * 100 / hexRecords.Count);
 
             // Send a hex record
-            var loadFirmwareMessage = messageProducer.CreateProgramFlashMessage(hexRecords[i]);
+            var loadFirmwareMessage = Pic32BootloaderMessageProducer.CreateProgramFlashMessage(hexRecords[i]);
             var outputReport = CreateDeviceOutputReport(loadFirmwareMessage);
 
             _hidDevice.WriteReport(outputReport);
 
             var report = _hidDevice.FastReadReport();
-            var successfulResponse = messageConsumer.DecodeProgramFlashResponse(report.Data);
+            var successfulResponse = Pic32BootloaderMessageConsumer.DecodeProgramFlashResponse(report.Data);
 
             if (!successfulResponse)
             {

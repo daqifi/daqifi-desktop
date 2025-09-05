@@ -1,4 +1,3 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.Services;
@@ -195,7 +194,7 @@ public class WindowsFirewallWrapperTests
             // If we get here without exceptions, the test passes
             Assert.IsTrue(true);
         }
-        catch (Exception ex) when (!(ex is InvalidOperationException))
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
             // We expect potential COM exceptions, but not argument exceptions for port values
             Assert.Fail($"Unexpected exception type: {ex.GetType()}");

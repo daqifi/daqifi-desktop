@@ -2,11 +2,11 @@
 
 public class Notifications
 {
-    public bool isFirmwareUpdate {  get; set; }
+    public bool IsFirmwareUpdate { get; init; }
 
-    public string DeviceSerialNo { get; set; }
+    public string DeviceSerialNo { get; init; }
 
-    public string Message { get; set; }
+    public string Message { get; init; }
 
     public string Link { get; set; }
 }

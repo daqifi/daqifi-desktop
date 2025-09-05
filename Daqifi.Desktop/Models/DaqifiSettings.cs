@@ -15,7 +15,7 @@ public class DaqifiSettings
     #endregion
 
     #region Properties
-    public ObservableCollection<string> CsvDelimiterOptions { get; } = new ObservableCollection<string> { ",", ";" };
+    public ObservableCollection<string> CsvDelimiterOptions { get; } = [",", ";"];
 
     public string CsvDelimiter
     {
@@ -69,7 +69,7 @@ public class DaqifiSettings
 
             if (xml.Element("CanReportErrors") != null)
             {
-                if (bool.TryParse(xml.Element("CanReportErrors").Value, out bool temp))
+                if (bool.TryParse(xml.Element("CanReportErrors").Value, out var temp))
                 {
                     _canReportErrors = temp;
                 }

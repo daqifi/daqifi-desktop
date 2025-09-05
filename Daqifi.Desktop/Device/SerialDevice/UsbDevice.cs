@@ -16,8 +16,7 @@ public sealed class UsbDevice : IDisposable
 
     public static UsbDevice Get(string pnpDeviceId)
     {
-        if (pnpDeviceId == null)
-            throw new ArgumentNullException(nameof(pnpDeviceId));
+        ArgumentNullException.ThrowIfNull(pnpDeviceId);
 
         var hDevInfo = SetupDiGetClassDevs(IntPtr.Zero, pnpDeviceId, IntPtr.Zero, Digcf.DigcfAllclasses | Digcf.DigcfDeviceinterface);
         if (hDevInfo == InvalidHandleValue)
@@ -46,7 +45,7 @@ public sealed class UsbDevice : IDisposable
     {
         get
         {
-            if (IsVistaOrHiger)
+            if (IsVistaOrHigher)
                 return GetStringProperty(Devpropkey.DEVPKEY_Device_Parent);
 
             var cr = CM_Get_Parent(out var parent, _data.DevInst, 0);
@@ -61,7 +60,7 @@ public sealed class UsbDevice : IDisposable
     {
         get
         {
-            if (IsVistaOrHiger)
+            if (IsVistaOrHigher)
                 return GetStringProperty(Devpropkey.DEVPKEY_Device_BusReportedDeviceDesc);
 
             throw new NotImplementedException("USB is only supported on Windows Vista or Higher");
@@ -89,7 +88,7 @@ public sealed class UsbDevice : IDisposable
     {
         get
         {
-            if (IsVistaOrHiger)
+            if (IsVistaOrHigher)
                 return GetStringListProperty(Devpropkey.DEVPKEY_Device_Children);
 
             var cr = CM_Get_Child(out var child, _data.DevInst, 0);
@@ -97,7 +96,7 @@ public sealed class UsbDevice : IDisposable
                 return new string[0];
 
             var ids = new List<string> { GetDeviceId(child) };
-            do
+            while (true)
             {
                 cr = CM_Get_Sibling(out child, child, 0);
                 if (cr != 0)
@@ -105,11 +104,10 @@ public sealed class UsbDevice : IDisposable
 
                 ids.Add(GetDeviceId(child));
             }
-            while (true);
         }
     }
 
-    private static bool IsVistaOrHiger => (Environment.OSVersion.Platform == PlatformID.Win32NT && Environment.OSVersion.Version.CompareTo(new Version(6, 0)) >= 0);
+    private static bool IsVistaOrHigher => Environment.OSVersion.Platform == PlatformID.Win32NT && Environment.OSVersion.Version.CompareTo(new Version(6, 0)) >= 0;
 
     private const int InvalidHandleValue = -1;
     private const int ErrorNoMoreItems = 259;
@@ -163,16 +161,15 @@ public sealed class UsbDevice : IDisposable
         private uint pid;
 
         // from devpkey.h
-        public static readonly Devpropkey DEVPKEY_Device_Parent = new Devpropkey { fmtid = new Guid("{4340A6C5-93FA-4706-972C-7B648008A5A7}"), pid = 8 };
-        public static readonly Devpropkey DEVPKEY_Device_Children = new Devpropkey { fmtid = new Guid("{4340A6C5-93FA-4706-972C-7B648008A5A7}"), pid = 9 };
+        public static readonly Devpropkey DEVPKEY_Device_Parent = new() { fmtid = new Guid("{4340A6C5-93FA-4706-972C-7B648008A5A7}"), pid = 8 };
+        public static readonly Devpropkey DEVPKEY_Device_Children = new() { fmtid = new Guid("{4340A6C5-93FA-4706-972C-7B648008A5A7}"), pid = 9 };
         // 0x540b947e, 0x8b40, 0x45bc, 0xa8, 0xa2, 0x6a, 0x0b, 0x89, 0x4c, 0xbd, 0xa2, 4
-        public static readonly Devpropkey DEVPKEY_Device_BusReportedDeviceDesc = new Devpropkey { fmtid = new Guid("{540B947E-8B40-45BC-A8A2-6A0B894CBDA2}"), pid = 4 };
-
+        public static readonly Devpropkey DEVPKEY_Device_BusReportedDeviceDesc = new() { fmtid = new Guid("{540B947E-8B40-45BC-A8A2-6A0B894CBDA2}"), pid = 4 };
     }
 
     private string[] GetStringListProperty(Devpropkey key)
     {
-        SetupDiGetDeviceProperty(_hDevInfo, ref _data, ref key, out var _, IntPtr.Zero, 0, out var size, 0);
+        SetupDiGetDeviceProperty(_hDevInfo, ref _data, ref key, out _, IntPtr.Zero, 0, out var size, 0);
         if (size == 0)
             return new string[0];
 
@@ -184,7 +181,7 @@ public sealed class UsbDevice : IDisposable
 
             var strings = new List<string>();
             var current = buffer;
-            do
+            while (true)
             {
                 var s = Marshal.PtrToStringUni(current);
                 if (string.IsNullOrEmpty(s))
@@ -193,7 +190,6 @@ public sealed class UsbDevice : IDisposable
                 strings.Add(s);
                 current += (1 + s.Length) * 2;
             }
-            while (true);
             return strings.ToArray();
         }
         finally

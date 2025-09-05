@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Globalization;
-using System.Linq;
 using System.Windows.Data;
 
 namespace Daqifi.Desktop.Converters;

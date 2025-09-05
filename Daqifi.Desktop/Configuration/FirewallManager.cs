@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Windows;
 using System.Runtime.InteropServices;
 using System.IO;
-using System.Text.RegularExpressions;
 using Daqifi.Desktop.Services;
 using Daqifi.Desktop.Common.Loggers;
 
@@ -135,7 +134,7 @@ public class WindowsFirewallWrapper : IFirewallHelper
 
             try
             {
-                var _ = rules.GetType().InvokeMember("Item",
+                _ = rules.GetType().InvokeMember("Item",
                     System.Reflection.BindingFlags.InvokeMethod, null, rules, new object[] { ruleName });
                 return true;
             }
@@ -145,7 +144,7 @@ public class WindowsFirewallWrapper : IFirewallHelper
             }
             catch (System.Reflection.TargetInvocationException ex) when (
                 (ex.InnerException is COMException comEx && comEx.HResult == unchecked((int)0x80070002)) ||
-                (ex.InnerException is FileNotFoundException))
+                ex.InnerException is FileNotFoundException)
             {
                 return false;
             }

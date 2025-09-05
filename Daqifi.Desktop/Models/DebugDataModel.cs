@@ -63,7 +63,7 @@ public partial class DebugDataModel : ObservableObject
                 "Data Mapping:"
             };
 
-            for (int i = 0; i < Math.Min(RawAnalogValues.Count, ActiveChannelNames.Count); i++)
+            for (var i = 0; i < Math.Min(RawAnalogValues.Count, ActiveChannelNames.Count); i++)
             {
                 var channelName = i < ActiveChannelNames.Count ? ActiveChannelNames[i] : "Unknown";
                 var channelIndex = i < ActiveChannelIndices.Count ? ActiveChannelIndices[i] : -1;

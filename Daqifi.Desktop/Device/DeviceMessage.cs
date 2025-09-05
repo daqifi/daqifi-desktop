@@ -3,8 +3,8 @@
 public class DeviceMessage
 {
     public int LoggingSessionID { get; set; }
-    public long TimestampTicks { get; set; }
-    public long AppTicks { get; set; }
+    public long TimestampTicks { get; init; }
+    public long AppTicks { get; init; }
     public string DeviceName { get; set; }
     public string DeviceSerialNo { get; set; }
 

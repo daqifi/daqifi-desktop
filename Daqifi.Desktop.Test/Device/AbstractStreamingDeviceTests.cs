@@ -1,6 +1,3 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
-
 namespace Daqifi.Desktop.Test.Device;
 
 [TestClass]
@@ -18,11 +15,11 @@ public class AbstractStreamingDeviceTests
         // The current implementation uses right shift (>>) instead of left shift (<<)
 
         // Arrange
-        int channelIndex = 8;
+        var channelIndex = 8;
 
         // Act - Current buggy implementation
-        int buggyResult = 1 >> channelIndex;  // This is what the code currently does (WRONG)
-        int correctResult = 1 << channelIndex; // This is what it should do
+        var buggyResult = 1 >> channelIndex;  // This is what the code currently does (WRONG)
+        var correctResult = 1 << channelIndex; // This is what it should do
 
         // Assert
         Assert.AreEqual(0, buggyResult, "Right shift produces 0 for channel 8 - this is the bug!");
@@ -36,11 +33,11 @@ public class AbstractStreamingDeviceTests
         // This test demonstrates potential integer overflow issues with higher channel numbers
 
         // Arrange
-        int channelIndex = 31;
+        var channelIndex = 31;
 
         // Act
-        int intResult = 1 << channelIndex;      // May overflow to negative
-        uint uintResult = 1u << channelIndex;   // Correct approach
+        var intResult = 1 << channelIndex;      // May overflow to negative
+        var uintResult = 1u << channelIndex;   // Correct approach
 
         // Assert
         Assert.IsTrue(intResult < 0, "int overflows to negative for channel 31");
@@ -54,8 +51,8 @@ public class AbstractStreamingDeviceTests
         // for channels that are currently failing (8-15)
 
         // Arrange & Act
-        string channel8Mask = Convert.ToString(1 << 8);   // Should be "256"
-        string channel15Mask = Convert.ToString(1 << 15); // Should be "32768"
+        var channel8Mask = Convert.ToString(1 << 8);   // Should be "256"
+        var channel15Mask = Convert.ToString(1 << 15); // Should be "32768"
 
         // Assert
         Assert.AreEqual("256", channel8Mask, "Channel 8 bit mask string should be '256'");
