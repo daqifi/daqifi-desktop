@@ -4,11 +4,13 @@ using System.Runtime.InteropServices;
 using System.IO;
 using System.Text.RegularExpressions;
 using Daqifi.Desktop.Services;
+using Daqifi.Desktop.Common.Loggers;
 
 namespace Daqifi.Desktop.Configuration;
 
 public static class FirewallConfiguration
 {
+    private static readonly IAppLogger Logger = AppLogger.Instance;
     private const string RuleName = "DAQiFi Desktop";
     private static IFirewallHelper _firewallHelper;
     private static IMessageBoxService _messageBoxService;
@@ -75,6 +77,7 @@ public static class FirewallConfiguration
         }
         catch (Exception ex)
         {
+            Logger.Error(ex, "Failed to initialize firewall rules for DAQiFi Desktop");
             _messageBoxService.Show(
                 "Unable to configure firewall rules automatically. You may need to manually add firewall rules " +
                 "for both private and public networks.\n\nError: " + ex.Message,
@@ -109,6 +112,8 @@ public interface IFirewallHelper
 
 public class WindowsFirewallWrapper : IFirewallHelper
 {
+    private static readonly IAppLogger Logger = AppLogger.Instance;
+
     private static object GetPolicy()
     {
         var type = Type.GetTypeFromProgID("HNetCfg.FwPolicy2")
@@ -138,14 +143,16 @@ public class WindowsFirewallWrapper : IFirewallHelper
             {
                 return false;
             }
-            catch (System.Reflection.TargetInvocationException ex) when (ex.InnerException is COMException comEx && 
-                comEx.HResult == unchecked((int)0x80070002))
+            catch (System.Reflection.TargetInvocationException ex) when (
+                (ex.InnerException is COMException comEx && comEx.HResult == unchecked((int)0x80070002)) ||
+                (ex.InnerException is FileNotFoundException))
             {
                 return false;
             }
         }
         catch (Exception ex)
         {
+            Logger.Error(ex, $"Failed to check firewall rule existence for rule: {ruleName}");
             throw new InvalidOperationException($"Failed to check firewall rule existence: {ex.Message}", ex);
         }
         finally
@@ -194,6 +201,7 @@ public class WindowsFirewallWrapper : IFirewallHelper
         }
         catch (Exception ex)
         {
+            Logger.Error(ex, $"Failed to create firewall rule '{ruleName}' for application: {applicationPath}");
             throw new InvalidOperationException($"Failed to create firewall rule '{ruleName}': {ex.Message}", ex);
         }
         finally
