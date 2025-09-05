@@ -3,7 +3,7 @@
 		<TargetFramework>net9.0-windows</TargetFramework>
 		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 		<PlatformTarget>x64</PlatformTarget>
-		<NoWarn>CA1707</NoWarn>
+		<NoWarn>CA1707;CA1416</NoWarn>
 	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="coverlet.collector" Version="6.0.4">
