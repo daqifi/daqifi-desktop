@@ -13,13 +13,16 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x
+        dotnet-version: 9.0.x
 
     - name: Restore dependencies
       run: dotnet restore
 
     - name: Build with Analysis
       run: dotnet build --no-restore --configuration Release /p:EnforceCodeStyleInBuild=true
+
+    - name: Publish app (framework-dependent)
+      run: dotnet publish Daqifi.Desktop/Daqifi.Desktop.csproj -c Release --no-restore
 
     - name: Test with Coverage
       run: dotnet test --no-build --verbosity normal --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults/ /p:CoverletOutputFormat=cobertura
