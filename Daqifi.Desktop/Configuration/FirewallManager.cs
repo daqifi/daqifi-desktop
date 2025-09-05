@@ -107,7 +107,7 @@ public interface IFirewallHelper
     void CreateUdpRule(string ruleName, string applicationPath, int port = 0);
 }
 
-internal class WindowsFirewallWrapper : IFirewallHelper
+public class WindowsFirewallWrapper : IFirewallHelper
 {
     private static object GetPolicy()
     {

@@ -37,7 +37,7 @@ public class FirewallConfigurationTests
         FirewallConfiguration.InitializeFirewallRules();
 
         // Assert
-        _mockFirewallHelper.Verify(f => f.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        _mockFirewallHelper.Verify(f => f.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>(), 0), Times.Never);
         _mockMessageBoxService.Verify(m => m.Show(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<MessageBoxButton>(), It.IsAny<MessageBoxImage>()), Times.Never);
     }
 
@@ -52,7 +52,7 @@ public class FirewallConfigurationTests
         FirewallConfiguration.InitializeFirewallRules();
 
         // Assert
-        _mockFirewallHelper.Verify(f => f.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+        _mockFirewallHelper.Verify(f => f.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>(), 21234), Times.Once);
         _mockMessageBoxService.Verify(m => m.Show(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<MessageBoxButton>(), It.IsAny<MessageBoxImage>()), Times.Never);
     }
 
@@ -73,7 +73,7 @@ public class FirewallConfigurationTests
             MessageBoxImage.Warning), Times.Once);
 
         _mockFirewallHelper.Verify(h => h.RuleExists(It.IsAny<string>()), Times.Never);
-        _mockFirewallHelper.Verify(h => h.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()), Times.Never);
+        _mockFirewallHelper.Verify(h => h.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>(), 0), Times.Never);
     }
 
     [TestMethod]
@@ -82,7 +82,7 @@ public class FirewallConfigurationTests
         // Arrange
         _mockAdminChecker.Setup(c => c.IsCurrentUserAdmin()).Returns(true);
         _mockFirewallHelper.Setup(f => f.RuleExists("DAQiFi Desktop")).Returns(false);
-        _mockFirewallHelper.Setup(f => f.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()))
+        _mockFirewallHelper.Setup(f => f.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>(), 21234))
             .Throws(new InvalidOperationException("Test exception"));
 
         // Act
