@@ -26,9 +26,9 @@ public partial class ConnectionManager : ObservableObject
 
     [ObservableProperty]
     private bool _notifyConnection;
-    
+
     public string ConnectionStatusString { get; set; } = "Disconnected";
-    
+
     #endregion
 
     partial void OnConnectionStatusChanged(DAQifiConnectionStatus value)
@@ -43,7 +43,7 @@ public partial class ConnectionManager : ObservableObject
     private ConnectionManager()
     {
         ConnectedDevices = new List<IStreamingDevice>();
-        
+
         try
         {
             // EventType 3 is Device Removal
@@ -57,7 +57,7 @@ public partial class ConnectionManager : ObservableObject
         {
             AppLogger.Instance.Error(ex, "Failed to initialize ManagementEventWatcher: " + ex.Message);
         }
-            
+
     }
 
     public static ConnectionManager Instance => instance;

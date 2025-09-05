@@ -18,18 +18,16 @@ public partial class SummaryLogger : ObservableObject, ILogger
     {
         private readonly ChannelBuffer _current;
 
-        private readonly string _name;
-
         internal ChannelSummary(string name, ChannelBuffer current)
         {
-            _name = name;
+            Name = name;
             _current = current;
         }
 
         /// <summary>
         /// The frequency sample rate
         /// </summary>
-        public string Name => _name;
+        public string Name { get; }
 
         /// <summary>
         /// The number of samples seen
@@ -39,7 +37,7 @@ public partial class SummaryLogger : ObservableObject, ILogger
         /// <summary>
         /// The time of the last sample
         /// </summary>
-        public DateTime LastUpdate => new DateTime(_current.LastSampleTicks);
+        public DateTime LastUpdate => new(_current.LastSampleTicks);
 
         /// <summary>
         /// The frequency sample rate
@@ -87,11 +85,6 @@ public partial class SummaryLogger : ObservableObject, ILogger
 
     internal class ChannelBuffer
     {
-        public ChannelBuffer()
-        {
-
-        }
-
         /// <summary>
         /// The number of samples seen
         /// </summary>
@@ -257,10 +250,6 @@ public partial class SummaryLogger : ObservableObject, ILogger
     /// The last completed sample set
     /// </summary>
     private SummaryBuffer _current;
-    
-    private double _elapsedTime;
-    private DateTime _lastUpdate;
-    private double _sampleRate;
 
     #endregion
 
@@ -268,24 +257,12 @@ public partial class SummaryLogger : ObservableObject, ILogger
     /// <summary>
     /// The total elapsed time
     /// </summary>
-    public double ElapsedTime
-    {
-        get
-        {
-            return TimeSpan.FromTicks(_current.LastSampleTicks - _current.FirstSampleTicks).TotalMilliseconds;
-        }
-    }
+    public double ElapsedTime => TimeSpan.FromTicks(_current.LastSampleTicks - _current.FirstSampleTicks).TotalMilliseconds;
 
     /// <summary>
     /// The time of the last sample
     /// </summary>
-    public DateTime LastUpdate
-    {
-        get
-        {
-            return new DateTime(_current.LastSampleTicks);
-        }
-    }
+    public DateTime LastUpdate => new(_current.LastSampleTicks);
 
     /// <summary>
     /// The frequency sample rate
@@ -362,7 +339,7 @@ public partial class SummaryLogger : ObservableObject, ILogger
             }
             else
             {
-                sb.Append("-");
+                sb.Append('-');
             }
             return sb.ToString();
         }
@@ -396,7 +373,7 @@ public partial class SummaryLogger : ObservableObject, ILogger
 
     public void Log(DataSample dataSample)
     {
-        if (!_enabled)
+        if (!Enabled)
         {
             return;
         }
@@ -422,7 +399,7 @@ public partial class SummaryLogger : ObservableObject, ILogger
                 buffer.MaxValue = Math.Max(dataSample.Value, buffer.MaxValue);
             }
 
-            buffer.AverageValue += dataSample.Value / _sampleSize;
+            buffer.AverageValue += dataSample.Value / SampleSize;
 
             if (buffer.SampleCount > 0)
             {
@@ -437,7 +414,7 @@ public partial class SummaryLogger : ObservableObject, ILogger
                     buffer.MinDeltaTicks = Math.Min(buffer.MinDeltaTicks, elapsed);
                     buffer.MaxDeltaTicks = Math.Max(buffer.MaxDeltaTicks, elapsed);
                 }
-                buffer.AverageDeltaTicks += elapsed / (double)(_sampleSize - 1);
+                buffer.AverageDeltaTicks += elapsed / (double)(SampleSize - 1);
             }
             buffer.LastSampleTicks = dataSample.TimestampTicks;
 
@@ -451,7 +428,7 @@ public partial class SummaryLogger : ObservableObject, ILogger
     /// <param name="dataSample"></param>
     public void Log(DeviceMessage dataSample)
     {
-        if (!_enabled)
+        if (!Enabled)
         {
             return;
         }
@@ -473,7 +450,7 @@ public partial class SummaryLogger : ObservableObject, ILogger
                 _buffer.MinLatencyTicks = Math.Min(latency, _buffer.MinLatencyTicks);
                 _buffer.MaxLatencyTicks = Math.Max(latency, _buffer.MaxLatencyTicks);
             }
-            _buffer.AverageLatencyTicks += latency / (double)(_sampleSize - 1);
+            _buffer.AverageLatencyTicks += latency / (double)(SampleSize - 1);
 
             if (_buffer.SampleCount > 0)
             {
@@ -489,12 +466,12 @@ public partial class SummaryLogger : ObservableObject, ILogger
                     _buffer.MaxDeltaTicks = Math.Max(_buffer.MaxDeltaTicks, elapsed);
                 }
 
-                _buffer.AverageDeltaTicks += elapsed / (double)(_sampleSize - 1);
+                _buffer.AverageDeltaTicks += elapsed / (double)(SampleSize - 1);
             }
             _buffer.LastSampleTicks = dataSample.AppTicks;
 
             ++_buffer.SampleCount;
-            if (_buffer.SampleCount == _sampleSize)
+            if (_buffer.SampleCount == SampleSize)
             {
                 lock (_current)
                 {
@@ -550,10 +527,10 @@ public partial class SummaryLogger : ObservableObject, ILogger
     {
         lock(_buffer)
         {
-            _enabled = false;
+            Enabled = false;
             _buffer.Reset();
-            _enabled = true;
-            OnPropertyChanged("Enabled");
+            Enabled = true;
+            OnPropertyChanged(nameof(Enabled));
         }
     }
 
@@ -561,8 +538,8 @@ public partial class SummaryLogger : ObservableObject, ILogger
     {
         lock (_buffer)
         {
-            _enabled = false;
-            OnPropertyChanged("Enabled");
+            Enabled = false;
+            OnPropertyChanged(nameof(Enabled));
         }
     }
 

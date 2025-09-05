@@ -10,7 +10,7 @@ public class SuccessDialogViewModel : ObservableObject
     #endregion
 
     #region Properties
-        
+
     public string SuccessMessage
     {
         get => _successMessage;

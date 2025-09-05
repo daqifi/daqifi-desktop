@@ -10,7 +10,7 @@ public static class WeakEventHandlerManager
     private static readonly SynchronizationContext syncContext = SynchronizationContext.Current;
 
     ///<summary>
-    /// Invokes the handlers 
+    /// Invokes the handlers
     ///</summary>
     ///<param name="sender"></param>
     ///<param name="handlers"></param>

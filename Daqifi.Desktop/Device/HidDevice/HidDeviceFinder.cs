@@ -12,7 +12,7 @@ public class HidDeviceFinder : IDeviceFinder
     private const int ProductId = 0x03C;
     public event OnDeviceFoundHandler OnDeviceFound;
     public event OnDeviceRemovedHandler OnDeviceRemoved;
-        
+
     public HidDeviceFinder()
     {
         _hidDeviceFinderWorker = new BackgroundWorker {WorkerSupportsCancellation = true};

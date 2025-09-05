@@ -308,7 +308,7 @@ public partial class LoggingManager : ObservableObject
                 {
                     SubscribedProfiles.Add(profile);
                 }
-                
+
                 return loadedProfiles;
             }
         }
@@ -316,7 +316,7 @@ public partial class LoggingManager : ObservableObject
         {
             AppLogger.Error(ex, "Error Loading Profiles from XML");
         }
-        
+
         return SubscribedProfiles.ToList();
     }
 
@@ -329,7 +329,7 @@ public partial class LoggingManager : ObservableObject
             {
                 return;
             }
-            
+
             AddAndRemoveProfileXml(subscribedProfile, false);
             ClearChannelList();
         }
@@ -347,15 +347,15 @@ public partial class LoggingManager : ObservableObject
         {
             return;
         }
-                
+
         channel.IsActive = true;
-            
+
         // Only attach streaming handlers if in Stream mode
         if (CurrentMode == LoggingMode.Stream)
         {
             channel.OnChannelUpdated += HandleChannelUpdate;
         }
-            
+
         SubscribedChannels.Add(channel);
         OnPropertyChanged(nameof(SubscribedChannels));
     }
@@ -364,17 +364,17 @@ public partial class LoggingManager : ObservableObject
     {
         var subscribedChannel = SubscribedChannels
             .FirstOrDefault(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
-            
+
         if (subscribedChannel == null)
         {
             return;
         }
-            
+
         subscribedChannel.IsActive = false;
-            
+
         // Remove event handler if it's attached
         subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
-            
+
         SubscribedChannels.Remove(subscribedChannel);
         OnPropertyChanged(nameof(SubscribedChannels));
     }

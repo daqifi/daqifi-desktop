@@ -9,7 +9,7 @@ namespace Daqifi.Desktop.Loggers;
 public partial class FirmwareUpdatationManager : ObservableObject
 {
     private readonly AppLogger AppLogger = AppLogger.Instance;
-        
+
     [ObservableProperty]
     private string _latestFirmwareVersion;
 

@@ -38,7 +38,7 @@ public class CompositeCommand : ICommand
     /// Adds a command to the collection and signs up for the <see cref="ICommand.CanExecuteChanged"/> event of it.
     /// </summary>
     ///  <remarks>
-    /// If this command is set to monitor command activity, and <paramref name="command"/> 
+    /// If this command is set to monitor command activity, and <paramref name="command"/>
     /// implements the <see cref="IActiveAwareCommand"/> interface, this method will subscribe to its
     /// <see cref="IActiveAwareCommand.IsActiveChanged"/> event.
     /// </remarks>
@@ -146,8 +146,8 @@ public class CompositeCommand : ICommand
     /// reference to the handler to avoid garbage collection and unexpected results. See remarks for more information.
     /// </summary>
     /// <remarks>
-    /// When subscribing to the <see cref="ICommand.CanExecuteChanged"/> event using 
-    /// code (not when binding using XAML) will need to keep a hard reference to the event handler. This is to prevent 
+    /// When subscribing to the <see cref="ICommand.CanExecuteChanged"/> event using
+    /// code (not when binding using XAML) will need to keep a hard reference to the event handler. This is to prevent
     /// garbage collection of the event handler because the command implements the Weak Event pattern so it does not have
     /// a hard reference to this handler. An example implementation can be seen in the CompositeCommand and CommandBehaviorBase
     /// classes. In most scenarios, there is no reason to sign up to the CanExecuteChanged event directly, but if you do, you
@@ -192,12 +192,12 @@ public class CompositeCommand : ICommand
     /// Evaluates if a command should execute.
     /// </summary>
     /// <param name="command">The command to evaluate.</param>
-    /// <returns>A <see cref="bool"/> value indicating whether the command should be used 
+    /// <returns>A <see cref="bool"/> value indicating whether the command should be used
     /// when evaluating <see cref="CompositeCommand.CanExecute"/> and <see cref="CompositeCommand.Execute"/>.</returns>
     /// <remarks>
     /// If this command is set to monitor command activity, and <paramref name="command"/>
-    /// implements the <see cref="IActiveAwareCommand"/> interface, 
-    /// this method will return <see langword="false" /> if the command's <see cref="IActiveAwareCommand.IsActive"/> 
+    /// implements the <see cref="IActiveAwareCommand"/> interface,
+    /// this method will return <see langword="false" /> if the command's <see cref="IActiveAwareCommand.IsActive"/>
     /// property is <see langword="false" />; otherwise it always returns <see langword="true" />.</remarks>
     protected virtual bool ShouldExecute(ICommand command)
     {
@@ -231,7 +231,7 @@ public class CompositeCommand : ICommand
     }
 
     /// <summary>
-    /// Raises <see cref="ICommand.CanExecuteChanged"/> on the UI thread so every 
+    /// Raises <see cref="ICommand.CanExecuteChanged"/> on the UI thread so every
     /// command invoker can requery <see cref="ICommand.CanExecute"/> to check if the
     /// <see cref="CompositeCommand"/> can execute.
     /// </summary>

@@ -8,7 +8,7 @@ public partial class ErrorDialogViewModel : ObservableObject
     [ObservableProperty]
     private string _errorMessage;
     #endregion
-    
+
     #region Constructor
     public ErrorDialogViewModel(string errorMessage)
     {

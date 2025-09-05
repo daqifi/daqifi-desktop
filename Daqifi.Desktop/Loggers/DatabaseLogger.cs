@@ -66,7 +66,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private DateTime? _firstTime;
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
-    
+
     [ObservableProperty]
     private PlotModel _plotModel;
     #endregion
@@ -216,7 +216,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             _sessionPoints.Clear();
             _allSessionPoints.Clear();
             PlotModel.Series.Clear();
-            LegendItems.Clear(); 
+            LegendItems.Clear();
             PlotModel.Title = string.Empty;
             PlotModel.Subtitle = string.Empty;
             PlotModel.InvalidatePlot(true);
@@ -228,13 +228,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         try
         {
             // ClearPlot is already dispatcher-wrapped
-            ClearPlot(); 
+            ClearPlot();
 
             // Data fetching and processing (can be on background thread)
             string sessionName = session.Name;
             string subtitle = string.Empty;
             List<DataSample> allSamplesData = new List<DataSample>(); // Temp store for all sample values for all series
-            
+
             var tempSeriesList = new List<LineSeries>();
             var tempLegendItemsList = new List<LoggedSeriesLegendItem>();
 
@@ -267,7 +267,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     tempSeriesList.Add(series);
                     tempLegendItemsList.Add(legendItem);
                 }
-                
+
                 // This part still needs to be careful about _allSessionPoints access if it's used by UI directly
                 // For now, _allSessionPoints is used to populate series ItemsSource later on UI thread
                 int dataSampleCount = 0;
@@ -281,7 +281,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     {
                         points.Add(new DataPoint(deltaTime, sample.Value));
                     }
-                    
+
                     dataSampleCount++;
                     if (dataSampleCount >= dataPointsToShow)
                     {
@@ -309,10 +309,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     var key = (series.Title.Split(new[] { " : (" }, StringSplitOptions.None)[1].TrimEnd(')'), series.Title.Split(new[] { " : (" }, StringSplitOptions.None)[0]);
                     if(_allSessionPoints.TryGetValue(key, out var points))
                     {
-                         ((LineSeries)series).ItemsSource = points;
+                         series.ItemsSource = points;
                     }
                 }
-                
+
                 // The old downsampling loop:
                 // for (var i = 0; i < _sessionPoints.Keys.Count; i++)
                 // {

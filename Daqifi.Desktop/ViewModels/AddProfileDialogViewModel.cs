@@ -237,7 +237,7 @@ public partial class AddProfileDialogViewModel : ObservableObject
                             };
                             device.Channels.Add(profileChannel);
                         }
-                            
+
                     }
                     newProfile.Devices.Add(device);
                 }

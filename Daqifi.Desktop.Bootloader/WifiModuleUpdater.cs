@@ -9,7 +9,7 @@ public class WifiModuleUpdater
     private readonly AppLogger _appLogger = AppLogger.Instance;
 
     public async Task UpdateWifiModuleAsync(
-        IFirmwareUpdateDevice device, 
+        IFirmwareUpdateDevice device,
         IProgress<int> progress)
     {
         try
@@ -24,7 +24,7 @@ public class WifiModuleUpdater
             }
 
             var matchingFiles = Directory.GetFiles(extractFolderPath, "winc_flash_tool.cmd", SearchOption.AllDirectories);
-                
+
             if (matchingFiles.Length == 0)
             {
                 _appLogger.Error("winc_flash_tool.cmd not found in the extracted folder.");
@@ -70,7 +70,7 @@ public class WifiModuleUpdater
     {
         var processCommand = $"\"{cmdFilePath}\" /p {portName} /d WINC1500 /v {version} /k /e /i aio /w";
         var processOutput = new List<string>();
-            
+
         var processStartInfo = new ProcessStartInfo
         {
             FileName = "cmd.exe",

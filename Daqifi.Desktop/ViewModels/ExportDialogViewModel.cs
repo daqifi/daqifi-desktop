@@ -17,7 +17,7 @@ public partial class ExportDialogViewModel : ObservableObject
     #region Private Variables
     private readonly List<int> _sessionsIds;
     private string _exportFilePath;
-    
+
     [ObservableProperty]
     private bool _exportAllSelected = true;
     [ObservableProperty]
@@ -44,7 +44,7 @@ public partial class ExportDialogViewModel : ObservableObject
             CommandManager.InvalidateRequerySuggested();
         }
     }
-    
+
     public int ExportProgress
     {
         get => _exportProgress;
@@ -117,7 +117,7 @@ public partial class ExportDialogViewModel : ObservableObject
             bw.CancelAsync();
         }
     }
-    
+
     [RelayCommand]
     private void ExportLoggingSessions()
     {

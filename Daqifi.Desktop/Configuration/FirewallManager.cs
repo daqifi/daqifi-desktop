@@ -130,12 +130,12 @@ public class WindowsFirewallWrapper : IFirewallHelper
         try
         {
             policy = GetPolicy();
-            dynamic rules = policy.GetType().InvokeMember("Rules", 
+            dynamic rules = policy.GetType().InvokeMember("Rules",
                 System.Reflection.BindingFlags.GetProperty, null, policy, null);
-            
+
             try
             {
-                var _ = rules.GetType().InvokeMember("Item", 
+                var _ = rules.GetType().InvokeMember("Item",
                     System.Reflection.BindingFlags.InvokeMethod, null, rules, new object[] { ruleName });
                 return true;
             }
@@ -170,7 +170,7 @@ public class WindowsFirewallWrapper : IFirewallHelper
 
         object? policy = null;
         object? rule = null;
-        
+
         try
         {
             policy = GetPolicy();
@@ -186,7 +186,7 @@ public class WindowsFirewallWrapper : IFirewallHelper
             SetRuleProperty(rule, "Action", 1);    // Allow
             SetRuleProperty(rule, "Enabled", true);
             SetRuleProperty(rule, "Profiles", 7);  // Domain|Private|Public
-            
+
             // Set specific port if provided
             if (port > 0 && port <= 65535)
             {
@@ -194,9 +194,9 @@ public class WindowsFirewallWrapper : IFirewallHelper
             }
 
             // Add rule to policy
-            var rules = policy.GetType().InvokeMember("Rules", 
+            var rules = policy.GetType().InvokeMember("Rules",
                 System.Reflection.BindingFlags.GetProperty, null, policy, null);
-            rules.GetType().InvokeMember("Add", 
+            rules.GetType().InvokeMember("Add",
                 System.Reflection.BindingFlags.InvokeMethod, null, rules, new object[] { rule });
         }
         catch (Exception ex)
@@ -221,7 +221,7 @@ public class WindowsFirewallWrapper : IFirewallHelper
     {
         try
         {
-            rule.GetType().InvokeMember(propertyName, 
+            rule.GetType().InvokeMember(propertyName,
                 System.Reflection.BindingFlags.SetProperty, null, rule, new object[] { value });
         }
         catch (Exception ex)

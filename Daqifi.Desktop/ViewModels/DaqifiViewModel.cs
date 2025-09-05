@@ -30,11 +30,11 @@ namespace Daqifi.Desktop.ViewModels;
 public partial class DaqifiViewModel : ObservableObject
 {
     private readonly AppLogger _appLogger = AppLogger.Instance;
-        
+
     #region Private Variables
     private const int SidePanelWidth = 85;
     private const int TopToolbarHeight = 30;
-    
+
     [ObservableProperty]
     private bool _isBusy;
     [ObservableProperty]
@@ -55,11 +55,11 @@ public partial class DaqifiViewModel : ObservableObject
     private bool _isLoggingSessionSettingsOpen;
     [ObservableProperty]
     private bool _isLiveGraphSettingsOpen;
-    
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlyoutWidth))]
     private int _width = 800;
-    
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlyoutHeight))]
     private int _height = 600;
@@ -67,10 +67,10 @@ public partial class DaqifiViewModel : ObservableObject
     private int _selectedStreamingFrequency;
     private WindowState _viewWindowState;
     private readonly IDialogService _dialogService;
-    
+
     [ObservableProperty]
     private IStreamingDevice? _selectedDevice;
-    
+
     private VersionNotification? _versionNotification;
     private IStreamingDevice _updateProfileSelectedDevice;
     [ObservableProperty]
@@ -133,7 +133,7 @@ public partial class DaqifiViewModel : ObservableObject
     public SummaryLogger SummaryLogger { get; private set; }
     public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
     public ObservableCollection<IChannel> AvailableChannels { get; } = [];
-    
+
     public IStreamingDevice UpdateProfileSelectedDevice
     {
         get => _updateProfileSelectedDevice;
@@ -195,10 +195,10 @@ public partial class DaqifiViewModel : ObservableObject
 
     [ObservableProperty]
     private int _notificationCount;
-    
+
     [ObservableProperty]
     private string _versionName;
-    
+
     public int SelectedIndex
     {
         get => _selectedIndex;
@@ -275,28 +275,28 @@ public partial class DaqifiViewModel : ObservableObject
             if (_selectedLoggingMode != value)
             {
                 _selectedLoggingMode = value;
-                    
+
                 // Handle ComboBoxItem content
                 string mode = value;
                 if (value?.Contains("ComboBoxItem") == true)
                 {
                     mode = value.Split(':').Last().Trim();
                 }
-                    
+
                 IsLogToDeviceMode = mode == "Log to Device";
                 var deviceMode = IsLogToDeviceMode ? DeviceMode.LogToDevice : DeviceMode.StreamToApp;
-                    
+
                 // Switch mode on all devices
                 foreach (var device in ConnectedDevices)
                 {
                     device.SwitchMode(deviceMode);
                 }
-                    
+
                 OnPropertyChanged();
             }
         }
     }
-    
+
     public bool IsLogToDeviceMode
     {
         get => _isLogToDeviceMode;
@@ -468,7 +468,7 @@ public partial class DaqifiViewModel : ObservableObject
 
     private void UpdateWiFiBackgroundWorkerDoWork(object sender, DoWorkEventArgs e)
     {
-        try 
+        try
         {
             var wifiUpdater = new WifiModuleUpdater();
             var progress = new Progress<int>(percent => _updateWiFiBackgroundWorker.ReportProgress(percent));
@@ -501,7 +501,7 @@ public partial class DaqifiViewModel : ObservableObject
         {
             AppLogger.Instance.Error(e.Error ?? (Exception)e.Result, "Problem Uploading WiFi Firmware");
             HasErrorOccured = true;
-                
+
             Application.Current.Dispatcher.Invoke(() =>
             {
                 var errorDialogViewModel = new ErrorDialogViewModel("WiFi firmware update failed. Please try again.");
@@ -513,7 +513,7 @@ public partial class DaqifiViewModel : ObservableObject
             IsUploadComplete = true;
             ShowUploadSuccessMessage();
         }
-        
+
         // Clear the device reference after update completion
         _deviceBeingUpdated = null;
     }
@@ -525,9 +525,9 @@ public partial class DaqifiViewModel : ObservableObject
             _deviceBeingUpdated = null; // Clear reference on error
             return;
         }
-            
+
         var isManualUpload = (bool)e.Result;
-        
+
         if (isManualUpload)
         {
             IsUploadComplete = true;
@@ -548,12 +548,12 @@ public partial class DaqifiViewModel : ObservableObject
         {
             return;
         }
-        
+
         SelectedDeviceSupportsFirmwareUpdate = true;
-        
+
         // Store a reference to the device being updated
         _deviceBeingUpdated = SelectedDevice;
-        
+
         var isManualUpload = false;
         // Download if a hex file wasn't passed to it.
         if (string.IsNullOrEmpty(FirmwareFilePath))
@@ -570,10 +570,10 @@ public partial class DaqifiViewModel : ObservableObject
             _appLogger.Error("Firmware file path is null or empty.");
             return;
         }
-        
+
         serialStreamingDevice.ForceBootloader();
         serialStreamingDevice.Disconnect();
-        
+
         // Once the DAQiFi resets, the COM serial port is closed,
         // and the HID port for managing the bootloader must be found
         StartConnectionFinders();
@@ -608,7 +608,7 @@ public partial class DaqifiViewModel : ObservableObject
                             {
                                 return;
                             }
-                                
+
                             if (_bootloader != null)
                             {
                                 _bootloader.LoadFirmware(FirmwareFilePath, bw);
@@ -640,7 +640,7 @@ public partial class DaqifiViewModel : ObservableObject
         var addChannelDialogViewModel = new AddChannelDialogViewModel();
         _dialogService.ShowDialog<AddChannelDialog>(this, addChannelDialogViewModel);
     }
-    
+
     [RelayCommand]
     private void ShowSelectColorDialog()
     {
@@ -672,7 +672,7 @@ public partial class DaqifiViewModel : ObservableObject
             device.RemoveChannel(channel);
         }
     }
-    
+
     [RelayCommand]
     private void DisconnectDevice(IStreamingDevice? deviceToDisconnect)
     {
@@ -750,7 +750,7 @@ public partial class DaqifiViewModel : ObservableObject
         }
 
         SelectedDeviceSupportsFirmwareUpdate = device is SerialStreamingDevice;
-        
+
         CloseFlyouts();
         SelectedDevice = device;
         IsFirmwareUpdatationFlyoutOpen = true;
@@ -788,7 +788,7 @@ public partial class DaqifiViewModel : ObservableObject
         SelectedLoggingSession = session;
         if (session.Name.Length == 0)
         {
-            LoggedSessionName = "Session_" + session.ID; 
+            LoggedSessionName = "Session_" + session.ID;
         }
         else
         {
@@ -862,7 +862,7 @@ public partial class DaqifiViewModel : ObservableObject
                 _appLogger.Error("Error deleting logging session: Invalid object provided.");
                 return;
             }
-            
+
             SelectedLoggingSession = session;
 
             var result = await ShowMessage("Delete Confirmation", $"Are you sure you want to delete {SelectedLoggingSession.Name}?", MessageDialogStyle.AffirmativeAndNegative).ConfigureAwait(false);
@@ -896,8 +896,8 @@ public partial class DaqifiViewModel : ObservableObject
                     });
                 }
             };
-            
-            bw.RunWorkerCompleted += (s, e) => 
+
+            bw.RunWorkerCompleted += (s, e) =>
             {
                 IsLoggedDataBusy = false;
             };
@@ -958,7 +958,7 @@ public partial class DaqifiViewModel : ObservableObject
                 }
             };
 
-            bw.RunWorkerCompleted += (s, e) => 
+            bw.RunWorkerCompleted += (s, e) =>
             {
                 IsLoggedDataBusy = false;
             };
@@ -975,7 +975,7 @@ public partial class DaqifiViewModel : ObservableObject
     {
         return LoggingSessions.Count > 0;
     }
-    
+
     [RelayCommand]
     private void RebootDevice(IStreamingDevice? deviceToReboot)
     {
@@ -1359,7 +1359,7 @@ public partial class DaqifiViewModel : ObservableObject
             {
                 return;
             }
-            
+
             SelectedProfile = profile;
 
             // Check for multiple active profiles
@@ -1573,7 +1573,7 @@ public partial class DaqifiViewModel : ObservableObject
                     {
                         ActiveInputChannels.Add(channel);
                     }
-                    ActiveChannels.Add(channel); 
+                    ActiveChannels.Add(channel);
                 }
                 break;
             case "NotificationCount":

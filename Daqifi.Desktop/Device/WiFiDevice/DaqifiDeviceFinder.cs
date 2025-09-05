@@ -81,11 +81,11 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
             else if (Client != null)
             {
                  AppLogger.Information("DAQiFi device discovery started, but no suitable network interfaces found for broadcasting.");
-                 Client.EnableBroadcast = true; 
+                 Client.EnableBroadcast = true;
                  Client.BeginReceive(HandleFinderMessageReceived, null);
-                 while(Running) { Thread.Sleep(5000); } 
+                 while(Running) { Thread.Sleep(5000); }
             }
-                
+
         }
         catch (Exception ex)
         {
@@ -196,13 +196,13 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
         foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
         {
             if (networkInterface.OperationalStatus != OperationalStatus.Up ||
-                !networkInterface.Supports(NetworkInterfaceComponent.IPv4) || 
+                !networkInterface.Supports(NetworkInterfaceComponent.IPv4) ||
                 (networkInterface.NetworkInterfaceType != NetworkInterfaceType.Ethernet &&
                  networkInterface.NetworkInterfaceType != NetworkInterfaceType.Wireless80211))
             {
                 continue;
             }
-            
+
             var ipProperties = networkInterface.GetIPProperties();
             if (ipProperties == null)
             {
@@ -212,7 +212,7 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
             foreach (var unicastIpAddressInformation in ipProperties.UnicastAddresses)
             {
                 if (unicastIpAddressInformation.Address.AddressFamily != AddressFamily.InterNetwork ||
-                    unicastIpAddressInformation.IPv4Mask == null || 
+                    unicastIpAddressInformation.IPv4Mask == null ||
                     unicastIpAddressInformation.IPv4Mask.Equals(IPAddress.Any))
                 {
                     continue;
@@ -220,7 +220,7 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
 
                 var ipAddress = unicastIpAddressInformation.Address;
                 var subnetMask = unicastIpAddressInformation.IPv4Mask;
-                
+
                 var ipBytes = ipAddress.GetAddressBytes();
                 var maskBytes = subnetMask.GetAddressBytes();
                 if (ipBytes.Length != 4 || maskBytes.Length != 4) continue;
@@ -230,12 +230,12 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
                 {
                     broadcastBytes[i] = (byte)(ipBytes[i] | (maskBytes[i] ^ 255));
                 }
-                
+
                 var broadcastAddress = new IPAddress(broadcastBytes);
 
                 endpoints.Add(new IPEndPoint(broadcastAddress, port));
-                
-                break; 
+
+                break;
             }
         }
 

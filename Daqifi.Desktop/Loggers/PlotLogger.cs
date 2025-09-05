@@ -161,7 +161,7 @@ public partial class PlotLogger : ObservableObject, ILogger
             TitleFontWeight = FontWeights.Bold,
             Key = "Time",
             Title = "Time (ms)",
-                 
+
         };
 
         PlotModel.Axes.Add(analogAxis);
@@ -180,7 +180,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     {
         var key = (dataSample.DeviceSerialNo, dataSample.ChannelName);
 
-        if (!LoggedChannels.ContainsKey(key)) 
+        if (!LoggedChannels.ContainsKey(key))
         {
             AddChannelSeries(dataSample.ChannelName,dataSample.DeviceSerialNo, dataSample.Type, dataSample.Color);
         }
@@ -258,7 +258,7 @@ public partial class PlotLogger : ObservableObject, ILogger
 
         LoggedChannels.Add(key, newLineSeries);
         PlotModel.Series.Add(newLineSeries);
-            
+
         OnPropertyChanged("PlotModel");
     }
 

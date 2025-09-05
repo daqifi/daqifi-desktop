@@ -1,6 +1,4 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System.IO;
-using System.Net;
+﻿using System.Net;
 
 namespace Daqifi.Desktop.IO.Test.Messages.MessageTypes;
 

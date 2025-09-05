@@ -15,10 +15,10 @@ public class ChannelBitManipulationTests
     public void BitShift_ChannelIndex0_ShouldReturn1()
     {
         // Arrange
-        int channelIndex = 0;
+        const int channelIndex = 0;
         
         // Act
-        int result = 1 << channelIndex;
+        const int result = 1 << channelIndex;
         
         // Assert
         Assert.AreEqual(1, result, "Channel 0 bit mask should be 1");
@@ -28,10 +28,10 @@ public class ChannelBitManipulationTests
     public void BitShift_ChannelIndex8_ShouldReturn256()
     {
         // Arrange
-        int channelIndex = 8;
+        const int channelIndex = 8;
         
         // Act
-        int result = 1 << channelIndex;
+        const int result = 1 << channelIndex;
         
         // Assert
         Assert.AreEqual(256, result, "Channel 8 bit mask should be 256");
@@ -41,10 +41,10 @@ public class ChannelBitManipulationTests
     public void BitShift_ChannelIndex15_ShouldReturn32768()
     {
         // Arrange
-        int channelIndex = 15;
+        var channelIndex = 15;
         
         // Act
-        int result = 1 << channelIndex;
+        var result = 1 << channelIndex;
         
         // Assert
         Assert.AreEqual(32768, result, "Channel 15 bit mask should be 32768");

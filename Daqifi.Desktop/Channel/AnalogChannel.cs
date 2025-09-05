@@ -4,7 +4,7 @@ using Daqifi.Desktop.Device;
 namespace Daqifi.Desktop.Channel;
 
 public class AnalogChannel : AbstractChannel
-{       
+{
     #region Properties
     public override ChannelType Type => ChannelType.Analog;
 

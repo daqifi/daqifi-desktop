@@ -30,8 +30,6 @@ public static class ProtobufDecoder
 
         if (protobufMessage.MacAddr.Length < 0) { return macAddress; }
 
-        macAddress = BitConverter.ToString(protobufMessage.MacAddr.ToByteArray());
-
-        return macAddress;
+        return BitConverter.ToString(protobufMessage.MacAddr.ToByteArray());
     }
 }

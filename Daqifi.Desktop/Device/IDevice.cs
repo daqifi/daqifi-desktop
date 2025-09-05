@@ -7,7 +7,7 @@ public interface IDevice : INotifyPropertyChanged
     int Id { get; set; }
 
     string Name { get; set; }
-        
+
     /// <summary>
     /// Connects to the streamingDevice.
     /// </summary>

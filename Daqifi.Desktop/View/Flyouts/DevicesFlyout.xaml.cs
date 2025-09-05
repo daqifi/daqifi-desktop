@@ -3,7 +3,7 @@
 /// <summary>
 /// Interaction logic for DevicesFlyout.xaml
 /// </summary>
-public partial class DevicesFlyout 
+public partial class DevicesFlyout
 {
     public DevicesFlyout()
     {

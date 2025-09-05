@@ -17,7 +17,7 @@ public partial class LoggedSessionFlyout
     {
         InitializeComponent();
         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
-          
+
     }
 
     private void UpdateSessionName(object sender, System.Windows.Controls.TextChangedEventArgs e)
@@ -27,7 +27,7 @@ public partial class LoggedSessionFlyout
             var textBox = sender as System.Windows.Controls.TextBox;
             if (textBox != null)
             {
-                   
+
                 var newName = textBox.Text;
 
                 session.Name = newName;
@@ -40,8 +40,8 @@ public partial class LoggedSessionFlyout
                         context.SaveChanges();
                     }
                 }
-                    
-                    
+
+
             }
         }
         using (var context = _loggingContext.CreateDbContext())

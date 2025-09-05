@@ -16,7 +16,7 @@ public partial class DeviceSettingsViewModel
     private string _logFileName;
 
     public bool CanAccessSdCard => SelectedDevice?.ConnectionType == ConnectionType.Usb;
-        
+
     public string SdCardMessage => GetSdCardMessage();
 
     partial void OnSelectedDeviceChanged(IStreamingDevice value)
@@ -44,7 +44,7 @@ public partial class DeviceSettingsViewModel
         {
             return string.Empty;
         }
-            
+
         return SelectedDevice.ConnectionType == ConnectionType.Usb
             ? "SD Card logging available"
             : "SD Card logging is not available on WiFi devices";

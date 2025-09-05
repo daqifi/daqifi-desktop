@@ -69,7 +69,7 @@ public partial class DebugDataModel : ObservableObject
                 var channelIndex = i < ActiveChannelIndices.Count ? ActiveChannelIndices[i] : -1;
                 var rawValue = RawAnalogValues[i];
                 var scaledValue = i < ScaledAnalogValues.Count ? ScaledAnalogValues[i] : 0.0;
-                
+
                 lines.Add($"  data[{i}] = {rawValue} → {channelName}(idx:{channelIndex}) = {scaledValue:F3}V");
             }
 
@@ -80,7 +80,7 @@ public partial class DebugDataModel : ObservableObject
     /// <summary>
     /// Creates a summary string for logging
     /// </summary>
-    public string LogSummary => 
+    public string LogSummary =>
         $"[DEBUG] {Timestamp:HH:mm:ss.fff} | Device:{DeviceId} | " +
         $"Channels:{string.Join(",", ActiveChannelNames)} | " +
         $"Raw:[{string.Join(",", RawAnalogValues)}] | " +

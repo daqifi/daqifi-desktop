@@ -20,7 +20,7 @@ public sealed class UsbDevice : IDisposable
             throw new ArgumentNullException(nameof(pnpDeviceId));
 
         var hDevInfo = SetupDiGetClassDevs(IntPtr.Zero, pnpDeviceId, IntPtr.Zero, Digcf.DigcfAllclasses | Digcf.DigcfDeviceinterface);
-        if (hDevInfo == (IntPtr)InvalidHandleValue)
+        if (hDevInfo == InvalidHandleValue)
             throw new Win32Exception(Marshal.GetLastWin32Error());
 
         var data = new SpDevinfoData();
