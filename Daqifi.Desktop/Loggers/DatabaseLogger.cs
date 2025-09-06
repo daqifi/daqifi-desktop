@@ -189,14 +189,12 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 {
 
                     // Start a new transaction for bulk insert
-                    using (var transaction = context.Database.BeginTransaction())
-                    {
-                        // Perform the bulk insert
-                        context.BulkInsert(samples);
+                    using var transaction = context.Database.BeginTransaction();
+                    // Perform the bulk insert
+                    context.BulkInsert(samples);
 
-                        // Commit the transaction after the bulk insert
-                        transaction.Commit();
-                    }
+                    // Commit the transaction after the bulk insert
+                    transaction.Commit();
                 }
                 samples.Clear();
             }
@@ -312,19 +310,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     }
                 }
 
-                // The old downsampling loop:
-                // for (var i = 0; i < _sessionPoints.Keys.Count; i++)
-                // {
-                //     var channelKey = _sessionPoints.Keys.ElementAt(i); // This was based on _sessionPoints, which is now populated on UI thread
-                //     // Find the series in PlotModel.Series that corresponds to this key
-                //     var correspondingSeries = PlotModel.Series.OfType<LineSeries>().FirstOrDefault(s => s.Title == $"{channelKey.channelName} : ({channelKey.deviceSerial})");
-                //     if (correspondingSeries != null && _allSessionPoints.TryGetValue(channelKey, out var points))
-                //     {
-                //         correspondingSeries.ItemsSource = points;
-                //     }
-                // }
-
-
                 OnPropertyChanged("SessionPoints"); // If SessionPoints is still relevant
                 PlotModel.InvalidatePlot(true);
             });
@@ -341,16 +326,14 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         stopwatch.Start();
         try
         {
-            using (var context = _loggingContext.CreateDbContext())
-            {
-                context.ChangeTracker.AutoDetectChangesEnabled = false;
+            using var context = _loggingContext.CreateDbContext();
+            context.ChangeTracker.AutoDetectChangesEnabled = false;
 
-                var loggingSession = context.Sessions.Find(session.ID);
-                // This will cascade delete and delete all corresponding data samples
-                context.Sessions.Remove(loggingSession);
-                context.ChangeTracker.DetectChanges();
-                context.SaveChanges();
-            }
+            var loggingSession = context.Sessions.Find(session.ID);
+            // This will cascade delete and delete all corresponding data samples
+            context.Sessions.Remove(loggingSession);
+            context.ChangeTracker.DetectChanges();
+            context.SaveChanges();
         }
         catch (Exception ex)
         {
@@ -412,10 +395,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         if (result == false) { return; }
 
         var pngExporter = new OxyPlot.Wpf.PngExporter { Width = 1024, Height = 768 };
-        using (var stream = System.IO.File.Create(dialog.FileName))
-        {
-            pngExporter.Export(PlotModel, stream);
-        }
+        using var stream = System.IO.File.Create(dialog.FileName);
+        pngExporter.Export(PlotModel, stream);
     }
 
     [RelayCommand]

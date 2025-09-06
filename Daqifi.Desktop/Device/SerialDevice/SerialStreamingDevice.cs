@@ -178,7 +178,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             }
 
             // Close the port
-            if (Port != null && Port.IsOpen)
+            if (Port is { IsOpen: true })
             {
                 try
                 {

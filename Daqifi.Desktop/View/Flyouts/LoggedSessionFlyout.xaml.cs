@@ -12,7 +12,6 @@ namespace Daqifi.Desktop.View.Flyouts;
 public partial class LoggedSessionFlyout
 {
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
-    private DaqifiViewModel lViewmodel;
     public LoggedSessionFlyout()
     {
         InitializeComponent();
@@ -22,7 +21,7 @@ public partial class LoggedSessionFlyout
 
     private void UpdateSessionName(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
-        if ((this.DataContext as DaqifiViewModel)?.SelectedLoggingSession is LoggingSession session)
+        if ((DataContext as DaqifiViewModel)?.SelectedLoggingSession is LoggingSession session)
         {
             var textBox = sender as System.Windows.Controls.TextBox;
             if (textBox != null)
@@ -31,17 +30,13 @@ public partial class LoggedSessionFlyout
                 var newName = textBox.Text;
 
                 session.Name = newName;
-                using (var context = _loggingContext.CreateDbContext())
+                using var context = _loggingContext.CreateDbContext();
+                var sessionToUpdate = context.Sessions.Find(session.ID);
+                if (sessionToUpdate != null)
                 {
-                    var sessionToUpdate = context.Sessions.Find(session.ID);
-                    if (sessionToUpdate != null)
-                    {
-                        sessionToUpdate.Name = newName;
-                        context.SaveChanges();
-                    }
+                    sessionToUpdate.Name = newName;
+                    context.SaveChanges();
                 }
-
-
             }
         }
         using (var context = _loggingContext.CreateDbContext())

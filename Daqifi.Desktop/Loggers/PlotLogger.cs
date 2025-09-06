@@ -207,7 +207,7 @@ public partial class PlotLogger : ObservableObject, ILogger
             }
         }
 
-        OnPropertyChanged("LoggedPoints");
+        OnPropertyChanged(nameof(LoggedPoints));
     }
 
     /// <summary>
@@ -293,9 +293,9 @@ public partial class PlotLogger : ObservableObject, ILogger
         PlotModel.Series.Clear();
         PlotModel.InvalidatePlot(true);
         FirstTime = null;
-        OnPropertyChanged("LoggedChannels");
-        OnPropertyChanged("LoggedPoints");
-        OnPropertyChanged("PlotModel");
+        OnPropertyChanged(nameof(LoggedChannels));
+        OnPropertyChanged(nameof(LoggedPoints));
+        OnPropertyChanged(nameof(PlotModel));
     }
 
     #region Commands
@@ -348,10 +348,8 @@ public partial class PlotLogger : ObservableObject, ILogger
         if (result == false) { return; }
 
         var pngExporter = new OxyPlot.Wpf.PngExporter { Width = 1024, Height = 768 };
-        using (var stream = File.Create(dialog.FileName))
-        {
-            pngExporter.Export(PlotModel, stream);
-        }
+        using var stream = File.Create(dialog.FileName);
+        pngExporter.Export(PlotModel, stream);
     }
     #endregion
 }

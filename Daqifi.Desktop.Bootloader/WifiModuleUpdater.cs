@@ -83,25 +83,23 @@ public class WifiModuleUpdater
             WorkingDirectory = Path.GetDirectoryName(cmdFilePath)
         };
 
-        using (var process = new Process())
+        using var process = new Process();
+        process.StartInfo = processStartInfo;
+        process.Start();
+
+        // Handle output stream
+        var outputTask = MonitorProcessOutput(process, progress, processOutput);
+        var errorTask = MonitorProcessError(process, processOutput);
+
+        // Wait for the process to exit and tasks to complete
+        await process.WaitForExitAsync();
+        await Task.WhenAll(outputTask, errorTask);
+
+        if (process.ExitCode != 0)
         {
-            process.StartInfo = processStartInfo;
-            process.Start();
-
-            // Handle output stream
-            var outputTask = MonitorProcessOutput(process, progress, processOutput);
-            var errorTask = MonitorProcessError(process, processOutput);
-
-            // Wait for the process to exit and tasks to complete
-            await process.WaitForExitAsync();
-            await Task.WhenAll(outputTask, errorTask);
-
-            if (process.ExitCode != 0)
-            {
-                var outputLog = string.Join(Environment.NewLine, processOutput);
-                throw new FirmwareUpdateException(
-                    $"WiFi update process failed. Process output:{Environment.NewLine}{outputLog}");
-            }
+            var outputLog = string.Join(Environment.NewLine, processOutput);
+            throw new FirmwareUpdateException(
+                $"WiFi update process failed. Process output:{Environment.NewLine}{outputLog}");
         }
     }
 
@@ -119,7 +117,7 @@ public class WifiModuleUpdater
             {
                 Console.WriteLine("waiting for 2 second...");
                 await Task.Delay(2000);
-                process.StandardInput.WriteLine();
+                await process.StandardInput.WriteLineAsync();
                 Console.WriteLine("Simulated key press to continue.");
             }
 

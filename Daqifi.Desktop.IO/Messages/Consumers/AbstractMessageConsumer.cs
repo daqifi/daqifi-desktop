@@ -45,7 +45,7 @@ public abstract class AbstractMessageConsumer : IMessageConsumer
         _running = false;
 
         // Give the thread up to 2 seconds to stop gracefully
-        if (_consumerThread != null && _consumerThread.IsAlive)
+        if (_consumerThread is { IsAlive: true })
         {
             // Wait for thread to exit gracefully
             if (!_consumerThread.Join(2000))

@@ -5,7 +5,9 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:dialogService="clr-namespace:Daqifi.Desktop.DialogService"
         xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
+        xmlns:viewModels="clr-namespace:Daqifi.Desktop.ViewModels"
         mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=viewModels:FirmwareDialogViewModel}"
         dialogService:DialogService.IsRegisteredView="True"
         Title="Firmware Settings" Height="300" Width="500" GlowBrush="{DynamicResource AccentColorBrush}">
     <Grid>

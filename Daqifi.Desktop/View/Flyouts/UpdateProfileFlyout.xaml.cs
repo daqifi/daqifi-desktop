@@ -4,6 +4,7 @@ using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Models;
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -60,7 +61,7 @@ public partial class UpdateProfileFlyout
             if (LoggingManager.Instance.SelectedProfile != null)
             {
                 var item = sender as System.Windows.Controls.ListViewItem;
-                if (item.DataContext is ProfileChannel channel && channel != null)
+                if (item.DataContext is ProfileChannel channel)
                 {
                     foreach (var device in LoggingManager.Instance.SelectedProfile.Devices)
                     {
@@ -68,7 +69,7 @@ public partial class UpdateProfileFlyout
                         {
                             if (Channel.Name == channel.Name && Channel.SerialNo == channel.SerialNo)
                             {
-                                if (item != null && item.IsSelected)
+                                if (item.IsSelected)
                                 {
                                     Channel.IsChannelActive = false;
                                     item.IsSelected = true;
@@ -82,7 +83,7 @@ public partial class UpdateProfileFlyout
                         }
                     }
                 }
-                if (item.DataContext is ProfileDevice selecteddevice && selecteddevice != null)
+                if (item.DataContext is ProfileDevice selecteddevice)
                 {
                     var data = LoggingManager.Instance.SelectedProfile.Devices.Where(x => x.DeviceSerialNo == selecteddevice.DeviceSerialNo).FirstOrDefault();
 
@@ -103,7 +104,7 @@ public partial class UpdateProfileFlyout
                         LoggingManager.Instance.SelectedProfile.Devices.Add(data);
                     }
                 }
-                if (item.DataContext is IStreamingDevice connecteddevice && connecteddevice != null)
+                if (item.DataContext is IStreamingDevice connecteddevice)
                 {
                     var data = LoggingManager.Instance.SelectedProfile.Devices
                         .FirstOrDefault(x => x.DeviceSerialNo == connecteddevice.DeviceSerialNo);
@@ -182,7 +183,7 @@ public partial class UpdateProfileFlyout
                             if (!string.IsNullOrWhiteSpace(item.DeviceSerialNo) && item.DeviceSerialNo == freq.Tag)
                             {
                                 item.SamplingFrequency = Convert.ToInt32(freq.Value);
-                                textbox.Text = item.SamplingFrequency.ToString();
+                                textbox.Text = item.SamplingFrequency.ToString(CultureInfo.InvariantCulture);
                             }
                         }
                     }

@@ -198,59 +198,71 @@ public class VersionHelperTests
     public void VersionInfo_CompareTo_MajorVersionDifference()
     {
         // Arrange
-        VersionHelper.TryParseVersionInfo("2.0.0", out var v1);
-        VersionHelper.TryParseVersionInfo("1.9.9", out var v2);
+        var version1 = VersionHelper.TryParseVersionInfo("2.0.0", out var v1);
+        var version2 = VersionHelper.TryParseVersionInfo("1.9.9", out var v2);
 
         // Act & Assert
-        Assert.IsTrue(v1.CompareTo(v2) > 0);
-        Assert.IsTrue(v2.CompareTo(v1) < 0);
+        Assert.IsTrue(version1);
+        Assert.IsTrue(version2);
+        Assert.IsGreaterThan(0, v1.CompareTo(v2));
+        Assert.IsLessThan(0, v2.CompareTo(v1));
     }
 
     [TestMethod]
     public void VersionInfo_CompareTo_MinorVersionDifference()
     {
         // Arrange
-        VersionHelper.TryParseVersionInfo("1.2.0", out var v1);
-        VersionHelper.TryParseVersionInfo("1.1.9", out var v2);
+        var version1 =VersionHelper.TryParseVersionInfo("1.2.0", out var v1);
+        var version2 =VersionHelper.TryParseVersionInfo("1.1.9", out var v2);
 
         // Act & Assert
-        Assert.IsTrue(v1.CompareTo(v2) > 0);
+        Assert.IsTrue(version1);
+        Assert.IsTrue(version2);
+        Assert.IsGreaterThan(0, v1.CompareTo(v2));
     }
 
     [TestMethod]
     public void VersionInfo_CompareTo_PatchVersionDifference()
     {
         // Arrange
-        VersionHelper.TryParseVersionInfo("1.2.3", out var v1);
-        VersionHelper.TryParseVersionInfo("1.2.2", out var v2);
+        var version1 = VersionHelper.TryParseVersionInfo("1.2.3", out var v1);
+        var version2 = VersionHelper.TryParseVersionInfo("1.2.2", out var v2);
 
         // Act & Assert
-        Assert.IsTrue(v1.CompareTo(v2) > 0);
+        Assert.IsTrue(version1);
+        Assert.IsTrue(version2);
+        Assert.IsGreaterThan(0, v1.CompareTo(v2));
     }
 
     [TestMethod]
     public void VersionInfo_CompareTo_PreReleasePrecedence()
     {
         // Arrange
-        VersionHelper.TryParseVersionInfo("1.0.0alpha1", out var alpha);
-        VersionHelper.TryParseVersionInfo("1.0.0beta1", out var beta);
-        VersionHelper.TryParseVersionInfo("1.0.0rc1", out var rc);
-        VersionHelper.TryParseVersionInfo("1.0.0", out var release);
+        var version1 = VersionHelper.TryParseVersionInfo("1.0.0alpha1", out var alpha);
+        var version2 = VersionHelper.TryParseVersionInfo("1.0.0beta1", out var beta);
+        var version3 = VersionHelper.TryParseVersionInfo("1.0.0rc1", out var rc);
+        var version4 = VersionHelper.TryParseVersionInfo("1.0.0", out var release);
 
         // Act & Assert - Release should be highest
-        Assert.IsTrue(release.CompareTo(rc) > 0);
-        Assert.IsTrue(rc.CompareTo(beta) > 0);
-        Assert.IsTrue(beta.CompareTo(alpha) > 0);
+        Assert.IsTrue(version1);
+        Assert.IsTrue(version2);
+        Assert.IsTrue(version3);
+        Assert.IsTrue(version4);
+        Assert.IsGreaterThan(0, release.CompareTo(rc));
+        Assert.IsGreaterThan(0, rc.CompareTo(beta));
+        Assert.IsGreaterThan(0, beta.CompareTo(alpha));
     }
 
     [TestMethod]
     public void VersionInfo_ToString_FormatsCorrectly()
     {
         // Arrange
-        VersionHelper.TryParseVersionInfo("1.2.3", out var release);
-        VersionHelper.TryParseVersionInfo("1.2.3beta2", out var preRelease);
+        var version1 = VersionHelper.TryParseVersionInfo("1.2.3", out var release);
+        var version2 = VersionHelper.TryParseVersionInfo("1.2.3beta2", out var preRelease);
 
         // Act & Assert
+        Assert.IsTrue(version1);
+        Assert.IsTrue(version2);
         Assert.AreEqual("1.2.3", release.ToString());
         Assert.AreEqual("1.2.3beta2", preRelease.ToString());
     }

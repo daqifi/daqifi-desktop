@@ -63,7 +63,7 @@ public static class Pic32BootloaderMessageProducer
         // Add DLE whenever SOH, EOT, or DLE are present
         foreach (var item in commandAndCrc)
         {
-            if (item == StartOfHeader || item == EndOfTransmission || item == DataLinkEscape)
+            if (item is StartOfHeader or EndOfTransmission or DataLinkEscape)
             {
                 packet.Add(DataLinkEscape);
             }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Windows;
 using System.Runtime.InteropServices;
 using System.IO;
@@ -187,9 +188,9 @@ public class WindowsFirewallWrapper : IFirewallHelper
             SetRuleProperty(rule, "Profiles", 7);  // Domain|Private|Public
 
             // Set specific port if provided
-            if (port > 0 && port <= 65535)
+            if (port is > 0 and <= 65535)
             {
-                SetRuleProperty(rule, "LocalPorts", port.ToString());
+                SetRuleProperty(rule, "LocalPorts", port.ToString(CultureInfo.InvariantCulture));
             }
 
             // Add rule to policy

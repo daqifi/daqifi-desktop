@@ -8,13 +8,12 @@ namespace Daqifi.Desktop.Bootloader.Test;
 [TestClass]
 public class FirmwareDownloaderTest : IDisposable
 {
-    private readonly string _tempPath;
     private readonly string _daqifiTempPath;
 
     public FirmwareDownloaderTest()
     {
-        _tempPath = Path.GetTempPath();
-        _daqifiTempPath = Path.Combine(_tempPath, "DAQiFi");
+        var tempPath = Path.GetTempPath();
+        _daqifiTempPath = Path.Combine(tempPath, "DAQiFi");
         if (Directory.Exists(_daqifiTempPath))
         {
             Directory.Delete(_daqifiTempPath, true);

@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
@@ -31,7 +32,7 @@ public class DataSample
         DeviceSerialNo=channel.DeviceSerialNo;
         ChannelName = channel.Name;
         Type = channel.Type;
-        Color = channel.ChannelColorBrush.ToString();
+        Color = channel.ChannelColorBrush.ToString(CultureInfo.InvariantCulture);
         Value = value;
         TimestampTicks = timestamp.Ticks;
     }
@@ -40,7 +41,7 @@ public class DataSample
     #region Object overrides
     public override string ToString()
     {
-        return ID.ToString();
+        return ID.ToString(CultureInfo.InvariantCulture);
     }
     #endregion
 }

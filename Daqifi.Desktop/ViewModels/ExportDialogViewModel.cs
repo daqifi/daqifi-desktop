@@ -112,7 +112,7 @@ public partial class ExportDialogViewModel : ObservableObject
     [RelayCommand]
     private void CancelExport()
     {
-        if (bw != null && bw.WorkerSupportsCancellation)
+        if (bw is { WorkerSupportsCancellation: true })
         {
             bw.CancelAsync();
         }
@@ -188,26 +188,24 @@ public partial class ExportDialogViewModel : ObservableObject
 
     private async Task<LoggingSession> GetLoggingSessionFromId(int sessionId)
     {
-        using (var context = _loggingContext.CreateDbContext())
-        {
-            var loggingSession = await context.Sessions
-                .AsNoTracking()
-                .Where(s => s.ID == sessionId)
-                .Select(s => new LoggingSession
+        await using var context = _loggingContext.CreateDbContext();
+        var loggingSession = await context.Sessions
+            .AsNoTracking()
+            .Where(s => s.ID == sessionId)
+            .Select(s => new LoggingSession
+            {
+                ID = s.ID,
+                DataSamples = s.DataSamples.Select(d => new DataSample
                 {
-                    ID = s.ID,
-                    DataSamples = s.DataSamples.Select(d => new DataSample
-                    {
-                        ID = d.ID,
-                        Value = d.Value,
-                        TimestampTicks = d.TimestampTicks,
-                        ChannelName = d.ChannelName,
-                        DeviceSerialNo = d.DeviceSerialNo,
-                        DeviceName = d.DeviceName
-                    }).ToList()
-                }).FirstOrDefaultAsync();
-            return loggingSession;
-        }
+                    ID = d.ID,
+                    Value = d.Value,
+                    TimestampTicks = d.TimestampTicks,
+                    ChannelName = d.ChannelName,
+                    DeviceSerialNo = d.DeviceSerialNo,
+                    DeviceName = d.DeviceName
+                }).ToList()
+            }).FirstOrDefaultAsync();
+        return loggingSession;
     }
     #endregion
 }
