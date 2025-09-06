@@ -18,7 +18,7 @@ public class LoggingSession
 
     public string Name
     {
-        get => string.IsNullOrWhiteSpace(_name) ? "Session " + ID.ToString() : _name;
+        get => string.IsNullOrWhiteSpace(_name) ? "Session " + ID : _name;
         set
         {
             if (_name == value) { return; }

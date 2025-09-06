@@ -158,7 +158,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return;
         }
 
-        var deviceId = message.DeviceSn.ToString();
+        var deviceId = message.DeviceSn.ToString(CultureInfo.InvariantCulture);
 
         if (!_previousTimestamps.ContainsKey(deviceId))
         {
@@ -281,7 +281,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             DeviceName = Name,
             AnalogChannelCount = analogCount,
-            DeviceSerialNo = message.DeviceSn.ToString(),
+            DeviceSerialNo = message.DeviceSn.ToString(CultureInfo.InvariantCulture),
             DeviceVersion = message.DeviceFwRev,
             DigitalChannelCount = digitalCount,
             TimestampTicks = messageTimestamp.Ticks,
@@ -455,7 +455,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 if (channel.Type == ChannelType.Analog)
                 {
                     var channelSetByte = 1u << channel.Index; // Use unsigned int for consistency
-                    MessageProducer.Send(ScpiMessageProducer.EnableAdcChannels(channelSetByte.ToString()));
+                    MessageProducer.Send(ScpiMessageProducer.EnableAdcChannels(channelSetByte.ToString(CultureInfo.InvariantCulture)));
                 }
                 else if (channel.Type == ChannelType.Digital)
                 {
@@ -820,7 +820,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
         if (message.DeviceSn != 0)
         {
-            DeviceSerialNo = message.DeviceSn.ToString();
+            DeviceSerialNo = message.DeviceSn.ToString(CultureInfo.InvariantCulture);
         }
         if (!string.IsNullOrWhiteSpace(message.DeviceFwRev))
         {
@@ -974,11 +974,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             {
                 enableMask |= (1 << channel.Index);
             }
-            debugData.ChannelEnableMask = enableMask.ToString();
+            debugData.ChannelEnableMask = enableMask.ToString(CultureInfo.InvariantCulture);
             debugData.ChannelEnableBinary = Convert.ToString(enableMask, 2);
 
             // Calculate scaled values
-            debugData.ScaledAnalogValues = new List<double>();
+            debugData.ScaledAnalogValues = [];
             for (var i = 0; i < Math.Min(message.AnalogInData.Count, activeChannels.Count); i++)
             {
                 var channel = activeChannels[i];

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Daqifi.Desktop.Helpers;
@@ -5,10 +6,12 @@ namespace Daqifi.Desktop.Helpers;
 public static class VersionHelper
 {
     private static readonly Regex FullVersionRegex = new(
-        @"(?ix)^\s* v?\s*
-          (?<maj>\d+) (?:\.(?<min>\d+))? (?:\.(?<pat>\d+))?  # numeric core
-          (?<suffix> [A-Za-z]+ \d* )?                           # optional prerelease like b2/rc1
-          \s*$",
+        """
+        (?ix)^\s* v?\s*
+                  (?<maj>\d+) (?:\.(?<min>\d+))? (?:\.(?<pat>\d+))?  # numeric core
+                  (?<suffix> [A-Za-z]+ \d* )?                           # optional prerelease like b2/rc1
+                  \s*$
+        """,
         RegexOptions.Compiled);
 
     public readonly record struct VersionInfo(int Major, int Minor, int Patch, string? PreLabel, int PreNumber) : IComparable<VersionInfo>
@@ -46,7 +49,7 @@ public static class VersionHelper
         public override string ToString()
         {
             var core = $"{Major}.{Minor}.{Patch}";
-            return IsPreRelease ? core + PreLabel + (PreNumber > 0 ? PreNumber.ToString() : string.Empty) : core;
+            return IsPreRelease ? core + PreLabel + (PreNumber > 0 ? PreNumber.ToString(CultureInfo.InvariantCulture) : string.Empty) : core;
         }
     }
 
@@ -92,7 +95,7 @@ public static class VersionHelper
     public static string? NormalizeVersionString(string? input)
     {
         if (!TryParseVersionInfo(input, out var v)) return null;
-        var suffix = v.IsPreRelease ? v.PreLabel + (v.PreNumber > 0 ? v.PreNumber.ToString() : string.Empty) : string.Empty;
+        var suffix = v.IsPreRelease ? v.PreLabel + (v.PreNumber > 0 ? v.PreNumber.ToString(CultureInfo.InvariantCulture) : string.Empty) : string.Empty;
         return $"{v.Major}.{v.Minor}.{v.Patch}{suffix}";
     }
 }

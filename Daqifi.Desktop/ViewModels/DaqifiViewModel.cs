@@ -110,7 +110,6 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasNoHidDevices = true;
     private ConnectionDialogViewModel _connectionDialogViewModel;
-    private readonly IDbContextFactory<LoggingContext> _loggingContext;
     private string _selectedLoggingMode = "Stream to App";
     private bool _isLogToDeviceMode;
     // Add a field to store the device being updated during firmware update process
@@ -331,7 +330,7 @@ public partial class DaqifiViewModel : ObservableObject
                 try
                 {
                     _dialogService = dialogService;
-                    _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+                    var loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
                     RegisterCommands();
 
                     // Manage connected streamingDevice list
@@ -343,7 +342,7 @@ public partial class DaqifiViewModel : ObservableObject
                     LoggingManager.Instance.AddLogger(Plotter);
 
                     // Database logging
-                    DbLogger = new DatabaseLogger(_loggingContext);
+                    DbLogger = new DatabaseLogger(loggingContext);
                     LoggingManager.Instance.AddLogger(DbLogger);
 
                     // Device Logs View Model
@@ -363,7 +362,7 @@ public partial class DaqifiViewModel : ObservableObject
                     SummaryLogger = new SummaryLogger();
                     LoggingManager.Instance.AddLogger(SummaryLogger);
 
-                    using (var context = _loggingContext.CreateDbContext())
+                    using (var context = loggingContext.CreateDbContext())
                     {
                         var savedLoggingSessions = new ObservableCollection<LoggingSession>();
                         var previousSampleSessions = (from s in context.Sessions select s).ToList();
@@ -445,7 +444,8 @@ public partial class DaqifiViewModel : ObservableObject
     #region Command Callback Methods
 
     #region Updload firmware and update processes
-    void UploadFirmwareProgressChanged(object sender, ProgressChangedEventArgs e)
+
+    private void UploadFirmwareProgressChanged(object sender, ProgressChangedEventArgs e)
     {
         UploadFirmwareProgress = e.ProgressPercentage;
     }
@@ -1329,7 +1329,7 @@ public partial class DaqifiViewModel : ObservableObject
                             var profileChannel = new ProfileChannel
                             {
                                 Name = dataChannel.Name,
-                                Type = dataChannel.TypeString.ToString(),
+                                Type = dataChannel.TypeString,
                                 IsChannelActive = true,
                                 SerialNo = dataChannel.DeviceSerialNo
                             };
@@ -1552,7 +1552,7 @@ public partial class DaqifiViewModel : ObservableObject
                 { profiles.Clear(); }
                 foreach (var connectedProfiles in LoggingManager.Instance.SubscribedProfiles)
                 {
-                    if (!profiles.Where(x => x.ProfileId == connectedProfiles.ProfileId).Any())
+                    if (profiles.All(x => x.ProfileId != connectedProfiles.ProfileId))
                     {
                         profiles.Add(connectedProfiles);
                     }

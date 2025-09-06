@@ -232,7 +232,7 @@ public partial class AddProfileDialogViewModel : ObservableObject
                             var profileChannel = new ProfileChannel
                             {
                                 Name = dataChannel.Name,
-                                Type = dataChannel.TypeString.ToString(),
+                                Type = dataChannel.TypeString,
                                 IsChannelActive = isSelected
                             };
                             device.Channels.Add(profileChannel);

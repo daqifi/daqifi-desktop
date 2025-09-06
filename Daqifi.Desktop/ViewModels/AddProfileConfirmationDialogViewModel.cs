@@ -13,7 +13,7 @@ public partial class AddProfileConfirmationDialogViewModel : ObservableObject
     #region Private Variables
     private IStreamingDevice _selectedDevice;
     private int _selectedStreamingFrequency;
-    private readonly IDialogService _dialogService;
+
     #endregion
 
     #region Properties
@@ -58,9 +58,7 @@ public partial class AddProfileConfirmationDialogViewModel : ObservableObject
 
     public AddProfileConfirmationDialogViewModel(IDialogService dialogService)
     {
-        _dialogService=dialogService;
-
-        if (_dialogService != null && _dialogService.Views.Count > 0 && _dialogService.Views[0] is MainWindow mainWindow)
+        if (dialogService != null && dialogService.Views.Count > 0 && dialogService.Views[0] is MainWindow mainWindow)
         {
             if (mainWindow.DataContext is DaqifiViewModel daqifiViewModel)
             {

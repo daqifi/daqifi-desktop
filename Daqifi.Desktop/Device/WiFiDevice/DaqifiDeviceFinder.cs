@@ -1,4 +1,5 @@
-﻿using Daqifi.Desktop.DataModel.Device;
+﻿using System.Globalization;
+using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Decoders;
 using System.IO;
@@ -165,7 +166,7 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
             MacAddress = macAddress,
             Port = port,
             IsPowerOn = isPowerOn,
-            DeviceSerialNo = deviceSn.ToString(),
+            DeviceSerialNo = deviceSn.ToString(CultureInfo.InvariantCulture),
             DeviceVersion = deviceVersion
         };
 

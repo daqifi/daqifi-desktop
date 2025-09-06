@@ -5,8 +5,7 @@
 /// </summary>
 static class ServiceLocator
 {
-    private static readonly Dictionary<Type, ServiceInfo> services = new();
-
+    private static readonly Dictionary<Type, ServiceInfo> services = [];
 
     /// <summary>
     /// Registers a service.
@@ -16,7 +15,6 @@ static class ServiceLocator
         Register<TInterface, TImplemention>(false);
     }
 
-
     /// <summary>
     /// Registers a service as a singleton.
     /// </summary>
@@ -25,7 +23,6 @@ static class ServiceLocator
         Register<TInterface, TImplemention>(true);
     }
 
-
     /// <summary>
     /// Resolves a service.
     /// </summary>
@@ -33,7 +30,6 @@ static class ServiceLocator
     {
         return (TInterface)services[typeof(TInterface)].ServiceImplementation;
     }
-
 
     /// <summary>
     /// Registers a service.
@@ -44,11 +40,10 @@ static class ServiceLocator
         services.Add(typeof(TInterface), new ServiceInfo(typeof(TImplemention), isSingleton));
     }
 
-
     /// <summary>
     /// Class holding service information.
     /// </summary>
-    class ServiceInfo
+    private class ServiceInfo
     {
         private readonly Type serviceImplementationType;
         private object serviceImplementation;
@@ -65,7 +60,6 @@ static class ServiceLocator
             this.serviceImplementationType = serviceImplementationType;
             this.isSingleton = isSingleton;
         }
-
 
         /// <summary>
         /// Gets the service implementation.
@@ -84,7 +78,6 @@ static class ServiceLocator
                 }
             }
         }
-
 
         /// <summary>
         /// Creates an instance of a specific type.

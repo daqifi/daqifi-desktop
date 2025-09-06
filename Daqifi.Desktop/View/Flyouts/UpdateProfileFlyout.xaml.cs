@@ -4,6 +4,7 @@ using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Models;
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -182,7 +183,7 @@ public partial class UpdateProfileFlyout
                             if (!string.IsNullOrWhiteSpace(item.DeviceSerialNo) && item.DeviceSerialNo == freq.Tag)
                             {
                                 item.SamplingFrequency = Convert.ToInt32(freq.Value);
-                                textbox.Text = item.SamplingFrequency.ToString();
+                                textbox.Text = item.SamplingFrequency.ToString(CultureInfo.InvariantCulture);
                             }
                         }
                     }

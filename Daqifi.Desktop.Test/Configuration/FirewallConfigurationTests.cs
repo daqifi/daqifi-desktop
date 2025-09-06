@@ -206,7 +206,7 @@ public class WindowsFirewallWrapperTests
         var tempFile = Path.GetTempFileName();
         var exeFile = Path.ChangeExtension(tempFile, ".exe");
         File.Move(tempFile, exeFile);
-        File.WriteAllBytes(exeFile, new byte[] { 0x4D, 0x5A }); // MZ header for exe
+        File.WriteAllBytes(exeFile, "MZ"u8.ToArray()); // MZ header for exe
         return exeFile;
     }
 }

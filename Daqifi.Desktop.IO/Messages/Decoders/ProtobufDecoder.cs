@@ -1,4 +1,6 @@
-﻿namespace Daqifi.Desktop.IO.Messages.Decoders;
+﻿using System.Globalization;
+
+namespace Daqifi.Desktop.IO.Messages.Decoders;
 
 public static class ProtobufDecoder
 {
@@ -13,7 +15,7 @@ public static class ProtobufDecoder
         {
             if (i == ipAddressBytes.Length - 1)
             {
-                ipAddressString += ipAddressBytes[i].ToString();
+                ipAddressString += ipAddressBytes[i].ToString(CultureInfo.InvariantCulture);
             }
             else
             {

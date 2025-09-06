@@ -25,29 +25,27 @@ public partial class VersionNotification : ObservableObject
         var githubApiUrl = "https://api.github.com/repos/daqifi/daqifi-desktop/releases/latest";
         try
         {
-            using (var client = new HttpClient())
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+            var response = await client.GetAsync(githubApiUrl);
+            if (!response.IsSuccessStatusCode)
             {
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
-                var response = await client.GetAsync(githubApiUrl);
-                if (!response.IsSuccessStatusCode)
-                {
-                    var ex= new HttpRequestException("Unable to fetch release information from GitHub.");
-                    _appLogger.Error(ex, $"Error checking for updates: {ex.Message}");
-                }
-                var jsonResponse = await response.Content.ReadAsStringAsync();
-                var releaseData = JObject.Parse(jsonResponse);
-                var latestVersion = releaseData["tag_name"].ToString().Trim();
-                var current = new Version(currentVersion);
-                var latest = new Version(latestVersion.TrimStart('v'));
-                if (latest > current)
-                {
-                    NotificationCount = 1;
-                    VersionNumber = latestVersion;
-                }
-                else
-                {
-                    NotificationCount = 0;
-                }
+                var ex= new HttpRequestException("Unable to fetch release information from GitHub.");
+                _appLogger.Error(ex, $"Error checking for updates: {ex.Message}");
+            }
+            var jsonResponse = await response.Content.ReadAsStringAsync();
+            var releaseData = JObject.Parse(jsonResponse);
+            var latestVersion = releaseData["tag_name"].ToString().Trim();
+            var current = new Version(currentVersion);
+            var latest = new Version(latestVersion.TrimStart('v'));
+            if (latest > current)
+            {
+                NotificationCount = 1;
+                VersionNumber = latestVersion;
+            }
+            else
+            {
+                NotificationCount = 0;
             }
         }
         catch (Exception ex)

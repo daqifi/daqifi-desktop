@@ -133,7 +133,7 @@ public partial class FirmwareDialogViewModel : ObservableObject
         bw.RunWorkerAsync();
     }
 
-    void UploadFirmwareProgressChanged(object sender, ProgressChangedEventArgs e)
+    private void UploadFirmwareProgressChanged(object sender, ProgressChangedEventArgs e)
     {
         UploadFirmwareProgress = e.ProgressPercentage;
     }
