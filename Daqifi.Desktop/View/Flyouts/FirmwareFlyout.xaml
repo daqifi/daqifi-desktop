@@ -9,7 +9,8 @@
                    xmlns:sys="clr-namespace:System;assembly=mscorlib" xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              xmlns:converters="clr-namespace:Daqifi.Desktop.Converters"
-             mc:Ignorable="d" 
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:DaqifiViewModel}"
              d:DesignHeight="450" d:DesignWidth="800"
                   Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsFirmwareUpdatationFlyoutOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right" Header="Firmware Update">
 

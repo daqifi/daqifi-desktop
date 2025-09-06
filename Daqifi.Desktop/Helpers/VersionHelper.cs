@@ -39,11 +39,13 @@ public static class VersionHelper
         {
             if (string.IsNullOrEmpty(label)) return 3; // release highest
             label = label.ToLowerInvariant();
-            if (label is "rc" or "releasecandidate") return 2;
-            if (label is "b" or "beta") return 1;
-            if (label is "a" or "alpha" or "pre" or "preview" or "dev") return 0;
-            // Unknown label: treat as very early prerelease
-            return 0;
+            return label switch
+            {
+                "rc" or "releasecandidate" => 2,
+                "b" or "beta" => 1,
+                "a" or "alpha" or "pre" or "preview" or "dev" => 0,
+                _ => 0
+            };
         }
 
         public override string ToString()
@@ -99,5 +101,3 @@ public static class VersionHelper
         return $"{v.Major}.{v.Minor}.{v.Patch}{suffix}";
     }
 }
-
-

@@ -28,10 +28,8 @@ public static class ProtobufDecoder
 
     public static string GetMacAddressString(DaqifiOutMessage protobufMessage)
     {
-        var macAddress = string.Empty;
-
-        if (protobufMessage.MacAddr.Length < 0) { return macAddress; }
-
-        return BitConverter.ToString(protobufMessage.MacAddr.ToByteArray());
+        return protobufMessage.MacAddr.Length < 0
+            ? string.Empty
+            : BitConverter.ToString(protobufMessage.MacAddr.ToByteArray());
     }
 }

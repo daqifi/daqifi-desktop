@@ -510,7 +510,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         var stream = MessageConsumer.DataStream;
 
         // Stop existing consumer first
-        if (MessageConsumer != null && MessageConsumer.Running)
+        if (MessageConsumer.Running)
         {
             MessageConsumer.Stop();
         }

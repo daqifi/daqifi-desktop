@@ -35,35 +35,33 @@ public class MessageConsumer : AbstractMessageConsumer
                 }
 
                 // Create a linked token that combines our cancellation with a timeout
-                using (var timeoutSource = new CancellationTokenSource(1000)) // 1 second timeout
-                using (var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(_cancellationTokenSource.Token, timeoutSource.Token))
+                using var timeoutSource = new CancellationTokenSource(1000); // 1 second timeout
+                using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(_cancellationTokenSource.Token, timeoutSource.Token);
+                try
                 {
-                    try
+                    var outMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(DataStream);
+                    if (outMessage != null)
                     {
-                        var outMessage = DaqifiOutMessage.Parser.ParseDelimitedFrom(DataStream);
-                        if (outMessage != null)
-                        {
-                            var protobufMessage = new ProtobufMessage(outMessage);
-                            var daqMessage = new MessageEventArgs<object>(protobufMessage);
-                            NotifyMessageReceived(this, daqMessage);
-                        }
+                        var protobufMessage = new ProtobufMessage(outMessage);
+                        var daqMessage = new MessageEventArgs<object>(protobufMessage);
+                        NotifyMessageReceived(this, daqMessage);
                     }
-                    catch (OperationCanceledException)
+                }
+                catch (OperationCanceledException)
+                {
+                    // Check if we should exit
+                    if (_isDisposed || !Running)
                     {
-                        // Check if we should exit
-                        if (_isDisposed || !Running)
-                        {
-                            break;
-                        }
-                        // Otherwise, just continue to the next iteration
-                        continue;
+                        break;
                     }
-                    catch (InvalidProtocolBufferException)
-                    {
-                        // Protocol buffer error - likely due to incomplete or corrupted data
-                        // Just continue to next iteration
-                        continue;
-                    }
+                    // Otherwise, just continue to the next iteration
+                    continue;
+                }
+                catch (InvalidProtocolBufferException)
+                {
+                    // Protocol buffer error - likely due to incomplete or corrupted data
+                    // Just continue to next iteration
+                    continue;
                 }
             }
             catch (Exception ex)
@@ -103,20 +101,18 @@ public class MessageConsumer : AbstractMessageConsumer
         try
         {
             // Try to read any remaining data with a short timeout
-            using (var cts = new CancellationTokenSource(100)) // 100ms timeout
+            using var cts = new CancellationTokenSource(100); // 100ms timeout
+            while (true)
             {
-                while (true)
+                if (cts.Token.IsCancellationRequested)
                 {
-                    if (cts.Token.IsCancellationRequested)
-                    {
-                        break;
-                    }
+                    break;
+                }
 
-                    var bytesRead = DataStream.Read(buffer, 0, buffer.Length);
-                    if (bytesRead == 0)
-                    {
-                        break; // No more data available
-                    }
+                var bytesRead = DataStream.Read(buffer, 0, buffer.Length);
+                if (bytesRead == 0)
+                {
+                    break; // No more data available
                 }
             }
         }

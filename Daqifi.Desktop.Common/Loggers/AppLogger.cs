@@ -12,11 +12,10 @@ public class AppLogger : IAppLogger
     private readonly Logger _logger;
     private readonly Client _client;
     private static readonly NoOpLogger NoOpLogger = new();
-    private static readonly AppLogger _instance = new();
     private static readonly bool IsTestMode = IsRunningInTestEnvironment();
     #endregion
 
-    public static AppLogger Instance => _instance;
+    public static AppLogger Instance { get; } = new();
 
     private static bool IsRunningInTestEnvironment()
     {

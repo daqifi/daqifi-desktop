@@ -122,7 +122,7 @@ public class FirmwareUpdatationManagerTests
     public void ReleaseProcessing_HandlesEmptyReleaseList()
     {
         // Arrange
-        var mockReleases = JArray.Parse(@"[]");
+        var mockReleases = JArray.Parse("[]");
 
         // Act
         var ordered = mockReleases

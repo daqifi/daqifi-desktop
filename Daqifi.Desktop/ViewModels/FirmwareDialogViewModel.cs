@@ -11,73 +11,25 @@ namespace Daqifi.Desktop.ViewModels;
 public partial class FirmwareDialogViewModel : ObservableObject
 {
     private readonly Pic32Bootloader _bootloader;
+
+    [ObservableProperty]
     private string _version;
+
+    [ObservableProperty]
     private string _firmwareFilePath;
+
+    [ObservableProperty]
     private bool _isFirmwareUploading;
+
+    [ObservableProperty]
     private bool _isUploadComplete;
+
+    [ObservableProperty]
     private bool _hasErrorOccured;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UploadFirmwareProgressText))]
     private int _uploadFirmwareProgress;
-
-    public string Version
-    {
-        get => _version;
-        set
-        {
-            _version = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public string FirmwareFilePath
-    {
-        get => _firmwareFilePath;
-        set
-        {
-            _firmwareFilePath = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool IsFirmwareUploading
-    {
-        get => _isFirmwareUploading;
-        set
-        {
-            _isFirmwareUploading = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool IsUploadComplete
-    {
-        get => _isUploadComplete;
-        set
-        {
-            _isUploadComplete = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool HasErrorOccured
-    {
-        get => _hasErrorOccured;
-        set
-        {
-            _hasErrorOccured = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public int UploadFirmwareProgress
-    {
-        get => _uploadFirmwareProgress;
-        set
-        {
-            _uploadFirmwareProgress = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(UploadFirmwareProgressText));
-        }
-    }
 
     public string UploadFirmwareProgressText => $"Upload Progress: {UploadFirmwareProgress}%";
 
