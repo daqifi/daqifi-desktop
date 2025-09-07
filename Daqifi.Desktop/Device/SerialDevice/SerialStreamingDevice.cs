@@ -332,5 +332,13 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         MessageProducer.Send(ScpiMessageProducer.ForceBootloader);
     }
+
+    /// <summary>
+    /// Returns the COM port name for this USB device
+    /// </summary>
+    protected override string GetUsbDisplayIdentifier()
+    {
+        return Port?.PortName ?? "USB";
+    }
     #endregion
 }

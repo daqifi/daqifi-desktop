@@ -46,6 +46,12 @@ public interface IStreamingDevice : IDevice
     bool IsFirmwareOutdated { get; set; }
     string IpAddress { get; set; }
     int StreamingFrequency { get; set; }
+    
+    /// <summary>
+    /// Gets the appropriate display identifier for this device based on connection type.
+    /// Returns COM port for USB devices, IP address for WiFi devices.
+    /// </summary>
+    string DisplayIdentifier { get; }
     IMessageConsumer MessageConsumer { get; set; }
     IMessageProducer MessageProducer { get; set; }
     List<IChannel> DataChannels { get; set; }
