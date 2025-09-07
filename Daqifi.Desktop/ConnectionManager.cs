@@ -256,8 +256,7 @@ public partial class ConnectionManager : ObservableObject
             var newDeviceInterface = newDevice.ConnectionType == ConnectionType.Usb ? "USB" : "WiFi";
             var existingDeviceInterface = existingDevice.ConnectionType == ConnectionType.Usb ? "USB" : "WiFi";
             
-            AppLogger.Instance.Warning($"Duplicate device detected: Serial {newDevice.DeviceSerialNo} is already connected via {existingDeviceInterface}. " +
-                                     $"Attempted to add via {newDeviceInterface}.");
+            AppLogger.Instance.Information($"Duplicate device detected: Device already connected via {existingDeviceInterface}, attempted to add via {newDeviceInterface}");
             
             return new DuplicateDeviceCheckResult 
             { 

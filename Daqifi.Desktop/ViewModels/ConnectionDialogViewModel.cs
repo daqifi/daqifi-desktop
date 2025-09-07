@@ -292,8 +292,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            // Log error and default to cancel
-            System.Diagnostics.Debug.WriteLine($"Error showing duplicate device dialog: {ex.Message}");
+            // Log error and default to cancel - this should rarely happen
+            Daqifi.Desktop.Common.Loggers.AppLogger.Instance.Error(ex, "Failed to show duplicate device dialog");
             return DuplicateDeviceAction.Cancel;
         }
     }
