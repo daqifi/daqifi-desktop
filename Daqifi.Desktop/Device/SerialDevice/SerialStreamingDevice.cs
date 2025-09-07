@@ -2,14 +2,18 @@
 using Daqifi.Desktop.IO.Messages.Producers;
 using System.IO.Ports;
 using Daqifi.Desktop.Bootloader;
+using CommunityToolkit.Mvvm.ComponentModel;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
-public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDevice
+public partial class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDevice
 {
     #region Properties
-    public SerialPort Port { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayIdentifier))]
+    private SerialPort? _port;
+    
     public override ConnectionType ConnectionType => ConnectionType.Usb;
     #endregion
 
@@ -338,7 +342,15 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     /// </summary>
     protected override string GetUsbDisplayIdentifier()
     {
-        return Port?.PortName ?? "USB";
+        try
+        {
+            var name = Port?.PortName;
+            return string.IsNullOrWhiteSpace(name) ? "USB" : name;
+        }
+        catch
+        {
+            return "USB";
+        }
     }
     #endregion
 }
