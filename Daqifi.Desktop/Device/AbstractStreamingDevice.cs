@@ -71,9 +71,21 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public string DeviceVersion { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DisplayIdentifier))]
     private string _ipAddress = string.Empty;
+    
+    public string IpAddress 
+    { 
+        get => _ipAddress; 
+        set 
+        { 
+            if (_ipAddress != value)
+            {
+                _ipAddress = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DisplayIdentifier));
+            }
+        } 
+    }
 
     /// <summary>
     /// Gets the appropriate display identifier for this device based on connection type.

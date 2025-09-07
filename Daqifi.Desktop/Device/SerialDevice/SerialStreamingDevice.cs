@@ -2,17 +2,28 @@
 using Daqifi.Desktop.IO.Messages.Producers;
 using System.IO.Ports;
 using Daqifi.Desktop.Bootloader;
-using CommunityToolkit.Mvvm.ComponentModel;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
-public partial class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDevice
+public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDevice
 {
     #region Properties
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DisplayIdentifier))]
     private SerialPort? _port;
+    
+    public SerialPort? Port 
+    { 
+        get => _port; 
+        set 
+        { 
+            if (_port != value)
+            {
+                _port = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DisplayIdentifier));
+            }
+        } 
+    }
     
     public override ConnectionType ConnectionType => ConnectionType.Usb;
     #endregion
