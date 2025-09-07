@@ -5,7 +5,6 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
                  xmlns:networkDataModel="clr-namespace:Daqifi.Desktop.DataModel.Network;assembly=Daqifi.Desktop.DataModel"
                   xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
-             xmlns:local="clr-namespace:Daqifi.Desktop.View.Flyouts"
                    xmlns:sys="clr-namespace:System;assembly=mscorlib" xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
              xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              xmlns:converters="clr-namespace:Daqifi.Desktop.Converters"

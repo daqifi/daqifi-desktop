@@ -64,7 +64,7 @@
                        Height="10" 
                        CornerRadius="7.5" 
                        Margin="5 0 0 0"
-                       Visibility="{Binding NotificationCount, Converter={StaticResource intToVisibility}}">
+                       Visibility="{Binding NotificationCount, Converter={StaticResource IntToVisibility}}">
                             <TextBlock Text="{Binding NotificationCount}" 
                               VerticalAlignment="Center" 
                               HorizontalAlignment="Center" 
@@ -790,7 +790,7 @@
                     <ContentPresenter.ContentTemplate>
                         <DataTemplate>
                             <Grid>
-                                <ListView Name="ActiveProfileList" ItemsSource="{Binding profiles}" Background="Transparent" BorderThickness="0" SelectedItem="{Binding SelectedProfile, Mode=OneWayToSource}">
+                                <ListView Name="ActiveProfileList" ItemsSource="{Binding Profiles}" Background="Transparent" BorderThickness="0" SelectedItem="{Binding SelectedProfile, Mode=OneWayToSource}">
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <Border Height="50">
@@ -864,7 +864,7 @@
                                 </Button>
                             </Grid>
                             <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding profiles.Count}" Value="0">
+                                <DataTrigger Binding="{Binding Profiles.Count}" Value="0">
                                     <Setter TargetName="ActiveProfileList" Property="Visibility" Value="Collapsed"/>
                                     <Setter TargetName="EmptyActiveProfileListLabel" Property="Visibility" Value="Visible"/>
                                 </DataTrigger>

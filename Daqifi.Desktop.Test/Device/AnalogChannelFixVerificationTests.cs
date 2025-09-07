@@ -118,7 +118,7 @@ public class AnalogChannelFixVerificationTests
         // (AddChannel, RemoveChannel, and SD logging)
         
         // Arrange
-        int[] testChannels = { 0, 4, 8, 12, 15 }; // Mix of low and high channels
+        int[] testChannels = [0, 4, 8, 12, 15]; // Mix of low and high channels
         
         // Act & Assert
         foreach (var channelIndex in testChannels)

@@ -27,8 +27,8 @@ public class ExportPerformanceTests
         Console.WriteLine($"Small Dataset (400 samples): {results.ElapsedMs}ms, {results.MemoryMB}MB");
         
         // Baseline assertions - should pass easily
-        Assert.IsTrue(results.ElapsedMs < 1000, "Small dataset should export in under 1 second");
-        Assert.IsTrue(results.MemoryMB < 10, "Small dataset should use under 10MB memory");
+        Assert.IsLessThan(1000, results.ElapsedMs, "Small dataset should export in under 1 second");
+        Assert.IsLessThan(10, results.MemoryMB, "Small dataset should use under 10MB memory");
     }
 
     [TestMethod]
@@ -42,10 +42,10 @@ public class ExportPerformanceTests
         Console.WriteLine($"Samples per second: {16000.0 / results.ElapsedMs * 1000:F0}");
         
         // These will likely fail with current implementation, demonstrating performance issues
-        Assert.IsTrue(results.ElapsedMs < 5000, 
-            $"Medium dataset took {results.ElapsedMs}ms - should be under 5 seconds");
-        Assert.IsTrue(results.MemoryMB < 50, 
-            $"Medium dataset used {results.MemoryMB}MB - should be under 50MB");
+        Assert.IsLessThan(5000,
+results.ElapsedMs, $"Medium dataset took {results.ElapsedMs}ms - should be under 5 seconds");
+        Assert.IsLessThan(50,
+results.MemoryMB, $"Medium dataset used {results.MemoryMB}MB - should be under 50MB");
     }
 
     [TestMethod]
@@ -61,15 +61,15 @@ public class ExportPerformanceTests
         Console.WriteLine($"Projected time for 51.8M samples: {results.ElapsedMs * (51800000.0 / 80000) / 1000 / 60:F1} minutes");
         
         // These assertions will fail with current implementation, proving the performance problem
-        Assert.IsTrue(results.ElapsedMs < 10000, 
-            $"Large dataset took {results.ElapsedMs}ms - performance issues detected");
-        Assert.IsTrue(results.MemoryMB < 100, 
-            $"Large dataset used {results.MemoryMB}MB - memory usage too high");
+        Assert.IsLessThan(10000,
+results.ElapsedMs, $"Large dataset took {results.ElapsedMs}ms - performance issues detected");
+        Assert.IsLessThan(100,
+results.MemoryMB, $"Large dataset used {results.MemoryMB}MB - memory usage too high");
         
         // Target performance: should process at least 50K samples/second
         var samplesPerSecond = 80000.0 / results.ElapsedMs * 1000;
-        Assert.IsTrue(samplesPerSecond > 50000, 
-            $"Processing rate {samplesPerSecond:F0} samples/second is too slow");
+        Assert.IsGreaterThan(50000,
+samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too slow");
     }
 
     [TestMethod]
@@ -126,7 +126,7 @@ public class ExportPerformanceTests
         var finalMemory = GC.GetTotalMemory(false);
         var memoryUsed = Math.Max(0, finalMemory - initialMemory) / 1024 / 1024;
 
-        Console.WriteLine($"Optimized Export Results:");
+        Console.WriteLine("Optimized Export Results:");
         Console.WriteLine($"Time: {stopwatch.ElapsedMilliseconds}ms");
         Console.WriteLine($"Memory: {memoryUsed}MB");
         
@@ -137,21 +137,21 @@ public class ExportPerformanceTests
         Assert.IsTrue(File.Exists(exportFilePath), "Export file should be created");
         
         var lines = File.ReadAllLines(exportFilePath);
-        Assert.IsTrue(lines.Length > 1, "Export should contain header and data rows");
+        Assert.IsGreaterThan(1, lines.Length, "Export should contain header and data rows");
         
         // Performance targets for production deployment
         if (stopwatch.ElapsedMilliseconds > 10) // Only check if measurable
         {
-            Assert.IsTrue(samplesPerSecond > 50000, 
-                $"Production optimized exporter should process >50K samples/second. Actual: {samplesPerSecond:F0}");
+            Assert.IsGreaterThan(50000,
+samplesPerSecond, $"Production optimized exporter should process >50K samples/second. Actual: {samplesPerSecond:F0}");
         }
         
         // Memory should be reasonable for this dataset size
-        Assert.IsTrue(memoryUsed < 100, 
-            $"Production optimized exporter should use <100MB for 48K samples. Actual: {memoryUsed}MB");
+        Assert.IsLessThan(100,
+memoryUsed, $"Production optimized exporter should use <100MB for 48K samples. Actual: {memoryUsed}MB");
     }
 
-    private List<DataSample> GenerateTestDataset(int channelCount, int samplesPerChannel)
+    private static List<DataSample> GenerateTestDataset(int channelCount, int samplesPerChannel)
     {
         var samples = new List<DataSample>();
         var baseTime = new DateTime(2018, 1, 1, 0, 0, 0);
@@ -179,7 +179,7 @@ public class ExportPerformanceTests
         return samples;
     }
 
-    private (long ElapsedMs, long MemoryMB) MeasureExportPerformance(List<DataSample> samples, string testName)
+    private static (long ElapsedMs, long MemoryMB) MeasureExportPerformance(List<DataSample> samples, string testName)
     {
         var exportFilePath = Path.Combine(TestDirectoryPath, $"{testName}_export.csv");
         

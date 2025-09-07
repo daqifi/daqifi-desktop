@@ -142,15 +142,15 @@ public class WindowsFirewallWrapperTests
     public void CreateUdpRule_WithInvalidRuleName_ThrowsArgumentException()
     {
         // Test null rule name
-        Assert.ThrowsException<ArgumentException>(() => 
+        Assert.ThrowsExactly<ArgumentException>(() => 
             _firewallWrapper.CreateUdpRule(null, _validAppPath));
         
         // Test empty rule name
-        Assert.ThrowsException<ArgumentException>(() => 
+        Assert.ThrowsExactly<ArgumentException>(() => 
             _firewallWrapper.CreateUdpRule("", _validAppPath));
         
         // Test rule name with dangerous characters
-        Assert.ThrowsException<ArgumentException>(() => 
+        Assert.ThrowsExactly<ArgumentException>(() => 
             _firewallWrapper.CreateUdpRule("Rule<script>", _validAppPath));
     }
 
@@ -158,22 +158,22 @@ public class WindowsFirewallWrapperTests
     public void CreateUdpRule_WithInvalidApplicationPath_ThrowsArgumentException()
     {
         // Test null app path
-        Assert.ThrowsException<ArgumentException>(() => 
+        Assert.ThrowsExactly<ArgumentException>(() => 
             _firewallWrapper.CreateUdpRule(_validRuleName, null));
         
         // Test empty app path
-        Assert.ThrowsException<ArgumentException>(() => 
+        Assert.ThrowsExactly<ArgumentException>(() => 
             _firewallWrapper.CreateUdpRule(_validRuleName, ""));
         
         // Test non-existent file
-        Assert.ThrowsException<ArgumentException>(() => 
+        Assert.ThrowsExactly<ArgumentException>(() => 
             _firewallWrapper.CreateUdpRule(_validRuleName, @"C:\NonExistent\app.exe"));
         
         // Test non-exe file
         var txtFile = Path.GetTempFileName();
         try
         {
-            Assert.ThrowsException<ArgumentException>(() => 
+            Assert.ThrowsExactly<ArgumentException>(() => 
                 _firewallWrapper.CreateUdpRule(_validRuleName, txtFile));
         }
         finally
@@ -201,7 +201,7 @@ public class WindowsFirewallWrapperTests
         }
     }
 
-    private string CreateTempExeFile()
+    private static string CreateTempExeFile()
     {
         var tempFile = Path.GetTempFileName();
         var exeFile = Path.ChangeExtension(tempFile, ".exe");

@@ -40,7 +40,7 @@ public class AbstractStreamingDeviceTests
         var uintResult = 1u << channelIndex;   // Correct approach
 
         // Assert
-        Assert.IsTrue(intResult < 0, "int overflows to negative for channel 31");
+        Assert.IsLessThan(0, intResult, "int overflows to negative for channel 31");
         Assert.AreEqual(2147483648u, uintResult, "uint handles channel 31 correctly");
     }
 

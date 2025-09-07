@@ -33,12 +33,12 @@ public class OptimizedExporterValidationTests
         Assert.IsTrue(File.Exists(exportPath), "Export file should be created");
         
         var content = File.ReadAllText(exportPath);
-        Assert.IsTrue(content.StartsWith("Time,"), "Should start with time header");
+        Assert.StartsWith("Time,", content, "Should start with time header");
         
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.AreEqual(51, lines.Length); // Header + 50 data rows
         
-        Assert.IsTrue(content.Contains("TestDevice:TEST001:Channel 1"), "Should contain expected channel names");
+        Assert.Contains("TestDevice:TEST001:Channel 1", content, "Should contain expected channel names");
     }
 
     [TestMethod]
@@ -54,8 +54,8 @@ public class OptimizedExporterValidationTests
         exporter.ExportLoggingSession(loggingSession, exportPath, true, bw, 0, 1);
 
         var content = File.ReadAllText(exportPath);
-        Assert.IsTrue(content.StartsWith("Relative Time (s),"), "Should start with relative time header");
-        Assert.IsTrue(content.Contains("0.000,"), "Should contain relative time starting from 0");
+        Assert.StartsWith("Relative Time (s),", content, "Should start with relative time header");
+        Assert.Contains("0.000,", content, "Should contain relative time starting from 0");
     }
 
     [TestMethod]
@@ -80,8 +80,8 @@ public class OptimizedExporterValidationTests
         Console.WriteLine($"Large dataset export took: {stopwatch.ElapsedMilliseconds}ms");
         
         // Should be reasonably fast for this size
-        Assert.IsTrue(stopwatch.ElapsedMilliseconds < 5000, 
-            $"Large dataset export should complete in under 5 seconds. Actual: {stopwatch.ElapsedMilliseconds}ms");
+        Assert.IsLessThan(5000,
+stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5 seconds. Actual: {stopwatch.ElapsedMilliseconds}ms");
     }
 
     [TestMethod]
@@ -99,10 +99,10 @@ public class OptimizedExporterValidationTests
         var content = File.ReadAllText(exportPath);
         
         Assert.IsTrue(File.Exists(exportPath), "Export file should be created");
-        Assert.IsTrue(content.Contains(",,"), "Should contain empty cells for missing data");
+        Assert.Contains(",,", content, "Should contain empty cells for missing data");
     }
 
-    private List<DataSample> GenerateTestDataset(int channelCount, int samplesPerChannel)
+    private static List<DataSample> GenerateTestDataset(int channelCount, int samplesPerChannel)
     {
         var samples = new List<DataSample>();
         var baseTime = new DateTime(2018, 1, 1, 0, 0, 0);
@@ -129,7 +129,7 @@ public class OptimizedExporterValidationTests
         return samples;
     }
 
-    private List<DataSample> GenerateNonUniformTestDataset()
+    private static List<DataSample> GenerateNonUniformTestDataset()
     {
         var samples = new List<DataSample>();
         var baseTime = new DateTime(2018, 1, 1, 0, 0, 0);

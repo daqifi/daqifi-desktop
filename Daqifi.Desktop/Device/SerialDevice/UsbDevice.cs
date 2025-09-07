@@ -93,7 +93,7 @@ public sealed class UsbDevice : IDisposable
 
             var cr = CM_Get_Child(out var child, _data.DevInst, 0);
             if (cr != 0)
-                return new string[0];
+                return [];
 
             var ids = new List<string> { GetDeviceId(child) };
             while (true)
@@ -171,7 +171,7 @@ public sealed class UsbDevice : IDisposable
     {
         SetupDiGetDeviceProperty(_hDevInfo, ref _data, ref key, out _, IntPtr.Zero, 0, out var size, 0);
         if (size == 0)
-            return new string[0];
+            return [];
 
         var buffer = Marshal.AllocHGlobal(size);
         try

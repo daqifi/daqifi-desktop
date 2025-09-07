@@ -105,7 +105,7 @@ public class VersionHelperTests
         var result = VersionHelper.Compare("2.0.0", "1.9.9");
 
         // Assert
-        Assert.IsTrue(result > 0);
+        Assert.IsGreaterThan(0, result);
     }
 
     [TestMethod]
@@ -115,7 +115,7 @@ public class VersionHelperTests
         var result = VersionHelper.Compare("1.2.3", "1.2.4");
 
         // Assert
-        Assert.IsTrue(result < 0);
+        Assert.IsLessThan(0, result);
     }
 
     [TestMethod]
@@ -125,7 +125,7 @@ public class VersionHelperTests
         var result = VersionHelper.Compare("1.2.3", "1.2.3beta1");
 
         // Assert
-        Assert.IsTrue(result > 0);
+        Assert.IsGreaterThan(0, result);
     }
 
     [TestMethod]
@@ -135,7 +135,7 @@ public class VersionHelperTests
         var result = VersionHelper.Compare("1.2.3rc1", "1.2.3beta1");
 
         // Assert
-        Assert.IsTrue(result > 0);
+        Assert.IsGreaterThan(0, result);
     }
 
     [TestMethod]
@@ -152,8 +152,8 @@ public class VersionHelperTests
     public void Compare_OneInvalid_ValidVersionWins()
     {
         // Act & Assert
-        Assert.IsTrue(VersionHelper.Compare("1.0.0", "invalid") > 0);
-        Assert.IsTrue(VersionHelper.Compare("invalid", "1.0.0") < 0);
+        Assert.IsGreaterThan(0, VersionHelper.Compare("1.0.0", "invalid"));
+        Assert.IsLessThan(0, VersionHelper.Compare("invalid", "1.0.0"));
     }
 
     #endregion

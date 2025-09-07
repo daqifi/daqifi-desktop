@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.Device.SerialDevice;
 public class SerialDeviceFinder : IDeviceFinder
 {
     #region Private Data
-    private string[] _serialPorts = { };
+    private string[] _serialPorts = [];
     private static ManagementEventWatcher _deviceAddedWatcher;
     private static ManagementEventWatcher _deviceRemovedWatcher;
     private readonly AppLogger AppLogger = AppLogger.Instance;
