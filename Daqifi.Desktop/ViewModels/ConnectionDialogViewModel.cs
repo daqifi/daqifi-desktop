@@ -52,6 +52,9 @@ public partial class ConnectionDialogViewModel : ObservableObject
         ConnectSerialCommand = new AsyncRelayCommand<object>(ConnectSerialAsync);
         ConnectManualSerialCommand = new AsyncRelayCommand(ConnectManualSerialAsync);
         ConnectManualWifiCommand = new AsyncRelayCommand(ConnectManualWifiAsync);
+        
+        // Set up the duplicate device handler
+        ConnectionManager.Instance.DuplicateDeviceHandler = HandleDuplicateDevice;
     }
 
     public void StartConnectionFinders()
@@ -242,5 +245,56 @@ public partial class ConnectionDialogViewModel : ObservableObject
         _wifiFinder?.Stop();
         _serialFinder?.Stop();
         _hidDeviceFinder?.Stop();
+    }
+
+    /// <summary>
+    /// Handles duplicate device detection by showing a dialog to the user
+    /// </summary>
+    private DuplicateDeviceAction HandleDuplicateDevice(DuplicateDeviceCheckResult duplicateResult)
+    {
+        try
+        {
+            // Create dialog manually since we need access to the Result property
+            var duplicateDialogViewModel = new DuplicateDeviceDialogViewModel(
+                duplicateResult.ExistingDevice,
+                duplicateResult.NewDevice,
+                duplicateResult.ExistingDeviceInterface,
+                duplicateResult.NewDeviceInterface);
+
+            var dialog = new DuplicateDeviceDialog();
+            dialog.DataContext = duplicateDialogViewModel;
+            
+            // Find the owner window
+            var ownerWindow = System.Windows.Application.Current.Windows
+                .Cast<System.Windows.Window>()
+                .FirstOrDefault(w => w.DataContext == this);
+                
+            if (ownerWindow != null)
+            {
+                dialog.Owner = ownerWindow;
+            }
+            
+            dialog.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner;
+            
+            var dialogResult = dialog.ShowDialog();
+            
+            if (dialogResult == true)
+            {
+                return dialog.Result switch
+                {
+                    DuplicateDeviceDialog.DuplicateDeviceDialogResult.KeepExisting => DuplicateDeviceAction.KeepExisting,
+                    DuplicateDeviceDialog.DuplicateDeviceDialogResult.SwitchToNew => DuplicateDeviceAction.SwitchToNew,
+                    _ => DuplicateDeviceAction.Cancel
+                };
+            }
+
+            return DuplicateDeviceAction.Cancel;
+        }
+        catch (Exception ex)
+        {
+            // Log error and default to cancel
+            System.Diagnostics.Debug.WriteLine($"Error showing duplicate device dialog: {ex.Message}");
+            return DuplicateDeviceAction.Cancel;
+        }
     }
 }
