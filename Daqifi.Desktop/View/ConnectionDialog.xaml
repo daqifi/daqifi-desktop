@@ -16,9 +16,9 @@
                 <Grid>
                     <controls:ProgressRing IsActive="{Binding HasNoWiFiDevices}" />
                     <Border>
-                        <DockPanel Name="ConnectionUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
+                        <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
                             <!-- Connect Button -->
-                            <Button Name="btnConnect" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}" Command="{Binding ConnectCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right"  Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}" Command="{Binding ConnectCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right"  Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                             <!-- Device List -->
                             <ListView Name="DeviceList" ItemsSource="{Binding AvailableWiFiDevices}" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
@@ -69,9 +69,9 @@
                 <Grid>
                     <controls:ProgressRing IsActive="{Binding HasNoSerialDevices}" />
                     <Border>
-                        <DockPanel Name="SerialConnectionUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
+                        <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
                             <!-- Connect Button -->
-                            <Button Name="btnConnectSerial" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}" Command="{Binding ConnectSerialCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}" Command="{Binding ConnectSerialCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                             <!-- Device List -->
                             <ListView Name="SerialList" ItemsSource="{Binding AvailableSerialDevices}" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
@@ -102,7 +102,7 @@
                     </Border>
                 </Grid>
             </TabItem>
-            <TabItem Header="Manual USB"  controls:HeaderedControlHelper.HeaderFontSize="18">
+            <TabItem Header="Manual USB" controls:HeaderedControlHelper.HeaderFontSize="18">
                 <Grid>
                     <Border>
                         <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
@@ -118,13 +118,13 @@
                     </Border>
                 </Grid>
             </TabItem>
-            <TabItem Header="Firmware"  controls:HeaderedControlHelper.HeaderFontSize="18">
+            <TabItem Header="Firmware" controls:HeaderedControlHelper.HeaderFontSize="18">
                 <Grid>
                     <controls:ProgressRing IsActive="{Binding HasNoHidDevices}" />
                     <Border>
-                        <DockPanel Name="HidConnectionUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
+                        <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
                             <!-- Open Firmware Button -->
-                            <Button Name="BtnOpenFirmware" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=HidList, Path=SelectedItems}" Command="{Binding ConnectHidCommand}" Content="Open Firmware" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=HidList, Path=SelectedItems}" Command="{Binding ConnectHidCommand}" Content="Open Firmware" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                             <!-- Device List -->
                             <ListView Name="HidList" ItemsSource="{Binding AvailableHidDevices}" SelectionMode="Single" Margin="5" Background="Transparent" BorderThickness="0">
@@ -152,4 +152,3 @@
         </TabControl>
     </Grid>
 </controls:MetroWindow>
-

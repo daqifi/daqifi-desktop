@@ -1,9 +1,9 @@
-﻿<Controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.LoggedSessionFlyout"
+﻿<controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.LoggedSessionFlyout"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              xmlns:viewModels="clr-namespace:Daqifi.Desktop.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=viewModels:DaqifiViewModel}"
@@ -22,4 +22,4 @@
             <TextBox Text="{Binding LoggedSessionName,UpdateSourceTrigger=PropertyChanged}" TextChanged="UpdateSessionName" Height="50" FontSize="16" VerticalAlignment="Center" VerticalContentAlignment="Center"/>
         </GroupBox>
     </Grid>
-</Controls:Flyout>
+</controls:Flyout>

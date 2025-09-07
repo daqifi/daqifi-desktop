@@ -108,13 +108,13 @@ public partial class ExportDialogViewModel : ObservableObject
 
         ExportFilePath = dialog.SelectedPath;
     }
-    private BackgroundWorker bw;
+    private BackgroundWorker _bw;
     [RelayCommand]
     private void CancelExport()
     {
-        if (bw is { WorkerSupportsCancellation: true })
+        if (_bw is { WorkerSupportsCancellation: true })
         {
-            bw.CancelAsync();
+            _bw.CancelAsync();
         }
     }
 
@@ -123,17 +123,17 @@ public partial class ExportDialogViewModel : ObservableObject
     {
         IsExporting = true;
         if (string.IsNullOrWhiteSpace(ExportFilePath)) { return; }
-        bw = new BackgroundWorker
+        _bw = new BackgroundWorker
         {
             WorkerReportsProgress = true,
             WorkerSupportsCancellation = true
         };
-        bw.DoWork += async (sender, args) =>
+        _bw.DoWork += async (sender, args) =>
         {
             var totalSessions = _sessionsIds.Count;
             for (var i = 0; i < totalSessions; i++)
             {
-                if (bw.CancellationPending)
+                if (_bw.CancellationPending)
                 {
                     return;
                 }
@@ -146,16 +146,16 @@ public partial class ExportDialogViewModel : ObservableObject
 
                 if (ExportAllSelected)
                 {
-                    ExportAllSamples(loggingSession, filepath, bw, i, totalSessions);
+                    ExportAllSamples(loggingSession, filepath, _bw, i, totalSessions);
                 }
                 else if (ExportAverageSelected)
                 {
-                    ExportAverageSamples(loggingSession, filepath, bw, i, totalSessions);
+                    ExportAverageSamples(loggingSession, filepath, _bw, i, totalSessions);
                 }
             }
         };
-        bw.ProgressChanged += UploadFirmwareProgressChanged;
-        bw.RunWorkerCompleted += (sender, args) =>
+        _bw.ProgressChanged += UploadFirmwareProgressChanged;
+        _bw.RunWorkerCompleted += (sender, args) =>
         {
             if (args.Error != null)
             {
@@ -166,7 +166,7 @@ public partial class ExportDialogViewModel : ObservableObject
                 IsExporting = false;
             }
         };
-        bw.RunWorkerAsync();
+        _bw.RunWorkerAsync();
     }
 
     private void UploadFirmwareProgressChanged(object? sender, ProgressChangedEventArgs e)

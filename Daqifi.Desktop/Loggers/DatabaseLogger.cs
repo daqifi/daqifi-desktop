@@ -303,7 +303,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     PlotModel.Series.Add(series);
                     // Assign data to series (ItemsSource)
                     // The key for _allSessionPoints must match how it was populated
-                    var key = (series.Title.Split(new[] { " : (" }, StringSplitOptions.None)[1].TrimEnd(')'), series.Title.Split(new[] { " : (" }, StringSplitOptions.None)[0]);
+                    var key = (series.Title.Split([" : ("], StringSplitOptions.None)[1].TrimEnd(')'), series.Title.Split([" : ("], StringSplitOptions.None)[0]);
                     if(_allSessionPoints.TryGetValue(key, out var points))
                     {
                          series.ItemsSource = points;

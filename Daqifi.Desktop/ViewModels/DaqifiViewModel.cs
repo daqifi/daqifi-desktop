@@ -120,7 +120,7 @@ public partial class DaqifiViewModel : ObservableObject
 
     public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = [];
     public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = [];
-    public ObservableCollection<Profile> profiles { get; } = LoggingManager.Instance.SubscribedProfiles;
+    public ObservableCollection<Profile> Profiles { get; } = LoggingManager.Instance.SubscribedProfiles;
 
     public ObservableCollection<Notifications> NotificationList { get; } = [];
     public ObservableCollection<IChannel> ActiveChannels { get; } = [];
@@ -1060,8 +1060,8 @@ public partial class DaqifiViewModel : ObservableObject
 
     #region Firmware version checking methods 
 
-    private string latestFirmwareVersion;
-    public string LatestFirmwareVersionText => latestFirmwareVersion;
+    private string _latestFirmwareVersion;
+    public string LatestFirmwareVersionText => _latestFirmwareVersion;
     [RelayCommand]
     public async Task GetFirmwareupdatationList()
     {
@@ -1070,24 +1070,24 @@ public partial class DaqifiViewModel : ObservableObject
         {
 
             var ldata = await FirmwareUpdatationManager.Instance.CheckFirmwareVersion();
-            latestFirmwareVersion = ldata;
+            _latestFirmwareVersion = ldata;
             OnPropertyChanged(nameof(LatestFirmwareVersionText));
 
-            if (latestFirmwareVersion == null)
+            if (_latestFirmwareVersion == null)
             {
                 return;
             }
             foreach (var device in connectedDevices)
             {
                 {
-                    var cmp = Helpers.VersionHelper.Compare(device.DeviceVersion, latestFirmwareVersion);
+                    var cmp = Helpers.VersionHelper.Compare(device.DeviceVersion, _latestFirmwareVersion);
                     var isOutdated = cmp < 0; // device < latest
                     device.IsFirmwareOutdated = isOutdated;
                     if (device.DeviceSerialNo != null)
                     {
                         if (isOutdated)
                         {
-                            AddNotification(device, latestFirmwareVersion);
+                            AddNotification(device, _latestFirmwareVersion);
                         }
                         else
                         {
@@ -1113,9 +1113,9 @@ public partial class DaqifiViewModel : ObservableObject
         NotificationCount = NotificationList.Count;
     }
 
-    private void AddNotification(IStreamingDevice device, string LatestFirmware)
+    private void AddNotification(IStreamingDevice device, string latestFirmware)
     {
-        var message = $"Device With Serial {device.DeviceSerialNo} has Outdated Firmware. Please Update to Version {LatestFirmware}.";
+        var message = $"Device With Serial {device.DeviceSerialNo} has Outdated Firmware. Please Update to Version {latestFirmware}.";
 
         var existingNotification = NotificationList.FirstOrDefault(n => n.DeviceSerialNo != null
                                                                         && n.IsFirmwareUpdate
@@ -1171,7 +1171,7 @@ public partial class DaqifiViewModel : ObservableObject
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
             return;
         }
-        if (profiles.Any(x => x.IsProfileActive))
+        if (Profiles.Any(x => x.IsProfileActive))
         {
             var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while profile is active");
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
@@ -1180,7 +1180,7 @@ public partial class DaqifiViewModel : ObservableObject
         LoggingManager.Instance.UnsubscribeProfile(profile);
         ActiveChannels.Clear();
         ActiveInputChannels.Clear();
-        profiles.Remove(profile);
+        Profiles.Remove(profile);
     }
 
     [RelayCommand]
@@ -1363,7 +1363,7 @@ public partial class DaqifiViewModel : ObservableObject
             SelectedProfile = profile;
 
             // Check for multiple active profiles
-            var anyActiveProfile = profiles.FirstOrDefault(x => x.IsProfileActive);
+            var anyActiveProfile = Profiles.FirstOrDefault(x => x.IsProfileActive);
             if (anyActiveProfile != null && anyActiveProfile.ProfileId != SelectedProfile.ProfileId)
             {
                 var errorDialogViewModel = new ErrorDialogViewModel("Multiple Profiles Cannot be Active.");
@@ -1526,9 +1526,9 @@ public partial class DaqifiViewModel : ObservableObject
         {
             var SerailDeviceProperty = connectedDevice.GetType().GetProperty("DeviceVersion");
             var DeviceVersion = SerailDeviceProperty.GetValue(connectedDevice)?.ToString();
-            if (!string.IsNullOrEmpty(latestFirmwareVersion))
+            if (!string.IsNullOrEmpty(_latestFirmwareVersion))
             {
-                connectedDevice.IsFirmwareOutdated = Helpers.VersionHelper.Compare(DeviceVersion, latestFirmwareVersion) < 0;
+                connectedDevice.IsFirmwareOutdated = Helpers.VersionHelper.Compare(DeviceVersion, _latestFirmwareVersion) < 0;
             }
 
             ConnectedDevices.Add(connectedDevice);
@@ -1549,12 +1549,12 @@ public partial class DaqifiViewModel : ObservableObject
             case "SubscribedProfiles":
 
                 if (LoggingManager.Instance.SubscribedProfiles.Count == 0)
-                { profiles.Clear(); }
+                { Profiles.Clear(); }
                 foreach (var connectedProfiles in LoggingManager.Instance.SubscribedProfiles)
                 {
-                    if (profiles.All(x => x.ProfileId != connectedProfiles.ProfileId))
+                    if (Profiles.All(x => x.ProfileId != connectedProfiles.ProfileId))
                     {
-                        profiles.Add(connectedProfiles);
+                        Profiles.Add(connectedProfiles);
                     }
                 }
                 break;
@@ -1596,8 +1596,8 @@ public partial class DaqifiViewModel : ObservableObject
                 }
                 break;
             case "NotifyConnection":
-                var DeviceConnection = ConnectionManager.Instance.NotifyConnection;
-                if (DeviceConnection)
+                var deviceConnection = ConnectionManager.Instance.NotifyConnection;
+                if (deviceConnection)
                 {
                     var errorDialogViewModel = new ErrorDialogViewModel("Device disconnected..");
                     if (errorDialogViewModel != null)

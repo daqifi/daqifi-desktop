@@ -197,7 +197,7 @@ public class WindowsFirewallWrapper : IFirewallHelper
             var rules = policy.GetType().InvokeMember("Rules",
                 System.Reflection.BindingFlags.GetProperty, null, policy, null);
             rules.GetType().InvokeMember("Add",
-                System.Reflection.BindingFlags.InvokeMethod, null, rules, new object[] { rule });
+                System.Reflection.BindingFlags.InvokeMethod, null, rules, [rule]);
         }
         catch (Exception ex)
         {
@@ -222,7 +222,7 @@ public class WindowsFirewallWrapper : IFirewallHelper
         try
         {
             rule.GetType().InvokeMember(propertyName,
-                System.Reflection.BindingFlags.SetProperty, null, rule, new object[] { value });
+                System.Reflection.BindingFlags.SetProperty, null, rule, [value]);
         }
         catch (Exception ex)
         {

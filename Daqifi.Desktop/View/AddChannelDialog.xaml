@@ -11,14 +11,14 @@
     <Grid>
         <!-- Add Channel UI -->
         <Border>
-            <DockPanel Name="AddChannelUI" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
+            <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
                 <!-- Add Channel Button -->
-                <Button Name="btnAdd" DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=ChannelList, Path=SelectedItems}" Command="{Binding AddChannelCommand}" Click="btnAdd_Click" Content="Add" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=ChannelList, Path=SelectedItems}" Command="{Binding AddChannelCommand}" Click="btnAdd_Click" Content="Add" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                 <!-- Device Selector -->
                 <DockPanel DockPanel.Dock="Top" LastChildFill="True">
                     <Label Content="Device:" DockPanel.Dock="Left"/>
-                    <ComboBox Name="SelectedDevice" ItemsSource="{Binding AvailableDevices}" SelectedItem="{Binding SelectedDevice}">
+                    <ComboBox ItemsSource="{Binding AvailableDevices}" SelectedItem="{Binding SelectedDevice}">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <Border >
@@ -49,18 +49,6 @@
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
-
-                    <!-- Message if there aren't any devices connected -->
-                    <!--<Border HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                        <Label HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalAlignment="Stretch" VerticalContentAlignment="Center">
-                            <Label.Content>
-                                <StackPanel Orientation="Vertical" Width="150" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <Label Content="No Avaliable Devices" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
-                                    <Label Content="Add a Device First" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
-                                </StackPanel>
-                            </Label.Content>
-                        </Label>
-                    </Border>-->
                 </Grid>
             </DockPanel>
         </Border>

@@ -36,7 +36,7 @@ public partial class Pic32Bootloader : ObservableObject, IBootloader, IDisposabl
     {
         ThreadPool.QueueUserWorkItem(RequestVersionDoWork);
 
-        var result = WaitHandle.WaitAny(new WaitHandle[] { _resetEvent }, 10 * 1000);
+        var result = WaitHandle.WaitAny([_resetEvent], 10 * 1000);
 
         if (result == WaitHandle.WaitTimeout)
         {

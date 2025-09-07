@@ -134,7 +134,7 @@ public class ChannelBitManipulationTests
         
         // Assert
         // For channel 31, int will overflow to negative, uint will not
-        Assert.IsTrue(intResult < 0, "int result should be negative due to overflow");
+        Assert.IsLessThan(0, intResult, "int result should be negative due to overflow");
         Assert.AreEqual(2147483648u, uintResult, "uint result should be 2147483648");
     }
 

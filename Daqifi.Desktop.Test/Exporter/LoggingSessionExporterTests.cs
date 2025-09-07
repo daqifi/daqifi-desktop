@@ -212,7 +212,7 @@ public class OptimizedLoggingSessionExporterTests
         Assert.AreEqual(1001, lines.Length); // Header + 1000 data rows
         
         // Verify header
-        Assert.IsTrue(lines[0].StartsWith("Time,"));
+        Assert.StartsWith("Time,", lines[0]);
         
         // Verify first data row format
         var firstDataRow = lines[1].Split(',');
@@ -303,15 +303,15 @@ public class OptimizedLoggingSessionExporterTests
         var actualOutput = File.ReadAllText(exportFilePath);
         
         // Verify channels are sorted properly
-        Assert.IsTrue(actualOutput.Contains("device1:123:Channel 1"));
-        Assert.IsTrue(actualOutput.Contains("device1:123:Channel 2"));
-        Assert.IsTrue(actualOutput.Contains("device2:456:Channel 1"));
+        Assert.Contains("device1:123:Channel 1", actualOutput);
+        Assert.Contains("device1:123:Channel 2", actualOutput);
+        Assert.Contains("device2:456:Channel 1", actualOutput);
         
         var lines = File.ReadAllLines(exportFilePath);
         Assert.AreEqual(2, lines.Length); // Header + 1 data row
     }
 
-    private List<DataSample> GenerateLargeDataset(int channelCount, int samplesPerChannel)
+    private static List<DataSample> GenerateLargeDataset(int channelCount, int samplesPerChannel)
     {
         var samples = new List<DataSample>();
         var baseTime = new DateTime(2018, 2, 9, 1, 0, 0);

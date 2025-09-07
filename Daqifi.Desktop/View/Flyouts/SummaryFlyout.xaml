@@ -1,9 +1,9 @@
-﻿<Controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.SummaryFlyout"
+﻿<controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.SummaryFlyout"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
              xmlns:viewModels="clr-namespace:Daqifi.Desktop.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=viewModels:DaqifiViewModel}"
@@ -41,11 +41,11 @@
 
                 <Label Grid.Row="1" Grid.Column="0"
                            Content="Sample Size" FontSize="16" FontWeight="Bold" Margin="5"/>
-                <Controls:NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding SummaryLogger.SampleSize}" Minimum="1" Interval="1" Width="150" HorizontalAlignment="Left" ></Controls:NumericUpDown>
+                <controls:NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding SummaryLogger.SampleSize}" Minimum="1" Interval="1" Width="150" HorizontalAlignment="Left" ></controls:NumericUpDown>
 
                 <Label Grid.Row="2" Grid.Column="0"
                            Content="Status" FontSize="16" FontWeight="Bold" Margin="5"/>
-                <Controls:ToggleSwitch Grid.Row="2" Grid.Column="1"
+                <controls:ToggleSwitch Grid.Row="2" Grid.Column="1"
                                            Command="{Binding SummaryLogger.ToggleEnabledCommand}"
                                            IsOn="{Binding SummaryLogger.Enabled, Mode=OneWay}" OffContent="Stopped" OnContent="Running" HorizontalAlignment="Left"/>
                 <Button Grid.Row="2" Grid.Column="2" Content="Reset"  Command="{Binding SummaryLogger.ResetCommand}"/>
@@ -211,4 +211,4 @@
             </Grid>
         </ScrollViewer>
     </Grid>
-</Controls:Flyout>
+</controls:Flyout>

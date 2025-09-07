@@ -3,9 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:Daqifi.Desktop.View"
         xmlns:locals="clr-namespace:Daqifi.Desktop.Helpers"
+        xmlns:viewModels="clr-namespace:Daqifi.Desktop.ViewModels"
         mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=viewModels:AddProfileDialogViewModel}"
         xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         Title="Add Profile" ResizeMode="NoResize" Height="400" Width="500"
                       GlowBrush="{DynamicResource AccentColorBrush}">
@@ -15,7 +16,7 @@
 
     <Grid>
         <Border>
-            <DockPanel Name="AddProfile" HorizontalAlignment="Stretch"  VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
+            <DockPanel HorizontalAlignment="Stretch"  VerticalAlignment="Stretch" LastChildFill="True" Margin="5">
                 <!-- Add Channel Button -->
                 <Button Name="btnAdd" DockPanel.Dock="Bottom" IsEnabled="{Binding canAddProfile}"  Command="{Binding AddProfileCommand}" Click="btn_addprofile" Content="Add" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent}" controls:ControlsHelper.ContentCharacterCasing="Normal">
                     <Button.CommandParameter>
