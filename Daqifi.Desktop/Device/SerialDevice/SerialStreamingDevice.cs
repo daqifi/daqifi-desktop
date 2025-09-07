@@ -9,7 +9,22 @@ namespace Daqifi.Desktop.Device.SerialDevice;
 public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDevice
 {
     #region Properties
-    public SerialPort Port { get; set; }
+    private SerialPort? _port;
+    
+    public SerialPort? Port 
+    { 
+        get => _port; 
+        set 
+        { 
+            if (_port != value)
+            {
+                _port = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DisplayIdentifier));
+            }
+        } 
+    }
+    
     public override ConnectionType ConnectionType => ConnectionType.Usb;
     #endregion
 
@@ -331,6 +346,22 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     public void ForceBootloader()
     {
         MessageProducer.Send(ScpiMessageProducer.ForceBootloader);
+    }
+
+    /// <summary>
+    /// Returns the COM port name for this USB device
+    /// </summary>
+    protected override string GetUsbDisplayIdentifier()
+    {
+        try
+        {
+            var name = Port?.PortName;
+            return string.IsNullOrWhiteSpace(name) ? "USB" : name;
+        }
+        catch
+        {
+            return "USB";
+        }
     }
     #endregion
 }

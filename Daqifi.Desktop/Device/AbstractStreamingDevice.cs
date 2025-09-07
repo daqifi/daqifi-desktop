@@ -71,7 +71,41 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public string DeviceVersion { get; set; }
 
-    public string IpAddress { get; set; } = string.Empty;
+    private string _ipAddress = string.Empty;
+    
+    public string IpAddress 
+    { 
+        get => _ipAddress; 
+        set 
+        { 
+            if (_ipAddress != value)
+            {
+                _ipAddress = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DisplayIdentifier));
+            }
+        } 
+    }
+
+    /// <summary>
+    /// Gets the appropriate display identifier for this device based on connection type.
+    /// Returns COM port for USB devices, IP address for WiFi devices.
+    /// </summary>
+    public virtual string DisplayIdentifier => ConnectionType switch
+    {
+        ConnectionType.Usb => GetUsbDisplayIdentifier(),
+        ConnectionType.Wifi => IpAddress,
+        _ => "Unknown"
+    };
+
+    /// <summary>
+    /// Gets the COM port identifier for USB devices. Override in derived classes.
+    /// </summary>
+    /// <returns>COM port name for USB devices</returns>
+    protected virtual string GetUsbDisplayIdentifier()
+    {
+        return "USB";
+    }
 
     // Removed original StreamingFrequency property definition
 
