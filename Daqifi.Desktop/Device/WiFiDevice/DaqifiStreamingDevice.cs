@@ -37,6 +37,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     {
         try
         {
+            AppLogger.Information($"Attempting to connect to DAQiFi device at {IpAddress}:{Port}");
             Client = new TcpClient();
             var result = Client.BeginConnect(IpAddress, Port, null, null);
             var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
