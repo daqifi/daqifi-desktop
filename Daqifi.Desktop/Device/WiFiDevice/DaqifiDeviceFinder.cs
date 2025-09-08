@@ -69,6 +69,7 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
                     {
                          try
                          {
+                            AppLogger.Information($"Sending UDP broadcast to {endpoint}");
                             Client.Send(_queryCommandBytes, _queryCommandBytes.Length, endpoint);
                          }
                          catch (SocketException sockEx)
@@ -120,6 +121,8 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
             var remoteIpEndPoint = new IPEndPoint(IPAddress.Any, 8000);
             var receivedBytes = Client.EndReceive(res, ref remoteIpEndPoint);
             var receivedText = Encoding.ASCII.GetString(receivedBytes);
+            
+            AppLogger.Information($"Received UDP message from {remoteIpEndPoint}: {receivedText.Replace("\r\n", "\\r\\n")}");
 
             if (IsValidDiscoveryMessage(receivedText))
             {
@@ -194,13 +197,18 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
     private List<IPEndPoint> GetAllBroadcastEndpoints(int port)
     {
         var endpoints = new List<IPEndPoint>();
+        AppLogger.Information("Scanning network interfaces for UDP broadcast...");
+        
         foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
         {
+            AppLogger.Information($"Interface: {networkInterface.Name}, Type: {networkInterface.NetworkInterfaceType}, Status: {networkInterface.OperationalStatus}");
+            
             if (networkInterface.OperationalStatus != OperationalStatus.Up ||
                 !networkInterface.Supports(NetworkInterfaceComponent.IPv4) ||
                 (networkInterface.NetworkInterfaceType != NetworkInterfaceType.Ethernet &&
                  networkInterface.NetworkInterfaceType != NetworkInterfaceType.Wireless80211))
             {
+                AppLogger.Information($"Skipping interface {networkInterface.Name} - doesn't meet criteria");
                 continue;
             }
 
@@ -233,9 +241,10 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
                 }
 
                 var broadcastAddress = new IPAddress(broadcastBytes);
-
-                endpoints.Add(new IPEndPoint(broadcastAddress, port));
-
+                var endpoint = new IPEndPoint(broadcastAddress, port);
+                endpoints.Add(endpoint);
+                
+                AppLogger.Information($"Added broadcast endpoint: {endpoint} for interface {networkInterface.Name}");
                 break;
             }
         }

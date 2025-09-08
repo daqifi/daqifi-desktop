@@ -72,8 +72,8 @@ public static class FirewallConfiguration
                 return;
             }
 
-            // Create new rule with specific UDP port (21234 is DAQiFi's discovery port)
-            _firewallHelper.CreateUdpRule(RuleName, appPath, 21234);
+            // Create new rule with specific UDP port (30303 is DAQiFi's discovery port)
+            _firewallHelper.CreateUdpRule(RuleName, appPath, 30303);
         }
         catch (Exception ex)
         {

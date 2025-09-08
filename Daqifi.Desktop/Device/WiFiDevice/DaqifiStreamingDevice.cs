@@ -50,10 +50,13 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
 
             // Complete the asynchronous connection
             Client.EndConnect(result);
+            AppLogger.Information("TCP connection established successfully");
 
             MessageProducer = new MessageProducer(Client.GetStream());
             MessageProducer.Start();
+            AppLogger.Information("MessageProducer started");
 
+            AppLogger.Information("Sending initial device commands...");
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();
