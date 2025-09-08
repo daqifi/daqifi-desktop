@@ -47,6 +47,9 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 return false;
             }
 
+            // Complete the asynchronous connection
+            Client.EndConnect(result);
+
             MessageProducer = new MessageProducer(Client.GetStream());
             MessageProducer.Start();
 
