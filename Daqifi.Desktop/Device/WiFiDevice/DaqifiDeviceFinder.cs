@@ -73,7 +73,7 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
                          }
                          catch (SocketException sockEx)
                          {
-                             AppLogger.Warning($"Error sending broadcast to {endpoint}: {sockEx.Message}");
+                             AppLogger.Warning($"Error sending broadcast to {endpoint} (SocketError={sockEx.SocketErrorCode}): {sockEx.Message}");
                          }
                     }
                     Thread.Sleep(1000);
@@ -244,6 +244,10 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
         if (endpoints.Count == 0)
         {
             AppLogger.Warning("Could not find any suitable network interfaces for DAQiFi discovery broadcast.");
+        }
+        else
+        {
+            AppLogger.Information($"DAQiFi discovery will broadcast to {endpoints.Count} network endpoint(s)");
         }
 
         return endpoints;
