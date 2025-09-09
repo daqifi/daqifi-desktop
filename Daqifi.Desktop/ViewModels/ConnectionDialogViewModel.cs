@@ -56,7 +56,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     public void StartConnectionFinders()
     {
-        _wifiFinder = new DaqifiDeviceFinder(21234);
+        _wifiFinder = new DaqifiDeviceFinder(30303);
         _wifiFinder.OnDeviceFound += HandleWifiDeviceFound;
         _wifiFinder.OnDeviceRemoved += HandleWifiDeviceRemoved;
         _wifiFinder.Start();
