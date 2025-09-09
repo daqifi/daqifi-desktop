@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
-        Title="Device Already Connected" ResizeMode="NoResize" Width="480" Height="280" GlowBrush="{DynamicResource AccentColorBrush}">
+        Title="Device Already Connected" ResizeMode="NoResize" Width="480" Height="350" GlowBrush="{DynamicResource AccentColorBrush}">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -28,13 +28,11 @@
                   TextWrapping="Wrap" FontSize="14"/>
 
         <!-- Options -->
-        <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="10">
+        <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="10,20,10,10">
             <RadioButton x:Name="KeepExistingRadio" Content="{Binding KeepExistingText}" 
-                        IsChecked="True" Margin="5" FontSize="12"/>
+                        IsChecked="True" Margin="5,8" FontSize="12"/>
             <RadioButton x:Name="SwitchToNewRadio" Content="{Binding SwitchToNewText}" 
-                        Margin="5" FontSize="12"/>
-            <RadioButton x:Name="CancelRadio" Content="Cancel (don't connect)" 
-                        Margin="5" FontSize="12"/>
+                        Margin="5,8" FontSize="12"/>
         </StackPanel>
 
         <!-- Buttons -->

@@ -24,17 +24,13 @@ public partial class DuplicateDeviceDialog
 
     private void BtnOk_Click(object sender, RoutedEventArgs e)
     {
-        if (KeepExistingRadio.IsChecked == true)
-        {
-            Result = DuplicateDeviceDialogResult.KeepExisting;
-        }
-        else if (SwitchToNewRadio.IsChecked == true)
+        if (SwitchToNewRadio.IsChecked == true)
         {
             Result = DuplicateDeviceDialogResult.SwitchToNew;
         }
         else
         {
-            Result = DuplicateDeviceDialogResult.Cancel;
+            Result = DuplicateDeviceDialogResult.KeepExisting;
         }
 
         DialogResult = true;
