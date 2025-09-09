@@ -120,7 +120,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         {
             IpAddress = ManualIpAddress,
             DeviceName = "Manual IP Device",
-            Port = 30303 // DAQiFi TCP port
+            Port = 9760 // DAQiFi TCP data port (discovered from device response)
         };
 
         var device = new DaqifiStreamingDevice(deviceInfo);
