@@ -37,26 +37,22 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     {
         try
         {
-            AppLogger.Information($"Attempting to connect to DAQiFi device at {IpAddress}:{Port}");
             Client = new TcpClient();
             var result = Client.BeginConnect(IpAddress, Port, null, null);
             var success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
 
             if (!success)
             {
-                AppLogger.Error("Timeout connecting to DAQiFi Device.");
+                AppLogger.Error($"Timeout connecting to DAQiFi device at {IpAddress}:{Port}");
                 return false;
             }
 
             // Complete the asynchronous connection
             Client.EndConnect(result);
-            AppLogger.Information("TCP connection established successfully");
 
             MessageProducer = new MessageProducer(Client.GetStream());
             MessageProducer.Start();
-            AppLogger.Information("MessageProducer started");
 
-            AppLogger.Information("Sending initial device commands...");
             TurnOffEcho();
             StopStreaming();
             TurnDeviceOn();
