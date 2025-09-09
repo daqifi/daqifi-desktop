@@ -56,6 +56,25 @@ DatabaseLogger->>Database:Bulk Insert Buffer
 - Uses [Wix Toolset](https://wixtoolset.org/)
 - Separate solution `Daqifi.Desktop.Setup`
 
+## WiFi Device Connectivity
+
+DAQiFi Desktop discovers and connects to DAQiFi devices over WiFi using UDP broadcasts and TCP connections.
+
+### Network Requirements
+- **Same Network**: Computer and DAQiFi device must be on the same network/subnet
+- **Firewall**: UDP port 30303 must be allowed (configured automatically with admin privileges)
+- **Virtual Machines**: Use bridged networking mode for VM environments
+
+### Troubleshooting WiFi Discovery
+1. **Run as Administrator** - Required for automatic firewall configuration
+2. **Check Network Connection** - Ensure computer and device are on same WiFi network
+3. **Verify Connectivity** - Test with `ping <device-ip>` from command prompt
+4. **Manual Connection** - Use manual IP connection if discovery fails
+
+### Port Configuration
+- **UDP Discovery**: Port 30303 (device discovery broadcasts)
+- **TCP Data**: Device-specific port (varies by device, typically 9760)
+
 ## Contribution
 
 Please read [Contributing Guidelines](CONTRIBUTING.md) before contributing.
