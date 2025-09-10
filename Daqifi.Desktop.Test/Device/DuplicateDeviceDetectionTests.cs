@@ -17,9 +17,12 @@ public class DuplicateDeviceDetectionTests
     [TestInitialize]
     public void Setup()
     {
-        _connectionManager = new ConnectionManager();
+        _connectionManager = ConnectionManager.Instance;
         _mockDevice1 = new Mock<IStreamingDevice>();
         _mockDevice2 = new Mock<IStreamingDevice>();
+        
+        // Clear any existing devices to ensure clean test state
+        _connectionManager.ConnectedDevices.Clear();
     }
     #endregion
 
@@ -35,7 +38,7 @@ public class DuplicateDeviceDetectionTests
         _mockDevice1.Setup(d => d.Connect()).Returns(true);
         
         _mockDevice2.Setup(d => d.DeviceSerialNo).Returns(serialNumber);
-        _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.WiFi);
+        _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.Wifi);
 
         // Connect first device
         await _connectionManager.Connect(_mockDevice1.Object);
@@ -57,7 +60,7 @@ public class DuplicateDeviceDetectionTests
         _mockDevice1.Setup(d => d.Connect()).Returns(true);
         
         _mockDevice2.Setup(d => d.DeviceSerialNo).Returns("DAQ-67890");
-        _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.WiFi);
+        _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.Wifi);
         _mockDevice2.Setup(d => d.Connect()).Returns(true);
 
         // Act
@@ -78,7 +81,7 @@ public class DuplicateDeviceDetectionTests
         _mockDevice1.Setup(d => d.Connect()).Returns(true);
         
         _mockDevice2.Setup(d => d.DeviceSerialNo).Returns("");
-        _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.WiFi);
+        _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.Wifi);
         _mockDevice2.Setup(d => d.Connect()).Returns(true);
 
         // Act
@@ -102,7 +105,7 @@ public class DuplicateDeviceDetectionTests
         _mockDevice1.Setup(d => d.Connect()).Returns(true);
         
         _mockDevice2.Setup(d => d.DeviceSerialNo).Returns(serialNumber);
-        _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.WiFi);
+        _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.Wifi);
 
         _connectionManager.DuplicateDeviceHandler = (result) =>
         {
