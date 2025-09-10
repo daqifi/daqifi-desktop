@@ -73,7 +73,7 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
                          }
                          catch (SocketException sockEx)
                          {
-                             AppLogger.Warning($"Error sending broadcast to {endpoint}, {sockEx}");
+                             AppLogger.Warning($"Error sending broadcast to {endpoint} (SocketError={sockEx.SocketErrorCode}): {sockEx.Message}");
                          }
                     }
                     Thread.Sleep(1000);
@@ -194,6 +194,7 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
     private List<IPEndPoint> GetAllBroadcastEndpoints(int port)
     {
         var endpoints = new List<IPEndPoint>();
+        
         foreach (var networkInterface in NetworkInterface.GetAllNetworkInterfaces())
         {
             if (networkInterface.OperationalStatus != OperationalStatus.Up ||
@@ -233,16 +234,21 @@ public class DaqifiDeviceFinder : AbstractMessageConsumer, IDeviceFinder
                 }
 
                 var broadcastAddress = new IPAddress(broadcastBytes);
-
-                endpoints.Add(new IPEndPoint(broadcastAddress, port));
-
+                var endpoint = new IPEndPoint(broadcastAddress, port);
+                endpoints.Add(endpoint);
+                
                 break;
             }
         }
 
-        AppLogger.Information(endpoints.Count == 0
-            ? "Could not find any suitable network interfaces for DAQiFi discovery broadcast."
-            : $"DAQiFi Discovery broadcasting to: {string.Join(", ", endpoints.Select(ep => ep.Address.ToString()))}");
+        if (endpoints.Count == 0)
+        {
+            AppLogger.Warning("Could not find any suitable network interfaces for DAQiFi discovery broadcast.");
+        }
+        else
+        {
+            AppLogger.Information($"DAQiFi discovery will broadcast to {endpoints.Count} network endpoint(s)");
+        }
 
         return endpoints;
     }

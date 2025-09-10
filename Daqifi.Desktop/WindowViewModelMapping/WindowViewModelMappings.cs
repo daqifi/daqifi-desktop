@@ -20,7 +20,8 @@ public class WindowViewModelMappings : IWindowViewModelMappings
         {
             { typeof(DaqifiViewModel), typeof(string) },
             { typeof(ConnectionDialogViewModel), typeof(ConnectionDialog) },
-            { typeof(FirmwareDialogViewModel), typeof(FirmwareDialog) }
+            { typeof(FirmwareDialogViewModel), typeof(FirmwareDialog) },
+            { typeof(DuplicateDeviceDialogViewModel), typeof(DuplicateDeviceDialog) }
         };
     }
 

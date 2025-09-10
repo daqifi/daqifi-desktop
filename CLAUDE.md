@@ -170,13 +170,25 @@ catch (Exception ex)
 ## Device Communication
 
 The application communicates with DAQiFi devices using:
-- UDP for device discovery
-- TCP for data streaming and commands
-- Protocol Buffers for message serialization
+- **UDP for device discovery**: Port 30303 (broadcast queries and responses)
+- **TCP for data streaming**: Port varies by device (extracted from discovery response)
+- **Protocol Buffers**: Message serialization for both UDP and TCP
 
-Key classes:
-- `DaqifiDeviceFinder.cs` - Handles device discovery
-- `WiFiDevice` - Manages WiFi device connections
+### Port Configuration
+- **UDP Discovery Port**: 30303 (used in `DaqifiDeviceFinder` and firewall rules)
+- **TCP Data Port**: Device-specific (e.g., 9760) - discovered from `message.DevicePort` in protobuf response
+- **Manual IP connections**: Must use the same TCP port as discovered devices
+
+### Network Requirements
+- **Firewall Rule**: UDP port 30303 must be allowed for device discovery
+- **Admin Privileges**: Required for automatic firewall configuration
+- **Network Interface**: Application and device must be on same subnet for UDP broadcast discovery
+- **Virtual Machines**: Use bridged networking mode, not NAT/shared network
+
+### Key Classes
+- `DaqifiDeviceFinder.cs` - Handles UDP device discovery on port 30303
+- `DaqifiStreamingDevice.cs` - Manages TCP connections to devices
+- `FirewallManager.cs` - Configures Windows Firewall for UDP port 30303
 - Protocol buffer messages defined in `.proto` files
 
 ## Database
@@ -219,11 +231,13 @@ public void InitializeFirewallRules()
 ## Common Tasks
 
 When working on:
-- **Device connectivity**: Check `/Device/` directory
+- **Device connectivity**: Check `/Device/` directory and ensure network configuration
 - **UI changes**: Update both View and ViewModel following MVVM
 - **Data persistence**: Use Entity Framework patterns
 - **Protocol changes**: Update `.proto` files and regenerate
-- **Firewall/Network**: Ensure admin privileges handled properly
+- **Firewall/Network**: Ensure admin privileges handled properly, verify ports match
+- **WiFi Discovery Issues**: Check network interface detection and port configuration
+- **Manual IP Connections**: Ensure TCP port matches what device discovery reports
 - **New features**: Add unit tests with 80% coverage minimum
 
 ## Performance Considerations

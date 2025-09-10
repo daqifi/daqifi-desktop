@@ -51,7 +51,7 @@ public class FirewallConfigurationTests
         FirewallConfiguration.InitializeFirewallRules();
 
         // Assert
-        _mockFirewallHelper.Verify(f => f.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>(), 21234), Times.Once);
+        _mockFirewallHelper.Verify(f => f.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>(), 30303), Times.Once);
         _mockMessageBoxService.Verify(m => m.Show(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<MessageBoxButton>(), It.IsAny<MessageBoxImage>()), Times.Never);
     }
 
@@ -81,7 +81,7 @@ public class FirewallConfigurationTests
         // Arrange
         _mockAdminChecker.Setup(c => c.IsCurrentUserAdmin()).Returns(true);
         _mockFirewallHelper.Setup(f => f.RuleExists("DAQiFi Desktop")).Returns(false);
-        _mockFirewallHelper.Setup(f => f.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>(), 21234))
+        _mockFirewallHelper.Setup(f => f.CreateUdpRule(It.IsAny<string>(), It.IsAny<string>(), 30303))
             .Throws(new InvalidOperationException("Test exception"));
 
         // Act
