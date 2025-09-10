@@ -5,6 +5,7 @@ using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.DialogService;
+using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Models;
@@ -450,7 +451,7 @@ public partial class DaqifiViewModel : ObservableObject
         UploadFirmwareProgress = e.ProgressPercentage;
     }
     private BackgroundWorker _updateWiFiBackgroundWorker;
-    private async void InitializeUpdateWiFiBackgroundWorker()
+    private void InitializeUpdateWiFiBackgroundWorker()
     {
         _updateWiFiBackgroundWorker = new BackgroundWorker
         {
@@ -933,7 +934,7 @@ public partial class DaqifiViewModel : ObservableObject
                 var sessionsToDelete = LoggingManager.Instance.LoggingSessions.ToList();
                 var successfullyDeletedSessions = new List<LoggingSession>();
 
-                foreach(var session in sessionsToDelete)
+                foreach (var session in sessionsToDelete)
                 {
                     try
                     {
@@ -950,7 +951,7 @@ public partial class DaqifiViewModel : ObservableObject
                 {
                     Application.Current.Dispatcher.Invoke(delegate
                     {
-                        foreach(var sessionToRemove in successfullyDeletedSessions)
+                        foreach (var sessionToRemove in successfullyDeletedSessions)
                         {
                             LoggingManager.Instance.LoggingSessions.Remove(sessionToRemove);
                         }
@@ -1276,7 +1277,10 @@ public partial class DaqifiViewModel : ObservableObject
     {
         AvailableChannels.Clear();
 
-        foreach (var channel in device.DataChannels)
+        // Sort channels naturally by name before adding to collection
+        var sortedChannels = device.DataChannels.NaturalOrderBy(channel => channel.Name);
+
+        foreach (var channel in sortedChannels)
         {
             AvailableChannels.Add(channel);
         }
@@ -1517,7 +1521,7 @@ public partial class DaqifiViewModel : ObservableObject
             if (AvailableHidDevices.Count == 0) { HasNoHidDevices = true; }
         });
     }
-    public async Task UpdateConnectedDeviceUI()
+    public Task UpdateConnectedDeviceUI()
     {
         UploadFirmwareProgress = 0;
         UploadWiFiProgress = 0;
@@ -1528,7 +1532,7 @@ public partial class DaqifiViewModel : ObservableObject
             var DeviceVersion = SerailDeviceProperty.GetValue(connectedDevice)?.ToString();
             if (!string.IsNullOrEmpty(_latestFirmwareVersion))
             {
-                connectedDevice.IsFirmwareOutdated = Helpers.VersionHelper.Compare(DeviceVersion, _latestFirmwareVersion) < 0;
+                connectedDevice.IsFirmwareOutdated = VersionHelper.Compare(DeviceVersion, _latestFirmwareVersion) < 0;
             }
 
             ConnectedDevices.Add(connectedDevice);
@@ -1540,7 +1544,10 @@ public partial class DaqifiViewModel : ObservableObject
                 streamingDevice.SetDebugMode(IsDebugModeEnabled);
             }
         }
+
+        return Task.CompletedTask;
     }
+
     public async void UpdateUi(object sender, PropertyChangedEventArgs args)
     {
 
@@ -1567,7 +1574,12 @@ public partial class DaqifiViewModel : ObservableObject
             case "SubscribedChannels":
                 ActiveChannels.Clear();
                 ActiveInputChannels.Clear();
-                foreach (var channel in LoggingManager.Instance.SubscribedChannels)
+
+                // Sort channels naturally by name before adding to collections
+                var sortedChannels = LoggingManager.Instance.SubscribedChannels
+                    .NaturalOrderBy(channel => channel.Name);
+
+                foreach (var channel in sortedChannels)
                 {
                     if (!channel.IsOutput) // Condition changed to remove IsVisible filter
                     {

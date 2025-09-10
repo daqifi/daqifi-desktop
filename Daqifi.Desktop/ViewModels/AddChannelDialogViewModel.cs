@@ -1,5 +1,6 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using System.Collections;
 using System.Collections.ObjectModel;
@@ -46,9 +47,14 @@ public partial class AddChannelDialogViewModel : ObservableObject
     {
         AvailableChannels.Clear();
 
-        foreach(var channel in device.DataChannels)
+        // Sort channels naturally by name before adding to collection
+        var sortedChannels = device.DataChannels
+            .Where(channel => !channel.IsActive)
+            .NaturalOrderBy(channel => channel.Name);
+
+        foreach (var channel in sortedChannels)
         {
-            if(!channel.IsActive) AvailableChannels.Add(channel);
+            AvailableChannels.Add(channel);
         }
     }
 
@@ -58,7 +64,7 @@ public partial class AddChannelDialogViewModel : ObservableObject
     {
         var selectedChannels = ((IEnumerable)selectedItems).Cast<IChannel>().ToList();
 
-        if(selectedChannels.Count == 0)
+        if (selectedChannels.Count == 0)
         {
             return;
         }

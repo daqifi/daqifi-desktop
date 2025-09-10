@@ -2,6 +2,7 @@
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
+using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Models;
 using System.Collections;
@@ -132,9 +133,23 @@ public partial class AddProfileDialogViewModel : ObservableObject
     {
         try
         {
-            foreach (var channel in device.DataChannels)
+            // Get channels that aren't already in the collection
+            var newChannels = device.DataChannels
+                .Where(channel => !AvailableChannels.Any(x => x.Name == channel.Name && x.DeviceSerialNo == channel.DeviceSerialNo))
+                .ToList();
+
+            // Add new channels
+            foreach (var channel in newChannels)
             {
-                if (!AvailableChannels.Any(x => x.Name == channel.Name&&x.DeviceSerialNo==channel.DeviceSerialNo))
+                AvailableChannels.Add(channel);
+            }
+
+            // Sort the entire collection naturally by name after adding new channels
+            if (newChannels.Any())
+            {
+                var sortedChannels = AvailableChannels.NaturalOrderBy(channel => channel.Name).ToList();
+                AvailableChannels.Clear();
+                foreach (var channel in sortedChannels)
                 {
                     AvailableChannels.Add(channel);
                 }
@@ -158,7 +173,7 @@ public partial class AddProfileDialogViewModel : ObservableObject
             // Remove the channels
             foreach (var channel in channelsToRemove)
             {
-                var channelToRemove= AvailableChannels.ToList().FindIndex(x=>x.DeviceSerialNo==channel.DeviceSerialNo&&x.Name == channel.Name);
+                var channelToRemove = AvailableChannels.ToList().FindIndex(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name);
                 AvailableChannels.RemoveAt(channelToRemove);
             }
         }
@@ -226,8 +241,8 @@ public partial class AddProfileDialogViewModel : ObservableObject
                     };
                     foreach (var dataChannel in selectedDevice.DataChannels)
                     {
-                        var isSelected = selectedChannels.Any(sc => sc.Name == dataChannel.Name&&sc.DeviceSerialNo== selectedDevice.DeviceSerialNo);
-                        if(isSelected)
+                        var isSelected = selectedChannels.Any(sc => sc.Name == dataChannel.Name && sc.DeviceSerialNo == selectedDevice.DeviceSerialNo);
+                        if (isSelected)
                         {
                             var profileChannel = new ProfileChannel
                             {
