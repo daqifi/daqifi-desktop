@@ -29,6 +29,12 @@ public partial class ConnectionManager : ObservableObject
 
     public string ConnectionStatusString { get; set; } = "Disconnected";
 
+    /// <summary>
+    /// Callback for handling duplicate device situations. 
+    /// Should return the user's choice on how to handle the duplicate.
+    /// </summary>
+    public Func<DuplicateDeviceCheckResult, DuplicateDeviceAction> DuplicateDeviceHandler { get; set; }
+
     #endregion
 
     partial void OnConnectionStatusChanged(DAQifiConnectionStatus value)
@@ -69,12 +75,53 @@ public partial class ConnectionManager : ObservableObject
         try
         {
             ConnectionStatus = DAQifiConnectionStatus.Connecting;
+            
+            // Check for duplicate device before connecting
+            var duplicateResult = CheckForDuplicateDevice(device);
+            if (duplicateResult.IsDuplicate)
+            {
+                if (DuplicateDeviceHandler != null)
+                {
+                    var action = DuplicateDeviceHandler(duplicateResult);
+                    switch (action)
+                    {
+                        case DuplicateDeviceAction.KeepExisting:
+                            ConnectionStatus = DAQifiConnectionStatus.AlreadyConnected;
+                            return;
+                        case DuplicateDeviceAction.Cancel:
+                            ConnectionStatus = DAQifiConnectionStatus.Disconnected;
+                            return;
+                        case DuplicateDeviceAction.SwitchToNew:
+                            // Disconnect the existing device and continue with connection
+                            Disconnect(duplicateResult.ExistingDevice);
+                            break;
+                    }
+                }
+                else
+                {
+                    // No handler set, default behavior is to reject the duplicate
+                    ConnectionStatus = duplicateResult.ExistingDevice != null ? DAQifiConnectionStatus.AlreadyConnected : DAQifiConnectionStatus.Error;
+                    return;
+                }
+            }
+            
             var isConnected = await Task.Run(() => device.Connect());
             if (!isConnected)
             {
                 ConnectionStatus = DAQifiConnectionStatus.Error;
                 return;
             }
+            
+            // Check again after connection (in case serial number wasn't available before connect)
+            var postConnectDuplicateResult = CheckForDuplicateDevice(device);
+            if (postConnectDuplicateResult.IsDuplicate)
+            {
+                // Disconnect the device we just connected since it's a duplicate
+                device.Disconnect();
+                ConnectionStatus = postConnectDuplicateResult.ExistingDevice != null ? DAQifiConnectionStatus.AlreadyConnected : DAQifiConnectionStatus.Error;
+                return;
+            }
+            
             ConnectedDevices.Add(device);
             await Task.Delay(1000);
             OnPropertyChanged("ConnectedDevices");
@@ -184,6 +231,67 @@ public partial class ConnectionManager : ObservableObject
 
         bw.RunWorkerAsync();
     }
+
+    /// <summary>
+    /// Checks if a device is already connected by comparing serial numbers.
+    /// </summary>
+    /// <param name="newDevice">The device to check for duplicates</param>
+    /// <returns>A result indicating if the device is a duplicate and which existing device it matches</returns>
+    private DuplicateDeviceCheckResult CheckForDuplicateDevice(IStreamingDevice newDevice)
+    {
+        // If device doesn't have a serial number, we can't check for duplicates reliably
+        if (string.IsNullOrWhiteSpace(newDevice.DeviceSerialNo))
+        {
+            AppLogger.Instance.Information($"Device {newDevice.Name} has no serial number - cannot check for duplicates");
+            return new DuplicateDeviceCheckResult { IsDuplicate = false };
+        }
+
+        // Check if any existing device has the same serial number
+        var existingDevice = ConnectedDevices.FirstOrDefault(d => 
+            !string.IsNullOrWhiteSpace(d.DeviceSerialNo) && 
+            d.DeviceSerialNo.Equals(newDevice.DeviceSerialNo, StringComparison.OrdinalIgnoreCase));
+
+        if (existingDevice != null)
+        {
+            var newDeviceInterface = newDevice.ConnectionType == ConnectionType.Usb ? "USB" : "WiFi";
+            var existingDeviceInterface = existingDevice.ConnectionType == ConnectionType.Usb ? "USB" : "WiFi";
+            
+            AppLogger.Instance.Information($"Duplicate device detected: Device already connected via {existingDeviceInterface}, attempted to add via {newDeviceInterface}");
+            
+            return new DuplicateDeviceCheckResult 
+            { 
+                IsDuplicate = true, 
+                ExistingDevice = existingDevice,
+                NewDevice = newDevice,
+                NewDeviceInterface = newDeviceInterface,
+                ExistingDeviceInterface = existingDeviceInterface
+            };
+        }
+
+        return new DuplicateDeviceCheckResult { IsDuplicate = false };
+    }
+}
+
+/// <summary>
+/// Result of checking for duplicate devices
+/// </summary>
+public class DuplicateDeviceCheckResult
+{
+    public bool IsDuplicate { get; set; }
+    public IStreamingDevice ExistingDevice { get; set; }
+    public IStreamingDevice NewDevice { get; set; }
+    public string NewDeviceInterface { get; set; }
+    public string ExistingDeviceInterface { get; set; }
+}
+
+/// <summary>
+/// Actions that can be taken when a duplicate device is detected
+/// </summary>
+public enum DuplicateDeviceAction
+{
+    KeepExisting,
+    SwitchToNew,
+    Cancel
 }
 
 public enum DAQifiConnectionStatus
