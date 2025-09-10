@@ -2,6 +2,7 @@
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DataModel.Channel;
 using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Helpers;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
@@ -255,7 +256,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 var channelInfoList = dbSamples
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color })
                     .Distinct()
-                    .OrderBy(s => s.ChannelName)
+                    .NaturalOrderBy(s => s.ChannelName)
                     .ToList();
 
                 foreach (var chInfo in channelInfoList)
@@ -304,9 +305,9 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     // Assign data to series (ItemsSource)
                     // The key for _allSessionPoints must match how it was populated
                     var key = (series.Title.Split([" : ("], StringSplitOptions.None)[1].TrimEnd(')'), series.Title.Split([" : ("], StringSplitOptions.None)[0]);
-                    if(_allSessionPoints.TryGetValue(key, out var points))
+                    if (_allSessionPoints.TryGetValue(key, out var points))
                     {
-                         series.ItemsSource = points;
+                        series.ItemsSource = points;
                     }
                 }
 
