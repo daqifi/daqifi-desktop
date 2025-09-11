@@ -3,7 +3,7 @@
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Name="DAQiFi"
            Manufacturer="DAQiFi"
-           Version="1.1.0.0"
+           Version="3.0.1.0"
            UpgradeCode="ACA4F4E1-6DBB-47C0-A829-84AA1536C147"
            Language="1033">
 
