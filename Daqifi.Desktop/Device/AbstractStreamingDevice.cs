@@ -893,6 +893,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             MacAddress = ProtobufDecoder.GetMacAddressString(message);
         }
+
+        // Detect device type based on capabilities
+        DeviceType = DetectByCapabilities(message);
     }
 
     private void PopulateDigitalChannels(DaqifiOutMessage message)
@@ -1066,6 +1069,32 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             AppLogger.Error($"[DEBUG_MODE] Error creating debug data: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Detects device type based on hardware capabilities (analog in/out port counts)
+    /// </summary>
+    /// <param name="message">The device status message containing capability information</param>
+    /// <returns>Detected device type or Unknown if not recognized</returns>
+    protected DeviceType DetectByCapabilities(DaqifiOutMessage message)
+    {
+        var analogInPorts = message.AnalogInPortNum;
+        var analogOutPorts = message.AnalogOutPortNum;
+
+        // Nyquist 3: 8 analog in, 16 analog out ports
+        if (analogInPorts == 8 && analogOutPorts == 16)
+        {
+            return DeviceType.Nyquist3;
+        }
+
+        // Nyquist 1: 16 analog in, 0 analog out ports
+        if (analogInPorts == 16 && analogOutPorts == 0)
+        {
+            return DeviceType.Nyquist1;
+        }
+
+        // Return Unknown for unrecognized configurations
+        return DeviceType.Unknown;
     }
     #endregion
 }

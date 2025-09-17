@@ -1,5 +1,6 @@
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DataModel.Network;
+using Daqifi.Desktop.IO.Messages;
 
 namespace Daqifi.Desktop.Test.Device;
 
@@ -140,5 +141,172 @@ public class AbstractStreamingDeviceTests
         public override bool Disconnect() => true;
 
         public override bool Write(string command) => true;
+
+        // Expose protected methods for testing
+        public DeviceType TestDetectByCapabilities(DaqifiOutMessage message)
+        {
+            return DetectByCapabilities(message);
+        }
+
+        public void TestHydrateDeviceMetadata(DaqifiOutMessage message)
+        {
+            HydrateDeviceMetadata(message);
+        }
+    }
+
+    #region Capability Detection Tests
+
+    [TestMethod]
+    public void DetectByCapabilities_Nyquist3_ShouldReturnNyquist3()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var message = CreateTestMessage();
+        message.AnalogInPortNum = 8;   // Nyquist 3 has 8 analog in
+        message.AnalogOutPortNum = 16; // Nyquist 3 has 16 analog out
+
+        // Act
+        var result = device.TestDetectByCapabilities(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Nyquist3, result, "Should detect Nyquist3 with 8 AI and 16 AO ports");
+    }
+
+    [TestMethod]
+    public void DetectByCapabilities_Nyquist1_ShouldReturnNyquist1()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var message = CreateTestMessage();
+        message.AnalogInPortNum = 16;  // Nyquist 1 has 16 analog in
+        message.AnalogOutPortNum = 0;  // Nyquist 1 has 0 analog out
+
+        // Act
+        var result = device.TestDetectByCapabilities(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Nyquist1, result, "Should detect Nyquist1 with 16 AI and 0 AO ports");
+    }
+
+    [TestMethod]
+    public void DetectByCapabilities_UnknownConfiguration_ShouldReturnUnknown()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var message = CreateTestMessage();
+        message.AnalogInPortNum = 4;   // Unknown configuration
+        message.AnalogOutPortNum = 2;  // Unknown configuration
+
+        // Act
+        var result = device.TestDetectByCapabilities(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Unknown, result, "Should return Unknown for unrecognized configuration");
+    }
+
+    [TestMethod]
+    public void DetectByCapabilities_EdgeCase_ZeroPorts_ShouldReturnUnknown()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var message = CreateTestMessage();
+        message.AnalogInPortNum = 0;   // Edge case
+        message.AnalogOutPortNum = 0;  // Edge case
+
+        // Act
+        var result = device.TestDetectByCapabilities(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Unknown, result, "Should return Unknown for zero ports configuration");
+    }
+
+    [TestMethod]
+    public void DetectByCapabilities_PartialMatch_ShouldReturnUnknown()
+    {
+        // Arrange - Test partial matches that shouldn't trigger detection
+        var device = new TestStreamingDevice();
+        var testCases = new[]
+        {
+            new { AI = 8, AO = 0, Description = "8 AI, 0 AO (partial Nyquist3)" },
+            new { AI = 16, AO = 16, Description = "16 AI, 16 AO (partial match)" },
+            new { AI = 0, AO = 16, Description = "0 AI, 16 AO (partial Nyquist3)" }
+        };
+
+        foreach (var testCase in testCases)
+        {
+            // Arrange
+            var message = CreateTestMessage();
+            message.AnalogInPortNum = (uint)testCase.AI;
+            message.AnalogOutPortNum = (uint)testCase.AO;
+
+            // Act
+            var result = device.TestDetectByCapabilities(message);
+
+            // Assert
+            Assert.AreEqual(DeviceType.Unknown, result, $"Should return Unknown for {testCase.Description}");
+        }
+    }
+
+    [TestMethod]
+    public void HydrateDeviceMetadata_Integration_ShouldSetDeviceTypeAutomatically()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var message = CreateTestMessage();
+        message.AnalogInPortNum = 8;   // Nyquist 3 configuration
+        message.AnalogOutPortNum = 16;
+
+        // Verify initial state
+        Assert.AreEqual(DeviceType.Unknown, device.DeviceType, "Device should start with Unknown type");
+
+        // Act - Call the actual method that would be called during device initialization
+        device.TestHydrateDeviceMetadata(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Nyquist3, device.DeviceType, "Device type should be automatically detected and set to Nyquist3");
+    }
+
+    [TestMethod]
+    public void HydrateDeviceMetadata_Integration_Nyquist1_ShouldSetCorrectType()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var message = CreateTestMessage();
+        message.AnalogInPortNum = 16;  // Nyquist 1 configuration
+        message.AnalogOutPortNum = 0;
+
+        // Act
+        device.TestHydrateDeviceMetadata(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType, "Device type should be automatically set to Nyquist1");
+    }
+
+    [TestMethod]
+    public void HydrateDeviceMetadata_Integration_UnknownConfig_ShouldRemainUnknown()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var message = CreateTestMessage();
+        message.AnalogInPortNum = 4;   // Unknown configuration
+        message.AnalogOutPortNum = 2;
+
+        // Act
+        device.TestHydrateDeviceMetadata(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Unknown, device.DeviceType, "Device type should remain Unknown for unrecognized configuration");
+    }
+
+    #endregion
+
+    private DaqifiOutMessage CreateTestMessage()
+    {
+        return new DaqifiOutMessage
+        {
+            MsgTimeStamp = 1000,
+            DeviceSn = 12345,
+            DeviceFwRev = "1.0.0"
+        };
     }
 }
