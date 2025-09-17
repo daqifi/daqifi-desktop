@@ -1,3 +1,6 @@
+using Daqifi.Desktop.Device;
+using Daqifi.Desktop.DataModel.Network;
+
 namespace Daqifi.Desktop.Test.Device;
 
 [TestClass]
@@ -57,5 +60,85 @@ public class AbstractStreamingDeviceTests
         // Assert
         Assert.AreEqual("256", channel8Mask, "Channel 8 bit mask string should be '256'");
         Assert.AreEqual("32768", channel15Mask, "Channel 15 bit mask string should be '32768'");
+    }
+
+    [TestMethod]
+    public void DeviceType_Enum_ShouldHaveCorrectValues()
+    {
+        // Arrange & Act & Assert
+        Assert.AreEqual(0, (int)DeviceType.Unknown, "Unknown should have value 0");
+        Assert.AreEqual(1, (int)DeviceType.Nyquist1, "Nyquist1 should have value 1");
+        Assert.AreEqual(2, (int)DeviceType.Nyquist3, "Nyquist3 should have value 2");
+    }
+
+    [TestMethod]
+    public void DeviceType_EnumNames_ShouldMatchExpectedValues()
+    {
+        // Arrange & Act & Assert
+        Assert.AreEqual("Unknown", DeviceType.Unknown.ToString());
+        Assert.AreEqual("Nyquist1", DeviceType.Nyquist1.ToString());
+        Assert.AreEqual("Nyquist3", DeviceType.Nyquist3.ToString());
+    }
+
+    [TestMethod]
+    public void DeviceType_Property_ShouldDefaultToUnknown()
+    {
+        // Arrange & Act
+        var device = new TestStreamingDevice();
+
+        // Assert
+        Assert.AreEqual(DeviceType.Unknown, device.DeviceType, "DeviceType should default to Unknown");
+    }
+
+    [TestMethod]
+    public void DeviceType_Property_ShouldBeSettable()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+
+        // Act
+        device.DeviceType = DeviceType.Nyquist1;
+
+        // Assert
+        Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType, "DeviceType should be settable to Nyquist1");
+
+        // Act
+        device.DeviceType = DeviceType.Nyquist3;
+
+        // Assert
+        Assert.AreEqual(DeviceType.Nyquist3, device.DeviceType, "DeviceType should be settable to Nyquist3");
+    }
+
+    [TestMethod]
+    public void DeviceType_Property_ShouldNotifyPropertyChanged()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var propertyChanged = false;
+        device.PropertyChanged += (sender, e) =>
+        {
+            if (e.PropertyName == nameof(device.DeviceType))
+                propertyChanged = true;
+        };
+
+        // Act
+        device.DeviceType = DeviceType.Nyquist1;
+
+        // Assert
+        Assert.IsTrue(propertyChanged, "DeviceType property should notify PropertyChanged");
+    }
+
+    /// <summary>
+    /// Test implementation of AbstractStreamingDevice for testing purposes
+    /// </summary>
+    private class TestStreamingDevice : AbstractStreamingDevice
+    {
+        public override ConnectionType ConnectionType => ConnectionType.Usb;
+
+        public override bool Connect() => true;
+
+        public override bool Disconnect() => true;
+
+        public override bool Write(string command) => true;
     }
 }

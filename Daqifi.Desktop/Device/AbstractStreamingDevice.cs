@@ -16,6 +16,27 @@ using CommunityToolkit.Mvvm.ComponentModel; // Added using
 
 namespace Daqifi.Desktop.Device;
 
+/// <summary>
+/// Represents the type of DAQiFi device
+/// </summary>
+public enum DeviceType
+{
+    /// <summary>
+    /// Unknown or unspecified device type
+    /// </summary>
+    Unknown,
+
+    /// <summary>
+    /// Nyquist1 device type
+    /// </summary>
+    Nyquist1,
+
+    /// <summary>
+    /// Nyquist3 device type
+    /// </summary>
+    Nyquist3
+}
+
 // Added NativeMethods class for P/Invoke
 internal static partial class NativeMethods // Marked as partial
 {
@@ -45,6 +66,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     // Converted StreamingFrequency property to [ObservableProperty] field
     [ObservableProperty]
     private int _streamingFrequency = 1;
+
+    // DeviceType property with default value of Unknown
+    [ObservableProperty]
+    private DeviceType _deviceType = DeviceType.Unknown;
 
     private readonly Dictionary<string, DateTime> _previousTimestamps = [];
     private readonly Dictionary<string, uint?> _previousDeviceTimestamps = [];
