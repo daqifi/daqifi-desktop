@@ -1,5 +1,9 @@
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DataModel.Network;
+using Daqifi.Desktop.IO.Messages.Consumers;
+using Daqifi.Desktop.IO.Messages.Producers;
+using Daqifi.Core.Communication.Messages;
+using Moq;
 
 namespace Daqifi.Desktop.Test.Device;
 
@@ -139,7 +143,7 @@ public class AbstractStreamingDeviceTests
         };
 
         // Act
-        device.CallHydrateDeviceMetadata(message);
+        device.HydrateDeviceMetadata(message);
 
         // Assert
         Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType, "Should detect Nyquist1 from Nq1 part number");
@@ -157,7 +161,7 @@ public class AbstractStreamingDeviceTests
         };
 
         // Act
-        device.CallHydrateDeviceMetadata(message);
+        device.HydrateDeviceMetadata(message);
 
         // Assert
         Assert.AreEqual(DeviceType.Nyquist3, device.DeviceType, "Should detect Nyquist3 from Nq3 part number");
@@ -175,7 +179,7 @@ public class AbstractStreamingDeviceTests
         };
 
         // Act
-        device.CallHydrateDeviceMetadata(message);
+        device.HydrateDeviceMetadata(message);
 
         // Assert
         Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType, "Should detect Nyquist1 from uppercase NQ1");
@@ -192,7 +196,7 @@ public class AbstractStreamingDeviceTests
         };
 
         // Act
-        device.CallHydrateDeviceMetadata(message);
+        device.HydrateDeviceMetadata(message);
 
         // Assert
         Assert.AreEqual(DeviceType.Unknown, device.DeviceType, "Should default to Unknown for unrecognized part number");
@@ -210,7 +214,7 @@ public class AbstractStreamingDeviceTests
         };
 
         // Act
-        device.CallHydrateDeviceMetadata(message);
+        device.HydrateDeviceMetadata(message);
 
         // Assert
         Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType, "Should not change DeviceType when part number is empty");
@@ -228,10 +232,5 @@ public class AbstractStreamingDeviceTests
         public override bool Disconnect() => true;
 
         public override bool Write(string command) => true;
-
-        public void CallHydrateDeviceMetadata(DaqifiOutMessage message)
-        {
-            HydrateDeviceMetadata(message);
-        }
     }
 }
