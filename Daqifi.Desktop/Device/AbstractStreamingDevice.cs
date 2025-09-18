@@ -876,6 +876,15 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         if (!string.IsNullOrWhiteSpace(message.DevicePn))
         {
             DevicePartNumber = message.DevicePn;
+
+            DeviceType = message.DevicePn.ToLowerInvariant() switch
+            {
+                "nq1" => DeviceType.Nyquist1,
+                "nq3" => DeviceType.Nyquist3,
+                _ => DeviceType.Unknown
+            };
+
+            AppLogger.Information($"Detected device type: {DeviceType} from part number: {message.DevicePn}");
         }
         if (message.DeviceSn != 0)
         {

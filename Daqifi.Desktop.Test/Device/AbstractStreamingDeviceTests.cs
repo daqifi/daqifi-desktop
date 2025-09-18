@@ -128,6 +128,94 @@ public class AbstractStreamingDeviceTests
         Assert.IsTrue(propertyChanged, "DeviceType property should notify PropertyChanged");
     }
 
+    [TestMethod]
+    public void HydrateDeviceMetadata_ShouldDetectNyquist1FromPartNumber()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var message = new DaqifiOutMessage
+        {
+            DevicePn = "Nq1"
+        };
+
+        // Act
+        device.CallHydrateDeviceMetadata(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType, "Should detect Nyquist1 from Nq1 part number");
+        Assert.AreEqual("Nq1", device.DevicePartNumber, "Should set DevicePartNumber");
+    }
+
+    [TestMethod]
+    public void HydrateDeviceMetadata_ShouldDetectNyquist3FromPartNumber()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var message = new DaqifiOutMessage
+        {
+            DevicePn = "Nq3"
+        };
+
+        // Act
+        device.CallHydrateDeviceMetadata(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Nyquist3, device.DeviceType, "Should detect Nyquist3 from Nq3 part number");
+        Assert.AreEqual("Nq3", device.DevicePartNumber, "Should set DevicePartNumber");
+    }
+
+    [TestMethod]
+    public void HydrateDeviceMetadata_ShouldHandleCaseInsensitivePartNumber()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var message = new DaqifiOutMessage
+        {
+            DevicePn = "NQ1"
+        };
+
+        // Act
+        device.CallHydrateDeviceMetadata(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType, "Should detect Nyquist1 from uppercase NQ1");
+    }
+
+    [TestMethod]
+    public void HydrateDeviceMetadata_ShouldDefaultToUnknownForUnrecognizedPartNumber()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        var message = new DaqifiOutMessage
+        {
+            DevicePn = "UnknownDevice"
+        };
+
+        // Act
+        device.CallHydrateDeviceMetadata(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Unknown, device.DeviceType, "Should default to Unknown for unrecognized part number");
+    }
+
+    [TestMethod]
+    public void HydrateDeviceMetadata_ShouldNotChangeDeviceTypeWhenPartNumberIsEmpty()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        device.DeviceType = DeviceType.Nyquist1; // Set initial value
+        var message = new DaqifiOutMessage
+        {
+            DevicePn = ""
+        };
+
+        // Act
+        device.CallHydrateDeviceMetadata(message);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType, "Should not change DeviceType when part number is empty");
+    }
+
     /// <summary>
     /// Test implementation of AbstractStreamingDevice for testing purposes
     /// </summary>
@@ -140,5 +228,10 @@ public class AbstractStreamingDeviceTests
         public override bool Disconnect() => true;
 
         public override bool Write(string command) => true;
+
+        public void CallHydrateDeviceMetadata(DaqifiOutMessage message)
+        {
+            HydrateDeviceMetadata(message);
+        }
     }
 }
