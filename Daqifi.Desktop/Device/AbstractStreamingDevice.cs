@@ -857,7 +857,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    internal void HydrateDeviceMetadata(DaqifiOutMessage message)
+    protected void HydrateDeviceMetadata(DaqifiOutMessage message)
     {
         if (!string.IsNullOrWhiteSpace(message.Ssid))
         {
