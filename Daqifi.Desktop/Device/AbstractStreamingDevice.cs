@@ -857,12 +857,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    /// <summary>
-    /// Hydrates device metadata from a protobuf message.
-    /// Made public to enable testing of device detection logic.
-    /// </summary>
-    /// <param name="message">The protobuf message containing device metadata</param>
-    public void HydrateDeviceMetadata(DaqifiOutMessage message)
+    protected void HydrateDeviceMetadata(DaqifiOutMessage message)
     {
         if (!string.IsNullOrWhiteSpace(message.Ssid))
         {
@@ -881,14 +876,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         if (!string.IsNullOrWhiteSpace(message.DevicePn))
         {
             DevicePartNumber = message.DevicePn;
-
-            DeviceType = message.DevicePn.ToLowerInvariant() switch
-            {
-                "nq1" => DeviceType.Nyquist1,
-                "nq3" => DeviceType.Nyquist3,
-                _ => DeviceType.Unknown
-            };
-
+            DeviceType = DeviceTypeDetector.DetectFromPartNumber(message.DevicePn);
             AppLogger.Information($"Detected device type: {DeviceType} from part number: {message.DevicePn}");
         }
         if (message.DeviceSn != 0)

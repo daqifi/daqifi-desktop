@@ -133,91 +133,77 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
-    public void HydrateDeviceMetadata_ShouldDetectNyquist1FromPartNumber()
+    public void DetectFromPartNumber_ShouldReturnNyquist1_ForNq1()
     {
-        // Arrange
-        var device = new TestStreamingDevice();
-        var message = new DaqifiOutMessage
-        {
-            DevicePn = "Nq1"
-        };
-
-        // Act
-        device.HydrateDeviceMetadata(message);
+        // Arrange & Act
+        var deviceType = DeviceTypeDetector.DetectFromPartNumber("Nq1");
 
         // Assert
-        Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType, "Should detect Nyquist1 from Nq1 part number");
-        Assert.AreEqual("Nq1", device.DevicePartNumber, "Should set DevicePartNumber");
+        Assert.AreEqual(DeviceType.Nyquist1, deviceType, "Should detect Nyquist1 from Nq1 part number");
     }
 
     [TestMethod]
-    public void HydrateDeviceMetadata_ShouldDetectNyquist3FromPartNumber()
+    public void DetectFromPartNumber_ShouldReturnNyquist3_ForNq3()
     {
-        // Arrange
-        var device = new TestStreamingDevice();
-        var message = new DaqifiOutMessage
-        {
-            DevicePn = "Nq3"
-        };
-
-        // Act
-        device.HydrateDeviceMetadata(message);
+        // Arrange & Act
+        var deviceType = DeviceTypeDetector.DetectFromPartNumber("Nq3");
 
         // Assert
-        Assert.AreEqual(DeviceType.Nyquist3, device.DeviceType, "Should detect Nyquist3 from Nq3 part number");
-        Assert.AreEqual("Nq3", device.DevicePartNumber, "Should set DevicePartNumber");
+        Assert.AreEqual(DeviceType.Nyquist3, deviceType, "Should detect Nyquist3 from Nq3 part number");
     }
 
     [TestMethod]
-    public void HydrateDeviceMetadata_ShouldHandleCaseInsensitivePartNumber()
+    public void DetectFromPartNumber_ShouldBeCaseInsensitive()
     {
-        // Arrange
-        var device = new TestStreamingDevice();
-        var message = new DaqifiOutMessage
-        {
-            DevicePn = "NQ1"
-        };
-
-        // Act
-        device.HydrateDeviceMetadata(message);
+        // Arrange & Act
+        var nq1Upper = DeviceTypeDetector.DetectFromPartNumber("NQ1");
+        var nq1Lower = DeviceTypeDetector.DetectFromPartNumber("nq1");
+        var nq1Mixed = DeviceTypeDetector.DetectFromPartNumber("Nq1");
 
         // Assert
-        Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType, "Should detect Nyquist1 from uppercase NQ1");
+        Assert.AreEqual(DeviceType.Nyquist1, nq1Upper, "Should detect Nyquist1 from uppercase NQ1");
+        Assert.AreEqual(DeviceType.Nyquist1, nq1Lower, "Should detect Nyquist1 from lowercase nq1");
+        Assert.AreEqual(DeviceType.Nyquist1, nq1Mixed, "Should detect Nyquist1 from mixed case Nq1");
     }
 
     [TestMethod]
-    public void HydrateDeviceMetadata_ShouldDefaultToUnknownForUnrecognizedPartNumber()
+    public void DetectFromPartNumber_ShouldReturnUnknown_ForUnrecognizedPartNumber()
     {
-        // Arrange
-        var device = new TestStreamingDevice();
-        var message = new DaqifiOutMessage
-        {
-            DevicePn = "UnknownDevice"
-        };
-
-        // Act
-        device.HydrateDeviceMetadata(message);
+        // Arrange & Act
+        var deviceType = DeviceTypeDetector.DetectFromPartNumber("UnknownDevice");
 
         // Assert
-        Assert.AreEqual(DeviceType.Unknown, device.DeviceType, "Should default to Unknown for unrecognized part number");
+        Assert.AreEqual(DeviceType.Unknown, deviceType, "Should default to Unknown for unrecognized part number");
     }
 
     [TestMethod]
-    public void HydrateDeviceMetadata_ShouldNotChangeDeviceTypeWhenPartNumberIsEmpty()
+    public void DetectFromPartNumber_ShouldReturnUnknown_ForEmptyString()
     {
-        // Arrange
-        var device = new TestStreamingDevice();
-        device.DeviceType = DeviceType.Nyquist1; // Set initial value
-        var message = new DaqifiOutMessage
-        {
-            DevicePn = ""
-        };
-
-        // Act
-        device.HydrateDeviceMetadata(message);
+        // Arrange & Act
+        var deviceType = DeviceTypeDetector.DetectFromPartNumber("");
 
         // Assert
-        Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType, "Should not change DeviceType when part number is empty");
+        Assert.AreEqual(DeviceType.Unknown, deviceType, "Should return Unknown for empty string");
+    }
+
+    [TestMethod]
+    public void DetectFromPartNumber_ShouldReturnUnknown_ForNull()
+    {
+        // Arrange & Act
+        var deviceType = DeviceTypeDetector.DetectFromPartNumber(null);
+
+        // Assert
+        Assert.AreEqual(DeviceType.Unknown, deviceType, "Should return Unknown for null");
+    }
+
+    [TestMethod]
+    public void DetectFromPartNumber_ShouldReturnUnknown_ForWhitespace()
+    {
+        // Arrange & Act
+        var deviceType = DeviceTypeDetector.DetectFromPartNumber("   ");
+
+        // Assert
+        Assert.AreEqual(DeviceType.Unknown, deviceType, "Should return Unknown for whitespace");
     }
 
     /// <summary>
