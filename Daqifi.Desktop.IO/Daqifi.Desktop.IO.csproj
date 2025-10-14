@@ -17,6 +17,7 @@
 		</PackageReference>
 	</ItemGroup>
 	<ItemGroup>
+  	<PackageReference Include="System.IO.Ports" Version="9.0.9" />
 		<ProjectReference Include="..\Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj" />
 		<ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj" />
 	</ItemGroup>
