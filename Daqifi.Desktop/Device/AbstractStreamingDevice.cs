@@ -857,7 +857,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    protected void HydrateDeviceMetadata(DaqifiOutMessage message)
+    /// <summary>
+    /// Hydrates device metadata from a protobuf message.
+    /// Made public to enable testing of device detection logic.
+    /// </summary>
+    /// <param name="message">The protobuf message containing device metadata</param>
+    public void HydrateDeviceMetadata(DaqifiOutMessage message)
     {
         if (!string.IsNullOrWhiteSpace(message.Ssid))
         {
