@@ -3,11 +3,38 @@
 ## Overview
 This document outlines the iterative migration plan to gradually move functionality from `daqifi-desktop` to `daqifi-core`, creating a clean separation between core device communication logic and desktop-specific UI/application concerns.
 
-## Current State
-- Desktop app uses `Daqifi.Core 0.2.1`
-- Desktop has rich `IDevice`/`IStreamingDevice` interfaces with comprehensive functionality
-- Core 0.3.0 provides cleaner, event-driven interfaces but with basic implementations
-- Significant overlap in messaging and device communication concepts
+## Current State (Updated 2025-10-16)
+
+**Desktop (daqifi-desktop)**:
+- Production-ready WPF application with 80% test coverage
+- Comprehensive device communication (WiFi, Serial, USB)
+- 1,073-line `AbstractStreamingDevice` with all device logic
+- UDP discovery, channel management, data streaming, SD card, firmware updates
+- Currently uses `Daqifi.Core 0.4.1`
+
+**Core (daqifi-core v0.4.1)**:
+- ✅ **Phase 1-2 Complete**: Foundation and message system (59/59 tests passing)
+- ✅ Clean interfaces (`IDevice`, `IStreamingDevice`, `IMessageProducer`, `IMessageConsumer`)
+- ✅ Transport abstractions (TCP, Serial - UDP needed)
+- ✅ SCPI command producer (45+ commands)
+- ✅ Protocol Buffer support
+- ❌ **Missing**: Device discovery, channels, streaming pipeline, advanced features (Phases 3-7)
+
+**Integration Status**:
+- ⚠️ **CoreDeviceAdapter (v0.4.1) NOT production-ready** - See Issue #39
+- Integration attempted prematurely before core functionality complete
+- Resulted in code bloat (143 lines added, 0 removed) instead of drop-in replacement
+- **Recommendation**: Focus on Phases 3-7 before attempting integration
+
+**Phase Progress**:
+- ✅ Phase 1: Foundation (Complete)
+- ✅ Phase 2: Message System (Complete)
+- 🔄 Phase 3: Connection Management (Partial - TCP/Serial done, UDP needed)
+- ⏳ Phase 4: Device Discovery (Not started)
+- ⏳ Phase 5: Channel Management (Not started - Critical gap)
+- ⏳ Phase 6: Protocol Implementation (Not started)
+- ⏳ Phase 7: Advanced Features (Not started)
+- 🚫 Phase 8: Desktop Integration (Deferred until 3-7 complete)
 
 ## Migration Principles
 1. **Iterative Approach**: Each phase should be deployable and testable
@@ -25,111 +52,428 @@ This document outlines the iterative migration plan to gradually move functional
 
 **Deliverable**: Desktop app running on Core 0.3.0
 
-## Phase 2: Message System Migration (Core 0.4.0)
+## Phase 2: Message System Migration ✅ (Core 0.4.0)
 **Goal**: Migrate to core's message system while preserving desktop functionality
 
-### 2.1 Message Interface Alignment
-- Extend core `IOutboundMessage<T>` to support desktop's message patterns
-- Create adapters for existing desktop message producers/consumers
-- Migrate `ScpiMessageProducer` usage to core implementation
+**Status**: Complete - All tests passing (59/59)
 
-### 2.2 Device Discovery Enhancement
-- Move device discovery logic from desktop to core
-- Create `IDeviceFinder` interface in core
-- Implement WiFi, USB, and Serial device finders in core
-- Keep desktop finders as adapters during transition
+### 2.1 Message Interface Alignment ✅
+- [x] Extend core `IOutboundMessage<T>` to support desktop's message patterns
+- [x] Create adapters for existing desktop message producers/consumers
+- [x] Migrate `ScpiMessageProducer` usage to core implementation
+- [x] Generic `MessageProducer<T>` with background threading
+- [x] Thread-safe message queuing with `ConcurrentQueue<T>`
 
-**Deliverable**: Core 0.4.0 with enhanced messaging and device discovery
+### 2.2 Message Consumer ✅
+- [x] `IMessageConsumer<T>` interface with lifecycle management
+- [x] `StreamMessageConsumer<T>` with background thread processing
+- [x] Pluggable message parsers (`IMessageParser<T>`)
+- [x] Line-based parser for SCPI/text responses
+- [x] Protobuf parser for binary messages
+- [x] Composite parser for multiple formats
+
+### Success Criteria
+- [x] Core `MessageProducer<T>` functionally equivalent to desktop's implementation
+- [x] Thread-safe background message processing
+- [x] Cross-platform compatibility (no Windows-specific dependencies)
+- [x] Backward compatibility maintained
+- [x] 80%+ test coverage
+
+**Deliverable**: Core 0.4.0 with enhanced messaging ✅
+
+**GitHub Issues**: [Closed #32](https://github.com/daqifi/daqifi-core/issues/32)
 
 ## Phase 3: Connection Management (Core 0.5.0)
 **Goal**: Move connection lifecycle management to core
 
+**Status**: Partial - TCP/Serial transports exist, UDP and advanced features needed
+
 ### 3.1 Transport Layer Abstraction
-- Create transport interfaces in core (`ITransport`, `ITcpTransport`, `IUdpTransport`, `ISerialTransport`)
-- Move actual socket/connection management to core
-- Desktop devices become wrappers around core transport implementations
+- [x] Create `IStreamTransport` base interface
+- [x] Implement `TcpStreamTransport` for TCP connections
+- [x] Implement `SerialStreamTransport` for serial/USB connections
+- [ ] Create `IUdpTransport` interface for UDP communication
+- [ ] Implement `UdpStreamTransport` for broadcast/unicast
+- [ ] Add WiFi-specific connection logic (buffer clearing, device ports)
+- [ ] Connection retry logic with configurable timeouts
+- [ ] Connection pooling for multiple simultaneous devices
 
 ### 3.2 Connection State Management
-- Enhance core's `ConnectionStatus` enum to match desktop needs
-- Migrate connection retry logic to core
-- Preserve desktop's `INotifyPropertyChanged` for UI binding
+- [x] `ConnectionStatus` enum (Disconnected, Connecting, Connected)
+- [x] Event-driven status change notifications
+- [ ] Connection retry logic with exponential backoff
+- [ ] Connection timeout configuration per transport type
+- [ ] Thread-safe connection state transitions
+- [ ] Proper resource cleanup on connection failures
+
+### 3.3 Desktop-Specific Features
+- [ ] WiFi device buffer clearing (`ClearBuffer()`)
+- [ ] Device-specific configuration (`IsWifiDevice` flag)
+- [ ] Safe shutdown patterns (`StopSafely()` ensuring queue is empty)
+- [ ] DTR control for serial devices (power management)
+
+### Success Criteria
+- [ ] UDP transport with broadcast discovery support
+- [ ] Connection retry with configurable attempts and delays
+- [ ] Connection pooling/management for multiple devices
+- [ ] Platform-specific serial port handling
+- [ ] WiFi-specific buffer clearing capability
+- [ ] All transport types support async/await patterns
+- [ ] 80%+ test coverage for transport layer
+
+### Desktop Migration Impact
+Once complete, desktop can:
+- Replace `DaqifiStreamingDevice.Connect()` with `TcpStreamTransport` from core
+- Replace `SerialStreamingDevice.Connect()` with `SerialStreamTransport` from core
+- Remove desktop connection retry logic, use core's implementation
 
 **Deliverable**: Core 0.5.0 with robust connection management
 
-## Phase 4: Device Implementation Migration (Core 0.6.0)
-**Goal**: Move core device logic while preserving desktop-specific features
+**GitHub Issues**: [#48](https://github.com/daqifi/daqifi-core/issues/48)
 
-### 4.1 Core Device Implementations
-- Enhance core `DaqifiDevice` with actual TCP/UDP communication
-- Implement core `DaqifiStreamingDevice` with basic streaming
-- Move protocol buffer handling to core
+## Phase 4: Device Discovery Framework (Core 0.6.0)
+**Goal**: Move device discovery logic from desktop to core
 
-### 4.2 Desktop Device Adapters
-- Create `DesktopDeviceAdapter` that wraps core devices
-- Preserve desktop-specific features (SD card, network config, firmware management)
-- Maintain desktop's rich interface while delegating core functionality
+**Status**: Not started - Deferred from Phase 2
 
-**Deliverable**: Core 0.6.0 with working device implementations
+### 4.1 Device Discovery Interfaces
+- [ ] Create `IDeviceFinder` interface for device discovery
+- [ ] Create `IDeviceInfo` interface/class for discovered device metadata
+- [ ] Support for multiple discovery mechanisms (WiFi, Serial, USB HID)
+- [ ] Async discovery with cancellation token support
+- [ ] Event-based discovery notifications (device found, discovery complete)
 
-## Phase 5: Channel Management (Core 0.7.0)
+### 4.2 WiFi Device Discovery
+- [ ] Implement `WiFiDeviceFinder` using UDP broadcast
+- [ ] UDP broadcast on port 30303 with "DAQiFi?\r\n" query
+- [ ] Parse protobuf responses (IP, MAC, port, hostname, serial, firmware)
+- [ ] Network interface enumeration and selection
+- [ ] Timeout and retry configuration
+
+### 4.3 Serial Device Discovery
+- [ ] Implement `SerialDeviceFinder` for USB/Serial enumeration
+- [ ] Serial port scanning with device info queries
+- [ ] `TryGetDeviceInfo()` pattern with quick connection attempts
+- [ ] Configurable baud rates and DTR control
+
+### 4.4 USB HID Device Discovery
+- [ ] Implement `HidDeviceFinder` for bootloader mode devices
+- [ ] HID device enumeration (VendorId: 0x4D8, ProductId: 0x03C)
+- [ ] Device mode detection (normal vs bootloader)
+
+### 4.5 Device Info Extraction
+- [ ] Parse device metadata from protobuf messages
+- [ ] Extract IP, MAC, TCP port, hostname, serial, firmware version
+- [ ] Device type detection from part numbers
+- [ ] Power status information
+
+### Success Criteria
+- [ ] `IDeviceFinder` interface with async discovery
+- [ ] WiFi discovery finds devices on same subnet within 5 seconds
+- [ ] Serial discovery enumerates all available ports
+- [ ] HID discovery identifies bootloader devices
+- [ ] Device info parsing extracts all relevant metadata
+- [ ] Event-based notifications during discovery
+- [ ] Cancellation token support
+- [ ] 80%+ test coverage with mock responses
+
+### Desktop Migration Impact
+Once complete, desktop can:
+- Replace `DaqifiDeviceFinder` with `WiFiDeviceFinder` from core
+- Replace `SerialDeviceFinder` with core implementation
+- Replace `HidDeviceFinder` with core implementation
+- Remove device enumeration logic from desktop
+
+**Deliverable**: Core 0.6.0 with device discovery framework
+
+**GitHub Issues**: [#49](https://github.com/daqifi/daqifi-core/issues/49)
+
+## Phase 5: Channel Management & Data Streaming (Core 0.7.0)
 **Goal**: Migrate channel configuration and data handling
 
-### 5.1 Channel Abstraction
-- Create core channel interfaces (`IChannel`, `IAnalogChannel`, `IDigitalChannel`)
-- Move channel configuration logic to core
-- Preserve desktop's channel UI models as wrappers
+**Status**: Not started - Critical gap identified
 
-### 5.2 Data Streaming
-- Implement core data streaming pipeline
-- Move timestamp correlation and data parsing to core
-- Keep desktop's data visualization and logging as consumers
+### 5.1 Channel Abstraction
+- [ ] Create `IChannel` base interface
+- [ ] Create `IAnalogChannel` interface for analog inputs
+- [ ] Create `IDigitalChannel` interface for digital I/O
+- [ ] Create `IOutputChannel` interface for outputs
+- [ ] Implement `AnalogChannel`, `DigitalChannel`, `OutputChannel` classes
+- [ ] Channel enable/disable functionality
+- [ ] Channel configuration (range, resolution, direction)
+
+### 5.2 Data Sample Handling
+- [ ] Create `IDataSample` interface for data points
+- [ ] Implement `DataSample` class with timestamp and value
+- [ ] Support for multiple data types (int, float, bool)
+- [ ] Thread-safe active sample management
+- [ ] Sample history/buffering support
+
+### 5.3 Data Scaling & Calibration
+- [ ] Calibration parameter support (CalibrationM, CalibrationB)
+- [ ] Port range configuration
+- [ ] Resolution-based scaling
+- [ ] Internal scale factors
+- [ ] Scaling formula: `(RawValue / Resolution * PortRange * CalibrationM + CalibrationB) * InternalScaleM`
+- [ ] Expression evaluation support (optional)
+
+### 5.4 Channel Configuration Commands
+- [ ] ADC channel enable/disable SCPI commands
+- [ ] Digital I/O direction configuration
+- [ ] Output value setting
+- [ ] Range and resolution configuration
+- [ ] Channel metadata queries
+
+### 5.5 Streaming Data Pipeline
+- [ ] Parse streaming messages with channel data
+- [ ] Update channel active samples from stream
+- [ ] Timestamp correlation and synchronization
+- [ ] Timestamp rollover handling (32-bit overflow)
+- [ ] Multi-channel sample grouping
+- [ ] Data event notifications
+
+### Success Criteria
+- [ ] `IChannel` interface matches desktop channel capabilities
+- [ ] Data scaling accuracy within 0.01% of desktop implementation
+- [ ] Timestamp correlation handles rollover correctly
+- [ ] Thread-safe sample updates for high-frequency streaming
+- [ ] Channel configuration commands in SCPI producer
+- [ ] Event-driven sample notifications
+- [ ] 80%+ test coverage including scaling edge cases
+
+### Desktop Migration Impact
+Once complete, desktop can:
+- Replace `IChannel` with core implementation
+- Replace `AnalogChannel` with core implementation
+- Replace `DigitalChannel` with core implementation
+- Replace `DataSample` with core implementation
+- Remove data scaling logic from `AbstractStreamingDevice`
+- Use core channel objects for configuration
 
 **Deliverable**: Core 0.7.0 with channel management and streaming
 
-## Phase 6: Protocol Implementation (Core 0.8.0)
+**GitHub Issues**: [#50](https://github.com/daqifi/daqifi-core/issues/50)
+
+## Phase 6: Protocol Implementation & Device Logic (Core 0.8.0)
 **Goal**: Move protocol-specific communication to core
 
+**Status**: Not started - Protocol foundations exist
+
 ### 6.1 Protocol Handlers
-- Implement SCPI command handling in core
-- Move protobuf message serialization/deserialization to core
-- Create protocol-agnostic message routing
+- [ ] Complete SCPI command handling (expand existing `ScpiMessageProducer`)
+- [ ] Protobuf message serialization/deserialization (expand existing support)
+- [ ] Protocol-agnostic message routing
+- [ ] Response parsing and validation
+- [ ] Error response handling
+- [ ] Command/response correlation
 
 ### 6.2 Device-Specific Logic
-- Move device model detection to core
-- Implement firmware version handling in core
-- Preserve desktop's firmware update UI while using core logic
+- [ ] Device model detection from part numbers
+- [ ] Firmware version parsing and comparison
+- [ ] Device capability detection (streaming, SD card, WiFi)
+- [ ] Device state machine (initialization, ready, streaming, error)
+- [ ] Device metadata management
+
+### 6.3 SCPI Command Extensions
+Ensure all desktop SCPI commands are in core:
+- [ ] Device control (reboot, bootloader, power)
+- [ ] Channel configuration (ADC, digital I/O)
+- [ ] Streaming control (start/stop, frequency, format)
+- [ ] Network configuration (WiFi SSID/password, LAN settings)
+- [ ] SD card operations (enable/disable, file list, file retrieval)
+- [ ] Timestamp synchronization
+- [ ] Device information queries
+
+### 6.4 Protobuf Message Handling
+- [ ] Status message parsing (device info, channel config)
+- [ ] Streaming message parsing (continuous data)
+- [ ] SD card message parsing (file listings - text format)
+- [ ] Error message parsing
+- [ ] Message type detection and routing
+
+### 6.5 Device Initialization Sequence
+- [ ] Disable device echo
+- [ ] Stop any running streaming
+- [ ] Turn device on (if needed)
+- [ ] Set protobuf message format
+- [ ] Query device info and capabilities
+- [ ] Configure initial state
+- [ ] Validate successful initialization
+
+### Success Criteria
+- [ ] All desktop SCPI commands available in core
+- [ ] Protocol handlers route messages correctly by type
+- [ ] Device initialization sequence matches desktop behavior
+- [ ] Device type detection from part numbers
+- [ ] Firmware version comparison logic
+- [ ] Error responses handled gracefully
+- [ ] 80%+ test coverage for protocol handling
+
+### Desktop Migration Impact
+Once complete, desktop can:
+- Use core's `InitializeDeviceAsync()` for device setup
+- Use core protocol handlers for message routing
+- Use core's device type detection logic
+- Fully migrate to core's `ScpiMessageProducer`
+- Use core's protobuf parsers
 
 **Deliverable**: Core 0.8.0 with complete protocol implementation
+
+**GitHub Issues**: [#51](https://github.com/daqifi/daqifi-core/issues/51)
 
 ## Phase 7: Advanced Features (Core 0.9.0)
 **Goal**: Migrate remaining shared functionality
 
-### 7.1 Device Configuration
-- Move network configuration logic to core
-- Implement device settings persistence in core
-- Create configuration synchronization between devices and applications
+**Status**: Not started - Desktop-specific features
 
-### 7.2 Logging and Diagnostics
-- Move device-level logging to core
-- Implement core diagnostic interfaces
-- Preserve desktop's log visualization while using core logging
+### 7.1 Network Configuration
+- [ ] WiFi SSID and password configuration
+- [ ] WiFi security mode selection (Open, WEP, WPA, WPA2)
+- [ ] LAN settings (IP address, subnet, gateway)
+- [ ] Network configuration persistence on device
+- [ ] Network status queries
+- [ ] Apply configuration and reboot sequence
+- [ ] `INetworkConfigurable` interface
+
+### 7.2 SD Card Operations
+- [ ] Enable/disable SD card logging mode
+- [ ] File listing (text-based response handling)
+- [ ] File retrieval from device
+- [ ] SD card format commands
+- [ ] Storage capacity queries
+- [ ] File management (delete, rename)
+- [ ] Text message consumer for SD card responses (non-protobuf)
+- [ ] `ISdCardSupport` interface
+
+### 7.3 Device Configuration Persistence
+- [ ] Device settings save/load
+- [ ] Configuration validation
+- [ ] Default configuration restoration
+- [ ] Configuration versioning
+- [ ] Cross-device configuration compatibility
+
+### 7.4 Firmware Update Support
+- [ ] Firmware version comparison and validation
+- [ ] Bootloader mode detection and entry
+- [ ] Firmware upload protocol (HID-based)
+- [ ] Upload progress tracking
+- [ ] Firmware verification
+- [ ] Device reboot after update
+- [ ] Rollback on failure
+- [ ] `IFirmwareUpdateSupport` interface
+
+### 7.5 Logging and Diagnostics
+- [ ] Device-level logging interface
+- [ ] Diagnostic message capture
+- [ ] Performance metrics (connection time, message latency)
+- [ ] Error tracking and reporting
+- [ ] Debug mode with verbose logging
+
+### Success Criteria
+- [ ] Network configuration can be set and persisted
+- [ ] SD card file operations work with text-based responses
+- [ ] Firmware updates complete successfully with progress tracking
+- [ ] Configuration persistence across device reboots
+- [ ] Diagnostic logging captures device-level events
+- [ ] All operations support async/await patterns
+- [ ] 80%+ test coverage with mock device responses
+
+### Desktop Migration Impact
+Once complete, desktop can:
+- Use core's `INetworkConfigurable` for network configuration UI
+- Use core's `ISdCardSupport` for SD card operations
+- Use core's `IFirmwareUpdateSupport` for firmware updates
+- Use core's diagnostic interfaces for device logging
+- Use core's configuration persistence
 
 **Deliverable**: Core 0.9.0 with advanced device features
 
-## Phase 8: Finalization (Core 1.0.0)
-**Goal**: Clean up and stabilize APIs
+**GitHub Issues**: [#52](https://github.com/daqifi/daqifi-core/issues/52)
 
-### 8.1 API Stabilization
-- Review and finalize all core interfaces
-- Remove deprecated adapter patterns
-- Ensure comprehensive documentation
+## Phase 8: Desktop Integration & Finalization (Core 1.0.0)
+**Goal**: Clean up, stabilize APIs, and complete desktop integration
 
-### 8.2 Desktop Refactoring
-- Simplify desktop device classes to pure UI concerns
-- Remove duplicate logic now handled by core
-- Optimize performance and memory usage
+**Status**: Not started - ONLY after Phases 3-7 complete
+
+**IMPORTANT**: This phase should NOT be attempted until Phases 3-7 are complete. Issue #39 demonstrates the problems with premature integration.
+
+### 8.1 Desktop Integration Adapters (NOW is the time)
+- [ ] Build `CoreDeviceAdapter` as true drop-in replacement
+- [ ] Direct message format compatibility with desktop expectations
+- [ ] Desktop-specific extensions (`IDesktopMessageConsumer`, `IDesktopMessageProducer`)
+- [ ] Support for legacy desktop interfaces during transition
+- [ ] Migration from desktop's `MessageProducer`/`MessageConsumer` to core equivalents
+
+### 8.2 Integration Testing
+- [ ] Create `Daqifi.Core.DesktopTests` integration test project
+- [ ] Test real-world migration scenarios
+- [ ] Validate message format compatibility
+- [ ] Test side-by-side legacy and core implementations
+- [ ] Performance comparison tests (desktop vs core)
+- [ ] Catch integration issues before release
+
+### 8.3 API Stabilization
+- [ ] Review and finalize all core interfaces
+- [ ] Mark stable APIs with `[Stable]` attribute
+- [ ] Remove deprecated adapter patterns
+- [ ] Ensure comprehensive XML documentation
+- [ ] API design review with desktop team
+- [ ] Versioning strategy for breaking changes
+
+### 8.4 Desktop Refactoring
+- [ ] Simplify desktop device classes to pure UI concerns
+- [ ] Remove duplicate logic now handled by core
+- [ ] Replace `AbstractStreamingDevice` logic with core implementations
+- [ ] Migrate channel management to core
+- [ ] Migrate device discovery to core
+- [ ] Optimize performance and memory usage
+
+### 8.5 Documentation & Examples
+- [ ] Complete migration guide for each phase
+- [ ] Before/after code examples for desktop migration
+- [ ] `examples/` directory with real-world usage
+- [ ] Cross-platform application example
+- [ ] Performance tuning guide
+- [ ] Troubleshooting guide
+
+### Success Criteria
+- [ ] `CoreDeviceAdapter` is true drop-in replacement (no wrapper code needed)
+- [ ] Desktop integration tests pass with 100% success rate
+- [ ] Zero code bloat from adapters (net reduction in desktop code)
+- [ ] Desktop-specific features work (buffer clearing, safe shutdown)
+- [ ] Message format compatibility (no casting failures)
+- [ ] Performance parity or improvement vs legacy desktop code
+- [ ] Desktop can migrate incrementally (device by device)
+- [ ] Comprehensive documentation for migration path
+
+### Desktop Migration Success Pattern
+```csharp
+// Before (legacy):
+MessageProducer = new Desktop.MessageProducer(stream);
+MessageConsumer = new Desktop.MessageConsumer(stream);
+
+// After (CoreDeviceAdapter - should be this simple):
+var adapter = CoreDeviceAdapter.CreateTcpAdapter(host, port);
+await adapter.ConnectAsync();
+MessageProducer = adapter.DesktopMessageProducer;
+MessageConsumer = adapter.DesktopMessageConsumer;
+// All existing message handling code works unchanged
+```
+
+### Desktop Migration Impact
+Once complete, desktop can:
+- Replace all device communication logic with core
+- Reduce `AbstractStreamingDevice` from 1,073 lines to UI bindings only
+- Remove duplicate SCPI command generation
+- Remove duplicate connection management
+- Remove duplicate message handling
+- Focus desktop code exclusively on UI/UX concerns
 
 **Deliverable**: Core 1.0.0 - Stable API for device communication
+
+**Related Issues**:
+- [#39](https://github.com/daqifi/daqifi-core/issues/39) - CoreDeviceAdapter issues (deferred to this phase)
+- Phases 3-7 must be complete before this phase begins
 
 ## Implementation Guidelines
 
