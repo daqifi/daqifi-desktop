@@ -1520,8 +1520,16 @@ public partial class DaqifiViewModel : ObservableObject
     public void Close()
     {
         _hidDiscoveryCts?.Cancel();
-        _hidDeviceFinder?.Dispose();
-        _hidDeviceFinder = null;
+
+        if (_hidDeviceFinder != null)
+        {
+            _hidDeviceFinder.DeviceDiscovered -= HandleCoreHidDeviceDiscovered;
+            _hidDeviceFinder.Dispose();
+            _hidDeviceFinder = null;
+        }
+
+        _hidDiscoveryCts?.Dispose();
+        _hidDiscoveryCts = null;
     }
 
     private HidFirmwareDevice ConnectHid(object selectedItems)

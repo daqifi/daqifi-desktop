@@ -372,22 +372,46 @@ public partial class ConnectionDialogViewModel : ObservableObject
     private void StopWiFiDiscovery()
     {
         _wifiDiscoveryCts?.Cancel();
-        _wifiFinder?.Dispose();
-        _wifiFinder = null;
+
+        if (_wifiFinder != null)
+        {
+            _wifiFinder.DeviceDiscovered -= HandleCoreWifiDeviceDiscovered;
+            _wifiFinder.Dispose();
+            _wifiFinder = null;
+        }
+
+        _wifiDiscoveryCts?.Dispose();
+        _wifiDiscoveryCts = null;
     }
 
     private void StopSerialDiscovery()
     {
         _serialDiscoveryCts?.Cancel();
-        _serialFinder?.Dispose();
-        _serialFinder = null;
+
+        if (_serialFinder != null)
+        {
+            _serialFinder.DeviceDiscovered -= HandleCoreSerialDeviceDiscovered;
+            _serialFinder.Dispose();
+            _serialFinder = null;
+        }
+
+        _serialDiscoveryCts?.Dispose();
+        _serialDiscoveryCts = null;
     }
 
     private void StopHidDiscovery()
     {
         _hidDiscoveryCts?.Cancel();
-        _hidDeviceFinder?.Dispose();
-        _hidDeviceFinder = null;
+
+        if (_hidDeviceFinder != null)
+        {
+            _hidDeviceFinder.DeviceDiscovered -= HandleCoreHidDeviceDiscovered;
+            _hidDeviceFinder.Dispose();
+            _hidDeviceFinder = null;
+        }
+
+        _hidDiscoveryCts?.Dispose();
+        _hidDiscoveryCts = null;
     }
 
     /// <summary>
