@@ -239,7 +239,38 @@ public partial class ConnectionDialogViewModel : ObservableObject
         try
         {
             var serialDevice = DeviceInfoConverter.ToSerialDevice(e.DeviceInfo);
+
+            // Immediately add device to UI with port name
             HandleSerialDeviceFound(sender, serialDevice);
+
+            // Probe device for actual info in background (like old desktop finder did)
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(500); // Brief delay to let UI settle
+                    if (serialDevice.TryGetDeviceInfo())
+                    {
+                        // Trigger UI refresh by re-adding with updated info
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            // Find existing device and trigger property changed
+                            var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == serialDevice.Port.PortName);
+                            if (existing != null)
+                            {
+                                // Replace with updated device to trigger UI refresh
+                                var index = AvailableSerialDevices.IndexOf(existing);
+                                AvailableSerialDevices[index] = serialDevice;
+                            }
+                        });
+                    }
+                }
+                catch (Exception probEx)
+                {
+                    // Log but don't fail - device still shows with port name only
+                    Common.Loggers.AppLogger.Instance.Warning($"Failed to retrieve device info for {serialDevice.Port.PortName}: {probEx.Message}");
+                }
+            });
         }
         catch (Exception ex)
         {
