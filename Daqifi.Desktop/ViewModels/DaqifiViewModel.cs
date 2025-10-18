@@ -25,6 +25,7 @@ using Daqifi.Desktop.Device.SerialDevice;
 using Application = System.Windows.Application;
 using File = System.IO.File;
 using CommunityToolkit.Mvvm.Input;
+using Daqifi.Core.Device.Discovery;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -107,7 +108,9 @@ public partial class DaqifiViewModel : ObservableObject
     private int _uploadWiFiProgress;
     [ObservableProperty]
     private bool _selectedDeviceSupportsFirmwareUpdate;
-    private HidDeviceFinder _hidDeviceFinder;
+    private Daqifi.Core.Device.Discovery.HidDeviceFinder? _hidDeviceFinder;
+    private CancellationTokenSource? _hidDiscoveryCts;
+    private Task? _hidDiscoveryTask;
     [ObservableProperty]
     private bool _hasNoHidDevices = true;
     private ConnectionDialogViewModel _connectionDialogViewModel;
@@ -1472,15 +1475,61 @@ public partial class DaqifiViewModel : ObservableObject
     #region Methods
     public void StartConnectionFinders()
     {
-        _hidDeviceFinder = new HidDeviceFinder();
-        _hidDeviceFinder.OnDeviceFound += HandleHidDeviceFound;
-        _hidDeviceFinder.OnDeviceRemoved += HandleHidDeviceRemoved;
-        _hidDeviceFinder.Start();
+        _hidDeviceFinder = new Daqifi.Core.Device.Discovery.HidDeviceFinder();
+        _hidDiscoveryCts = new CancellationTokenSource();
+        _hidDeviceFinder.DeviceDiscovered += HandleCoreHidDeviceDiscovered;
+        _hidDiscoveryTask = RunContinuousHidDiscoveryAsync(_hidDiscoveryCts.Token);
+    }
+
+    private async Task RunContinuousHidDiscoveryAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested && _hidDeviceFinder != null)
+            {
+                await _hidDeviceFinder.DiscoverAsync(cancellationToken);
+                // HID discovery is quick, pause longer between scans
+                await Task.Delay(2000, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when cancelled
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, "Error in HID discovery loop");
+        }
+    }
+
+    private void HandleCoreHidDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
+    {
+        try
+        {
+            // HID devices are firmware devices for bootloader mode
+            // For now, core HID finder returns empty, so this won't be called often
+            // TODO: Create HID device from core IDeviceInfo when HID library is added
+            _appLogger.Information($"HID device discovered: {e.DeviceInfo.Name}");
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, "Error handling HID device discovery");
+        }
     }
 
     public void Close()
     {
-        _hidDeviceFinder?.Stop();
+        _hidDiscoveryCts?.Cancel();
+
+        if (_hidDeviceFinder != null)
+        {
+            _hidDeviceFinder.DeviceDiscovered -= HandleCoreHidDeviceDiscovered;
+            _hidDeviceFinder.Dispose();
+            _hidDeviceFinder = null;
+        }
+
+        _hidDiscoveryCts?.Dispose();
+        _hidDiscoveryCts = null;
     }
 
     private HidFirmwareDevice ConnectHid(object selectedItems)

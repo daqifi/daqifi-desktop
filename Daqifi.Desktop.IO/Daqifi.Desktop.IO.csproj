@@ -9,7 +9,7 @@
 		<FileVersion>3.0.0.0</FileVersion>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="Daqifi.Core" Version="0.4.1" />
+		<PackageReference Include="Daqifi.Core" Version="0.5.0" />
 		<PackageReference Include="Google.Protobuf" Version="3.32.1" />
 		<PackageReference Include="Roslynator.Analyzers" Version="4.14.0">
 			<PrivateAssets>all</PrivateAssets>
