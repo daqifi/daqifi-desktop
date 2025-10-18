@@ -307,7 +307,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
             return;
         }
 
-        if (AvailableSerialDevices.FirstOrDefault(d => d.Port == serialDevice.Port) == null)
+        if (AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == serialDevice.Port.PortName) == null)
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
