@@ -268,11 +268,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
             }
 
             // Probe device for actual info in background (like old desktop finder did)
-            Task.Run(async () =>
+            Task.Run(() =>
             {
                 try
                 {
-                    await Task.Delay(500); // Brief delay to let UI settle
                     if (serialDevice.TryGetDeviceInfo())
                     {
                         // Trigger UI refresh by removing and re-adding with updated info
