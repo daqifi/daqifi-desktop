@@ -9,16 +9,25 @@ using System.Collections;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Daqifi.Core.Device.Discovery;
+using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
 
 namespace Daqifi.Desktop.ViewModels;
 
 public partial class ConnectionDialogViewModel : ObservableObject
 {
     #region Private Variables
-    private DaqifiDeviceFinder _wifiFinder;
-    private SerialDeviceFinder _serialFinder;
-    private HidDeviceFinder _hidDeviceFinder;
+    private WiFiDeviceFinder? _wifiFinder;
+    private Daqifi.Core.Device.Discovery.SerialDeviceFinder? _serialFinder;
+    private Daqifi.Core.Device.Discovery.HidDeviceFinder? _hidDeviceFinder;
+    private CancellationTokenSource? _wifiDiscoveryCts;
+    private CancellationTokenSource? _serialDiscoveryCts;
+    private CancellationTokenSource? _hidDiscoveryCts;
+    private Task? _wifiDiscoveryTask;
+    private Task? _serialDiscoveryTask;
+    private Task? _hidDiscoveryTask;
     private readonly IDialogService _dialogService;
+    private readonly HashSet<string> _probedSerialPorts = new();
 
     [ObservableProperty]
     private bool _hasNoWiFiDevices = true;
@@ -59,20 +68,98 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     public void StartConnectionFinders()
     {
-        _wifiFinder = new DaqifiDeviceFinder(30303);
-        _wifiFinder.OnDeviceFound += HandleWifiDeviceFound;
-        _wifiFinder.OnDeviceRemoved += HandleWifiDeviceRemoved;
-        _wifiFinder.Start();
+        // WiFi Discovery
+        _wifiFinder = new WiFiDeviceFinder(30303);
+        _wifiDiscoveryCts = new CancellationTokenSource();
+        _wifiFinder.DeviceDiscovered += HandleCoreWifiDeviceDiscovered;
+        _wifiDiscoveryTask = RunContinuousWiFiDiscoveryAsync(_wifiDiscoveryCts.Token);
 
-        _serialFinder = new SerialDeviceFinder();
-        _serialFinder.OnDeviceFound += HandleSerialDeviceFound;
-        _serialFinder.OnDeviceRemoved += HandleSerialDeviceRemoved;
-        _serialFinder.Start();
+        // Serial Discovery
+        _serialFinder = new Daqifi.Core.Device.Discovery.SerialDeviceFinder();
+        _serialDiscoveryCts = new CancellationTokenSource();
+        _serialFinder.DeviceDiscovered += HandleCoreSerialDeviceDiscovered;
+        _serialDiscoveryTask = RunContinuousSerialDiscoveryAsync(_serialDiscoveryCts.Token);
 
-        _hidDeviceFinder = new HidDeviceFinder();
-        _hidDeviceFinder.OnDeviceFound += HandleHidDeviceFound;
-        _hidDeviceFinder.OnDeviceRemoved += HandleHidDeviceRemoved;
-        _hidDeviceFinder.Start();
+        // HID Discovery
+        _hidDeviceFinder = new Daqifi.Core.Device.Discovery.HidDeviceFinder();
+        _hidDiscoveryCts = new CancellationTokenSource();
+        _hidDeviceFinder.DeviceDiscovered += HandleCoreHidDeviceDiscovered;
+        _hidDiscoveryTask = RunContinuousHidDiscoveryAsync(_hidDiscoveryCts.Token);
+    }
+
+    private async Task RunContinuousWiFiDiscoveryAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested && _wifiFinder != null)
+            {
+                await _wifiFinder.DiscoverAsync(cancellationToken);
+                // Brief pause before next discovery cycle
+                await Task.Delay(3000, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when cancelled
+        }
+        catch (ObjectDisposedException)
+        {
+            // Expected when finder is disposed during discovery
+        }
+        catch (Exception ex)
+        {
+            Common.Loggers.AppLogger.Instance.Error(ex, "Error in WiFi discovery loop");
+        }
+    }
+
+    private async Task RunContinuousSerialDiscoveryAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested && _serialFinder != null)
+            {
+                await _serialFinder.DiscoverAsync(cancellationToken);
+                // Serial discovery is quick, pause longer between scans
+                await Task.Delay(2000, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when cancelled
+        }
+        catch (ObjectDisposedException)
+        {
+            // Expected when finder is disposed during discovery
+        }
+        catch (Exception ex)
+        {
+            Common.Loggers.AppLogger.Instance.Error(ex, "Error in Serial discovery loop");
+        }
+    }
+
+    private async Task RunContinuousHidDiscoveryAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested && _hidDeviceFinder != null)
+            {
+                await _hidDeviceFinder.DiscoverAsync(cancellationToken);
+                // HID discovery is quick, pause longer between scans
+                await Task.Delay(2000, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when cancelled
+        }
+        catch (ObjectDisposedException)
+        {
+            // Expected when finder is disposed during discovery
+        }
+        catch (Exception ex)
+        {
+            Common.Loggers.AppLogger.Instance.Error(ex, "Error in HID discovery loop");
+        }
     }
     #endregion
 
@@ -85,7 +172,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     private async Task ConnectAsync(object selectedItems)
     {
-        _wifiFinder.Stop();
+        StopWiFiDiscovery();
 
         var selectedDevices = ((IEnumerable)selectedItems).Cast<IStreamingDevice>();
 
@@ -97,7 +184,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     private async Task ConnectSerialAsync(object selectedItems)
     {
-        _serialFinder.Stop();
+        StopSerialDiscovery();
 
         var selectedDevices = ((IEnumerable)selectedItems).Cast<IStreamingDevice>();
         foreach (var device in selectedDevices)
@@ -119,7 +206,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(ManualIpAddress)) { return; }
 
-        var deviceInfo = new DeviceInfo
+        var deviceInfo = new Daqifi.Desktop.DataModel.Device.DeviceInfo
         {
             IpAddress = ManualIpAddress,
             DeviceName = "Manual IP Device",
@@ -144,6 +231,101 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     }
     #endregion
+
+    #region Core Device Discovery Event Handlers
+
+    private void HandleCoreWifiDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
+    {
+        try
+        {
+            var wifiDevice = DeviceInfoConverter.ToWiFiDevice(e.DeviceInfo);
+            HandleWifiDeviceFound(sender, wifiDevice);
+        }
+        catch (Exception ex)
+        {
+            Common.Loggers.AppLogger.Instance.Error(ex, "Error handling WiFi device discovery");
+        }
+    }
+
+    private void HandleCoreSerialDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
+    {
+        try
+        {
+            var serialDevice = DeviceInfoConverter.ToSerialDevice(e.DeviceInfo);
+            var portName = serialDevice.Port.PortName;
+
+            // Immediately add device to UI with port name
+            HandleSerialDeviceFound(sender, serialDevice);
+
+            // Only probe once per port to avoid conflicts
+            lock (_probedSerialPorts)
+            {
+                if (_probedSerialPorts.Contains(portName))
+                {
+                    return; // Already probed or probing this port
+                }
+                _probedSerialPorts.Add(portName);
+            }
+
+            // Probe device for actual info in background (like old desktop finder did)
+            Task.Run(() =>
+            {
+                try
+                {
+                    if (serialDevice.TryGetDeviceInfo())
+                    {
+                        // Trigger UI refresh by removing and re-adding with updated info
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            // Find existing device
+                            var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == portName);
+                            if (existing != null)
+                            {
+                                // Remove and re-add to force UI refresh with updated properties
+                                var index = AvailableSerialDevices.IndexOf(existing);
+                                AvailableSerialDevices.RemoveAt(index);
+                                AvailableSerialDevices.Insert(index, serialDevice);
+                            }
+                        });
+                    }
+                }
+                catch (Exception probEx)
+                {
+                    // Log but don't fail - device still shows with port name only
+                    Common.Loggers.AppLogger.Instance.Warning($"Failed to retrieve device info for {portName}: {probEx.Message}");
+
+                    // Remove from probed set so we can retry later
+                    lock (_probedSerialPorts)
+                    {
+                        _probedSerialPorts.Remove(portName);
+                    }
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Common.Loggers.AppLogger.Instance.Error(ex, "Error handling Serial device discovery");
+        }
+    }
+
+    private void HandleCoreHidDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
+    {
+        try
+        {
+            // HID devices are firmware devices for bootloader mode
+            // For now, core HID finder returns empty, so this won't be called often
+            // TODO: Create HID device from core IDeviceInfo when HID library is added
+            Common.Loggers.AppLogger.Instance.Information($"HID device discovered: {e.DeviceInfo.Name}");
+        }
+        catch (Exception ex)
+        {
+            Common.Loggers.AppLogger.Instance.Error(ex, "Error handling HID device discovery");
+        }
+    }
+
+    #endregion
+
+    #region Desktop Device Event Handlers
 
     private void HandleWifiDeviceFound(object sender, IDevice device)
     {
@@ -186,7 +368,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
             return;
         }
 
-        if (AvailableSerialDevices.FirstOrDefault(d => d.Port == serialDevice.Port) == null)
+        if (AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == serialDevice.Port.PortName) == null)
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
@@ -243,9 +425,60 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     public void Close()
     {
-        _wifiFinder?.Stop();
-        _serialFinder?.Stop();
-        _hidDeviceFinder?.Stop();
+        StopWiFiDiscovery();
+        StopSerialDiscovery();
+        StopHidDiscovery();
+    }
+
+    private void StopWiFiDiscovery()
+    {
+        _wifiDiscoveryCts?.Cancel();
+
+        if (_wifiFinder != null)
+        {
+            _wifiFinder.DeviceDiscovered -= HandleCoreWifiDeviceDiscovered;
+            _wifiFinder.Dispose();
+            _wifiFinder = null;
+        }
+
+        _wifiDiscoveryCts?.Dispose();
+        _wifiDiscoveryCts = null;
+    }
+
+    private void StopSerialDiscovery()
+    {
+        _serialDiscoveryCts?.Cancel();
+
+        if (_serialFinder != null)
+        {
+            _serialFinder.DeviceDiscovered -= HandleCoreSerialDeviceDiscovered;
+            _serialFinder.Dispose();
+            _serialFinder = null;
+        }
+
+        _serialDiscoveryCts?.Dispose();
+        _serialDiscoveryCts = null;
+
+        // Clear probed ports so they can be probed again next time
+        lock (_probedSerialPorts)
+        {
+            _probedSerialPorts.Clear();
+        }
+    }
+
+    private void StopHidDiscovery()
+    {
+        _hidDiscoveryCts?.Cancel();
+
+        if (_hidDeviceFinder != null)
+        {
+            _hidDeviceFinder.DeviceDiscovered -= HandleCoreHidDeviceDiscovered;
+            _hidDeviceFinder.Dispose();
+            _hidDeviceFinder = null;
+        }
+
+        _hidDiscoveryCts?.Dispose();
+        _hidDiscoveryCts = null;
     }
 
     /// <summary>
@@ -298,4 +531,5 @@ public partial class ConnectionDialogViewModel : ObservableObject
             return DuplicateDeviceAction.Cancel;
         }
     }
+    #endregion
 }
