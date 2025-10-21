@@ -275,16 +275,17 @@ public partial class ConnectionDialogViewModel : ObservableObject
                     await Task.Delay(500); // Brief delay to let UI settle
                     if (serialDevice.TryGetDeviceInfo())
                     {
-                        // Trigger UI refresh by re-adding with updated info
+                        // Trigger UI refresh by removing and re-adding with updated info
                         System.Windows.Application.Current.Dispatcher.Invoke(() =>
                         {
-                            // Find existing device and trigger property changed
+                            // Find existing device
                             var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == portName);
                             if (existing != null)
                             {
-                                // Replace with updated device to trigger UI refresh
+                                // Remove and re-add to force UI refresh with updated properties
                                 var index = AvailableSerialDevices.IndexOf(existing);
-                                AvailableSerialDevices[index] = serialDevice;
+                                AvailableSerialDevices.RemoveAt(index);
+                                AvailableSerialDevices.Insert(index, serialDevice);
                             }
                         });
                     }
