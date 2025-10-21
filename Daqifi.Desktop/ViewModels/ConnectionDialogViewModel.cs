@@ -27,6 +27,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
     private Task? _serialDiscoveryTask;
     private Task? _hidDiscoveryTask;
     private readonly IDialogService _dialogService;
+    private readonly HashSet<string> _probedSerialPorts = new();
 
     [ObservableProperty]
     private bool _hasNoWiFiDevices = true;
@@ -101,6 +102,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
         {
             // Expected when cancelled
         }
+        catch (ObjectDisposedException)
+        {
+            // Expected when finder is disposed during discovery
+        }
         catch (Exception ex)
         {
             Common.Loggers.AppLogger.Instance.Error(ex, "Error in WiFi discovery loop");
@@ -122,6 +127,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
         {
             // Expected when cancelled
         }
+        catch (ObjectDisposedException)
+        {
+            // Expected when finder is disposed during discovery
+        }
         catch (Exception ex)
         {
             Common.Loggers.AppLogger.Instance.Error(ex, "Error in Serial discovery loop");
@@ -142,6 +151,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             // Expected when cancelled
+        }
+        catch (ObjectDisposedException)
+        {
+            // Expected when finder is disposed during discovery
         }
         catch (Exception ex)
         {
@@ -239,9 +252,20 @@ public partial class ConnectionDialogViewModel : ObservableObject
         try
         {
             var serialDevice = DeviceInfoConverter.ToSerialDevice(e.DeviceInfo);
+            var portName = serialDevice.Port.PortName;
 
             // Immediately add device to UI with port name
             HandleSerialDeviceFound(sender, serialDevice);
+
+            // Only probe once per port to avoid conflicts
+            lock (_probedSerialPorts)
+            {
+                if (_probedSerialPorts.Contains(portName))
+                {
+                    return; // Already probed or probing this port
+                }
+                _probedSerialPorts.Add(portName);
+            }
 
             // Probe device for actual info in background (like old desktop finder did)
             Task.Run(async () =>
@@ -255,7 +279,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
                         System.Windows.Application.Current.Dispatcher.Invoke(() =>
                         {
                             // Find existing device and trigger property changed
-                            var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == serialDevice.Port.PortName);
+                            var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == portName);
                             if (existing != null)
                             {
                                 // Replace with updated device to trigger UI refresh
@@ -268,7 +292,13 @@ public partial class ConnectionDialogViewModel : ObservableObject
                 catch (Exception probEx)
                 {
                     // Log but don't fail - device still shows with port name only
-                    Common.Loggers.AppLogger.Instance.Warning($"Failed to retrieve device info for {serialDevice.Port.PortName}: {probEx.Message}");
+                    Common.Loggers.AppLogger.Instance.Warning($"Failed to retrieve device info for {portName}: {probEx.Message}");
+
+                    // Remove from probed set so we can retry later
+                    lock (_probedSerialPorts)
+                    {
+                        _probedSerialPorts.Remove(portName);
+                    }
                 }
             });
         }
@@ -428,6 +458,12 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         _serialDiscoveryCts?.Dispose();
         _serialDiscoveryCts = null;
+
+        // Clear probed ports so they can be probed again next time
+        lock (_probedSerialPorts)
+        {
+            _probedSerialPorts.Clear();
+        }
     }
 
     private void StopHidDiscovery()
