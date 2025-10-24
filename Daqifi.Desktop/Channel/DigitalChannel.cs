@@ -35,7 +35,7 @@ public class DigitalChannel : AbstractChannel
         _coreChannel = new Daqifi.Core.Channel.DigitalChannel(channelId)
         {
             Name = name,
-            Direction = direction,
+            Direction = (Daqifi.Core.Channel.ChannelDirection)(int)direction,
             IsEnabled = false
         };
 

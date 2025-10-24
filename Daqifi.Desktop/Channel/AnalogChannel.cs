@@ -61,7 +61,7 @@ public class AnalogChannel : AbstractChannel
         _coreChannel = new Daqifi.Core.Channel.AnalogChannel(channelId, resolution)
         {
             Name = name,
-            Direction = direction,
+            Direction = (Daqifi.Core.Channel.ChannelDirection)(int)direction,
             CalibrationB = calibrationBValue,
             CalibrationM = calibrationMValue,
             InternalScaleM = interalScaleMValue,
