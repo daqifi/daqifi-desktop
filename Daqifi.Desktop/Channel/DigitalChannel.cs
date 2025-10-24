@@ -20,6 +20,71 @@ public class DigitalChannel : AbstractChannel
     public override bool IsDigital => true;
 
     /// <summary>
+    /// Gets or sets the channel name. Delegates to core channel to avoid duplication.
+    /// </summary>
+    public new string Name
+    {
+        get => _coreChannel.Name;
+        set
+        {
+            if (_coreChannel.Name != value)
+            {
+                _coreChannel.Name = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the channel direction. Delegates to core channel to avoid duplication.
+    /// </summary>
+    public new ChannelDirection Direction
+    {
+        get => (ChannelDirection)(int)_coreChannel.Direction;
+        set
+        {
+            var coreDirection = (Daqifi.Core.Channel.ChannelDirection)(int)value;
+            if (_coreChannel.Direction != coreDirection)
+            {
+                _coreChannel.Direction = coreDirection;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(TypeString));
+
+                // Update derived state
+                IsOutput = value == ChannelDirection.Output;
+
+                // Notify owner of direction change
+                _owner?.SetChannelDirection(this, value);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the channel index. Delegates to core ChannelNumber to avoid duplication.
+    /// </summary>
+    public new int Index
+    {
+        get => _coreChannel.ChannelNumber;
+        // Index is read-only in core (ChannelNumber), so no setter
+    }
+
+    /// <summary>
+    /// Gets or sets whether the channel is active. Synchronized with core IsEnabled.
+    /// </summary>
+    public new bool IsActive
+    {
+        get => _coreChannel.IsEnabled;
+        set
+        {
+            if (_coreChannel.IsEnabled != value)
+            {
+                _coreChannel.IsEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
     /// Gets the core channel for device communication
     /// </summary>
     internal Daqifi.Core.Channel.IDigitalChannel CoreChannel => _coreChannel;
@@ -39,15 +104,14 @@ public class DigitalChannel : AbstractChannel
             IsEnabled = false
         };
 
-        // Set desktop-specific properties
-        Name = name;
+        // Set desktop-specific properties (not in core)
         DeviceName = owner.DevicePartNumber;
-        DeviceSerialNo=owner.DeviceSerialNo;
-        Index = channelId;
-        Direction = direction;
-        IsOutput = direction == ChannelDirection.Output;
+        DeviceSerialNo = owner.DevicePartNumber;
         IsBidirectional = isBidirectional;
         ChannelColorBrush = ChannelColorManager.Instance.NewColor();
+
+        // Initialize derived desktop state based on core
+        IsOutput = direction == ChannelDirection.Output;
     }
     #endregion
 
