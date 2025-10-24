@@ -281,7 +281,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 {
                     var channel = activeAnalogChannels[dataIndex];
                     var rawValue = message.AnalogInData[dataIndex];
-                    var scaledValue = ScaleAnalogSample(channel, rawValue);
+                    // Use core's scaling implementation for correct formula and thread-safety
+                    var scaledValue = channel.GetScaledValue((int)rawValue);
                     var sample = new DataSample(this, channel, messageTimestamp, scaledValue);
                     channel.ActiveSample = sample;
                 }
@@ -922,12 +923,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
     }
 
-    private static double ScaleAnalogSample(AnalogChannel channel, double analogValue)
-    {
-        return analogValue / channel.Resolution * channel.PortRange * channel.CalibrationMValue *
-            channel.InternalScaleMValue + channel.CalibrationBValue;
-    }
-
     public async Task UpdateNetworkConfiguration()
     {
         if (IsStreaming) { StopStreaming(); }
@@ -1044,7 +1039,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             {
                 var channel = activeChannels[i];
                 var rawValue = message.AnalogInData[i];
-                var scaledValue = ScaleAnalogSample(channel, rawValue);
+                // Use core's scaling implementation for correct formula and thread-safety
+                var scaledValue = channel.GetScaledValue((int)rawValue);
                 debugData.ScaledAnalogValues.Add(scaledValue);
             }
 
