@@ -67,7 +67,7 @@ public class DigitalChannel : AbstractChannel
     /// <summary>
     /// Gets or sets whether the channel is active. Synchronized with core IsEnabled.
     /// </summary>
-    public new bool IsActive
+    public override bool IsActive
     {
         get => _coreChannel.IsEnabled;
         set

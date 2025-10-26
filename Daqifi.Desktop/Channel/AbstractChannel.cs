@@ -65,7 +65,7 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     public bool IsBidirectional { get; set; }
 
     [NotMapped]
-    public bool IsActive { get; set; }
+    public abstract bool IsActive { get; set; }
 
     [NotMapped]
     public abstract bool IsDigital { get; }
