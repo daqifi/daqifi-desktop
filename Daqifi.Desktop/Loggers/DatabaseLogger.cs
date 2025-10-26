@@ -1,6 +1,7 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Desktop.DataModel.Channel;
+using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
+using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Helpers;
 using OxyPlot;

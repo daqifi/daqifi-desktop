@@ -1,9 +1,11 @@
-﻿using Daqifi.Desktop.DataModel.Channel;
+﻿using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using NCalc;
 using System.ComponentModel.DataAnnotations.Schema;
 using Brush = System.Windows.Media.Brush;
 using CommunityToolkit.Mvvm.ComponentModel;
+using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
+using ChannelType = Daqifi.Core.Channel.ChannelType;
 
 namespace Daqifi.Desktop.Channel;
 
@@ -18,14 +20,18 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     #region Properties
     public int ID { get; set; }
 
-    [ObservableProperty]
-    private string _name;
+    /// <summary>
+    /// Gets or sets the channel name. Implemented by derived classes to delegate to core.
+    /// </summary>
+    public abstract string Name { get; set; }
 
     [ObservableProperty]
     private double _outputValue;
 
-    [ObservableProperty]
-    private ChannelDirection _direction = ChannelDirection.Unknown;
+    /// <summary>
+    /// Gets or sets the channel direction. Implemented by derived classes to delegate to core.
+    /// </summary>
+    public abstract ChannelDirection Direction { get; set; }
 
     [ObservableProperty]
     private Brush _channelColorBrush;
@@ -45,7 +51,11 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     [ObservableProperty]
     private bool _hasValidExpression;
 
-    public int Index { get; set; }
+    /// <summary>
+    /// Gets the channel index. Implemented by derived classes to delegate to core.
+    /// </summary>
+    public abstract int Index { get; }
+
     public string DeviceName { get; set; }
     public string DeviceSerialNo { get; set; }
 
@@ -55,7 +65,7 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     public bool IsBidirectional { get; set; }
 
     [NotMapped]
-    public bool IsActive { get; set; }
+    public abstract bool IsActive { get; set; }
 
     [NotMapped]
     public abstract bool IsDigital { get; }
@@ -138,8 +148,8 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
                 }
                 catch (Exception ex)
                 {
-                    // Handle evaluation error, maybe log it or invalidate the sample?
-                    // For now, we just skip scaling
+                    AppLogger.Instance.Warning($"Expression evaluation failed for channel {Name}: {ex.Message}");
+                    HasValidExpression = false;
                 }
             }
 
@@ -157,15 +167,6 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
         if (Direction == ChannelDirection.Output)
         {
             _owner?.SetChannelOutputValue(this, value);
-        }
-    }
-
-    partial void OnDirectionChanged(ChannelDirection value)
-    {
-        if (Direction != ChannelDirection.Unknown && value != Direction)
-        {
-            _owner?.SetChannelDirection(this, value);
-            OnPropertyChanged(nameof(TypeString));
         }
     }
 
@@ -200,6 +201,11 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
         if (obj is not AbstractChannel channel) { return false; }
 
         return channel.Name == Name;
+    }
+
+    public override int GetHashCode()
+    {
+        return Name?.GetHashCode() ?? 0;
     }
     #endregion
 

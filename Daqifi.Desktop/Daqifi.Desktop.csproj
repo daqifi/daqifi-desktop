@@ -57,7 +57,7 @@
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="Daqifi.Core" Version="0.5.0" />
+		<PackageReference Include="Daqifi.Core" Version="0.6.0" />
 		<PackageReference Include="EFCore.BulkExtensions" Version="9.0.1" />
 		<PackageReference Include="MahApps.Metro" Version="2.4.11" />
 		<PackageReference Include="MahApps.Metro.IconPacks" Version="6.1.0" />
@@ -80,7 +80,7 @@
 		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.2" />
 		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
 		<PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.8" />
-		<PackageReference Include="System.IO.Ports" Version="9.0.9" />
+		<PackageReference Include="System.IO.Ports" Version="9.0.10" />
 		<PackageReference Include="System.Management" Version="9.0.9" />
 	</ItemGroup>
 

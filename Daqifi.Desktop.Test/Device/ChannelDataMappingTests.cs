@@ -1,5 +1,6 @@
 using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.DataModel.Channel;
+using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
+using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.Device;
 
 namespace Daqifi.Desktop.Test.Device;
@@ -15,9 +16,9 @@ public class ChannelDataMappingTests
         _device = new TestableStreamingDevice();
         
         // Create channels AI0, AI1, AI2 for testing
-        var channel0 = new AnalogChannel(_device, "AI0", 0, ChannelDirection.Input, false, 0.0f, 1.0f, 1.0f, 5.0f, 4096);
-        var channel1 = new AnalogChannel(_device, "AI1", 1, ChannelDirection.Input, false, 0.0f, 1.0f, 1.0f, 5.0f, 4096);
-        var channel2 = new AnalogChannel(_device, "AI2", 2, ChannelDirection.Input, false, 0.0f, 1.0f, 1.0f, 5.0f, 4096);
+        var channel0 = new AnalogChannel(_device, "AI0", 0, ChannelDirection.Input, false, 0.0, 1.0, 1.0, 5.0, 4096);
+        var channel1 = new AnalogChannel(_device, "AI1", 1, ChannelDirection.Input, false, 0.0, 1.0, 1.0, 5.0, 4096);
+        var channel2 = new AnalogChannel(_device, "AI2", 2, ChannelDirection.Input, false, 0.0, 1.0, 1.0, 5.0, 4096);
         
         _device.DataChannels.Add(channel0);
         _device.DataChannels.Add(channel1);
