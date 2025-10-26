@@ -1,5 +1,6 @@
-﻿using Daqifi.Desktop.DataModel.Channel;
-using Daqifi.Desktop.Device;
+﻿using Daqifi.Desktop.Device;
+using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
+using ChannelType = Daqifi.Core.Channel.ChannelType;
 
 namespace Daqifi.Desktop.Channel;
 
@@ -40,13 +41,12 @@ public class DigitalChannel : AbstractChannel
     /// </summary>
     public new ChannelDirection Direction
     {
-        get => (ChannelDirection)(int)_coreChannel.Direction;
+        get => _coreChannel.Direction;
         set
         {
-            var coreDirection = (Daqifi.Core.Channel.ChannelDirection)(int)value;
-            if (_coreChannel.Direction != coreDirection)
+            if (_coreChannel.Direction != value)
             {
-                _coreChannel.Direction = coreDirection;
+                _coreChannel.Direction = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(TypeString));
 
@@ -100,7 +100,7 @@ public class DigitalChannel : AbstractChannel
         _coreChannel = new Daqifi.Core.Channel.DigitalChannel(channelId)
         {
             Name = name,
-            Direction = (Daqifi.Core.Channel.ChannelDirection)(int)direction,
+            Direction = direction,
             IsEnabled = false
         };
 

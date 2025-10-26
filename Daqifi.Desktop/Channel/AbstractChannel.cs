@@ -1,9 +1,10 @@
-﻿using Daqifi.Desktop.DataModel.Channel;
-using Daqifi.Desktop.Device;
+﻿using Daqifi.Desktop.Device;
 using NCalc;
 using System.ComponentModel.DataAnnotations.Schema;
 using Brush = System.Windows.Media.Brush;
 using CommunityToolkit.Mvvm.ComponentModel;
+using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
+using ChannelType = Daqifi.Core.Channel.ChannelType;
 
 namespace Daqifi.Desktop.Channel;
 

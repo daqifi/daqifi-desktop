@@ -1,5 +1,8 @@
 ﻿using Daqifi.Desktop.DataModel.Channel;
 using System.Windows.Media;
+using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
+using ChannelType = Daqifi.Core.Channel.ChannelType;
+
 namespace Daqifi.Desktop.Channel;
 
 public class ChannelColorManager

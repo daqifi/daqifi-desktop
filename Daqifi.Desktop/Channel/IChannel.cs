@@ -1,5 +1,6 @@
 ﻿using Daqifi.Desktop.Configuration;
-using Daqifi.Desktop.DataModel.Channel;
+using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
+using ChannelType = Daqifi.Core.Channel.ChannelType;
 
 namespace Daqifi.Desktop.Channel;
 
