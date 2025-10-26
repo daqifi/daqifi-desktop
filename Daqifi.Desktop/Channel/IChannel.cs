@@ -13,7 +13,7 @@ public interface IChannel : IColorable
     string Name { get; set; }
     string DeviceName { get; set; }
     string DeviceSerialNo { get; set; }
-    int Index { get; set; }
+    int Index { get; }
     double OutputValue { get; set; }
     ChannelType Type { get; }
     ChannelDirection Direction { get; set; }

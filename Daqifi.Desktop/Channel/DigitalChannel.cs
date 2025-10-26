@@ -23,7 +23,7 @@ public class DigitalChannel : AbstractChannel
     /// <summary>
     /// Gets or sets the channel name. Delegates to core channel to avoid duplication.
     /// </summary>
-    public new string Name
+    public override string Name
     {
         get => _coreChannel.Name;
         set
@@ -39,7 +39,7 @@ public class DigitalChannel : AbstractChannel
     /// <summary>
     /// Gets or sets the channel direction. Delegates to core channel to avoid duplication.
     /// </summary>
-    public new ChannelDirection Direction
+    public override ChannelDirection Direction
     {
         get => _coreChannel.Direction;
         set
@@ -60,13 +60,9 @@ public class DigitalChannel : AbstractChannel
     }
 
     /// <summary>
-    /// Gets or sets the channel index. Delegates to core ChannelNumber to avoid duplication.
+    /// Gets the channel index. Delegates to core ChannelNumber to avoid duplication.
     /// </summary>
-    public new int Index
-    {
-        get => _coreChannel.ChannelNumber;
-        // Index is read-only in core (ChannelNumber), so no setter
-    }
+    public override int Index => _coreChannel.ChannelNumber;
 
     /// <summary>
     /// Gets or sets whether the channel is active. Synchronized with core IsEnabled.

@@ -23,7 +23,7 @@ public class AnalogChannel : AbstractChannel
     /// <summary>
     /// Gets or sets the channel name. Delegates to core channel to avoid duplication.
     /// </summary>
-    public new string Name
+    public override string Name
     {
         get => _coreChannel.Name;
         set
@@ -39,7 +39,7 @@ public class AnalogChannel : AbstractChannel
     /// <summary>
     /// Gets or sets the channel direction. Delegates to core channel to avoid duplication.
     /// </summary>
-    public new ChannelDirection Direction
+    public override ChannelDirection Direction
     {
         get => _coreChannel.Direction;
         set
@@ -61,13 +61,9 @@ public class AnalogChannel : AbstractChannel
     }
 
     /// <summary>
-    /// Gets or sets the channel index. Delegates to core ChannelNumber to avoid duplication.
+    /// Gets the channel index. Delegates to core ChannelNumber to avoid duplication.
     /// </summary>
-    public new int Index
-    {
-        get => _coreChannel.ChannelNumber;
-        // Index is read-only in core (ChannelNumber), so no setter
-    }
+    public override int Index => _coreChannel.ChannelNumber;
 
     /// <summary>
     /// Gets or sets whether the channel is active. Synchronized with core IsEnabled.
@@ -85,27 +81,27 @@ public class AnalogChannel : AbstractChannel
         }
     }
 
-    public float CalibrationBValue
+    public double CalibrationBValue
     {
-        get => (float)_coreChannel.CalibrationB;
+        get => _coreChannel.CalibrationB;
         set => _coreChannel.CalibrationB = value;
     }
 
-    public float CalibrationMValue
+    public double CalibrationMValue
     {
-        get => (float)_coreChannel.CalibrationM;
+        get => _coreChannel.CalibrationM;
         set => _coreChannel.CalibrationM = value;
     }
 
-    public float InternalScaleMValue
+    public double InternalScaleMValue
     {
-        get => (float)_coreChannel.InternalScaleM;
+        get => _coreChannel.InternalScaleM;
         set => _coreChannel.InternalScaleM = value;
     }
 
-    public float PortRange
+    public double PortRange
     {
-        get => (float)_coreChannel.PortRange;
+        get => _coreChannel.PortRange;
         set => _coreChannel.PortRange = value;
     }
 
@@ -119,7 +115,7 @@ public class AnalogChannel : AbstractChannel
     #endregion
 
     #region Constructors
-    public AnalogChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional, float calibrationBValue, float calibrationMValue, float interalScaleMValue, float portRange, uint resolution)
+    public AnalogChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional, double calibrationBValue, double calibrationMValue, double internalScaleMValue, double portRange, uint resolution)
     {
         _owner = owner;
 
@@ -130,7 +126,7 @@ public class AnalogChannel : AbstractChannel
             Direction = direction,
             CalibrationB = calibrationBValue,
             CalibrationM = calibrationMValue,
-            InternalScaleM = interalScaleMValue,
+            InternalScaleM = internalScaleMValue,
             PortRange = portRange,
             IsEnabled = false
         };
@@ -148,11 +144,11 @@ public class AnalogChannel : AbstractChannel
 
     #endregion
 
-    #region Public Methods
+    #region Internal Methods
     /// <summary>
     /// Gets the scaled value using core's calibration formula
     /// </summary>
-    public double GetScaledValue(int rawValue)
+    internal double GetScaledValue(int rawValue)
     {
         return _coreChannel.GetScaledValue(rawValue);
     }
