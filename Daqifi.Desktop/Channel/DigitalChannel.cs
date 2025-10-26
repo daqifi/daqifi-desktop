@@ -102,7 +102,7 @@ public class DigitalChannel : AbstractChannel
 
         // Set desktop-specific properties (not in core)
         DeviceName = owner.DevicePartNumber;
-        DeviceSerialNo = owner.DevicePartNumber;
+        DeviceSerialNo = owner.DeviceSerialNo;
         IsBidirectional = isBidirectional;
         ChannelColorBrush = ChannelColorManager.Instance.NewColor();
 
