@@ -14,29 +14,9 @@ using Daqifi.Desktop.IO.Messages.Producers;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
+using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector, DeviceMetadata, DeviceCapabilities, DeviceState
 
 namespace Daqifi.Desktop.Device;
-
-/// <summary>
-/// Represents the type of DAQiFi device
-/// </summary>
-public enum DeviceType
-{
-    /// <summary>
-    /// Unknown or unspecified device type
-    /// </summary>
-    Unknown,
-
-    /// <summary>
-    /// Nyquist1 device type
-    /// </summary>
-    Nyquist1,
-
-    /// <summary>
-    /// Nyquist3 device type
-    /// </summary>
-    Nyquist3
-}
 
 // Added NativeMethods class for P/Invoke
 internal static partial class NativeMethods // Marked as partial
@@ -72,6 +52,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     [ObservableProperty]
     private DeviceType _deviceType = DeviceType.Unknown;
 
+    // DeviceState property for tracking device state
+    [ObservableProperty]
+    private DeviceState _deviceState = DeviceState.Disconnected;
+
     private readonly Dictionary<string, DateTime> _previousTimestamps = [];
     private readonly Dictionary<string, uint?> _previousDeviceTimestamps = [];
     private List<SdCardFile> _sdCardFiles = [];
@@ -79,6 +63,16 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     #region Properties
 
     protected readonly AppLogger AppLogger = AppLogger.Instance;
+
+    /// <summary>
+    /// Gets the device metadata from Core library
+    /// </summary>
+    public DeviceMetadata Metadata { get; } = new DeviceMetadata();
+
+    /// <summary>
+    /// Gets the device capabilities from Core's metadata
+    /// </summary>
+    public DeviceCapabilities Capabilities => Metadata.Capabilities;
 
     public DeviceMode Mode { get; private set; } = DeviceMode.StreamToApp;
 
@@ -716,6 +710,25 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         MessageProducer.Send(ScpiMessageProducer.SetProtobufStreamFormat);
     }
+
+    /// <summary>
+    /// Initializes the device using the standard initialization sequence with proper delays.
+    /// This async method provides non-blocking initialization similar to Core's approach.
+    /// </summary>
+    protected virtual async Task InitializeDeviceAsync()
+    {
+        TurnOffEcho();
+        await Task.Delay(100);  // Device needs time to process
+
+        MessageProducer.Send(ScpiMessageProducer.StopStreaming);
+        await Task.Delay(100);
+
+        TurnDeviceOn();
+        await Task.Delay(100);
+
+        SetProtobufMessageFormat();
+        await Task.Delay(100);
+    }
     #endregion
 
     #region Channel Methods
@@ -861,42 +874,32 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     protected void HydrateDeviceMetadata(DaqifiOutMessage message)
     {
-        if (!string.IsNullOrWhiteSpace(message.Ssid))
+        // Use Core's metadata update method
+        Metadata.UpdateFromProtobuf(message);
+
+        // Map Core metadata to desktop properties for backward compatibility
+        DevicePartNumber = Metadata.PartNumber;
+        DeviceSerialNo = Metadata.SerialNumber;
+        DeviceVersion = Metadata.FirmwareVersion;
+        DeviceType = Metadata.DeviceType;
+        IpAddress = Metadata.IpAddress;
+        MacAddress = Metadata.MacAddress;
+
+        // Update NetworkConfiguration from metadata
+        if (!string.IsNullOrWhiteSpace(Metadata.Ssid))
         {
-            NetworkConfiguration.Ssid = message.Ssid;
+            NetworkConfiguration.Ssid = Metadata.Ssid;
         }
 
-        if (message.WifiSecurityMode > 0)
+        // This now correctly handles security mode 0 (open network) - fixes WiFi bug!
+        NetworkConfiguration.SecurityType = (WifiSecurityType)Metadata.WifiSecurityMode;
+
+        if (Metadata.WifiInfrastructureMode > 0)
         {
-            NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
+            NetworkConfiguration.Mode = (WifiMode)Metadata.WifiInfrastructureMode;
         }
 
-        if (message.WifiInfMode > 0)
-        {
-            NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
-        }
-        if (!string.IsNullOrWhiteSpace(message.DevicePn))
-        {
-            DevicePartNumber = message.DevicePn;
-            DeviceType = DeviceTypeDetector.DetectFromPartNumber(message.DevicePn);
-            AppLogger.Information($"Detected device type: {DeviceType} from part number: {message.DevicePn}");
-        }
-        if (message.DeviceSn != 0)
-        {
-            DeviceSerialNo = message.DeviceSn.ToString(CultureInfo.InvariantCulture);
-        }
-        if (!string.IsNullOrWhiteSpace(message.DeviceFwRev))
-        {
-            DeviceVersion = message.DeviceFwRev;
-        }
-        if (message.IpAddr != null && message.IpAddr.Length > 0)
-        {
-            IpAddress = string.Join(",", message.IpAddr);
-        }
-        if (message.MacAddr.Length > 0)
-        {
-            MacAddress = ProtobufDecoder.GetMacAddressString(message);
-        }
+        AppLogger.Information($"Detected device type: {DeviceType} from part number: {Metadata.PartNumber}");
     }
 
     private void PopulateDigitalChannels(DaqifiOutMessage message)

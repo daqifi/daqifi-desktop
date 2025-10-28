@@ -67,10 +67,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             MessageProducer = new MessageProducer(Port.BaseStream);
             MessageProducer.Start();
 
-            TurnOffEcho();
-            StopStreaming();
-            TurnDeviceOn();
-            SetProtobufMessageFormat();
+            // Use async initialization
+            InitializeDeviceAsync().GetAwaiter().GetResult();
 
             MessageConsumer = new MessageConsumer(Port.BaseStream);
             MessageConsumer.Start();
@@ -231,10 +229,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             MessageProducer = new MessageProducer(Port.BaseStream);
             MessageProducer.Start();
 
-            TurnOffEcho();
-            StopStreaming();
-            TurnDeviceOn();
-            SetProtobufMessageFormat();
+            // Use async initialization (safe because Connect() is called from Task.Run)
+            InitializeDeviceAsync().GetAwaiter().GetResult();
 
             MessageConsumer = new MessageConsumer(Port.BaseStream);
             MessageConsumer.Start();
