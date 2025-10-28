@@ -3,6 +3,7 @@ using Daqifi.Desktop.DataModel.Network;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using Daqifi.Core.Communication.Messages;
+using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
 using Moq;
 
 namespace Daqifi.Desktop.Test.Device;
