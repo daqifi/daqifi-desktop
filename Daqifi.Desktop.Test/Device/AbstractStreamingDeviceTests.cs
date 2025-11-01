@@ -73,7 +73,8 @@ public class AbstractStreamingDeviceTests
         // Arrange & Act & Assert
         Assert.AreEqual(0, (int)DeviceType.Unknown, "Unknown should have value 0");
         Assert.AreEqual(1, (int)DeviceType.Nyquist1, "Nyquist1 should have value 1");
-        Assert.AreEqual(2, (int)DeviceType.Nyquist3, "Nyquist3 should have value 2");
+        Assert.AreEqual(2, (int)DeviceType.Nyquist2, "Nyquist2 should have value 2");
+        Assert.AreEqual(3, (int)DeviceType.Nyquist3, "Nyquist3 should have value 3");
     }
 
     [TestMethod]
@@ -82,6 +83,7 @@ public class AbstractStreamingDeviceTests
         // Arrange & Act & Assert
         Assert.AreEqual("Unknown", DeviceType.Unknown.ToString());
         Assert.AreEqual("Nyquist1", DeviceType.Nyquist1.ToString());
+        Assert.AreEqual("Nyquist2", DeviceType.Nyquist2.ToString());
         Assert.AreEqual("Nyquist3", DeviceType.Nyquist3.ToString());
     }
 
