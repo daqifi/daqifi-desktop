@@ -159,7 +159,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         _protocolHandler = new ProtobufProtocolHandler(
             statusMessageHandler: OnStatusMessageReceived,
             streamMessageHandler: OnStreamMessageReceived,
-            sdCardMessageHandler: null // SD card messages are text-based, handled separately
+            sdCardMessageHandler: _ => { } // SD card messages are text-based, handled separately; empty handler prevents NullReferenceException
         );
 
         AppLogger.Information("Protocol handler initialized with automatic message routing");
