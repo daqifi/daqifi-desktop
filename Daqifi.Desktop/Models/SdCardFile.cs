@@ -11,4 +11,14 @@ public class SdCardFile
     /// The created date of the file
     /// </summary>
     public DateTime CreatedDate { get; set; }
+
+    /// <summary>
+    /// The type of the file based on extension and content
+    /// </summary>
+    public SdCardFileType FileType { get; set; } = SdCardFileType.Unknown;
+
+    /// <summary>
+    /// The size of the file in bytes (optional, may not be available from device)
+    /// </summary>
+    public long? FileSizeBytes { get; set; }
 }

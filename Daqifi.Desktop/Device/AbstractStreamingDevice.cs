@@ -57,7 +57,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         Status,
         Streaming,
-        SdCard
+        SdCard,
+        SdCardFileDownload
     }
 
     public abstract ConnectionType ConnectionType { get; }
@@ -75,6 +76,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private readonly Dictionary<string, DateTime> _previousTimestamps = [];
     private readonly Dictionary<string, uint?> _previousDeviceTimestamps = [];
     private List<SdCardFile> _sdCardFiles = [];
+    private byte[]? _downloadedFileContent = null;
 
     #region Properties
 
@@ -164,6 +166,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
         MessageConsumer.OnMessageReceived -= HandleStreamingMessageReceived;
         MessageConsumer.OnMessageReceived -= HandleSdCardMessageReceived;
+        MessageConsumer.OnMessageReceived -= HandleSdCardFileDownloadReceived;
 
         // Add the new handler
         MessageConsumer.OnMessageReceived += handlerType switch
@@ -171,6 +174,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             MessageHandlerType.Status => HandleStatusMessageReceived,
             MessageHandlerType.Streaming => HandleStreamingMessageReceived,
             MessageHandlerType.SdCard => HandleSdCardMessageReceived,
+            MessageHandlerType.SdCardFileDownload => HandleSdCardFileDownloadReceived,
             _ => throw new ArgumentOutOfRangeException(nameof(handlerType), handlerType, null)
         };
 
@@ -390,8 +394,32 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
+    private void HandleSdCardFileDownloadReceived(object sender, MessageEventArgs<object> e)
+    {
+        // Cast the data to the expected type
+        if (e.Message.Data is not byte[] fileContent)
+        {
+            AppLogger.Warning("Expected binary data for SD card file download");
+            return;
+        }
+
+        try
+        {
+            AppLogger.Information($"Received SD card file content: {fileContent.Length} bytes");
+            _downloadedFileContent = fileContent;
+            // Stop the consumer after receiving the file
+            MessageConsumer.Stop();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Error processing SD card file download");
+        }
+    }
+
     private void HandleFileListResponse(string response)
     {
+        var fileTypeDetector = new Services.FileTypeDetector();
+
         var files = response
             .Split(["\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries)
             .Select(path =>
@@ -404,10 +432,14 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 // For log files, try to parse the date from the filename
                 var createdDate = TryParseLogFileDate(fileName) ?? DateTime.MinValue;
 
+                // Detect file type based on extension
+                var fileType = fileTypeDetector.DetectFileType(fileName);
+
                 return new SdCardFile
                 {
                     FileName = fileName,
-                    CreatedDate = createdDate
+                    CreatedDate = createdDate,
+                    FileType = fileType
                 };
             })
             .Where(file => !string.IsNullOrEmpty(file.FileName))
@@ -609,6 +641,91 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         _sdCardFiles = files;
         OnPropertyChanged(nameof(SdCardFiles));
+    }
+
+    /// <summary>
+    /// Downloads a file from the SD card
+    /// </summary>
+    /// <param name="fileName">The name of the file to download</param>
+    /// <returns>The file content as a byte array, or null if download failed</returns>
+    public byte[]? DownloadSdCardFile(string fileName)
+    {
+        if (ConnectionType != ConnectionType.Usb)
+        {
+            throw new InvalidOperationException("SD Card access is only available when connected via USB");
+        }
+
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            throw new ArgumentException("File name cannot be empty", nameof(fileName));
+        }
+
+        try
+        {
+            AppLogger.Information($"Starting download of SD card file: {fileName}");
+
+            // Clear any previous download result
+            _downloadedFileContent = null;
+
+            var stream = MessageConsumer.DataStream;
+
+            // Stop existing consumer first
+            if (MessageConsumer.Running)
+            {
+                MessageConsumer.Stop();
+            }
+
+            // Create and start the binary consumer BEFORE sending any commands
+            MessageConsumer = new BinaryMessageConsumer(stream);
+            SetMessageHandler(MessageHandlerType.SdCardFileDownload);
+            MessageConsumer.Start();
+
+            // Give the consumer a moment to fully initialize
+            Thread.Sleep(50);
+
+            // Now that we're listening, prepare the SD interface
+            PrepareSdInterface();
+
+            // Give the interface time to switch and send any responses
+            Thread.Sleep(100);
+
+            // Request the file content
+            // Note: The actual SCPI command depends on device firmware
+            // Common formats: "ReadSdFile <filename>" or "GetSdFile <filename>"
+            var readFileCommand = $"ReadSdFile {fileName}\r\n";
+            MessageProducer.Send(readFileCommand);
+
+            // Wait for the file to be downloaded (timeout after 30 seconds)
+            var timeout = TimeSpan.FromSeconds(30);
+            var startTime = DateTime.Now;
+
+            while (_downloadedFileContent == null && DateTime.Now - startTime < timeout)
+            {
+                Thread.Sleep(100);
+            }
+
+            // After getting the file, restore LAN interface if we're in StreamToApp mode
+            // SD and LAN share the same SPI bus and cannot be enabled simultaneously
+            if (Mode == DeviceMode.StreamToApp)
+            {
+                MessageProducer.Send(ScpiMessageProducer.DisableStorageSd);
+                MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
+            }
+
+            if (_downloadedFileContent == null)
+            {
+                AppLogger.Warning($"File download timed out for: {fileName}");
+                return null;
+            }
+
+            AppLogger.Information($"Successfully downloaded file: {fileName} ({_downloadedFileContent.Length} bytes)");
+            return _downloadedFileContent;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to download SD card file: {fileName}");
+            return null;
+        }
     }
 
     public void InitializeStreaming()
