@@ -2,6 +2,7 @@ using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Models;
 using Daqifi.Desktop.Services;
 using Moq;
+using System.IO;
 
 namespace Daqifi.Desktop.Test.Services;
 

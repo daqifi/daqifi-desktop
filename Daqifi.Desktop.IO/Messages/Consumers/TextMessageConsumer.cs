@@ -127,3 +127,16 @@ public class TextMessageConsumer : AbstractMessageConsumer
         }
     }
 }
+
+/// <summary>
+/// Represents a text message containing string data
+/// </summary>
+public class TextMessage : IInboundMessage<string>
+{
+    public string Data { get; }
+
+    public TextMessage(string data)
+    {
+        Data = data ?? throw new ArgumentNullException(nameof(data));
+    }
+}
