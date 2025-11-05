@@ -1,6 +1,7 @@
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Models;
+using System.IO;
 
 namespace Daqifi.Desktop.Services;
 

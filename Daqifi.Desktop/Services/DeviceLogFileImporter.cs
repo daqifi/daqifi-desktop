@@ -7,6 +7,7 @@ using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Models;
 using Google.Protobuf;
 using System.Collections.Concurrent;
+using System.IO;
 
 namespace Daqifi.Desktop.Services;
 
@@ -267,8 +268,8 @@ public class DeviceLogFileImporter : IDeviceLogFileImporter
                     DeviceName = device.Name,
                     DeviceSerialNo = message.DeviceSn.ToString(),
                     ChannelName = channelName,
-                    Timestamp = timestamp,
-                    ScaledValue = rawValue // Store raw value for now
+                    TimestampTicks = timestamp.Ticks,
+                    Value = rawValue // Store raw value for now
                 };
 
                 samples.Add(sample);
@@ -276,22 +277,22 @@ public class DeviceLogFileImporter : IDeviceLogFileImporter
         }
 
         // Extract digital channel samples
-        if (message.DigitalData != null)
+        if (message.DigitalData != null && message.DigitalData.Length > 0)
         {
-            // Digital data is a bit field
-            var digitalValue = message.DigitalData;
+            // Digital data is a bit field stored in bytes
+            var digitalByte = message.DigitalData.ElementAtOrDefault(0);
             for (var i = 0; i < 8; i++) // Assuming 8 digital channels
             {
                 var channelName = $"DIO{i}";
-                var bitValue = (digitalValue & (1 << i)) != 0 ? 1 : 0;
+                var bitValue = (digitalByte & (1 << i)) != 0 ? 1 : 0;
 
                 var sample = new DataSample
                 {
                     DeviceName = device.Name,
                     DeviceSerialNo = message.DeviceSn.ToString(),
                     ChannelName = channelName,
-                    Timestamp = timestamp,
-                    ScaledValue = bitValue
+                    TimestampTicks = timestamp.Ticks,
+                    Value = bitValue
                 };
 
                 samples.Add(sample);

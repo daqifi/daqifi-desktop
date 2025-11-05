@@ -1,4 +1,5 @@
 using Daqifi.Desktop.Models;
+using System.IO;
 
 namespace Daqifi.Desktop.Services;
 

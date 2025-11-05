@@ -693,7 +693,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             // Note: The actual SCPI command depends on device firmware
             // Common formats: "ReadSdFile <filename>" or "GetSdFile <filename>"
             var readFileCommand = $"ReadSdFile {fileName}\r\n";
-            MessageProducer.Send(readFileCommand);
+            Write(readFileCommand);
 
             // Wait for the file to be downloaded (timeout after 30 seconds)
             var timeout = TimeSpan.FromSeconds(30);
