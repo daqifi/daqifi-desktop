@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Daqifi.Desktop.Device;
 using System.Windows.Input;
 using Daqifi.Desktop.Models;
+using Daqifi.Desktop.Services;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -30,6 +31,9 @@ public partial class DeviceLogsViewModel : ObservableObject
     [ObservableProperty]
     private bool _canRefreshFiles;
 
+    [ObservableProperty]
+    private SdCardFile _selectedFile;
+
     public bool CanAccessSdCard => SelectedDevice?.ConnectionType == ConnectionType.Usb;
 
     public string ConnectionTypeMessage => SelectedDevice == null ? string.Empty :
@@ -38,6 +42,7 @@ public partial class DeviceLogsViewModel : ObservableObject
             "WiFi Connected - SD Card Access Requires USB Connection";
 
     public ICommand RefreshFilesCommand { get; }
+    public ICommand ImportFileCommand { get; }
 
     public DeviceLogsViewModel()
     {
@@ -46,6 +51,7 @@ public partial class DeviceLogsViewModel : ObservableObject
 
         // Initialize commands
         RefreshFilesCommand = new RelayCommand(RefreshFiles, () => CanAccessSdCard);
+        ImportFileCommand = new RelayCommand(async () => await ImportFileAsync(), () => SelectedFile != null && CanAccessSdCard);
 
         // Subscribe to device connection changes
         ConnectionManager.Instance.PropertyChanged += (s, e) =>
@@ -100,6 +106,12 @@ public partial class DeviceLogsViewModel : ObservableObject
         OnPropertyChanged(nameof(CanAccessSdCard));
         OnPropertyChanged(nameof(ConnectionTypeMessage));
         (RefreshFilesCommand as RelayCommand)?.NotifyCanExecuteChanged();
+        (ImportFileCommand as RelayCommand)?.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSelectedFileChanged(SdCardFile value)
+    {
+        (ImportFileCommand as RelayCommand)?.NotifyCanExecuteChanged();
     }
 
     private async void RefreshFiles()
@@ -142,6 +154,58 @@ public partial class DeviceLogsViewModel : ObservableObject
             await Application.Current.Dispatcher.InvokeAsync(async () =>
             {
                 await ShowMessage("Error", $"Failed to refresh files: {ex.Message}", MessageDialogStyle.Affirmative);
+            });
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyMessage = string.Empty;
+        }
+    }
+
+    private async Task ImportFileAsync()
+    {
+        if (SelectedFile == null || SelectedDevice == null || !CanAccessSdCard)
+        {
+            return;
+        }
+
+        try
+        {
+            IsBusy = true;
+            BusyMessage = "Downloading file...";
+
+            // Download the file from the SD card
+            var binaryData = await SelectedDevice.DownloadSdCardFileAsync(SelectedFile.FileName);
+
+            BusyMessage = "Importing to database...";
+
+            // Import the file into a logging session
+            var importer = new LoggingSessionImporter();
+            var progress = new Progress<ImportProgress>(p =>
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    BusyMessage = p.Message;
+                });
+            });
+
+            var session = await importer.ImportSdCardLogAsync(SelectedFile, binaryData, SelectedDevice, progress);
+
+            await Application.Current.Dispatcher.InvokeAsync(async () =>
+            {
+                await ShowMessage("Import Complete",
+                    $"Successfully imported {SelectedFile.FileName}\n" +
+                    $"Session ID: {session.ID}\n" +
+                    $"Session Name: {session.Name}",
+                    MessageDialogStyle.Affirmative);
+            });
+        }
+        catch (Exception ex)
+        {
+            await Application.Current.Dispatcher.InvokeAsync(async () =>
+            {
+                await ShowMessage("Import Failed", $"Failed to import file: {ex.Message}", MessageDialogStyle.Affirmative);
             });
         }
         finally

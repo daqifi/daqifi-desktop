@@ -38,6 +38,7 @@ public interface IStreamingDevice : IDevice
     void StopSdCardLogging();
     void RefreshSdCardFiles();
     void UpdateSdCardFiles(List<SdCardFile> files);
+    Task<byte[]> DownloadSdCardFileAsync(string fileName);
     string DevicePartNumber { get; }
     NetworkConfiguration NetworkConfiguration { get; }
     string MacAddress { get; set; }

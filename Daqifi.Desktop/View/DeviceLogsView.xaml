@@ -30,29 +30,42 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <!-- Device Selection Row -->
-            <TextBlock Text="Device:" 
+            <TextBlock Text="Device:"
                       Grid.Row="0"
-                      VerticalAlignment="Center" 
+                      VerticalAlignment="Center"
                       Margin="0,0,10,0"/>
-            
+
             <ComboBox Grid.Row="0"
-                      Grid.Column="1" 
+                      Grid.Column="1"
                       ItemsSource="{Binding ConnectedDevices}"
                       SelectedItem="{Binding SelectedDevice}"
                       DisplayMemberPath="DeviceSerialNo"
                       Margin="0,0,10,0"/>
 
             <Button Grid.Row="0"
-                    Grid.Column="2" 
+                    Grid.Column="2"
                     Command="{Binding RefreshFilesCommand}"
                     ToolTip="{Binding ConnectionTypeMessage}"
-                    IsEnabled="{Binding CanAccessSdCard}">
+                    IsEnabled="{Binding CanAccessSdCard}"
+                    Margin="0,0,10,0">
                 <StackPanel Orientation="Horizontal">
                     <iconPacks:PackIconMaterial Kind="Refresh" Margin="0,0,5,0"/>
                     <TextBlock Text="Refresh Files"/>
+                </StackPanel>
+            </Button>
+
+            <Button Grid.Row="0"
+                    Grid.Column="3"
+                    Command="{Binding ImportFileCommand}"
+                    ToolTip="Import selected file to application database"
+                    IsEnabled="{Binding ImportFileCommand.CanExecute}">
+                <StackPanel Orientation="Horizontal">
+                    <iconPacks:PackIconMaterial Kind="Import" Margin="0,0,5,0"/>
+                    <TextBlock Text="Import File"/>
                 </StackPanel>
             </Button>
 
@@ -71,8 +84,9 @@
 
         <!-- Device Files List -->
         <Grid Grid.Row="1">
-            <ListView ItemsSource="{Binding DeviceFiles}" 
-                      Background="Transparent" 
+            <ListView ItemsSource="{Binding DeviceFiles}"
+                      SelectedItem="{Binding SelectedFile}"
+                      Background="Transparent"
                       BorderThickness="0"
                       IsEnabled="{Binding CanAccessSdCard}">
                 <ListView.View>

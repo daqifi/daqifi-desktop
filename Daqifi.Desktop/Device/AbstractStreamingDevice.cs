@@ -57,7 +57,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         Status,
         Streaming,
-        SdCard
+        SdCard,
+        SdCardDownload
     }
 
     public abstract ConnectionType ConnectionType { get; }
@@ -75,6 +76,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private readonly Dictionary<string, DateTime> _previousTimestamps = [];
     private readonly Dictionary<string, uint?> _previousDeviceTimestamps = [];
     private List<SdCardFile> _sdCardFiles = [];
+    private byte[]? _downloadedFileData;
+    private TaskCompletionSource<byte[]>? _downloadTaskCompletionSource;
 
     #region Properties
 
@@ -164,6 +167,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
         MessageConsumer.OnMessageReceived -= HandleStreamingMessageReceived;
         MessageConsumer.OnMessageReceived -= HandleSdCardMessageReceived;
+        MessageConsumer.OnMessageReceived -= HandleSdCardDownloadMessageReceived;
 
         // Add the new handler
         MessageConsumer.OnMessageReceived += handlerType switch
@@ -171,6 +175,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             MessageHandlerType.Status => HandleStatusMessageReceived,
             MessageHandlerType.Streaming => HandleStreamingMessageReceived,
             MessageHandlerType.SdCard => HandleSdCardMessageReceived,
+            MessageHandlerType.SdCardDownload => HandleSdCardDownloadMessageReceived,
             _ => throw new ArgumentOutOfRangeException(nameof(handlerType), handlerType, null)
         };
 
@@ -437,6 +442,35 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
         return null;
     }
+
+    private void HandleSdCardDownloadMessageReceived(object sender, MessageEventArgs<object> e)
+    {
+        // Cast the data to the expected type (binary data)
+        if (e.Message.Data is not byte[] binaryData)
+        {
+            AppLogger.Warning("Expected binary data for SD card download");
+            return;
+        }
+
+        try
+        {
+            AppLogger.Information($"Received {binaryData.Length} bytes from SD card download");
+
+            // Store the downloaded data
+            _downloadedFileData = binaryData;
+
+            // Signal that the download is complete
+            _downloadTaskCompletionSource?.TrySetResult(binaryData);
+
+            // Stop the consumer
+            MessageConsumer?.Stop();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Error processing SD card download");
+            _downloadTaskCompletionSource?.TrySetException(ex);
+        }
+    }
     #endregion
 
     #region Streaming Methods
@@ -609,6 +643,89 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         _sdCardFiles = files;
         OnPropertyChanged(nameof(SdCardFiles));
+    }
+
+    /// <summary>
+    /// Downloads a file from the SD card
+    /// </summary>
+    /// <param name="fileName">The name of the file to download</param>
+    /// <returns>The binary data of the downloaded file</returns>
+    public async Task<byte[]> DownloadSdCardFileAsync(string fileName)
+    {
+        if (ConnectionType != ConnectionType.Usb)
+        {
+            throw new InvalidOperationException("SD Card access is only available when connected via USB");
+        }
+
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            throw new ArgumentException("File name cannot be null or empty", nameof(fileName));
+        }
+
+        AppLogger.Information($"Starting download of SD card file: {fileName}");
+
+        try
+        {
+            var stream = MessageConsumer.DataStream;
+
+            // Stop existing consumer first
+            if (MessageConsumer.Running)
+            {
+                MessageConsumer.Stop();
+            }
+
+            // Reset download state
+            _downloadedFileData = null;
+            _downloadTaskCompletionSource = new TaskCompletionSource<byte[]>();
+
+            // Create and start a binary message consumer for the download
+            MessageConsumer = new IO.Messages.Consumers.BinaryMessageConsumer(stream);
+            SetMessageHandler(MessageHandlerType.SdCardDownload);
+            MessageConsumer.Start();
+
+            // Give the consumer a moment to fully initialize
+            await Task.Delay(50);
+
+            // Prepare the SD interface
+            PrepareSdInterface();
+
+            // Give the interface time to switch
+            await Task.Delay(100);
+
+            // Now request the file download
+            MessageProducer.Send(ScpiMessageProducer.GetSdFile(fileName));
+
+            // Wait for the download to complete (with timeout)
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var registration = cts.Token.Register(() => _downloadTaskCompletionSource?.TrySetCanceled());
+
+            var data = await _downloadTaskCompletionSource.Task;
+
+            // After downloading, restore LAN interface if we're in StreamToApp mode
+            if (Mode == DeviceMode.StreamToApp)
+            {
+                MessageProducer.Send(ScpiMessageProducer.DisableStorageSd);
+                MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
+            }
+
+            AppLogger.Information($"Successfully downloaded {data.Length} bytes from {fileName}");
+            return data;
+        }
+        catch (OperationCanceledException)
+        {
+            AppLogger.Error($"Timeout downloading file: {fileName}");
+            throw new TimeoutException($"Timeout downloading file: {fileName}");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to download SD card file: {fileName}");
+            throw;
+        }
+        finally
+        {
+            // Clean up
+            _downloadTaskCompletionSource = null;
+        }
     }
 
     public void InitializeStreaming()
