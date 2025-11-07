@@ -294,13 +294,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
                     else
                     {
                         // Device probe failed - this is not a DAQiFi device, don't add to UI
+                        // Keep in probed set to avoid retrying every discovery cycle
                         Common.Loggers.AppLogger.Instance.Information($"Port {portName} is not a DAQiFi device - not added to available devices");
-
-                        // Remove from probed set so we can retry later if needed
-                        lock (_probedSerialPorts)
-                        {
-                            _probedSerialPorts.Remove(portName);
-                        }
                     }
                 }
                 catch (Exception probEx)
@@ -308,7 +303,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
                     // Log but don't add device to list since we couldn't verify it's a DAQiFi device
                     Common.Loggers.AppLogger.Instance.Warning($"Failed to retrieve device info for {portName}: {probEx.Message}");
 
-                    // Remove from probed set so we can retry later
+                    // Remove from probed set to allow retry - device might have been busy or powered off
                     lock (_probedSerialPorts)
                     {
                         _probedSerialPorts.Remove(portName);
