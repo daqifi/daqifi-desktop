@@ -3,6 +3,8 @@ using Daqifi.Desktop.IO.Messages.Producers;
 using System.IO.Ports;
 using Daqifi.Desktop.Bootloader;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
+using Daqifi.Core.Device.Protocol; // Added for ProtobufProtocolHandler
+using Daqifi.Core.Communication.Messages; // Added for DaqifiOutMessage
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -67,10 +69,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             MessageProducer = new MessageProducer(Port.BaseStream);
             MessageProducer.Start();
 
-            TurnOffEcho();
-            StopStreaming();
-            TurnDeviceOn();
-            SetProtobufMessageFormat();
+            // Use async initialization
+            InitializeDeviceAsync().GetAwaiter().GetResult();
 
             MessageConsumer = new MessageConsumer(Port.BaseStream);
             MessageConsumer.Start();
@@ -84,17 +84,22 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             {
                 try
                 {
-                    if (args.Message.Data is DaqifiOutMessage message && IsValidStatusMessage(message))
+                    if (args.Message.Data is DaqifiOutMessage message)
                     {
-                        HydrateDeviceMetadata(message);
-                        // Set Name to device part number if available, otherwise keep port name
-                        if (!string.IsNullOrWhiteSpace(DevicePartNumber))
+                        // Use Core's protocol handler logic to determine if this is a status message
+                        var messageType = ProtobufProtocolHandler.DetectMessageType(message);
+                        if (messageType == ProtobufMessageType.Status)
                         {
-                            Name = DevicePartNumber;
+                            HydrateDeviceMetadata(message);
+                            // Set Name to device part number if available, otherwise keep port name
+                            if (!string.IsNullOrWhiteSpace(DevicePartNumber))
+                            {
+                                Name = DevicePartNumber;
+                            }
+                            deviceInfoReceived = true;
+                            // Remove handler to prevent multiple calls
+                            MessageConsumer.OnMessageReceived -= handler;
                         }
-                        deviceInfoReceived = true;
-                        // Remove handler to prevent multiple calls
-                        MessageConsumer.OnMessageReceived -= handler;
                     }
                 }
                 catch (Exception ex)
@@ -231,10 +236,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             MessageProducer = new MessageProducer(Port.BaseStream);
             MessageProducer.Start();
 
-            TurnOffEcho();
-            StopStreaming();
-            TurnDeviceOn();
-            SetProtobufMessageFormat();
+            // Use async initialization (safe because Connect() is called from Task.Run)
+            InitializeDeviceAsync().GetAwaiter().GetResult();
 
             MessageConsumer = new MessageConsumer(Port.BaseStream);
             MessageConsumer.Start();
