@@ -254,9 +254,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
             var serialDevice = DeviceInfoConverter.ToSerialDevice(e.DeviceInfo);
             var portName = serialDevice.Port.PortName;
 
-            // Immediately add device to UI with port name
-            HandleSerialDeviceFound(sender, serialDevice);
-
             // Only probe once per port to avoid conflicts
             lock (_probedSerialPorts)
             {
@@ -267,31 +264,48 @@ public partial class ConnectionDialogViewModel : ObservableObject
                 _probedSerialPorts.Add(portName);
             }
 
-            // Probe device for actual info in background (like old desktop finder did)
+            // Probe device for actual info in background - only add to UI if it's a DAQiFi device
             Task.Run(() =>
             {
                 try
                 {
                     if (serialDevice.TryGetDeviceInfo())
                     {
-                        // Trigger UI refresh by removing and re-adding with updated info
+                        // Successfully verified as DAQiFi device - add to UI with device info
                         System.Windows.Application.Current.Dispatcher.Invoke(() =>
                         {
-                            // Find existing device
+                            // Check if it's already in the list (shouldn't be, but just in case)
                             var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == portName);
-                            if (existing != null)
+                            if (existing == null)
                             {
-                                // Remove and re-add to force UI refresh with updated properties
+                                AvailableSerialDevices.Add(serialDevice);
+                                if (HasNoSerialDevices) { HasNoSerialDevices = false; }
+                                Common.Loggers.AppLogger.Instance.Information($"Added DAQiFi device on {portName}: {serialDevice.Name} (S/N: {serialDevice.DeviceSerialNo})");
+                            }
+                            else
+                            {
+                                // Update existing entry with full device info
                                 var index = AvailableSerialDevices.IndexOf(existing);
                                 AvailableSerialDevices.RemoveAt(index);
                                 AvailableSerialDevices.Insert(index, serialDevice);
                             }
                         });
                     }
+                    else
+                    {
+                        // Device probe failed - this is not a DAQiFi device, don't add to UI
+                        Common.Loggers.AppLogger.Instance.Information($"Port {portName} is not a DAQiFi device - not added to available devices");
+
+                        // Remove from probed set so we can retry later if needed
+                        lock (_probedSerialPorts)
+                        {
+                            _probedSerialPorts.Remove(portName);
+                        }
+                    }
                 }
                 catch (Exception probEx)
                 {
-                    // Log but don't fail - device still shows with port name only
+                    // Log but don't add device to list since we couldn't verify it's a DAQiFi device
                     Common.Loggers.AppLogger.Instance.Warning($"Failed to retrieve device info for {portName}: {probEx.Message}");
 
                     // Remove from probed set so we can retry later
