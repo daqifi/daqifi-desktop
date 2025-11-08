@@ -55,14 +55,32 @@ public class WifiModuleUpdater
     {
         try
         {
-            device.Connect();
+            _appLogger.Information($"Connecting to device {device.Name} for WiFi update preparation...");
+            var connected = device.Connect();
+
+            if (!connected)
+            {
+                throw new FirmwareUpdateException($"Failed to connect to device {device.Name} for WiFi update");
+            }
+
+            // Give device time to fully initialize after connection
+            await Task.Delay(2000);
+
+            _appLogger.Information("Enabling LAN update mode...");
             device.EnableLanUpdateMode();
-            await Task.Delay(1000);
+
+            // Wait for commands to be sent and processed
+            await Task.Delay(2000);
+
+            _appLogger.Information("Disconnecting device before WiFi programming...");
             device.Disconnect();
+
+            // Give device time to process the mode change
+            await Task.Delay(1000);
         }
         catch (Exception ex)
         {
-            throw new FirmwareUpdateException($"Error during UART communication: {ex.Message}");
+            throw new FirmwareUpdateException($"Error preparing device for WiFi update: {ex.Message}");
         }
     }
 
@@ -158,13 +176,38 @@ public class WifiModuleUpdater
 
     private async Task FinalizeDeviceUpdate(IFirmwareUpdateDevice device, IProgress<int> progress)
     {
-        device.Connect();
-        progress.Report(93);
-        await Task.Delay(1000);
-        device.ResetLanAfterUpdate();
-        progress.Report(96);
-        await Task.Delay(1000);
-        device.Reboot();
-        progress.Report(100);
+        try
+        {
+            _appLogger.Information($"Reconnecting to device {device.Name} to finalize WiFi update...");
+
+            // Give device time to complete WiFi programming and be ready to reconnect
+            await Task.Delay(3000);
+
+            var connected = device.Connect();
+            if (!connected)
+            {
+                throw new FirmwareUpdateException($"Failed to reconnect to device {device.Name} after WiFi update");
+            }
+
+            progress.Report(93);
+
+            // Wait for device to stabilize after reconnection
+            await Task.Delay(2000);
+
+            _appLogger.Information("Resetting LAN configuration after WiFi update...");
+            device.ResetLanAfterUpdate();
+            progress.Report(96);
+
+            // Wait for LAN reset commands to be processed
+            await Task.Delay(2000);
+
+            _appLogger.Information("Rebooting device to complete WiFi update...");
+            device.Reboot();
+            progress.Report(100);
+        }
+        catch (Exception ex)
+        {
+            throw new FirmwareUpdateException($"Error finalizing WiFi update: {ex.Message}");
+        }
     }
 }

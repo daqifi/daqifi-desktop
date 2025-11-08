@@ -540,7 +540,22 @@ public partial class DaqifiViewModel : ObservableObject
         }
         else
         {
-            InitializeUpdateWiFiBackgroundWorker();
+            // Device needs time to fully reboot and stabilize after firmware update
+            // before we can start the WiFi module update
+            _appLogger.Information("Waiting for device to fully boot after firmware update before WiFi update...");
+
+            var delayWorker = new BackgroundWorker();
+            delayWorker.DoWork += (s, args) =>
+            {
+                // Wait 10 seconds for device to fully boot and be ready for WiFi update
+                Thread.Sleep(10000);
+            };
+            delayWorker.RunWorkerCompleted += (s, args) =>
+            {
+                _appLogger.Information("Starting WiFi module update...");
+                InitializeUpdateWiFiBackgroundWorker();
+            };
+            delayWorker.RunWorkerAsync();
         }
         IsFirmwareUploading = false;
     }
