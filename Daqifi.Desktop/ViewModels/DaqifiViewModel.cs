@@ -575,53 +575,37 @@ public partial class DaqifiViewModel : ObservableObject
             return;
         }
 
-        // Always perform a fresh disconnect/reconnect cycle to ensure clean connection state
-        // This prevents issues with stale connections or devices in bad states
-        var wasConnected = serialStreamingDevice.Port is { IsOpen: true };
+        // Check if device is connected - it should be connected before attempting firmware update
+        var isConnected = serialStreamingDevice.Port is { IsOpen: true } &&
+                         serialStreamingDevice.MessageProducer != null;
 
-        if (wasConnected)
+        if (!isConnected)
         {
-            _appLogger.Information($"Disconnecting device {serialStreamingDevice.Name} for clean reconnection before firmware update...");
-            serialStreamingDevice.Disconnect();
-            Thread.Sleep(1000); // Wait for clean disconnect
-        }
-
-        _appLogger.Information($"Connecting to device {serialStreamingDevice.Name} for firmware update...");
-        var connected = serialStreamingDevice.Connect();
-
-        if (!connected)
-        {
-            _appLogger.Error($"Failed to connect to device {serialStreamingDevice.Name} for firmware update. Please ensure the device is properly connected.");
+            _appLogger.Error($"Device {serialStreamingDevice.Name} is not connected. Cannot update firmware on a disconnected device.");
             NotificationList.Add(new Notifications
             {
-                Message = $"Cannot update firmware: Failed to connect to device {serialStreamingDevice.Name}. Please check the connection and try again.",
+                Message = $"Please connect device {serialStreamingDevice.Name} before attempting firmware update.",
                 DeviceSerialNo = serialStreamingDevice.DeviceSerialNo
             });
             return;
         }
 
-        // Give the device time to fully initialize after connection
-        Thread.Sleep(1000);
+        _appLogger.Information($"Preparing device {serialStreamingDevice.Name} for firmware update...");
 
-        // Verify the connection is functional by checking MessageProducer is ready
-        if (serialStreamingDevice.MessageProducer == null || serialStreamingDevice.Port is not { IsOpen: true })
+        // Ensure device is not streaming before entering bootloader mode
+        if (serialStreamingDevice.DataChannels.Any())
         {
-            _appLogger.Error($"Device {serialStreamingDevice.Name} is not in a valid state for firmware update after reconnection.");
-            NotificationList.Add(new Notifications
-            {
-                Message = $"Device {serialStreamingDevice.Name} is not ready for firmware update. Please reconnect the device and try again.",
-                DeviceSerialNo = serialStreamingDevice.DeviceSerialNo
-            });
-            serialStreamingDevice.Disconnect();
-            return;
+            _appLogger.Information("Stopping streaming before firmware update...");
+            serialStreamingDevice.StopStreaming();
+            Thread.Sleep(500); // Give device time to stop streaming
         }
 
         _appLogger.Information($"Sending bootloader command to device {serialStreamingDevice.Name}...");
         serialStreamingDevice.ForceBootloader();
 
-        // Give the device time to process the bootloader command
-        // The command is queued and sent asynchronously by MessageProducer
-        Thread.Sleep(500);
+        // Wait for the bootloader command to be sent
+        // The command is queued and sent asynchronously by MessageProducer's background thread
+        Thread.Sleep(1000);
 
         serialStreamingDevice.Disconnect();
 
