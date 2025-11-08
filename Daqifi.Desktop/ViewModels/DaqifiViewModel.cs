@@ -575,49 +575,53 @@ public partial class DaqifiViewModel : ObservableObject
             return;
         }
 
-        // Ensure the device is connected before attempting to enter bootloader mode
-        var isDeviceConnected = serialStreamingDevice.Port is { IsOpen: true } &&
-                                serialStreamingDevice.MessageProducer != null;
+        // Always perform a fresh disconnect/reconnect cycle to ensure clean connection state
+        // This prevents issues with stale connections or devices in bad states
+        var wasConnected = serialStreamingDevice.Port is { IsOpen: true };
 
-        if (!isDeviceConnected)
+        if (wasConnected)
         {
-            _appLogger.Information($"Device {serialStreamingDevice.Name} is not connected. Attempting to connect...");
-
-            // Attempt to connect the device
-            var connected = serialStreamingDevice.Connect();
-
-            if (!connected)
-            {
-                _appLogger.Error($"Failed to connect to device {serialStreamingDevice.Name} for firmware update. Please ensure the device is properly connected.");
-                NotificationList.Add(new Notifications
-                {
-                    Message = $"Cannot update firmware: Device {serialStreamingDevice.Name} is not connected. Please connect the device first.",
-                    DeviceSerialNo = serialStreamingDevice.DeviceSerialNo
-                });
-                return;
-            }
-
-            // Give the device time to fully initialize after connection
-            Thread.Sleep(500);
+            _appLogger.Information($"Disconnecting device {serialStreamingDevice.Name} for clean reconnection before firmware update...");
+            serialStreamingDevice.Disconnect();
+            Thread.Sleep(1000); // Wait for clean disconnect
         }
 
-        try
-        {
-            serialStreamingDevice.ForceBootloader();
+        _appLogger.Information($"Connecting to device {serialStreamingDevice.Name} for firmware update...");
+        var connected = serialStreamingDevice.Connect();
 
-            // Give the device time to process the bootloader command before disconnecting
-            Thread.Sleep(100);
-        }
-        catch (Exception ex)
+        if (!connected)
         {
-            _appLogger.Error(ex, $"Failed to send bootloader command to device {serialStreamingDevice.Name}");
+            _appLogger.Error($"Failed to connect to device {serialStreamingDevice.Name} for firmware update. Please ensure the device is properly connected.");
             NotificationList.Add(new Notifications
             {
-                Message = $"Failed to enter bootloader mode: {ex.Message}",
+                Message = $"Cannot update firmware: Failed to connect to device {serialStreamingDevice.Name}. Please check the connection and try again.",
                 DeviceSerialNo = serialStreamingDevice.DeviceSerialNo
             });
             return;
         }
+
+        // Give the device time to fully initialize after connection
+        Thread.Sleep(1000);
+
+        // Verify the connection is functional by checking MessageProducer is ready
+        if (serialStreamingDevice.MessageProducer == null || serialStreamingDevice.Port is not { IsOpen: true })
+        {
+            _appLogger.Error($"Device {serialStreamingDevice.Name} is not in a valid state for firmware update after reconnection.");
+            NotificationList.Add(new Notifications
+            {
+                Message = $"Device {serialStreamingDevice.Name} is not ready for firmware update. Please reconnect the device and try again.",
+                DeviceSerialNo = serialStreamingDevice.DeviceSerialNo
+            });
+            serialStreamingDevice.Disconnect();
+            return;
+        }
+
+        _appLogger.Information($"Sending bootloader command to device {serialStreamingDevice.Name}...");
+        serialStreamingDevice.ForceBootloader();
+
+        // Give the device time to process the bootloader command
+        // The command is queued and sent asynchronously by MessageProducer
+        Thread.Sleep(500);
 
         serialStreamingDevice.Disconnect();
 
