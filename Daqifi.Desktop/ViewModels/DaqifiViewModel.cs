@@ -575,7 +575,50 @@ public partial class DaqifiViewModel : ObservableObject
             return;
         }
 
-        serialStreamingDevice.ForceBootloader();
+        // Ensure the device is connected before attempting to enter bootloader mode
+        var isDeviceConnected = serialStreamingDevice.Port is { IsOpen: true } &&
+                                serialStreamingDevice.MessageProducer != null;
+
+        if (!isDeviceConnected)
+        {
+            _appLogger.Information($"Device {serialStreamingDevice.Name} is not connected. Attempting to connect...");
+
+            // Attempt to connect the device
+            var connected = serialStreamingDevice.Connect();
+
+            if (!connected)
+            {
+                _appLogger.Error($"Failed to connect to device {serialStreamingDevice.Name} for firmware update. Please ensure the device is properly connected.");
+                NotificationList.Add(new Notifications
+                {
+                    Message = $"Cannot update firmware: Device {serialStreamingDevice.Name} is not connected. Please connect the device first.",
+                    DeviceSerialNo = serialStreamingDevice.DeviceSerialNo
+                });
+                return;
+            }
+
+            // Give the device time to fully initialize after connection
+            Thread.Sleep(500);
+        }
+
+        try
+        {
+            serialStreamingDevice.ForceBootloader();
+
+            // Give the device time to process the bootloader command before disconnecting
+            Thread.Sleep(100);
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, $"Failed to send bootloader command to device {serialStreamingDevice.Name}");
+            NotificationList.Add(new Notifications
+            {
+                Message = $"Failed to enter bootloader mode: {ex.Message}",
+                DeviceSerialNo = serialStreamingDevice.DeviceSerialNo
+            });
+            return;
+        }
+
         serialStreamingDevice.Disconnect();
 
         // Once the DAQiFi resets, the COM serial port is closed,
