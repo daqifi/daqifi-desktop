@@ -597,15 +597,28 @@ public partial class DaqifiViewModel : ObservableObject
         {
             _appLogger.Information("Stopping streaming before firmware update...");
             serialStreamingDevice.StopStreaming();
-            Thread.Sleep(500); // Give device time to stop streaming
+
+            // Wait for stop streaming commands to be sent and processed by device
+            // StopStreaming() queues commands asynchronously, so we need to wait
+            Thread.Sleep(1500);
         }
 
         _appLogger.Information($"Sending bootloader command to device {serialStreamingDevice.Name}...");
-        serialStreamingDevice.ForceBootloader();
 
-        // Wait for the bootloader command to be sent
-        // The command is queued and sent asynchronously by MessageProducer's background thread
-        Thread.Sleep(1000);
+        // Send the bootloader command
+        try
+        {
+            serialStreamingDevice.ForceBootloader();
+
+            // Wait for the bootloader command to be sent
+            // The command is queued and sent asynchronously by MessageProducer's background thread
+            // The device needs time to receive and process this command before we disconnect
+            Thread.Sleep(2000);
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, $"Error while sending bootloader command to device {serialStreamingDevice.Name}");
+        }
 
         serialStreamingDevice.Disconnect();
 
