@@ -750,7 +750,7 @@ public partial class DaqifiViewModel : ObservableObject
             return;
         }
 
-        SelectedDeviceSupportsFirmwareUpdate = device is SerialStreamingDevice;
+        SelectedDeviceSupportsFirmwareUpdate = device.ConnectionType == Device.ConnectionType.Usb;
 
         CloseFlyouts();
         SelectedDevice = device;
