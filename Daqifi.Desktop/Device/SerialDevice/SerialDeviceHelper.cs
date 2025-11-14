@@ -18,6 +18,11 @@ public static class SerialDeviceHelper
             var pnpDeviceId = serialDevice.GetPropertyValue("PNPDeviceID");
 
             var device = UsbDevice.Get((string)pnpDeviceId);
+            if (device == null)
+            {
+                continue; // Skip devices that don't have USB device info
+            }
+
             var deviceReportedDescription = device.BusReportedDeviceDescription;
 
             if (deviceReportedDescription != null && deviceReportedDescription.ToLower() == "nyquist")

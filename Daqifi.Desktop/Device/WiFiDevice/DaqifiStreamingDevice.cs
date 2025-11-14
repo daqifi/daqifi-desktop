@@ -72,10 +72,8 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             MessageProducer = new MessageProducer(Client.GetStream());
             MessageProducer.Start();
 
-            TurnOffEcho();
-            StopStreaming();
-            TurnDeviceOn();
-            SetProtobufMessageFormat();
+            // Use async initialization (safe because Connect() is called from Task.Run)
+            InitializeDeviceAsync().GetAwaiter().GetResult();
 
             var stream = Client.GetStream();
             MessageConsumer = new MessageConsumer(stream);
