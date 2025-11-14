@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Bootloader.Exceptions;
-using Daqifi.Desktop.Device.SerialDevice;
 
 namespace Daqifi.Desktop.Bootloader;
 
@@ -38,14 +37,9 @@ public class WifiModuleUpdater
             {
                 await PrepareDeviceForUpdate(device);
 
-                // Get the actual COM port name for the WiFi programming tool
-                // device.Name may be the device part number (e.g., "Nq1") after device info is retrieved,
-                // but the WiFi UART tool needs the actual port name (e.g., "COM3")
-                var portName = device is SerialStreamingDevice serialDevice
-                    ? serialDevice.Port.PortName
-                    : device.Name;
-
-                await ExecuteWifiUpdate(cmdFilePath, portName, latestVersion, progress);
+                // Use PortName property which provides the actual COM port (e.g., "COM3")
+                // rather than Name which may be the device part number (e.g., "Nq1") after discovery
+                await ExecuteWifiUpdate(cmdFilePath, device.PortName, latestVersion, progress);
                 await FinalizeDeviceUpdate(device, progress);
             }
             catch (Exception ex)

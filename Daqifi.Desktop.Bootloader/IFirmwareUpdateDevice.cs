@@ -11,6 +11,12 @@ public interface IFirmwareUpdateDevice
     string Name { get; }
 
     /// <summary>
+    /// Gets the actual COM port name for UART communication (e.g. COM3)
+    /// This may differ from Name if the device has been identified with a part number
+    /// </summary>
+    string PortName { get; }
+
+    /// <summary>
     /// Connects to the device
     /// </summary>
     bool Connect();
