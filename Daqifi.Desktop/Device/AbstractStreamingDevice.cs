@@ -14,29 +14,11 @@ using Daqifi.Desktop.IO.Messages.Producers;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
+using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector, DeviceMetadata, DeviceCapabilities, DeviceState
+using Daqifi.Core.Device.Protocol; // Added for ProtobufProtocolHandler
+using Daqifi.Core.Communication.Messages; // Added for IInboundMessage
 
 namespace Daqifi.Desktop.Device;
-
-/// <summary>
-/// Represents the type of DAQiFi device
-/// </summary>
-public enum DeviceType
-{
-    /// <summary>
-    /// Unknown or unspecified device type
-    /// </summary>
-    Unknown,
-
-    /// <summary>
-    /// Nyquist1 device type
-    /// </summary>
-    Nyquist1,
-
-    /// <summary>
-    /// Nyquist3 device type
-    /// </summary>
-    Nyquist3
-}
 
 // Added NativeMethods class for P/Invoke
 internal static partial class NativeMethods // Marked as partial
@@ -53,13 +35,6 @@ internal static partial class NativeMethods // Marked as partial
 // Changed base class and added partial keyword
 public abstract partial class AbstractStreamingDevice : ObservableObject, IStreamingDevice
 {
-    private enum MessageHandlerType
-    {
-        Status,
-        Streaming,
-        SdCard
-    }
-
     public abstract ConnectionType ConnectionType { get; }
 
     private const double TickPeriod = 20E-9f;
@@ -72,13 +47,30 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     [ObservableProperty]
     private DeviceType _deviceType = DeviceType.Unknown;
 
+    // DeviceState property for tracking device state
+    [ObservableProperty]
+    private DeviceState _deviceState = DeviceState.Disconnected;
+
     private readonly Dictionary<string, DateTime> _previousTimestamps = [];
     private readonly Dictionary<string, uint?> _previousDeviceTimestamps = [];
     private List<SdCardFile> _sdCardFiles = [];
 
+    // Protocol handler for automatic message routing
+    private IProtocolHandler? _protocolHandler;
+
     #region Properties
 
     protected readonly AppLogger AppLogger = AppLogger.Instance;
+
+    /// <summary>
+    /// Gets the device metadata from Core library
+    /// </summary>
+    public DeviceMetadata Metadata { get; } = new DeviceMetadata();
+
+    /// <summary>
+    /// Gets the device capabilities from Core's metadata
+    /// </summary>
+    public DeviceCapabilities Capabilities => Metadata.Capabilities;
 
     public DeviceMode Mode { get; private set; } = DeviceMode.StreamToApp;
 
@@ -158,65 +150,68 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     #endregion
 
     #region Message Handlers
-    private void SetMessageHandler(MessageHandlerType handlerType)
+    /// <summary>
+    /// Initializes the protocol handler for automatic message routing.
+    /// Uses Core's ProtobufProtocolHandler to route status, streaming, and SD card messages.
+    /// </summary>
+    private void InitializeProtocolHandler()
     {
-        // Remove all handlers first
-        MessageConsumer.OnMessageReceived -= HandleStatusMessageReceived;
-        MessageConsumer.OnMessageReceived -= HandleStreamingMessageReceived;
-        MessageConsumer.OnMessageReceived -= HandleSdCardMessageReceived;
+        _protocolHandler = new ProtobufProtocolHandler(
+            statusMessageHandler: OnStatusMessageReceived,
+            streamMessageHandler: OnStreamMessageReceived,
+            sdCardMessageHandler: _ => { } // SD card messages are text-based, handled separately; empty handler prevents NullReferenceException
+        );
 
-        // Add the new handler
-        MessageConsumer.OnMessageReceived += handlerType switch
-        {
-            MessageHandlerType.Status => HandleStatusMessageReceived,
-            MessageHandlerType.Streaming => HandleStreamingMessageReceived,
-            MessageHandlerType.SdCard => HandleSdCardMessageReceived,
-            _ => throw new ArgumentOutOfRangeException(nameof(handlerType), handlerType, null)
-        };
-
-        AppLogger.Information($"Message handler set to: {handlerType}");
+        AppLogger.Information("Protocol handler initialized with automatic message routing");
     }
 
-    private void HandleStatusMessageReceived(object sender, MessageEventArgs<object> e)
+    /// <summary>
+    /// Routes incoming messages through the protocol handler.
+    /// This method is called by the message consumer for each received message.
+    /// </summary>
+    private void OnInboundMessageReceived(object sender, MessageEventArgs<object> e)
     {
-        if (e.Message.Data is not DaqifiOutMessage message || !IsValidStatusMessage(message))
-        {
-            MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
-            return;
-        }
+        // Convert Desktop's message format to Core's format
+        var inboundMessage = new GenericInboundMessage<object>(e.Message.Data);
 
-        // Change the message handler
-        SetMessageHandler(MessageHandlerType.Streaming);
+        // Route through protocol handler if available and it can handle this message
+        if (_protocolHandler != null && _protocolHandler.CanHandle(inboundMessage))
+        {
+            // Fire and forget - we don't need to wait for the handler to complete
+            _ = _protocolHandler.HandleAsync(inboundMessage);
+        }
+    }
+
+    /// <summary>
+    /// Handles status messages received from the device during initialization.
+    /// Called automatically by ProtobufProtocolHandler when a status message is detected.
+    /// </summary>
+    private void OnStatusMessageReceived(DaqifiOutMessage message)
+    {
+        // Protocol handler already validated this is a status message via IsStatusMessage()
+        // No need to revalidate here - just process it
 
         HydrateDeviceMetadata(message);
         PopulateDigitalChannels(message);
         PopulateAnalogInChannels(message);
         PopulateAnalogOutChannels(message);
+
+        AppLogger.Information("Status message processed - device metadata populated");
     }
 
-    protected bool IsValidStatusMessage(DaqifiOutMessage message)
-    {
-        return message.DigitalPortNum != 0 || message.AnalogInPortNum != 0 || message.AnalogOutPortNum != 0;
-    }
-
-    private void HandleStreamingMessageReceived(object sender, MessageEventArgs<object> e)
+    /// <summary>
+    /// Handles streaming messages received from the device.
+    /// Called automatically by ProtobufProtocolHandler when a streaming message is detected.
+    /// </summary>
+    private void OnStreamMessageReceived(DaqifiOutMessage message)
     {
         if (!IsStreaming)
         {
             return;
         }
 
-        if (e.Message.Data is not DaqifiOutMessage message)
-        {
-            AppLogger.Warning("Issue decoding protobuf message");
-            return;
-        }
-
-        if (message.MsgTimeStamp == 0)
-        {
-            AppLogger.Warning("Protobuf message did not contain a timestamp. Will ignore message");
-            return;
-        }
+        // Protocol handler already validated this is a streaming message with timestamp
+        // No need to revalidate here
 
         var deviceId = message.DeviceSn.ToString(CultureInfo.InvariantCulture);
 
@@ -361,7 +356,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         _previousDeviceTimestamps[deviceId] = message.MsgTimeStamp;
     }
 
-    private void HandleSdCardMessageReceived(object sender, MessageEventArgs<object> e)
+    /// <summary>
+    /// Handles text-based SD card messages.
+    /// SD card messages are text responses, not protobuf, so they bypass the protocol handler.
+    /// </summary>
+    private void OnSdCardMessageReceived(object sender, MessageEventArgs<object> e)
     {
         // Cast the data to the expected type
         if (e.Message.Data is not string response)
@@ -578,7 +577,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         // Create and start the new consumer BEFORE sending any commands
         MessageConsumer = new TextMessageConsumer(stream);
-        SetMessageHandler(MessageHandlerType.SdCard);
+        // Wire up SD card message handler (text-based, not protobuf)
+        MessageConsumer.OnMessageReceived += OnSdCardMessageReceived;
         MessageConsumer.Start();
 
         // Give the consumer a moment to fully initialize
@@ -685,7 +685,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 msgConsumer.ClearBuffer();
             }
 
-            SetMessageHandler(MessageHandlerType.Streaming);
+            // Wire up protocol handler for automatic message routing
+            MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
             MessageConsumer.Start();
         }
     }
@@ -694,7 +695,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         if (MessageConsumer != null)
         {
-            SetMessageHandler(MessageHandlerType.Status);
+            // Unsubscribe from message events
+            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
+
             if (MessageConsumer.Running)
             {
                 MessageConsumer.Stop();
@@ -715,6 +718,25 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     protected void SetProtobufMessageFormat()
     {
         MessageProducer.Send(ScpiMessageProducer.SetProtobufStreamFormat);
+    }
+
+    /// <summary>
+    /// Initializes the device using the standard initialization sequence with proper delays.
+    /// This async method provides non-blocking initialization similar to Core's approach.
+    /// </summary>
+    protected virtual async Task InitializeDeviceAsync()
+    {
+        TurnOffEcho();
+        await Task.Delay(100);  // Device needs time to process
+
+        MessageProducer.Send(ScpiMessageProducer.StopStreaming);
+        await Task.Delay(100);
+
+        TurnDeviceOn();
+        await Task.Delay(100);
+
+        SetProtobufMessageFormat();
+        await Task.Delay(100);
     }
     #endregion
 
@@ -861,42 +883,32 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     protected void HydrateDeviceMetadata(DaqifiOutMessage message)
     {
-        if (!string.IsNullOrWhiteSpace(message.Ssid))
+        // Use Core's metadata update method
+        Metadata.UpdateFromProtobuf(message);
+
+        // Map Core metadata to desktop properties for backward compatibility
+        DevicePartNumber = Metadata.PartNumber;
+        DeviceSerialNo = Metadata.SerialNumber;
+        DeviceVersion = Metadata.FirmwareVersion;
+        DeviceType = Metadata.DeviceType;
+        IpAddress = Metadata.IpAddress;
+        MacAddress = Metadata.MacAddress;
+
+        // Update NetworkConfiguration from metadata
+        if (!string.IsNullOrWhiteSpace(Metadata.Ssid))
         {
-            NetworkConfiguration.Ssid = message.Ssid;
+            NetworkConfiguration.Ssid = Metadata.Ssid;
         }
 
-        if (message.WifiSecurityMode > 0)
+        // This now correctly handles security mode 0 (open network) - fixes WiFi bug!
+        NetworkConfiguration.SecurityType = (WifiSecurityType)Metadata.WifiSecurityMode;
+
+        if (Metadata.WifiInfrastructureMode > 0)
         {
-            NetworkConfiguration.SecurityType = (WifiSecurityType)message.WifiSecurityMode;
+            NetworkConfiguration.Mode = (WifiMode)Metadata.WifiInfrastructureMode;
         }
 
-        if (message.WifiInfMode > 0)
-        {
-            NetworkConfiguration.Mode = (WifiMode)message.WifiInfMode;
-        }
-        if (!string.IsNullOrWhiteSpace(message.DevicePn))
-        {
-            DevicePartNumber = message.DevicePn;
-            DeviceType = DeviceTypeDetector.DetectFromPartNumber(message.DevicePn);
-            AppLogger.Information($"Detected device type: {DeviceType} from part number: {message.DevicePn}");
-        }
-        if (message.DeviceSn != 0)
-        {
-            DeviceSerialNo = message.DeviceSn.ToString(CultureInfo.InvariantCulture);
-        }
-        if (!string.IsNullOrWhiteSpace(message.DeviceFwRev))
-        {
-            DeviceVersion = message.DeviceFwRev;
-        }
-        if (message.IpAddr != null && message.IpAddr.Length > 0)
-        {
-            IpAddress = string.Join(",", message.IpAddr);
-        }
-        if (message.MacAddr.Length > 0)
-        {
-            MacAddress = ProtobufDecoder.GetMacAddressString(message);
-        }
+        AppLogger.Information($"Detected device type: {DeviceType} from part number: {Metadata.PartNumber}");
     }
 
     private void PopulateDigitalChannels(DaqifiOutMessage message)
@@ -920,7 +932,16 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public void InitializeDeviceState()
     {
-        SetMessageHandler(MessageHandlerType.Status);
+        // Initialize protocol handler for automatic message routing
+        InitializeProtocolHandler();
+
+        // Wire up message consumer to route through protocol handler
+        if (MessageConsumer != null)
+        {
+            MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
+        }
+
+        // Request device info - protocol handler will automatically route the response
         MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
     }
 
