@@ -740,6 +740,13 @@ public partial class DaqifiViewModel : ObservableObject
     [RelayCommand]
     private void OpenDeviceSettings(IStreamingDevice? device)
     {
+        if (device == null)
+        {
+            return;
+        }
+
+        SelectedDeviceSupportsFirmwareUpdate = device is SerialStreamingDevice;
+
         CloseFlyouts();
         SelectedDevice = device;
         IsDeviceSettingsOpen = true;
