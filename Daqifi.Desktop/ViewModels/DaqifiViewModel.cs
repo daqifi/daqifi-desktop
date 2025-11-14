@@ -548,6 +548,11 @@ public partial class DaqifiViewModel : ObservableObject
     [RelayCommand]
     private void UploadFirmware()
     {
+        if (SelectedDevice?.ConnectionType != Device.ConnectionType.Usb)
+        {
+            return;
+        }
+
         if (SelectedDevice is not SerialStreamingDevice serialStreamingDevice)
         {
             return;
@@ -745,7 +750,7 @@ public partial class DaqifiViewModel : ObservableObject
             return;
         }
 
-        SelectedDeviceSupportsFirmwareUpdate = device is SerialStreamingDevice;
+        SelectedDeviceSupportsFirmwareUpdate = device.ConnectionType == Device.ConnectionType.Usb;
 
         CloseFlyouts();
         SelectedDevice = device;
@@ -760,7 +765,7 @@ public partial class DaqifiViewModel : ObservableObject
             return;
         }
 
-        SelectedDeviceSupportsFirmwareUpdate = device is SerialStreamingDevice;
+        SelectedDeviceSupportsFirmwareUpdate = device.ConnectionType == Device.ConnectionType.Usb;
 
         CloseFlyouts();
         SelectedDevice = device;
