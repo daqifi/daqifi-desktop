@@ -13,20 +13,26 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #region Properties
     private SerialPort? _port;
     
-    public SerialPort? Port 
-    { 
-        get => _port; 
-        set 
-        { 
+    public SerialPort? Port
+    {
+        get => _port;
+        set
+        {
             if (_port != value)
             {
                 _port = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(DisplayIdentifier));
             }
-        } 
+        }
     }
-    
+
+    /// <summary>
+    /// Gets the actual COM port name for UART communication
+    /// This is needed because Name may be set to the device part number after discovery
+    /// </summary>
+    public string PortName => Port?.PortName ?? Name;
+
     public override ConnectionType ConnectionType => ConnectionType.Usb;
     #endregion
 

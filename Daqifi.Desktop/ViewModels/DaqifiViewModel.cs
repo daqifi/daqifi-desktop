@@ -26,6 +26,7 @@ using Application = System.Windows.Application;
 using File = System.IO.File;
 using CommunityToolkit.Mvvm.Input;
 using Daqifi.Core.Device.Discovery;
+using HidLib = HidLibrary;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -108,7 +109,6 @@ public partial class DaqifiViewModel : ObservableObject
     private int _uploadWiFiProgress;
     [ObservableProperty]
     private bool _selectedDeviceSupportsFirmwareUpdate;
-    private Daqifi.Core.Device.Discovery.HidDeviceFinder? _hidDeviceFinder;
     private CancellationTokenSource? _hidDiscoveryCts;
     private Task? _hidDiscoveryTask;
     [ObservableProperty]
@@ -540,7 +540,22 @@ public partial class DaqifiViewModel : ObservableObject
         }
         else
         {
-            InitializeUpdateWiFiBackgroundWorker();
+            // Device needs time to fully reboot and stabilize after firmware update
+            // before we can start the WiFi module update
+            _appLogger.Information("Waiting for device to fully boot after firmware update before WiFi update...");
+
+            var delayWorker = new BackgroundWorker();
+            delayWorker.DoWork += (s, args) =>
+            {
+                // Wait 10 seconds for device to fully boot and be ready for WiFi update
+                Thread.Sleep(10000);
+            };
+            delayWorker.RunWorkerCompleted += (s, args) =>
+            {
+                _appLogger.Information("Starting WiFi module update...");
+                InitializeUpdateWiFiBackgroundWorker();
+            };
+            delayWorker.RunWorkerAsync();
         }
         IsFirmwareUploading = false;
     }
@@ -580,7 +595,51 @@ public partial class DaqifiViewModel : ObservableObject
             return;
         }
 
-        serialStreamingDevice.ForceBootloader();
+        // Check if device is connected - it should be connected before attempting firmware update
+        var isConnected = serialStreamingDevice.Port is { IsOpen: true } &&
+                         serialStreamingDevice.MessageProducer != null;
+
+        if (!isConnected)
+        {
+            _appLogger.Error($"Device {serialStreamingDevice.Name} is not connected. Cannot update firmware on a disconnected device.");
+            NotificationList.Add(new Notifications
+            {
+                Message = $"Please connect device {serialStreamingDevice.Name} before attempting firmware update.",
+                DeviceSerialNo = serialStreamingDevice.DeviceSerialNo
+            });
+            return;
+        }
+
+        _appLogger.Information($"Preparing device {serialStreamingDevice.Name} for firmware update...");
+
+        // Ensure device is not streaming before entering bootloader mode
+        if (serialStreamingDevice.DataChannels.Any())
+        {
+            _appLogger.Information("Stopping streaming before firmware update...");
+            serialStreamingDevice.StopStreaming();
+
+            // Wait for stop streaming commands to be sent and processed by device
+            // StopStreaming() queues commands asynchronously, so we need to wait
+            Thread.Sleep(1500);
+        }
+
+        _appLogger.Information($"Sending bootloader command to device {serialStreamingDevice.Name}...");
+
+        // Send the bootloader command
+        try
+        {
+            serialStreamingDevice.ForceBootloader();
+
+            // Wait for the bootloader command to be sent
+            // The command is queued and sent asynchronously by MessageProducer's background thread
+            // The device needs time to receive and process this command before we disconnect
+            Thread.Sleep(2000);
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, $"Error while sending bootloader command to device {serialStreamingDevice.Name}");
+        }
+
         serialStreamingDevice.Disconnect();
 
         // Once the DAQiFi resets, the COM serial port is closed,
@@ -1487,59 +1546,79 @@ public partial class DaqifiViewModel : ObservableObject
     #region Methods
     public void StartConnectionFinders()
     {
-        _hidDeviceFinder = new Daqifi.Core.Device.Discovery.HidDeviceFinder();
+        // Use desktop HID enumeration since Core's HidDeviceFinder doesn't implement it yet
+        // This is a workaround until Core 0.5.0 HID discovery is fully implemented
+        StartDesktopHidDiscovery();
+    }
+
+    private void StartDesktopHidDiscovery()
+    {
         _hidDiscoveryCts = new CancellationTokenSource();
-        _hidDeviceFinder.DeviceDiscovered += HandleCoreHidDeviceDiscovered;
-        _hidDiscoveryTask = RunContinuousHidDiscoveryAsync(_hidDiscoveryCts.Token);
-    }
+        var token = _hidDiscoveryCts.Token;
 
-    private async Task RunContinuousHidDiscoveryAsync(CancellationToken cancellationToken)
-    {
-        try
+        // Run HID discovery in background task
+        _hidDiscoveryTask = Task.Run(async () =>
         {
-            while (!cancellationToken.IsCancellationRequested && _hidDeviceFinder != null)
+            const int vendorId = 0x4D8;
+            const int productId = 0x03C;
+            var hidEnumerator = new HidLib.HidFastReadEnumerator();
+            var trackedDevices = new List<string>();
+
+            _appLogger.Information("Starting HID device discovery for firmware updates...");
+
+            try
             {
-                await _hidDeviceFinder.DiscoverAsync(cancellationToken);
-                // HID discovery is quick, pause longer between scans
-                await Task.Delay(2000, cancellationToken);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected when cancelled
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex, "Error in HID discovery loop");
-        }
-    }
+                while (!token.IsCancellationRequested)
+                {
+                    // Enumerate HID devices matching DAQiFi bootloader VID/PID
+                    var connectedHidDevices = hidEnumerator.Enumerate(vendorId, productId).ToList();
 
-    private void HandleCoreHidDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
-    {
-        try
-        {
-            // HID devices are firmware devices for bootloader mode
-            // For now, core HID finder returns empty, so this won't be called often
-            // TODO: Create HID device from core IDeviceInfo when HID library is added
-            _appLogger.Information($"HID device discovered: {e.DeviceInfo.Name}");
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex, "Error handling HID device discovery");
-        }
+                    // Add newly discovered devices
+                    foreach (var device in connectedHidDevices)
+                    {
+                        var devicePath = device.DevicePath;
+                        if (trackedDevices.Contains(devicePath)) continue;
+
+                        trackedDevices.Add(devicePath);
+
+                        var hidFirmwareDevice = new HidFirmwareDevice(device as HidLib.HidFastReadDevice)
+                        {
+                            Name = devicePath
+                        };
+
+                        _appLogger.Information($"HID bootloader device found: {devicePath}");
+                        HandleHidDeviceFound(this, hidFirmwareDevice);
+                    }
+
+                    // Remove disconnected devices
+                    var connectedPaths = connectedHidDevices.Select(d => d.DevicePath).ToHashSet();
+                    var devicesToRemove = trackedDevices.Where(path => !connectedPaths.Contains(path)).ToList();
+
+                    foreach (var devicePath in devicesToRemove)
+                    {
+                        trackedDevices.Remove(devicePath);
+                        _appLogger.Information($"HID bootloader device removed: {devicePath}");
+                        // Note: We don't have a reference to the device object here for removal event
+                    }
+
+                    // Poll every second for HID devices
+                    await Task.Delay(1000, token);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _appLogger.Information("HID device discovery cancelled");
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Error(ex, "Error in HID discovery loop");
+            }
+        }, token);
     }
 
     public void Close()
     {
         _hidDiscoveryCts?.Cancel();
-
-        if (_hidDeviceFinder != null)
-        {
-            _hidDeviceFinder.DeviceDiscovered -= HandleCoreHidDeviceDiscovered;
-            _hidDeviceFinder.Dispose();
-            _hidDeviceFinder = null;
-        }
-
         _hidDiscoveryCts?.Dispose();
         _hidDiscoveryCts = null;
     }
