@@ -24,13 +24,26 @@ public partial class DeviceLogsViewModel : ObservableObject
     [ObservableProperty]
     private IStreamingDevice _selectedDevice;
 
-    [ObservableProperty]
     private ObservableCollection<SdCardFile> _deviceFiles;
+
+    public ObservableCollection<SdCardFile> DeviceFiles
+    {
+        get => _deviceFiles;
+        set
+        {
+            if (SetProperty(ref _deviceFiles, value))
+            {
+                OnPropertyChanged(nameof(HasNoFiles));
+            }
+        }
+    }
 
     [ObservableProperty]
     private bool _canRefreshFiles;
 
     public bool CanAccessSdCard => SelectedDevice?.ConnectionType == ConnectionType.Usb;
+
+    public bool HasNoFiles => !DeviceFiles.Any() && CanAccessSdCard;
 
     public string ConnectionTypeMessage => SelectedDevice == null ? string.Empty :
         SelectedDevice.ConnectionType == ConnectionType.Usb ?
@@ -43,6 +56,7 @@ public partial class DeviceLogsViewModel : ObservableObject
     {
         ConnectedDevices = new ObservableCollection<IStreamingDevice>();
         DeviceFiles = new ObservableCollection<SdCardFile>();
+        DeviceFiles.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasNoFiles));
 
         // Initialize commands
         RefreshFilesCommand = new RelayCommand(RefreshFiles, () => CanAccessSdCard);
@@ -127,14 +141,6 @@ public partial class DeviceLogsViewModel : ObservableObject
             foreach (var file in SelectedDevice.SdCardFiles)
             {
                 DeviceFiles.Add(file);
-            }
-
-            if (!DeviceFiles.Any())
-            {
-                await Application.Current.Dispatcher.InvokeAsync(async () =>
-                {
-                    await ShowMessage("No Files Found", "No files were found on the device.", MessageDialogStyle.Affirmative);
-                });
             }
         }
         catch (Exception ex)

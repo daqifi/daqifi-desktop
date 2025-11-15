@@ -12,6 +12,7 @@
     <UserControl.Resources>
         <converters:ConnectionTypeToColorConverter x:Key="ConnectionTypeToColorConverter"/>
         <converters:NotNullToVisibilityConverter x:Key="NotNullToVisibilityConverter"/>
+        <converters:InvertedBoolToVisibilityConverter x:Key="InvertedBoolToVis"/>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </UserControl.Resources>
     <Grid>
@@ -71,10 +72,36 @@
 
         <!-- Device Files List -->
         <Grid Grid.Row="1">
-            <ListView ItemsSource="{Binding DeviceFiles}" 
-                      Background="Transparent" 
+            <!-- Empty State Message -->
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Visibility="{Binding HasNoFiles, Converter={StaticResource BoolToVis}}">
+                <iconPacks:PackIconMaterial Kind="FileDocumentOutline"
+                                            Width="64"
+                                            Height="64"
+                                            Foreground="LightGray"
+                                            HorizontalAlignment="Center"/>
+                <TextBlock Text="No files found on SD card"
+                           FontSize="16"
+                           Foreground="Gray"
+                           Margin="0,10,0,0"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="Files will appear here when the device logs data to the SD card"
+                           FontSize="12"
+                           Foreground="Gray"
+                           Margin="0,5,0,0"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           MaxWidth="400"/>
+            </StackPanel>
+
+            <!-- File List -->
+            <ListView ItemsSource="{Binding DeviceFiles}"
+                      Background="Transparent"
                       BorderThickness="0"
-                      IsEnabled="{Binding CanAccessSdCard}">
+                      IsEnabled="{Binding CanAccessSdCard}"
+                      Visibility="{Binding HasNoFiles, Converter={StaticResource InvertedBoolToVis}}">
                 <ListView.View>
                     <GridView>
                         <GridViewColumn Header="Name" Width="300">
