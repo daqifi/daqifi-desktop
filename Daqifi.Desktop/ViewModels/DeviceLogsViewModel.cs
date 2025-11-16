@@ -31,8 +31,19 @@ public partial class DeviceLogsViewModel : ObservableObject
         get => _deviceFiles;
         set
         {
+            if (Equals(_deviceFiles, value)) return;
+
+            if (_deviceFiles != null)
+            {
+                _deviceFiles.CollectionChanged -= OnDeviceFilesCollectionChanged;
+            }
+
             if (SetProperty(ref _deviceFiles, value))
             {
+                if (_deviceFiles != null)
+                {
+                    _deviceFiles.CollectionChanged += OnDeviceFilesCollectionChanged;
+                }
                 OnPropertyChanged(nameof(HasNoFiles));
             }
         }
@@ -43,7 +54,7 @@ public partial class DeviceLogsViewModel : ObservableObject
 
     public bool CanAccessSdCard => SelectedDevice?.ConnectionType == ConnectionType.Usb;
 
-    public bool HasNoFiles => !DeviceFiles.Any() && CanAccessSdCard;
+    public bool HasNoFiles => (DeviceFiles?.Any() != true) && CanAccessSdCard;
 
     public string ConnectionTypeMessage => SelectedDevice == null ? string.Empty :
         SelectedDevice.ConnectionType == ConnectionType.Usb ?
@@ -56,7 +67,7 @@ public partial class DeviceLogsViewModel : ObservableObject
     {
         ConnectedDevices = new ObservableCollection<IStreamingDevice>();
         DeviceFiles = new ObservableCollection<SdCardFile>();
-        DeviceFiles.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasNoFiles));
+        DeviceFiles.CollectionChanged += OnDeviceFilesCollectionChanged;
 
         // Initialize commands
         RefreshFilesCommand = new RelayCommand(RefreshFiles, () => CanAccessSdCard);
@@ -72,6 +83,11 @@ public partial class DeviceLogsViewModel : ObservableObject
 
         // Initial load
         UpdateConnectedDevices();
+    }
+
+    private void OnDeviceFilesCollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasNoFiles));
     }
 
     private void UpdateConnectedDevices()
@@ -112,6 +128,7 @@ public partial class DeviceLogsViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(CanAccessSdCard));
+        OnPropertyChanged(nameof(HasNoFiles));
         OnPropertyChanged(nameof(ConnectionTypeMessage));
         (RefreshFilesCommand as RelayCommand)?.NotifyCanExecuteChanged();
     }
