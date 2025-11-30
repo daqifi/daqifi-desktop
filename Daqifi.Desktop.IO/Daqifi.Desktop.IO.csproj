@@ -11,7 +11,7 @@
 	<ItemGroup>
 		<PackageReference Include="System.IO.Ports" Version="9.0.10" />
 		<PackageReference Include="Daqifi.Core" Version="0.7.0" />
-		<PackageReference Include="Google.Protobuf" Version="3.33.0" />
+		<PackageReference Include="Google.Protobuf" Version="3.33.1" />
 		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
