@@ -73,7 +73,7 @@
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 		<PackageReference Include="OxyPlot.Core" Version="2.2.0" />
 		<PackageReference Include="OxyPlot.Wpf" Version="2.2.0" />
-		<PackageReference Include="Roslynator.Analyzers" Version="4.14.1">
+		<PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
