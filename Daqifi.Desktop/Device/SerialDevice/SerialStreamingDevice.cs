@@ -306,6 +306,10 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 }
             }
 
+            // Clear channels to prevent ghost channels on reconnect (Issue #29)
+            DataChannels.Clear();
+            AppLogger.Information($"Cleared {DataChannels.Count} channels for device {DeviceSerialNo}");
+
             // Finally close the port
             if (Port != null)
             {

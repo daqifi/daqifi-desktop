@@ -1751,13 +1751,8 @@ public partial class DaqifiViewModel : ObservableObject
                 var deviceConnection = ConnectionManager.Instance.NotifyConnection;
                 if (deviceConnection)
                 {
-                    var errorDialogViewModel = new ErrorDialogViewModel("Device disconnected..");
-                    if (errorDialogViewModel != null)
-                    {
-                        // To do  work giving error 
-                        //_dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-
-                    }
+                    var errorDialogViewModel = new ErrorDialogViewModel("Device disconnected unexpectedly. Channels have been cleared.");
+                    _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
                     ConnectionManager.Instance.NotifyConnection = false;
                 }
                 break;
