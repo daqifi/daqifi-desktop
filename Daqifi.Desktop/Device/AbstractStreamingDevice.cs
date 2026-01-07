@@ -870,6 +870,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return def;
         };
 
+        // Clear existing analog channels before repopulating to prevent duplicates (Issue #29)
+        var existingAnalogChannels = DataChannels.Where(c => c.Type == ChannelType.Analog).ToList();
+        foreach (var channel in existingAnalogChannels)
+        {
+            DataChannels.Remove(channel);
+        }
+
         for (var i = 0; i < message.AnalogInPortNum; i++)
         {
             DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false,
@@ -915,6 +922,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
 
         if (message.DigitalPortNum == 0) { return; }
+
+        // Clear existing digital channels before repopulating to prevent duplicates (Issue #29)
+        var existingDigitalChannels = DataChannels.Where(c => c.Type == ChannelType.Digital).ToList();
+        foreach (var channel in existingDigitalChannels)
+        {
+            DataChannels.Remove(channel);
+        }
 
         for (var i = 0; i < message.DigitalPortNum; i++)
         {
