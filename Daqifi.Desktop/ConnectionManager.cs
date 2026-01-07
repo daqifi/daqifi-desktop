@@ -30,10 +30,15 @@ public partial class ConnectionManager : ObservableObject
     public string ConnectionStatusString { get; set; } = "Disconnected";
 
     /// <summary>
-    /// Callback for handling duplicate device situations. 
+    /// Callback for handling duplicate device situations.
     /// Should return the user's choice on how to handle the duplicate.
     /// </summary>
     public Func<DuplicateDeviceCheckResult, DuplicateDeviceAction> DuplicateDeviceHandler { get; set; }
+
+    /// <summary>
+    /// Tracks the device currently undergoing firmware update to suppress disconnect notifications.
+    /// </summary>
+    public IStreamingDevice? DeviceBeingUpdated { get; set; }
 
     #endregion
 
@@ -223,7 +228,11 @@ public partial class ConnectionManager : ObservableObject
                             LoggingManager.Instance.Unsubscribe(channel);
                         }
                         Disconnect(serialDevice);
-                        NotifyConnection = true;
+                        // Only notify if this isn't an intentional disconnect during firmware update
+                        if (DeviceBeingUpdated == null || DeviceBeingUpdated.Name != serialDevice.Name)
+                        {
+                            NotifyConnection = true;
+                        }
                     });
                 }
             }

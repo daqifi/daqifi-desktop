@@ -520,6 +520,7 @@ public partial class DaqifiViewModel : ObservableObject
 
         // Clear the device reference after update completion
         _deviceBeingUpdated = null;
+        ConnectionManager.Instance.DeviceBeingUpdated = null;
     }
     private void HandleFirmwareUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
     {
@@ -527,6 +528,7 @@ public partial class DaqifiViewModel : ObservableObject
         {
             IsFirmwareUploading = false;
             _deviceBeingUpdated = null; // Clear reference on error
+            ConnectionManager.Instance.DeviceBeingUpdated = null;
             return;
         }
 
@@ -537,6 +539,7 @@ public partial class DaqifiViewModel : ObservableObject
             IsUploadComplete = true;
             ShowUploadSuccessMessage();
             _deviceBeingUpdated = null; // Clear reference after manual upload
+            ConnectionManager.Instance.DeviceBeingUpdated = null;
         }
         else
         {
@@ -640,6 +643,8 @@ public partial class DaqifiViewModel : ObservableObject
             _appLogger.Error(ex, $"Error while sending bootloader command to device {serialStreamingDevice.Name}");
         }
 
+        // Mark device as being updated to suppress disconnect notification
+        ConnectionManager.Instance.DeviceBeingUpdated = _deviceBeingUpdated;
         serialStreamingDevice.Disconnect();
 
         // Once the DAQiFi resets, the COM serial port is closed,
