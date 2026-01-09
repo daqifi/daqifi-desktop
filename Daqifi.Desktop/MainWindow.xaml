@@ -314,8 +314,20 @@
                     </DockPanel>
 
                     <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList" ItemsSource="{Binding ActiveInputChannels}" Background="Transparent" BorderThickness="0"
-                                HorizontalContentAlignment="Stretch"
-                                SelectionMode="None">
+                                HorizontalContentAlignment="Stretch">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Focusable" Value="False"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListViewItem">
+                                            <ContentPresenter/>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListView.ItemContainerStyle>
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Button Command="{Binding DataContext.ToggleChannelVisibilityCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
@@ -420,8 +432,20 @@
                                               BorderThickness="0"
                                               HorizontalContentAlignment="Stretch"
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                              MaxHeight="400"
-                                              SelectionMode="None"> <!-- Optional: Constrain height if needed -->
+                                              MaxHeight="400"> <!-- Optional: Constrain height if needed -->
+                                        <ListView.ItemContainerStyle>
+                                            <Style TargetType="ListViewItem">
+                                                <Setter Property="Focusable" Value="False"/>
+                                                <Setter Property="Background" Value="Transparent"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ListViewItem">
+                                                            <ContentPresenter/>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ListView.ItemContainerStyle>
                                         <ListView.ItemTemplate>
                                             <DataTemplate DataType="{x:Type logger:LoggedSeriesLegendItem}">
                                                 <Button Command="{Binding DataContext.ToggleLoggedSeriesVisibilityCommand, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"
