@@ -320,6 +320,10 @@ public partial class DaqifiViewModel : ObservableObject
     public ICommand DeleteAllLoggingSessionCommand { get; private set; }
     public ICommand ToggleChannelVisibilityCommand { get; private set; }
     public ICommand ToggleLoggedSeriesVisibilityCommand { get; private set; }
+    public ICommand ShowAllChannelsCommand { get; private set; }
+    public ICommand HideAllChannelsCommand { get; private set; }
+    public ICommand ShowAllLoggedSeriesCommand { get; private set; }
+    public ICommand HideAllLoggedSeriesCommand { get; private set; }
     #endregion
 
     #region Constructor
@@ -417,6 +421,10 @@ public partial class DaqifiViewModel : ObservableObject
         DeleteAllLoggingSessionCommand = new AsyncRelayCommand(DeleteAllLoggingSessionAsync, CanDeleteAllLoggingSession);
         ToggleChannelVisibilityCommand = new RelayCommand<IChannel>(ToggleChannelVisibility);
         ToggleLoggedSeriesVisibilityCommand = new RelayCommand<LoggedSeriesLegendItem>(ToggleLoggedSeriesVisibility);
+        ShowAllChannelsCommand = new RelayCommand(ShowAllChannels);
+        HideAllChannelsCommand = new RelayCommand(HideAllChannels);
+        ShowAllLoggedSeriesCommand = new RelayCommand(ShowAllLoggedSeries);
+        HideAllLoggedSeriesCommand = new RelayCommand(HideAllLoggedSeries);
 
         // Keep registration for external commands if necessary
         // HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand); // This would need adjustment if ShutdownCommand is generated
@@ -441,6 +449,38 @@ public partial class DaqifiViewModel : ObservableObject
             item.IsVisible = !item.IsVisible;
             // The IsVisible setter in LoggedSeriesLegendItem handles updating
             // the ActualSeries.IsVisible and invalidating the plot.
+        }
+    }
+
+    private void ShowAllChannels()
+    {
+        foreach (var channel in ActiveInputChannels)
+        {
+            channel.IsVisible = true;
+        }
+    }
+
+    private void HideAllChannels()
+    {
+        foreach (var channel in ActiveInputChannels)
+        {
+            channel.IsVisible = false;
+        }
+    }
+
+    private void ShowAllLoggedSeries()
+    {
+        foreach (var item in DbLogger.LegendItems)
+        {
+            item.IsVisible = true;
+        }
+    }
+
+    private void HideAllLoggedSeries()
+    {
+        foreach (var item in DbLogger.LegendItems)
+        {
+            item.IsVisible = false;
         }
     }
     #endregion
