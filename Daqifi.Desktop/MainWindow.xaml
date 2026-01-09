@@ -313,24 +313,9 @@
                         </StackPanel>
                     </DockPanel>
 
-                    <!-- Channel Visibility Controls -->
-                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="5">
-                        <Button Command="{Binding ShowAllChannelsCommand}" ToolTip="Show all channels" Margin="2" Padding="5,2">
-                            <StackPanel Orientation="Horizontal">
-                                <iconPacks:PackIconMaterial Kind="Eye" Height="12" Width="12" VerticalAlignment="Center" Margin="0,0,3,0"/>
-                                <TextBlock Text="Show All" FontSize="10" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Command="{Binding HideAllChannelsCommand}" ToolTip="Hide all channels" Margin="2" Padding="5,2">
-                            <StackPanel Orientation="Horizontal">
-                                <iconPacks:PackIconMaterial Kind="EyeOff" Height="12" Width="12" VerticalAlignment="Center" Margin="0,0,3,0"/>
-                                <TextBlock Text="Hide All" FontSize="10" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-
                     <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList" ItemsSource="{Binding ActiveInputChannels}" Background="Transparent" BorderThickness="0"
-                                HorizontalContentAlignment="Stretch">
+                                HorizontalContentAlignment="Stretch"
+                                SelectionMode="None">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Button Command="{Binding DataContext.ToggleChannelVisibilityCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
@@ -429,30 +414,14 @@
 
                                     <oxy:PlotView Grid.Column="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
 
-                                    <!-- Legend with Controls -->
-                                    <StackPanel Grid.Column="1" Orientation="Vertical">
-                                        <!-- Series Visibility Controls -->
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="5,5,5,10">
-                                            <Button Command="{Binding ShowAllLoggedSeriesCommand}" ToolTip="Show all series" Margin="2" Padding="5,2">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <iconPacks:PackIconMaterial Kind="Eye" Height="12" Width="12" VerticalAlignment="Center" Margin="0,0,3,0"/>
-                                                    <TextBlock Text="Show All" FontSize="10" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Command="{Binding HideAllLoggedSeriesCommand}" ToolTip="Hide all series" Margin="2" Padding="5,2">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <iconPacks:PackIconMaterial Kind="EyeOff" Height="12" Width="12" VerticalAlignment="Center" Margin="0,0,3,0"/>
-                                                    <TextBlock Text="Hide All" FontSize="10" VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                            </Button>
-                                        </StackPanel>
-
-                                        <ListView ItemsSource="{Binding DbLogger.LegendItems}"
-                                                  Background="Transparent"
-                                                  BorderThickness="0"
-                                                  HorizontalContentAlignment="Stretch"
-                                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                                  MaxHeight="400"> <!-- Optional: Constrain height if needed -->
+                                    <ListView Grid.Column="1"
+                                              ItemsSource="{Binding DbLogger.LegendItems}"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              HorizontalContentAlignment="Stretch"
+                                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                              MaxHeight="400"
+                                              SelectionMode="None"> <!-- Optional: Constrain height if needed -->
                                         <ListView.ItemTemplate>
                                             <DataTemplate DataType="{x:Type logger:LoggedSeriesLegendItem}">
                                                 <Button Command="{Binding DataContext.ToggleLoggedSeriesVisibilityCommand, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"
@@ -496,8 +465,7 @@
                                                 </Button>
                                             </DataTemplate>
                                         </ListView.ItemTemplate>
-                                        </ListView>
-                                    </StackPanel>
+                                    </ListView>
 
                                     <DockPanel Grid.Column="0" Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top">
                                         <Button Command="{Binding DbLogger.SaveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
