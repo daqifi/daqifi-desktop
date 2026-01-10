@@ -314,32 +314,13 @@
                         </StackPanel>
                     </DockPanel>
 
-                    <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList" Background="Transparent" BorderThickness="0"
+                    <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList"
+                                ItemsSource="{Binding ActiveInputChannels}"
+                                Background="Transparent"
+                                BorderThickness="0"
                                 HorizontalContentAlignment="Stretch"
-                                MaxWidth="220"
+                                MaxWidth="130"
                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListView.Resources>
-                            <CollectionViewSource x:Key="GroupedChannels" Source="{Binding ActiveInputChannels}">
-                                <CollectionViewSource.GroupDescriptions>
-                                    <PropertyGroupDescription PropertyName="DeviceSerialNo"/>
-                                </CollectionViewSource.GroupDescriptions>
-                            </CollectionViewSource>
-                        </ListView.Resources>
-                        <ListView.ItemsSource>
-                            <Binding Source="{StaticResource GroupedChannels}"/>
-                        </ListView.ItemsSource>
-                        <ListView.GroupStyle>
-                            <GroupStyle>
-                                <GroupStyle.HeaderTemplate>
-                                    <DataTemplate>
-                                        <TextBlock FontWeight="SemiBold" FontSize="11" Margin="5,8,5,4" Foreground="#CCFFFFFF">
-                                            <Run Text="Device: ..."/>
-                                            <Run Text="{Binding Name, Mode=OneWay, Converter={StaticResource StringRightConverter}, ConverterParameter=6}"/>
-                                        </TextBlock>
-                                    </DataTemplate>
-                                </GroupStyle.HeaderTemplate>
-                            </GroupStyle>
-                        </ListView.GroupStyle>
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <Setter Property="Focusable" Value="False"/>
@@ -379,7 +360,7 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <Rectangle Width="20" Height="20" Fill="{Binding ChannelColorBrush}" Margin="10,0,8,0"/>
+                                        <Rectangle Width="20" Height="20" Fill="{Binding ChannelColorBrush}" Margin="5,0,8,0"/>
                                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
                                             <TextBlock.Style>
                                                 <Style TargetType="TextBlock">
@@ -449,35 +430,14 @@
                                     <oxy:PlotView Grid.Column="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
 
                                     <ListView Grid.Column="1"
+                                              ItemsSource="{Binding DbLogger.LegendItems}"
                                               Background="Transparent"
                                               BorderThickness="0"
                                               HorizontalContentAlignment="Stretch"
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                               MaxHeight="400"
-                                              MaxWidth="220">
-                                        <ListView.Resources>
-                                            <CollectionViewSource x:Key="GroupedLoggedSeries" Source="{Binding DbLogger.LegendItems}">
-                                                <CollectionViewSource.GroupDescriptions>
-                                                    <PropertyGroupDescription PropertyName="DeviceSerialNo"/>
-                                                </CollectionViewSource.GroupDescriptions>
-                                            </CollectionViewSource>
-                                        </ListView.Resources>
-                                        <ListView.ItemsSource>
-                                            <Binding Source="{StaticResource GroupedLoggedSeries}"/>
-                                        </ListView.ItemsSource>
-                                        <ListView.GroupStyle>
-                                            <GroupStyle>
-                                                <GroupStyle.HeaderTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock FontWeight="SemiBold" FontSize="11" Margin="5,8,5,4" Foreground="#CCFFFFFF">
-                                                            <Run Text="Device: ..."/>
-                                                            <Run Text="{Binding Name, Mode=OneWay, Converter={StaticResource StringRightConverter}, ConverterParameter=6}"/>
-                                                        </TextBlock>
-                                                    </DataTemplate>
-                                                </GroupStyle.HeaderTemplate>
-                                            </GroupStyle>
-                                        </ListView.GroupStyle>
+                                              MaxWidth="130">
                                         <ListView.ItemContainerStyle>
                                             <Style TargetType="ListViewItem">
                                                 <Setter Property="Focusable" Value="False"/>
@@ -517,7 +477,7 @@
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </StackPanel.Style>
-                                                        <Rectangle Width="15" Height="15" Margin="10,0,8,0" VerticalAlignment="Center"
+                                                        <Rectangle Width="15" Height="15" Margin="5,0,8,0" VerticalAlignment="Center"
                                                                    Fill="{Binding SeriesColor, Converter={StaticResource OxyColorToBrushConverter}}"/>
                                                         <TextBlock Text="{Binding ChannelName}" VerticalAlignment="Center">
                                                             <TextBlock.Style>
