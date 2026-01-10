@@ -111,6 +111,7 @@
         </Style>
 
         <converters:OxyColorToBrushConverter x:Key="OxyColorToBrushConverter"/>
+        <converters:StringRightConverter x:Key="StringRightConverter"/>
 
         <Style x:Key="TransparentButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
@@ -313,9 +314,32 @@
                         </StackPanel>
                     </DockPanel>
 
-                    <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList" ItemsSource="{Binding ActiveInputChannels}" Background="Transparent" BorderThickness="0"
+                    <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList" Background="Transparent" BorderThickness="0"
                                 HorizontalContentAlignment="Stretch"
-                                MaxWidth="200">
+                                MaxWidth="220"
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListView.Resources>
+                            <CollectionViewSource x:Key="GroupedChannels" Source="{Binding ActiveInputChannels}">
+                                <CollectionViewSource.GroupDescriptions>
+                                    <PropertyGroupDescription PropertyName="DeviceSerialNo"/>
+                                </CollectionViewSource.GroupDescriptions>
+                            </CollectionViewSource>
+                        </ListView.Resources>
+                        <ListView.ItemsSource>
+                            <Binding Source="{StaticResource GroupedChannels}"/>
+                        </ListView.ItemsSource>
+                        <ListView.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock FontWeight="SemiBold" FontSize="11" Margin="5,8,5,4" Foreground="#CCFFFFFF">
+                                            <Run Text="Device: ..."/>
+                                            <Run Text="{Binding Name, Mode=OneWay, Converter={StaticResource StringRightConverter}, ConverterParameter=6}"/>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListView.GroupStyle>
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <Setter Property="Focusable" Value="False"/>
@@ -344,9 +368,9 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
-                                    <DockPanel Margin="5" Height="40" HorizontalAlignment="Left">
-                                        <DockPanel.Style>
-                                            <Style TargetType="DockPanel">
+                                    <StackPanel Orientation="Horizontal" Margin="5,5,5,5">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
                                                 <Setter Property="Opacity" Value="1.0"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsVisible}" Value="False">
@@ -354,23 +378,20 @@
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
-                                        </DockPanel.Style>
-                                        <Rectangle Width="25" Height="25" Fill="{Binding ChannelColorBrush}" Margin="0,0,5,0"/>
-                                        <StackPanel Orientation="Vertical">
-                                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsVisible}" Value="False">
-                                                                <Setter Property="TextDecorations" Value="Strikethrough"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                            <TextBlock Text="{Binding DeviceSerialNo}" FontSize="8" VerticalAlignment="Top" TextTrimming="CharacterEllipsis"/>
-                                        </StackPanel>
-                                    </DockPanel>
+                                        </StackPanel.Style>
+                                        <Rectangle Width="20" Height="20" Fill="{Binding ChannelColorBrush}" Margin="10,0,8,0"/>
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                            <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
                                 </Button>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -428,13 +449,35 @@
                                     <oxy:PlotView Grid.Column="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
 
                                     <ListView Grid.Column="1"
-                                              ItemsSource="{Binding DbLogger.LegendItems}"
                                               Background="Transparent"
                                               BorderThickness="0"
                                               HorizontalContentAlignment="Stretch"
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                               MaxHeight="400"
-                                              MaxWidth="200">
+                                              MaxWidth="220">
+                                        <ListView.Resources>
+                                            <CollectionViewSource x:Key="GroupedLoggedSeries" Source="{Binding DbLogger.LegendItems}">
+                                                <CollectionViewSource.GroupDescriptions>
+                                                    <PropertyGroupDescription PropertyName="DeviceSerialNo"/>
+                                                </CollectionViewSource.GroupDescriptions>
+                                            </CollectionViewSource>
+                                        </ListView.Resources>
+                                        <ListView.ItemsSource>
+                                            <Binding Source="{StaticResource GroupedLoggedSeries}"/>
+                                        </ListView.ItemsSource>
+                                        <ListView.GroupStyle>
+                                            <GroupStyle>
+                                                <GroupStyle.HeaderTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock FontWeight="SemiBold" FontSize="11" Margin="5,8,5,4" Foreground="#CCFFFFFF">
+                                                            <Run Text="Device: ..."/>
+                                                            <Run Text="{Binding Name, Mode=OneWay, Converter={StaticResource StringRightConverter}, ConverterParameter=6}"/>
+                                                        </TextBlock>
+                                                    </DataTemplate>
+                                                </GroupStyle.HeaderTemplate>
+                                            </GroupStyle>
+                                        </ListView.GroupStyle>
                                         <ListView.ItemContainerStyle>
                                             <Style TargetType="ListViewItem">
                                                 <Setter Property="Focusable" Value="False"/>
@@ -463,9 +506,9 @@
                                                             </Style.Triggers>
                                                         </Style>
                                                     </Button.Style>
-                                                    <DockPanel Margin="2">
-                                                        <DockPanel.Style>
-                                                            <Style TargetType="DockPanel">
+                                                    <StackPanel Orientation="Horizontal" Margin="5,5,5,5">
+                                                        <StackPanel.Style>
+                                                            <Style TargetType="StackPanel">
                                                                 <Setter Property="Opacity" Value="1.0"/>
                                                                 <Style.Triggers>
                                                                     <DataTrigger Binding="{Binding IsVisible}" Value="False">
@@ -473,10 +516,10 @@
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
-                                                        </DockPanel.Style>
-                                                        <Rectangle Width="15" Height="15" Margin="2,0,5,0" VerticalAlignment="Center"
+                                                        </StackPanel.Style>
+                                                        <Rectangle Width="15" Height="15" Margin="10,0,8,0" VerticalAlignment="Center"
                                                                    Fill="{Binding SeriesColor, Converter={StaticResource OxyColorToBrushConverter}}"/>
-                                                        <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                                                        <TextBlock Text="{Binding ChannelName}" VerticalAlignment="Center">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
                                                                     <Style.Triggers>
@@ -487,7 +530,7 @@
                                                                 </Style>
                                                             </TextBlock.Style>
                                                         </TextBlock>
-                                                    </DockPanel>
+                                                    </StackPanel>
                                                 </Button>
                                             </DataTemplate>
                                         </ListView.ItemTemplate>
