@@ -314,7 +314,8 @@
                     </DockPanel>
 
                     <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList" ItemsSource="{Binding ActiveInputChannels}" Background="Transparent" BorderThickness="0"
-                                HorizontalContentAlignment="Stretch">
+                                HorizontalContentAlignment="Stretch"
+                                MaxWidth="200">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <Setter Property="Focusable" Value="False"/>
@@ -367,7 +368,7 @@
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <TextBlock Text="{Binding DeviceSerialNo}" FontSize="8" VerticalAlignment="Top"/>
+                                            <TextBlock Text="{Binding DeviceSerialNo}" FontSize="8" VerticalAlignment="Top" TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
                                     </DockPanel>
                                 </Button>
@@ -432,7 +433,8 @@
                                               BorderThickness="0"
                                               HorizontalContentAlignment="Stretch"
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                              MaxHeight="400"> <!-- Optional: Constrain height if needed -->
+                                              MaxHeight="400"
+                                              MaxWidth="200">
                                         <ListView.ItemContainerStyle>
                                             <Style TargetType="ListViewItem">
                                                 <Setter Property="Focusable" Value="False"/>
@@ -474,7 +476,7 @@
                                                         </DockPanel.Style>
                                                         <Rectangle Width="15" Height="15" Margin="2,0,5,0" VerticalAlignment="Center"
                                                                    Fill="{Binding SeriesColor, Converter={StaticResource OxyColorToBrushConverter}}"/>
-                                                        <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
                                                                     <Style.Triggers>
