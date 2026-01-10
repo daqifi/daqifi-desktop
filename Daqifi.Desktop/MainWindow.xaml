@@ -337,8 +337,19 @@
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Button Command="{Binding DataContext.ToggleChannelVisibilityCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                        CommandParameter="{Binding}"
-                                        ToolTip="Click to show/hide channel">
+                                        CommandParameter="{Binding}">
+                                    <Button.ToolTip>
+                                        <ToolTip>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
+                                                <TextBlock>
+                                                    <Run Text="Device: "/>
+                                                    <Run Text="{Binding DeviceSerialNo, Mode=OneWay}"/>
+                                                </TextBlock>
+                                                <TextBlock Text="Click to show/hide" FontSize="10" FontStyle="Italic" Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                        </ToolTip>
+                                    </Button.ToolTip>
                                     <Button.Style>
                                         <Style TargetType="Button" BasedOn="{StaticResource TransparentButtonStyle}">
                                             <Setter Property="Cursor" Value="Hand"/>
@@ -454,8 +465,19 @@
                                         <ListView.ItemTemplate>
                                             <DataTemplate DataType="{x:Type logger:LoggedSeriesLegendItem}">
                                                 <Button Command="{Binding DataContext.ToggleLoggedSeriesVisibilityCommand, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"
-                                                        CommandParameter="{Binding}"
-                                                        ToolTip="Click to show/hide series">
+                                                        CommandParameter="{Binding}">
+                                                    <Button.ToolTip>
+                                                        <ToolTip>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding ChannelName}" FontWeight="Bold"/>
+                                                                <TextBlock>
+                                                                    <Run Text="Device: "/>
+                                                                    <Run Text="{Binding DeviceSerialNo, Mode=OneWay}"/>
+                                                                </TextBlock>
+                                                                <TextBlock Text="Click to show/hide" FontSize="10" FontStyle="Italic" Margin="0,4,0,0"/>
+                                                            </StackPanel>
+                                                        </ToolTip>
+                                                    </Button.ToolTip>
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource TransparentButtonStyle}">
                                                             <Setter Property="Cursor" Value="Hand"/>
