@@ -27,6 +27,12 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     private string _displayName;
 
     [ObservableProperty]
+    private string _channelName;
+
+    [ObservableProperty]
+    private string _deviceSerialNo;
+
+    [ObservableProperty]
     private OxyColor _seriesColor;
 
     private bool _isVisible;
@@ -46,9 +52,11 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     public LineSeries ActualSeries { get; }
     private readonly PlotModel _plotModel;
 
-    public LoggedSeriesLegendItem(string displayName, OxyColor seriesColor, bool isVisible, LineSeries actualSeries, PlotModel plotModel)
+    public LoggedSeriesLegendItem(string displayName, string channelName, string deviceSerialNo, OxyColor seriesColor, bool isVisible, LineSeries actualSeries, PlotModel plotModel)
     {
         _displayName = displayName;
+        _channelName = channelName;
+        _deviceSerialNo = deviceSerialNo;
         _seriesColor = seriesColor;
         _isVisible = isVisible; // Initialize the backing field
         ActualSeries = actualSeries;
@@ -364,6 +372,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
         var legendItem = new LoggedSeriesLegendItem(
             newLineSeries.Title,
+            channelName,
+            deviceSerialNo,
             newLineSeries.Color,
             newLineSeries.IsVisible,
             newLineSeries,
