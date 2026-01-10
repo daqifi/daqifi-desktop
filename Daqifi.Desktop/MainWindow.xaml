@@ -319,7 +319,8 @@
                                 Background="Transparent"
                                 BorderThickness="0"
                                 HorizontalContentAlignment="Stretch"
-                                MaxWidth="130"
+                                MinWidth="180"
+                                MaxWidth="220"
                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
@@ -337,17 +338,11 @@
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Button Command="{Binding DataContext.ToggleChannelVisibilityCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                        CommandParameter="{Binding}">
+                                        CommandParameter="{Binding}"
+                                        Padding="4,6">
                                     <Button.ToolTip>
                                         <ToolTip>
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
-                                                <TextBlock>
-                                                    <Run Text="Device: "/>
-                                                    <Run Text="{Binding DeviceSerialNo, Mode=OneWay}"/>
-                                                </TextBlock>
-                                                <TextBlock Text="Click to show/hide" FontSize="10" FontStyle="Italic" Margin="0,4,0,0"/>
-                                            </StackPanel>
+                                            <TextBlock Text="Click to show/hide channel" FontSize="10" FontStyle="Italic"/>
                                         </ToolTip>
                                     </Button.ToolTip>
                                     <Button.Style>
@@ -355,35 +350,89 @@
                                             <Setter Property="Cursor" Value="Hand"/>
                                             <Style.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="#10FFFFFF"/>
+                                                    <Setter Property="Background" Value="#15FFFFFF"/>
                                                 </Trigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
-                                    <StackPanel Orientation="Horizontal" Margin="5,5,5,5">
-                                        <StackPanel.Style>
-                                            <Style TargetType="StackPanel">
-                                                <Setter Property="Opacity" Value="1.0"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsVisible}" Value="False">
-                                                        <Setter Property="Opacity" Value="0.3"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </StackPanel.Style>
-                                        <Rectangle Width="20" Height="20" Fill="{Binding ChannelColorBrush}" Margin="5,0,8,0"/>
-                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Visibility Toggle Icon -->
+                                        <iconPacks:PackIconMaterial Grid.Column="0"
+                                                                   Width="14" Height="14"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,6,0">
+                                            <iconPacks:PackIconMaterial.Style>
+                                                <Style TargetType="iconPacks:PackIconMaterial">
+                                                    <Setter Property="Kind" Value="Eye"/>
+                                                    <Setter Property="Opacity" Value="0.7"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsVisible}" Value="False">
-                                                            <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                            <Setter Property="Kind" Value="EyeOff"/>
+                                                            <Setter Property="Opacity" Value="0.3"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                    </StackPanel>
+                                            </iconPacks:PackIconMaterial.Style>
+                                        </iconPacks:PackIconMaterial>
+
+                                        <!-- Color Indicator -->
+                                        <Rectangle Grid.Column="1"
+                                                  Width="16" Height="16"
+                                                  Fill="{Binding ChannelColorBrush}"
+                                                  Margin="0,0,8,0"
+                                                  VerticalAlignment="Center">
+                                            <Rectangle.Style>
+                                                <Style TargetType="Rectangle">
+                                                    <Setter Property="Opacity" Value="1.0"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                            <Setter Property="Opacity" Value="0.3"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Rectangle.Style>
+                                        </Rectangle>
+
+                                        <!-- Channel Info -->
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}"
+                                                      FontSize="12"
+                                                      FontWeight="Medium">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Opacity" Value="1.0"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                <Setter Property="Opacity" Value="0.4"/>
+                                                                <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding DeviceSerialNo}"
+                                                      FontSize="9"
+                                                      Opacity="0.6"
+                                                      Margin="0,1,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                <Setter Property="Opacity" Value="0.3"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Grid>
                                 </Button>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -448,7 +497,8 @@
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                               MaxHeight="400"
-                                              MaxWidth="130">
+                                              MinWidth="180"
+                                              MaxWidth="220">
                                         <ListView.ItemContainerStyle>
                                             <Style TargetType="ListViewItem">
                                                 <Setter Property="Focusable" Value="False"/>
@@ -465,17 +515,11 @@
                                         <ListView.ItemTemplate>
                                             <DataTemplate DataType="{x:Type logger:LoggedSeriesLegendItem}">
                                                 <Button Command="{Binding DataContext.ToggleLoggedSeriesVisibilityCommand, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"
-                                                        CommandParameter="{Binding}">
+                                                        CommandParameter="{Binding}"
+                                                        Padding="4,6">
                                                     <Button.ToolTip>
                                                         <ToolTip>
-                                                            <StackPanel>
-                                                                <TextBlock Text="{Binding ChannelName}" FontWeight="Bold"/>
-                                                                <TextBlock>
-                                                                    <Run Text="Device: "/>
-                                                                    <Run Text="{Binding DeviceSerialNo, Mode=OneWay}"/>
-                                                                </TextBlock>
-                                                                <TextBlock Text="Click to show/hide" FontSize="10" FontStyle="Italic" Margin="0,4,0,0"/>
-                                                            </StackPanel>
+                                                            <TextBlock Text="Click to show/hide channel" FontSize="10" FontStyle="Italic"/>
                                                         </ToolTip>
                                                     </Button.ToolTip>
                                                     <Button.Style>
@@ -483,36 +527,89 @@
                                                             <Setter Property="Cursor" Value="Hand"/>
                                                             <Style.Triggers>
                                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter Property="Background" Value="#10FFFFFF"/>
+                                                                    <Setter Property="Background" Value="#15FFFFFF"/>
                                                                 </Trigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </Button.Style>
-                                                    <StackPanel Orientation="Horizontal" Margin="5,5,5,5">
-                                                        <StackPanel.Style>
-                                                            <Style TargetType="StackPanel">
-                                                                <Setter Property="Opacity" Value="1.0"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsVisible}" Value="False">
-                                                                        <Setter Property="Opacity" Value="0.3"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </StackPanel.Style>
-                                                        <Rectangle Width="15" Height="15" Margin="5,0,8,0" VerticalAlignment="Center"
-                                                                   Fill="{Binding SeriesColor, Converter={StaticResource OxyColorToBrushConverter}}"/>
-                                                        <TextBlock Text="{Binding ChannelName}" VerticalAlignment="Center">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Visibility Toggle Icon -->
+                                                        <iconPacks:PackIconMaterial Grid.Column="0"
+                                                                                   Width="14" Height="14"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Margin="0,0,6,0">
+                                                            <iconPacks:PackIconMaterial.Style>
+                                                                <Style TargetType="iconPacks:PackIconMaterial">
+                                                                    <Setter Property="Kind" Value="Eye"/>
+                                                                    <Setter Property="Opacity" Value="0.7"/>
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding IsVisible}" Value="False">
-                                                                            <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                                            <Setter Property="Kind" Value="EyeOff"/>
+                                                                            <Setter Property="Opacity" Value="0.3"/>
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                    </StackPanel>
+                                                            </iconPacks:PackIconMaterial.Style>
+                                                        </iconPacks:PackIconMaterial>
+
+                                                        <!-- Color Indicator -->
+                                                        <Rectangle Grid.Column="1"
+                                                                  Width="16" Height="16"
+                                                                  Fill="{Binding SeriesColor, Converter={StaticResource OxyColorToBrushConverter}}"
+                                                                  Margin="0,0,8,0"
+                                                                  VerticalAlignment="Center">
+                                                            <Rectangle.Style>
+                                                                <Style TargetType="Rectangle">
+                                                                    <Setter Property="Opacity" Value="1.0"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                            <Setter Property="Opacity" Value="0.3"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Rectangle.Style>
+                                                        </Rectangle>
+
+                                                        <!-- Channel Info -->
+                                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding ChannelName}"
+                                                                      FontSize="12"
+                                                                      FontWeight="Medium">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Opacity" Value="1.0"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                                <Setter Property="Opacity" Value="0.4"/>
+                                                                                <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <TextBlock Text="{Binding DeviceSerialNo}"
+                                                                      FontSize="9"
+                                                                      Opacity="0.6"
+                                                                      Margin="0,1,0,0">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                                <Setter Property="Opacity" Value="0.3"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                    </Grid>
                                                 </Button>
                                             </DataTemplate>
                                         </ListView.ItemTemplate>
