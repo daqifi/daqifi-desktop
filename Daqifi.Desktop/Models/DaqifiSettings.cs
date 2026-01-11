@@ -43,7 +43,7 @@ public class DaqifiSettings
 
     private DaqifiSettings()
     {
-        LoadDAQifiSettings();
+        LoadDAQiFiSettings();
     }
 
     public static DaqifiSettings Instance => _instance;
@@ -51,7 +51,7 @@ public class DaqifiSettings
     #endregion
 
     #region Settings Methods
-    private void LoadDAQifiSettings()
+    private void LoadDAQiFiSettings()
     {
         try
         {

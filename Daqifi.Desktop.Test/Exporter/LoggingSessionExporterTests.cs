@@ -10,7 +10,7 @@ namespace Daqifi.Desktop.Test.Exporter;
 public class OptimizedLoggingSessionExporterTests
 {
     private const string ExportFileName = "testExportFile.csv";
-    private static readonly string TestDirectoryPath = Path.Combine(Path.GetTempPath(), "DAQifi", "Tests");
+    private static readonly string TestDirectoryPath = Path.Combine(Path.GetTempPath(), "DAQiFi", "Tests");
 
     private readonly DateTime _firstTime = new(2018, 2, 9, 1, 3, 30);
     private readonly DateTime _secondTime = new(2018, 2, 9, 1, 3, 31);

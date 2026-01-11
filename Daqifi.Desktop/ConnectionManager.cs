@@ -16,7 +16,7 @@ public partial class ConnectionManager : ObservableObject
 
     #region Properties
     [ObservableProperty]
-    private DAQifiConnectionStatus _connectionStatus = DAQifiConnectionStatus.Disconnected;
+    private DAQiFiConnectionStatus _connectionStatus = DAQiFiConnectionStatus.Disconnected;
 
     [ObservableProperty]
     private List<IStreamingDevice> _connectedDevices;
@@ -42,10 +42,10 @@ public partial class ConnectionManager : ObservableObject
 
     #endregion
 
-    partial void OnConnectionStatusChanged(DAQifiConnectionStatus value)
+    partial void OnConnectionStatusChanged(DAQiFiConnectionStatus value)
     {
         UpdateStatusString();
-        IsDisconnected = value != DAQifiConnectionStatus.Connected;
+        IsDisconnected = value != DAQiFiConnectionStatus.Connected;
     }
 
     #region Singleton Constructor / Initalization
@@ -79,7 +79,7 @@ public partial class ConnectionManager : ObservableObject
     {
         try
         {
-            ConnectionStatus = DAQifiConnectionStatus.Connecting;
+            ConnectionStatus = DAQiFiConnectionStatus.Connecting;
             
             // Check for duplicate device before connecting
             var duplicateResult = CheckForDuplicateDevice(device);
@@ -91,10 +91,10 @@ public partial class ConnectionManager : ObservableObject
                     switch (action)
                     {
                         case DuplicateDeviceAction.KeepExisting:
-                            ConnectionStatus = DAQifiConnectionStatus.AlreadyConnected;
+                            ConnectionStatus = DAQiFiConnectionStatus.AlreadyConnected;
                             return;
                         case DuplicateDeviceAction.Cancel:
-                            ConnectionStatus = DAQifiConnectionStatus.Disconnected;
+                            ConnectionStatus = DAQiFiConnectionStatus.Disconnected;
                             return;
                         case DuplicateDeviceAction.SwitchToNew:
                             // Disconnect the existing device and continue with connection
@@ -105,7 +105,7 @@ public partial class ConnectionManager : ObservableObject
                 else
                 {
                     // No handler set, default behavior is to reject the duplicate
-                    ConnectionStatus = duplicateResult.ExistingDevice != null ? DAQifiConnectionStatus.AlreadyConnected : DAQifiConnectionStatus.Error;
+                    ConnectionStatus = duplicateResult.ExistingDevice != null ? DAQiFiConnectionStatus.AlreadyConnected : DAQiFiConnectionStatus.Error;
                     return;
                 }
             }
@@ -113,7 +113,7 @@ public partial class ConnectionManager : ObservableObject
             var isConnected = await Task.Run(() => device.Connect());
             if (!isConnected)
             {
-                ConnectionStatus = DAQifiConnectionStatus.Error;
+                ConnectionStatus = DAQiFiConnectionStatus.Error;
                 return;
             }
             
@@ -123,19 +123,19 @@ public partial class ConnectionManager : ObservableObject
             {
                 // Disconnect the device we just connected since it's a duplicate
                 device.Disconnect();
-                ConnectionStatus = postConnectDuplicateResult.ExistingDevice != null ? DAQifiConnectionStatus.AlreadyConnected : DAQifiConnectionStatus.Error;
+                ConnectionStatus = postConnectDuplicateResult.ExistingDevice != null ? DAQiFiConnectionStatus.AlreadyConnected : DAQiFiConnectionStatus.Error;
                 return;
             }
             
             ConnectedDevices.Add(device);
             await Task.Delay(1000);
             OnPropertyChanged("ConnectedDevices");
-            ConnectionStatus = DAQifiConnectionStatus.Connected;
+            ConnectionStatus = DAQiFiConnectionStatus.Connected;
         }
         catch (Exception ex)
         {
             AppLogger.Instance.Error(ex, "Failed to Connect in Connection");
-            ConnectionStatus = DAQifiConnectionStatus.Error;
+            ConnectionStatus = DAQiFiConnectionStatus.Error;
         }
     }
 
@@ -171,11 +171,11 @@ public partial class ConnectionManager : ObservableObject
     {
         ConnectionStatusString = ConnectionStatus switch
         {
-            DAQifiConnectionStatus.Disconnected => "Disconnected",
-            DAQifiConnectionStatus.Connecting => "Connecting",
-            DAQifiConnectionStatus.Connected => "Connected",
-            DAQifiConnectionStatus.Error => "Error",
-            DAQifiConnectionStatus.AlreadyConnected => "AlreadyConnected",
+            DAQiFiConnectionStatus.Disconnected => "Disconnected",
+            DAQiFiConnectionStatus.Connecting => "Connecting",
+            DAQiFiConnectionStatus.Connected => "Connected",
+            DAQiFiConnectionStatus.Error => "Error",
+            DAQiFiConnectionStatus.AlreadyConnected => "AlreadyConnected",
             _ => "Error"
         };
     }
@@ -303,7 +303,7 @@ public enum DuplicateDeviceAction
     Cancel
 }
 
-public enum DAQifiConnectionStatus
+public enum DAQiFiConnectionStatus
 {
     Disconnected,
     Connecting,
