@@ -47,7 +47,7 @@ public class DuplicateDeviceDetectionTests
         await _connectionManager.Connect(_mockDevice2.Object);
 
         // Assert
-        Assert.AreEqual(DAQifiConnectionStatus.AlreadyConnected, _connectionManager.ConnectionStatus);
+        Assert.AreEqual(DAQiFiConnectionStatus.AlreadyConnected, _connectionManager.ConnectionStatus);
         Assert.AreEqual(1, _connectionManager.ConnectedDevices.Count, "Should only have one device connected");
     }
 
@@ -68,7 +68,7 @@ public class DuplicateDeviceDetectionTests
         await _connectionManager.Connect(_mockDevice2.Object);
 
         // Assert
-        Assert.AreEqual(DAQifiConnectionStatus.Connected, _connectionManager.ConnectionStatus);
+        Assert.AreEqual(DAQiFiConnectionStatus.Connected, _connectionManager.ConnectionStatus);
         Assert.AreEqual(2, _connectionManager.ConnectedDevices.Count, "Should have both devices connected");
     }
 
@@ -89,7 +89,7 @@ public class DuplicateDeviceDetectionTests
         await _connectionManager.Connect(_mockDevice2.Object);
 
         // Assert
-        Assert.AreEqual(DAQifiConnectionStatus.Connected, _connectionManager.ConnectionStatus);
+        Assert.AreEqual(DAQiFiConnectionStatus.Connected, _connectionManager.ConnectionStatus);
         Assert.AreEqual(2, _connectionManager.ConnectedDevices.Count, "Should allow device with no serial number");
     }
 

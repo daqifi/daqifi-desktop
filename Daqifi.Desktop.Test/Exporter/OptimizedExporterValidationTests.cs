@@ -9,7 +9,7 @@ namespace Daqifi.Desktop.Test.Exporter;
 [TestClass]
 public class OptimizedExporterValidationTests
 {
-    private static readonly string TestDirectoryPath = Path.Combine(Path.GetTempPath(), "DAQifi", "OptimizedTests");
+    private static readonly string TestDirectoryPath = Path.Combine(Path.GetTempPath(), "DAQiFi", "OptimizedTests");
 
     [TestInitialize]
     public void Initialize()

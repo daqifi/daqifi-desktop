@@ -117,7 +117,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Problem with Disconnecting from DAQifi Device.");
+            AppLogger.Error(ex, "Problem with Disconnecting from DAQiFi Device.");
             return false;
         }
     }

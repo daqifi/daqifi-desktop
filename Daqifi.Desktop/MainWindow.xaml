@@ -21,7 +21,7 @@
 
     <controls:MetroWindow.RightWindowCommands>
         <controls:WindowCommands>
-            <Button Command="{Binding ShowDAQifiSettingsDialogCommand}">
+            <Button Command="{Binding ShowDAQiFiSettingsDialogCommand}">
                 <Button.Content>
                     <StackPanel Orientation="Horizontal">
                         <iconPacks:PackIconMaterial Kind="Cog" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" />
