@@ -392,7 +392,7 @@ public partial class DaqifiViewModel : ObservableObject
                 }
                 catch (Exception ex)
                 {
-                    _appLogger.Error(ex, "DAQiFiViewModel");
+                    _appLogger.Error(ex, "DaqifiViewModel");
                 }
             }
             app.IsWindowInit = true;
