@@ -392,7 +392,7 @@ public partial class DaqifiViewModel : ObservableObject
                 }
                 catch (Exception ex)
                 {
-                    _appLogger.Error(ex, "DAQifiViewModel");
+                    _appLogger.Error(ex, "DaqifiViewModel");
                 }
             }
             app.IsWindowInit = true;
@@ -728,7 +728,7 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ShowDAQifiSettingsDialog()
+    private void ShowDAQiFiSettingsDialog()
     {
         var settingsViewModel = new SettingsViewModel();
         _dialogService.ShowDialog<SettingsDialog>(this, settingsViewModel);

@@ -42,7 +42,7 @@
 		<None Remove="Images\3Nq.png" />
 		<None Remove="Images\Add.png" />
 		<None Remove="Images\Configuration.png" />
-		<None Remove="Images\DAQifi.png" />
+		<None Remove="Images\DAQiFi.png" />
 		<None Remove="Images\Icon_Large.png" />
 		<None Remove="Images\Icon_Medium.png" />
 		<None Remove="Images\Icon_Small.png" />
@@ -97,7 +97,7 @@
 		<Resource Include="Images\3Nq.png" />
 		<Resource Include="Images\Add.png" />
 		<Resource Include="Images\Configuration.png" />
-		<Resource Include="Images\DAQifi.png" />
+		<Resource Include="Images\DAQiFi.png" />
 		<Resource Include="Images\Icon_Large.png" />
 		<Resource Include="Images\Icon_Medium.png" />
 		<Resource Include="Images\Icon_Small.png" />

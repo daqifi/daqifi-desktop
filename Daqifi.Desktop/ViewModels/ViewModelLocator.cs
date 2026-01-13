@@ -13,14 +13,14 @@ public class ViewModelLocator
     {
         ServiceLocator.SetLocatorProvider(() => SimpleIoc.Default);
 
-        //SimpleIoc.Default.Register<DAQifiViewModel>();
+        //SimpleIoc.Default.Register<DaqifiViewModel>();
     }
 
-    public DAQifiViewModel DAQifiViewModel
+    public DaqifiViewModel DaqifiViewModel
     {
         get
         {
-            return ServiceLocator.Current.GetInstance<DAQifiViewModel>();
+            return ServiceLocator.Current.GetInstance<DaqifiViewModel>();
         }
     }
 
