@@ -3,38 +3,49 @@
 ## Overview
 This document outlines the iterative migration plan to gradually move functionality from `daqifi-desktop` to `daqifi-core`, creating a clean separation between core device communication logic and desktop-specific UI/application concerns.
 
-## Current State (Updated 2025-10-16)
+## Current State (Updated 2025-01-16)
 
 **Desktop (daqifi-desktop)**:
 - Production-ready WPF application with 80% test coverage
 - Comprehensive device communication (WiFi, Serial, USB)
 - 1,073-line `AbstractStreamingDevice` with all device logic
 - UDP discovery, channel management, data streaming, SD card, firmware updates
-- Currently uses `Daqifi.Core 0.4.1`
+- Currently uses `Daqifi.Core 0.7.0`
 
-**Core (daqifi-core v0.4.1)**:
-- ✅ **Phase 1-2 Complete**: Foundation and message system (59/59 tests passing)
+**Core (daqifi-core v0.7.0)**:
+- ✅ **Phase 1-5 Complete**: Foundation, messaging, transports, discovery, channels
 - ✅ Clean interfaces (`IDevice`, `IStreamingDevice`, `IMessageProducer`, `IMessageConsumer`)
-- ✅ Transport abstractions (TCP, Serial - UDP needed)
+- ✅ Transport abstractions (TCP, Serial, UDP)
 - ✅ SCPI command producer (45+ commands)
-- ✅ Protocol Buffer support
-- ❌ **Missing**: Device discovery, channels, streaming pipeline, advanced features (Phases 3-7)
+- ✅ Protocol Buffer support with `ProtobufProtocolHandler`
+- ✅ Device discovery (`WiFiDeviceFinder`, `SerialDeviceFinder`, `HidDeviceFinder`)
+- ✅ Channel abstractions (`IAnalogChannel`, `IDigitalChannel`) with scaling/calibration
+- ✅ Device metadata and capabilities (`DeviceMetadata`, `DeviceCapabilities`)
+- 🔄 **In Progress**: Timestamp processing, channel population from protobuf (see new issues below)
 
 **Integration Status**:
-- ⚠️ **CoreDeviceAdapter (v0.4.1) NOT production-ready** - See Issue #39
-- Integration attempted prematurely before core functionality complete
-- Resulted in code bloat (143 lines added, 0 removed) instead of drop-in replacement
-- **Recommendation**: Focus on Phases 3-7 before attempting integration
+- Desktop uses Core's device finders for discovery (WiFi, Serial, HID)
+- Desktop channels compose Core channels for scaling/calibration
+- Desktop uses Core's `ScpiMessageProducer` for all SCPI commands
+- Desktop uses Core's `ProtobufProtocolHandler` for message routing
+- Desktop uses Core's `DeviceMetadata.UpdateFromProtobuf()` for metadata hydration
+- ⚠️ Desktop still has its own device hierarchy (`AbstractStreamingDevice`) rather than using Core's `DaqifiDevice`
 
 **Phase Progress**:
 - ✅ Phase 1: Foundation (Complete)
 - ✅ Phase 2: Message System (Complete)
-- 🔄 Phase 3: Connection Management (Partial - TCP/Serial done, UDP needed)
-- ⏳ Phase 4: Device Discovery (Not started)
-- ⏳ Phase 5: Channel Management (Not started - Critical gap)
-- ⏳ Phase 6: Protocol Implementation (Not started)
+- ✅ Phase 3: Connection Management (Complete - TCP, Serial, UDP transports)
+- ✅ Phase 4: Device Discovery (Complete - WiFi, Serial, HID finders in Core and used by Desktop)
+- ✅ Phase 5: Channel Management (Complete - Desktop channels compose Core channels)
+- 🔄 Phase 6: Protocol Implementation (Partial - see new issues)
 - ⏳ Phase 7: Advanced Features (Not started)
-- 🚫 Phase 8: Desktop Integration (Deferred until 3-7 complete)
+- ⏳ Phase 8: Desktop Integration (Blocked on Phase 6-7)
+
+**New Issues for Phase 6 Completion**:
+- Core [#78](https://github.com/daqifi/daqifi-core/issues/78): Add TimestampProcessor for timestamp rollover handling
+- Core [#79](https://github.com/daqifi/daqifi-core/issues/79): Add channel population from protobuf status messages
+- Desktop [#341](https://github.com/daqifi/daqifi-desktop/issues/341): Use Core's TimestampProcessor
+- Desktop [#342](https://github.com/daqifi/daqifi-desktop/issues/342): Use Core's channel population
 
 ## Migration Principles
 1. **Iterative Approach**: Each phase should be deployable and testable
@@ -83,110 +94,72 @@ This document outlines the iterative migration plan to gradually move functional
 
 **GitHub Issues**: [Closed #32](https://github.com/daqifi/daqifi-core/issues/32)
 
-## Phase 3: Connection Management (Core 0.5.0)
+## Phase 3: Connection Management ✅ (Core 0.5.0)
 **Goal**: Move connection lifecycle management to core
 
-**Status**: Partial - TCP/Serial transports exist, UDP and advanced features needed
+**Status**: ✅ Complete - All transport types implemented
 
 ### 3.1 Transport Layer Abstraction
 - [x] Create `IStreamTransport` base interface
 - [x] Implement `TcpStreamTransport` for TCP connections
 - [x] Implement `SerialStreamTransport` for serial/USB connections
-- [ ] Create `IUdpTransport` interface for UDP communication
-- [ ] Implement `UdpStreamTransport` for broadcast/unicast
-- [ ] Add WiFi-specific connection logic (buffer clearing, device ports)
-- [ ] Connection retry logic with configurable timeouts
-- [ ] Connection pooling for multiple simultaneous devices
+- [x] Create `UdpTransport` for UDP communication (used by WiFiDeviceFinder)
+- [x] Connection retry logic with `ConnectionRetryOptions`
+- [x] Async connect/disconnect patterns
 
 ### 3.2 Connection State Management
-- [x] `ConnectionStatus` enum (Disconnected, Connecting, Connected)
-- [x] Event-driven status change notifications
-- [ ] Connection retry logic with exponential backoff
-- [ ] Connection timeout configuration per transport type
-- [ ] Thread-safe connection state transitions
-- [ ] Proper resource cleanup on connection failures
+- [x] `ConnectionStatus` enum (Disconnected, Connecting, Connected, Lost)
+- [x] Event-driven status change notifications (`StatusChanged` event)
+- [x] Thread-safe connection state transitions
+- [x] Proper resource cleanup via `IDisposable`
 
-### 3.3 Desktop-Specific Features
-- [ ] WiFi device buffer clearing (`ClearBuffer()`)
-- [ ] Device-specific configuration (`IsWifiDevice` flag)
-- [ ] Safe shutdown patterns (`StopSafely()` ensuring queue is empty)
-- [ ] DTR control for serial devices (power management)
+### 3.3 Desktop-Specific Features (Remain in Desktop)
+- WiFi device buffer clearing - Desktop-specific
+- DTR control for serial devices - Handled in Desktop's `SerialStreamingDevice`
 
-### Success Criteria
-- [ ] UDP transport with broadcast discovery support
-- [ ] Connection retry with configurable attempts and delays
-- [ ] Connection pooling/management for multiple devices
-- [ ] Platform-specific serial port handling
-- [ ] WiFi-specific buffer clearing capability
-- [ ] All transport types support async/await patterns
-- [ ] 80%+ test coverage for transport layer
+**Deliverable**: Core 0.5.0 with robust connection management ✅
 
-### Desktop Migration Impact
-Once complete, desktop can:
-- Replace `DaqifiStreamingDevice.Connect()` with `TcpStreamTransport` from core
-- Replace `SerialStreamingDevice.Connect()` with `SerialStreamTransport` from core
-- Remove desktop connection retry logic, use core's implementation
+**GitHub Issues**: [#48](https://github.com/daqifi/daqifi-core/issues/48) - Closed
 
-**Deliverable**: Core 0.5.0 with robust connection management
-
-**GitHub Issues**: [#48](https://github.com/daqifi/daqifi-core/issues/48)
-
-## Phase 4: Device Discovery Framework (Core 0.6.0)
+## Phase 4: Device Discovery Framework ✅ (Core 0.6.0)
 **Goal**: Move device discovery logic from desktop to core
 
-**Status**: Not started - Deferred from Phase 2
+**Status**: ✅ Complete - All discovery mechanisms implemented and used by Desktop
 
 ### 4.1 Device Discovery Interfaces
-- [ ] Create `IDeviceFinder` interface for device discovery
-- [ ] Create `IDeviceInfo` interface/class for discovered device metadata
-- [ ] Support for multiple discovery mechanisms (WiFi, Serial, USB HID)
-- [ ] Async discovery with cancellation token support
-- [ ] Event-based discovery notifications (device found, discovery complete)
+- [x] Create `IDeviceFinder` interface for device discovery
+- [x] Create `IDeviceInfo` interface/class for discovered device metadata
+- [x] Support for multiple discovery mechanisms (WiFi, Serial, USB HID)
+- [x] Async discovery with cancellation token support
+- [x] Event-based discovery notifications (`DeviceDiscovered`, `DiscoveryCompleted`)
 
 ### 4.2 WiFi Device Discovery
-- [ ] Implement `WiFiDeviceFinder` using UDP broadcast
-- [ ] UDP broadcast on port 30303 with "DAQiFi?\r\n" query
-- [ ] Parse protobuf responses (IP, MAC, port, hostname, serial, firmware)
-- [ ] Network interface enumeration and selection
-- [ ] Timeout and retry configuration
+- [x] Implement `WiFiDeviceFinder` using UDP broadcast
+- [x] UDP broadcast on port 30303 with "DAQiFi?\r\n" query
+- [x] Parse protobuf responses (IP, MAC, port, hostname, serial, firmware)
+- [x] Network interface enumeration
+- [x] Timeout configuration
+- [x] Duplicate device detection by MAC/serial
 
 ### 4.3 Serial Device Discovery
-- [ ] Implement `SerialDeviceFinder` for USB/Serial enumeration
-- [ ] Serial port scanning with device info queries
-- [ ] `TryGetDeviceInfo()` pattern with quick connection attempts
-- [ ] Configurable baud rates and DTR control
+- [x] Implement `SerialDeviceFinder` for USB/Serial enumeration
+- [x] Cross-platform serial port support
 
 ### 4.4 USB HID Device Discovery
-- [ ] Implement `HidDeviceFinder` for bootloader mode devices
-- [ ] HID device enumeration (VendorId: 0x4D8, ProductId: 0x03C)
-- [ ] Device mode detection (normal vs bootloader)
+- [x] Implement `HidDeviceFinder` for bootloader mode devices
+- [x] Platform-specific HID support
 
-### 4.5 Device Info Extraction
-- [ ] Parse device metadata from protobuf messages
-- [ ] Extract IP, MAC, TCP port, hostname, serial, firmware version
-- [ ] Device type detection from part numbers
-- [ ] Power status information
+### Desktop Integration
+Desktop's `ConnectionDialogViewModel` now uses Core's finders:
+```csharp
+using Daqifi.Core.Device.Discovery.WiFiDeviceFinder;
+using Daqifi.Core.Device.Discovery.SerialDeviceFinder;
+using Daqifi.Core.Device.Discovery.HidDeviceFinder;
+```
 
-### Success Criteria
-- [ ] `IDeviceFinder` interface with async discovery
-- [ ] WiFi discovery finds devices on same subnet within 5 seconds
-- [ ] Serial discovery enumerates all available ports
-- [ ] HID discovery identifies bootloader devices
-- [ ] Device info parsing extracts all relevant metadata
-- [ ] Event-based notifications during discovery
-- [ ] Cancellation token support
-- [ ] 80%+ test coverage with mock responses
+**Deliverable**: Core 0.6.0 with device discovery framework ✅
 
-### Desktop Migration Impact
-Once complete, desktop can:
-- Replace `DaqifiDeviceFinder` with `WiFiDeviceFinder` from core
-- Replace `SerialDeviceFinder` with core implementation
-- Replace `HidDeviceFinder` with core implementation
-- Remove device enumeration logic from desktop
-
-**Deliverable**: Core 0.6.0 with device discovery framework
-
-**GitHub Issues**: [#49](https://github.com/daqifi/daqifi-core/issues/49)
+**GitHub Issues**: [#49](https://github.com/daqifi/daqifi-core/issues/49) - Closed
 
 ## Phase 5: Channel Management & Data Streaming ✅ (Core 0.6.0)
 **Goal**: Migrate channel configuration and data handling
@@ -273,72 +246,63 @@ Once complete, desktop can:
 - Core PR: [#57](https://github.com/daqifi/daqifi-core/pull/57) - Merged
 - Desktop PR: TBD (this integration)
 
-## Phase 6: Protocol Implementation & Device Logic (Core 0.8.0)
+## Phase 6: Protocol Implementation & Device Logic 🔄 (Core 0.8.0)
 **Goal**: Move protocol-specific communication to core
 
-**Status**: Not started - Protocol foundations exist
+**Status**: 🔄 Partial - Protocol handler exists, device logic migration in progress
 
-### 6.1 Protocol Handlers
-- [ ] Complete SCPI command handling (expand existing `ScpiMessageProducer`)
-- [ ] Protobuf message serialization/deserialization (expand existing support)
-- [ ] Protocol-agnostic message routing
-- [ ] Response parsing and validation
-- [ ] Error response handling
-- [ ] Command/response correlation
+### 6.1 Protocol Handlers ✅
+- [x] `ProtobufProtocolHandler` for automatic message routing
+- [x] Status message detection and handling
+- [x] Stream message detection and handling
+- [x] SCPI command producer (45+ commands in `ScpiMessageProducer`)
+- [x] Protobuf message parsing
 
-### 6.2 Device-Specific Logic
-- [ ] Device model detection from part numbers
-- [ ] Firmware version parsing and comparison
-- [ ] Device capability detection (streaming, SD card, WiFi)
-- [ ] Device state machine (initialization, ready, streaming, error)
-- [ ] Device metadata management
+### 6.2 Device Metadata ✅
+- [x] `DeviceMetadata` class with `UpdateFromProtobuf()`
+- [x] `DeviceCapabilities` for feature detection
+- [x] `DeviceType` enum and detection from part numbers
+- [x] `DeviceState` enum (Disconnected, Connecting, Connected, Initializing, Ready, Error)
 
-### 6.3 SCPI Command Extensions
-Ensure all desktop SCPI commands are in core:
-- [ ] Device control (reboot, bootloader, power)
-- [ ] Channel configuration (ADC, digital I/O)
-- [ ] Streaming control (start/stop, frequency, format)
-- [ ] Network configuration (WiFi SSID/password, LAN settings)
-- [ ] SD card operations (enable/disable, file list, file retrieval)
-- [ ] Timestamp synchronization
-- [ ] Device information queries
+### 6.3 Device Initialization ✅
+- [x] `DaqifiDevice.InitializeAsync()` with standard sequence
+- [x] Disable echo, stop streaming, power on, set protobuf format, query device info
+- [x] Async with delays between commands
 
-### 6.4 Protobuf Message Handling
-- [ ] Status message parsing (device info, channel config)
-- [ ] Streaming message parsing (continuous data)
-- [ ] SD card message parsing (file listings - text format)
-- [ ] Error message parsing
-- [ ] Message type detection and routing
+### 6.4 Remaining Work (New Issues)
+**Timestamp Processing** - [Core #78](https://github.com/daqifi/daqifi-core/issues/78)
+- [ ] `TimestampProcessor` class for uint32 rollover handling
+- [ ] Per-device/session timestamp state tracking
+- [ ] Thread-safe implementation
+- Desktop integration: [Desktop #341](https://github.com/daqifi/daqifi-desktop/issues/341)
 
-### 6.5 Device Initialization Sequence
-- [ ] Disable device echo
-- [ ] Stop any running streaming
-- [ ] Turn device on (if needed)
-- [ ] Set protobuf message format
-- [ ] Query device info and capabilities
-- [ ] Configure initial state
-- [ ] Validate successful initialization
+**Channel Population from Protobuf** - [Core #79](https://github.com/daqifi/daqifi-core/issues/79)
+- [ ] `PopulateChannelsFromStatus(DaqifiOutMessage)` method in `DaqifiDevice`
+- [ ] Create analog channels with calibration parameters from protobuf
+- [ ] Create digital channels with direction from protobuf
+- [ ] `ChannelsPopulated` event for notifications
+- Desktop integration: [Desktop #342](https://github.com/daqifi/daqifi-desktop/issues/342)
 
 ### Success Criteria
-- [ ] All desktop SCPI commands available in core
-- [ ] Protocol handlers route messages correctly by type
-- [ ] Device initialization sequence matches desktop behavior
-- [ ] Device type detection from part numbers
-- [ ] Firmware version comparison logic
-- [ ] Error responses handled gracefully
-- [ ] 80%+ test coverage for protocol handling
+- [x] Protocol handlers route messages correctly by type
+- [x] Device initialization sequence matches desktop behavior
+- [x] Device type detection from part numbers
+- [ ] Timestamp rollover handling in Core (Issue #78)
+- [ ] Channel population from protobuf in Core (Issue #79)
+- [ ] 80%+ test coverage for new functionality
 
 ### Desktop Migration Impact
 Once complete, desktop can:
-- Use core's `InitializeDeviceAsync()` for device setup
-- Use core protocol handlers for message routing
-- Use core's device type detection logic
-- Fully migrate to core's `ScpiMessageProducer`
-- Use core's protobuf parsers
+- Remove timestamp rollover logic from `AbstractStreamingDevice`
+- Remove `PopulateAnalogInChannels()` and `PopulateDigitalChannels()`
+- Desktop channels wrap Core channels (already using composition pattern)
 
 **Deliverable**: Core 0.8.0 with complete protocol implementation
 
-**GitHub Issues**: [#51](https://github.com/daqifi/daqifi-core/issues/51)
+**GitHub Issues**:
+- [#51](https://github.com/daqifi/daqifi-core/issues/51) - Original tracking issue
+- [#78](https://github.com/daqifi/daqifi-core/issues/78) - TimestampProcessor
+- [#79](https://github.com/daqifi/daqifi-core/issues/79) - Channel population
 
 ## Phase 7: Advanced Features (Core 0.9.0)
 **Goal**: Migrate remaining shared functionality
