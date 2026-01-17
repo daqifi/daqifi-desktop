@@ -10,7 +10,7 @@
 	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="System.IO.Ports" Version="10.0.2" />
-		<PackageReference Include="Daqifi.Core" Version="0.7.0" />
+		<PackageReference Include="Daqifi.Core" Version="0.8.0" />
 		<PackageReference Include="Google.Protobuf" Version="3.33.4" />
 		<PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
 			<PrivateAssets>all</PrivateAssets>
