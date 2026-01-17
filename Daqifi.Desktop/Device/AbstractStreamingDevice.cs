@@ -37,8 +37,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 {
     public abstract ConnectionType ConnectionType { get; }
 
-    private const double TickPeriod = 20E-9f;
-
     // Converted StreamingFrequency property to [ObservableProperty] field
     [ObservableProperty]
     private int _streamingFrequency = 1;
@@ -51,8 +49,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     [ObservableProperty]
     private DeviceState _deviceState = DeviceState.Disconnected;
 
-    private readonly Dictionary<string, DateTime> _previousTimestamps = [];
-    private readonly Dictionary<string, uint?> _previousDeviceTimestamps = [];
+    private readonly ITimestampProcessor _timestampProcessor = new TimestampProcessor();
     private List<SdCardFile> _sdCardFiles = [];
 
     // Protocol handler for automatic message routing
@@ -215,36 +212,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         var deviceId = message.DeviceSn.ToString(CultureInfo.InvariantCulture);
 
-        if (!_previousTimestamps.ContainsKey(deviceId))
-        {
-            _previousTimestamps[deviceId] = DateTime.Now;
-            _previousDeviceTimestamps[deviceId] = message.MsgTimeStamp;
-        }
-
-        var previousTimestamp = _previousTimestamps[deviceId];
-        var previousDeviceTimestamp = _previousDeviceTimestamps[deviceId].GetValueOrDefault();
-
-        uint numberOfClockCyclesBetweenMessages;
-        var rollover = previousDeviceTimestamp > message.MsgTimeStamp;
-        if (rollover)
-        {
-            var numberOfCyclesToMax = uint.MaxValue - previousDeviceTimestamp;
-            numberOfClockCyclesBetweenMessages = numberOfCyclesToMax + message.MsgTimeStamp;
-        }
-        else
-        {
-            numberOfClockCyclesBetweenMessages = message.MsgTimeStamp - previousDeviceTimestamp;
-        }
-
-        var secondsBetweenMessages = numberOfClockCyclesBetweenMessages * TickPeriod;
-
-        if (rollover && secondsBetweenMessages > 10)
-        {
-            numberOfClockCyclesBetweenMessages = previousDeviceTimestamp - message.MsgTimeStamp;
-            secondsBetweenMessages = numberOfClockCyclesBetweenMessages * TickPeriod * -1;
-        }
-
-        var messageTimestamp = previousTimestamp.AddSeconds(secondsBetweenMessages);
+        // Use Core's TimestampProcessor for rollover handling
+        var timestampResult = _timestampProcessor.ProcessTimestamp(deviceId, message.MsgTimeStamp);
+        var messageTimestamp = timestampResult.Timestamp;
+        var rollover = timestampResult.WasRollover;
 
         var digitalCount = 0;
         var analogCount = 0;
@@ -351,9 +322,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         };
 
         Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
-
-        _previousTimestamps[deviceId] = messageTimestamp;
-        _previousDeviceTimestamps[deviceId] = message.MsgTimeStamp;
     }
 
     /// <summary>
@@ -654,6 +622,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         IsStreaming = false;
         MessageProducer.Send(ScpiMessageProducer.StopStreaming);
         StopMessageConsumer();
+
+        // Reset timestamp processor state for clean restart
+        _timestampProcessor.ResetAll();
 
         foreach (var channel in DataChannels)
         {
