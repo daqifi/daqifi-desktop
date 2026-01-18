@@ -822,30 +822,38 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// <param name="message">The protobuf status message containing channel configuration.</param>
     private void PopulateChannelsFromCore(DaqifiOutMessage message)
     {
-        // Use Core's DaqifiDevice to populate channels from the status message
-        var coreDevice = new DaqifiDevice(Name ?? "Unknown");
-        coreDevice.PopulateChannelsFromStatus(message);
-
-        // Clear existing channels before repopulating to prevent duplicates (Issue #29)
-        DataChannels.Clear();
-
-        // Wrap Core channels with Desktop-specific wrappers
-        foreach (var coreChannel in coreDevice.Channels)
+        try
         {
-            if (coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel)
-            {
-                DataChannels.Add(new AnalogChannel(this, coreAnalogChannel));
-            }
-            else if (coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel)
-            {
-                // Core sets digital channels to IsEnabled = true by default, keep that behavior
-                DataChannels.Add(new DigitalChannel(this, coreDigitalChannel));
-            }
-        }
+            // Use Core's DaqifiDevice to populate channels from the status message
+            var coreDevice = new DaqifiDevice(Name ?? "Unknown");
+            coreDevice.PopulateChannelsFromStatus(message);
 
-        AppLogger.Information($"Populated {coreDevice.Channels.Count} channels from Core " +
-            $"({coreDevice.Channels.Count(c => c.Type == ChannelType.Analog)} analog, " +
-            $"{coreDevice.Channels.Count(c => c.Type == ChannelType.Digital)} digital)");
+            // Clear existing channels before repopulating to prevent duplicates (Issue #29)
+            DataChannels.Clear();
+
+            // Wrap Core channels with Desktop-specific wrappers
+            foreach (var coreChannel in coreDevice.Channels)
+            {
+                if (coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel)
+                {
+                    DataChannels.Add(new AnalogChannel(this, coreAnalogChannel));
+                }
+                else if (coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel)
+                {
+                    // Core sets digital channels to IsEnabled = true by default, keep that behavior
+                    DataChannels.Add(new DigitalChannel(this, coreDigitalChannel));
+                }
+            }
+
+            AppLogger.Information($"Populated {coreDevice.Channels.Count} channels from Core " +
+                $"({coreDevice.Channels.Count(c => c.Type == ChannelType.Analog)} analog, " +
+                $"{coreDevice.Channels.Count(c => c.Type == ChannelType.Digital)} digital)");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to populate channels from Core for device {DisplayIdentifier}");
+            throw;
+        }
     }
 
     protected void HydrateDeviceMetadata(DaqifiOutMessage message)

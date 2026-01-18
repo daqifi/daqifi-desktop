@@ -93,8 +93,12 @@ public class DigitalChannel : AbstractChannel
     /// </summary>
     /// <param name="owner">The device that owns this channel.</param>
     /// <param name="coreChannel">The Core channel instance to wrap.</param>
+    /// <exception cref="ArgumentNullException">Thrown when owner or coreChannel is null.</exception>
     public DigitalChannel(IStreamingDevice owner, Daqifi.Core.Channel.IDigitalChannel coreChannel)
     {
+        ArgumentNullException.ThrowIfNull(owner);
+        ArgumentNullException.ThrowIfNull(coreChannel);
+
         _owner = owner;
         _coreChannel = coreChannel;
 
