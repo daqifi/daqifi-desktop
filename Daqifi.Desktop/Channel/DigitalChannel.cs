@@ -88,6 +88,30 @@ public class DigitalChannel : AbstractChannel
     #endregion
 
     #region Constructors
+    /// <summary>
+    /// Creates a new DigitalChannel by wrapping a Core channel instance.
+    /// Used when leveraging Core's channel population from status messages.
+    /// </summary>
+    /// <param name="owner">The device that owns this channel.</param>
+    /// <param name="coreChannel">The Core channel instance to wrap.</param>
+    public DigitalChannel(IStreamingDevice owner, Daqifi.Core.Channel.IDigitalChannel coreChannel)
+    {
+        _owner = owner;
+        _coreChannel = coreChannel;
+
+        // Set desktop-specific properties (not in core)
+        DeviceName = owner.DevicePartNumber;
+        DeviceSerialNo = owner.DeviceSerialNo;
+        IsBidirectional = true; // Digital channels are typically bidirectional
+        ChannelColorBrush = ChannelColorManager.Instance.NewColor();
+
+        // Initialize derived desktop state based on core
+        IsOutput = coreChannel.Direction == ChannelDirection.Output;
+    }
+
+    /// <summary>
+    /// Creates a new DigitalChannel with explicit parameters.
+    /// </summary>
     public DigitalChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional)
     {
         _owner = owner;
