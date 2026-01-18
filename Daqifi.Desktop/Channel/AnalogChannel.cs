@@ -117,7 +117,6 @@ public class AnalogChannel : AbstractChannel
     #region Constructors
     /// <summary>
     /// Creates a new AnalogChannel by wrapping a Core channel instance.
-    /// Used when leveraging Core's channel population from status messages.
     /// </summary>
     /// <param name="owner">The device that owns this channel.</param>
     /// <param name="coreChannel">The Core channel instance to wrap.</param>
@@ -136,37 +135,6 @@ public class AnalogChannel : AbstractChannel
         IsOutput = coreChannel.Direction == ChannelDirection.Output;
         HasAdc = !IsOutput;
     }
-
-    /// <summary>
-    /// Creates a new AnalogChannel with explicit parameters.
-    /// </summary>
-    public AnalogChannel(IStreamingDevice owner, string name, int channelId, ChannelDirection direction, bool isBidirectional, double calibrationBValue, double calibrationMValue, double internalScaleMValue, double portRange, uint resolution)
-    {
-        _owner = owner;
-
-        // Create core channel for device communication
-        _coreChannel = new Daqifi.Core.Channel.AnalogChannel(channelId, resolution)
-        {
-            Name = name,
-            Direction = direction,
-            CalibrationB = calibrationBValue,
-            CalibrationM = calibrationMValue,
-            InternalScaleM = internalScaleMValue,
-            PortRange = portRange,
-            IsEnabled = false
-        };
-
-        // Set desktop-specific properties (not in core)
-        DeviceName = owner.DevicePartNumber;
-        DeviceSerialNo = owner.DeviceSerialNo;
-        IsBidirectional = isBidirectional;
-        ChannelColorBrush = ChannelColorManager.Instance.NewColor();
-
-        // Initialize derived desktop state based on core
-        IsOutput = direction == ChannelDirection.Output;
-        HasAdc = !IsOutput;
-    }
-
     #endregion
 
     #region Internal Methods
