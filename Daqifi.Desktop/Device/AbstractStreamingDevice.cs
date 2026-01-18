@@ -189,8 +189,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // No need to revalidate here - just process it
 
         HydrateDeviceMetadata(message);
-        PopulateDigitalChannels(message);
-        PopulateAnalogInChannels(message);
+        PopulateChannelsFromCore(message);
         PopulateAnalogOutChannels(message);
 
         AppLogger.Information("Status message processed - device metadata populated");
@@ -815,47 +814,45 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    private void PopulateAnalogInChannels(DaqifiOutMessage message)
+    /// <summary>
+    /// Populates channels using Core's DaqifiDevice.PopulateChannelsFromStatus method.
+    /// This leverages Core's channel creation logic and wraps the resulting channels
+    /// with Desktop-specific wrappers that add UI features (colors, expressions, database).
+    /// </summary>
+    /// <param name="message">The protobuf status message containing channel configuration.</param>
+    private void PopulateChannelsFromCore(DaqifiOutMessage message)
     {
-        if (message.AnalogInPortNum == 0) { return; }
-
-        var analogInPortRanges = message.AnalogInPortRange;
-        var analogInCalibrationBValues = message.AnalogInCalB;
-        var analogInCalibrationMValues = message.AnalogInCalM;
-        var analogInInternalScaleMValues = message.AnalogInIntScaleM;
-        var analogInResolution = message.AnalogInRes;
-
-        if (analogInCalibrationBValues.Count != analogInCalibrationMValues.Count ||
-            analogInCalibrationBValues.Count != message.AnalogInPortNum)
+        try
         {
-            // TODO handle mismatch.  Probably not add any channels and warn the user something went wrong.
-        }
+            // Use Core's DaqifiDevice to populate channels from the status message
+            var coreDevice = new DaqifiDevice(Name ?? "Unknown");
+            coreDevice.PopulateChannelsFromStatus(message);
 
-        var getWithDefault = (IList<float> list, int idx, float def) =>
-        {
-            if (list.Count > idx)
+            // Clear existing channels before repopulating to prevent duplicates (Issue #29)
+            DataChannels.Clear();
+
+            // Wrap Core channels with Desktop-specific wrappers
+            foreach (var coreChannel in coreDevice.Channels)
             {
-                return list[idx];
+                if (coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel)
+                {
+                    DataChannels.Add(new AnalogChannel(this, coreAnalogChannel));
+                }
+                else if (coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel)
+                {
+                    // Core sets digital channels to IsEnabled = true by default, keep that behavior
+                    DataChannels.Add(new DigitalChannel(this, coreDigitalChannel));
+                }
             }
 
-            return def;
-        };
-
-        // Clear existing analog channels before repopulating to prevent duplicates (Issue #29)
-        var existingAnalogChannels = DataChannels.Where(c => c.Type == ChannelType.Analog).ToList();
-        foreach (var channel in existingAnalogChannels)
-        {
-            DataChannels.Remove(channel);
+            AppLogger.Information($"Populated {coreDevice.Channels.Count} channels from Core " +
+                $"({coreDevice.Channels.Count(c => c.Type == ChannelType.Analog)} analog, " +
+                $"{coreDevice.Channels.Count(c => c.Type == ChannelType.Digital)} digital)");
         }
-
-        for (var i = 0; i < message.AnalogInPortNum; i++)
+        catch (Exception ex)
         {
-            DataChannels.Add(new AnalogChannel(this, "AI" + i, i, ChannelDirection.Input, false,
-                getWithDefault(analogInCalibrationBValues, i, 0.0f),
-                getWithDefault(analogInCalibrationMValues, i, 1.0f),
-                getWithDefault(analogInInternalScaleMValues, i, 1.0f),
-                getWithDefault(analogInPortRanges, i, 1.0f),
-                analogInResolution));
+            AppLogger.Error(ex, $"Failed to populate channels from Core for device {DisplayIdentifier}");
+            throw;
         }
     }
 
@@ -887,24 +884,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         AppLogger.Information($"Detected device type: {DeviceType} from part number: {Metadata.PartNumber}");
-    }
-
-    private void PopulateDigitalChannels(DaqifiOutMessage message)
-    {
-
-        if (message.DigitalPortNum == 0) { return; }
-
-        // Clear existing digital channels before repopulating to prevent duplicates (Issue #29)
-        var existingDigitalChannels = DataChannels.Where(c => c.Type == ChannelType.Digital).ToList();
-        foreach (var channel in existingDigitalChannels)
-        {
-            DataChannels.Remove(channel);
-        }
-
-        for (var i = 0; i < message.DigitalPortNum; i++)
-        {
-            DataChannels.Add(new DigitalChannel(this, "DIO" + i, i, ChannelDirection.Input, true));
-        }
     }
 
     private void PopulateAnalogOutChannels(DaqifiOutMessage message)
