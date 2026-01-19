@@ -138,6 +138,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public event Action<DebugDataModel>? DebugDataReceived;
     #endregion
 
+    protected virtual bool RequestDeviceInfoOnInitialize => true;
+
     #region Abstract Methods
     public abstract bool Connect();
 
@@ -643,22 +645,41 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         // Always create a new message consumer to ensure clean state
         var stream = MessageConsumer?.DataStream;
-        if (stream != null)
+        if (stream == null || ReferenceEquals(stream, Stream.Null))
         {
-            // Stop and cleanup existing consumer if any
-            MessageConsumer?.Stop();
-
-            // Create new consumer
-            MessageConsumer = new MessageConsumer(stream);
-            if (MessageConsumer is MessageConsumer msgConsumer)
+            if (MessageConsumer == null)
             {
-                msgConsumer.ClearBuffer();
+                return;
             }
 
-            // Wire up protocol handler for automatic message routing
+            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
             MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
-            MessageConsumer.Start();
+
+            if (!MessageConsumer.Running)
+            {
+                MessageConsumer.Start();
+            }
+
+            return;
         }
+
+        // Stop and cleanup existing consumer if any
+        if (MessageConsumer != null)
+        {
+            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
+            MessageConsumer.Stop();
+        }
+
+        // Create new consumer
+        MessageConsumer = new MessageConsumer(stream);
+        if (MessageConsumer is MessageConsumer msgConsumer)
+        {
+            msgConsumer.ClearBuffer();
+        }
+
+        // Wire up protocol handler for automatic message routing
+        MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
+        MessageConsumer.Start();
     }
 
     protected void StopMessageConsumer()
@@ -902,11 +923,15 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // Wire up message consumer to route through protocol handler
         if (MessageConsumer != null)
         {
+            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
             MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
         }
 
-        // Request device info - protocol handler will automatically route the response
-        MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
+        if (RequestDeviceInfoOnInitialize)
+        {
+            // Request device info - protocol handler will automatically route the response
+            MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
+        }
     }
 
     public async Task UpdateNetworkConfiguration()

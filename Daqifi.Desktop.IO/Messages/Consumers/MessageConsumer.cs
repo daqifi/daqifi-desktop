@@ -10,10 +10,6 @@ public class MessageConsumer : AbstractMessageConsumer
     private readonly CancellationTokenSource _cancellationTokenSource;
     #endregion
 
-    #region Properties
-    public bool IsWifiDevice { get; set; }
-    #endregion
-
     #region Constructors
     public MessageConsumer(Stream stream)
     {
