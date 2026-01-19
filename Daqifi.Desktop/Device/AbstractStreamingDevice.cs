@@ -645,7 +645,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         // Always create a new message consumer to ensure clean state
         var stream = MessageConsumer?.DataStream;
-        if (stream == null)
+        if (stream == null || ReferenceEquals(stream, Stream.Null))
         {
             if (MessageConsumer == null)
             {
