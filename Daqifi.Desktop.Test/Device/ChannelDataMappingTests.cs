@@ -2,6 +2,7 @@ using Daqifi.Desktop.Channel;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.Device;
+using CoreAnalogChannel = Daqifi.Core.Channel.AnalogChannel;
 
 namespace Daqifi.Desktop.Test.Device;
 
@@ -14,15 +15,39 @@ public class ChannelDataMappingTests
     public void Setup()
     {
         _device = new TestableStreamingDevice();
-        
-        // Create channels AI0, AI1, AI2 for testing
-        var channel0 = new AnalogChannel(_device, "AI0", 0, ChannelDirection.Input, false, 0.0, 1.0, 1.0, 5.0, 4096);
-        var channel1 = new AnalogChannel(_device, "AI1", 1, ChannelDirection.Input, false, 0.0, 1.0, 1.0, 5.0, 4096);
-        var channel2 = new AnalogChannel(_device, "AI2", 2, ChannelDirection.Input, false, 0.0, 1.0, 1.0, 5.0, 4096);
-        
-        _device.DataChannels.Add(channel0);
-        _device.DataChannels.Add(channel1);
-        _device.DataChannels.Add(channel2);
+
+        // Create Core channels with calibration values, then wrap with Desktop channels
+        var coreChannel0 = new CoreAnalogChannel(0, 4096)
+        {
+            Name = "AI0",
+            Direction = ChannelDirection.Input,
+            CalibrationB = 0.0,
+            CalibrationM = 1.0,
+            InternalScaleM = 1.0,
+            PortRange = 5.0
+        };
+        var coreChannel1 = new CoreAnalogChannel(1, 4096)
+        {
+            Name = "AI1",
+            Direction = ChannelDirection.Input,
+            CalibrationB = 0.0,
+            CalibrationM = 1.0,
+            InternalScaleM = 1.0,
+            PortRange = 5.0
+        };
+        var coreChannel2 = new CoreAnalogChannel(2, 4096)
+        {
+            Name = "AI2",
+            Direction = ChannelDirection.Input,
+            CalibrationB = 0.0,
+            CalibrationM = 1.0,
+            InternalScaleM = 1.0,
+            PortRange = 5.0
+        };
+
+        _device.DataChannels.Add(new AnalogChannel(_device, coreChannel0));
+        _device.DataChannels.Add(new AnalogChannel(_device, coreChannel1));
+        _device.DataChannels.Add(new AnalogChannel(_device, coreChannel2));
     }
 
     [TestMethod]
