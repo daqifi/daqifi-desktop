@@ -1,6 +1,6 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Desktop.DataModel.Network;
+using Daqifi.Core.Device.Network;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.IO.Messages;

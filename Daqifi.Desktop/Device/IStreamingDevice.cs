@@ -1,6 +1,6 @@
 ﻿using Daqifi.Desktop.Channel;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
-using Daqifi.Desktop.DataModel.Network;
+using Daqifi.Core.Device.Network;
 using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.IO.Messages.Producers;
 using Daqifi.Desktop.Models;
