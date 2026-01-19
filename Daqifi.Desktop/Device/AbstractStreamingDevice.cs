@@ -664,7 +664,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         // Stop and cleanup existing consumer if any
-        MessageConsumer?.Stop();
+        if (MessageConsumer != null)
+        {
+            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
+            MessageConsumer.Stop();
+        }
 
         // Create new consumer
         MessageConsumer = new MessageConsumer(stream);
@@ -919,6 +923,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // Wire up message consumer to route through protocol handler
         if (MessageConsumer != null)
         {
+            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
             MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
         }
 

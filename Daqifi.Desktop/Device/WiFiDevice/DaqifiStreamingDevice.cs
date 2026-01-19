@@ -82,8 +82,8 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             MessageConsumer?.Stop();
 
             // Clear channels to prevent ghost channels on reconnect (Issue #29)
-            DataChannels.Clear();
             AppLogger.Information($"Cleared {DataChannels.Count} channels for device {DeviceSerialNo}");
+            DataChannels.Clear();
 
             _coreDevice?.Disconnect();
             _coreDevice?.Dispose();

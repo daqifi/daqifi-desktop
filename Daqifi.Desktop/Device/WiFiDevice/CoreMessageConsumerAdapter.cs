@@ -13,7 +13,7 @@ public sealed class CoreMessageConsumerAdapter : IMessageConsumer
     public CoreMessageConsumerAdapter(DaqifiDevice device)
     {
         _device = device ?? throw new ArgumentNullException(nameof(device));
-        DataStream = null;
+        DataStream = Stream.Null;
     }
 
     public bool Running
