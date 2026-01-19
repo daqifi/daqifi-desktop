@@ -1,7 +1,6 @@
-﻿using Daqifi.Desktop.DataModel.Device;
-using Daqifi.Desktop.IO.Messages.Consumers;
-using Daqifi.Desktop.IO.Messages.Producers;
-using System.Net.Sockets;
+﻿using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Device;
+using Daqifi.Desktop.DataModel.Device;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
@@ -9,10 +8,10 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
 {
     #region Properties
 
-    public TcpClient Client { get; set; }
     public int Port { get; set; }
     public bool IsPowerOn { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
+    protected override bool RequestDeviceInfoOnInitialize => false;
 
     #endregion
 
@@ -37,54 +36,29 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     {
         try
         {
-            Client = new TcpClient();
-            var result = Client.BeginConnect(IpAddress, Port, null, null);
-            var waitHandle = result.AsyncWaitHandle;
-            
-            try
+            var options = new DeviceConnectionOptions
             {
-                var success = waitHandle.WaitOne(TimeSpan.FromSeconds(5));
+                DeviceName = string.IsNullOrWhiteSpace(Name) ? "DAQiFi Device" : Name,
+                ConnectionRetry = ConnectionRetryOptions.NoRetry,
+                InitializeDevice = false
+            };
 
-                if (!success)
-                {
-                    AppLogger.Error($"Timeout connecting to DAQiFi device at {IpAddress}:{Port}");
-                    Client?.Close();
-                    return false;
-                }
-
-                // Complete the asynchronous connection
-                try
-                {
-                    Client.EndConnect(result);
-                }
-                catch (SocketException ex)
-                {
-                    AppLogger.Error(ex, $"Failed to connect to DAQiFi device at {IpAddress}:{Port}");
-                    Client?.Close();
-                    return false;
-                }
-            }
-            finally
+            _coreDevice = DaqifiDeviceFactory.ConnectTcp(IpAddress, Port, options);
+            if (!_coreDevice.IsConnected)
             {
-                waitHandle?.Close();
+                AppLogger.Error($"Failed to connect to DAQiFi device at {IpAddress}:{Port}");
+                return false;
             }
 
-            MessageProducer = new MessageProducer(Client.GetStream());
+            MessageProducer = new CoreMessageProducerAdapter(_coreDevice);
+            MessageConsumer = new CoreMessageConsumerAdapter(_coreDevice);
             MessageProducer.Start();
+            MessageConsumer.Start();
+
+            InitializeDeviceState();
 
             // Use async initialization (safe because Connect() is called from Task.Run)
-            InitializeDeviceAsync().GetAwaiter().GetResult();
-
-            var stream = Client.GetStream();
-            MessageConsumer = new MessageConsumer(stream);
-            ((MessageConsumer)MessageConsumer).IsWifiDevice = true;
-            if (stream.DataAvailable)
-            {
-                ((MessageConsumer)MessageConsumer).ClearBuffer();
-            }
-
-            MessageConsumer.Start();
-            InitializeDeviceState();
+            _coreDevice.InitializeAsync().GetAwaiter().GetResult();
             return true;
         }
         catch (Exception ex)
@@ -104,15 +78,16 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         try
         {
             StopStreaming();
-            MessageProducer.Stop();
-            MessageConsumer.Stop();
+            MessageProducer?.Stop();
+            MessageConsumer?.Stop();
 
             // Clear channels to prevent ghost channels on reconnect (Issue #29)
             DataChannels.Clear();
             AppLogger.Information($"Cleared {DataChannels.Count} channels for device {DeviceSerialNo}");
 
-            Client.Close();
-            Client.Dispose();
+            _coreDevice?.Disconnect();
+            _coreDevice?.Dispose();
+            _coreDevice = null;
             return true;
         }
         catch (Exception ex)
@@ -138,4 +113,6 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         return true;
     }
     #endregion
+
+    private DaqifiDevice? _coreDevice;
 }
