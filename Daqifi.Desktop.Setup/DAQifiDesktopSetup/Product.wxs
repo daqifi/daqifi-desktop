@@ -9,22 +9,7 @@
 
     <StandardDirectory Id="ProgramFilesFolder">
       <Directory Id="DAQiFiFolder" Name="DAQiFi">
-        <Directory Id="INSTALLFOLDER" Name="DAQiFi Desktop">
-          <!-- Add runtimes directory -->
-          <Directory Id="RUNTIMESFOLDER" Name="runtimes">
-            <Directory Id="RUNTIMESWIN" Name="win">
-              <Directory Id="RUNTIMESWINLIB" Name="lib">
-                <Directory Id="RUNTIMESWINLIBNET" Name="net9.0"/>
-              </Directory>
-            </Directory>
-            <Directory Id="RUNTIMESWIN_X64" Name="win-x64">
-              <Directory Id="RUNTIMESWIN_X64_NATIVE" Name="native"/>
-            </Directory>
-            <Directory Id="RUNTIMESWIN_X86" Name="win-x86">
-              <Directory Id="RUNTIMESWIN_X86_NATIVE" Name="native"/>
-            </Directory>
-          </Directory>
-        </Directory>
+        <Directory Id="INSTALLFOLDER" Name="DAQiFi Desktop"/>
       </Directory>
     </StandardDirectory>
 
@@ -52,9 +37,9 @@
     </Upgrade>
 
     <Feature Id="ProductFeature" Title="DAQiFiDesktop_Setup" Level="1" Display="expand">
+      <ComponentRef Id="MainExecutable"/>
       <ComponentRef Id="UninstallProgramMenuItems"/>
-      <ComponentGroupRef Id="ProductComponents" />
-      <ComponentGroupRef Id="RuntimeComponents" />
+      <ComponentGroupRef Id="HarvestedFiles" />
     </Feature>
 
     <!-- GUI Parameters -->
@@ -87,324 +72,27 @@
                   Impersonate="yes"
                   Return="check" />
 
-    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-      <!-- Main Executable -->
-      <Component Id="MainExecutable" Guid="A0B50642-0EB2-48B2-B83E-5E2D62DA01E8">
-        <File Id="DAQiFiEXE"
-              Name="DAQiFi.exe"
-              Source="$(var.SourceDir)\$(var.MainExeName)"
-              KeyPath="yes">
-          <Shortcut Id="DAQShortcutProgramMenu"
-                    Directory="ProgramMenuDAQiFiDesktop"
-                    Name="DAQiFi"
-                    Show="normal"
-                    WorkingDirectory="TARGETDIR"
-                    Icon="Icon.exe"
-                    Advertise="yes"/>
-          <Shortcut Id="DAQiFiShortcut"
-                    Directory="DesktopFolder"
-                    Name ="DAQiFi"
-                    WorkingDirectory ="TARGETDIR"
-                    Icon="Icon.exe"
-                    Advertise="yes"/>
-        </File>
-      </Component>
-
-      <!-- Config Files -->
-      <Component Id="DAQiFiConfig" Guid="36A06DA8-C3F3-47F8-B53A-29A090138DE2">
-        <File Id="DAQiFiDllConfig" Source="$(var.SourceDir)\DAQiFi.dll.config" KeyPath="yes"/>
-      </Component>
-      <Component Id="DAQiFiDepsJson" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C7">
-        <File Source="$(var.SourceDir)\DAQiFi.deps.json"/>
-      </Component>
-      <Component Id="DAQiFiRuntimeConfig" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C8">
-        <File Source="$(var.SourceDir)\DAQiFi.runtimeconfig.json"/>
-      </Component>
-
-      <!-- DAQiFi Core DLLs -->
-      <Component Id="DAQiFiCore" Guid="5056a4ce-c8e3-4df9-b48f-58cbf1676dc2">
-        <File Source="$(var.SourceDir)\Daqifi.Core.dll"/>
-      </Component>
-      <Component Id="DAQiFiDll" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C9">
-        <File Source="$(var.SourceDir)\DAQiFi.dll"/>
-      </Component>
-      <Component Id="Daqifi.Desktop.Bootloader" Guid="C23982B1-AADC-40BA-8CB5-0C2300CB8F9E">
-        <File Source="$(var.SourceDir)\Daqifi.Desktop.Bootloader.dll"/>
-      </Component>
-      <Component Id="Daqifi.Desktop.Common" Guid="B260F639-1DF0-4CAB-A106-8C3B8080503C">
-        <File Source="$(var.SourceDir)\Daqifi.Desktop.Common.dll"/>
-      </Component>
-      <Component Id="Daqifi.Desktop.DataModel" Guid="69FF3151-04DF-4370-8C03-CEEE1A1325B2">
-        <File Source="$(var.SourceDir)\Daqifi.Desktop.DataModel.dll"/>
-      </Component>
-      <Component Id="Daqifi.Desktop.IO" Guid="83249671-76C3-4CB2-A28E-6E0077300ADE">
-        <File Source="$(var.SourceDir)\Daqifi.Desktop.IO.dll"/>
-      </Component>
-
-      <!-- Third Party Components -->
-      <Component Id="AzureCore" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5D1">
-        <File Source="$(var.SourceDir)\Azure.Core.dll"/>
-      </Component>
-      <Component Id="AzureIdentity" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5D2">
-        <File Source="$(var.SourceDir)\Azure.Identity.dll"/>
-      </Component>
-      <Component Id="Bugsnag" Guid="268D998C-F962-4CD4-9BA5-7DFE673BF1C2">
-        <File Source="$(var.SourceDir)\Bugsnag.dll"/>
-      </Component>
-      <Component Id="BugsnagAspNetCore" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5D3">
-        <File Source="$(var.SourceDir)\Bugsnag.AspNet.Core.dll"/>
-      </Component>
-      <Component Id="CommunityToolkitMvvm" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5D4">
-        <File Source="$(var.SourceDir)\CommunityToolkit.Mvvm.dll"/>
-      </Component>
-      <Component Id="ControlzEx" Guid="28DA203F-2A18-4C7B-9DB9-C04779540A6C">
-        <File Source="$(var.SourceDir)\ControlzEx.dll"/>
-      </Component>
-      <Component Id="ExtendedNumerics" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5D6">
-        <File Source="$(var.SourceDir)\ExtendedNumerics.BigDecimal.dll"/>
-      </Component>
-      <Component Id="GoogleProtobuf" Guid="E52D39BA-60E9-4FAE-B601-6C92BF0FD4DF">
-        <File Source="$(var.SourceDir)\Google.Protobuf.dll"/>
-      </Component>
-      <Component Id="HidLibrary" Guid="919CEA39-D40A-478D-AD1C-51CE83DC5135">
-        <File Source="$(var.SourceDir)\HidLibrary.dll"/>
-      </Component>
-      <Component Id="MahAppsMetro" Guid="D2955D07-F5C2-499E-A2B3-280746E1F4EF">
-        <File Source="$(var.SourceDir)\MahApps.Metro.dll"/>
-      </Component>
-      <Component Id="MedallionTopologicalSort" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5D8">
-        <File Source="$(var.SourceDir)\MedallionTopologicalSort.dll"/>
-      </Component>
-      <Component Id="NCalcCore" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5D9">
-        <File Source="$(var.SourceDir)\NCalc.Core.dll"/>
-      </Component>
-      <Component Id="NCalcSync" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5E1">
-        <File Source="$(var.SourceDir)\NCalc.Sync.dll"/>
-      </Component>
-      <Component Id="NetTopologySuite" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5E2">
-        <File Source="$(var.SourceDir)\NetTopologySuite.dll"/>
-      </Component>
-      <Component Id="NetTopologySuiteIOSpatiaLite" Guid="f18a5932-8673-40ed-8487-5f09422d6b01">
-        <File Source="$(var.SourceDir)\NetTopologySuite.IO.SpatiaLite.dll"/>
-      </Component>
-      <Component Id="NetTopologySuiteIOSqlServerBytes" Guid="aadcb6bd-074d-4211-8466-c9444c2d1048">
-        <File Source="$(var.SourceDir)\NetTopologySuite.IO.SqlServerBytes.dll"/>
-      </Component>
-      <Component Id="NewtonsoftJson" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5E3">
-        <File Source="$(var.SourceDir)\Newtonsoft.Json.dll"/>
-      </Component>
-      <Component Id="NLog" Guid="57CCBA0A-22C2-46B6-8D1C-525A59A1D7D1">
-        <File Source="$(var.SourceDir)\NLog.dll"/>
-      </Component>
-      <Component Id="Npgsql" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5E4">
-        <File Source="$(var.SourceDir)\Npgsql.dll"/>
-      </Component>
-      <Component Id="OxyPlot" Guid="DE2005A7-CBB2-4FB8-BF70-816D00145A05">
-        <File Source="$(var.SourceDir)\OxyPlot.dll"/>
-      </Component>
-      <Component Id="OxyPlotWpf" Guid="C6336DE5-711C-43A0-A581-39505E66CD9A">
-        <File Source="$(var.SourceDir)\OxyPlot.Wpf.dll"/>
-      </Component>
-      <Component Id="OxyPlotWpfShared" Guid="7A238EA5-FA9E-4A62-BF7F-E21C50C61190">
-        <File Source="$(var.SourceDir)\OxyPlot.Wpf.Shared.dll"/>
-      </Component>
-      <Component Id="Parlot" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5E5">
-        <File Source="$(var.SourceDir)\Parlot.dll"/>
-      </Component>
-
-      <!-- MahApps IconPacks -->
-      <Component Id="MahAppsIconPacksCore" Guid="50BA5D68-4824-493C-9C65-66DC33A2BF57">
-        <File Source="$(var.SourceDir)\MahApps.Metro.IconPacks.Core.dll"/>
-      </Component>
-      <Component Id="MahAppsIconPacks" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5E6">
-        <File Source="$(var.SourceDir)\MahApps.Metro.IconPacks.dll"/>
-      </Component>
-      <Component Id="MahAppsIconPacksMaterial" Guid="F3E73214-AB5D-40A0-9EB4-10E5A46774FE">
-        <File Source="$(var.SourceDir)\MahApps.Metro.IconPacks.Material.dll"/>
-      </Component>
-
-      <!-- Microsoft Extensions -->
-      <Component Id="MicrosoftXamlBehaviors" Guid="29C5C050-CD4A-4B7D-9444-8F4A8C933160">
-        <File Source="$(var.SourceDir)\Microsoft.Xaml.Behaviors.dll"/>
-      </Component>
-
-      <!-- Entity Framework Components -->
-      <Component Id="EFCoreBulkExtensionsCore" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5E7">
-        <File Source="$(var.SourceDir)\EFCore.BulkExtensions.Core.dll"/>
-      </Component>
-      <Component Id="EFCoreBulkExtensionsPostgreSql" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5E9">
-        <File Source="$(var.SourceDir)\EFCore.BulkExtensions.PostgreSql.dll"/>
-      </Component>
-      <Component Id="EFCoreBulkExtensionsSqlite" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5F1">
-        <File Source="$(var.SourceDir)\EFCore.BulkExtensions.Sqlite.dll"/>
-      </Component>
-      <Component Id="EFCoreBulkExtensionsSqlServer" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5F2">
-        <File Source="$(var.SourceDir)\EFCore.BulkExtensions.SqlServer.dll"/>
-      </Component>
-
-
-      <!-- Entity Framework Core Components -->
-      <Component Id="MicrosoftEntityFrameworkCore" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6A2">
-        <File Source="$(var.SourceDir)\Microsoft.EntityFrameworkCore.dll"/>
-      </Component>
-      <Component Id="MicrosoftEntityFrameworkCoreAbstractions" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6A3">
-        <File Source="$(var.SourceDir)\Microsoft.EntityFrameworkCore.Abstractions.dll"/>
-      </Component>
-      <Component Id="MicrosoftEntityFrameworkCoreRelational" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6A4">
-        <File Source="$(var.SourceDir)\Microsoft.EntityFrameworkCore.Relational.dll"/>
-      </Component>
-      <Component Id="MicrosoftEntityFrameworkCoreSqlite" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6A5">
-        <File Source="$(var.SourceDir)\Microsoft.EntityFrameworkCore.Sqlite.dll"/>
-      </Component>
-
-      <!-- SQLite Components -->
-      <Component Id="SQLitePCLRawBatteriesV2" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6A6">
-        <File Source="$(var.SourceDir)\SQLitePCLRaw.batteries_v2.dll"/>
-      </Component>
-      <Component Id="SQLitePCLRawCore" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6A7">
-        <File Source="$(var.SourceDir)\SQLitePCLRaw.core.dll"/>
-      </Component>
-      <Component Id="SQLitePCLRawProviderESqlite3" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6A8">
-        <File Source="$(var.SourceDir)\SQLitePCLRaw.provider.e_sqlite3.dll"/>
-      </Component>
-
-      <!-- Additional System Components -->
-      <Component Id="SystemIOPorts" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6A9">
-        <File Source="$(var.SourceDir)\System.IO.Ports.dll"/>
-      </Component>
-
-
-
-      <!-- Additional Microsoft Components -->
-      <Component Id="MicrosoftBclAsyncInterfaces" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6C8">
-        <File Source="$(var.SourceDir)\Microsoft.Bcl.AsyncInterfaces.dll"/>
-      </Component>
-      <Component Id="MicrosoftDataSqlite" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6C9">
-        <File Source="$(var.SourceDir)\Microsoft.Data.Sqlite.dll"/>
-      </Component>
-      
-      
-
-      <!-- System Components -->
-      <Component Id="SystemMemoryData" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6E1">
-        <File Source="$(var.SourceDir)\System.Memory.Data.dll"/>
-      </Component>
-      <Component Id="SystemManagement" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6E2">
-        <File Source="$(var.SourceDir)\System.Management.dll"/>
-      </Component>
-
-      <!-- Additional System Components -->
-      <Component Id="SystemClientModel" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6E3">
-        <File Source="$(var.SourceDir)\System.ClientModel.dll"/>
-      </Component>
-      <Component Id="SystemIdentityModelTokensJwt" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6E4">
-        <File Source="$(var.SourceDir)\System.IdentityModel.Tokens.Jwt.dll"/>
-      </Component>
-
-      <!-- Microsoft Extensions Components -->
-      <Component Id="MicrosoftExtensionsCachingAbstractions" Guid="A5040DBD-9149-4215-8191-5A7A56B35520">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Caching.Abstractions.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsCachingMemory" Guid="0AD94665-08BA-465C-A143-0AEC9BFD56E2">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Caching.Memory.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsConfigurationAbstractions" Guid="20F93B20-88CA-4F30-9C4F-11E25E70293C">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.Abstractions.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsConfigurationBinder" Guid="44B47950-3AAA-405D-8DF8-5DA10CF2FA5D">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.Binder.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsConfiguration" Guid="4D379C9D-EF23-4104-A1AB-645BE4828B53">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsDependencyInjectionAbstractions" Guid="12BF83DD-BA4C-4064-A0EA-3CD6E7119270">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyInjection.Abstractions.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsDependencyInjection" Guid="AB04DE24-6E29-414D-B5B4-56AFB3FD7BEA">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyInjection.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsDependencyModel" Guid="B66A079A-559B-4727-A300-D40FAA982F67">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyModel.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsDiagnosticAdapter" Guid="9826F57E-33B6-489C-9EC7-D0FEE6BDF01D">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.DiagnosticAdapter.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsLoggingAbstractions" Guid="5EE129C0-F6C7-461A-B4CC-467DD0FB32DA">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Abstractions.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsLoggingConfiguration" Guid="552EEC13-4061-48B2-9D5F-0C5A56E39DAE">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Configuration.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsLoggingConsole" Guid="101DCFB9-E586-44BE-A8A0-244927FF3AB0">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Console.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsLogging" Guid="4520D257-5482-49ED-8046-204D66050B90">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsLoggingTraceSource" Guid="409A516E-BBE2-406A-AD0F-420BEF25329F">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.TraceSource.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsOptionsConfigurationExtensions" Guid="911531E1-04B1-4345-BBBD-48C640B48042">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Options.ConfigurationExtensions.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsOptions" Guid="D53F3D32-B890-4373-A2AA-E12C59D5C9A0">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Options.dll"/>
-      </Component>
-      <Component Id="MicrosoftExtensionsPrimitives" Guid="86653E6D-7C68-4C27-A11B-7A1EC3831993">
-        <File Source="$(var.SourceDir)\Microsoft.Extensions.Primitives.dll"/>
-      </Component>
-
-      <!-- Add SQLite native DLL to root directory -->
-      <Component Id="ESqlite3Root" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA7A4">
-        <File Id="ESqlite3RootDll"
-              Name="e_sqlite3.dll"
-              Source="$(var.SourceDir)\runtimes\win-$(var.Platform)\native\e_sqlite3.dll"
-              KeyPath="yes"/>
-      </Component>
-    </ComponentGroup>
-
-    <ComponentGroup Id="RuntimeComponents" Directory="RUNTIMESWINLIBNET">
-      <!-- Windows Runtime Libraries -->
-      <Component Id="RuntimeWinLib" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA7A1">
-        <File Id="WinSystemManagement"
-              Source="$(var.SourceDir)\runtimes\win\lib\net9.0\System.Management.dll"
-              KeyPath="yes"/>
-        <File Id="WinSystemIOPorts"
-              Source="$(var.SourceDir)\runtimes\win\lib\net9.0\System.IO.Ports.dll"/>
-        <File Id="WinMicrosoftDataSqlClient"
-              Source="$(var.SourceDir)\runtimes\win\lib\net9.0\Microsoft.Data.SqlClient.dll"/>
-      </Component>
-
-      <!-- Windows x64 Native Libraries -->
-      <Component Id="RuntimeWinX64Native" Directory="RUNTIMESWIN_X64_NATIVE" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA7A2">
-        <File Id="WinX64ESqlite3"
-              Name="e_sqlite3.dll"
-              Source="$(var.SourceDir)\runtimes\win-x64\native\e_sqlite3.dll"/>
-        <File Id="WinX64SqlClientSNI"
-              Name="Microsoft.Data.SqlClient.SNI.dll"
-              ShortName="sql_x64.dll"
-              Source="$(var.SourceDir)\runtimes\win-x64\native\Microsoft.Data.SqlClient.SNI.dll"/>
-        <File Id="WinX64SqlServerSpatial"
-              Name="SqlServerSpatial160.dll"
-              ShortName="spat_x64.dll"
-              Source="$(var.SourceDir)\runtimes\win-x64\native\SqlServerSpatial160.dll"/>
-      </Component>
-
-      <!-- Windows x86 Native Libraries -->
-      <Component Id="RuntimeWinX86Native" Directory="RUNTIMESWIN_X86_NATIVE" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA7A3">
-        <File Id="WinX86ESqlite3"
-              Name="e_sqlite3.dll"
-              Source="$(var.SourceDir)\runtimes\win-x86\native\e_sqlite3.dll"/>
-        <File Id="WinX86SqlClientSNI"
-              Name="Microsoft.Data.SqlClient.SNI.dll"
-              ShortName="sql_x86.dll"
-              Source="$(var.SourceDir)\runtimes\win-x86\native\Microsoft.Data.SqlClient.SNI.dll"/>
-        <File Id="WinX86SqlServerSpatial"
-              Name="SqlServerSpatial160.dll"
-              ShortName="spat_x86.dll"
-              Source="$(var.SourceDir)\runtimes\win-x86\native\SqlServerSpatial160.dll"/>
-      </Component>
-    </ComponentGroup>
+    <!-- Main Executable with Shortcuts - must be separate to define shortcuts -->
+    <Component Id="MainExecutable" Directory="INSTALLFOLDER" Guid="A0B50642-0EB2-48B2-B83E-5E2D62DA01E8">
+      <File Id="DAQiFiEXE"
+            Name="DAQiFi.exe"
+            Source="$(var.SourceDir)\$(var.MainExeName)"
+            KeyPath="yes">
+        <Shortcut Id="DAQShortcutProgramMenu"
+                  Directory="ProgramMenuDAQiFiDesktop"
+                  Name="DAQiFi"
+                  Show="normal"
+                  WorkingDirectory="TARGETDIR"
+                  Icon="Icon.exe"
+                  Advertise="yes"/>
+        <Shortcut Id="DAQiFiShortcut"
+                  Directory="DesktopFolder"
+                  Name ="DAQiFi"
+                  WorkingDirectory ="TARGETDIR"
+                  Icon="Icon.exe"
+                  Advertise="yes"/>
+      </File>
+    </Component>
 
     <!-- Add the UninstallProgramMenuItems component -->
     <Component Id="UninstallProgramMenuItems" Directory="ProgramMenuDAQiFiDesktop" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA5C6">
@@ -412,5 +100,13 @@
       <RemoveFolder Id="RemoveProgramMenuDAQiFiDesktop" Directory="ProgramMenuDAQiFiDesktop" On="uninstall"/>
       <RegistryValue Root="HKCU" Key="Software\DAQifi\DAQifi Desktop" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
     </Component>
+
+    <!-- Auto-harvested files from publish directory -->
+    <ComponentGroup Id="HarvestedFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.SourceDir)\**">
+        <!-- Exclude the main exe since we handle it separately for shortcuts -->
+        <Exclude Files="$(var.SourceDir)\$(var.MainExeName)" />
+      </Files>
+    </ComponentGroup>
   </Package>
 </Wix>
