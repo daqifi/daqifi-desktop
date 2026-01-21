@@ -301,6 +301,59 @@
         <File Source="$(var.SourceDir)\System.IdentityModel.Tokens.Jwt.dll"/>
       </Component>
 
+      <!-- Microsoft Extensions Components -->
+      <Component Id="MicrosoftExtensionsCachingAbstractions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C51">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Caching.Abstractions.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsCachingMemory" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C52">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Caching.Memory.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsConfigurationAbstractions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C53">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.Abstractions.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsConfigurationBinder" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C54">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.Binder.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsConfiguration" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C55">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsDependencyInjectionAbstractions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C56">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyInjection.Abstractions.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsDependencyInjection" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C57">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyInjection.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsDependencyModel" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C58">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyModel.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsDiagnosticAdapter" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C59">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.DiagnosticAdapter.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsLoggingAbstractions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5A">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Abstractions.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsLoggingConfiguration" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5B">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Configuration.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsLoggingConsole" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5C">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Console.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsLogging" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsLoggingTraceSource" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5E">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.TraceSource.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsOptionsConfigurationExtensions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5F">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Options.ConfigurationExtensions.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsOptions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C60">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Options.dll"/>
+      </Component>
+      <Component Id="MicrosoftExtensionsPrimitives" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C61">
+        <File Source="$(var.SourceDir)\Microsoft.Extensions.Primitives.dll"/>
+      </Component>
+
       <!-- Add SQLite native DLL to root directory -->
       <Component Id="ESqlite3Root" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA7A4">
         <File Id="ESqlite3RootDll"
