@@ -306,29 +306,14 @@
       <Component Id="SystemCollectionsImmutable" Guid="DCE29109-F2F1-4B55-A420-FCB69630FA8E">
         <File Source="$(var.SourceDir)\System.Collections.Immutable.dll"/>
       </Component>
-      <Component Id="SystemConfigurationConfigurationManager" Guid="81AF932E-4524-4C3F-8F0A-D7D9C5BFB81B">
-        <File Source="$(var.SourceDir)\System.Configuration.ConfigurationManager.dll"/>
-      </Component>
       <Component Id="SystemDiagnosticsDiagnosticSource" Guid="07361367-7587-44E6-B5F3-AA5DD3E95A92">
         <File Source="$(var.SourceDir)\System.Diagnostics.DiagnosticSource.dll"/>
-      </Component>
-      <Component Id="SystemDiagnosticsEventLog" Guid="98EBA461-F836-4107-ABE7-3ACFE1FFD528">
-        <File Source="$(var.SourceDir)\System.Diagnostics.EventLog.dll"/>
       </Component>
       <Component Id="SystemDirectoryServicesProtocols" Guid="F41BC6B2-66FC-4644-8348-C85965FF84E6">
         <File Source="$(var.SourceDir)\System.DirectoryServices.Protocols.dll"/>
       </Component>
-      <Component Id="SystemFormatsAsn1" Guid="4BB0E05B-5EBB-4D62-96CF-463406E4381B">
-        <File Source="$(var.SourceDir)\System.Formats.Asn1.dll"/>
-      </Component>
       <Component Id="SystemIOPipelines" Guid="3E4A03F7-EE72-4351-928B-52C12705CAEA">
         <File Source="$(var.SourceDir)\System.IO.Pipelines.dll"/>
-      </Component>
-      <Component Id="SystemSecurityCryptographyPkcs" Guid="8B067E76-B627-4E8F-AE20-1CF7B21F5514">
-        <File Source="$(var.SourceDir)\System.Security.Cryptography.Pkcs.dll"/>
-      </Component>
-      <Component Id="SystemSecurityCryptographyProtectedData" Guid="9F596A06-254D-465E-8BC4-7193BCB616DB">
-        <File Source="$(var.SourceDir)\System.Security.Cryptography.ProtectedData.dll"/>
       </Component>
       <Component Id="SystemTextEncodingsWeb" Guid="7279CFC3-41AF-4967-A396-F58C8B77C4FB">
         <File Source="$(var.SourceDir)\System.Text.Encodings.Web.dll"/>
