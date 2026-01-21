@@ -302,55 +302,55 @@
       </Component>
 
       <!-- Microsoft Extensions Components -->
-      <Component Id="MicrosoftExtensionsCachingAbstractions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C51">
+      <Component Id="MicrosoftExtensionsCachingAbstractions" Guid="A5040DBD-9149-4215-8191-5A7A56B35520">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Caching.Abstractions.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsCachingMemory" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C52">
+      <Component Id="MicrosoftExtensionsCachingMemory" Guid="0AD94665-08BA-465C-A143-0AEC9BFD56E2">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Caching.Memory.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsConfigurationAbstractions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C53">
+      <Component Id="MicrosoftExtensionsConfigurationAbstractions" Guid="20F93B20-88CA-4F30-9C4F-11E25E70293C">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.Abstractions.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsConfigurationBinder" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C54">
+      <Component Id="MicrosoftExtensionsConfigurationBinder" Guid="44B47950-3AAA-405D-8DF8-5DA10CF2FA5D">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.Binder.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsConfiguration" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C55">
+      <Component Id="MicrosoftExtensionsConfiguration" Guid="4D379C9D-EF23-4104-A1AB-645BE4828B53">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Configuration.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsDependencyInjectionAbstractions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C56">
+      <Component Id="MicrosoftExtensionsDependencyInjectionAbstractions" Guid="12BF83DD-BA4C-4064-A0EA-3CD6E7119270">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyInjection.Abstractions.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsDependencyInjection" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C57">
+      <Component Id="MicrosoftExtensionsDependencyInjection" Guid="AB04DE24-6E29-414D-B5B4-56AFB3FD7BEA">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyInjection.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsDependencyModel" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C58">
+      <Component Id="MicrosoftExtensionsDependencyModel" Guid="B66A079A-559B-4727-A300-D40FAA982F67">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.DependencyModel.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsDiagnosticAdapter" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C59">
+      <Component Id="MicrosoftExtensionsDiagnosticAdapter" Guid="9826F57E-33B6-489C-9EC7-D0FEE6BDF01D">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.DiagnosticAdapter.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsLoggingAbstractions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5A">
+      <Component Id="MicrosoftExtensionsLoggingAbstractions" Guid="5EE129C0-F6C7-461A-B4CC-467DD0FB32DA">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Abstractions.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsLoggingConfiguration" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5B">
+      <Component Id="MicrosoftExtensionsLoggingConfiguration" Guid="552EEC13-4061-48B2-9D5F-0C5A56E39DAE">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Configuration.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsLoggingConsole" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5C">
+      <Component Id="MicrosoftExtensionsLoggingConsole" Guid="101DCFB9-E586-44BE-A8A0-244927FF3AB0">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.Console.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsLogging" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D">
+      <Component Id="MicrosoftExtensionsLogging" Guid="4520D257-5482-49ED-8046-204D66050B90">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsLoggingTraceSource" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5E">
+      <Component Id="MicrosoftExtensionsLoggingTraceSource" Guid="409A516E-BBE2-406A-AD0F-420BEF25329F">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Logging.TraceSource.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsOptionsConfigurationExtensions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5F">
+      <Component Id="MicrosoftExtensionsOptionsConfigurationExtensions" Guid="911531E1-04B1-4345-BBBD-48C640B48042">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Options.ConfigurationExtensions.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsOptions" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C60">
+      <Component Id="MicrosoftExtensionsOptions" Guid="D53F3D32-B890-4373-A2AA-E12C59D5C9A0">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Options.dll"/>
       </Component>
-      <Component Id="MicrosoftExtensionsPrimitives" Guid="B1A2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C61">
+      <Component Id="MicrosoftExtensionsPrimitives" Guid="86653E6D-7C68-4C27-A11B-7A1EC3831993">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Primitives.dll"/>
       </Component>
 
