@@ -300,6 +300,42 @@
       <Component Id="SystemIdentityModelTokensJwt" Guid="4E54BE2B-E403-48E5-AA1A-1CFC46ABA6E4">
         <File Source="$(var.SourceDir)\System.IdentityModel.Tokens.Jwt.dll"/>
       </Component>
+      <Component Id="SystemCodeDom" Guid="0046A0E1-9E28-4AEC-B167-97DF629956DC">
+        <File Source="$(var.SourceDir)\System.CodeDom.dll"/>
+      </Component>
+      <Component Id="SystemCollectionsImmutable" Guid="DCE29109-F2F1-4B55-A420-FCB69630FA8E">
+        <File Source="$(var.SourceDir)\System.Collections.Immutable.dll"/>
+      </Component>
+      <Component Id="SystemConfigurationConfigurationManager" Guid="81AF932E-4524-4C3F-8F0A-D7D9C5BFB81B">
+        <File Source="$(var.SourceDir)\System.Configuration.ConfigurationManager.dll"/>
+      </Component>
+      <Component Id="SystemDiagnosticsDiagnosticSource" Guid="07361367-7587-44E6-B5F3-AA5DD3E95A92">
+        <File Source="$(var.SourceDir)\System.Diagnostics.DiagnosticSource.dll"/>
+      </Component>
+      <Component Id="SystemDiagnosticsEventLog" Guid="98EBA461-F836-4107-ABE7-3ACFE1FFD528">
+        <File Source="$(var.SourceDir)\System.Diagnostics.EventLog.dll"/>
+      </Component>
+      <Component Id="SystemDirectoryServicesProtocols" Guid="F41BC6B2-66FC-4644-8348-C85965FF84E6">
+        <File Source="$(var.SourceDir)\System.DirectoryServices.Protocols.dll"/>
+      </Component>
+      <Component Id="SystemFormatsAsn1" Guid="4BB0E05B-5EBB-4D62-96CF-463406E4381B">
+        <File Source="$(var.SourceDir)\System.Formats.Asn1.dll"/>
+      </Component>
+      <Component Id="SystemIOPipelines" Guid="3E4A03F7-EE72-4351-928B-52C12705CAEA">
+        <File Source="$(var.SourceDir)\System.IO.Pipelines.dll"/>
+      </Component>
+      <Component Id="SystemSecurityCryptographyPkcs" Guid="8B067E76-B627-4E8F-AE20-1CF7B21F5514">
+        <File Source="$(var.SourceDir)\System.Security.Cryptography.Pkcs.dll"/>
+      </Component>
+      <Component Id="SystemSecurityCryptographyProtectedData" Guid="9F596A06-254D-465E-8BC4-7193BCB616DB">
+        <File Source="$(var.SourceDir)\System.Security.Cryptography.ProtectedData.dll"/>
+      </Component>
+      <Component Id="SystemTextEncodingsWeb" Guid="7279CFC3-41AF-4967-A396-F58C8B77C4FB">
+        <File Source="$(var.SourceDir)\System.Text.Encodings.Web.dll"/>
+      </Component>
+      <Component Id="SystemTextJson" Guid="A3F6889D-80A6-4E68-BD72-9BD4FAD38D59">
+        <File Source="$(var.SourceDir)\System.Text.Json.dll"/>
+      </Component>
 
       <!-- Microsoft Extensions Components -->
       <Component Id="MicrosoftExtensionsCachingAbstractions" Guid="A5040DBD-9149-4215-8191-5A7A56B35520">
@@ -352,6 +388,52 @@
       </Component>
       <Component Id="MicrosoftExtensionsPrimitives" Guid="86653E6D-7C68-4C27-A11B-7A1EC3831993">
         <File Source="$(var.SourceDir)\Microsoft.Extensions.Primitives.dll"/>
+      </Component>
+
+      <!-- Microsoft Identity and Security Components -->
+      <Component Id="MicrosoftBclCryptography" Guid="20287CF2-DE15-484C-8862-E9CFF0E5702A">
+        <File Source="$(var.SourceDir)\Microsoft.Bcl.Cryptography.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityClient" Guid="7CCFEAD2-E580-4A88-9804-28E536555B49">
+        <File Source="$(var.SourceDir)\Microsoft.Identity.Client.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityClientExtensionsMsal" Guid="65ADB4AF-8797-4BB8-98CC-8AC5005F90A0">
+        <File Source="$(var.SourceDir)\Microsoft.Identity.Client.Extensions.Msal.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityModelAbstractions" Guid="531F5DB6-6D70-4574-AF61-EF27A7C8A434">
+        <File Source="$(var.SourceDir)\Microsoft.IdentityModel.Abstractions.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityModelJsonWebTokens" Guid="AF80A84C-E372-4ADA-90A1-8B69042A5BC1">
+        <File Source="$(var.SourceDir)\Microsoft.IdentityModel.JsonWebTokens.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityModelLogging" Guid="90C729AB-65C2-4549-A54D-35943ED61D69">
+        <File Source="$(var.SourceDir)\Microsoft.IdentityModel.Logging.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityModelProtocols" Guid="377DED0B-F82F-43ED-95EB-4D26AEFF204D">
+        <File Source="$(var.SourceDir)\Microsoft.IdentityModel.Protocols.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityModelProtocolsOpenIdConnect" Guid="5AC7E221-583C-4239-B888-9E8E6EE330B9">
+        <File Source="$(var.SourceDir)\Microsoft.IdentityModel.Protocols.OpenIdConnect.dll"/>
+      </Component>
+      <Component Id="MicrosoftIdentityModelTokens" Guid="4E9120A9-5A05-44A9-A3BC-B4A6105A1548">
+        <File Source="$(var.SourceDir)\Microsoft.IdentityModel.Tokens.dll"/>
+      </Component>
+
+      <!-- Microsoft SQL Server Components -->
+      <Component Id="MicrosoftEntityFrameworkCoreSqlServer" Guid="F2D7549F-A7DF-4666-BEAC-EF520CE0260F">
+        <File Source="$(var.SourceDir)\Microsoft.EntityFrameworkCore.SqlServer.dll"/>
+      </Component>
+      <Component Id="MicrosoftEntityFrameworkCoreSqlServerAbstractions" Guid="6DCF965C-51CF-4D3E-B26E-15247267837A">
+        <File Source="$(var.SourceDir)\Microsoft.EntityFrameworkCore.SqlServer.Abstractions.dll"/>
+      </Component>
+      <Component Id="MicrosoftEntityFrameworkCoreSqlServerHierarchyId" Guid="90E2DC34-6D38-4188-AB7D-3ECD1077D1E9">
+        <File Source="$(var.SourceDir)\Microsoft.EntityFrameworkCore.SqlServer.HierarchyId.dll"/>
+      </Component>
+      <Component Id="MicrosoftSqlServerServer" Guid="C5CE0D2D-957A-4D96-A848-1BEAA414CFD4">
+        <File Source="$(var.SourceDir)\Microsoft.SqlServer.Server.dll"/>
+      </Component>
+      <Component Id="MicrosoftSqlServerTypes" Guid="D0D6231E-6B08-4F75-8845-1E6FB330DF25">
+        <File Source="$(var.SourceDir)\Microsoft.SqlServer.Types.dll"/>
       </Component>
 
       <!-- Add SQLite native DLL to root directory -->
