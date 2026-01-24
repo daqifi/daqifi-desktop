@@ -1,11 +1,22 @@
-﻿using Daqifi.Core.Communication.Transport;
+﻿using Daqifi.Core.Communication.Messages;
+using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
 using Daqifi.Desktop.DataModel.Device;
+using Daqifi.Desktop.IO.Messages;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
+/// <summary>
+/// WiFi streaming device that uses Core's DaqifiDevice directly for communication.
+/// Unlike USB devices, WiFi devices don't need consumer swapping because SD card operations
+/// are only available over USB.
+/// </summary>
 public class DaqifiStreamingDevice : AbstractStreamingDevice
 {
+    #region Private Fields
+    private DaqifiDevice? _coreDevice;
+    #endregion
+
     #region Properties
 
     public int Port { get; set; }
@@ -26,7 +37,6 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         IsPowerOn = deviceInfo.IsPowerOn;
         IsStreaming = false;
         DeviceVersion = deviceInfo.DeviceVersion;
-
     }
 
     #endregion
@@ -50,10 +60,8 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 return false;
             }
 
-            MessageProducer = new CoreMessageProducerAdapter(_coreDevice);
-            MessageConsumer = new CoreMessageConsumerAdapter(_coreDevice);
-            MessageProducer.Start();
-            MessageConsumer.Start();
+            // Subscribe directly to Core's message events
+            _coreDevice.MessageReceived += OnCoreMessageReceived;
 
             InitializeDeviceState();
 
@@ -78,8 +86,12 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         try
         {
             StopStreaming();
-            MessageProducer?.Stop();
-            MessageConsumer?.Stop();
+
+            // Unsubscribe from Core device events
+            if (_coreDevice != null)
+            {
+                _coreDevice.MessageReceived -= OnCoreMessageReceived;
+            }
 
             // Clear channels to prevent ghost channels on reconnect (Issue #29)
             AppLogger.Information($"Cleared {DataChannels.Count} channels for device {DeviceSerialNo}");
@@ -95,6 +107,39 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             AppLogger.Error(ex, "Problem with Disconnecting from DAQiFi Device.");
             return false;
         }
+    }
+
+    /// <summary>
+    /// Sends messages directly through Core's DaqifiDevice instead of using adapters.
+    /// </summary>
+    protected override void SendMessage(IOutboundMessage<string> message)
+    {
+        if (_coreDevice == null || !_coreDevice.IsConnected)
+        {
+            AppLogger.Warning("Cannot send message: Core device is not connected");
+            return;
+        }
+
+        try
+        {
+            _coreDevice.Send(message);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Failed to send message via Core device");
+        }
+    }
+    #endregion
+
+    #region Event Handlers
+    /// <summary>
+    /// Handles messages received from Core's DaqifiDevice and routes them to the protocol handler.
+    /// </summary>
+    private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
+    {
+        // Core's message is already an IInboundMessage<object>, wrap it for Desktop's event args
+        var args = new MessageEventArgs<object>(e.Message);
+        HandleInboundMessage(args);
     }
     #endregion
 
@@ -113,6 +158,4 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         return true;
     }
     #endregion
-
-    private DaqifiDevice? _coreDevice;
 }
