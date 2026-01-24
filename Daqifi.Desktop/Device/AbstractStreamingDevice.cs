@@ -154,7 +154,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// <param name="message">The SCPI message to send.</param>
     protected virtual void SendMessage(IOutboundMessage<string> message)
     {
-        MessageProducer?.Send(message);
+        if (MessageProducer == null)
+        {
+            AppLogger.Warning($"Cannot send message: MessageProducer is null (Device: {DisplayIdentifier})");
+            return;
+        }
+
+        MessageProducer.Send(message);
     }
     #endregion
 
@@ -1011,8 +1017,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public void Reboot()
     {
         SendMessage(ScpiMessageProducer.RebootDevice);
-        MessageProducer?.StopSafely();
-        MessageConsumer?.Stop();
+        Disconnect();
     }
 
     // SD and LAN can't both be enabled due to hardware limitations

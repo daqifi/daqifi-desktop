@@ -71,7 +71,24 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Problem with connecting to DAQiFi Device.");
+            AppLogger.Error(ex, $"Problem with connecting to DAQiFi Device at {IpAddress}:{Port}");
+
+            // Clean up partially initialized device
+            if (_coreDevice != null)
+            {
+                try
+                {
+                    _coreDevice.MessageReceived -= OnCoreMessageReceived;
+                    _coreDevice.Disconnect();
+                    _coreDevice.Dispose();
+                }
+                catch (Exception cleanupEx)
+                {
+                    AppLogger.Warning($"Error during connection cleanup: {cleanupEx.Message}");
+                }
+                _coreDevice = null;
+            }
+
             return false;
         }
     }
@@ -116,7 +133,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     {
         if (_coreDevice == null || !_coreDevice.IsConnected)
         {
-            AppLogger.Warning("Cannot send message: Core device is not connected");
+            AppLogger.Warning($"Cannot send message to {IpAddress}:{Port}: Core device is not connected (MessageType={message?.GetType().Name})");
             return;
         }
 
@@ -126,7 +143,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to send message via Core device");
+            AppLogger.Error(ex, $"Failed to send message to {IpAddress}:{Port} (MessageType={message?.GetType().Name})");
         }
     }
     #endregion
