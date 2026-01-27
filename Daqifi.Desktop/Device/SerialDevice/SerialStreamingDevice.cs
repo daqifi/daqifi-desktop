@@ -3,9 +3,11 @@ using Daqifi.Desktop.IO.Messages.Producers;
 using System.IO.Ports;
 using Daqifi.Desktop.Bootloader;
 using Daqifi.Core.Device;
+using Daqifi.Core.Communication.Transport;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using Daqifi.Core.Device.Protocol; // Added for ProtobufProtocolHandler
 using Daqifi.Core.Communication.Messages; // Added for DaqifiOutMessage
+using Daqifi.Desktop.IO.Messages;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -14,7 +16,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #region Properties
     private SerialPort? _port;
     private DaqifiDevice? _coreDevice;
-    
+    private SerialStreamTransport? _transport;
+
     public SerialPort? Port
     {
         get => _port;
@@ -36,6 +39,11 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     public string PortName => Port?.PortName ?? Name;
 
     public override ConnectionType ConnectionType => ConnectionType.Usb;
+
+    /// <summary>
+    /// Disable base class device info request since Core handles initialization via InitializeAsync.
+    /// </summary>
+    protected override bool RequestDeviceInfoOnInitialize => false;
     #endregion
 
     #region Constructor
@@ -253,23 +261,25 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
         try
         {
-            Port.Open();
-            Port.DtrEnable = true;
+            // Use Core's transport for unified message handling (both send and receive)
+            // Note: Transport manages the actual SerialPort connection internally
+            _transport = new SerialStreamTransport(Port.PortName, enableDtr: true);
+            _transport.Connect();
 
-            // Create Core device for message sending
+            // Create Core device with transport - this enables both sending AND receiving
             _coreDevice = new DaqifiDevice(
                 string.IsNullOrWhiteSpace(Name) ? "DAQiFi Serial Device" : Name,
-                Port.BaseStream);
+                _transport);
             _coreDevice.Connect();
 
-            // Use async initialization (SendMessage routes to Core)
-            InitializeDeviceAsync().GetAwaiter().GetResult();
-
-            // Desktop's MessageConsumer for receiving (supports SD card swapping)
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
-            MessageConsumer.Start();
+            // Subscribe directly to Core's message events (like WiFi device does)
+            // This avoids the UI freeze caused by Desktop's MessageConsumer stop/start cycle
+            _coreDevice.MessageReceived += OnCoreMessageReceived;
 
             InitializeDeviceState();
+
+            // Use Core's async initialization (safe because Connect() is called from Task.Run)
+            _coreDevice.InitializeAsync().GetAwaiter().GetResult();
             return true;
         }
         catch (Exception ex)
@@ -278,6 +288,16 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             CleanupConnection();
             return false;
         }
+    }
+
+    /// <summary>
+    /// Handles messages received from Core's DaqifiDevice and routes them to the protocol handler.
+    /// </summary>
+    private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
+    {
+        // Core's message is already an IInboundMessage<object>, wrap it for Desktop's event args
+        var args = new MessageEventArgs<object>(e.Message);
+        HandleInboundMessage(args);
     }
 
     /// <summary>
@@ -297,9 +317,24 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            Port.WriteTimeout = 1000;
-            Port.Write(command);
-            return true;
+            // Use transport's stream for raw writes when available
+            if (_transport?.IsConnected == true)
+            {
+                var bytes = System.Text.Encoding.ASCII.GetBytes(command);
+                _transport.Stream.Write(bytes, 0, bytes.Length);
+                return true;
+            }
+
+            // Fallback to Port for legacy/discovery scenarios
+            if (Port?.IsOpen == true)
+            {
+                Port.WriteTimeout = 1000;
+                Port.Write(command);
+                return true;
+            }
+
+            AppLogger.Warning($"Cannot write to {PortName}: no connection available");
+            return false;
         }
         catch (Exception ex)
         {
@@ -313,8 +348,18 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         try
         {
             StopStreaming();
-            CleanupConnection();
+
+            // Unsubscribe from Core device events
+            if (_coreDevice != null)
+            {
+                _coreDevice.MessageReceived -= OnCoreMessageReceived;
+            }
+
+            // Clear channels to prevent ghost channels on reconnect (Issue #29)
+            AppLogger.Information($"Cleared {DataChannels.Count} channels for device {DeviceSerialNo}");
             DataChannels.Clear();
+
+            CleanupConnection();
             return true;
         }
         catch (Exception ex)
@@ -326,10 +371,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
     private void CleanupConnection()
     {
+        // Unsubscribe from Core device events first
         if (_coreDevice != null)
         {
             try
             {
+                _coreDevice.MessageReceived -= OnCoreMessageReceived;
                 _coreDevice.Disconnect();
                 _coreDevice.Dispose();
             }
@@ -340,6 +387,22 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             _coreDevice = null;
         }
 
+        // Clean up transport (this handles the actual serial port)
+        if (_transport != null)
+        {
+            try
+            {
+                _transport.Disconnect();
+                _transport.Dispose();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"Error disconnecting transport during cleanup: {ex.Message}");
+            }
+            _transport = null;
+        }
+
+        // Clean up Desktop's MessageConsumer if it was created for SD card operations
         if (MessageConsumer != null)
         {
             try
@@ -350,21 +413,10 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             {
                 AppLogger.Warning($"Error stopping message consumer during cleanup: {ex.Message}");
             }
+            MessageConsumer = null;
         }
 
-        if (Port is { IsOpen: true })
-        {
-            try
-            {
-                Port.DtrEnable = false;
-                Thread.Sleep(50);
-                Port.Close();
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Warning($"Error closing serial port during cleanup: {ex.Message}");
-            }
-        }
+        // Note: Port cleanup is now handled by transport
     }
 
     #endregion
