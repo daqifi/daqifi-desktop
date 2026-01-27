@@ -44,14 +44,14 @@ public static class DeviceInfoConverter
     /// </summary>
     public static SerialStreamingDevice ToSerialDevice(CoreDeviceInfo coreInfo)
     {
-        if (string.IsNullOrEmpty(coreInfo.PortName))
+        var portName = coreInfo.PortName?.Trim();
+        if (string.IsNullOrWhiteSpace(portName))
         {
             throw new ArgumentException("PortName is required for serial devices", nameof(coreInfo));
         }
 
-        // Use device info from Core's probing instead of creating empty device
         return new SerialStreamingDevice(
-            coreInfo.PortName,
+            portName,
             coreInfo.Name,
             coreInfo.SerialNumber,
             coreInfo.FirmwareVersion);

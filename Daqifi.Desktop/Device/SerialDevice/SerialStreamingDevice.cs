@@ -248,6 +248,9 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #region Override Methods
     public override bool Connect()
     {
+        // Ensure any previous connection state is cleaned up first
+        CleanupConnection();
+
         try
         {
             Port.Open();
@@ -325,19 +328,42 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         if (_coreDevice != null)
         {
-            try { _coreDevice.Disconnect(); _coreDevice.Dispose(); }
-            catch { }
+            try
+            {
+                _coreDevice.Disconnect();
+                _coreDevice.Dispose();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"Error disconnecting Core device during cleanup: {ex.Message}");
+            }
             _coreDevice = null;
         }
+
         if (MessageConsumer != null)
         {
-            try { MessageConsumer.Stop(); }
-            catch { }
+            try
+            {
+                MessageConsumer.Stop();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"Error stopping message consumer during cleanup: {ex.Message}");
+            }
         }
+
         if (Port is { IsOpen: true })
         {
-            try { Port.DtrEnable = false; Thread.Sleep(50); Port.Close(); }
-            catch { }
+            try
+            {
+                Port.DtrEnable = false;
+                Thread.Sleep(50);
+                Port.Close();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"Error closing serial port during cleanup: {ex.Message}");
+            }
         }
     }
 
