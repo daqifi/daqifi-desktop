@@ -2,6 +2,7 @@
 using Daqifi.Desktop.IO.Messages.Producers;
 using System.IO.Ports;
 using Daqifi.Desktop.Bootloader;
+using Daqifi.Core.Device;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using Daqifi.Core.Device.Protocol; // Added for ProtobufProtocolHandler
 using Daqifi.Core.Communication.Messages; // Added for DaqifiOutMessage
@@ -12,6 +13,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 {
     #region Properties
     private SerialPort? _port;
+    private DaqifiDevice? _coreDevice;
     
     public SerialPort? Port
     {
@@ -41,6 +43,18 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         Name = portName;
         Port = new SerialPort(portName);
+    }
+
+    /// <summary>
+    /// Creates a SerialStreamingDevice with device info from Core's discovery.
+    /// Use this constructor when device has already been probed.
+    /// </summary>
+    public SerialStreamingDevice(string portName, string? deviceName, string? serialNumber, string? firmwareVersion)
+    {
+        Name = !string.IsNullOrWhiteSpace(deviceName) ? deviceName : portName;
+        Port = new SerialPort(portName);
+        DeviceSerialNo = serialNumber ?? string.Empty;
+        DeviceVersion = firmwareVersion ?? string.Empty;
     }
 
     #endregion
@@ -236,25 +250,44 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            Task.Delay(1000);
             Port.Open();
             Port.DtrEnable = true;
-            MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageProducer.Start();
 
-            // Use async initialization (safe because Connect() is called from Task.Run)
+            // Create Core device for message sending
+            _coreDevice = new DaqifiDevice(
+                string.IsNullOrWhiteSpace(Name) ? "DAQiFi Serial Device" : Name,
+                Port.BaseStream);
+            _coreDevice.Connect();
+
+            // Use async initialization (SendMessage routes to Core)
             InitializeDeviceAsync().GetAwaiter().GetResult();
 
+            // Desktop's MessageConsumer for receiving (supports SD card swapping)
             MessageConsumer = new MessageConsumer(Port.BaseStream);
             MessageConsumer.Start();
+
             InitializeDeviceState();
             return true;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to connect SerialStreamingDevice");
+            AppLogger.Error(ex, $"Failed to connect on {PortName}");
+            CleanupConnection();
             return false;
         }
+    }
+
+    /// <summary>
+    /// Sends a message to the device using Core's DaqifiDevice.
+    /// </summary>
+    protected override void SendMessage(IOutboundMessage<string> message)
+    {
+        if (_coreDevice == null || !_coreDevice.IsConnected)
+        {
+            AppLogger.Warning($"Cannot send to {PortName}: Core device not connected");
+            return;
+        }
+        _coreDevice.Send(message);
     }
 
     public override bool Write(string command)
@@ -276,65 +309,35 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // First stop streaming to prevent new data from being requested
             StopStreaming();
-
-            // Stop the message producer first to prevent new messages
-            if (MessageProducer != null)
-            {
-                try
-                {
-                    MessageProducer.Send(ScpiMessageProducer.EnableDeviceEcho);
-                    MessageProducer.StopSafely(); // Use StopSafely to ensure queued messages are sent
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error stopping message producer: {ex.Message}");
-                }
-            }
-
-            // Stop the consumer next
-            if (MessageConsumer != null)
-            {
-                try
-                {
-                    MessageConsumer.Stop();
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error stopping message consumer: {ex.Message}");
-                }
-            }
-
-            // Clear channels to prevent ghost channels on reconnect (Issue #29)
+            CleanupConnection();
             DataChannels.Clear();
-            AppLogger.Information($"Cleared {DataChannels.Count} channels for device {DeviceSerialNo}");
-
-            // Finally close the port
-            if (Port != null)
-            {
-                try
-                {
-                    if (Port.IsOpen)
-                    {
-                        Port.DtrEnable = false;
-                        // Give a small delay to ensure DTR state change is processed
-                        Thread.Sleep(50);
-                        Port.Close();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error closing serial port: {ex.Message}");
-                }
-            }
-
             return true;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Error during device disconnect");
+            AppLogger.Error(ex, "Error during disconnect");
             return false;
+        }
+    }
+
+    private void CleanupConnection()
+    {
+        if (_coreDevice != null)
+        {
+            try { _coreDevice.Disconnect(); _coreDevice.Dispose(); }
+            catch { }
+            _coreDevice = null;
+        }
+        if (MessageConsumer != null)
+        {
+            try { MessageConsumer.Stop(); }
+            catch { }
+        }
+        if (Port is { IsOpen: true })
+        {
+            try { Port.DtrEnable = false; Thread.Sleep(50); Port.Close(); }
+            catch { }
         }
     }
 
@@ -343,22 +346,22 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #region Serial Device Only Methods
     public void EnableLanUpdateMode()
     {
-        MessageProducer.Send(ScpiMessageProducer.TurnDeviceOn);
-        MessageProducer.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
-        MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
+        _coreDevice?.Send(ScpiMessageProducer.TurnDeviceOn);
+        _coreDevice?.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
+        _coreDevice?.Send(ScpiMessageProducer.ApplyNetworkLan);
     }
 
     public void ResetLanAfterUpdate()
     {
-        MessageProducer.Send(ScpiMessageProducer.SetUsbTransparencyMode(0));
-        MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
-        MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
-        MessageProducer.Send(ScpiMessageProducer.SaveNetworkLan);
+        _coreDevice?.Send(ScpiMessageProducer.SetUsbTransparencyMode(0));
+        _coreDevice?.Send(ScpiMessageProducer.EnableNetworkLan);
+        _coreDevice?.Send(ScpiMessageProducer.ApplyNetworkLan);
+        _coreDevice?.Send(ScpiMessageProducer.SaveNetworkLan);
     }
 
     public void ForceBootloader()
     {
-        MessageProducer.Send(ScpiMessageProducer.ForceBootloader);
+        _coreDevice?.Send(ScpiMessageProducer.ForceBootloader);
     }
 
     /// <summary>
