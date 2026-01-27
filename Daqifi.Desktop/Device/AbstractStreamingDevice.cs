@@ -10,7 +10,6 @@ using Daqifi.Desktop.Models;
 using System.Text.RegularExpressions;
 using System.Globalization;
 using System.IO;
-using Daqifi.Desktop.IO.Messages.Producers;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
@@ -127,8 +126,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public NetworkConfiguration NetworkConfiguration { get; set; } = new();
 
     public IMessageConsumer? MessageConsumer { get; set; }
-    public IMessageProducer? MessageProducer { get; set; }
     public List<IChannel> DataChannels { get; set; } = [];
+
+    /// <summary>
+    /// Gets whether the device is currently connected.
+    /// Override in derived classes to provide accurate connection state.
+    /// </summary>
+    public virtual bool IsConnected => DeviceState == DeviceState.Connected || DeviceState == DeviceState.Ready;
 
     public bool IsStreaming { get; set; }
     public bool IsFirmwareOutdated { get; set; }
@@ -148,19 +152,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public abstract bool Write(string command);
 
     /// <summary>
-    /// Sends a message to the device. Override in derived classes to customize how messages are sent.
-    /// Default implementation uses the MessageProducer if available.
+    /// Sends a message to the device. Must be overridden in derived classes.
+    /// Core-based devices use DaqifiDevice.Send() for sending messages.
     /// </summary>
     /// <param name="message">The SCPI message to send.</param>
     protected virtual void SendMessage(IOutboundMessage<string> message)
     {
-        if (MessageProducer == null)
-        {
-            AppLogger.Warning($"Cannot send message: MessageProducer is null (Device: {DisplayIdentifier})");
-            return;
-        }
-
-        MessageProducer.Send(message);
+        throw new NotImplementedException($"SendMessage must be overridden in {GetType().Name}");
     }
     #endregion
 
@@ -674,43 +672,22 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return; // Don't start consumer if not in streaming mode
         }
 
-        // Always create a new message consumer to ensure clean state
-        var stream = MessageConsumer?.DataStream;
-        if (stream == null || ReferenceEquals(stream, Stream.Null))
+        // For Core-based devices (WiFi, Serial), MessageConsumer is null.
+        // They use _coreDevice.MessageReceived event instead - no action needed here.
+        if (MessageConsumer == null)
         {
-            if (MessageConsumer == null)
-            {
-                return;
-            }
-
-            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
-            MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
-
-            if (!MessageConsumer.Running)
-            {
-                MessageConsumer.Start();
-            }
-
             return;
         }
 
-        // Stop and cleanup existing consumer if any
-        if (MessageConsumer != null)
-        {
-            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
-            MessageConsumer.Stop();
-        }
-
-        // Create new consumer
-        MessageConsumer = new MessageConsumer(stream);
-        if (MessageConsumer is MessageConsumer msgConsumer)
-        {
-            msgConsumer.ClearBuffer();
-        }
-
-        // Wire up protocol handler for automatic message routing
+        // Legacy path: ensure event handler is wired up and consumer is running
+        // This is only used for devices that still use Desktop's MessageConsumer
+        MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
         MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
-        MessageConsumer.Start();
+
+        if (!MessageConsumer.Running)
+        {
+            MessageConsumer.Start();
+        }
     }
 
     protected void StopMessageConsumer()

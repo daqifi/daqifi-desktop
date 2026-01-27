@@ -251,63 +251,28 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         try
         {
-            var serialDevice = DeviceInfoConverter.ToSerialDevice(e.DeviceInfo);
-            var portName = serialDevice.Port.PortName;
+            var portName = e.DeviceInfo.PortName;
+            if (string.IsNullOrEmpty(portName)) return;
 
-            // Only probe once per port to avoid conflicts
+            // Prevent duplicate entries
             lock (_probedSerialPorts)
             {
-                if (_probedSerialPorts.Contains(portName))
-                {
-                    return; // Already probed or probing this port
-                }
+                if (_probedSerialPorts.Contains(portName)) return;
                 _probedSerialPorts.Add(portName);
             }
 
-            // Probe device for actual info in background - only add to UI if it's a DAQiFi device
-            Task.Run(() =>
-            {
-                try
-                {
-                    if (serialDevice.TryGetDeviceInfo())
-                    {
-                        // Successfully verified as DAQiFi device - add to UI with device info
-                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            // Check if it's already in the list (shouldn't be, but just in case)
-                            var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == portName);
-                            if (existing == null)
-                            {
-                                AvailableSerialDevices.Add(serialDevice);
-                                if (HasNoSerialDevices) { HasNoSerialDevices = false; }
-                                Common.Loggers.AppLogger.Instance.Information($"Added DAQiFi device on {portName}: {serialDevice.Name} (S/N: {serialDevice.DeviceSerialNo})");
-                            }
-                            else
-                            {
-                                // Update existing entry with full device info
-                                var index = AvailableSerialDevices.IndexOf(existing);
-                                AvailableSerialDevices.RemoveAt(index);
-                                AvailableSerialDevices.Insert(index, serialDevice);
-                            }
-                        });
-                    }
-                    else
-                    {
-                        // Device probe failed - this is not a DAQiFi device, don't add to UI
-                        // Keep in probed set to avoid retrying every discovery cycle
-                        Common.Loggers.AppLogger.Instance.Information($"Port {portName} is not a DAQiFi device - not added to available devices");
-                    }
-                }
-                catch (Exception probEx)
-                {
-                    // Log but don't add device to list since we couldn't verify it's a DAQiFi device
-                    Common.Loggers.AppLogger.Instance.Warning($"Failed to retrieve device info for {portName}: {probEx.Message}");
+            // Core already probed and validated this is a DAQiFi device - use the info directly
+            var serialDevice = DeviceInfoConverter.ToSerialDevice(e.DeviceInfo);
 
-                    // Remove from probed set to allow retry - device might have been busy or powered off
-                    lock (_probedSerialPorts)
-                    {
-                        _probedSerialPorts.Remove(portName);
-                    }
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == portName);
+                if (existing == null)
+                {
+                    AvailableSerialDevices.Add(serialDevice);
+                    if (HasNoSerialDevices) { HasNoSerialDevices = false; }
+                    Common.Loggers.AppLogger.Instance.Information(
+                        $"Added DAQiFi device on {portName}: {serialDevice.Name} (S/N: {serialDevice.DeviceSerialNo})");
                 }
             });
         }
