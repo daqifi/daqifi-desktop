@@ -52,8 +52,18 @@ public interface IStreamingDevice : IDevice
     /// Returns COM port for USB devices, IP address for WiFi devices.
     /// </summary>
     string DisplayIdentifier { get; }
-    IMessageConsumer MessageConsumer { get; set; }
-    IMessageProducer MessageProducer { get; set; }
+
+    /// <summary>
+    /// Gets or sets the message consumer for receiving device messages.
+    /// Nullable because WiFi devices use Core's DaqifiDevice directly and don't need a consumer.
+    /// </summary>
+    IMessageConsumer? MessageConsumer { get; set; }
+
+    /// <summary>
+    /// Gets or sets the message producer for sending device messages.
+    /// Nullable because WiFi devices use Core's DaqifiDevice directly and don't need a producer.
+    /// </summary>
+    IMessageProducer? MessageProducer { get; set; }
     List<IChannel> DataChannels { get; set; }
 
     void InitializeStreaming();
