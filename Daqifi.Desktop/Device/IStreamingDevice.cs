@@ -2,7 +2,6 @@
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using Daqifi.Core.Device.Network;
 using Daqifi.Desktop.IO.Messages.Consumers;
-using Daqifi.Desktop.IO.Messages.Producers;
 using Daqifi.Desktop.Models;
 
 namespace Daqifi.Desktop.Device;
@@ -30,6 +29,7 @@ public interface IStreamingDevice : IDevice
 {
     DeviceMode Mode { get; }
     ConnectionType ConnectionType { get; }
+    bool IsConnected { get; }
     bool IsLoggingToSdCard { get; }
     IReadOnlyList<SdCardFile> SdCardFiles { get; }
 
@@ -55,15 +55,11 @@ public interface IStreamingDevice : IDevice
 
     /// <summary>
     /// Gets or sets the message consumer for receiving device messages.
-    /// Nullable because WiFi devices use Core's DaqifiDevice directly and don't need a consumer.
+    /// Nullable because Core-based devices use DaqifiDevice.MessageReceived event directly.
+    /// Only used for SD card text-based operations (TextMessageConsumer).
     /// </summary>
     IMessageConsumer? MessageConsumer { get; set; }
 
-    /// <summary>
-    /// Gets or sets the message producer for sending device messages.
-    /// Nullable because WiFi devices use Core's DaqifiDevice directly and don't need a producer.
-    /// </summary>
-    IMessageProducer? MessageProducer { get; set; }
     List<IChannel> DataChannels { get; set; }
 
     void InitializeStreaming();
