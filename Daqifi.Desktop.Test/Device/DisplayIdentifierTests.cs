@@ -227,4 +227,6 @@ public class TestStreamingDevice : AbstractStreamingDevice
     public override bool Connect() => true;
     public override bool Disconnect() => true;
     public override bool Write(string command) => true;
+
+    protected override void SendMessage(Daqifi.Core.Communication.Messages.IOutboundMessage<string> message) { }
 }

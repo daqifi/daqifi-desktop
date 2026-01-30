@@ -1,7 +1,6 @@
 using Daqifi.Desktop.Device;
 using Daqifi.Core.Device.Network;
 using Daqifi.Desktop.IO.Messages.Consumers;
-using Daqifi.Desktop.IO.Messages.Producers;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
 using Moq;
@@ -221,5 +220,7 @@ public class AbstractStreamingDeviceTests
         public override bool Disconnect() => true;
 
         public override bool Write(string command) => true;
+
+        protected override void SendMessage(IOutboundMessage<string> message) { }
     }
 }

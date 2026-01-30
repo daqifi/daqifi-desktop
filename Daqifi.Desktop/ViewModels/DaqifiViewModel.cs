@@ -599,8 +599,7 @@ public partial class DaqifiViewModel : ObservableObject
         }
 
         // Check if device is connected - it should be connected before attempting firmware update
-        var isConnected = serialStreamingDevice.Port is { IsOpen: true } &&
-                         serialStreamingDevice.MessageProducer != null;
+        var isConnected = serialStreamingDevice.IsConnected;
 
         if (!isConnected)
         {

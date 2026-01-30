@@ -39,15 +39,21 @@ public static class DeviceInfoConverter
     }
 
     /// <summary>
-    /// Converts Core IDeviceInfo to Desktop SerialStreamingDevice
+    /// Converts Core IDeviceInfo to Desktop SerialStreamingDevice.
+    /// Uses device info from Core's probing instead of creating empty device.
     /// </summary>
     public static SerialStreamingDevice ToSerialDevice(CoreDeviceInfo coreInfo)
     {
-        if (string.IsNullOrEmpty(coreInfo.PortName))
+        var portName = coreInfo.PortName?.Trim();
+        if (string.IsNullOrWhiteSpace(portName))
         {
             throw new ArgumentException("PortName is required for serial devices", nameof(coreInfo));
         }
 
-        return new SerialStreamingDevice(coreInfo.PortName);
+        return new SerialStreamingDevice(
+            portName,
+            coreInfo.Name,
+            coreInfo.SerialNumber,
+            coreInfo.FirmwareVersion);
     }
 }

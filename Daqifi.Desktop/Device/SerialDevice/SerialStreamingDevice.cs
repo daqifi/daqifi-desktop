@@ -1,10 +1,11 @@
-﻿using Daqifi.Desktop.IO.Messages.Consumers;
-using Daqifi.Desktop.IO.Messages.Producers;
-using System.IO.Ports;
+﻿using System.IO.Ports;
 using Daqifi.Desktop.Bootloader;
+using Daqifi.Core.Device;
+using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Communication.Messages;
+using Daqifi.Core.Device.Protocol;
+using Daqifi.Desktop.IO.Messages;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
-using Daqifi.Core.Device.Protocol; // Added for ProtobufProtocolHandler
-using Daqifi.Core.Communication.Messages; // Added for DaqifiOutMessage
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -12,7 +13,9 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 {
     #region Properties
     private SerialPort? _port;
-    
+    private DaqifiDevice? _coreDevice;
+    private SerialStreamTransport? _transport;
+
     public SerialPort? Port
     {
         get => _port;
@@ -34,6 +37,16 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     public string PortName => Port?.PortName ?? Name;
 
     public override ConnectionType ConnectionType => ConnectionType.Usb;
+
+    /// <summary>
+    /// Gets whether the device is currently connected via Core's transport.
+    /// </summary>
+    public override bool IsConnected => _coreDevice?.IsConnected == true;
+
+    /// <summary>
+    /// Disable base class device info request since Core handles initialization via InitializeAsync.
+    /// </summary>
+    protected override bool RequestDeviceInfoOnInitialize => false;
     #endregion
 
     #region Constructor
@@ -43,9 +56,26 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         Port = new SerialPort(portName);
     }
 
+    /// <summary>
+    /// Creates a SerialStreamingDevice with device info from Core's discovery.
+    /// Use this constructor when device has already been probed.
+    /// </summary>
+    public SerialStreamingDevice(string portName, string? deviceName, string? serialNumber, string? firmwareVersion)
+    {
+        Name = !string.IsNullOrWhiteSpace(deviceName) ? deviceName : portName;
+        Port = new SerialPort(portName);
+        DeviceSerialNo = serialNumber ?? string.Empty;
+        DeviceVersion = firmwareVersion ?? string.Empty;
+    }
+
     #endregion
 
     #region Device Info Discovery
+
+    // Temporary Core device used only during TryGetDeviceInfo discovery
+    private DaqifiDevice? _discoveryDevice;
+    private SerialStreamTransport? _discoveryTransport;
+
     /// <summary>
     /// Attempts to quickly connect and retrieve device information for discovery purposes.
     /// Returns true if successful, false if device is busy or connection failed.
@@ -62,35 +92,27 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
         try
         {
-            // Quick connection attempt with shorter timeouts for discovery
-            Port.ReadTimeout = 1000; // Increased for device wake-up
-            Port.WriteTimeout = 1000;
-            Port.Open();
-            Port.DtrEnable = true;
+            // Use Core's transport for discovery (same as Connect() uses for streaming)
+            _discoveryTransport = new SerialStreamTransport(Port.PortName, enableDtr: true);
+            _discoveryTransport.Connect();
 
             // Longer delay to let device wake up and stabilize
             // Suppressed: Thread.Sleep required for hardware timing - device power-on sequence
             Thread.Sleep(1000); // Device needs time to power on and initialize
 
-            MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageProducer.Start();
-
-            // Use async initialization
-            InitializeDeviceAsync().GetAwaiter().GetResult();
-
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
-            MessageConsumer.Start();
+            // Create Core device with transport for both sending and receiving
+            _discoveryDevice = new DaqifiDevice("Discovery", _discoveryTransport);
+            _discoveryDevice.Connect();
 
             // Set up a temporary status handler to get device info
             var deviceInfoReceived = false;
             var timeout = DateTime.Now.AddSeconds(4); // Increased timeout for device wake-up
 
-            OnMessageReceivedHandler handler = null;
-            handler = (sender, args) =>
+            void StatusHandler(object? sender, MessageReceivedEventArgs e)
             {
                 try
                 {
-                    if (args.Message.Data is DaqifiOutMessage message)
+                    if (e.Message.Data is DaqifiOutMessage message)
                     {
                         // Use Core's protocol handler logic to determine if this is a status message
                         var messageType = ProtobufProtocolHandler.DetectMessageType(message);
@@ -103,48 +125,55 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                                 Name = DevicePartNumber;
                             }
                             deviceInfoReceived = true;
-                            // Remove handler to prevent multiple calls
-                            MessageConsumer.OnMessageReceived -= handler;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    AppLogger.Warning($"Error processing device info message: {ex.Message}");
+                    AppLogger.Error(ex, $"Error processing device info message on {PortName}");
                 }
-            };
-
-            MessageConsumer.OnMessageReceived += handler;
-
-            // Request device info with retry logic
-            var retryCount = 0;
-            var maxRetries = 3;
-            var lastRequestTime = DateTime.MinValue;
-
-            while (!deviceInfoReceived && DateTime.Now < timeout)
-            {
-                // Send GetDeviceInfo request every 1 second, up to maxRetries times
-                if (DateTime.Now - lastRequestTime > TimeSpan.FromSeconds(1) && retryCount < maxRetries)
-                {
-                    try
-                    {
-                        MessageProducer.Send(ScpiMessageProducer.GetDeviceInfo);
-                        lastRequestTime = DateTime.Now;
-                        retryCount++;
-                        AppLogger.Information($"Requesting device info (attempt {retryCount}/{maxRetries}) for port {Port.PortName}");
-                    }
-                    catch (Exception ex)
-                    {
-                        AppLogger.Warning($"Failed to send GetDeviceInfo command: {ex.Message}");
-                    }
-                }
-
-                // Suppressed: Thread.Sleep required for device communication polling
-                Thread.Sleep(100); // Check more frequently for response
             }
 
-            // Clean up the quick connection
-            QuickDisconnect();
+            _discoveryDevice.MessageReceived += StatusHandler;
+
+            try
+            {
+                // Initialize the device (sends echo off, stop streaming, turn on, set protobuf format)
+                _discoveryDevice.InitializeAsync().GetAwaiter().GetResult();
+
+                // Request device info with retry logic
+                var retryCount = 0;
+                var maxRetries = 3;
+                var lastRequestTime = DateTime.MinValue;
+
+                while (!deviceInfoReceived && DateTime.Now < timeout)
+                {
+                    // Send GetDeviceInfo request every 1 second, up to maxRetries times
+                    if (DateTime.Now - lastRequestTime > TimeSpan.FromSeconds(1) && retryCount < maxRetries)
+                    {
+                        try
+                        {
+                            _discoveryDevice.Send(ScpiMessageProducer.GetDeviceInfo);
+                            lastRequestTime = DateTime.Now;
+                            retryCount++;
+                            AppLogger.Information($"Requesting device info (attempt {retryCount}/{maxRetries}) for port {Port.PortName}");
+                        }
+                        catch (Exception ex)
+                        {
+                            AppLogger.Warning($"Failed to send GetDeviceInfo command: {ex.Message}");
+                        }
+                    }
+
+                    // Suppressed: Thread.Sleep required for device communication polling
+                    Thread.Sleep(100); // Check more frequently for response
+                }
+            }
+            finally
+            {
+                // Guarantee cleanup even if initialization or polling throws
+                _discoveryDevice.MessageReceived -= StatusHandler;
+                QuickDisconnect();
+            }
 
             if (deviceInfoReceived)
             {
@@ -174,58 +203,34 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 
     private void QuickDisconnect()
     {
-        try
+        // Clean up discovery Core device
+        if (_discoveryDevice != null)
         {
-            // Stop message processing first
-            if (MessageConsumer != null)
+            try
             {
-                try
-                {
-                    MessageConsumer.Stop();
-                    Thread.Sleep(50); // Give it time to stop
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error stopping message consumer: {ex.Message}");
-                }
+                _discoveryDevice.Disconnect();
+                _discoveryDevice.Dispose();
             }
-
-            if (MessageProducer != null)
+            catch (Exception ex)
             {
-                try
-                {
-                    MessageProducer.Stop();
-                    Thread.Sleep(50); // Give it time to stop
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error stopping message producer: {ex.Message}");
-                }
+                AppLogger.Warning($"Error disconnecting discovery device: {ex.Message}");
             }
-
-            // Close the port
-            if (Port is { IsOpen: true })
-            {
-                try
-                {
-                    Port.DtrEnable = false;
-                    Thread.Sleep(100); // Give DTR time to be processed
-                    Port.Close();
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error closing serial port: {ex.Message}");
-                }
-            }
+            _discoveryDevice = null;
         }
-        catch (Exception ex)
+
+        // Clean up discovery transport
+        if (_discoveryTransport != null)
         {
-            AppLogger.Warning($"Error during quick disconnect: {ex.Message}");
-        }
-        finally
-        {
-            MessageProducer = null;
-            MessageConsumer = null;
+            try
+            {
+                _discoveryTransport.Disconnect();
+                _discoveryTransport.Dispose();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"Error disconnecting discovery transport: {ex.Message}");
+            }
+            _discoveryTransport = null;
         }
     }
 
@@ -234,36 +239,85 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #region Override Methods
     public override bool Connect()
     {
+        // Ensure any previous connection state is cleaned up first
+        CleanupConnection();
+
         try
         {
-            Task.Delay(1000);
-            Port.Open();
-            Port.DtrEnable = true;
-            MessageProducer = new MessageProducer(Port.BaseStream);
-            MessageProducer.Start();
+            // Use Core's transport for unified message handling (both send and receive)
+            // Note: Transport manages the actual SerialPort connection internally
+            _transport = new SerialStreamTransport(Port.PortName, enableDtr: true);
+            _transport.Connect();
 
-            // Use async initialization (safe because Connect() is called from Task.Run)
-            InitializeDeviceAsync().GetAwaiter().GetResult();
+            // Create Core device with transport - this enables both sending AND receiving
+            _coreDevice = new DaqifiDevice(
+                string.IsNullOrWhiteSpace(Name) ? "DAQiFi Serial Device" : Name,
+                _transport);
+            _coreDevice.Connect();
 
-            MessageConsumer = new MessageConsumer(Port.BaseStream);
-            MessageConsumer.Start();
+            // Subscribe directly to Core's message events (like WiFi device does)
+            // This avoids the UI freeze caused by Desktop's MessageConsumer stop/start cycle
+            _coreDevice.MessageReceived += OnCoreMessageReceived;
+
             InitializeDeviceState();
+
+            // Use Core's async initialization (safe because Connect() is called from Task.Run)
+            _coreDevice.InitializeAsync().GetAwaiter().GetResult();
             return true;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to connect SerialStreamingDevice");
+            AppLogger.Error(ex, $"Failed to connect on {PortName}");
+            CleanupConnection();
             return false;
         }
+    }
+
+    /// <summary>
+    /// Handles messages received from Core's DaqifiDevice and routes them to the protocol handler.
+    /// </summary>
+    private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
+    {
+        // Core's message is already an IInboundMessage<object>, wrap it for Desktop's event args
+        var args = new MessageEventArgs<object>(e.Message);
+        HandleInboundMessage(args);
+    }
+
+    /// <summary>
+    /// Sends a message to the device using Core's DaqifiDevice.
+    /// </summary>
+    protected override void SendMessage(IOutboundMessage<string> message)
+    {
+        if (_coreDevice == null || !_coreDevice.IsConnected)
+        {
+            AppLogger.Warning($"Cannot send to {PortName}: Core device not connected");
+            return;
+        }
+        _coreDevice.Send(message);
     }
 
     public override bool Write(string command)
     {
         try
         {
-            Port.WriteTimeout = 1000;
-            Port.Write(command);
-            return true;
+            // Use transport's stream for raw writes when available
+            if (_transport?.IsConnected == true)
+            {
+                var bytes = System.Text.Encoding.ASCII.GetBytes(command);
+                _transport.Stream.Write(bytes, 0, bytes.Length);
+                return true;
+            }
+
+            // Fallback to Port for legacy/discovery scenarios
+            if (Port?.IsOpen == true)
+            {
+                Port.WriteTimeout = 1000;
+                Port.Write(command);
+                return true;
+            }
+
+            AppLogger.Warning($"Cannot write to {PortName}: no connection available");
+            return false;
         }
         catch (Exception ex)
         {
@@ -276,66 +330,76 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     {
         try
         {
-            // First stop streaming to prevent new data from being requested
             StopStreaming();
 
-            // Stop the message producer first to prevent new messages
-            if (MessageProducer != null)
+            // Unsubscribe from Core device events
+            if (_coreDevice != null)
             {
-                try
-                {
-                    MessageProducer.Send(ScpiMessageProducer.EnableDeviceEcho);
-                    MessageProducer.StopSafely(); // Use StopSafely to ensure queued messages are sent
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error stopping message producer: {ex.Message}");
-                }
-            }
-
-            // Stop the consumer next
-            if (MessageConsumer != null)
-            {
-                try
-                {
-                    MessageConsumer.Stop();
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error stopping message consumer: {ex.Message}");
-                }
+                _coreDevice.MessageReceived -= OnCoreMessageReceived;
             }
 
             // Clear channels to prevent ghost channels on reconnect (Issue #29)
-            DataChannels.Clear();
             AppLogger.Information($"Cleared {DataChannels.Count} channels for device {DeviceSerialNo}");
+            DataChannels.Clear();
 
-            // Finally close the port
-            if (Port != null)
-            {
-                try
-                {
-                    if (Port.IsOpen)
-                    {
-                        Port.DtrEnable = false;
-                        // Give a small delay to ensure DTR state change is processed
-                        Thread.Sleep(50);
-                        Port.Close();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Warning($"Error closing serial port: {ex.Message}");
-                }
-            }
-
+            CleanupConnection();
             return true;
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Error during device disconnect");
+            AppLogger.Error(ex, "Error during disconnect");
             return false;
         }
+    }
+
+    private void CleanupConnection()
+    {
+        // Unsubscribe from Core device events first
+        if (_coreDevice != null)
+        {
+            try
+            {
+                _coreDevice.MessageReceived -= OnCoreMessageReceived;
+                _coreDevice.Disconnect();
+                _coreDevice.Dispose();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"Error disconnecting Core device during cleanup: {ex.Message}");
+            }
+            _coreDevice = null;
+        }
+
+        // Clean up transport (this handles the actual serial port)
+        if (_transport != null)
+        {
+            try
+            {
+                _transport.Disconnect();
+                _transport.Dispose();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"Error disconnecting transport during cleanup: {ex.Message}");
+            }
+            _transport = null;
+        }
+
+        // Clean up Desktop's MessageConsumer if it was created for SD card operations
+        if (MessageConsumer != null)
+        {
+            try
+            {
+                MessageConsumer.Stop();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"Error stopping message consumer during cleanup: {ex.Message}");
+            }
+            MessageConsumer = null;
+        }
+
+        // Note: Port cleanup is now handled by transport
     }
 
     #endregion
@@ -343,22 +407,22 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #region Serial Device Only Methods
     public void EnableLanUpdateMode()
     {
-        MessageProducer.Send(ScpiMessageProducer.TurnDeviceOn);
-        MessageProducer.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
-        MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
+        _coreDevice?.Send(ScpiMessageProducer.TurnDeviceOn);
+        _coreDevice?.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
+        _coreDevice?.Send(ScpiMessageProducer.ApplyNetworkLan);
     }
 
     public void ResetLanAfterUpdate()
     {
-        MessageProducer.Send(ScpiMessageProducer.SetUsbTransparencyMode(0));
-        MessageProducer.Send(ScpiMessageProducer.EnableNetworkLan);
-        MessageProducer.Send(ScpiMessageProducer.ApplyNetworkLan);
-        MessageProducer.Send(ScpiMessageProducer.SaveNetworkLan);
+        _coreDevice?.Send(ScpiMessageProducer.SetUsbTransparencyMode(0));
+        _coreDevice?.Send(ScpiMessageProducer.EnableNetworkLan);
+        _coreDevice?.Send(ScpiMessageProducer.ApplyNetworkLan);
+        _coreDevice?.Send(ScpiMessageProducer.SaveNetworkLan);
     }
 
     public void ForceBootloader()
     {
-        MessageProducer.Send(ScpiMessageProducer.ForceBootloader);
+        _coreDevice?.Send(ScpiMessageProducer.ForceBootloader);
     }
 
     /// <summary>
