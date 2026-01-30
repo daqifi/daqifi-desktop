@@ -152,14 +152,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public abstract bool Write(string command);
 
     /// <summary>
-    /// Sends a message to the device. Must be overridden in derived classes.
+    /// Sends a message to the device. Must be implemented in derived classes.
     /// Core-based devices use DaqifiDevice.Send() for sending messages.
     /// </summary>
     /// <param name="message">The SCPI message to send.</param>
-    protected virtual void SendMessage(IOutboundMessage<string> message)
-    {
-        throw new NotImplementedException($"SendMessage must be overridden in {GetType().Name}");
-    }
+    protected abstract void SendMessage(IOutboundMessage<string> message);
     #endregion
 
     #region Message Handlers

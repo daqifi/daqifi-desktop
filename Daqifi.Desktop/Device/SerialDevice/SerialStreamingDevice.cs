@@ -130,47 +130,50 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 }
                 catch (Exception ex)
                 {
-                    AppLogger.Warning($"Error processing device info message: {ex.Message}");
+                    AppLogger.Error(ex, $"Error processing device info message on {PortName}");
                 }
             }
 
             _discoveryDevice.MessageReceived += StatusHandler;
 
-            // Initialize the device (sends echo off, stop streaming, turn on, set protobuf format)
-            _discoveryDevice.InitializeAsync().GetAwaiter().GetResult();
-
-            // Request device info with retry logic
-            var retryCount = 0;
-            var maxRetries = 3;
-            var lastRequestTime = DateTime.MinValue;
-
-            while (!deviceInfoReceived && DateTime.Now < timeout)
+            try
             {
-                // Send GetDeviceInfo request every 1 second, up to maxRetries times
-                if (DateTime.Now - lastRequestTime > TimeSpan.FromSeconds(1) && retryCount < maxRetries)
+                // Initialize the device (sends echo off, stop streaming, turn on, set protobuf format)
+                _discoveryDevice.InitializeAsync().GetAwaiter().GetResult();
+
+                // Request device info with retry logic
+                var retryCount = 0;
+                var maxRetries = 3;
+                var lastRequestTime = DateTime.MinValue;
+
+                while (!deviceInfoReceived && DateTime.Now < timeout)
                 {
-                    try
+                    // Send GetDeviceInfo request every 1 second, up to maxRetries times
+                    if (DateTime.Now - lastRequestTime > TimeSpan.FromSeconds(1) && retryCount < maxRetries)
                     {
-                        _discoveryDevice.Send(ScpiMessageProducer.GetDeviceInfo);
-                        lastRequestTime = DateTime.Now;
-                        retryCount++;
-                        AppLogger.Information($"Requesting device info (attempt {retryCount}/{maxRetries}) for port {Port.PortName}");
+                        try
+                        {
+                            _discoveryDevice.Send(ScpiMessageProducer.GetDeviceInfo);
+                            lastRequestTime = DateTime.Now;
+                            retryCount++;
+                            AppLogger.Information($"Requesting device info (attempt {retryCount}/{maxRetries}) for port {Port.PortName}");
+                        }
+                        catch (Exception ex)
+                        {
+                            AppLogger.Warning($"Failed to send GetDeviceInfo command: {ex.Message}");
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        AppLogger.Warning($"Failed to send GetDeviceInfo command: {ex.Message}");
-                    }
+
+                    // Suppressed: Thread.Sleep required for device communication polling
+                    Thread.Sleep(100); // Check more frequently for response
                 }
-
-                // Suppressed: Thread.Sleep required for device communication polling
-                Thread.Sleep(100); // Check more frequently for response
             }
-
-            // Unsubscribe before cleanup
-            _discoveryDevice.MessageReceived -= StatusHandler;
-
-            // Clean up the quick connection
-            QuickDisconnect();
+            finally
+            {
+                // Guarantee cleanup even if initialization or polling throws
+                _discoveryDevice.MessageReceived -= StatusHandler;
+                QuickDisconnect();
+            }
 
             if (deviceInfoReceived)
             {
