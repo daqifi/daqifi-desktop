@@ -220,5 +220,7 @@ public class AbstractStreamingDeviceTests
         public override bool Disconnect() => true;
 
         public override bool Write(string command) => true;
+
+        protected override void SendMessage(IOutboundMessage<string> message) { }
     }
 }
