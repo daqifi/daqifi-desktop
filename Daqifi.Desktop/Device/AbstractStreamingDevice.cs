@@ -124,7 +124,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public NetworkConfiguration NetworkConfiguration { get; set; } = new();
 
-    public IMessageConsumer? MessageConsumer { get; set; }
+    public TextMessageConsumer? MessageConsumer { get; set; }
     public List<IChannel> DataChannels { get; set; } = [];
 
     /// <summary>

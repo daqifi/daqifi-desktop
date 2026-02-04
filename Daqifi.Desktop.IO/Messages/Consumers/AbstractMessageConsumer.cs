@@ -2,7 +2,9 @@
 
 namespace Daqifi.Desktop.IO.Messages.Consumers;
 
-public abstract class AbstractMessageConsumer : IMessageConsumer
+public delegate void OnMessageReceivedHandler(object sender, MessageEventArgs<object> e);
+
+public abstract class AbstractMessageConsumer
 {
     #region Private Data
 
@@ -28,7 +30,7 @@ public abstract class AbstractMessageConsumer : IMessageConsumer
     public event OnMessageReceivedHandler OnMessageReceived;
     #endregion
 
-    #region IMessageConsumer overrides
+    #region Consumer lifecycle
 
     public void Start()
     {

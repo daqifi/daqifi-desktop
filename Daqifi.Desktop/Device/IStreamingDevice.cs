@@ -58,7 +58,7 @@ public interface IStreamingDevice : IDevice
     /// Nullable because Core-based devices use DaqifiDevice.MessageReceived event directly.
     /// Only used for SD card text-based operations (TextMessageConsumer).
     /// </summary>
-    IMessageConsumer? MessageConsumer { get; set; }
+    TextMessageConsumer? MessageConsumer { get; set; }
 
     List<IChannel> DataChannels { get; set; }
 
