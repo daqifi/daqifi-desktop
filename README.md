@@ -39,9 +39,9 @@ How data goes from the device to the database.
 ```mermaid
 sequenceDiagram
 DAQiFiHardware->>IStreamingDevice: Protobuf Message
-IStreamingDevice->>MessageConsumer: Protobuf Message
-MessageConsumer->>MessageConsumer: Decode Message
-MessageConsumer->>IDevice:OnMessageReceived()
+IStreamingDevice->>StreamMessageConsumer: Protobuf Message
+StreamMessageConsumer->>ProtobufMessageParser: Decode Message
+StreamMessageConsumer->>IDevice:OnMessageReceived()
 IDevice->>IChannel:Set Active Sample
 IChannel->>IChannel:Scale Sample(Expression)
 IChannel->>LoggingManager:OnChannelUpdated()

@@ -433,7 +433,7 @@ Once complete, desktop can:
 ```csharp
 // Before (legacy):
 MessageProducer = new Desktop.MessageProducer(stream);
-MessageConsumer = new Desktop.MessageConsumer(stream);
+MessageConsumer = new Desktop.TextMessageConsumer(stream);
 
 // After (CoreDeviceAdapter - should be this simple):
 var adapter = CoreDeviceAdapter.CreateTcpAdapter(host, port);
