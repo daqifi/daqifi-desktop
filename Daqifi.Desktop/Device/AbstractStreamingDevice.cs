@@ -5,7 +5,6 @@ using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.IO.Messages.Consumers;
-using Daqifi.Desktop.IO.Messages.Decoders;
 using Daqifi.Desktop.Models;
 using System.Text.RegularExpressions;
 using System.Globalization;
