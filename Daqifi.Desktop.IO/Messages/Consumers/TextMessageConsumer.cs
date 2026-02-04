@@ -1,15 +1,37 @@
 using System.Text;
 using Daqifi.Core.Communication.Messages;
+using Daqifi.Desktop.Common.Loggers;
 using Timer = System.Threading.Timer;
 
 namespace Daqifi.Desktop.IO.Messages.Consumers;
 
-public class TextMessageConsumer : AbstractMessageConsumer
+public delegate void OnMessageReceivedHandler(object sender, MessageEventArgs<object> e);
+
+public class TextMessageConsumer
 {
+    #region Private Data
+    private readonly AppLogger _appLogger = AppLogger.Instance;
+    private Thread? _consumerThread;
+    private volatile bool _running;
     private bool _isDisposed;
     private readonly StringBuilder _stringBuilder;
     private readonly Timer _processTimer;
     private const int PROCESS_DELAY_MS = 500; // Wait for more data before processing
+    #endregion
+
+    #region Properties
+    public bool Running
+    {
+        get => _running;
+        set => _running = value;
+    }
+
+    public Stream DataStream { get; set; }
+    #endregion
+
+    #region Events
+    public event OnMessageReceivedHandler? OnMessageReceived;
+    #endregion
 
     public TextMessageConsumer(Stream stream)
     {
@@ -18,7 +40,14 @@ public class TextMessageConsumer : AbstractMessageConsumer
         _processTimer = new Timer(ProcessAccumulatedData, null, Timeout.Infinite, Timeout.Infinite);
     }
 
-    public override void Run()
+    public void Start()
+    {
+        _running = true;
+        _consumerThread = new Thread(Run) { IsBackground = true };
+        _consumerThread.Start();
+    }
+
+    public void Run()
     {
         var buffer = new byte[4096];
 
@@ -66,7 +95,7 @@ public class TextMessageConsumer : AbstractMessageConsumer
             }
             catch (Exception ex)
             {
-                AppLogger.Error(ex, "Error reading text response");
+                _appLogger.Error(ex, "Error reading text response");
                 break; // Any error should cause us to exit
             }
         }
@@ -92,7 +121,7 @@ public class TextMessageConsumer : AbstractMessageConsumer
             }
 
             // Log the raw received data for debugging
-            AppLogger.Information($"Raw text response: {accumulated}");
+            _appLogger.Information($"Raw text response: {accumulated}");
 
             // Send the entire accumulated text as one message
             var textMessage = new TextMessage(accumulated);
@@ -101,11 +130,11 @@ public class TextMessageConsumer : AbstractMessageConsumer
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Error processing accumulated text data");
+            _appLogger.Error(ex, "Error processing accumulated text data");
         }
     }
 
-    public override void Stop()
+    public void Stop()
     {
         try
         {
@@ -119,11 +148,23 @@ public class TextMessageConsumer : AbstractMessageConsumer
             // Process any remaining data before stopping
             ProcessAccumulatedData(null);
 
-            base.Stop();
+            _running = false;
+            if (_consumerThread is { IsAlive: true })
+            {
+                if (!_consumerThread.Join(2000))
+                {
+                    _appLogger.Warning("Consumer thread did not stop within timeout period");
+                }
+            }
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, "Failed to stop TextMessageConsumer");
+            _appLogger.Error(ex, "Failed to stop TextMessageConsumer");
         }
+    }
+
+    public void NotifyMessageReceived(object sender, MessageEventArgs<object> e)
+    {
+        OnMessageReceived?.Invoke(sender, e);
     }
 }
