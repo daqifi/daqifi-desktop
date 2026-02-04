@@ -788,13 +788,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // Initialize protocol handler for automatic message routing
         InitializeProtocolHandler();
 
-        // Wire up message consumer to route through protocol handler
-        if (MessageConsumer != null)
-        {
-            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
-            MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
-        }
-
         if (RequestDeviceInfoOnInitialize)
         {
             // Request device info - protocol handler will automatically route the response
