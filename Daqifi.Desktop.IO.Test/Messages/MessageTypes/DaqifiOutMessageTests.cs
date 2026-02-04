@@ -1,4 +1,4 @@
-﻿using System.Net;
+﻿using Daqifi.Core.Device.Network;
 
 namespace Daqifi.Desktop.IO.Test.Messages.MessageTypes;
 
@@ -93,7 +93,7 @@ public class DaqifiOutMessageTests
         Assert.AreEqual((uint)4, protobufMessage.WifiSecurityMode);
         Assert.AreEqual((uint)9760, protobufMessage.DevicePort);
         Assert.AreEqual("CenturyLink0624", protobufMessage.Ssid);
-        Assert.AreEqual("192.168.0.45", new IPAddress(protobufMessage.IpAddr.ToByteArray()).ToString());
+        Assert.AreEqual("192.168.0.45", NetworkAddressHelper.GetIpAddressString(protobufMessage));
         Assert.AreEqual("Nq1", protobufMessage.DevicePn);
         Assert.AreEqual("1.0.3", protobufMessage.DeviceFwRev);
     }
