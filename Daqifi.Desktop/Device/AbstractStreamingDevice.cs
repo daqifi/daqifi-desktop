@@ -4,11 +4,8 @@ using Daqifi.Core.Device.Network;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.IO.Messages;
-using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.Models;
-using System.Text.RegularExpressions;
 using System.Globalization;
-using System.IO;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
@@ -131,7 +128,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public NetworkConfiguration NetworkConfiguration { get; set; } = new();
 
-    public TextMessageConsumer? MessageConsumer { get; set; }
     public List<IChannel> DataChannels { get; set; } = [];
 
     /// <summary>
@@ -343,87 +339,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
-    /// Handles text-based SD card messages.
-    /// SD card messages are text responses, not protobuf, so they bypass the protocol handler.
-    /// </summary>
-    private void OnSdCardMessageReceived(object sender, MessageEventArgs<object> e)
-    {
-        // Cast the data to the expected type
-        if (e.Message.Data is not string response)
-        {
-            AppLogger.Warning("Expected string response for SD card operation");
-            return;
-        }
-
-        try
-        {
-            // Check if this is a file list response (contains multiple lines with .bin files)
-            if (response.Contains(".bin"))
-            {
-                HandleFileListResponse(response);
-                // We're done with the text consumer, stop it
-                MessageConsumer.Stop();
-            }
-            else
-            {
-                AppLogger.Warning($"Unexpected SD card response format: {response.Substring(0, Math.Min(100, response.Length))}");
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "Error processing SD card message");
-        }
-    }
-
-    private void HandleFileListResponse(string response)
-    {
-        var files = response
-            .Split(["\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries)
-            .Select(path =>
-            {
-                var cleanPath = path.Trim();
-
-                // Remove the Daqifi/ prefix if present and get just the filename
-                var fileName = Path.GetFileName(cleanPath);
-
-                // For log files, try to parse the date from the filename
-                var createdDate = TryParseLogFileDate(fileName) ?? DateTime.MinValue;
-
-                return new SdCardFile
-                {
-                    FileName = fileName,
-                    CreatedDate = createdDate
-                };
-            })
-            .Where(file => !string.IsNullOrEmpty(file.FileName))
-            .ToList();
-
-        AppLogger.Information($"Found {files.Count} files on SD card");
-        UpdateSdCardFiles(files);
-    }
-
-    private DateTime? TryParseLogFileDate(string fileName)
-    {
-        // Try to parse date from log_YYYYMMDD_HHMMSS.bin format
-        var match = Regex.Match(fileName, @"log_(\d{8})_(\d{6})\.bin");
-        if (match.Success)
-        {
-            var dateStr = match.Groups[1].Value;
-            var timeStr = match.Groups[2].Value;
-            if (DateTime.TryParseExact(
-                    dateStr + timeStr,
-                    "yyyyMMddHHmmss",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out var result))
-            {
-                return result;
-            }
-        }
-        return null;
-    }
-
-    /// <summary>
     /// Routes a message through the protocol handler for processing.
     /// Called by derived classes (e.g., WiFi devices) that receive messages directly from Core's DaqifiDevice.
     /// </summary>
@@ -460,9 +375,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // Clean up old mode
         switch (Mode)
         {
-            case DeviceMode.StreamToApp:
-                StopMessageConsumer();
-                break;
             case DeviceMode.LogToDevice:
                 // Ensure SD card logging is stopped
                 StopSdCardLogging();
@@ -619,7 +531,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         SendMessage(ScpiMessageProducer.StartStreaming(StreamingFrequency));
         IsStreaming = true;
-        StartStreamingMessageConsumer();
     }
 
     public void StopStreaming()
@@ -639,7 +550,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         IsStreaming = false;
         SendMessage(ScpiMessageProducer.StopStreaming);
-        StopMessageConsumer();
 
         // Reset timestamp processor state for clean restart
         _timestampProcessor.ResetAll();
@@ -653,44 +563,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    protected void StartStreamingMessageConsumer()
-    {
-        if (Mode != DeviceMode.StreamToApp)
-        {
-            return; // Don't start consumer if not in streaming mode
-        }
-
-        // For Core-based devices (WiFi, Serial), MessageConsumer is null.
-        // They use _coreDevice.MessageReceived event instead - no action needed here.
-        if (MessageConsumer == null)
-        {
-            return;
-        }
-
-        // Legacy path: ensure event handler is wired up and consumer is running
-        // This is only used for devices that still use Desktop's MessageConsumer
-        MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
-        MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
-
-        if (!MessageConsumer.Running)
-        {
-            MessageConsumer.Start();
-        }
-    }
-
-    protected void StopMessageConsumer()
-    {
-        if (MessageConsumer != null)
-        {
-            // Unsubscribe from message events
-            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
-
-            if (MessageConsumer.Running)
-            {
-                MessageConsumer.Stop();
-            }
-        }
-    }
 
     protected void TurnOffEcho()
     {

@@ -388,20 +388,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             _transport = null;
         }
 
-        // Clean up Desktop's MessageConsumer if it was created for SD card operations
-        if (MessageConsumer != null)
-        {
-            try
-            {
-                MessageConsumer.Stop();
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Warning($"Error stopping message consumer during cleanup: {ex.Message}");
-            }
-            MessageConsumer = null;
-        }
-
         // Note: Port cleanup is now handled by transport
     }
 
