@@ -56,7 +56,7 @@ public interface IStreamingDevice : IDevice
     /// <summary>
     /// Gets or sets the message consumer for receiving device messages.
     /// Nullable because Core-based devices use DaqifiDevice.MessageReceived event directly.
-    /// Only used for SD card text-based operations (TextMessageConsumer).
+    /// Legacy-only (no longer required for SD card operations when using Daqifi.Core).
     /// </summary>
     TextMessageConsumer? MessageConsumer { get; set; }
 

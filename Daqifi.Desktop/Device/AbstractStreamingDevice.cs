@@ -15,6 +15,8 @@ using CommunityToolkit.Mvvm.ComponentModel; // Added using
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector, DeviceMetadata, DeviceCapabilities, DeviceState
 using Daqifi.Core.Device.Protocol; // Added for ProtobufProtocolHandler
 using Daqifi.Core.Communication.Messages; // Added for IInboundMessage
+using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
+using CoreSdCardFileInfo = Daqifi.Core.Device.SdCard.SdCardFileInfo;
 
 namespace Daqifi.Desktop.Device;
 
@@ -52,6 +54,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     // Protocol handler for automatic message routing
     private IProtocolHandler? _protocolHandler;
+
+    /// <summary>
+    /// Core streaming device used for SD card operations (USB devices only).
+    /// </summary>
+    protected virtual CoreStreamingDevice? CoreDeviceForSd => null;
 
     #region Properties
 
@@ -494,10 +501,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         try
         {
-            SendMessage(ScpiMessageProducer.EnableStorageSd);
-            SendMessage(ScpiMessageProducer.SetSdLoggingFileName($"log_{DateTime.Now:yyyyMMdd_HHmmss}.bin"));
-            SendMessage(ScpiMessageProducer.SetProtobufStreamFormat); // Set format for SD card logging
-
             // Enable any active channels
             foreach (var channel in DataChannels.Where(c => c.IsActive))
             {
@@ -512,10 +515,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 }
             }
 
-            // Start the device logging at the configured frequency
-            SendMessage(ScpiMessageProducer.StartStreaming(StreamingFrequency));
+            var coreDevice = GetCoreDeviceForSd();
+            coreDevice.StreamingFrequency = StreamingFrequency;
+            coreDevice.StartSdCardLoggingAsync().GetAwaiter().GetResult();
 
-            IsLoggingToSdCard = true;
+            IsLoggingToSdCard = coreDevice.IsLoggingToSdCard;
             IsStreaming = true; // We're streaming to SD card
             AppLogger.Information($"Enabled SD card logging for device {DeviceSerialNo}");
             OnPropertyChanged(nameof(IsLoggingToSdCard));
@@ -530,11 +534,15 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public void StopSdCardLogging()
     {
+        if (ConnectionType != ConnectionType.Usb)
+        {
+            throw new InvalidOperationException("SD Card logging is only available when connected via USB");
+        }
+
         try
         {
-            // Stop the device logging
-            SendMessage(ScpiMessageProducer.StopStreaming);
-            SendMessage(ScpiMessageProducer.DisableStorageSd);
+            var coreDevice = GetCoreDeviceForSd();
+            coreDevice.StopSdCardLoggingAsync().GetAwaiter().GetResult();
 
             IsLoggingToSdCard = false;
             IsStreaming = false;
@@ -556,53 +564,37 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             throw new InvalidOperationException("SD Card access is only available when connected via USB");
         }
 
-        if (MessageConsumer == null)
-        {
-            throw new InvalidOperationException("MessageConsumer is required for SD card operations");
-        }
-
-        var stream = MessageConsumer.DataStream;
-
-        // Stop existing consumer first
-        if (MessageConsumer.Running)
-        {
-            MessageConsumer.Stop();
-        }
-
-        // Create and start the new consumer BEFORE sending any commands
-        MessageConsumer = new TextMessageConsumer(stream);
-        // Wire up SD card message handler (text-based, not protobuf)
-        MessageConsumer.OnMessageReceived += OnSdCardMessageReceived;
-        MessageConsumer.Start();
-
-        // Give the consumer a moment to fully initialize
-        Thread.Sleep(50);
-
-        // Now that we're listening, prepare the SD interface
-        PrepareSdInterface();
-
-        // Give the interface time to switch and send any responses
-        Thread.Sleep(100);
-
-        // Now request the file list
-        SendMessage(ScpiMessageProducer.GetSdFileList);
-
-        // Give time for the file list response to be received
-        Thread.Sleep(500);
-
-        // After getting the file list, restore LAN interface if we're in StreamToApp mode
-        // SD and LAN share the same SPI bus and cannot be enabled simultaneously
-        if (Mode == DeviceMode.StreamToApp)
-        {
-            SendMessage(ScpiMessageProducer.DisableStorageSd);
-            SendMessage(ScpiMessageProducer.EnableNetworkLan);
-        }
+        var coreDevice = GetCoreDeviceForSd();
+        var files = coreDevice.GetSdCardFilesAsync().GetAwaiter().GetResult();
+        UpdateSdCardFiles(MapSdCardFiles(files));
     }
 
     public void UpdateSdCardFiles(List<SdCardFile> files)
     {
         _sdCardFiles = files;
         OnPropertyChanged(nameof(SdCardFiles));
+    }
+
+    private CoreStreamingDevice GetCoreDeviceForSd()
+    {
+        var coreDevice = CoreDeviceForSd;
+        if (coreDevice == null)
+        {
+            throw new InvalidOperationException("Core SD card operations are not available for this device.");
+        }
+
+        return coreDevice;
+    }
+
+    private static List<SdCardFile> MapSdCardFiles(IEnumerable<CoreSdCardFileInfo> files)
+    {
+        return files.Select(file => new SdCardFile
+            {
+                FileName = file.FileName,
+                CreatedDate = file.CreatedDate ?? DateTime.MinValue
+            })
+            .Where(file => !string.IsNullOrWhiteSpace(file.FileName))
+            .ToList();
     }
 
     public void InitializeStreaming()
