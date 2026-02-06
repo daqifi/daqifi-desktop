@@ -13,6 +13,7 @@ using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector, DeviceMet
 using Daqifi.Core.Device.Protocol; // Added for ProtobufProtocolHandler
 using Daqifi.Core.Communication.Messages; // Added for IInboundMessage
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
+using Daqifi.Core.Device.SdCard;
 using CoreSdCardFileInfo = Daqifi.Core.Device.SdCard.SdCardFileInfo;
 
 namespace Daqifi.Desktop.Device;
@@ -496,6 +497,21 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         return coreDevice;
+    }
+
+    public async Task<SdCardDownloadResult> DownloadSdCardFileAsync(
+        string fileName,
+        IProgress<SdCardTransferProgress>? progress = null,
+        CancellationToken ct = default)
+    {
+        var coreDevice = GetCoreDeviceForSd();
+        return await coreDevice.DownloadSdCardFileAsync(fileName, progress, ct);
+    }
+
+    public async Task DeleteSdCardFileAsync(string fileName, CancellationToken ct = default)
+    {
+        var coreDevice = GetCoreDeviceForSd();
+        await coreDevice.DeleteSdCardFileAsync(fileName, ct);
     }
 
     private static List<SdCardFile> MapSdCardFiles(IEnumerable<CoreSdCardFileInfo> files)
