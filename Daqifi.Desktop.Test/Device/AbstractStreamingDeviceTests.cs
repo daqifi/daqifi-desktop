@@ -1,6 +1,5 @@
 using Daqifi.Desktop.Device;
 using Daqifi.Core.Device.Network;
-using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
 using Moq;

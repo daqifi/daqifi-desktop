@@ -1,7 +1,6 @@
 ﻿using Daqifi.Desktop.Channel;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using Daqifi.Core.Device.Network;
-using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.Models;
 
 namespace Daqifi.Desktop.Device;
@@ -52,13 +51,6 @@ public interface IStreamingDevice : IDevice
     /// Returns COM port for USB devices, IP address for WiFi devices.
     /// </summary>
     string DisplayIdentifier { get; }
-
-    /// <summary>
-    /// Gets or sets the message consumer for receiving device messages.
-    /// Nullable because Core-based devices use DaqifiDevice.MessageReceived event directly.
-    /// Only used for SD card text-based operations (TextMessageConsumer).
-    /// </summary>
-    TextMessageConsumer? MessageConsumer { get; set; }
 
     List<IChannel> DataChannels { get; set; }
 

@@ -4,17 +4,16 @@ using Daqifi.Core.Device.Network;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.IO.Messages;
-using Daqifi.Desktop.IO.Messages.Consumers;
 using Daqifi.Desktop.Models;
-using System.Text.RegularExpressions;
 using System.Globalization;
-using System.IO;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector, DeviceMetadata, DeviceCapabilities, DeviceState
 using Daqifi.Core.Device.Protocol; // Added for ProtobufProtocolHandler
 using Daqifi.Core.Communication.Messages; // Added for IInboundMessage
+using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
+using CoreSdCardFileInfo = Daqifi.Core.Device.SdCard.SdCardFileInfo;
 
 namespace Daqifi.Desktop.Device;
 
@@ -52,6 +51,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     // Protocol handler for automatic message routing
     private IProtocolHandler? _protocolHandler;
+
+    /// <summary>
+    /// Core streaming device used for SD card operations (USB devices only).
+    /// </summary>
+    protected virtual CoreStreamingDevice? CoreDeviceForSd => null;
 
     #region Properties
 
@@ -124,7 +128,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public NetworkConfiguration NetworkConfiguration { get; set; } = new();
 
-    public TextMessageConsumer? MessageConsumer { get; set; }
     public List<IChannel> DataChannels { get; set; } = [];
 
     /// <summary>
@@ -336,87 +339,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
-    /// Handles text-based SD card messages.
-    /// SD card messages are text responses, not protobuf, so they bypass the protocol handler.
-    /// </summary>
-    private void OnSdCardMessageReceived(object sender, MessageEventArgs<object> e)
-    {
-        // Cast the data to the expected type
-        if (e.Message.Data is not string response)
-        {
-            AppLogger.Warning("Expected string response for SD card operation");
-            return;
-        }
-
-        try
-        {
-            // Check if this is a file list response (contains multiple lines with .bin files)
-            if (response.Contains(".bin"))
-            {
-                HandleFileListResponse(response);
-                // We're done with the text consumer, stop it
-                MessageConsumer.Stop();
-            }
-            else
-            {
-                AppLogger.Warning($"Unexpected SD card response format: {response.Substring(0, Math.Min(100, response.Length))}");
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "Error processing SD card message");
-        }
-    }
-
-    private void HandleFileListResponse(string response)
-    {
-        var files = response
-            .Split(["\r\n", "\n", "\r"], StringSplitOptions.RemoveEmptyEntries)
-            .Select(path =>
-            {
-                var cleanPath = path.Trim();
-
-                // Remove the Daqifi/ prefix if present and get just the filename
-                var fileName = Path.GetFileName(cleanPath);
-
-                // For log files, try to parse the date from the filename
-                var createdDate = TryParseLogFileDate(fileName) ?? DateTime.MinValue;
-
-                return new SdCardFile
-                {
-                    FileName = fileName,
-                    CreatedDate = createdDate
-                };
-            })
-            .Where(file => !string.IsNullOrEmpty(file.FileName))
-            .ToList();
-
-        AppLogger.Information($"Found {files.Count} files on SD card");
-        UpdateSdCardFiles(files);
-    }
-
-    private DateTime? TryParseLogFileDate(string fileName)
-    {
-        // Try to parse date from log_YYYYMMDD_HHMMSS.bin format
-        var match = Regex.Match(fileName, @"log_(\d{8})_(\d{6})\.bin");
-        if (match.Success)
-        {
-            var dateStr = match.Groups[1].Value;
-            var timeStr = match.Groups[2].Value;
-            if (DateTime.TryParseExact(
-                    dateStr + timeStr,
-                    "yyyyMMddHHmmss",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out var result))
-            {
-                return result;
-            }
-        }
-        return null;
-    }
-
-    /// <summary>
     /// Routes a message through the protocol handler for processing.
     /// Called by derived classes (e.g., WiFi devices) that receive messages directly from Core's DaqifiDevice.
     /// </summary>
@@ -453,9 +375,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // Clean up old mode
         switch (Mode)
         {
-            case DeviceMode.StreamToApp:
-                StopMessageConsumer();
-                break;
             case DeviceMode.LogToDevice:
                 // Ensure SD card logging is stopped
                 StopSdCardLogging();
@@ -494,10 +413,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         try
         {
-            SendMessage(ScpiMessageProducer.EnableStorageSd);
-            SendMessage(ScpiMessageProducer.SetSdLoggingFileName($"log_{DateTime.Now:yyyyMMdd_HHmmss}.bin"));
-            SendMessage(ScpiMessageProducer.SetProtobufStreamFormat); // Set format for SD card logging
-
             // Enable any active channels
             foreach (var channel in DataChannels.Where(c => c.IsActive))
             {
@@ -512,10 +427,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 }
             }
 
-            // Start the device logging at the configured frequency
-            SendMessage(ScpiMessageProducer.StartStreaming(StreamingFrequency));
+            var coreDevice = GetCoreDeviceForSd();
+            coreDevice.StreamingFrequency = StreamingFrequency;
+            coreDevice.StartSdCardLoggingAsync().GetAwaiter().GetResult();
 
-            IsLoggingToSdCard = true;
+            IsLoggingToSdCard = coreDevice.IsLoggingToSdCard;
             IsStreaming = true; // We're streaming to SD card
             AppLogger.Information($"Enabled SD card logging for device {DeviceSerialNo}");
             OnPropertyChanged(nameof(IsLoggingToSdCard));
@@ -530,11 +446,15 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public void StopSdCardLogging()
     {
+        if (ConnectionType != ConnectionType.Usb)
+        {
+            throw new InvalidOperationException("SD Card logging is only available when connected via USB");
+        }
+
         try
         {
-            // Stop the device logging
-            SendMessage(ScpiMessageProducer.StopStreaming);
-            SendMessage(ScpiMessageProducer.DisableStorageSd);
+            var coreDevice = GetCoreDeviceForSd();
+            coreDevice.StopSdCardLoggingAsync().GetAwaiter().GetResult();
 
             IsLoggingToSdCard = false;
             IsStreaming = false;
@@ -556,53 +476,37 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             throw new InvalidOperationException("SD Card access is only available when connected via USB");
         }
 
-        if (MessageConsumer == null)
-        {
-            throw new InvalidOperationException("MessageConsumer is required for SD card operations");
-        }
-
-        var stream = MessageConsumer.DataStream;
-
-        // Stop existing consumer first
-        if (MessageConsumer.Running)
-        {
-            MessageConsumer.Stop();
-        }
-
-        // Create and start the new consumer BEFORE sending any commands
-        MessageConsumer = new TextMessageConsumer(stream);
-        // Wire up SD card message handler (text-based, not protobuf)
-        MessageConsumer.OnMessageReceived += OnSdCardMessageReceived;
-        MessageConsumer.Start();
-
-        // Give the consumer a moment to fully initialize
-        Thread.Sleep(50);
-
-        // Now that we're listening, prepare the SD interface
-        PrepareSdInterface();
-
-        // Give the interface time to switch and send any responses
-        Thread.Sleep(100);
-
-        // Now request the file list
-        SendMessage(ScpiMessageProducer.GetSdFileList);
-
-        // Give time for the file list response to be received
-        Thread.Sleep(500);
-
-        // After getting the file list, restore LAN interface if we're in StreamToApp mode
-        // SD and LAN share the same SPI bus and cannot be enabled simultaneously
-        if (Mode == DeviceMode.StreamToApp)
-        {
-            SendMessage(ScpiMessageProducer.DisableStorageSd);
-            SendMessage(ScpiMessageProducer.EnableNetworkLan);
-        }
+        var coreDevice = GetCoreDeviceForSd();
+        var files = coreDevice.GetSdCardFilesAsync().GetAwaiter().GetResult();
+        UpdateSdCardFiles(MapSdCardFiles(files));
     }
 
     public void UpdateSdCardFiles(List<SdCardFile> files)
     {
         _sdCardFiles = files;
         OnPropertyChanged(nameof(SdCardFiles));
+    }
+
+    private CoreStreamingDevice GetCoreDeviceForSd()
+    {
+        var coreDevice = CoreDeviceForSd;
+        if (coreDevice == null)
+        {
+            throw new InvalidOperationException("Core SD card operations are not available for this device.");
+        }
+
+        return coreDevice;
+    }
+
+    private static List<SdCardFile> MapSdCardFiles(IEnumerable<CoreSdCardFileInfo> files)
+    {
+        return files.Select(file => new SdCardFile
+            {
+                FileName = file.FileName,
+                CreatedDate = file.CreatedDate ?? DateTime.MinValue
+            })
+            .Where(file => !string.IsNullOrWhiteSpace(file.FileName))
+            .ToList();
     }
 
     public void InitializeStreaming()
@@ -627,7 +531,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         SendMessage(ScpiMessageProducer.StartStreaming(StreamingFrequency));
         IsStreaming = true;
-        StartStreamingMessageConsumer();
     }
 
     public void StopStreaming()
@@ -647,7 +550,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         IsStreaming = false;
         SendMessage(ScpiMessageProducer.StopStreaming);
-        StopMessageConsumer();
 
         // Reset timestamp processor state for clean restart
         _timestampProcessor.ResetAll();
@@ -661,44 +563,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    protected void StartStreamingMessageConsumer()
-    {
-        if (Mode != DeviceMode.StreamToApp)
-        {
-            return; // Don't start consumer if not in streaming mode
-        }
-
-        // For Core-based devices (WiFi, Serial), MessageConsumer is null.
-        // They use _coreDevice.MessageReceived event instead - no action needed here.
-        if (MessageConsumer == null)
-        {
-            return;
-        }
-
-        // Legacy path: ensure event handler is wired up and consumer is running
-        // This is only used for devices that still use Desktop's MessageConsumer
-        MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
-        MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
-
-        if (!MessageConsumer.Running)
-        {
-            MessageConsumer.Start();
-        }
-    }
-
-    protected void StopMessageConsumer()
-    {
-        if (MessageConsumer != null)
-        {
-            // Unsubscribe from message events
-            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
-
-            if (MessageConsumer.Running)
-            {
-                MessageConsumer.Stop();
-            }
-        }
-    }
 
     protected void TurnOffEcho()
     {
@@ -923,13 +787,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         // Initialize protocol handler for automatic message routing
         InitializeProtocolHandler();
-
-        // Wire up message consumer to route through protocol handler
-        if (MessageConsumer != null)
-        {
-            MessageConsumer.OnMessageReceived -= OnInboundMessageReceived;
-            MessageConsumer.OnMessageReceived += OnInboundMessageReceived;
-        }
 
         if (RequestDeviceInfoOnInitialize)
         {

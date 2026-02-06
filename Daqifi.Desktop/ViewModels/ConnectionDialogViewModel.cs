@@ -184,12 +184,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     private async Task ConnectSerialAsync(object selectedItems)
     {
-        StopSerialDiscovery();
+        await StopSerialDiscoveryAsync();
 
         var selectedDevices = ((IEnumerable)selectedItems).Cast<IStreamingDevice>();
         foreach (var device in selectedDevices)
         {
-
             await ConnectionManager.Instance.Connect(device);
         }
     }
@@ -400,7 +399,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
     public void Close()
     {
         StopWiFiDiscovery();
-        StopSerialDiscovery();
+        // Fire-and-forget: cancel discovery and clean up without waiting for task completion
+        _ = StopSerialDiscoveryAsync();
         StopHidDiscovery();
     }
 
@@ -419,9 +419,35 @@ public partial class ConnectionDialogViewModel : ObservableObject
         _wifiDiscoveryCts = null;
     }
 
-    private void StopSerialDiscovery()
+    private async Task StopSerialDiscoveryAsync()
     {
         _serialDiscoveryCts?.Cancel();
+
+        // Wait for the discovery task to complete so that the serial port is fully released
+        if (_serialDiscoveryTask != null)
+        {
+            try
+            {
+                await _serialDiscoveryTask.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (TimeoutException)
+            {
+                Common.Loggers.AppLogger.Instance.Warning("Serial discovery task did not complete within timeout");
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected on cancellation
+            }
+            catch (ObjectDisposedException)
+            {
+                // Expected during shutdown
+            }
+            catch (Exception ex)
+            {
+                Common.Loggers.AppLogger.Instance.Error(ex, "Unexpected error while stopping serial discovery");
+            }
+            _serialDiscoveryTask = null;
+        }
 
         if (_serialFinder != null)
         {

@@ -6,6 +6,7 @@ using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Device.Protocol;
 using Daqifi.Desktop.IO.Messages;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
+using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
@@ -13,7 +14,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
 {
     #region Properties
     private SerialPort? _port;
-    private DaqifiDevice? _coreDevice;
+    private CoreStreamingDevice? _coreDevice;
     private SerialStreamTransport? _transport;
 
     public SerialPort? Port
@@ -47,6 +48,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     /// Disable base class device info request since Core handles initialization via InitializeAsync.
     /// </summary>
     protected override bool RequestDeviceInfoOnInitialize => false;
+
+    protected override CoreStreamingDevice? CoreDeviceForSd => _coreDevice;
     #endregion
 
     #region Constructor
@@ -250,7 +253,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
             _transport.Connect();
 
             // Create Core device with transport - this enables both sending AND receiving
-            _coreDevice = new DaqifiDevice(
+            _coreDevice = new CoreStreamingDevice(
                 string.IsNullOrWhiteSpace(Name) ? "DAQiFi Serial Device" : Name,
                 _transport);
             _coreDevice.Connect();
@@ -383,20 +386,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
                 AppLogger.Warning($"Error disconnecting transport during cleanup: {ex.Message}");
             }
             _transport = null;
-        }
-
-        // Clean up Desktop's MessageConsumer if it was created for SD card operations
-        if (MessageConsumer != null)
-        {
-            try
-            {
-                MessageConsumer.Stop();
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Warning($"Error stopping message consumer during cleanup: {ex.Message}");
-            }
-            MessageConsumer = null;
         }
 
         // Note: Port cleanup is now handled by transport

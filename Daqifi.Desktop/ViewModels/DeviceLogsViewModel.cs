@@ -148,11 +148,8 @@ public partial class DeviceLogsViewModel : ObservableObject
             // Clear existing files
             DeviceFiles.Clear();
 
-            // Request file list from device
-            SelectedDevice.RefreshSdCardFiles();
-
-            // Wait for a moment to let the device respond
-            await Task.Delay(1000);
+            // Request file list from device without blocking the UI thread
+            await Task.Run(() => SelectedDevice.RefreshSdCardFiles());
 
             // Update our list with any files found
             foreach (var file in SelectedDevice.SdCardFiles)
