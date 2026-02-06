@@ -434,9 +434,17 @@ public partial class ConnectionDialogViewModel : ObservableObject
             {
                 Common.Loggers.AppLogger.Instance.Warning("Serial discovery task did not complete within timeout");
             }
-            catch (Exception)
+            catch (OperationCanceledException)
             {
-                // Expected - task may throw OperationCanceledException or ObjectDisposedException
+                // Expected on cancellation
+            }
+            catch (ObjectDisposedException)
+            {
+                // Expected during shutdown
+            }
+            catch (Exception ex)
+            {
+                Common.Loggers.AppLogger.Instance.Error(ex, "Unexpected error while stopping serial discovery");
             }
             _serialDiscoveryTask = null;
         }
