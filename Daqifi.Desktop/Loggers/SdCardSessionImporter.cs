@@ -85,9 +85,29 @@ public class SdCardSessionImporter
 
         try
         {
-            // Parse and import
+            // Log download result for diagnostics
+            var fileInfo = new FileInfo(downloadResult.FilePath);
+            _logger.Information(
+                $"Download complete: FileName='{downloadResult.FileName}', " +
+                $"ReportedSize={downloadResult.FileSize}, " +
+                $"DiskSize={fileInfo.Length}, " +
+                $"TempPath='{downloadResult.FilePath}'");
+
+            if (fileInfo.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Downloaded file '{fileName}' is empty (0 bytes). " +
+                    "The SD card log file may not contain any data.");
+            }
+
+            // Parse using the original device filename (not the temp path)
+            // so the parser can extract the date from the log filename pattern
             var parser = new SdCardFileParser();
-            var logSession = await parser.ParseFileAsync(downloadResult.FilePath, null, ct);
+            await using var fileStream = new FileStream(
+                downloadResult.FilePath, FileMode.Open, FileAccess.Read,
+                FileShare.Read, 65536, useAsync: true);
+            var logSession = await parser.ParseAsync(
+                fileStream, downloadResult.FileName, null, ct);
             var session = await ImportSessionAsync(logSession, options, progress, ct);
 
             // Optionally delete from device after successful import
@@ -224,6 +244,13 @@ public class SdCardSessionImporter
             samplesProcessed += batch.Count;
             batch.Clear();
             progress?.Report(new ImportProgress(samplesProcessed, null));
+        }
+
+        if (samplesProcessed == 0)
+        {
+            _logger.Warning(
+                $"No samples found in SD card file '{logSession.FileName}'. " +
+                $"DeviceConfig present: {config != null}");
         }
 
         _logger.Information($"Imported {samplesProcessed} samples for session '{session.Name}' (ID={session.ID})");
