@@ -137,6 +137,10 @@ public class SdCardSessionImporter
         var analogPortCount = config?.AnalogPortCount ?? 0;
         var digitalPortCount = config?.DigitalPortCount ?? 0;
 
+        _logger.Information(
+            $"SD card session config: AnalogPorts={analogPortCount}, DigitalPorts={digitalPortCount}, " +
+            $"Device={deviceSerialNo}, TimestampFreq={config?.TimestampFrequency ?? 0}");
+
         // Pre-assign colors per channel
         var channelColors = new Dictionary<string, string>();
         AssignChannelColors(channelColors, analogPortCount, digitalPortCount);
@@ -147,13 +151,24 @@ public class SdCardSessionImporter
         // Bulk-insert samples
         var batch = new List<DataSample>();
         long samplesProcessed = 0;
+        var isFirstSample = true;
 
         await foreach (var entry in logSession.Samples.WithCancellation(ct))
         {
+            // Log first sample details for diagnostics
+            if (isFirstSample)
+            {
+                _logger.Information(
+                    $"First sample: AnalogValues.Count={entry.AnalogValues.Count}, " +
+                    $"DigitalData=0x{entry.DigitalData:X8}, Timestamp={entry.Timestamp:O}");
+                isFirstSample = false;
+            }
+
             // If we didn't have config, discover channel count from first entry
             if (analogPortCount == 0 && entry.AnalogValues.Count > 0)
             {
                 analogPortCount = entry.AnalogValues.Count;
+                _logger.Information($"Discovered {analogPortCount} analog channels from first sample");
                 AssignChannelColors(channelColors, analogPortCount, digitalPortCount);
             }
 

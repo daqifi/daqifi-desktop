@@ -217,7 +217,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     private void OnStreamMessageReceived(DaqifiOutMessage message)
     {
-        if (!IsStreaming)
+        if (!IsStreaming || Mode == DeviceMode.LogToDevice)
         {
             return;
         }
@@ -414,18 +414,32 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         try
         {
-            // Enable any active channels
+            // Enable active channels — build a single bitmask for all analog channels
+            // (each EnableAdcChannels call replaces the previous setting, so we must send all at once)
+            var analogChannelMask = 0u;
+            var hasDigitalChannels = false;
+
             foreach (var channel in DataChannels.Where(c => c.IsActive))
             {
                 if (channel.Type == ChannelType.Analog)
                 {
-                    var channelSetByte = 1u << channel.Index; // Use unsigned int for consistency
-                    SendMessage(ScpiMessageProducer.EnableAdcChannels(channelSetByte.ToString(CultureInfo.InvariantCulture)));
+                    analogChannelMask |= 1u << channel.Index;
                 }
                 else if (channel.Type == ChannelType.Digital)
                 {
-                    SendMessage(ScpiMessageProducer.EnableDioPorts());
+                    hasDigitalChannels = true;
                 }
+            }
+
+            if (analogChannelMask != 0)
+            {
+                SendMessage(ScpiMessageProducer.EnableAdcChannels(
+                    analogChannelMask.ToString(CultureInfo.InvariantCulture)));
+            }
+
+            if (hasDigitalChannels)
+            {
+                SendMessage(ScpiMessageProducer.EnableDioPorts());
             }
 
             var coreDevice = GetCoreDeviceForSd();
