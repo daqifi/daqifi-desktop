@@ -166,9 +166,10 @@ public partial class DeviceLogsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            _logger.Error(ex, "Failed to refresh SD card files");
             await Application.Current.Dispatcher.InvokeAsync(async () =>
             {
-                await ShowMessage("Error", $"Failed to refresh files: {ex.Message}", MessageDialogStyle.Affirmative);
+                await ShowMessage("Error", "Failed to refresh files. Please check the device connection and try again.", MessageDialogStyle.Affirmative);
             });
         }
         finally
@@ -216,7 +217,7 @@ public partial class DeviceLogsViewModel : ObservableObject
         {
             _logger.Error(ex, $"Error importing {file.FileName}");
             await ShowMessage("Import Failed",
-                $"Failed to import {file.FileName}: {ex.Message}",
+                $"Failed to import {file.FileName}. Please check the device connection and try again.",
                 MessageDialogStyle.Affirmative);
         }
         finally
@@ -283,7 +284,7 @@ public partial class DeviceLogsViewModel : ObservableObject
         {
             _logger.Error(ex, "Error importing all files");
             await ShowMessage("Import Failed",
-                $"Import failed: {ex.Message}",
+                "Import failed. Please check the device connection and try again.",
                 MessageDialogStyle.Affirmative);
         }
         finally

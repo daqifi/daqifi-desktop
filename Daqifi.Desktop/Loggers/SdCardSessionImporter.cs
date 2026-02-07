@@ -31,6 +31,7 @@ public class SdCardSessionImporter
         IProgress<ImportProgress>? progress = null,
         CancellationToken ct = default)
     {
+        _logger.Information($"Starting file import from '{Path.GetFileName(filePath)}'");
         var parser = new SdCardFileParser();
         var logSession = await parser.ParseFileAsync(filePath, null, ct);
         return await ImportSessionAsync(logSession, options, progress, ct);
@@ -46,6 +47,7 @@ public class SdCardSessionImporter
         IProgress<ImportProgress>? progress = null,
         CancellationToken ct = default)
     {
+        _logger.Information($"Starting stream import for '{fileName}'");
         var parser = new SdCardFileParser();
         var logSession = await parser.ParseAsync(stream, fileName, null, ct);
         return await ImportSessionAsync(logSession, options, progress, ct);
@@ -63,31 +65,54 @@ public class SdCardSessionImporter
     {
         options ??= new ImportOptions();
 
+        _logger.Information($"Starting import of '{fileName}' from device {device.DeviceSerialNo}");
+
         // Download to temp file
         var downloadResult = await device.DownloadSdCardFileAsync(fileName, null, ct);
+
+        if (string.IsNullOrEmpty(downloadResult.FilePath))
+        {
+            throw new InvalidOperationException($"Download completed but no local file path was returned for '{fileName}'.");
+        }
+
+        // Validate the downloaded file is in a temp directory
+        var tempDir = Path.GetTempPath();
+        var fullDownloadPath = Path.GetFullPath(downloadResult.FilePath);
+        if (!fullDownloadPath.StartsWith(tempDir, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Downloaded file path is not in the expected temp directory.");
+        }
 
         try
         {
             // Parse and import
             var parser = new SdCardFileParser();
-            var logSession = await parser.ParseFileAsync(downloadResult.FilePath!, null, ct);
+            var logSession = await parser.ParseFileAsync(downloadResult.FilePath, null, ct);
             var session = await ImportSessionAsync(logSession, options, progress, ct);
 
             // Optionally delete from device after successful import
             if (options.DeleteFromDeviceAfterImport)
             {
+                _logger.Information($"Deleting '{fileName}' from device after successful import");
                 await device.DeleteSdCardFileAsync(fileName, ct);
             }
 
+            _logger.Information($"Successfully imported '{fileName}' from device {device.DeviceSerialNo}");
             return session;
         }
         finally
         {
             // Clean up temp file
-            if (downloadResult.FilePath != null && File.Exists(downloadResult.FilePath))
+            if (File.Exists(downloadResult.FilePath))
             {
-                try { File.Delete(downloadResult.FilePath); }
-                catch { /* best effort cleanup */ }
+                try
+                {
+                    File.Delete(downloadResult.FilePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warning($"Failed to clean up temp file '{downloadResult.FilePath}': {ex.Message}");
+                }
             }
         }
     }

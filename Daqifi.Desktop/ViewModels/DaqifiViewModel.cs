@@ -976,7 +976,7 @@ public partial class DaqifiViewModel : ObservableObject
         {
             _appLogger.Error(ex, "Error importing SD card log file");
             await ShowMessage("Import Failed",
-                $"Failed to import file: {ex.Message}",
+                "Failed to import the selected file. Please verify the file is a valid SD card log file and try again.",
                 MessageDialogStyle.Affirmative);
         }
         finally
