@@ -39,6 +39,12 @@ public interface IStreamingDevice : IDevice
     void RefreshSdCardFiles();
     void UpdateSdCardFiles(List<SdCardFile> files);
     string DevicePartNumber { get; }
+
+    /// <summary>
+    /// Gets the device's hardware timestamp clock frequency in Hz.
+    /// Used as a fallback when parsing SD card files that lack this field.
+    /// </summary>
+    uint TimestampFrequency { get; }
     NetworkConfiguration NetworkConfiguration { get; }
     string MacAddress { get; set; }
     string DeviceSerialNo { get; set; }

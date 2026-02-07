@@ -101,13 +101,26 @@ public class SdCardSessionImporter
             }
 
             // Parse using the original device filename (not the temp path)
-            // so the parser can extract the date from the log filename pattern
+            // so the parser can extract the date from the log filename pattern.
+            // Pass the device's TimestampFrequency as fallback since firmware
+            // may not include it in SD card log data.
+            var parseOptions = new SdCardParseOptions
+            {
+                FallbackTimestampFrequency = device.TimestampFrequency
+            };
+
+            if (parseOptions.FallbackTimestampFrequency > 0)
+            {
+                _logger.Information(
+                    $"Using device TimestampFrequency={parseOptions.FallbackTimestampFrequency} Hz as fallback for SD card parsing");
+            }
+
             var parser = new SdCardFileParser();
             await using var fileStream = new FileStream(
                 downloadResult.FilePath, FileMode.Open, FileAccess.Read,
                 FileShare.Read, 65536, useAsync: true);
             var logSession = await parser.ParseAsync(
-                fileStream, downloadResult.FileName, null, ct);
+                fileStream, downloadResult.FileName, parseOptions, ct);
             var session = await ImportSessionAsync(logSession, options, progress, ct);
 
             // Optionally delete from device after successful import

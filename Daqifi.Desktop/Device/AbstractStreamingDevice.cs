@@ -140,6 +140,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public bool IsStreaming { get; set; }
     public bool IsFirmwareOutdated { get; set; }
 
+    /// <summary>
+    /// Gets the device's hardware timestamp clock frequency in Hz.
+    /// Populated from the device's status message (<c>TimestampFreq</c> field).
+    /// Used as a fallback when parsing SD card files that lack this field.
+    /// </summary>
+    public uint TimestampFrequency { get; private set; }
+
     // Debug mode properties
     public bool IsDebugModeEnabled { get; private set; }
     public event Action<DebugDataModel>? DebugDataReceived;
@@ -787,6 +794,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         DeviceType = Metadata.DeviceType;
         IpAddress = Metadata.IpAddress;
         MacAddress = Metadata.MacAddress;
+
+        // Store timestamp frequency for SD card import fallback
+        if (message.TimestampFreq != 0)
+        {
+            TimestampFrequency = message.TimestampFreq;
+        }
 
         // Update NetworkConfiguration from metadata
         if (!string.IsNullOrWhiteSpace(Metadata.Ssid))
