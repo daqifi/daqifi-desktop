@@ -168,21 +168,30 @@ public class SdCardSessionImporter
         // Create the logging session in the database
         var session = CreateSession(logSession, options);
 
+        if ((config?.TimestampFrequency ?? 0) == 0)
+        {
+            _logger.Warning(
+                "No TimestampFrequency found in SD card file. " +
+                "Timestamps may not be properly reconstructed. " +
+                "Device firmware may not include TimestampFreq in logged messages.");
+        }
+
         // Bulk-insert samples
         var batch = new List<DataSample>();
         long samplesProcessed = 0;
-        var isFirstSample = true;
+        var sampleIndex = 0;
 
         await foreach (var entry in logSession.Samples.WithCancellation(ct))
         {
-            // Log first sample details for diagnostics
-            if (isFirstSample)
+            // Log first and second sample for diagnostics (to verify timestamps are spaced correctly)
+            if (sampleIndex < 2)
             {
                 _logger.Information(
-                    $"First sample: AnalogValues.Count={entry.AnalogValues.Count}, " +
+                    $"Sample[{sampleIndex}]: AnalogValues.Count={entry.AnalogValues.Count}, " +
                     $"DigitalData=0x{entry.DigitalData:X8}, Timestamp={entry.Timestamp:O}");
-                isFirstSample = false;
             }
+
+            sampleIndex++;
 
             // If we didn't have config, discover channel count from first entry
             if (analogPortCount == 0 && entry.AnalogValues.Count > 0)
