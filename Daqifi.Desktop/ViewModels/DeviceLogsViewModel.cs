@@ -4,14 +4,21 @@ using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
-using System.Windows.Input;
+using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels;
 
 public partial class DeviceLogsViewModel : ObservableObject
 {
+    private readonly AppLogger _logger = AppLogger.Instance;
+
     [ObservableProperty]
     private bool _isBusy;
 
@@ -159,10 +166,126 @@ public partial class DeviceLogsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            _logger.Error(ex, "Failed to refresh SD card files");
             await Application.Current.Dispatcher.InvokeAsync(async () =>
             {
-                await ShowMessage("Error", $"Failed to refresh files: {ex.Message}", MessageDialogStyle.Affirmative);
+                await ShowMessage("Error", "Failed to refresh files. Please check the device connection and try again.", MessageDialogStyle.Affirmative);
             });
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyMessage = string.Empty;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportFile(SdCardFile? file)
+    {
+        if (file == null || SelectedDevice == null || !CanAccessSdCard) return;
+
+        try
+        {
+            IsBusy = true;
+            BusyMessage = $"Downloading {file.FileName}...";
+
+            var loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+            var importer = new SdCardSessionImporter(loggingContext);
+
+            var progress = new Progress<ImportProgress>(p =>
+            {
+                BusyMessage = $"Importing {file.FileName}... {p.SamplesProcessed:N0} samples";
+            });
+
+            var session = await Task.Run(() =>
+                importer.ImportFromDeviceAsync(SelectedDevice, file.FileName, null, progress, CancellationToken.None));
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                LoggingManager.Instance.LoggingSessions.Add(session);
+            });
+
+            await ShowMessage("Import Complete",
+                $"Successfully imported {file.FileName}",
+                MessageDialogStyle.Affirmative);
+        }
+        catch (OperationCanceledException)
+        {
+            // User cancelled
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, $"Error importing {file.FileName}");
+            await ShowMessage("Import Failed",
+                $"Failed to import {file.FileName}. Please check the device connection and try again.",
+                MessageDialogStyle.Affirmative);
+        }
+        finally
+        {
+            IsBusy = false;
+            BusyMessage = string.Empty;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportAllFiles()
+    {
+        if (SelectedDevice == null || !CanAccessSdCard || DeviceFiles == null || !DeviceFiles.Any()) return;
+
+        var filesToImport = DeviceFiles.ToList();
+        var successCount = 0;
+        var failCount = 0;
+
+        try
+        {
+            IsBusy = true;
+
+            var loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+            var importer = new SdCardSessionImporter(loggingContext);
+
+            for (var i = 0; i < filesToImport.Count; i++)
+            {
+                var file = filesToImport[i];
+                BusyMessage = $"Importing file {i + 1} of {filesToImport.Count}: {file.FileName}...";
+
+                try
+                {
+                    var progress = new Progress<ImportProgress>(p =>
+                    {
+                        BusyMessage = $"Importing {file.FileName} ({i + 1}/{filesToImport.Count})... {p.SamplesProcessed:N0} samples";
+                    });
+
+                    var session = await Task.Run(() =>
+                        importer.ImportFromDeviceAsync(SelectedDevice, file.FileName, null, progress, CancellationToken.None));
+
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        LoggingManager.Instance.LoggingSessions.Add(session);
+                    });
+
+                    successCount++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, $"Error importing {file.FileName}");
+                    failCount++;
+                }
+            }
+
+            var message = $"Imported {successCount} of {filesToImport.Count} files.";
+            if (failCount > 0)
+            {
+                message += $"\n{failCount} file(s) failed to import.";
+            }
+
+            await ShowMessage("Import Complete", message, MessageDialogStyle.Affirmative);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "Error importing all files");
+            await ShowMessage("Import Failed",
+                "Import failed. Please check the device connection and try again.",
+                MessageDialogStyle.Affirmative);
         }
         finally
         {

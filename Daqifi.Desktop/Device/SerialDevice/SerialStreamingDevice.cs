@@ -50,6 +50,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     protected override bool RequestDeviceInfoOnInitialize => false;
 
     protected override CoreStreamingDevice? CoreDeviceForSd => _coreDevice;
+    protected override CoreStreamingDevice? CoreDeviceForStreaming => _coreDevice;
     #endregion
 
     #region Constructor
