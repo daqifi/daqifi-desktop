@@ -57,7 +57,7 @@
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="Daqifi.Core" Version="0.15.0" Condition="'$(DaqifiCoreProjectPath)' == ''" />
+		<PackageReference Include="Daqifi.Core" Version="0.15.1" Condition="'$(DaqifiCoreProjectPath)' == ''" />
 		<PackageReference Include="EFCore.BulkExtensions" Version="9.0.2" />
 		<PackageReference Include="MahApps.Metro" Version="2.4.11" />
 		<PackageReference Include="MahApps.Metro.IconPacks" Version="6.2.1" />
