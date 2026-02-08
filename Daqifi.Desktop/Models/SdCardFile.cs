@@ -11,4 +11,11 @@ public class SdCardFile
     /// The created date of the file
     /// </summary>
     public DateTime CreatedDate { get; set; }
+
+    /// <summary>
+    /// A user-facing display value for CreatedDate.
+    /// </summary>
+    public string CreatedDateDisplay => CreatedDate == DateTime.MinValue
+        ? "Unknown"
+        : CreatedDate.ToString("g");
 }

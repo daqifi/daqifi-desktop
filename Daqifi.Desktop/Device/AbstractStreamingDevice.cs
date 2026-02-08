@@ -6,6 +6,7 @@ using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Models;
 using System.Globalization;
+using System.IO;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
@@ -57,6 +58,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// Core streaming device used for SD card operations (USB devices only).
     /// </summary>
     protected virtual CoreStreamingDevice? CoreDeviceForSd => null;
+
+    /// <summary>
+    /// Core streaming device used for live stream start/stop operations.
+    /// </summary>
+    protected virtual CoreStreamingDevice? CoreDeviceForStreaming => null;
 
     #region Properties
 
@@ -498,8 +504,20 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             throw new InvalidOperationException("SD Card access is only available when connected via USB");
         }
 
+        EnsureSdOperationsQuiesced();
+
         var coreDevice = GetCoreDeviceForSd();
         var files = coreDevice.GetSdCardFilesAsync().GetAwaiter().GetResult();
+
+        // Some firmware/transport timings can yield a transient SCPI error line in list output.
+        // Retry once after a short settle delay before surfacing results.
+        if (ContainsScpiErrorEntry(files))
+        {
+            AppLogger.Warning($"SD card list returned a SCPI error for device {DeviceSerialNo}. Retrying once.");
+            Thread.Sleep(200);
+            files = coreDevice.GetSdCardFilesAsync().GetAwaiter().GetResult();
+        }
+
         UpdateSdCardFiles(MapSdCardFiles(files));
     }
 
@@ -525,12 +543,16 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         IProgress<SdCardTransferProgress>? progress = null,
         CancellationToken ct = default)
     {
+        EnsureSdOperationsQuiesced();
+
         var coreDevice = GetCoreDeviceForSd();
         return await coreDevice.DownloadSdCardFileAsync(fileName, progress, ct);
     }
 
     public async Task DeleteSdCardFileAsync(string fileName, CancellationToken ct = default)
     {
+        EnsureSdOperationsQuiesced();
+
         var coreDevice = GetCoreDeviceForSd();
         await coreDevice.DeleteSdCardFileAsync(fileName, ct);
     }
@@ -542,8 +564,54 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 FileName = file.FileName,
                 CreatedDate = file.CreatedDate ?? DateTime.MinValue
             })
-            .Where(file => !string.IsNullOrWhiteSpace(file.FileName))
+            .Where(file => IsImportableSdLogFileName(file.FileName))
             .ToList();
+    }
+
+    private void EnsureSdOperationsQuiesced()
+    {
+        if (IsLoggingToSdCard)
+        {
+            StopSdCardLogging();
+            return;
+        }
+
+        if (IsStreaming)
+        {
+            StopStreaming();
+        }
+    }
+
+    private static bool ContainsScpiErrorEntry(IEnumerable<CoreSdCardFileInfo> files)
+    {
+        return files.Any(file => IsScpiErrorLine(file.FileName));
+    }
+
+    private static bool IsImportableSdLogFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return false;
+        }
+
+        if (IsScpiErrorLine(fileName))
+        {
+            return false;
+        }
+
+        if (fileName.Any(char.IsControl))
+        {
+            return false;
+        }
+
+        var normalizedName = Path.GetFileName(fileName);
+        return normalizedName.EndsWith(".bin", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsScpiErrorLine(string value)
+    {
+        return value.StartsWith("**ERROR", StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith("ERROR", StringComparison.OrdinalIgnoreCase);
     }
 
     public void InitializeStreaming()
@@ -566,8 +634,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             throw new InvalidOperationException("Cannot initialize streaming while in LogToDevice mode");
         }
 
-        SendMessage(ScpiMessageProducer.StartStreaming(StreamingFrequency));
-        IsStreaming = true;
+        var coreStreamingDevice = GetCoreDeviceForStreaming();
+        coreStreamingDevice.StreamingFrequency = StreamingFrequency;
+        coreStreamingDevice.StartStreaming();
+        IsStreaming = coreStreamingDevice.IsStreaming;
     }
 
     public void StopStreaming()
@@ -585,8 +655,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             AppLogger.Information("Allowing computer sleep after streaming.");
         }
 
-        IsStreaming = false;
-        SendMessage(ScpiMessageProducer.StopStreaming);
+        var coreStreamingDevice = GetCoreDeviceForStreaming();
+        coreStreamingDevice.StopStreaming();
+        IsStreaming = coreStreamingDevice.IsStreaming;
 
         // Reset timestamp processor state for clean restart
         _timestampProcessor.ResetAll();
@@ -598,6 +669,17 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 channel.ActiveSample = null;
             }
         }
+    }
+
+    private CoreStreamingDevice GetCoreDeviceForStreaming()
+    {
+        var coreDevice = CoreDeviceForStreaming;
+        if (coreDevice == null)
+        {
+            throw new InvalidOperationException("Core live streaming operations are not available for this device.");
+        }
+
+        return coreDevice;
     }
 
 

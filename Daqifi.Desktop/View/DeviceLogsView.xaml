@@ -128,7 +128,7 @@
                         <GridViewColumn Header="Created" Width="170">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding CreatedDate, StringFormat=\{0:g\}}" />
+                                    <TextBlock Text="{Binding CreatedDateDisplay}" />
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>
