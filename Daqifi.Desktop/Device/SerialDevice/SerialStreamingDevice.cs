@@ -10,7 +10,7 @@ using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
-public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDevice
+public class SerialStreamingDevice : AbstractStreamingDevice
 {
     #region Properties
     private SerialPort? _port;

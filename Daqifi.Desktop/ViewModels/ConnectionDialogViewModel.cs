@@ -1,6 +1,5 @@
 ﻿using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.Device;
-using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Device.WiFiDevice;
 using Daqifi.Desktop.DialogService;
@@ -42,7 +41,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
     #region Properties
     public ObservableCollection<DaqifiStreamingDevice> AvailableWiFiDevices { get; } = [];
     public ObservableCollection<SerialStreamingDevice> AvailableSerialDevices { get; } = [];
-    public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = [];
+    public ObservableCollection<CoreDeviceInfo> AvailableHidDevices { get; } = [];
 
     public string ManualPortName { get; set; }
 
@@ -221,11 +220,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         //_hidDeviceFinder.Stop();
 
-        var selectedDevices = ((IEnumerable)selectedItems).Cast<HidFirmwareDevice>();
+        var selectedDevices = ((IEnumerable)selectedItems).Cast<CoreDeviceInfo>();
         var hidDevice = selectedDevices.FirstOrDefault();
         if (hidDevice == null) { return; }
 
-        var firmwareDialogViewModel = new FirmwareDialogViewModel(hidDevice);
+        var firmwareDialogViewModel = new FirmwareDialogViewModel(hidDevice.Name);
         _dialogService.ShowDialog<FirmwareDialog>(this, firmwareDialogViewModel);
 
     }
@@ -285,15 +284,29 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         try
         {
-            // HID devices are firmware devices for bootloader mode
-            // For now, core HID finder returns empty, so this won't be called often
-            // TODO: Create HID device from core IDeviceInfo when HID library is added
-            Common.Loggers.AppLogger.Instance.Information($"HID device discovered: {e.DeviceInfo.Name}");
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                var discoveredDevice = e.DeviceInfo;
+                var discoveredKey = BuildHidDeviceKey(discoveredDevice);
+                var alreadyTracked = AvailableHidDevices.Any(device => BuildHidDeviceKey(device) == discoveredKey);
+                if (alreadyTracked)
+                {
+                    return;
+                }
+
+                AvailableHidDevices.Add(discoveredDevice);
+                HasNoHidDevices = AvailableHidDevices.Count == 0;
+            });
         }
         catch (Exception ex)
         {
             Common.Loggers.AppLogger.Instance.Error(ex, "Error handling HID device discovery");
         }
+    }
+
+    private static string BuildHidDeviceKey(CoreDeviceInfo deviceInfo)
+    {
+        return $"{deviceInfo.DevicePath}|{deviceInfo.SerialNumber}|{deviceInfo.Name}";
     }
 
     #endregion
@@ -366,34 +379,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
                 AvailableSerialDevices.Remove(matchingDevice);
             });
         }
-    }
-
-    private void HandleHidDeviceFound(object sender, IDevice device)
-    {
-        if (device is not HidFirmwareDevice hidDevice)
-        {
-            return;
-        }
-
-        System.Windows.Application.Current.Dispatcher.Invoke(() =>
-        {
-            AvailableHidDevices.Add(hidDevice);
-            if (HasNoHidDevices) { HasNoHidDevices = false; }
-        });
-    }
-
-    private void HandleHidDeviceRemoved(object sender, IDevice device)
-    {
-        if (device is not HidFirmwareDevice hidDevice)
-        {
-            return;
-        }
-
-        System.Windows.Application.Current.Dispatcher.Invoke(() =>
-        {
-            AvailableHidDevices.Remove(hidDevice);
-            if (AvailableHidDevices.Count == 0) { HasNoHidDevices = true; }
-        });
     }
 
     public void Close()

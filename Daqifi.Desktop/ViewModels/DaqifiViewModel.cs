@@ -1,13 +1,10 @@
-﻿using Daqifi.Desktop.Bootloader;
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.Device;
-using Daqifi.Desktop.Device.HidDevice;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
-using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Models;
 using Daqifi.Desktop.UpdateVersion;
 using Daqifi.Desktop.View;
@@ -15,9 +12,15 @@ using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.Collections;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Daqifi.Core.Firmware;
+using Daqifi.Core.Communication.Transport;
+using Daqifi.Desktop.Device.Firmware;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -25,8 +28,6 @@ using Daqifi.Desktop.Device.SerialDevice;
 using Application = System.Windows.Application;
 using File = System.IO.File;
 using CommunityToolkit.Mvvm.Input;
-using Daqifi.Core.Device.Discovery;
-using HidLib = HidLibrary;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -94,10 +95,8 @@ public partial class DaqifiViewModel : ObservableObject
     private string _loggedDataBusyReason;
     [ObservableProperty]
     private string _firmwareFilePath;
-    private Pic32Bootloader _bootloader;
     [ObservableProperty]
-    private string _version;
-    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CancelFirmwareUploadCommand))]
     private bool _isFirmwareUploading;
     [ObservableProperty]
     private bool _isUploadComplete;
@@ -108,21 +107,20 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     private int _uploadWiFiProgress;
     [ObservableProperty]
-    private bool _selectedDeviceSupportsFirmwareUpdate;
-    private CancellationTokenSource? _hidDiscoveryCts;
-    private Task? _hidDiscoveryTask;
+    private string _firmwareUpdateStatusText = string.Empty;
     [ObservableProperty]
-    private bool _hasNoHidDevices = true;
+    private bool _selectedDeviceSupportsFirmwareUpdate;
+    private readonly IFirmwareUpdateService _firmwareUpdateService;
+    private readonly IFirmwareDownloadService _firmwareDownloadService;
+    private CancellationTokenSource? _firmwareUploadCts;
     private ConnectionDialogViewModel _connectionDialogViewModel;
     private string _selectedLoggingMode = "Stream to App";
     private bool _isLogToDeviceMode;
-    // Add a field to store the device being updated during firmware update process
     private IStreamingDevice? _deviceBeingUpdated;
     #endregion
 
     #region Properties
 
-    public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = [];
     public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = [];
     public ObservableCollection<Profile> Profiles { get; } = LoggingManager.Instance.SubscribedProfiles;
 
@@ -323,9 +321,25 @@ public partial class DaqifiViewModel : ObservableObject
     #endregion
 
     #region Constructor
-    public DaqifiViewModel() : this(ServiceLocator.Resolve<IDialogService>()) { }
-    public DaqifiViewModel(IDialogService dialogService)
+    public DaqifiViewModel() : this(
+        ServiceLocator.Resolve<IDialogService>(),
+        App.ServiceProvider?.GetService<IFirmwareUpdateService>(),
+        App.ServiceProvider?.GetService<IFirmwareDownloadService>(),
+        App.ServiceProvider?.GetService<ILogger<FirmwareUpdateService>>())
     {
+    }
+
+    public DaqifiViewModel(
+        IDialogService dialogService,
+        IFirmwareUpdateService? firmwareUpdateService = null,
+        IFirmwareDownloadService? firmwareDownloadService = null,
+        ILogger<FirmwareUpdateService>? firmwareLogger = null)
+    {
+        _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
+        _firmwareDownloadService = firmwareDownloadService ?? CreateDefaultFirmwareDownloadService();
+        var resolvedLogger = firmwareLogger ?? NullLogger<FirmwareUpdateService>.Instance;
+        _firmwareUpdateService = firmwareUpdateService ?? CreateDefaultFirmwareUpdateService(_firmwareDownloadService, resolvedLogger);
+
         var app = Application.Current as App;
         if (app != null)
         {
@@ -333,7 +347,6 @@ public partial class DaqifiViewModel : ObservableObject
             {
                 try
                 {
-                    _dialogService = dialogService;
                     var loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
                     RegisterCommands();
 
@@ -354,9 +367,9 @@ public partial class DaqifiViewModel : ObservableObject
 
                     //Xml profiles load
                     LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
-                    var observableProfileList = new ObservableCollection<Profile>(LoggingManager.Instance.LoadProfilesFromXml());
-                    //  Notifications 
+                    _ = new ObservableCollection<Profile>(LoggingManager.Instance.LoadProfilesFromXml());
 
+                    // Notifications
                     _versionNotification = new VersionNotification();
                     _ = LoggingManager.Instance.CheckApplicationVersion(_versionNotification);
 
@@ -377,33 +390,26 @@ public partial class DaqifiViewModel : ObservableObject
                                 savedLoggingSessions.Add(session);
                             }
                         }
+
                         if (LoggingManager.Instance.LoggingSessions == null || !LoggingManager.Instance.LoggingSessions.Any())
                         {
                             LoggingManager.Instance.LoggingSessions = savedLoggingSessions;
                         }
                     }
 
-                    //Configure Default Grid Lines
+                    // Configure default grid lines
                     Plotter.ShowingMinorXAxisGrid = false;
                     Plotter.ShowingMinorYAxisGrid = false;
 
                     FirewallConfiguration.InitializeFirewallRules();
-
                 }
                 catch (Exception ex)
                 {
                     _appLogger.Error(ex, "DaqifiViewModel");
                 }
             }
-            app.IsWindowInit = true;
-        }
-    }
 
-    private void OnHidDevicePropertyChanged(object sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == "Version")
-        {
-            Version = _bootloader.Version;
+            app.IsWindowInit = true;
         }
     }
 
@@ -449,123 +455,14 @@ public partial class DaqifiViewModel : ObservableObject
 
     #region Updload firmware and update processes
 
-    private void UploadFirmwareProgressChanged(object sender, ProgressChangedEventArgs e)
+    [RelayCommand]
+    private async Task UploadFirmware()
     {
-        UploadFirmwareProgress = e.ProgressPercentage;
-    }
-    private BackgroundWorker _updateWiFiBackgroundWorker;
-    private void InitializeUpdateWiFiBackgroundWorker()
-    {
-        _updateWiFiBackgroundWorker = new BackgroundWorker
+        if (IsFirmwareUploading)
         {
-            WorkerReportsProgress = true
-        };
-        _updateWiFiBackgroundWorker.DoWork += UpdateWiFiBackgroundWorkerDoWork;
-        _updateWiFiBackgroundWorker.ProgressChanged += UpdateWiFiBackgroundWorkerProgressChanged;
-        _updateWiFiBackgroundWorker.RunWorkerCompleted += UpdateWiFiBackgroundWorkerRunWorkerCompleted;
-        if (!_updateWiFiBackgroundWorker.IsBusy)
-        {
-            UploadWiFiProgress = 0;
-            _updateWiFiBackgroundWorker.RunWorkerAsync();
-        }
-    }
-
-    private void UpdateWiFiBackgroundWorkerDoWork(object sender, DoWorkEventArgs e)
-    {
-        try
-        {
-            var wifiUpdater = new WifiModuleUpdater();
-            var progress = new Progress<int>(percent => _updateWiFiBackgroundWorker.ReportProgress(percent));
-
-            // Use the stored device reference instead of SelectedDevice (which might be null)
-            if (_deviceBeingUpdated is not IFirmwareUpdateDevice updateDevice)
-            {
-                throw new InvalidOperationException("Selected device does not support firmware updates");
-            }
-
-            var task = wifiUpdater.UpdateWifiModuleAsync(updateDevice, progress);
-            task.Wait();
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex, "Error updating WiFi firmware");
-            e.Result = ex;
-        }
-    }
-
-    private void UpdateWiFiBackgroundWorkerProgressChanged(object sender, ProgressChangedEventArgs e)
-    {
-        UploadWiFiProgress = e.ProgressPercentage;
-    }
-
-    private void UpdateWiFiBackgroundWorkerRunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
-    {
-        IsFirmwareUploading = false;
-        if (e.Error != null || e.Result is Exception)
-        {
-            AppLogger.Instance.Error(e.Error ?? (Exception)e.Result, "Problem Uploading WiFi Firmware");
-            HasErrorOccured = true;
-
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                var errorDialogViewModel = new ErrorDialogViewModel("WiFi firmware update failed. Please try again.");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-            });
-        }
-        else
-        {
-            IsUploadComplete = true;
-            ShowUploadSuccessMessage();
-        }
-
-        // Clear the device reference after update completion
-        _deviceBeingUpdated = null;
-        ConnectionManager.Instance.DeviceBeingUpdated = null;
-    }
-    private void HandleFirmwareUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
-    {
-        if (e.Error != null || e.Cancelled)
-        {
-            IsFirmwareUploading = false;
-            _deviceBeingUpdated = null; // Clear reference on error
-            ConnectionManager.Instance.DeviceBeingUpdated = null;
             return;
         }
 
-        var isManualUpload = (bool)e.Result;
-
-        if (isManualUpload)
-        {
-            IsUploadComplete = true;
-            ShowUploadSuccessMessage();
-            _deviceBeingUpdated = null; // Clear reference after manual upload
-            ConnectionManager.Instance.DeviceBeingUpdated = null;
-        }
-        else
-        {
-            // Device needs time to fully reboot and stabilize after firmware update
-            // before we can start the WiFi module update
-            _appLogger.Information("Waiting for device to fully boot after firmware update before WiFi update...");
-
-            var delayWorker = new BackgroundWorker();
-            delayWorker.DoWork += (s, args) =>
-            {
-                // Wait 10 seconds for device to fully boot and be ready for WiFi update
-                Thread.Sleep(10000);
-            };
-            delayWorker.RunWorkerCompleted += (s, args) =>
-            {
-                _appLogger.Information("Starting WiFi module update...");
-                InitializeUpdateWiFiBackgroundWorker();
-            };
-            delayWorker.RunWorkerAsync();
-        }
-        IsFirmwareUploading = false;
-    }
-
-    [RelayCommand]
-    private void UploadFirmware()
-    {
         if (SelectedDevice?.ConnectionType != Device.ConnectionType.Usb)
         {
             return;
@@ -577,126 +474,220 @@ public partial class DaqifiViewModel : ObservableObject
         }
 
         SelectedDeviceSupportsFirmwareUpdate = true;
+        HasErrorOccured = false;
+        IsUploadComplete = false;
+        UploadFirmwareProgress = 0;
+        UploadWiFiProgress = 0;
+        FirmwareUpdateStatusText = "Preparing firmware update...";
 
-        // Store a reference to the device being updated
         _deviceBeingUpdated = SelectedDevice;
+        ConnectionManager.Instance.DeviceBeingUpdated = _deviceBeingUpdated;
 
-        var isManualUpload = false;
-        // Download if a hex file wasn't passed to it.
-        if (string.IsNullOrEmpty(FirmwareFilePath))
-        {
-            FirmwareFilePath = new FirmwareDownloader().Download();
-        }
-        else
-        {
-            isManualUpload = true;
-        }
+        var isManualUpload = !string.IsNullOrWhiteSpace(FirmwareFilePath);
 
-        if (string.IsNullOrEmpty(FirmwareFilePath))
-        {
-            _appLogger.Error("Firmware file path is null or empty.");
-            return;
-        }
+        _firmwareUploadCts?.Dispose();
+        _firmwareUploadCts = new CancellationTokenSource();
+        IsFirmwareUploading = true;
 
-        // Check if device is connected - it should be connected before attempting firmware update
-        var isConnected = serialStreamingDevice.IsConnected;
-
-        if (!isConnected)
-        {
-            _appLogger.Error($"Device {serialStreamingDevice.Name} is not connected. Cannot update firmware on a disconnected device.");
-            NotificationList.Add(new Notifications
-            {
-                Message = $"Please connect device {serialStreamingDevice.Name} before attempting firmware update.",
-                DeviceSerialNo = serialStreamingDevice.DeviceSerialNo
-            });
-            return;
-        }
-
-        _appLogger.Information($"Preparing device {serialStreamingDevice.Name} for firmware update...");
-
-        // Ensure device is not streaming before entering bootloader mode
-        if (serialStreamingDevice.DataChannels.Any())
-        {
-            _appLogger.Information("Stopping streaming before firmware update...");
-            serialStreamingDevice.StopStreaming();
-
-            // Wait for stop streaming commands to be sent and processed by device
-            // StopStreaming() queues commands asynchronously, so we need to wait
-            Thread.Sleep(1500);
-        }
-
-        _appLogger.Information($"Sending bootloader command to device {serialStreamingDevice.Name}...");
-
-        // Send the bootloader command
         try
         {
-            serialStreamingDevice.ForceBootloader();
+            var coreDevice = new CoreStreamingDeviceAdapter(serialStreamingDevice);
 
-            // Wait for the bootloader command to be sent
-            // The command is queued and sent asynchronously by MessageProducer's background thread
-            // The device needs time to receive and process this command before we disconnect
-            Thread.Sleep(2000);
+            if (!coreDevice.IsConnected)
+            {
+                _appLogger.Error($"Device {serialStreamingDevice.Name} is not connected. Cannot update firmware on a disconnected device.");
+                NotificationList.Add(new Notifications
+                {
+                    Message = $"Please connect device {serialStreamingDevice.Name} before attempting firmware update.",
+                    DeviceSerialNo = serialStreamingDevice.DeviceSerialNo
+                });
+
+                return;
+            }
+
+            if (!isManualUpload)
+            {
+                FirmwareUpdateStatusText = "Downloading latest firmware package...";
+                FirmwareFilePath = await _firmwareDownloadService.DownloadLatestFirmwareAsync(
+                    GetFirmwareDownloadDirectory(),
+                    includePreRelease: true,
+                    cancellationToken: _firmwareUploadCts.Token);
+            }
+
+            if (string.IsNullOrWhiteSpace(FirmwareFilePath) || !File.Exists(FirmwareFilePath))
+            {
+                throw new FileNotFoundException("Firmware file path is invalid or does not exist.", FirmwareFilePath);
+            }
+
+            var pic32Progress = new Progress<FirmwareUpdateProgress>(report =>
+            {
+                UploadFirmwareProgress = Math.Clamp((int)Math.Round(report.PercentComplete), 0, 100);
+                if (!string.IsNullOrWhiteSpace(report.CurrentOperation))
+                {
+                    FirmwareUpdateStatusText = report.CurrentOperation;
+                }
+            });
+
+            await _firmwareUpdateService.UpdateFirmwareAsync(
+                coreDevice,
+                FirmwareFilePath,
+                pic32Progress,
+                _firmwareUploadCts.Token);
+
+            if (!isManualUpload)
+            {
+                await UpdateWifiModuleAsync(coreDevice, _firmwareUploadCts.Token);
+            }
+
+            IsUploadComplete = true;
+            ShowUploadSuccessMessage();
+        }
+        catch (OperationCanceledException)
+        {
+            FirmwareUpdateStatusText = "Firmware update canceled.";
+            _appLogger.Warning("Firmware update canceled by user.");
+        }
+        catch (FirmwareUpdateException ex)
+        {
+            HandleFirmwareUpdateException(ex);
         }
         catch (Exception ex)
         {
-            _appLogger.Error(ex, $"Error while sending bootloader command to device {serialStreamingDevice.Name}");
+            HasErrorOccured = true;
+            _appLogger.Error(ex, "Problem Uploading Firmware");
+            ShowFirmwareErrorDialog("Firmware update failed. Please try again.");
+        }
+        finally
+        {
+            IsFirmwareUploading = false;
+            _firmwareUploadCts?.Dispose();
+            _firmwareUploadCts = null;
+            _deviceBeingUpdated = null;
+            ConnectionManager.Instance.DeviceBeingUpdated = null;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCancelFirmwareUpload))]
+    private void CancelFirmwareUpload()
+    {
+        if (!IsFirmwareUploading)
+        {
+            return;
         }
 
-        // Mark device as being updated to suppress disconnect notification
-        ConnectionManager.Instance.DeviceBeingUpdated = _deviceBeingUpdated;
-        serialStreamingDevice.Disconnect();
-
-        // Once the DAQiFi resets, the COM serial port is closed,
-        // and the HID port for managing the bootloader must be found
-        StartConnectionFinders();
-
-        // Update the variable 'HasNoHidDevices' in a background task
-        var bw2 = new BackgroundWorker();
-        bw2.DoWork += delegate
-        {
-            while (HasNoHidDevices)
-            {
-                Thread.Sleep(2000);
-                if (HasNoHidDevices == false)
-                {
-                    // Connect HID if it was found before              
-                    var hidFirmwareDevice = ConnectHid(AvailableHidDevices);
-                    if (hidFirmwareDevice != null)
-                    {
-                        _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
-                        _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
-                        _bootloader.RequestVersion();
-
-                        var bw = new BackgroundWorker();
-                        bw.DoWork += (sender, e) =>
-                        {
-                            IsFirmwareUploading = true;
-                            if (string.IsNullOrWhiteSpace(FirmwareFilePath))
-                            {
-                                return;
-                            }
-
-                            if (!File.Exists(FirmwareFilePath))
-                            {
-                                return;
-                            }
-
-                            if (_bootloader != null)
-                            {
-                                _bootloader.LoadFirmware(FirmwareFilePath, bw);
-                            }
-                            e.Result = isManualUpload;
-                        };
-                        bw.WorkerReportsProgress = true;
-                        bw.ProgressChanged += UploadFirmwareProgressChanged;
-                        bw.RunWorkerCompleted += HandleFirmwareUploadCompleted;
-                        bw.RunWorkerAsync();
-                    }
-                }
-            }
-        };
-        bw2.RunWorkerAsync();
+        FirmwareUpdateStatusText = "Canceling firmware update...";
+        _firmwareUploadCts?.Cancel();
     }
+
+    private bool CanCancelFirmwareUpload()
+    {
+        return IsFirmwareUploading;
+    }
+
+    private async Task UpdateWifiModuleAsync(Daqifi.Core.Device.IStreamingDevice coreDevice, CancellationToken cancellationToken)
+    {
+        FirmwareUpdateStatusText = "Downloading WiFi firmware package...";
+        var wifiDownloadProgress = new Progress<int>(percent =>
+        {
+            // Map download progress into the initial segment of the WiFi bar.
+            UploadWiFiProgress = Math.Clamp((int)Math.Round(percent * 0.2), 0, 20);
+        });
+
+        var wifiPackage = await _firmwareDownloadService.DownloadWifiFirmwareAsync(
+            GetWifiDownloadDirectory(),
+            wifiDownloadProgress,
+            cancellationToken);
+
+        if (wifiPackage == null)
+        {
+            throw new InvalidOperationException("No WiFi firmware package was found for update.");
+        }
+
+        FirmwareUpdateStatusText = $"Updating WiFi module ({wifiPackage.Value.Version})...";
+        var wifiUpdateProgress = new Progress<FirmwareUpdateProgress>(report =>
+        {
+            UploadWiFiProgress = Math.Clamp((int)Math.Round(report.PercentComplete), 0, 100);
+            if (!string.IsNullOrWhiteSpace(report.CurrentOperation))
+            {
+                FirmwareUpdateStatusText = report.CurrentOperation;
+            }
+        });
+
+        await _firmwareUpdateService.UpdateWifiModuleAsync(
+            coreDevice,
+            wifiPackage.Value.ExtractedPath,
+            wifiUpdateProgress,
+            cancellationToken);
+    }
+
+    private void HandleFirmwareUpdateException(FirmwareUpdateException exception)
+    {
+        HasErrorOccured = true;
+
+        var summary = $"Firmware update failed during '{exception.Operation}' ({exception.FailedState}).";
+        _appLogger.Error(exception, summary);
+
+        if (!string.IsNullOrWhiteSpace(exception.RecoveryGuidance))
+        {
+            _appLogger.Warning($"Firmware recovery guidance: {exception.RecoveryGuidance}");
+        }
+
+        var dialogMessage = summary;
+        if (!string.IsNullOrWhiteSpace(exception.RecoveryGuidance))
+        {
+            dialogMessage += $"{Environment.NewLine}{Environment.NewLine}Suggested recovery: {exception.RecoveryGuidance}";
+        }
+
+        ShowFirmwareErrorDialog(dialogMessage);
+    }
+
+    private void ShowFirmwareErrorDialog(string message)
+    {
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            var errorDialogViewModel = new ErrorDialogViewModel(message);
+            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+        });
+    }
+
+    private static string GetFirmwareDownloadDirectory()
+    {
+        var firmwareDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "DAQiFi",
+            "Firmware",
+            "PIC32");
+        Directory.CreateDirectory(firmwareDirectory);
+        return firmwareDirectory;
+    }
+
+    private static string GetWifiDownloadDirectory()
+    {
+        var wifiDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "DAQiFi",
+            "Firmware",
+            "WiFi");
+        Directory.CreateDirectory(wifiDirectory);
+        return wifiDirectory;
+    }
+
+    private static IFirmwareDownloadService CreateDefaultFirmwareDownloadService()
+    {
+        return new GitHubFirmwareDownloadService(new HttpClient());
+    }
+
+    private static IFirmwareUpdateService CreateDefaultFirmwareUpdateService(
+        IFirmwareDownloadService firmwareDownloadService,
+        ILogger<FirmwareUpdateService> logger)
+    {
+        return new FirmwareUpdateService(
+            new HidLibraryTransport(),
+            firmwareDownloadService,
+            new ProcessExternalProcessRunner(),
+            logger);
+    }
+
     #endregion
     [RelayCommand]
     private void ShowConnectionDialog()
@@ -1145,36 +1136,46 @@ public partial class DaqifiViewModel : ObservableObject
     public async Task GetFirmwareupdatationList()
     {
         var connectedDevices = ConnectionManager.Instance.ConnectedDevices;
-        if (connectedDevices.Count > 0)
+        if (connectedDevices.Count == 0)
         {
+            return;
+        }
 
-            var ldata = await FirmwareUpdatationManager.Instance.CheckFirmwareVersion();
-            _latestFirmwareVersion = ldata;
+        try
+        {
+            var latestRelease = await _firmwareDownloadService.GetLatestReleaseAsync(includePreRelease: true);
+            _latestFirmwareVersion = latestRelease?.Version.ToString() ?? string.Empty;
             OnPropertyChanged(nameof(LatestFirmwareVersionText));
 
-            if (_latestFirmwareVersion == null)
+            if (latestRelease == null)
             {
                 return;
             }
+
             foreach (var device in connectedDevices)
             {
+                var updateCheck = await _firmwareDownloadService.CheckForUpdateAsync(
+                    device.DeviceVersion ?? string.Empty,
+                    includePreRelease: true);
+                var isOutdated = updateCheck.UpdateAvailable;
+                device.IsFirmwareOutdated = isOutdated;
+
+                if (!string.IsNullOrWhiteSpace(device.DeviceSerialNo))
                 {
-                    var cmp = Helpers.VersionHelper.Compare(device.DeviceVersion, _latestFirmwareVersion);
-                    var isOutdated = cmp < 0; // device < latest
-                    device.IsFirmwareOutdated = isOutdated;
-                    if (device.DeviceSerialNo != null)
+                    if (isOutdated)
                     {
-                        if (isOutdated)
-                        {
-                            AddNotification(device, _latestFirmwareVersion);
-                        }
-                        else
-                        {
-                            RemoveNotification(device);
-                        }
+                        AddNotification(device, latestRelease.Version.ToString());
+                    }
+                    else
+                    {
+                        RemoveNotification(device);
                     }
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Warning($"Failed to check firmware updates: {ex.Message}");
         }
     }
     private void RemoveNotification()
@@ -1548,123 +1549,6 @@ public partial class DaqifiViewModel : ObservableObject
     #endregion
 
     #region Methods
-    public void StartConnectionFinders()
-    {
-        // Use desktop HID enumeration since Core's HidDeviceFinder doesn't implement it yet
-        // This is a workaround until Core 0.5.0 HID discovery is fully implemented
-        StartDesktopHidDiscovery();
-    }
-
-    private void StartDesktopHidDiscovery()
-    {
-        _hidDiscoveryCts = new CancellationTokenSource();
-        var token = _hidDiscoveryCts.Token;
-
-        // Run HID discovery in background task
-        _hidDiscoveryTask = Task.Run(async () =>
-        {
-            const int vendorId = 0x4D8;
-            const int productId = 0x03C;
-            var hidEnumerator = new HidLib.HidFastReadEnumerator();
-            var trackedDevices = new List<string>();
-
-            _appLogger.Information("Starting HID device discovery for firmware updates...");
-
-            try
-            {
-                while (!token.IsCancellationRequested)
-                {
-                    // Enumerate HID devices matching DAQiFi bootloader VID/PID
-                    var connectedHidDevices = hidEnumerator.Enumerate(vendorId, productId).ToList();
-
-                    // Add newly discovered devices
-                    foreach (var device in connectedHidDevices)
-                    {
-                        var devicePath = device.DevicePath;
-                        if (trackedDevices.Contains(devicePath)) continue;
-
-                        trackedDevices.Add(devicePath);
-
-                        var hidFirmwareDevice = new HidFirmwareDevice(device as HidLib.HidFastReadDevice)
-                        {
-                            Name = devicePath
-                        };
-
-                        _appLogger.Information($"HID bootloader device found: {devicePath}");
-                        HandleHidDeviceFound(this, hidFirmwareDevice);
-                    }
-
-                    // Remove disconnected devices
-                    var connectedPaths = connectedHidDevices.Select(d => d.DevicePath).ToHashSet();
-                    var devicesToRemove = trackedDevices.Where(path => !connectedPaths.Contains(path)).ToList();
-
-                    foreach (var devicePath in devicesToRemove)
-                    {
-                        trackedDevices.Remove(devicePath);
-                        _appLogger.Information($"HID bootloader device removed: {devicePath}");
-                        // Note: We don't have a reference to the device object here for removal event
-                    }
-
-                    // Poll every second for HID devices
-                    await Task.Delay(1000, token);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                _appLogger.Information("HID device discovery cancelled");
-            }
-            catch (Exception ex)
-            {
-                _appLogger.Error(ex, "Error in HID discovery loop");
-            }
-        }, token);
-    }
-
-    public void Close()
-    {
-        _hidDiscoveryCts?.Cancel();
-        _hidDiscoveryCts?.Dispose();
-        _hidDiscoveryCts = null;
-    }
-
-    private HidFirmwareDevice ConnectHid(object selectedItems)
-    {
-        // Read variable
-        var selectedDevices = ((IEnumerable)selectedItems).Cast<HidFirmwareDevice>();
-        var hidDevice = selectedDevices.FirstOrDefault();
-        return hidDevice;
-    }
-
-    private void HandleHidDeviceFound(object sender, IDevice device)
-    {
-        if (device is not HidFirmwareDevice hidDevice)
-        {
-            return;
-        }
-
-        Application.Current.Dispatcher.Invoke(() =>
-        {
-            AvailableHidDevices.Add(hidDevice);
-            if (HasNoHidDevices)
-            {
-                HasNoHidDevices = false;
-            }
-        });
-    }
-
-    private void HandleHidDeviceRemoved(object sender, IDevice device)
-    {
-        if (device is not HidFirmwareDevice hidDevice)
-        {
-            return;
-        }
-
-        Application.Current.Dispatcher.Invoke(() =>
-        {
-            AvailableHidDevices.Remove(hidDevice);
-            if (AvailableHidDevices.Count == 0) { HasNoHidDevices = true; }
-        });
-    }
     public Task UpdateConnectedDeviceUI()
     {
         UploadFirmwareProgress = 0;
