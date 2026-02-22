@@ -80,21 +80,28 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
             return null;
         }
 
-        var waitingForContinuePrompt = false;
+        var continueSignalSent = false;
 
         return line =>
         {
             if (line.Contains(WincBootPromptMarker, StringComparison.OrdinalIgnoreCase))
             {
-                waitingForContinuePrompt = true;
-                _appLogger.Information("WiFi flash tool requested WINC power-cycle; waiting for continue prompt.");
-                return null;
+                if (continueSignalSent)
+                {
+                    return null;
+                }
+
+                _appLogger.Information("WiFi flash tool requested WINC power-cycle; waiting before sending continue signal.");
+                Thread.Sleep(_promptResponseDelay);
+                continueSignalSent = true;
+                _appLogger.Information("Sending continue signal to WiFi flash tool.");
+                return string.Empty;
             }
 
-            if (waitingForContinuePrompt && line.Contains(ContinuePromptMarker, StringComparison.OrdinalIgnoreCase))
+            if (!continueSignalSent &&
+                line.Contains(ContinuePromptMarker, StringComparison.OrdinalIgnoreCase))
             {
-                Thread.Sleep(_promptResponseDelay);
-                waitingForContinuePrompt = false;
+                continueSignalSent = true;
                 _appLogger.Information("Sending continue signal to WiFi flash tool.");
                 return string.Empty;
             }
