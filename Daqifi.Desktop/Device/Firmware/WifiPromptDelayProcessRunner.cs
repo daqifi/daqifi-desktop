@@ -1,4 +1,5 @@
 using Daqifi.Core.Firmware;
+using Daqifi.Desktop.Common.Loggers;
 
 namespace Daqifi.Desktop.Device.Firmware;
 
@@ -13,6 +14,7 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
 
     private readonly IExternalProcessRunner _innerRunner;
     private readonly TimeSpan _promptResponseDelay;
+    private readonly AppLogger _appLogger = AppLogger.Instance;
 
     public WifiPromptDelayProcessRunner(
         IExternalProcessRunner? innerRunner = null,
@@ -34,8 +36,16 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
             Arguments = request.Arguments,
             WorkingDirectory = request.WorkingDirectory,
             Timeout = request.Timeout,
-            OnStandardOutputLine = request.OnStandardOutputLine,
-            OnStandardErrorLine = request.OnStandardErrorLine,
+            OnStandardOutputLine = line =>
+            {
+                _appLogger.Information($"WiFi flash output: {line}");
+                request.OnStandardOutputLine?.Invoke(line);
+            },
+            OnStandardErrorLine = line =>
+            {
+                _appLogger.Warning($"WiFi flash stderr: {line}");
+                request.OnStandardErrorLine?.Invoke(line);
+            },
             StandardInputResponseFactory = WrapInputResponder(request.StandardInputResponseFactory)
         };
 
