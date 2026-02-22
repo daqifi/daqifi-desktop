@@ -635,7 +635,11 @@ public partial class DaqifiViewModel : ObservableObject
             options: new FirmwareUpdateServiceOptions
             {
                 // winc_flash_tool.cmd requires an explicit release version folder.
-                WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /k /e /i aio /w"
+                WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /k /e /i aio /w",
+                // Legacy desktop flow effectively waited ~3s between LAN update mode command and tooling.
+                PostLanFirmwareModeDelay = TimeSpan.FromSeconds(3),
+                // Give Windows a little more time to re-enumerate the UART before reconnect attempts.
+                PostWifiReconnectDelay = TimeSpan.FromSeconds(3)
             });
     }
 

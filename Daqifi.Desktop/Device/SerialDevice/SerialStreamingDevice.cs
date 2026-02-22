@@ -1,5 +1,4 @@
 ﻿using System.IO.Ports;
-using Daqifi.Desktop.Bootloader;
 using Daqifi.Core.Device;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Messages;
@@ -394,6 +393,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice
     #endregion
 
     #region Serial Device Only Methods
+    public void SendScpiMessage(IOutboundMessage<string> message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        SendMessage(message);
+    }
+
     public void EnableLanUpdateMode()
     {
         _coreDevice?.Send(ScpiMessageProducer.TurnDeviceOn);

@@ -1,6 +1,7 @@
 using System.Net;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Core.Communication.Messages;
+using CoreScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using CoreConnectionStatus = Daqifi.Core.Device.ConnectionStatus;
 using CoreDeviceStatusEventArgs = Daqifi.Core.Device.DeviceStatusEventArgs;
 using CoreMessageReceivedEventArgs = Daqifi.Core.Device.MessageReceivedEventArgs;
@@ -13,6 +14,8 @@ namespace Daqifi.Desktop.Device.Firmware;
 /// </summary>
 public sealed class CoreStreamingDeviceAdapter : CoreStreamingDevice
 {
+    private static readonly string LanFirmwareUpdateCommand = CoreScpiMessageProducer.SetLanFirmwareUpdateMode.Data;
+
     private readonly IStreamingDevice _desktopDevice;
 
     public CoreStreamingDeviceAdapter(IStreamingDevice desktopDevice)
@@ -28,12 +31,7 @@ public sealed class CoreStreamingDeviceAdapter : CoreStreamingDevice
         ? ip
         : null;
 
-    public bool IsConnected => _desktopDevice switch
-    {
-        SerialStreamingDevice serialDevice => serialDevice.Port is { IsOpen: true } &&
-                                              _desktopDevice.MessageProducer != null,
-        _ => _desktopDevice.MessageProducer != null && _desktopDevice.MessageConsumer != null
-    };
+    public bool IsConnected => _desktopDevice.IsConnected;
 
     public CoreConnectionStatus Status => IsConnected
         ? CoreConnectionStatus.Connected
@@ -73,14 +71,22 @@ public sealed class CoreStreamingDeviceAdapter : CoreStreamingDevice
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        if (_desktopDevice.MessageProducer == null)
-        {
-            throw new InvalidOperationException("Device message producer is not initialized.");
-        }
-
         if (message is IOutboundMessage<string> commandMessage)
         {
-            _desktopDevice.MessageProducer.Send(commandMessage);
+            if (_desktopDevice is not SerialStreamingDevice serialDevice)
+            {
+                throw new NotSupportedException(
+                    $"Firmware transport requires a serial device, but got '{_desktopDevice.GetType().Name}'.");
+            }
+
+            if (IsLanFirmwareUpdateModeCommand(commandMessage))
+            {
+                // Preserve legacy sequence used by desktop before core migration.
+                serialDevice.EnableLanUpdateMode();
+                return;
+            }
+
+            serialDevice.SendScpiMessage(commandMessage);
             return;
         }
 
@@ -97,6 +103,14 @@ public sealed class CoreStreamingDeviceAdapter : CoreStreamingDevice
         }
 
         StatusChanged?.Invoke(this, new CoreDeviceStatusEventArgs(current));
+    }
+
+    private static bool IsLanFirmwareUpdateModeCommand(IOutboundMessage<string> message)
+    {
+        return string.Equals(
+            message.Data?.Trim(),
+            LanFirmwareUpdateCommand,
+            StringComparison.OrdinalIgnoreCase);
     }
 }
 
