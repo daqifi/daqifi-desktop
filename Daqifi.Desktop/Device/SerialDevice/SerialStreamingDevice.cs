@@ -401,11 +401,9 @@ public class SerialStreamingDevice : AbstractStreamingDevice
 
     public void EnableLanUpdateMode()
     {
-        AppLogger.Information($"Preparing {PortName} for WiFi firmware mode (USB transparency enabled).");
+        AppLogger.Information($"Preparing {PortName} for WiFi firmware mode.");
 
         _coreDevice?.Send(ScpiMessageProducer.TurnDeviceOn);
-        Thread.Sleep(100);
-        _coreDevice?.Send(ScpiMessageProducer.SetUsbTransparencyMode(1));
         Thread.Sleep(100);
         _coreDevice?.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
         Thread.Sleep(100);
