@@ -632,14 +632,14 @@ public partial class DaqifiViewModel : ObservableObject
             _firmwareDownloadService,
             new WifiPromptDelayProcessRunner(
                 new ProcessExternalProcessRunner(),
-                promptResponseDelay: TimeSpan.FromSeconds(2)),
+                promptResponseDelay: TimeSpan.FromSeconds(4)),
             firmwareLogger,
             options: new FirmwareUpdateServiceOptions
             {
                 // winc_flash_tool.cmd requires an explicit release version folder.
                 WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /k /e /i aio /w",
-                // Legacy desktop flow effectively waited ~3s between LAN update mode command and tooling.
-                PostLanFirmwareModeDelay = TimeSpan.FromSeconds(3),
+                // Give the serial bridge extra time to settle in LAN FW update mode before tool launch.
+                PostLanFirmwareModeDelay = TimeSpan.FromSeconds(5),
                 // Give Windows a little more time to re-enumerate the UART before reconnect attempts.
                 PostWifiReconnectDelay = TimeSpan.FromSeconds(3)
             });

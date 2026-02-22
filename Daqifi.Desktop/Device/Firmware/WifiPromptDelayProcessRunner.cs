@@ -19,7 +19,7 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
     private readonly IExternalProcessRunner _innerRunner;
     private readonly TimeSpan _promptResponseDelay;
     private readonly AppLogger _appLogger = AppLogger.Instance;
-    private readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(2);
+    private readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(5);
 
     public WifiPromptDelayProcessRunner(
         IExternalProcessRunner? innerRunner = null,
@@ -35,7 +35,10 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var firstAttempt = await RunSingleAttemptAsync(request, cancellationToken).ConfigureAwait(false);
+        var firstAttempt = await RunSingleAttemptAsync(
+            request,
+            _promptResponseDelay,
+            cancellationToken).ConfigureAwait(false);
         if (!ShouldRetry(firstAttempt, attempt: 1))
         {
             return firstAttempt;
@@ -43,12 +46,16 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
 
         _appLogger.Warning("WiFi flash tool reported serial bridge init failure; retrying once.");
         await Task.Delay(_retryDelay, cancellationToken).ConfigureAwait(false);
-        var secondAttempt = await RunSingleAttemptAsync(request, cancellationToken).ConfigureAwait(false);
+        var secondAttempt = await RunSingleAttemptAsync(
+            request,
+            _promptResponseDelay + TimeSpan.FromSeconds(2),
+            cancellationToken).ConfigureAwait(false);
         return secondAttempt;
     }
 
     private Task<ExternalProcessResult> RunSingleAttemptAsync(
         ExternalProcessRequest request,
+        TimeSpan promptResponseDelay,
         CancellationToken cancellationToken)
     {
         var wrappedRequest = new ExternalProcessRequest
@@ -67,13 +74,17 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
                 _appLogger.Warning($"WiFi flash stderr: {line}");
                 request.OnStandardErrorLine?.Invoke(line);
             },
-            StandardInputResponseFactory = BuildInputResponder(request.StandardInputResponseFactory)
+            StandardInputResponseFactory = BuildInputResponder(
+                request.StandardInputResponseFactory,
+                promptResponseDelay)
         };
 
         return _innerRunner.RunAsync(wrappedRequest, cancellationToken);
     }
 
-    private Func<string, string?>? BuildInputResponder(Func<string, string?>? fallbackResponder)
+    private Func<string, string?>? BuildInputResponder(
+        Func<string, string?>? fallbackResponder,
+        TimeSpan promptResponseDelay)
     {
         if (fallbackResponder == null)
         {
@@ -92,7 +103,7 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
                 }
 
                 _appLogger.Information("WiFi flash tool requested WINC power-cycle; waiting before sending continue signal.");
-                Thread.Sleep(_promptResponseDelay);
+                Thread.Sleep(promptResponseDelay);
                 continueSignalSent = true;
                 _appLogger.Information("Sending continue signal to WiFi flash tool.");
                 return string.Empty;
