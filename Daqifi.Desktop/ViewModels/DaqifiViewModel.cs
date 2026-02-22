@@ -603,7 +603,8 @@ public partial class DaqifiViewModel : ObservableObject
             throw new InvalidOperationException("No WiFi firmware package was found for update.");
         }
 
-        FirmwareUpdateStatusText = $"Updating WiFi module ({wifiPackage.Value.Version})...";
+        var wifiVersion = NormalizeWifiFirmwareVersion(wifiPackage.Value.Version);
+        FirmwareUpdateStatusText = $"Updating WiFi module ({wifiVersion})...";
         var wifiUpdateProgress = new Progress<FirmwareUpdateProgress>(report =>
         {
             UploadWiFiProgress = Math.Clamp((int)Math.Round(report.PercentComplete), 0, 100);
@@ -613,11 +614,52 @@ public partial class DaqifiViewModel : ObservableObject
             }
         });
 
-        await _firmwareUpdateService.UpdateWifiModuleAsync(
+        using var wifiUpdateService = CreateWifiFirmwareUpdateService(wifiVersion);
+        await wifiUpdateService.UpdateWifiModuleAsync(
             coreDevice,
             wifiPackage.Value.ExtractedPath,
             wifiUpdateProgress,
             cancellationToken);
+    }
+
+    private FirmwareUpdateService CreateWifiFirmwareUpdateService(string wifiVersion)
+    {
+        var firmwareLogger = App.ServiceProvider?.GetService<ILogger<FirmwareUpdateService>>()
+            ?? NullLogger<FirmwareUpdateService>.Instance;
+
+        return new FirmwareUpdateService(
+            new HidLibraryTransport(),
+            _firmwareDownloadService,
+            new ProcessExternalProcessRunner(),
+            firmwareLogger,
+            options: new FirmwareUpdateServiceOptions
+            {
+                // winc_flash_tool.cmd requires an explicit release version folder.
+                WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /k /e /i aio /w"
+            });
+    }
+
+    private static string NormalizeWifiFirmwareVersion(string rawVersion)
+    {
+        var normalized = (rawVersion ?? string.Empty).Trim();
+        if (normalized.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized[1..];
+        }
+
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new InvalidOperationException("WiFi firmware version metadata is missing.");
+        }
+
+        // Keep command argument safe even if an unexpected tag format appears.
+        var invalidChars = new[] { ' ', '\t', '\r', '\n', '"', '\'', ';' };
+        if (normalized.IndexOfAny(invalidChars) >= 0)
+        {
+            throw new InvalidOperationException($"Invalid WiFi firmware version tag '{rawVersion}'.");
+        }
+
+        return normalized;
     }
 
     private void HandleFirmwareUpdateException(FirmwareUpdateException exception)
