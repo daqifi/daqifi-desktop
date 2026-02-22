@@ -402,12 +402,23 @@ public class SerialStreamingDevice : AbstractStreamingDevice
     public void EnableLanUpdateMode()
     {
         AppLogger.Information($"Preparing {PortName} for WiFi firmware mode.");
+        if (_coreDevice == null || !_coreDevice.IsConnected)
+        {
+            AppLogger.Warning($"Cannot prepare {PortName} for WiFi firmware mode: core device is not connected.");
+            return;
+        }
 
-        _coreDevice?.Send(ScpiMessageProducer.TurnDeviceOn);
-        Thread.Sleep(100);
-        _coreDevice?.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
-        Thread.Sleep(100);
-        _coreDevice?.Send(ScpiMessageProducer.ApplyNetworkLan);
+        // Match the documented/manual updater cadence so power-state and WiFi mode transitions
+        // are applied before the UART flash tool takes over the COM port.
+        Thread.Sleep(2000);
+        AppLogger.Information("Sending LAN FW update prep command: SYSTem:POWer:STATe 1");
+        _coreDevice.Send(ScpiMessageProducer.TurnDeviceOn);
+        Thread.Sleep(1000);
+        AppLogger.Information("Sending LAN FW update prep command: SYSTem:COMMUnicate:LAN:FWUpdate");
+        _coreDevice.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
+        Thread.Sleep(500);
+        AppLogger.Information("Sending LAN FW update prep command: SYSTem:COMMunicate:LAN:APPLY");
+        _coreDevice.Send(ScpiMessageProducer.ApplyNetworkLan);
     }
 
     public void ResetLanAfterUpdate()
