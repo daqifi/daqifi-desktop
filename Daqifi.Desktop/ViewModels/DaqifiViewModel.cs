@@ -630,7 +630,9 @@ public partial class DaqifiViewModel : ObservableObject
         return new FirmwareUpdateService(
             new HidLibraryTransport(),
             _firmwareDownloadService,
-            new ProcessExternalProcessRunner(),
+            new WifiPromptDelayProcessRunner(
+                new ProcessExternalProcessRunner(),
+                promptResponseDelay: TimeSpan.FromSeconds(2)),
             firmwareLogger,
             options: new FirmwareUpdateServiceOptions
             {
