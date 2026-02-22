@@ -1,5 +1,6 @@
 using System.Net;
 using Daqifi.Desktop.Device.SerialDevice;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Core.Communication.Messages;
 using CoreScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using CoreConnectionStatus = Daqifi.Core.Device.ConnectionStatus;
@@ -15,6 +16,7 @@ namespace Daqifi.Desktop.Device.Firmware;
 public sealed class CoreStreamingDeviceAdapter : CoreStreamingDevice
 {
     private static readonly string LanFirmwareUpdateCommand = CoreScpiMessageProducer.SetLanFirmwareUpdateMode.Data;
+    private static readonly string EnableLanCommand = CoreScpiMessageProducer.EnableNetworkLan.Data;
 
     private readonly IStreamingDevice _desktopDevice;
 
@@ -82,8 +84,15 @@ public sealed class CoreStreamingDeviceAdapter : CoreStreamingDevice
             if (IsLanFirmwareUpdateModeCommand(commandMessage))
             {
                 // Preserve legacy sequence used by desktop before core migration.
+                AppLogger.Instance.Information("Routing LAN firmware update mode command through legacy serial preparation flow.");
                 serialDevice.EnableLanUpdateMode();
                 return;
+            }
+
+            if (IsEnableLanCommand(commandMessage))
+            {
+                // Undo WiFi programming bridge mode before restoring LAN.
+                serialDevice.SendScpiMessage(CoreScpiMessageProducer.SetUsbTransparencyMode(0));
             }
 
             serialDevice.SendScpiMessage(commandMessage);
@@ -110,6 +119,14 @@ public sealed class CoreStreamingDeviceAdapter : CoreStreamingDevice
         return string.Equals(
             message.Data?.Trim(),
             LanFirmwareUpdateCommand,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsEnableLanCommand(IOutboundMessage<string> message)
+    {
+        return string.Equals(
+            message.Data?.Trim(),
+            EnableLanCommand,
             StringComparison.OrdinalIgnoreCase);
     }
 }
