@@ -11,25 +11,46 @@ namespace Daqifi.Desktop.Device.Firmware;
 public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
 {
     private const string WincBootPromptMarker = "Power cycle WINC and set to bootloader mode";
+    private const string ContinuePromptMarker = "Press any key to continue";
+    private const string BridgeIdQueryFailureMarker = "failed to read serial bridge ID query response";
+    private const string ProgrammerInitFailureMarker = "failed to initialise programming firmware";
+    private const string ProgrammingFailedMarker = "Programming device failed";
 
     private readonly IExternalProcessRunner _innerRunner;
     private readonly TimeSpan _promptResponseDelay;
     private readonly AppLogger _appLogger = AppLogger.Instance;
+    private readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(2);
 
     public WifiPromptDelayProcessRunner(
         IExternalProcessRunner? innerRunner = null,
         TimeSpan? promptResponseDelay = null)
     {
         _innerRunner = innerRunner ?? new ProcessExternalProcessRunner();
-        _promptResponseDelay = promptResponseDelay ?? TimeSpan.FromSeconds(2);
+        _promptResponseDelay = promptResponseDelay ?? TimeSpan.FromSeconds(1);
     }
 
-    public Task<ExternalProcessResult> RunAsync(
+    public async Task<ExternalProcessResult> RunAsync(
         ExternalProcessRequest request,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        var firstAttempt = await RunSingleAttemptAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!ShouldRetry(firstAttempt, attempt: 1))
+        {
+            return firstAttempt;
+        }
+
+        _appLogger.Warning("WiFi flash tool reported serial bridge init failure; retrying once.");
+        await Task.Delay(_retryDelay, cancellationToken).ConfigureAwait(false);
+        var secondAttempt = await RunSingleAttemptAsync(request, cancellationToken).ConfigureAwait(false);
+        return secondAttempt;
+    }
+
+    private Task<ExternalProcessResult> RunSingleAttemptAsync(
+        ExternalProcessRequest request,
+        CancellationToken cancellationToken)
+    {
         var wrappedRequest = new ExternalProcessRequest
         {
             FileName = request.FileName,
@@ -46,29 +67,71 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
                 _appLogger.Warning($"WiFi flash stderr: {line}");
                 request.OnStandardErrorLine?.Invoke(line);
             },
-            StandardInputResponseFactory = WrapInputResponder(request.StandardInputResponseFactory)
+            StandardInputResponseFactory = BuildInputResponder(request.StandardInputResponseFactory)
         };
 
         return _innerRunner.RunAsync(wrappedRequest, cancellationToken);
     }
 
-    private Func<string, string?>? WrapInputResponder(Func<string, string?>? responder)
+    private Func<string, string?>? BuildInputResponder(Func<string, string?>? fallbackResponder)
     {
-        if (responder == null)
+        if (fallbackResponder == null)
         {
             return null;
         }
 
+        var waitingForContinuePrompt = false;
+
         return line =>
         {
-            var response = responder(line);
-            if (response == null || !line.Contains(WincBootPromptMarker, StringComparison.OrdinalIgnoreCase))
+            if (line.Contains(WincBootPromptMarker, StringComparison.OrdinalIgnoreCase))
             {
-                return response;
+                waitingForContinuePrompt = true;
+                _appLogger.Information("WiFi flash tool requested WINC power-cycle; waiting for continue prompt.");
+                return null;
             }
 
-            Thread.Sleep(_promptResponseDelay);
-            return response;
+            if (waitingForContinuePrompt && line.Contains(ContinuePromptMarker, StringComparison.OrdinalIgnoreCase))
+            {
+                Thread.Sleep(_promptResponseDelay);
+                waitingForContinuePrompt = false;
+                _appLogger.Information("Sending continue signal to WiFi flash tool.");
+                return string.Empty;
+            }
+
+            return fallbackResponder(line);
         };
+    }
+
+    private static bool ShouldRetry(ExternalProcessResult result, int attempt)
+    {
+        if (attempt >= 2)
+        {
+            return false;
+        }
+
+        if (result.TimedOut)
+        {
+            return false;
+        }
+
+        return ContainsAny(result.StandardErrorLines, BridgeIdQueryFailureMarker, ProgrammerInitFailureMarker) ||
+               ContainsAny(result.StandardOutputLines, ProgrammingFailedMarker);
+    }
+
+    private static bool ContainsAny(IEnumerable<string> lines, params string[] markers)
+    {
+        foreach (var line in lines)
+        {
+            foreach (var marker in markers)
+            {
+                if (line.Contains(marker, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }
