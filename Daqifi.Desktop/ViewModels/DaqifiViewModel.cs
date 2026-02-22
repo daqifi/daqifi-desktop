@@ -637,8 +637,8 @@ public partial class DaqifiViewModel : ObservableObject
             options: new FirmwareUpdateServiceOptions
             {
                 // winc_flash_tool.cmd requires an explicit release version folder.
-                // The Microchip tool uses /x to read XO offset before image build.
-                WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /x /e /i aio /w",
+                // Keep legacy argument profile used by shipped WINC tool bundle.
+                WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /k /e /i aio /w",
                 // Allow extra time for LAN FW update mode transition before COM handoff.
                 PostLanFirmwareModeDelay = TimeSpan.FromSeconds(4),
                 // Give Windows a little more time to re-enumerate the UART before reconnect attempts.

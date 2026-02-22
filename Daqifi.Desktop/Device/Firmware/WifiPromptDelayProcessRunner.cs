@@ -15,6 +15,8 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
     private const string BridgeIdQueryFailureMarker = "failed to read serial bridge ID query response";
     private const string ProgrammerInitFailureMarker = "failed to initialise programming firmware";
     private const string ProgrammingFailedMarker = "Programming device failed";
+    private const string ReadXoFailedMarker = "Reading XO (offset) failed";
+    private const string BuildImageFailedMarker = "Building programming image failed";
 
     private readonly IExternalProcessRunner _innerRunner;
     private readonly TimeSpan _promptResponseDelay;
@@ -41,7 +43,7 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
             cancellationToken).ConfigureAwait(false);
         if (!ShouldRetry(firstAttempt, attempt: 1))
         {
-            return firstAttempt;
+            return NormalizeFailureResult(firstAttempt);
         }
 
         _appLogger.Warning("WiFi flash tool reported serial bridge init failure; retrying once.");
@@ -50,7 +52,7 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
             request,
             _promptResponseDelay + TimeSpan.FromSeconds(2),
             cancellationToken).ConfigureAwait(false);
-        return secondAttempt;
+        return NormalizeFailureResult(secondAttempt);
     }
 
     private Task<ExternalProcessResult> RunSingleAttemptAsync(
@@ -134,7 +136,33 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
         }
 
         return ContainsAny(result.StandardErrorLines, BridgeIdQueryFailureMarker, ProgrammerInitFailureMarker) ||
-               ContainsAny(result.StandardOutputLines, ProgrammingFailedMarker);
+               ContainsAny(result.StandardOutputLines, ProgrammingFailedMarker, ReadXoFailedMarker);
+    }
+
+    private static ExternalProcessResult NormalizeFailureResult(ExternalProcessResult result)
+    {
+        if (result.TimedOut)
+        {
+            return result;
+        }
+
+        var hasKnownFailure =
+            ContainsAny(result.StandardErrorLines, BridgeIdQueryFailureMarker, ProgrammerInitFailureMarker) ||
+            ContainsAny(result.StandardOutputLines, ProgrammingFailedMarker, ReadXoFailedMarker, BuildImageFailedMarker);
+
+        if (!hasKnownFailure || result.ExitCode != 0)
+        {
+            return result;
+        }
+
+        // Some WINC script/tool combinations can emit failure markers but still return exit code 0.
+        // Force a non-zero exit code so higher-level firmware update flow reports failure.
+        return new ExternalProcessResult(
+            exitCode: 1,
+            timedOut: false,
+            duration: result.Duration,
+            standardOutputLines: result.StandardOutputLines,
+            standardErrorLines: result.StandardErrorLines);
     }
 
     private static bool ContainsAny(IEnumerable<string> lines, params string[] markers)
