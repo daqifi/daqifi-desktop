@@ -639,8 +639,12 @@ public partial class DaqifiViewModel : ObservableObject
                 // winc_flash_tool.cmd requires an explicit release version folder.
                 // Keep legacy argument profile used by shipped WINC tool bundle.
                 WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /k /e /i aio /w",
-                // Allow extra time for LAN FW update mode transition before COM handoff.
-                PostLanFirmwareModeDelay = TimeSpan.FromSeconds(4),
+                // Release the COM port quickly after APPLY so the port is free before the firmware
+                // reconfigures the USB device into WINC bridge mode. Holding it open longer (e.g. 4 s)
+                // meant the desktop held the handle through the USB re-enumeration, leaving the port
+                // in a bad state for the flash tool. The ~4 s flash-tool process startup naturally
+                // provides the settle time the bridge needs before programming begins.
+                PostLanFirmwareModeDelay = TimeSpan.FromMilliseconds(100),
                 // Give Windows a little more time to re-enumerate the UART before reconnect attempts.
                 PostWifiReconnectDelay = TimeSpan.FromSeconds(3)
             });
