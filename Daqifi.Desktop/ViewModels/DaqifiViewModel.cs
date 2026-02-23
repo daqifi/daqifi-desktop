@@ -25,6 +25,7 @@ using System.Windows;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Daqifi.Desktop.Device.SerialDevice;
+using System.IO.Ports;
 using Application = System.Windows.Application;
 using File = System.IO.File;
 using CommunityToolkit.Mvvm.Input;
@@ -614,7 +615,7 @@ public partial class DaqifiViewModel : ObservableObject
             }
         });
 
-        using var wifiUpdateService = CreateWifiFirmwareUpdateService(wifiVersion);
+        using var wifiUpdateService = CreateWifiFirmwareUpdateService(wifiVersion, coreDevice.Name);
         await wifiUpdateService.UpdateWifiModuleAsync(
             coreDevice,
             wifiPackage.Value.ExtractedPath,
@@ -622,28 +623,64 @@ public partial class DaqifiViewModel : ObservableObject
             cancellationToken);
     }
 
-    private FirmwareUpdateService CreateWifiFirmwareUpdateService(string wifiVersion)
+    private FirmwareUpdateService CreateWifiFirmwareUpdateService(string wifiVersion, string portName)
     {
         var firmwareLogger = App.ServiceProvider?.GetService<ILogger<FirmwareUpdateService>>()
             ?? NullLogger<FirmwareUpdateService>.Instance;
+
+        // Bridge activation action: opened at the "Power cycle WINC" prompt to trigger the
+        // device's bridge-mode state machine right before the flash tool starts programming.
+        // By deferring APPLY (SYSTem:COMMunicate:LAN:APPLY) until this point we give the
+        // firmware a guaranteed promptResponseDelay window (2 s) to complete the WiFi
+        // deinit/reinit cycle and call wifi_serial_bridge_Init() before the flash tool
+        // issues its first serial bridge query.
+        Action bridgeActivationAction = () =>
+        {
+            _appLogger.Information($"Opening {portName} to send bridge activation commands.");
+            try
+            {
+                // USB CDC virtual ports ignore the baud rate; match the Core transport defaults.
+                using var port = new SerialPort(portName, 9600, Parity.None, 8, StopBits.One)
+                {
+                    DtrEnable = true,
+                    RtsEnable = false,
+                    WriteTimeout = 2000
+                };
+                port.Open();
+                // Brief pause to allow the DTR signal to be recognised by the firmware
+                // before we send commands (firmware checks isCdcHostConnected via DTR).
+                Thread.Sleep(200);
+                // Re-assert the FW-update-requested flag (idempotent; belt-and-suspenders).
+                port.Write("SYSTem:COMMUnicate:LAN:FWUpdate\n");
+                Thread.Sleep(100);
+                // Trigger the WiFi manager REINIT → bridge-mode state machine.
+                port.Write("SYSTem:COMMunicate:LAN:APPLY\n");
+                // Give the firmware a moment to enqueue the APPLY before we close the port.
+                Thread.Sleep(300);
+                _appLogger.Information("Bridge activation commands sent successfully.");
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Warning($"Bridge activation failed for {portName}: {ex.Message}");
+            }
+        };
 
         return new FirmwareUpdateService(
             new HidLibraryTransport(),
             _firmwareDownloadService,
             new WifiPromptDelayProcessRunner(
                 new ProcessExternalProcessRunner(),
-                promptResponseDelay: TimeSpan.FromSeconds(2)),
+                promptResponseDelay: TimeSpan.FromSeconds(2),
+                bridgeActivationAction: bridgeActivationAction),
             firmwareLogger,
             options: new FirmwareUpdateServiceOptions
             {
                 // winc_flash_tool.cmd requires an explicit release version folder.
                 // Keep legacy argument profile used by shipped WINC tool bundle.
                 WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /k /e /i aio /w",
-                // Release the COM port quickly after APPLY so the port is free before the firmware
-                // reconfigures the USB device into WINC bridge mode. Holding it open longer (e.g. 4 s)
-                // meant the desktop held the handle through the USB re-enumeration, leaving the port
-                // in a bad state for the flash tool. The ~4 s flash-tool process startup naturally
-                // provides the settle time the bridge needs before programming begins.
+                // After sending FWUpdate (flag-only, no APPLY), disconnect quickly so the
+                // COM port is free for the bridge activation raw write at the "Power cycle
+                // WINC" prompt.  The FWUpdate flag persists in firmware RAM until APPLY fires.
                 PostLanFirmwareModeDelay = TimeSpan.FromMilliseconds(100),
                 // Give Windows a little more time to re-enumerate the UART before reconnect attempts.
                 PostWifiReconnectDelay = TimeSpan.FromSeconds(3)

@@ -408,17 +408,21 @@ public class SerialStreamingDevice : AbstractStreamingDevice
             return;
         }
 
-        // Match the documented/manual updater cadence so power-state and WiFi mode transitions
-        // are applied before the UART flash tool takes over the COM port.
+        // Power on the WiFi module and set the FW-update-requested flag.
+        // APPLY (SYSTem:COMMunicate:LAN:APPLY) is intentionally NOT sent here.
+        // The APPLY that triggers bridge-mode initialisation is sent later — via a raw serial
+        // port write inside WifiPromptDelayProcessRunner — at the moment the flash tool shows
+        // its "Power cycle WINC" prompt.  Sending APPLY here (before the flash tool starts)
+        // introduces a race: the WiFi deinit/reinit cycle can take several seconds, and the
+        // bridge may not be ready by the time the flash tool's programming phase begins.
+        // Sending it at the prompt gives the firmware a guaranteed ~2 s window to initialise
+        // the bridge before the tool issues its first serial query.
         Thread.Sleep(2000);
         AppLogger.Information("Sending LAN FW update prep command: SYSTem:POWer:STATe 1");
         _coreDevice.Send(ScpiMessageProducer.TurnDeviceOn);
         Thread.Sleep(1000);
         AppLogger.Information("Sending LAN FW update prep command: SYSTem:COMMUnicate:LAN:FWUpdate");
         _coreDevice.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
-        Thread.Sleep(500);
-        AppLogger.Information("Sending LAN FW update prep command: SYSTem:COMMunicate:LAN:APPLY");
-        _coreDevice.Send(ScpiMessageProducer.ApplyNetworkLan);
     }
 
     public void ResetLanAfterUpdate()

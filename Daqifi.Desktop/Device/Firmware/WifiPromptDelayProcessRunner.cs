@@ -23,12 +23,24 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly TimeSpan _retryDelay = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// Optional action invoked synchronously when the "Power cycle WINC" prompt is detected,
+    /// before the <see cref="_promptResponseDelay"/> wait begins.  Intended to open a raw
+    /// serial port, send the LAN:APPLY command that triggers bridge-mode initialisation on the
+    /// device, and then close the port — so the firmware has the full
+    /// <see cref="_promptResponseDelay"/> window to enter bridge mode before Enter is sent to
+    /// the flash tool.
+    /// </summary>
+    private readonly Action? _bridgeActivationAction;
+
     public WifiPromptDelayProcessRunner(
         IExternalProcessRunner? innerRunner = null,
-        TimeSpan? promptResponseDelay = null)
+        TimeSpan? promptResponseDelay = null,
+        Action? bridgeActivationAction = null)
     {
         _innerRunner = innerRunner ?? new ProcessExternalProcessRunner();
         _promptResponseDelay = promptResponseDelay ?? TimeSpan.FromSeconds(1);
+        _bridgeActivationAction = bridgeActivationAction;
     }
 
     public async Task<ExternalProcessResult> RunAsync(
@@ -104,7 +116,20 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
                     return null;
                 }
 
-                _appLogger.Information("WiFi flash tool requested WINC power-cycle; waiting before sending continue signal.");
+                // Fire the bridge activation action first (sends LAN:APPLY via raw serial),
+                // then wait for the firmware to complete bridge-mode initialisation before
+                // telling the flash tool to continue.
+                if (_bridgeActivationAction != null)
+                {
+                    _appLogger.Information("Activating WiFi bridge mode via raw serial before WINC programming.");
+                    _bridgeActivationAction.Invoke();
+                    _appLogger.Information("Bridge activation commands sent; waiting for firmware bridge init.");
+                }
+                else
+                {
+                    _appLogger.Information("WiFi flash tool requested WINC power-cycle; waiting before sending continue signal.");
+                }
+
                 Thread.Sleep(promptResponseDelay);
                 continueSignalSent = true;
                 _appLogger.Information("Sending continue signal to WiFi flash tool.");
