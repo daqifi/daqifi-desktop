@@ -6,6 +6,7 @@ using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Models;
 using System.Globalization;
+using System.IO;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
@@ -13,6 +14,7 @@ using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector, DeviceMet
 using Daqifi.Core.Device.Protocol; // Added for ProtobufProtocolHandler
 using Daqifi.Core.Communication.Messages; // Added for IInboundMessage
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
+using Daqifi.Core.Device.SdCard;
 using CoreSdCardFileInfo = Daqifi.Core.Device.SdCard.SdCardFileInfo;
 
 namespace Daqifi.Desktop.Device;
@@ -56,6 +58,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// Core streaming device used for SD card operations (USB devices only).
     /// </summary>
     protected virtual CoreStreamingDevice? CoreDeviceForSd => null;
+
+    /// <summary>
+    /// Core streaming device used for live stream start/stop operations.
+    /// </summary>
+    protected virtual CoreStreamingDevice? CoreDeviceForStreaming => null;
 
     #region Properties
 
@@ -139,6 +146,14 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public bool IsStreaming { get; set; }
     public bool IsFirmwareOutdated { get; set; }
 
+    /// <summary>
+    /// Gets the device's hardware timestamp clock frequency in Hz.
+    /// Sourced from the underlying Core device, which populates it from the
+    /// <c>TimestampFreq</c> field in received status messages.
+    /// Used as a fallback when parsing SD card files that lack this field.
+    /// </summary>
+    public uint TimestampFrequency => (CoreDeviceForSd ?? CoreDeviceForStreaming)?.TimestampFrequency ?? 0;
+
     // Debug mode properties
     public bool IsDebugModeEnabled { get; private set; }
     public event Action<DebugDataModel>? DebugDataReceived;
@@ -216,7 +231,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     private void OnStreamMessageReceived(DaqifiOutMessage message)
     {
-        if (!IsStreaming)
+        if (!IsStreaming || Mode == DeviceMode.LogToDevice)
         {
             return;
         }
@@ -413,18 +428,32 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         try
         {
-            // Enable any active channels
+            // Enable active channels — build a single bitmask for all analog channels
+            // (each EnableAdcChannels call replaces the previous setting, so we must send all at once)
+            var analogChannelMask = 0u;
+            var hasDigitalChannels = false;
+
             foreach (var channel in DataChannels.Where(c => c.IsActive))
             {
                 if (channel.Type == ChannelType.Analog)
                 {
-                    var channelSetByte = 1u << channel.Index; // Use unsigned int for consistency
-                    SendMessage(ScpiMessageProducer.EnableAdcChannels(channelSetByte.ToString(CultureInfo.InvariantCulture)));
+                    analogChannelMask |= 1u << channel.Index;
                 }
                 else if (channel.Type == ChannelType.Digital)
                 {
-                    SendMessage(ScpiMessageProducer.EnableDioPorts());
+                    hasDigitalChannels = true;
                 }
+            }
+
+            if (analogChannelMask != 0)
+            {
+                SendMessage(ScpiMessageProducer.EnableAdcChannels(
+                    analogChannelMask.ToString(CultureInfo.InvariantCulture)));
+            }
+
+            if (hasDigitalChannels)
+            {
+                SendMessage(ScpiMessageProducer.EnableDioPorts());
             }
 
             var coreDevice = GetCoreDeviceForSd();
@@ -476,6 +505,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             throw new InvalidOperationException("SD Card access is only available when connected via USB");
         }
 
+        EnsureSdOperationsQuiesced();
+
         var coreDevice = GetCoreDeviceForSd();
         var files = coreDevice.GetSdCardFilesAsync().GetAwaiter().GetResult();
         UpdateSdCardFiles(MapSdCardFiles(files));
@@ -498,6 +529,25 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         return coreDevice;
     }
 
+    public async Task<SdCardDownloadResult> DownloadSdCardFileAsync(
+        string fileName,
+        IProgress<SdCardTransferProgress>? progress = null,
+        CancellationToken ct = default)
+    {
+        EnsureSdOperationsQuiesced();
+
+        var coreDevice = GetCoreDeviceForSd();
+        return await coreDevice.DownloadSdCardFileAsync(fileName, progress, ct);
+    }
+
+    public async Task DeleteSdCardFileAsync(string fileName, CancellationToken ct = default)
+    {
+        EnsureSdOperationsQuiesced();
+
+        var coreDevice = GetCoreDeviceForSd();
+        await coreDevice.DeleteSdCardFileAsync(fileName, ct);
+    }
+
     private static List<SdCardFile> MapSdCardFiles(IEnumerable<CoreSdCardFileInfo> files)
     {
         return files.Select(file => new SdCardFile
@@ -505,8 +555,33 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 FileName = file.FileName,
                 CreatedDate = file.CreatedDate ?? DateTime.MinValue
             })
-            .Where(file => !string.IsNullOrWhiteSpace(file.FileName))
+            .Where(file => IsImportableSdLogFileName(file.FileName))
             .ToList();
+    }
+
+    private void EnsureSdOperationsQuiesced()
+    {
+        if (IsLoggingToSdCard)
+        {
+            StopSdCardLogging();
+            return;
+        }
+
+        if (IsStreaming)
+        {
+            StopStreaming();
+        }
+    }
+
+    private static bool IsImportableSdLogFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return false;
+        }
+
+        var normalizedName = Path.GetFileName(fileName);
+        return normalizedName.EndsWith(".bin", StringComparison.OrdinalIgnoreCase);
     }
 
     public void InitializeStreaming()
@@ -529,8 +604,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             throw new InvalidOperationException("Cannot initialize streaming while in LogToDevice mode");
         }
 
-        SendMessage(ScpiMessageProducer.StartStreaming(StreamingFrequency));
-        IsStreaming = true;
+        var coreStreamingDevice = GetCoreDeviceForStreaming();
+        coreStreamingDevice.StreamingFrequency = StreamingFrequency;
+        coreStreamingDevice.StartStreaming();
+        IsStreaming = coreStreamingDevice.IsStreaming;
     }
 
     public void StopStreaming()
@@ -548,8 +625,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             AppLogger.Information("Allowing computer sleep after streaming.");
         }
 
-        IsStreaming = false;
-        SendMessage(ScpiMessageProducer.StopStreaming);
+        var coreStreamingDevice = GetCoreDeviceForStreaming();
+        coreStreamingDevice.StopStreaming();
+        IsStreaming = coreStreamingDevice.IsStreaming;
 
         // Reset timestamp processor state for clean restart
         _timestampProcessor.ResetAll();
@@ -561,6 +639,17 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 channel.ActiveSample = null;
             }
         }
+    }
+
+    private CoreStreamingDevice GetCoreDeviceForStreaming()
+    {
+        var coreDevice = CoreDeviceForStreaming;
+        if (coreDevice == null)
+        {
+            throw new InvalidOperationException("Core live streaming operations are not available for this device.");
+        }
+
+        return coreDevice;
     }
 
 
