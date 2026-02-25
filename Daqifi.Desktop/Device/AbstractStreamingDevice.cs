@@ -148,10 +148,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     /// <summary>
     /// Gets the device's hardware timestamp clock frequency in Hz.
-    /// Populated from the device's status message (<c>TimestampFreq</c> field).
+    /// Sourced from the underlying Core device, which populates it from the
+    /// <c>TimestampFreq</c> field in received status messages.
     /// Used as a fallback when parsing SD card files that lack this field.
     /// </summary>
-    public uint TimestampFrequency { get; private set; }
+    public uint TimestampFrequency => (CoreDeviceForSd ?? CoreDeviceForStreaming)?.TimestampFrequency ?? 0;
 
     // Debug mode properties
     public bool IsDebugModeEnabled { get; private set; }
@@ -508,16 +509,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         var coreDevice = GetCoreDeviceForSd();
         var files = coreDevice.GetSdCardFilesAsync().GetAwaiter().GetResult();
-
-        // Some firmware/transport timings can yield a transient SCPI error line in list output.
-        // Retry once after a short settle delay before surfacing results.
-        if (ContainsScpiErrorEntry(files))
-        {
-            AppLogger.Warning($"SD card list returned a SCPI error for device {DeviceSerialNo}. Retrying once.");
-            Thread.Sleep(200);
-            files = coreDevice.GetSdCardFilesAsync().GetAwaiter().GetResult();
-        }
-
         UpdateSdCardFiles(MapSdCardFiles(files));
     }
 
@@ -582,11 +573,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    private static bool ContainsScpiErrorEntry(IEnumerable<CoreSdCardFileInfo> files)
-    {
-        return files.Any(file => IsScpiErrorLine(file.FileName));
-    }
-
     private static bool IsImportableSdLogFileName(string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName))
@@ -594,24 +580,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return false;
         }
 
-        if (IsScpiErrorLine(fileName))
-        {
-            return false;
-        }
-
-        if (fileName.Any(char.IsControl))
-        {
-            return false;
-        }
-
         var normalizedName = Path.GetFileName(fileName);
         return normalizedName.EndsWith(".bin", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsScpiErrorLine(string value)
-    {
-        return value.StartsWith("**ERROR", StringComparison.OrdinalIgnoreCase)
-               || value.StartsWith("ERROR", StringComparison.OrdinalIgnoreCase);
     }
 
     public void InitializeStreaming()
@@ -876,12 +846,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         DeviceType = Metadata.DeviceType;
         IpAddress = Metadata.IpAddress;
         MacAddress = Metadata.MacAddress;
-
-        // Store timestamp frequency for SD card import fallback
-        if (message.TimestampFreq != 0)
-        {
-            TimestampFrequency = message.TimestampFreq;
-        }
 
         // Update NetworkConfiguration from metadata
         if (!string.IsNullOrWhiteSpace(Metadata.Ssid))
