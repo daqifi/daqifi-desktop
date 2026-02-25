@@ -1,9 +1,12 @@
-﻿using Daqifi.Desktop.DialogService;
+﻿using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Firmware;
+using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.WindowViewModelMapping;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.IO;
+using System.Net.Http;
 using System.Windows;
 
 namespace Daqifi.Desktop;
@@ -29,6 +32,17 @@ public partial class App
         serviceCollection.AddDbContextFactory<LoggingContext>(options =>
             options.UseSqlite($"Data source={Path.Combine(daqifiDataDirectory, "DAQiFiDatabase.db")}")
         );
+
+        serviceCollection.AddLogging();
+        serviceCollection.AddHttpClient();
+        serviceCollection.AddSingleton<IFirmwareDownloadService>(provider =>
+        {
+            var httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
+            return new GitHubFirmwareDownloadService(httpClientFactory.CreateClient());
+        });
+        serviceCollection.AddSingleton<IHidTransport, HidLibraryTransport>();
+        serviceCollection.AddSingleton<IExternalProcessRunner, ProcessExternalProcessRunner>();
+        serviceCollection.AddSingleton<IFirmwareUpdateService, FirmwareUpdateService>();
 
         serviceCollection.AddSingleton<LoggingManager>();
         ServiceLocator.RegisterSingleton<IDialogService, DialogService.DialogService>();

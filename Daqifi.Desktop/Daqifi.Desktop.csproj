@@ -54,16 +54,17 @@
 		<Content Include="e_sqlite3.dll">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
-	</ItemGroup>
-	<ItemGroup>
-		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="Daqifi.Core" Version="0.14.0" />
-		<PackageReference Include="EFCore.BulkExtensions" Version="9.0.2" />
+		</ItemGroup>
+		<ItemGroup>
+			<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+			<PackageReference Include="Daqifi.Core" Version="0.18.0" />
+			<PackageReference Include="EFCore.BulkExtensions" Version="9.0.2" />
 		<PackageReference Include="MahApps.Metro" Version="2.4.11" />
 		<PackageReference Include="MahApps.Metro.IconPacks" Version="6.2.1" />
 		<PackageReference Include="MahApps.Metro.IconPacks.Material" Version="6.2.1" />
 		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.2" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.12" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="9.0.12" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.12" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.12">
 			<PrivateAssets>all</PrivateAssets>
@@ -80,12 +81,11 @@
 		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.2" />
 		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
 		<PackageReference Include="System.Configuration.ConfigurationManager" Version="9.0.8" />
-		<PackageReference Include="System.IO.Ports" Version="10.0.2" />
+		<PackageReference Include="System.IO.Ports" Version="10.0.3" />
 		<PackageReference Include="System.Management" Version="10.0.2" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\Daqifi.Desktop.Bootloader\Daqifi.Desktop.Bootloader.csproj" />
 		<ProjectReference Include="..\Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj" />
 		<ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj" />
 		<ProjectReference Include="..\Daqifi.Desktop.IO\Daqifi.Desktop.IO.csproj" />

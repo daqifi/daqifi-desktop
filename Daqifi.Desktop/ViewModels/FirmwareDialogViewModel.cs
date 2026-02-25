@@ -1,24 +1,30 @@
-﻿using Daqifi.Desktop.Bootloader;
+using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Desktop.Device.HidDevice;
-using System.ComponentModel;
-using System.IO;
+using Daqifi.Desktop.Device.Firmware;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Net.Http;
+using File = System.IO.File;
 
 namespace Daqifi.Desktop.ViewModels;
 
 public partial class FirmwareDialogViewModel : ObservableObject
 {
-    private readonly Pic32Bootloader _bootloader;
+    private readonly IFirmwareUpdateService _firmwareUpdateService;
+    private readonly Daqifi.Core.Device.IStreamingDevice _coreDevice;
+    private CancellationTokenSource? _updateCts;
 
     [ObservableProperty]
-    private string _version;
+    private string _version = "Bootloader mode";
 
     [ObservableProperty]
-    private string _firmwareFilePath;
+    private string _firmwareFilePath = string.Empty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CancelUploadFirmwareCommand))]
     private bool _isFirmwareUploading;
 
     [ObservableProperty]
@@ -33,23 +39,19 @@ public partial class FirmwareDialogViewModel : ObservableObject
 
     public string UploadFirmwareProgressText => $"Upload Progress: {UploadFirmwareProgress}%";
 
-    public FirmwareDialogViewModel(HidFirmwareDevice hidFirmwareDevice)
+    public FirmwareDialogViewModel(
+        string? hidDeviceName,
+        IFirmwareUpdateService? firmwareUpdateService = null)
     {
-        _bootloader = new Pic32Bootloader(hidFirmwareDevice.Device);
-        _bootloader.PropertyChanged += OnHidDevicePropertyChanged;
-        _bootloader.RequestVersion();
-    }
+        _firmwareUpdateService = firmwareUpdateService
+            ?? App.ServiceProvider?.GetService<IFirmwareUpdateService>()
+            ?? CreateFallbackFirmwareUpdateService();
 
-    private void OnHidDevicePropertyChanged(object sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == "Version")
-        {
-            Version = _bootloader.Version;
-        }
+        _coreDevice = new BootloaderSessionStreamingDeviceAdapter(hidDeviceName ?? "DAQiFi Bootloader");
     }
 
     [RelayCommand]
-    private void BrowseFirmwarePath(object o)
+    private void BrowseFirmwarePath()
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
@@ -59,48 +61,91 @@ public partial class FirmwareDialogViewModel : ObservableObject
 
         var result = dialog.ShowDialog();
 
-        if (result == false) { return; }
+        if (result == false)
+        {
+            return;
+        }
 
         FirmwareFilePath = dialog.FileName;
     }
 
     [RelayCommand]
-    private void UploadFirmware(object obj)
+    private async Task UploadFirmware()
     {
-        var bw = new BackgroundWorker();
-        bw.DoWork += delegate
+        if (IsFirmwareUploading)
         {
-            IsFirmwareUploading = true;
-            if (string.IsNullOrWhiteSpace(FirmwareFilePath)) { return; }
-            if (!File.Exists(FirmwareFilePath))
-            {
-                return;
-            }
-
-            _bootloader.LoadFirmware(FirmwareFilePath, bw);
-        };
-        bw.WorkerReportsProgress = true;
-        bw.ProgressChanged += UploadFirmwareProgressChanged;
-        bw.RunWorkerCompleted += HandleUploadCompleted;
-        bw.RunWorkerAsync();
-    }
-
-    private void UploadFirmwareProgressChanged(object sender, ProgressChangedEventArgs e)
-    {
-        UploadFirmwareProgress = e.ProgressPercentage;
-    }
-
-    private void HandleUploadCompleted(object sender, RunWorkerCompletedEventArgs e)
-    {
-        IsFirmwareUploading = false;
-        if (e.Error != null)
-        {
-            AppLogger.Instance.Error(e.Error, "Problem Uploading Firmware");
-            HasErrorOccured = true;
+            return;
         }
-        else
+
+        if (string.IsNullOrWhiteSpace(FirmwareFilePath) || !File.Exists(FirmwareFilePath))
         {
+            HasErrorOccured = true;
+            return;
+        }
+
+        _updateCts?.Dispose();
+        _updateCts = new CancellationTokenSource();
+
+        try
+        {
+            HasErrorOccured = false;
+            IsUploadComplete = false;
+            UploadFirmwareProgress = 0;
+            IsFirmwareUploading = true;
+
+            var progress = new Progress<FirmwareUpdateProgress>(report =>
+            {
+                UploadFirmwareProgress = Math.Clamp((int)Math.Round(report.PercentComplete), 0, 100);
+            });
+
+            await _firmwareUpdateService.UpdateFirmwareAsync(
+                _coreDevice,
+                FirmwareFilePath,
+                progress,
+                _updateCts.Token);
+
             IsUploadComplete = true;
         }
+        catch (OperationCanceledException)
+        {
+            AppLogger.Instance.Warning("Manual firmware upload canceled by user.");
+        }
+        catch (FirmwareUpdateException ex)
+        {
+            HasErrorOccured = true;
+            AppLogger.Instance.Error(ex, $"Firmware upload failed in state {ex.FailedState}: {ex.Operation}");
+        }
+        catch (Exception ex)
+        {
+            HasErrorOccured = true;
+            AppLogger.Instance.Error(ex, "Problem Uploading Firmware");
+        }
+        finally
+        {
+            IsFirmwareUploading = false;
+            _updateCts?.Dispose();
+            _updateCts = null;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCancelUploadFirmware))]
+    private void CancelUploadFirmware()
+    {
+        _updateCts?.Cancel();
+    }
+
+    private bool CanCancelUploadFirmware()
+    {
+        return IsFirmwareUploading;
+    }
+
+    private static IFirmwareUpdateService CreateFallbackFirmwareUpdateService()
+    {
+        var downloadService = new GitHubFirmwareDownloadService(new HttpClient());
+        return new FirmwareUpdateService(
+            new HidLibraryTransport(),
+            downloadService,
+            new ProcessExternalProcessRunner(),
+            NullLogger<FirmwareUpdateService>.Instance);
     }
 }

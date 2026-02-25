@@ -1,5 +1,4 @@
 ﻿using System.IO.Ports;
-using Daqifi.Desktop.Bootloader;
 using Daqifi.Core.Device;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Messages;
@@ -10,7 +9,7 @@ using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
-public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDevice
+public class SerialStreamingDevice : AbstractStreamingDevice
 {
     #region Properties
     private SerialPort? _port;
@@ -394,11 +393,36 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
     #endregion
 
     #region Serial Device Only Methods
+    public void SendScpiMessage(IOutboundMessage<string> message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        SendMessage(message);
+    }
+
     public void EnableLanUpdateMode()
     {
-        _coreDevice?.Send(ScpiMessageProducer.TurnDeviceOn);
-        _coreDevice?.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
-        _coreDevice?.Send(ScpiMessageProducer.ApplyNetworkLan);
+        AppLogger.Information($"Preparing {PortName} for WiFi firmware mode.");
+        if (_coreDevice == null || !_coreDevice.IsConnected)
+        {
+            AppLogger.Warning($"Cannot prepare {PortName} for WiFi firmware mode: core device is not connected.");
+            return;
+        }
+
+        // Power on the WiFi module and set the FW-update-requested flag.
+        // APPLY (SYSTem:COMMunicate:LAN:APPLY) is intentionally NOT sent here.
+        // The APPLY that triggers bridge-mode initialisation is sent later — via a raw serial
+        // port write inside WifiPromptDelayProcessRunner — at the moment the flash tool shows
+        // its "Power cycle WINC" prompt.  Sending APPLY here (before the flash tool starts)
+        // introduces a race: the WiFi deinit/reinit cycle can take several seconds, and the
+        // bridge may not be ready by the time the flash tool's programming phase begins.
+        // Sending it at the prompt gives the firmware a guaranteed ~2 s window to initialise
+        // the bridge before the tool issues its first serial query.
+        Thread.Sleep(2000);
+        AppLogger.Information("Sending LAN FW update prep command: SYSTem:POWer:STATe 1");
+        _coreDevice.Send(ScpiMessageProducer.TurnDeviceOn);
+        Thread.Sleep(1000);
+        AppLogger.Information("Sending LAN FW update prep command: SYSTem:COMMUnicate:LAN:FWUpdate");
+        _coreDevice.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
     }
 
     public void ResetLanAfterUpdate()
@@ -407,11 +431,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, IFirmwareUpdateDev
         _coreDevice?.Send(ScpiMessageProducer.EnableNetworkLan);
         _coreDevice?.Send(ScpiMessageProducer.ApplyNetworkLan);
         _coreDevice?.Send(ScpiMessageProducer.SaveNetworkLan);
-    }
-
-    public void ForceBootloader()
-    {
-        _coreDevice?.Send(ScpiMessageProducer.ForceBootloader);
     }
 
     /// <summary>
