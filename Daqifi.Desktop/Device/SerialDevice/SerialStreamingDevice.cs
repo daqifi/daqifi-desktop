@@ -433,11 +433,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice
         _coreDevice?.Send(ScpiMessageProducer.SaveNetworkLan);
     }
 
-    public void ForceBootloader()
-    {
-        _coreDevice?.Send(ScpiMessageProducer.ForceBootloader);
-    }
-
     /// <summary>
     /// Returns the COM port name for this USB device
     /// </summary>
