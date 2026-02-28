@@ -587,6 +587,28 @@ public partial class DaqifiViewModel : ObservableObject
 
     private async Task UpdateWifiModuleAsync(Daqifi.Core.Device.IStreamingDevice coreDevice, CancellationToken cancellationToken)
     {
+        // Check the device's current WiFi version before downloading to avoid unnecessary flashing.
+        if (coreDevice is ILanChipInfoProvider lanChipProvider)
+        {
+            FirmwareUpdateStatusText = "Checking WiFi firmware version...";
+
+            var chipInfo = await lanChipProvider.GetLanChipInfoAsync(cancellationToken);
+            var latestRelease = await _firmwareDownloadService.GetLatestWifiReleaseAsync(cancellationToken);
+
+            if (chipInfo != null && latestRelease != null)
+            {
+                var latestVersion = NormalizeWifiFirmwareVersion(latestRelease.TagName);
+                if (IsWifiVersionCurrent(chipInfo.FwVersion, latestVersion))
+                {
+                    FirmwareUpdateStatusText = $"WiFi firmware already up to date ({chipInfo.FwVersion}).";
+                    UploadWiFiProgress = 100;
+                    return;
+                }
+
+                FirmwareUpdateStatusText = $"WiFi update available ({chipInfo.FwVersion} → {latestVersion}). Downloading...";
+            }
+        }
+
         FirmwareUpdateStatusText = "Downloading WiFi firmware package...";
         var wifiDownloadProgress = new Progress<int>(percent =>
         {
@@ -708,6 +730,13 @@ public partial class DaqifiViewModel : ObservableObject
         }
 
         return normalized;
+    }
+
+    private static bool IsWifiVersionCurrent(string deviceVersion, string latestVersion)
+    {
+        if (!FirmwareVersion.TryParse(deviceVersion, out var device)) return false;
+        if (!FirmwareVersion.TryParse(latestVersion, out var latest)) return false;
+        return device >= latest;
     }
 
     private void HandleFirmwareUpdateException(FirmwareUpdateException exception)

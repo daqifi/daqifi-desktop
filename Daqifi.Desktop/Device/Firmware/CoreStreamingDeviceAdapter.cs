@@ -2,6 +2,7 @@ using System.Net;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Core.Communication.Messages;
+using Daqifi.Core.Firmware;
 using CoreScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using CoreConnectionStatus = Daqifi.Core.Device.ConnectionStatus;
 using CoreDeviceStatusEventArgs = Daqifi.Core.Device.DeviceStatusEventArgs;
@@ -13,7 +14,7 @@ namespace Daqifi.Desktop.Device.Firmware;
 /// <summary>
 /// Adapts a desktop streaming device to Core's firmware update device contract.
 /// </summary>
-public sealed class CoreStreamingDeviceAdapter : CoreStreamingDevice
+public sealed class CoreStreamingDeviceAdapter : CoreStreamingDevice, ILanChipInfoProvider
 {
     private static readonly string LanFirmwareUpdateCommand = CoreScpiMessageProducer.SetLanFirmwareUpdateMode.Data;
     private static readonly string EnableLanCommand = CoreScpiMessageProducer.EnableNetworkLan.Data;
@@ -101,6 +102,14 @@ public sealed class CoreStreamingDeviceAdapter : CoreStreamingDevice
 
         throw new NotSupportedException(
             $"Unsupported outbound message payload type '{typeof(T).Name}' for desktop transport.");
+    }
+
+    /// <inheritdoc />
+    public Task<LanChipInfo?> GetLanChipInfoAsync(CancellationToken cancellationToken = default)
+    {
+        if (_desktopDevice is ILanChipInfoProvider provider)
+            return provider.GetLanChipInfoAsync(cancellationToken);
+        return Task.FromResult<LanChipInfo?>(null);
     }
 
     private void RaiseStatusChanged(CoreConnectionStatus previous)

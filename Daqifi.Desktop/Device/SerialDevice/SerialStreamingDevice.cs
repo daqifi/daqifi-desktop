@@ -3,13 +3,14 @@ using Daqifi.Core.Device;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Device.Protocol;
+using Daqifi.Core.Firmware;
 using Daqifi.Desktop.IO.Messages;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
-public class SerialStreamingDevice : AbstractStreamingDevice
+public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvider
 {
     #region Properties
     private SerialPort? _port;
@@ -431,6 +432,16 @@ public class SerialStreamingDevice : AbstractStreamingDevice
         _coreDevice?.Send(ScpiMessageProducer.EnableNetworkLan);
         _coreDevice?.Send(ScpiMessageProducer.ApplyNetworkLan);
         _coreDevice?.Send(ScpiMessageProducer.SaveNetworkLan);
+    }
+
+    /// <summary>
+    /// Queries the WiFi module chip information by delegating to the underlying Core device.
+    /// </summary>
+    public Task<LanChipInfo?> GetLanChipInfoAsync(CancellationToken cancellationToken = default)
+    {
+        if (_coreDevice is not ILanChipInfoProvider provider)
+            return Task.FromResult<LanChipInfo?>(null);
+        return provider.GetLanChipInfoAsync(cancellationToken);
     }
 
     /// <summary>
