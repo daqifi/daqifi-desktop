@@ -729,7 +729,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 }
                 else if (coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel)
                 {
-                    // Core sets digital channels to IsEnabled = true by default, keep that behavior
                     DataChannels.Add(new DigitalChannel(this, coreDigitalChannel));
                 }
             }
