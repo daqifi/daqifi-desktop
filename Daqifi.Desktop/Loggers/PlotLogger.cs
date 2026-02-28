@@ -23,6 +23,21 @@ public partial class PlotLogger : ObservableObject, ILogger
     private int _precision = 4;
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = [];
     private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = [];
+    private readonly Dictionary<(string deviceSerial, string channelName), double> _lastTimestampMs = [];
+    private readonly Dictionary<(string deviceSerial, string channelName), double> _avgDeltaMs = [];
+    #endregion
+
+    #region Constants
+    /// <summary>
+    /// A gap is detected when the current delta exceeds this multiple of the running average delta.
+    /// </summary>
+    private const double GapThresholdMultiplier = 2.0;
+
+    /// <summary>
+    /// Smoothing factor for the exponential moving average of timestamp deltas.
+    /// Lower values adapt more slowly, making gap detection more stable.
+    /// </summary>
+    private const double EmaAlpha = 0.1;
     #endregion
 
     #region Properties
@@ -201,12 +216,16 @@ public partial class PlotLogger : ObservableObject, ILogger
 
         lock (PlotModel.SyncRoot)
         {
+            InsertGapIfNeeded(key, deltaTime);
+
             LoggedPoints[key].Add(new DataPoint(deltaTime, scaledSampleValue));
             if (LoggedPoints[key].Count >= 5000)
             {
                 LoggedPoints[key].RemoveAt(0);
             }
         }
+
+        _lastTimestampMs[key] = deltaTime;
 
         OnPropertyChanged(nameof(LoggedPoints));
     }
@@ -218,6 +237,39 @@ public partial class PlotLogger : ObservableObject, ILogger
     public void Log(DeviceMessage dataSample)
     {
         // No-op
+    }
+
+    /// <summary>
+    /// Inserts a <see cref="DataPoint.Undefined"/> break point when the time delta between consecutive samples
+    /// significantly exceeds the running average delta, indicating a packet-loss gap.
+    /// Must be called inside the PlotModel.SyncRoot lock.
+    /// </summary>
+    private void InsertGapIfNeeded((string deviceSerial, string channelName) key, double deltaTimeMs)
+    {
+        if (!_lastTimestampMs.TryGetValue(key, out var lastDeltaTime))
+        {
+            return;
+        }
+
+        var timeDelta = deltaTimeMs - lastDeltaTime;
+
+        if (_avgDeltaMs.TryGetValue(key, out var avgDelta))
+        {
+            if (avgDelta > 0 && timeDelta > GapThresholdMultiplier * avgDelta)
+            {
+                LoggedPoints[key].Add(DataPoint.Undefined);
+                if (LoggedPoints[key].Count >= 5000)
+                {
+                    LoggedPoints[key].RemoveAt(0);
+                }
+            }
+
+            _avgDeltaMs[key] = (1.0 - EmaAlpha) * avgDelta + EmaAlpha * timeDelta;
+        }
+        else
+        {
+            _avgDeltaMs[key] = timeDelta;
+        }
     }
 
     private void AddChannelSeries(string channelName, string DeviceSerialNo, ChannelType channelType, string newColor)
@@ -291,6 +343,8 @@ public partial class PlotLogger : ObservableObject, ILogger
     {
         LoggedChannels.Clear();
         LoggedPoints.Clear();
+        _lastTimestampMs.Clear();
+        _avgDeltaMs.Clear();
         PlotModel.Series.Clear();
         PlotModel.InvalidatePlot(true);
         FirstTime = null;
