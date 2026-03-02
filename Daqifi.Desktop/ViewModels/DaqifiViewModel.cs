@@ -593,9 +593,20 @@ public partial class DaqifiViewModel : ObservableObject
             FirmwareUpdateStatusText = "Checking WiFi firmware version...";
 
             var chipInfo = await lanChipProvider.GetLanChipInfoAsync(cancellationToken);
+
+            if (chipInfo == null)
+            {
+                // Device did not return WiFi chip info (e.g. still initializing after PIC32 reboot).
+                // Skip update rather than force-flashing when we cannot confirm a newer version is needed.
+                _appLogger.Warning("WiFi chip info unavailable; skipping WiFi update.");
+                FirmwareUpdateStatusText = "WiFi firmware version unavailable; skipping WiFi update.";
+                UploadWiFiProgress = 100;
+                return;
+            }
+
             var latestRelease = await _firmwareDownloadService.GetLatestWifiReleaseAsync(cancellationToken);
 
-            if (chipInfo != null && latestRelease != null)
+            if (latestRelease != null)
             {
                 var latestVersion = NormalizeWifiFirmwareVersion(latestRelease.TagName);
                 if (IsWifiVersionCurrent(chipInfo.FwVersion, latestVersion))
