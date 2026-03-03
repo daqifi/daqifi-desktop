@@ -540,7 +540,7 @@ public partial class DaqifiViewModel : ObservableObject
 
             if (!isManualUpload)
             {
-                await UpdateWifiModuleAsync(coreDevice, _firmwareUploadCts.Token);
+                await UpdateWifiModuleAsync(coreDevice, serialStreamingDevice, _firmwareUploadCts.Token);
             }
 
             IsUploadComplete = true;
@@ -588,13 +588,16 @@ public partial class DaqifiViewModel : ObservableObject
         return IsFirmwareUploading;
     }
 
-    private async Task UpdateWifiModuleAsync(Daqifi.Core.Device.IStreamingDevice coreDevice, CancellationToken cancellationToken)
+    private async Task UpdateWifiModuleAsync(
+        Daqifi.Core.Device.IStreamingDevice coreDevice,
+        SerialStreamingDevice serialStreamingDevice,
+        CancellationToken cancellationToken)
     {
-        // Core's PIC32 updater already waits for the application firmware to come back and
-        // reconnects the serial transport before returning. Stay on that connection and retry
-        // the LAN chip-info query rather than forcing a second desktop-side reconnect.
+        // Core's WiFi updater also performs its own version probe when the passed device
+        // implements ILanChipInfoProvider. Keep the explicit desktop-side check here, but
+        // run the actual WiFi update through the same non-provider adapter used on main.
         // Check the device's current WiFi version before downloading to avoid unnecessary flashing.
-        if (coreDevice is ILanChipInfoProvider lanChipProvider)
+        if (serialStreamingDevice is ILanChipInfoProvider lanChipProvider)
         {
             FirmwareUpdateStatusText = "Checking WiFi firmware version...";
 
