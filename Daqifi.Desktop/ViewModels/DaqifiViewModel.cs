@@ -35,10 +35,7 @@ namespace Daqifi.Desktop.ViewModels;
 public partial class DaqifiViewModel : ObservableObject
 {
     private const int WifiChipInfoMaxAttempts = 3;
-    private const int PostFirmwareReconnectMaxAttempts = 10;
     private static readonly TimeSpan WifiChipInfoRetryDelay = TimeSpan.FromSeconds(2);
-    private static readonly TimeSpan PostFirmwareReconnectDelay = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan PostFirmwareReconnectRetryDelay = TimeSpan.FromMilliseconds(500);
 
     private readonly AppLogger _appLogger = AppLogger.Instance;
 
@@ -541,8 +538,6 @@ public partial class DaqifiViewModel : ObservableObject
                 pic32Progress,
                 _firmwareUploadCts.Token);
 
-            await StabilizeDeviceAfterFirmwareUpdateAsync(coreDevice, _firmwareUploadCts.Token);
-
             if (!isManualUpload)
             {
                 await UpdateWifiModuleAsync(coreDevice, _firmwareUploadCts.Token);
@@ -595,6 +590,9 @@ public partial class DaqifiViewModel : ObservableObject
 
     private async Task UpdateWifiModuleAsync(Daqifi.Core.Device.IStreamingDevice coreDevice, CancellationToken cancellationToken)
     {
+        // Core's PIC32 updater already waits for the application firmware to come back and
+        // reconnects the serial transport before returning. Stay on that connection and retry
+        // the LAN chip-info query rather than forcing a second desktop-side reconnect.
         // Check the device's current WiFi version before downloading to avoid unnecessary flashing.
         if (coreDevice is ILanChipInfoProvider lanChipProvider)
         {
@@ -660,42 +658,6 @@ public partial class DaqifiViewModel : ObservableObject
             wifiPackage.Value.ExtractedPath,
             wifiUpdateProgress,
             cancellationToken);
-    }
-
-    private async Task StabilizeDeviceAfterFirmwareUpdateAsync(
-        Daqifi.Core.Device.IStreamingDevice coreDevice,
-        CancellationToken cancellationToken)
-    {
-        FirmwareUpdateStatusText = "Waiting for device firmware to finish starting...";
-        _appLogger.Information(
-            $"PIC32 flash completed; disconnecting {coreDevice.Name} and waiting {PostFirmwareReconnectDelay.TotalSeconds:F0}s before reconnect.");
-
-        coreDevice.Disconnect();
-        await Task.Delay(PostFirmwareReconnectDelay, cancellationToken);
-
-        for (var attempt = 1; attempt <= PostFirmwareReconnectMaxAttempts; attempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            _appLogger.Information(
-                $"Reconnect attempt {attempt}/{PostFirmwareReconnectMaxAttempts} after PIC32 startup stabilization.");
-
-            coreDevice.Connect();
-            if (coreDevice.IsConnected)
-            {
-                _appLogger.Information("Device reconnected successfully after PIC32 startup stabilization.");
-                return;
-            }
-
-            if (attempt >= PostFirmwareReconnectMaxAttempts)
-            {
-                break;
-            }
-
-            await Task.Delay(PostFirmwareReconnectRetryDelay, cancellationToken);
-        }
-
-        throw new TimeoutException("Device did not reconnect after PIC32 startup stabilization.");
     }
 
     private async Task<LanChipInfo?> TryGetLanChipInfoAsync(
