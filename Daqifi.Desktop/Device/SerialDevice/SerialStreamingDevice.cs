@@ -3,18 +3,27 @@ using Daqifi.Core.Device;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Device.Protocol;
+using Daqifi.Core.Firmware;
 using Daqifi.Desktop.IO.Messages;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
-public class SerialStreamingDevice : AbstractStreamingDevice
+public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvider
 {
+    private static readonly TimeSpan InitialStatusTimeout = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan InitialStatusPollInterval = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan InitialStatusRequestInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan DuplicateInitialStatusSuppressionWindow = TimeSpan.FromSeconds(2);
+
     #region Properties
     private SerialPort? _port;
     private CoreStreamingDevice? _coreDevice;
     private SerialStreamTransport? _transport;
+    private TaskCompletionSource<bool>? _initialStatusReceivedSource;
+    private DaqifiOutMessage? _lastInitialStatusMessage;
+    private DateTime _lastInitialStatusReceivedAtUtc;
 
     public SerialPort? Port
     {
@@ -246,6 +255,11 @@ public class SerialStreamingDevice : AbstractStreamingDevice
 
         try
         {
+            _initialStatusReceivedSource = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            _lastInitialStatusMessage = null;
+            _lastInitialStatusReceivedAtUtc = DateTime.MinValue;
+
             // Use Core's transport for unified message handling (both send and receive)
             // Note: Transport manages the actual SerialPort connection internally
             _transport = new SerialStreamTransport(Port.PortName, enableDtr: true);
@@ -265,6 +279,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice
 
             // Use Core's async initialization (safe because Connect() is called from Task.Run)
             _coreDevice.InitializeAsync().GetAwaiter().GetResult();
+            WaitForInitialStatusMessage();
             return true;
         }
         catch (Exception ex)
@@ -280,9 +295,80 @@ public class SerialStreamingDevice : AbstractStreamingDevice
     /// </summary>
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
+        if (e.Message.Data is DaqifiOutMessage protobufMessage &&
+            ProtobufProtocolHandler.DetectMessageType(protobufMessage) == ProtobufMessageType.Status)
+        {
+            if (ShouldSuppressDuplicateInitialStatus(protobufMessage))
+            {
+                return;
+            }
+
+            _initialStatusReceivedSource?.TrySetResult(true);
+        }
+
         // Core's message is already an IInboundMessage<object>, wrap it for Desktop's event args
         var args = new MessageEventArgs<object>(e.Message);
         HandleInboundMessage(args);
+    }
+
+    private bool ShouldSuppressDuplicateInitialStatus(DaqifiOutMessage statusMessage)
+    {
+        var initialStatusSource = _initialStatusReceivedSource;
+        if (initialStatusSource == null)
+        {
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        var shouldSuppress = initialStatusSource.Task.IsCompleted &&
+                             _lastInitialStatusMessage != null &&
+                             now - _lastInitialStatusReceivedAtUtc <= DuplicateInitialStatusSuppressionWindow &&
+                             _lastInitialStatusMessage.Equals(statusMessage);
+
+        _lastInitialStatusMessage = statusMessage;
+        _lastInitialStatusReceivedAtUtc = now;
+        return shouldSuppress;
+    }
+
+    private void WaitForInitialStatusMessage()
+    {
+        if (_coreDevice == null)
+        {
+            throw new InvalidOperationException("Core device was not initialized.");
+        }
+
+        var statusReceivedSource = _initialStatusReceivedSource
+            ?? throw new InvalidOperationException("Initial status wait source was not initialized.");
+
+        var deadline = DateTime.UtcNow + InitialStatusTimeout;
+        var nextDeviceInfoRequestAt = DateTime.UtcNow + InitialStatusRequestInterval;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            if (statusReceivedSource.Task.Wait(InitialStatusPollInterval))
+            {
+                return;
+            }
+
+            if (DateTime.UtcNow < nextDeviceInfoRequestAt)
+            {
+                continue;
+            }
+
+            try
+            {
+                _coreDevice.Send(ScpiMessageProducer.GetDeviceInfo);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"Failed to re-request device info on {PortName}: {ex.Message}");
+            }
+
+            nextDeviceInfoRequestAt = DateTime.UtcNow + InitialStatusRequestInterval;
+        }
+
+        throw new TimeoutException(
+            $"Device on {PortName} did not report status within {InitialStatusTimeout.TotalSeconds:F0} seconds of connect.");
     }
 
     /// <summary>
@@ -356,6 +442,10 @@ public class SerialStreamingDevice : AbstractStreamingDevice
 
     private void CleanupConnection()
     {
+        _initialStatusReceivedSource = null;
+        _lastInitialStatusMessage = null;
+        _lastInitialStatusReceivedAtUtc = DateTime.MinValue;
+
         // Unsubscribe from Core device events first
         if (_coreDevice != null)
         {
@@ -431,6 +521,16 @@ public class SerialStreamingDevice : AbstractStreamingDevice
         _coreDevice?.Send(ScpiMessageProducer.EnableNetworkLan);
         _coreDevice?.Send(ScpiMessageProducer.ApplyNetworkLan);
         _coreDevice?.Send(ScpiMessageProducer.SaveNetworkLan);
+    }
+
+    /// <summary>
+    /// Queries the WiFi module chip information by delegating to the underlying Core device.
+    /// </summary>
+    public Task<LanChipInfo?> GetLanChipInfoAsync(CancellationToken cancellationToken = default)
+    {
+        if (_coreDevice is not ILanChipInfoProvider provider)
+            return Task.FromResult<LanChipInfo?>(null);
+        return provider.GetLanChipInfoAsync(cancellationToken);
     }
 
     /// <summary>
