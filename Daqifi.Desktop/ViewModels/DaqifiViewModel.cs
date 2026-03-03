@@ -600,6 +600,7 @@ public partial class DaqifiViewModel : ObservableObject
         if (serialStreamingDevice is ILanChipInfoProvider lanChipProvider)
         {
             FirmwareUpdateStatusText = "Checking WiFi firmware version...";
+            _appLogger.Information("Checking WiFi firmware version before deciding whether to flash the WiFi module.");
 
             var chipInfo = await TryGetLanChipInfoAsync(lanChipProvider, cancellationToken);
 
@@ -610,6 +611,9 @@ public partial class DaqifiViewModel : ObservableObject
             }
             else
             {
+                _appLogger.Information(
+                    $"WiFi chip info query succeeded. Device WiFi firmware version: {chipInfo.FwVersion}.");
+
                 var latestRelease = await _firmwareDownloadService.GetLatestWifiReleaseAsync(cancellationToken);
 
                 if (latestRelease != null)
@@ -618,11 +622,19 @@ public partial class DaqifiViewModel : ObservableObject
                     if (IsWifiVersionCurrent(chipInfo.FwVersion, latestVersion))
                     {
                         FirmwareUpdateStatusText = $"WiFi firmware already up to date ({chipInfo.FwVersion}).";
+                        _appLogger.Information(
+                            $"WiFi firmware is already up to date (device: {chipInfo.FwVersion}, latest: {latestVersion}); skipping WiFi flash.");
                         UploadWiFiProgress = 100;
                         return;
                     }
 
                     FirmwareUpdateStatusText = $"WiFi update available ({chipInfo.FwVersion} → {latestVersion}). Downloading...";
+                    _appLogger.Information(
+                        $"WiFi firmware update required (device: {chipInfo.FwVersion}, latest: {latestVersion}); proceeding with WiFi flash.");
+                }
+                else
+                {
+                    _appLogger.Warning("Latest WiFi firmware release metadata was unavailable; continuing with WiFi update.");
                 }
             }
         }
