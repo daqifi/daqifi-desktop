@@ -15,12 +15,15 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     private static readonly TimeSpan InitialStatusTimeout = TimeSpan.FromSeconds(8);
     private static readonly TimeSpan InitialStatusPollInterval = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan InitialStatusRequestInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan DuplicateInitialStatusSuppressionWindow = TimeSpan.FromSeconds(2);
 
     #region Properties
     private SerialPort? _port;
     private CoreStreamingDevice? _coreDevice;
     private SerialStreamTransport? _transport;
     private TaskCompletionSource<bool>? _initialStatusReceivedSource;
+    private DaqifiOutMessage? _lastInitialStatusMessage;
+    private DateTime _lastInitialStatusReceivedAtUtc;
 
     public SerialPort? Port
     {
@@ -254,6 +257,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         {
             _initialStatusReceivedSource = new TaskCompletionSource<bool>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
+            _lastInitialStatusMessage = null;
+            _lastInitialStatusReceivedAtUtc = DateTime.MinValue;
 
             // Use Core's transport for unified message handling (both send and receive)
             // Note: Transport manages the actual SerialPort connection internally
@@ -293,12 +298,36 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         if (e.Message.Data is DaqifiOutMessage protobufMessage &&
             ProtobufProtocolHandler.DetectMessageType(protobufMessage) == ProtobufMessageType.Status)
         {
+            if (ShouldSuppressDuplicateInitialStatus(protobufMessage))
+            {
+                return;
+            }
+
             _initialStatusReceivedSource?.TrySetResult(true);
         }
 
         // Core's message is already an IInboundMessage<object>, wrap it for Desktop's event args
         var args = new MessageEventArgs<object>(e.Message);
         HandleInboundMessage(args);
+    }
+
+    private bool ShouldSuppressDuplicateInitialStatus(DaqifiOutMessage statusMessage)
+    {
+        var initialStatusSource = _initialStatusReceivedSource;
+        if (initialStatusSource == null)
+        {
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        var shouldSuppress = initialStatusSource.Task.IsCompleted &&
+                             _lastInitialStatusMessage != null &&
+                             now - _lastInitialStatusReceivedAtUtc <= DuplicateInitialStatusSuppressionWindow &&
+                             _lastInitialStatusMessage.Equals(statusMessage);
+
+        _lastInitialStatusMessage = statusMessage;
+        _lastInitialStatusReceivedAtUtc = now;
+        return shouldSuppress;
     }
 
     private void WaitForInitialStatusMessage()
@@ -414,6 +443,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     private void CleanupConnection()
     {
         _initialStatusReceivedSource = null;
+        _lastInitialStatusMessage = null;
+        _lastInitialStatusReceivedAtUtc = DateTime.MinValue;
 
         // Unsubscribe from Core device events first
         if (_coreDevice != null)
