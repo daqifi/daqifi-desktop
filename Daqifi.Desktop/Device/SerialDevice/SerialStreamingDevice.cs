@@ -12,10 +12,15 @@ namespace Daqifi.Desktop.Device.SerialDevice;
 
 public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvider
 {
+    private static readonly TimeSpan InitialStatusTimeout = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan InitialStatusPollInterval = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan InitialStatusRequestInterval = TimeSpan.FromSeconds(1);
+
     #region Properties
     private SerialPort? _port;
     private CoreStreamingDevice? _coreDevice;
     private SerialStreamTransport? _transport;
+    private TaskCompletionSource<bool>? _initialStatusReceivedSource;
 
     public SerialPort? Port
     {
@@ -247,6 +252,9 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
         try
         {
+            _initialStatusReceivedSource = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+
             // Use Core's transport for unified message handling (both send and receive)
             // Note: Transport manages the actual SerialPort connection internally
             _transport = new SerialStreamTransport(Port.PortName, enableDtr: true);
@@ -266,6 +274,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
             // Use Core's async initialization (safe because Connect() is called from Task.Run)
             _coreDevice.InitializeAsync().GetAwaiter().GetResult();
+            WaitForInitialStatusMessage();
             return true;
         }
         catch (Exception ex)
@@ -281,9 +290,56 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     /// </summary>
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
+        if (e.Message.Data is DaqifiOutMessage protobufMessage &&
+            ProtobufProtocolHandler.DetectMessageType(protobufMessage) == ProtobufMessageType.Status)
+        {
+            _initialStatusReceivedSource?.TrySetResult(true);
+        }
+
         // Core's message is already an IInboundMessage<object>, wrap it for Desktop's event args
         var args = new MessageEventArgs<object>(e.Message);
         HandleInboundMessage(args);
+    }
+
+    private void WaitForInitialStatusMessage()
+    {
+        if (_coreDevice == null)
+        {
+            throw new InvalidOperationException("Core device was not initialized.");
+        }
+
+        var statusReceivedSource = _initialStatusReceivedSource
+            ?? throw new InvalidOperationException("Initial status wait source was not initialized.");
+
+        var deadline = DateTime.UtcNow + InitialStatusTimeout;
+        var nextDeviceInfoRequestAt = DateTime.UtcNow + InitialStatusRequestInterval;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            if (statusReceivedSource.Task.Wait(InitialStatusPollInterval))
+            {
+                return;
+            }
+
+            if (DateTime.UtcNow < nextDeviceInfoRequestAt)
+            {
+                continue;
+            }
+
+            try
+            {
+                _coreDevice.Send(ScpiMessageProducer.GetDeviceInfo);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Warning($"Failed to re-request device info on {PortName}: {ex.Message}");
+            }
+
+            nextDeviceInfoRequestAt = DateTime.UtcNow + InitialStatusRequestInterval;
+        }
+
+        throw new TimeoutException(
+            $"Device on {PortName} did not report status within {InitialStatusTimeout.TotalSeconds:F0} seconds of connect.");
     }
 
     /// <summary>
@@ -357,6 +413,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
     private void CleanupConnection()
     {
+        _initialStatusReceivedSource = null;
+
         // Unsubscribe from Core device events first
         if (_coreDevice != null)
         {
