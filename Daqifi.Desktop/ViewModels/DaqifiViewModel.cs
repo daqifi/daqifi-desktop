@@ -34,6 +34,9 @@ namespace Daqifi.Desktop.ViewModels;
 
 public partial class DaqifiViewModel : ObservableObject
 {
+    private const int WifiChipInfoMaxAttempts = 3;
+    private static readonly TimeSpan WifiChipInfoRetryDelay = TimeSpan.FromSeconds(2);
+
     private readonly AppLogger _appLogger = AppLogger.Instance;
 
     #region Private Variables
@@ -592,31 +595,29 @@ public partial class DaqifiViewModel : ObservableObject
         {
             FirmwareUpdateStatusText = "Checking WiFi firmware version...";
 
-            var chipInfo = await lanChipProvider.GetLanChipInfoAsync(cancellationToken);
+            var chipInfo = await TryGetLanChipInfoAsync(lanChipProvider, cancellationToken);
 
             if (chipInfo == null)
             {
-                // Device did not return WiFi chip info (e.g. still initializing after PIC32 reboot).
-                // Skip update rather than force-flashing when we cannot confirm a newer version is needed.
-                _appLogger.Warning("WiFi chip info unavailable; skipping WiFi update.");
-                FirmwareUpdateStatusText = "WiFi firmware version unavailable; skipping WiFi update.";
-                UploadWiFiProgress = 100;
-                return;
+                _appLogger.Warning("WiFi chip info unavailable after startup retries; continuing with WiFi update.");
+                FirmwareUpdateStatusText = "WiFi firmware version unavailable; continuing with update.";
             }
-
-            var latestRelease = await _firmwareDownloadService.GetLatestWifiReleaseAsync(cancellationToken);
-
-            if (latestRelease != null)
+            else
             {
-                var latestVersion = NormalizeWifiFirmwareVersion(latestRelease.TagName);
-                if (IsWifiVersionCurrent(chipInfo.FwVersion, latestVersion))
-                {
-                    FirmwareUpdateStatusText = $"WiFi firmware already up to date ({chipInfo.FwVersion}).";
-                    UploadWiFiProgress = 100;
-                    return;
-                }
+                var latestRelease = await _firmwareDownloadService.GetLatestWifiReleaseAsync(cancellationToken);
 
-                FirmwareUpdateStatusText = $"WiFi update available ({chipInfo.FwVersion} → {latestVersion}). Downloading...";
+                if (latestRelease != null)
+                {
+                    var latestVersion = NormalizeWifiFirmwareVersion(latestRelease.TagName);
+                    if (IsWifiVersionCurrent(chipInfo.FwVersion, latestVersion))
+                    {
+                        FirmwareUpdateStatusText = $"WiFi firmware already up to date ({chipInfo.FwVersion}).";
+                        UploadWiFiProgress = 100;
+                        return;
+                    }
+
+                    FirmwareUpdateStatusText = $"WiFi update available ({chipInfo.FwVersion} → {latestVersion}). Downloading...";
+                }
             }
         }
 
@@ -654,6 +655,46 @@ public partial class DaqifiViewModel : ObservableObject
             wifiPackage.Value.ExtractedPath,
             wifiUpdateProgress,
             cancellationToken);
+    }
+
+    private async Task<LanChipInfo?> TryGetLanChipInfoAsync(
+        ILanChipInfoProvider lanChipProvider,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= WifiChipInfoMaxAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                var chipInfo = await lanChipProvider.GetLanChipInfoAsync(cancellationToken);
+                if (chipInfo != null)
+                {
+                    return chipInfo;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Warning(
+                    $"WiFi chip info query attempt {attempt}/{WifiChipInfoMaxAttempts} failed: {ex.Message}");
+            }
+
+            if (attempt >= WifiChipInfoMaxAttempts)
+            {
+                break;
+            }
+
+            _appLogger.Information(
+                $"WiFi chip info unavailable on attempt {attempt}/{WifiChipInfoMaxAttempts}; retrying after startup delay.");
+            FirmwareUpdateStatusText = "Waiting for device to finish starting up before checking WiFi firmware version...";
+            await Task.Delay(WifiChipInfoRetryDelay, cancellationToken);
+        }
+
+        return null;
     }
 
     private FirmwareUpdateService CreateWifiFirmwareUpdateService(string wifiVersion, string portName)
