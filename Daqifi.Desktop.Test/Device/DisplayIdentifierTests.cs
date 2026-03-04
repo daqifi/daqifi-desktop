@@ -1,9 +1,11 @@
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Device.WiFiDevice;
-using Daqifi.Desktop.DataModel.Device;
 using System.ComponentModel;
 using System.IO.Ports;
+using CoreDeviceInfo = Daqifi.Core.Device.Discovery.DeviceInfo;
+using CoreConnectionType = Daqifi.Core.Device.Discovery.ConnectionType;
+using System.Net;
 
 namespace Daqifi.Desktop.Test.Device;
 
@@ -88,15 +90,16 @@ public class DisplayIdentifierTests
     {
         // Arrange
         const string expectedIpAddress = "192.168.1.100";
-        var deviceInfo = new DeviceInfo
+        var deviceInfo = new CoreDeviceInfo
         {
-            DeviceName = "Test Device",
-            IpAddress = expectedIpAddress,
+            Name = "Test Device",
+            IPAddress = IPAddress.Parse(expectedIpAddress),
             MacAddress = "00:11:22:33:44:55",
-            DeviceSerialNo = "12345",
-            DeviceVersion = "1.0.0",
+            SerialNumber = "12345",
+            FirmwareVersion = "1.0.0",
             Port = 1234,
-            IsPowerOn = true
+            IsPowerOn = true,
+            ConnectionType = CoreConnectionType.WiFi
         };
         var device = new DaqifiStreamingDevice(deviceInfo);
         
@@ -112,15 +115,16 @@ public class DisplayIdentifierTests
     public void DaqifiStreamingDevice_ConnectionType_ShouldBeWifi()
     {
         // Arrange
-        var deviceInfo = new DeviceInfo
+        var deviceInfo = new CoreDeviceInfo
         {
-            DeviceName = "Test Device",
-            IpAddress = "192.168.1.100",
+            Name = "Test Device",
+            IPAddress = IPAddress.Parse("192.168.1.100"),
             MacAddress = "00:11:22:33:44:55",
-            DeviceSerialNo = "12345",
-            DeviceVersion = "1.0.0",
+            SerialNumber = "12345",
+            FirmwareVersion = "1.0.0",
             Port = 1234,
-            IsPowerOn = true
+            IsPowerOn = true,
+            ConnectionType = CoreConnectionType.WiFi
         };
         var device = new DaqifiStreamingDevice(deviceInfo);
         
@@ -133,17 +137,19 @@ public class DisplayIdentifierTests
     public void DaqifiStreamingDevice_DisplayIdentifier_ShouldHandleEmptyIpAddress()
     {
         // Arrange
-        var deviceInfo = new DeviceInfo
+        var deviceInfo = new CoreDeviceInfo
         {
-            DeviceName = "Test Device",
-            IpAddress = "",
+            Name = "Test Device",
+            IPAddress = IPAddress.Parse("192.168.1.100"),
             MacAddress = "00:11:22:33:44:55",
-            DeviceSerialNo = "12345",
-            DeviceVersion = "1.0.0",
+            SerialNumber = "12345",
+            FirmwareVersion = "1.0.0",
             Port = 1234,
-            IsPowerOn = true
+            IsPowerOn = true,
+            ConnectionType = CoreConnectionType.WiFi
         };
         var device = new DaqifiStreamingDevice(deviceInfo);
+        device.IpAddress = string.Empty;
         
         // Act
         var displayIdentifier = device.DisplayIdentifier;
@@ -157,15 +163,16 @@ public class DisplayIdentifierTests
     public void DaqifiStreamingDevice_PropertyChanged_ShouldTriggerDisplayIdentifierUpdate()
     {
         // Arrange
-        var deviceInfo = new DeviceInfo
+        var deviceInfo = new CoreDeviceInfo
         {
-            DeviceName = "Test Device",
-            IpAddress = "192.168.1.100", 
+            Name = "Test Device",
+            IPAddress = IPAddress.Parse("192.168.1.100"),
             MacAddress = "00:11:22:33:44:55",
-            DeviceSerialNo = "12345",
-            DeviceVersion = "1.0.0",
+            SerialNumber = "12345",
+            FirmwareVersion = "1.0.0",
             Port = 1234,
-            IsPowerOn = true
+            IsPowerOn = true,
+            ConnectionType = CoreConnectionType.WiFi
         };
         var device = new DaqifiStreamingDevice(deviceInfo);
         var propertyChangedFired = false;

@@ -1,8 +1,8 @@
 ﻿using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
-using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.IO.Messages;
+using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
@@ -28,18 +28,59 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     #endregion
 
     #region Constructor
-    public DaqifiStreamingDevice(DeviceInfo deviceInfo)
+    /// <summary>
+    /// Creates a WiFi device wrapper from Core discovery metadata.
+    /// </summary>
+    /// <param name="deviceInfo">The discovered device metadata.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="deviceInfo"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="deviceInfo"/> does not contain the IP address or TCP port required for WiFi.
+    /// </exception>
+    public DaqifiStreamingDevice(CoreDeviceInfo deviceInfo)
     {
-        Name = deviceInfo.DeviceName;
-        DeviceSerialNo = deviceInfo.DeviceSerialNo;
-        IpAddress = deviceInfo.IpAddress;
-        MacAddress = deviceInfo.MacAddress;
-        Port = (int)deviceInfo.Port;
-        IsPowerOn = deviceInfo.IsPowerOn;
-        IsStreaming = false;
-        DeviceVersion = deviceInfo.DeviceVersion;
+        ArgumentNullException.ThrowIfNull(deviceInfo);
+
+        if (deviceInfo.IPAddress == null)
+        {
+            throw new ArgumentException("WiFi device discovery info must include an IP address.", nameof(deviceInfo));
+        }
+
+        if (!deviceInfo.Port.HasValue)
+        {
+            throw new ArgumentException("WiFi device discovery info must include a TCP port.", nameof(deviceInfo));
+        }
+
+        InitializeDeviceMetadata(
+            deviceInfo.Name,
+            deviceInfo.SerialNumber,
+            deviceInfo.IPAddress.ToString(),
+            deviceInfo.MacAddress ?? string.Empty,
+            deviceInfo.Port.Value,
+            deviceInfo.IsPowerOn,
+            deviceInfo.FirmwareVersion);
     }
 
+    #endregion
+
+    #region Private Methods
+    private void InitializeDeviceMetadata(
+        string name,
+        string serialNumber,
+        string ipAddress,
+        string macAddress,
+        int port,
+        bool isPowerOn,
+        string deviceVersion)
+    {
+        Name = name;
+        DeviceSerialNo = serialNumber;
+        IpAddress = ipAddress;
+        MacAddress = macAddress;
+        Port = port;
+        IsPowerOn = isPowerOn;
+        IsStreaming = false;
+        DeviceVersion = deviceVersion;
+    }
     #endregion
 
     #region Override Methods
