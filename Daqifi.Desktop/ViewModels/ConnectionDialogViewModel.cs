@@ -26,7 +26,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
     private Task? _serialDiscoveryTask;
     private Task? _hidDiscoveryTask;
     private readonly IDialogService _dialogService;
-    private readonly HashSet<string> _probedSerialPorts = new();
 
     [ObservableProperty]
     private bool _hasNoWiFiDevices = true;
@@ -249,35 +248,67 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         try
         {
-            var portName = e.DeviceInfo.PortName;
-            if (string.IsNullOrEmpty(portName)) return;
-
-            // Prevent duplicate entries
-            lock (_probedSerialPorts)
-            {
-                if (_probedSerialPorts.Contains(portName)) return;
-                _probedSerialPorts.Add(portName);
-            }
-
-            // Core already probed and validated this is a DAQiFi device - use the info directly
-            var serialDevice = DeviceInfoConverter.ToSerialDevice(e.DeviceInfo);
-
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == portName);
-                if (existing == null)
-                {
-                    AvailableSerialDevices.Add(serialDevice);
-                    if (HasNoSerialDevices) { HasNoSerialDevices = false; }
-                    Common.Loggers.AppLogger.Instance.Information(
-                        $"Added DAQiFi device on {portName}: {serialDevice.Name} (S/N: {serialDevice.DeviceSerialNo})");
-                }
-            });
+            AddSerialDeviceFromDiscovery(e.DeviceInfo);
         }
         catch (Exception ex)
         {
             Common.Loggers.AppLogger.Instance.Error(ex, "Error handling Serial device discovery");
         }
+    }
+
+    private void AddSerialDeviceFromDiscovery(CoreDeviceInfo deviceInfo)
+    {
+        var portName = deviceInfo.PortName?.Trim();
+        if (string.IsNullOrWhiteSpace(portName))
+        {
+            return;
+        }
+
+        InvokeOnUiThread(() =>
+        {
+            var existing = FindSerialDeviceByPortName(portName);
+            if (existing == null)
+            {
+                var serialDevice = DeviceInfoConverter.ToSerialDevice(deviceInfo);
+                AvailableSerialDevices.Add(serialDevice);
+                if (HasNoSerialDevices) { HasNoSerialDevices = false; }
+                Common.Loggers.AppLogger.Instance.Information(
+                    $"Added DAQiFi device on {portName}: {serialDevice.Name} (S/N: {serialDevice.DeviceSerialNo})");
+                return;
+            }
+
+            UpdateSerialDeviceMetadata(existing, portName, deviceInfo);
+        });
+    }
+
+    private SerialStreamingDevice? FindSerialDeviceByPortName(string portName)
+    {
+        return AvailableSerialDevices.FirstOrDefault(d =>
+            d.Port?.PortName.Equals(portName, StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    private static void UpdateSerialDeviceMetadata(
+        SerialStreamingDevice serialDevice,
+        string portName,
+        CoreDeviceInfo deviceInfo)
+    {
+        serialDevice.Name = !string.IsNullOrWhiteSpace(deviceInfo.Name)
+            ? deviceInfo.Name
+            : portName;
+        serialDevice.DeviceSerialNo = deviceInfo.SerialNumber;
+        serialDevice.DeviceVersion = deviceInfo.FirmwareVersion;
+    }
+
+    private static void InvokeOnUiThread(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        dispatcher.Invoke(action);
     }
 
     private void HandleCoreHidDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
@@ -444,11 +475,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
         _serialDiscoveryCts?.Dispose();
         _serialDiscoveryCts = null;
 
-        // Clear probed ports so they can be probed again next time
-        lock (_probedSerialPorts)
-        {
-            _probedSerialPorts.Clear();
-        }
     }
 
     private void StopHidDiscovery()
