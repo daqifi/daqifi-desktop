@@ -79,35 +79,19 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public int Id { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayIdentifier))]
     private string _name = string.Empty;
-    public string Name
-    {
-        get => _name;
-        set
-        {
-            if (SetProperty(ref _name, value))
-            {
-                OnPropertyChanged(nameof(DisplayIdentifier));
-            }
-        }
-    }
+
     public string MacAddress { get; set; }
 
     public string DevicePartNumber { get; private set; } = string.Empty;
 
+    [ObservableProperty]
     private string _deviceSerialNo = string.Empty;
-    public string DeviceSerialNo
-    {
-        get => _deviceSerialNo;
-        set => SetProperty(ref _deviceSerialNo, value);
-    }
 
+    [ObservableProperty]
     private string _deviceVersion = string.Empty;
-    public string DeviceVersion
-    {
-        get => _deviceVersion;
-        set => SetProperty(ref _deviceVersion, value);
-    }
 
     private string _ipAddress = string.Empty;
     
