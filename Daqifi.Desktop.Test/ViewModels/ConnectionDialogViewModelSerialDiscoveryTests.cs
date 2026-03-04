@@ -81,8 +81,45 @@ public class ConnectionDialogViewModelSerialDiscoveryTests
 
         // Assert
         Assert.AreEqual(1, viewModel.AvailableSerialDevices.Count);
-        Assert.AreEqual("First Device", viewModel.AvailableSerialDevices[0].Name);
-        Assert.AreEqual("DAQ-12345", viewModel.AvailableSerialDevices[0].DeviceSerialNo);
+        Assert.AreEqual("Second Device", viewModel.AvailableSerialDevices[0].Name);
+        Assert.AreEqual("DAQ-67890", viewModel.AvailableSerialDevices[0].DeviceSerialNo);
+        Assert.AreEqual("2.0.0", viewModel.AvailableSerialDevices[0].DeviceVersion);
+    }
+
+    [TestMethod]
+    public void AddSerialDeviceFromDiscovery_RefreshesExistingDeviceInPlace()
+    {
+        // Arrange
+        var viewModel = CreateViewModel();
+        var initialDevice = new DeviceInfo
+        {
+            Name = string.Empty,
+            SerialNumber = string.Empty,
+            FirmwareVersion = string.Empty,
+            ConnectionType = ConnectionType.Serial,
+            PortName = "COM7"
+        };
+        var refreshedDevice = new DeviceInfo
+        {
+            Name = "NQ1-USB",
+            SerialNumber = "DAQ-12345",
+            FirmwareVersion = "1.2.3",
+            ConnectionType = ConnectionType.Serial,
+            PortName = "COM7"
+        };
+
+        InvokeAddSerialDeviceFromDiscovery(viewModel, initialDevice);
+        var existingDevice = viewModel.AvailableSerialDevices[0];
+
+        // Act
+        InvokeAddSerialDeviceFromDiscovery(viewModel, refreshedDevice);
+
+        // Assert
+        Assert.AreEqual(1, viewModel.AvailableSerialDevices.Count);
+        Assert.AreSame(existingDevice, viewModel.AvailableSerialDevices[0]);
+        Assert.AreEqual("NQ1-USB", existingDevice.Name);
+        Assert.AreEqual("DAQ-12345", existingDevice.DeviceSerialNo);
+        Assert.AreEqual("1.2.3", existingDevice.DeviceVersion);
     }
 
     private static ConnectionDialogViewModel CreateViewModel()

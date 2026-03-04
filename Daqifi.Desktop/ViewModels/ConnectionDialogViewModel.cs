@@ -26,7 +26,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
     private Task? _serialDiscoveryTask;
     private Task? _hidDiscoveryTask;
     private readonly IDialogService _dialogService;
-    private readonly HashSet<string> _probedSerialPorts = new();
 
     [ObservableProperty]
     private bool _hasNoWiFiDevices = true;
@@ -265,30 +264,39 @@ public partial class ConnectionDialogViewModel : ObservableObject
             return;
         }
 
-        lock (_probedSerialPorts)
-        {
-            if (_probedSerialPorts.Contains(portName))
-            {
-                return;
-            }
-
-            _probedSerialPorts.Add(portName);
-        }
-
-        // Core already probed and validated this is a DAQiFi device - use the info directly
-        var serialDevice = DeviceInfoConverter.ToSerialDevice(deviceInfo);
-
         InvokeOnUiThread(() =>
         {
-            var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == portName);
+            var existing = FindSerialDeviceByPortName(portName);
             if (existing == null)
             {
+                var serialDevice = DeviceInfoConverter.ToSerialDevice(deviceInfo);
                 AvailableSerialDevices.Add(serialDevice);
                 if (HasNoSerialDevices) { HasNoSerialDevices = false; }
                 Common.Loggers.AppLogger.Instance.Information(
                     $"Added DAQiFi device on {portName}: {serialDevice.Name} (S/N: {serialDevice.DeviceSerialNo})");
+                return;
             }
+
+            UpdateSerialDeviceMetadata(existing, portName, deviceInfo);
         });
+    }
+
+    private SerialStreamingDevice? FindSerialDeviceByPortName(string portName)
+    {
+        return AvailableSerialDevices.FirstOrDefault(d =>
+            d.Port?.PortName.Equals(portName, StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    private static void UpdateSerialDeviceMetadata(
+        SerialStreamingDevice serialDevice,
+        string portName,
+        CoreDeviceInfo deviceInfo)
+    {
+        serialDevice.Name = !string.IsNullOrWhiteSpace(deviceInfo.Name)
+            ? deviceInfo.Name
+            : portName;
+        serialDevice.DeviceSerialNo = deviceInfo.SerialNumber;
+        serialDevice.DeviceVersion = deviceInfo.FirmwareVersion;
     }
 
     private static void InvokeOnUiThread(Action action)
@@ -467,11 +475,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
         _serialDiscoveryCts?.Dispose();
         _serialDiscoveryCts = null;
 
-        // Clear probed ports so they can be probed again next time
-        lock (_probedSerialPorts)
-        {
-            _probedSerialPorts.Clear();
-        }
     }
 
     private void StopHidDiscovery()
