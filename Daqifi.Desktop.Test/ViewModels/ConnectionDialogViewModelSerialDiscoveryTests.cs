@@ -1,4 +1,5 @@
 using Daqifi.Core.Device.Discovery;
+using Daqifi.Desktop;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.ViewModels;
 using Moq;
@@ -9,6 +10,21 @@ namespace Daqifi.Desktop.Test.ViewModels;
 [TestClass]
 public class ConnectionDialogViewModelSerialDiscoveryTests
 {
+    private Func<DuplicateDeviceCheckResult, DuplicateDeviceAction>? _originalDuplicateDeviceHandler;
+
+    [TestInitialize]
+    public void TestInitialize()
+    {
+        _originalDuplicateDeviceHandler = ConnectionManager.Instance.DuplicateDeviceHandler;
+        ConnectionManager.Instance.DuplicateDeviceHandler = null;
+    }
+
+    [TestCleanup]
+    public void TestCleanup()
+    {
+        ConnectionManager.Instance.DuplicateDeviceHandler = _originalDuplicateDeviceHandler;
+    }
+
     [TestMethod]
     public void AddSerialDeviceFromDiscovery_UsesCoreDeviceMetadata()
     {
