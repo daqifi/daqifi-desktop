@@ -6,6 +6,7 @@ using Daqifi.Desktop.View;
 using System.Collections;
 using System.Collections.ObjectModel;
 using System.Net;
+using System.Net.Sockets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Daqifi.Core.Device.Discovery;
@@ -206,10 +207,36 @@ public partial class ConnectionDialogViewModel : ObservableObject
         if (string.IsNullOrWhiteSpace(ManualIpAddress)) { return; }
 
         var endpointInput = ManualIpAddress.Trim();
-        if (!TryResolveManualWifiEndpoint(endpointInput, out var ipAddress))
+        IPAddress? ipAddress;
+        try
+        {
+            ipAddress = await ResolveManualWifiEndpointAsync(endpointInput);
+        }
+        catch (ArgumentException ex)
         {
             Common.Loggers.AppLogger.Instance.Warning(
-                $"Manual WiFi connection requires a valid IP address or host name. Received '{ManualIpAddress}'.");
+                $"Manual WiFi connection requires a valid IP address or host name. " +
+                $"Received '{ManualIpAddress}': {ex.Message}");
+            return;
+        }
+        catch (SocketException ex)
+        {
+            Common.Loggers.AppLogger.Instance.Warning(
+                $"Failed to resolve manual WiFi endpoint '{ManualIpAddress}': {ex.Message}");
+            return;
+        }
+        catch (Exception ex)
+        {
+            Common.Loggers.AppLogger.Instance.Error(
+                ex,
+                $"Unexpected error while resolving manual WiFi endpoint '{ManualIpAddress}'.");
+            throw;
+        }
+
+        if (ipAddress == null)
+        {
+            Common.Loggers.AppLogger.Instance.Warning(
+                $"Manual WiFi endpoint '{ManualIpAddress}' did not resolve to an IP address.");
             return;
         }
 
@@ -226,28 +253,17 @@ public partial class ConnectionDialogViewModel : ObservableObject
         await ConnectionManager.Instance.Connect(device);
     }
 
-    private static bool TryResolveManualWifiEndpoint(string endpointInput, out IPAddress? ipAddress)
+    private static async Task<IPAddress?> ResolveManualWifiEndpointAsync(string endpointInput)
     {
         if (IPAddress.TryParse(endpointInput, out var parsedIpAddress))
         {
-            ipAddress = parsedIpAddress;
-            return true;
+            return parsedIpAddress;
         }
 
-        try
-        {
-            var resolvedAddresses = Dns.GetHostAddresses(endpointInput);
-            ipAddress = resolvedAddresses.FirstOrDefault(
-                address => address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                ?? resolvedAddresses.FirstOrDefault();
-
-            return ipAddress != null;
-        }
-        catch
-        {
-            ipAddress = null;
-            return false;
-        }
+        var resolvedAddresses = await Dns.GetHostAddressesAsync(endpointInput);
+        return resolvedAddresses.FirstOrDefault(
+            address => address.AddressFamily == AddressFamily.InterNetwork)
+            ?? resolvedAddresses.FirstOrDefault();
     }
 
     [RelayCommand]
