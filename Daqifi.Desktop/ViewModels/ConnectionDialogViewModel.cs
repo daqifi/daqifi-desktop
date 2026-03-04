@@ -1,14 +1,17 @@
-﻿using Daqifi.Desktop.DataModel.Device;
-using Daqifi.Desktop.Device;
+﻿using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Device.WiFiDevice;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.View;
 using System.Collections;
 using System.Collections.ObjectModel;
+using System.Net;
+using System.Net.Sockets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Daqifi.Core.Device.Discovery;
+using CoreConcreteDeviceInfo = Daqifi.Core.Device.Discovery.DeviceInfo;
+using CoreConnectionType = Daqifi.Core.Device.Discovery.ConnectionType;
 using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
 
 namespace Daqifi.Desktop.ViewModels;
@@ -203,15 +206,64 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(ManualIpAddress)) { return; }
 
-        var deviceInfo = new Daqifi.Desktop.DataModel.Device.DeviceInfo
+        var endpointInput = ManualIpAddress.Trim();
+        IPAddress? ipAddress;
+        try
         {
-            IpAddress = ManualIpAddress,
-            DeviceName = "Manual IP Device",
-            Port = 9760 // Common DAQiFi TCP data port - TODO: make configurable or discover dynamically
+            ipAddress = await ResolveManualWifiEndpointAsync(endpointInput);
+        }
+        catch (ArgumentException ex)
+        {
+            Common.Loggers.AppLogger.Instance.Warning(
+                $"Manual WiFi connection requires a valid IP address or host name. " +
+                $"Received '{ManualIpAddress}': {ex.Message}");
+            return;
+        }
+        catch (SocketException ex)
+        {
+            Common.Loggers.AppLogger.Instance.Warning(
+                $"Failed to resolve manual WiFi endpoint '{ManualIpAddress}': {ex.Message}");
+            return;
+        }
+        catch (Exception ex)
+        {
+            Common.Loggers.AppLogger.Instance.Error(
+                ex,
+                $"Unexpected error while resolving manual WiFi endpoint '{ManualIpAddress}'.");
+            throw;
+        }
+
+        if (ipAddress == null)
+        {
+            Common.Loggers.AppLogger.Instance.Warning(
+                $"Manual WiFi endpoint '{ManualIpAddress}' did not resolve to an IP address.");
+            return;
+        }
+
+        var deviceInfo = new CoreConcreteDeviceInfo
+        {
+            Name = "Manual IP Device",
+            IPAddress = ipAddress,
+            Port = 9760, // Common DAQiFi TCP data port - TODO: make configurable or discover dynamically
+            IsPowerOn = true,
+            ConnectionType = CoreConnectionType.WiFi
         };
 
         var device = new DaqifiStreamingDevice(deviceInfo);
         await ConnectionManager.Instance.Connect(device);
+    }
+
+    private static async Task<IPAddress?> ResolveManualWifiEndpointAsync(string endpointInput)
+    {
+        if (IPAddress.TryParse(endpointInput, out var parsedIpAddress))
+        {
+            return parsedIpAddress;
+        }
+
+        var resolvedAddresses = await Dns.GetHostAddressesAsync(endpointInput);
+        return resolvedAddresses.FirstOrDefault(
+            address => address.AddressFamily == AddressFamily.InterNetwork)
+            ?? resolvedAddresses.FirstOrDefault();
     }
 
     [RelayCommand]
@@ -235,7 +287,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         try
         {
-            var wifiDevice = DeviceInfoConverter.ToWiFiDevice(e.DeviceInfo);
+            var wifiDevice = new DaqifiStreamingDevice(e.DeviceInfo);
             HandleWifiDeviceFound(sender, wifiDevice);
         }
         catch (Exception ex)
@@ -269,7 +321,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
             var existing = FindSerialDeviceByPortName(portName);
             if (existing == null)
             {
-                var serialDevice = DeviceInfoConverter.ToSerialDevice(deviceInfo);
+                var serialDevice = new SerialStreamingDevice(
+                    portName,
+                    deviceInfo.Name,
+                    deviceInfo.SerialNumber,
+                    deviceInfo.FirmwareVersion);
                 AvailableSerialDevices.Add(serialDevice);
                 if (HasNoSerialDevices) { HasNoSerialDevices = false; }
                 Common.Loggers.AppLogger.Instance.Information(
@@ -353,7 +409,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         if (AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress) == null)
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            InvokeOnUiThread(() =>
             {
                 AvailableWiFiDevices.Add(wifiDevice);
                 if (HasNoWiFiDevices) { HasNoWiFiDevices = false; }
@@ -371,7 +427,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         var matchingDevice = AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress);
         if (matchingDevice != null)
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            InvokeOnUiThread(() =>
             {
                 AvailableWiFiDevices.Remove(matchingDevice);
             });
