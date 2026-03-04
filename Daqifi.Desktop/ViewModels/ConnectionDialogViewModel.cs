@@ -249,35 +249,58 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         try
         {
-            var portName = e.DeviceInfo.PortName;
-            if (string.IsNullOrEmpty(portName)) return;
-
-            // Prevent duplicate entries
-            lock (_probedSerialPorts)
-            {
-                if (_probedSerialPorts.Contains(portName)) return;
-                _probedSerialPorts.Add(portName);
-            }
-
-            // Core already probed and validated this is a DAQiFi device - use the info directly
-            var serialDevice = DeviceInfoConverter.ToSerialDevice(e.DeviceInfo);
-
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == portName);
-                if (existing == null)
-                {
-                    AvailableSerialDevices.Add(serialDevice);
-                    if (HasNoSerialDevices) { HasNoSerialDevices = false; }
-                    Common.Loggers.AppLogger.Instance.Information(
-                        $"Added DAQiFi device on {portName}: {serialDevice.Name} (S/N: {serialDevice.DeviceSerialNo})");
-                }
-            });
+            AddSerialDeviceFromDiscovery(e.DeviceInfo);
         }
         catch (Exception ex)
         {
             Common.Loggers.AppLogger.Instance.Error(ex, "Error handling Serial device discovery");
         }
+    }
+
+    private void AddSerialDeviceFromDiscovery(CoreDeviceInfo deviceInfo)
+    {
+        var portName = deviceInfo.PortName?.Trim();
+        if (string.IsNullOrWhiteSpace(portName))
+        {
+            return;
+        }
+
+        lock (_probedSerialPorts)
+        {
+            if (_probedSerialPorts.Contains(portName))
+            {
+                return;
+            }
+
+            _probedSerialPorts.Add(portName);
+        }
+
+        // Core already probed and validated this is a DAQiFi device - use the info directly
+        var serialDevice = DeviceInfoConverter.ToSerialDevice(deviceInfo);
+
+        InvokeOnUiThread(() =>
+        {
+            var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == portName);
+            if (existing == null)
+            {
+                AvailableSerialDevices.Add(serialDevice);
+                if (HasNoSerialDevices) { HasNoSerialDevices = false; }
+                Common.Loggers.AppLogger.Instance.Information(
+                    $"Added DAQiFi device on {portName}: {serialDevice.Name} (S/N: {serialDevice.DeviceSerialNo})");
+            }
+        });
+    }
+
+    private static void InvokeOnUiThread(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        dispatcher.Invoke(action);
     }
 
     private void HandleCoreHidDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
