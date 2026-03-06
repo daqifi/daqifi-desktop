@@ -3,6 +3,7 @@ using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
 using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.IO.Messages;
+using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
@@ -24,6 +25,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
     public override bool IsConnected => _coreDevice?.IsConnected == true;
     protected override bool RequestDeviceInfoOnInitialize => false;
+    protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice as CoreStreamingDevice;
 
     #endregion
 

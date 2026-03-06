@@ -1,8 +1,10 @@
 using Daqifi.Desktop.Device;
 using Daqifi.Core.Device.Network;
 using Daqifi.Core.Communication.Messages;
+using Daqifi.Core.Communication.Producers;
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
 using Moq;
+using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Test.Device;
 
@@ -207,6 +209,66 @@ public class AbstractStreamingDeviceTests
         Assert.AreEqual(DeviceType.Unknown, deviceType, "Should return Unknown for whitespace");
     }
 
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenStreaming_StopsStreamingBeforeDelegatingToCore()
+    {
+        // Arrange
+        var device = new NetworkConfigurationTestDevice();
+        device.NetworkConfiguration = new NetworkConfiguration(
+            WifiMode.ExistingNetwork,
+            WifiSecurityType.WpaPskPhrase,
+            "TestNetwork",
+            "TestPassword");
+        device.IsStreaming = true;
+
+        // Act
+        await device.UpdateNetworkConfiguration();
+
+        // Assert
+        Assert.IsFalse(device.IsStreaming, "Desktop streaming state should be reset before delegating to Core.");
+        Assert.AreEqual(
+            $"desktop:{ScpiMessageProducer.StopStreaming.Data}",
+            device.SentCommands[0],
+            "Desktop should stop its own streaming session before handing off to Core.");
+        Assert.IsTrue(
+            device.SentCommands.Contains($"core:{ScpiMessageProducer.SetNetworkWifiModeExisting.Data}"),
+            "Core should own the network configuration command sequence.");
+        Assert.IsFalse(
+            device.SentCommands.Contains($"desktop:{ScpiMessageProducer.SetNetworkWifiModeExisting.Data}"),
+            "Desktop should no longer duplicate the network configuration command sequence.");
+    }
+
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenInLogToDevice_RestoresSdInterfaceAfterCoreUpdate()
+    {
+        // Arrange
+        var device = new NetworkConfigurationTestDevice();
+        device.NetworkConfiguration = new NetworkConfiguration(
+            WifiMode.SelfHosted,
+            WifiSecurityType.None,
+            "DAQiFi_Device",
+            string.Empty);
+        device.SwitchMode(DeviceMode.LogToDevice);
+        device.SentCommands.Clear();
+
+        // Act
+        await device.UpdateNetworkConfiguration();
+
+        // Assert
+        Assert.AreEqual(
+            $"core:{ScpiMessageProducer.SaveNetworkLan.Data}",
+            device.SentCommands[^3],
+            "Core should finish persisting the network configuration before desktop restores SD access.");
+        Assert.AreEqual(
+            $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
+            device.SentCommands[^2],
+            "Desktop should disable LAN after the Core network update when the device is in LogToDevice mode.");
+        Assert.AreEqual(
+            $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
+            device.SentCommands[^1],
+            "Desktop should re-enable SD access after the Core network update when the device is in LogToDevice mode.");
+    }
+
     /// <summary>
     /// Test implementation of AbstractStreamingDevice for testing purposes
     /// </summary>
@@ -221,5 +283,44 @@ public class AbstractStreamingDeviceTests
         public override bool Write(string command) => true;
 
         protected override void SendMessage(IOutboundMessage<string> message) { }
+    }
+
+    private sealed class NetworkConfigurationTestDevice : AbstractStreamingDevice
+    {
+        private readonly RecordingCoreStreamingDevice _coreDevice;
+
+        public NetworkConfigurationTestDevice()
+        {
+            _coreDevice = new RecordingCoreStreamingDevice(SentCommands);
+            _coreDevice.Connect();
+        }
+
+        public List<string> SentCommands { get; } = [];
+
+        public override ConnectionType ConnectionType => ConnectionType.Usb;
+
+        protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
+
+        public override bool Connect() => true;
+
+        public override bool Disconnect() => true;
+
+        public override bool Write(string command) => true;
+
+        protected override void SendMessage(IOutboundMessage<string> message)
+        {
+            SentCommands.Add($"desktop:{message.Data}");
+        }
+    }
+
+    private sealed class RecordingCoreStreamingDevice(List<string> sentCommands) : CoreStreamingDevice("TestDevice")
+    {
+        public override void Send<T>(IOutboundMessage<T> message)
+        {
+            if (message is IOutboundMessage<string> stringMessage)
+            {
+                sentCommands.Add($"core:{stringMessage.Data}");
+            }
+        }
     }
 }

@@ -57,6 +57,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     protected virtual CoreStreamingDevice? CoreDeviceForSd => null;
 
+    /// <summary>
+    /// Core streaming device used for network configuration orchestration.
+    /// </summary>
+    protected virtual CoreStreamingDevice? CoreDeviceForNetworkConfiguration => null;
+
     #region Properties
 
     protected readonly AppLogger AppLogger = AppLogger.Instance;
@@ -503,6 +508,17 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         return coreDevice;
     }
 
+    private CoreStreamingDevice GetCoreDeviceForNetworkConfiguration()
+    {
+        var coreDevice = CoreDeviceForNetworkConfiguration;
+        if (coreDevice == null)
+        {
+            throw new InvalidOperationException("Core network configuration operations are not available for this device.");
+        }
+
+        return coreDevice;
+    }
+
     private static List<SdCardFile> MapSdCardFiles(IEnumerable<CoreSdCardFileInfo> files)
     {
         return files.Select(file => new SdCardFile
@@ -801,51 +817,21 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public async Task UpdateNetworkConfiguration()
     {
-        if (IsStreaming) { StopStreaming(); }
+        var coreDevice = GetCoreDeviceForNetworkConfiguration();
 
-        switch (NetworkConfiguration.Mode)
+        if (IsStreaming)
         {
-            case WifiMode.ExistingNetwork:
-                SendMessage(ScpiMessageProducer.SetNetworkWifiModeExisting);
-                break;
-            case WifiMode.SelfHosted:
-                SendMessage(ScpiMessageProducer.SetNetworkWifiModeSelfHosted);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
+            StopStreaming();
         }
 
-        SendMessage(ScpiMessageProducer.SetNetworkWifiSsid(NetworkConfiguration.Ssid));
+        await coreDevice.UpdateNetworkConfigurationAsync(NetworkConfiguration);
 
-        switch (NetworkConfiguration.SecurityType)
+        // Core always restores LAN after applying settings. USB devices that are currently
+        // logging to the SD card need the desktop wrapper to switch the shared SPI bus back.
+        if (ConnectionType == ConnectionType.Usb && Mode == DeviceMode.LogToDevice)
         {
-            case WifiSecurityType.None:
-                SendMessage(ScpiMessageProducer.SetNetworkWifiSecurityOpen);
-                break;
-            case WifiSecurityType.WpaPskPhrase:
-                SendMessage(ScpiMessageProducer.SetNetworkWifiSecurityWpa);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
+            PrepareSdInterface();
         }
-
-        SendMessage(ScpiMessageProducer.SetNetworkWifiPassword(NetworkConfiguration.Password));
-        SendMessage(ScpiMessageProducer.ApplyNetworkLan);
-
-        // Wait for WiFi module to restart after applying settings
-        await Task.Delay(2000);
-
-        // Re-enable WiFi after the module restarts, but only if we're in StreamToApp mode
-        // The ApplyNetworkLan command causes the WiFi module to restart,
-        // so we need to re-enable it after the restart completes.
-        // SD and WiFi share the same SPI bus and cannot be enabled simultaneously.
-        if (Mode == DeviceMode.StreamToApp)
-        {
-            SendMessage(ScpiMessageProducer.DisableStorageSd);
-            SendMessage(ScpiMessageProducer.EnableNetworkLan);
-        }
-
-        SendMessage(ScpiMessageProducer.SaveNetworkLan);
     }
 
     public void Reboot()
