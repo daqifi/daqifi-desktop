@@ -832,20 +832,28 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public async Task UpdateNetworkConfiguration()
     {
-        var coreDevice = GetCoreDeviceForNetworkConfiguration();
+        var restoreSdInterface = ConnectionType == ConnectionType.Usb && Mode == DeviceMode.LogToDevice;
 
         if (IsStreaming)
         {
             StopStreaming();
         }
 
-        await coreDevice.UpdateNetworkConfigurationAsync(NetworkConfiguration);
+        var coreDevice = GetCoreDeviceForNetworkConfiguration();
 
-        // Core always restores LAN after applying settings. USB devices that are currently
-        // logging to the SD card need the desktop wrapper to switch the shared SPI bus back.
-        if (ConnectionType == ConnectionType.Usb && Mode == DeviceMode.LogToDevice)
+        try
         {
-            PrepareSdInterface();
+            await coreDevice.UpdateNetworkConfigurationAsync(NetworkConfiguration);
+        }
+        finally
+        {
+            // Core always restores LAN after applying settings. USB devices that are currently
+            // logging to the SD card need the desktop wrapper to switch the shared SPI bus back,
+            // even if the Core update fails after toggling the shared SPI bus to LAN.
+            if (restoreSdInterface)
+            {
+                PrepareSdInterface();
+            }
         }
     }
 
