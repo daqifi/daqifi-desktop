@@ -227,6 +227,32 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenStreamingAndDisconnected_StopsStreamingBeforeThrowing()
+    {
+        // Arrange
+        var device = new TestStreamingDevice
+        {
+            IsStreaming = true
+        };
+
+        try
+        {
+            await device.UpdateNetworkConfiguration();
+            Assert.Fail("Expected UpdateNetworkConfiguration to throw when the device is disconnected.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.AreEqual("Device is not connected.", exception.Message);
+        }
+
+        Assert.IsFalse(device.IsStreaming, "Streaming state should be cleared even when Core device resolution fails.");
+        Assert.AreEqual(
+            ScpiMessageProducer.StopStreaming.Data,
+            device.SentCommands[0],
+            "Desktop should stop streaming before attempting to resolve the Core device.");
+    }
+
+    [TestMethod]
     public async Task UpdateNetworkConfiguration_WhenStreaming_StopsStreamingBeforeDelegatingToCore()
     {
         // Arrange
@@ -286,11 +312,46 @@ public class AbstractStreamingDeviceTests
             "Desktop should re-enable SD access after the Core network update when the device is in LogToDevice mode.");
     }
 
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenCoreUpdateThrowsInLogToDevice_RestoresSdInterface()
+    {
+        // Arrange
+        var device = new NetworkConfigurationTestDevice(throwOnCommandData: ScpiMessageProducer.SaveNetworkLan.Data);
+        device.NetworkConfiguration = new NetworkConfiguration(
+            WifiMode.SelfHosted,
+            WifiSecurityType.None,
+            "DAQiFi_Device",
+            string.Empty);
+        device.SwitchMode(DeviceMode.LogToDevice);
+        device.SentCommands.Clear();
+
+        try
+        {
+            await device.UpdateNetworkConfiguration();
+            Assert.Fail("Expected the Core update to throw.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.AreEqual("Injected test failure.", exception.Message);
+        }
+
+        Assert.AreEqual(
+            $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
+            device.SentCommands[^2],
+            "Desktop should restore SD access even when the Core network update fails.");
+        Assert.AreEqual(
+            $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
+            device.SentCommands[^1],
+            "Desktop should re-enable SD access even when the Core network update fails.");
+    }
+
     /// <summary>
     /// Test implementation of AbstractStreamingDevice for testing purposes
     /// </summary>
     private class TestStreamingDevice : AbstractStreamingDevice
     {
+        public List<string> SentCommands { get; } = [];
+
         public override ConnectionType ConnectionType => ConnectionType.Usb;
 
         public override bool Connect() => true;
@@ -299,16 +360,19 @@ public class AbstractStreamingDeviceTests
 
         public override bool Write(string command) => true;
 
-        protected override void SendMessage(IOutboundMessage<string> message) { }
+        protected override void SendMessage(IOutboundMessage<string> message)
+        {
+            SentCommands.Add(message.Data);
+        }
     }
 
     private sealed class NetworkConfigurationTestDevice : AbstractStreamingDevice
     {
         private readonly RecordingCoreStreamingDevice _coreDevice;
 
-        public NetworkConfigurationTestDevice()
+        public NetworkConfigurationTestDevice(string? throwOnCommandData = null)
         {
-            _coreDevice = new RecordingCoreStreamingDevice(SentCommands);
+            _coreDevice = new RecordingCoreStreamingDevice(SentCommands, throwOnCommandData);
             _coreDevice.Connect();
         }
 
@@ -330,13 +394,18 @@ public class AbstractStreamingDeviceTests
         }
     }
 
-    private sealed class RecordingCoreStreamingDevice(List<string> sentCommands) : CoreStreamingDevice("TestDevice")
+    private sealed class RecordingCoreStreamingDevice(List<string> sentCommands, string? throwOnCommandData) : CoreStreamingDevice("TestDevice")
     {
         public override void Send<T>(IOutboundMessage<T> message)
         {
             if (message is IOutboundMessage<string> stringMessage)
             {
                 sentCommands.Add($"core:{stringMessage.Data}");
+
+                if (throwOnCommandData == stringMessage.Data)
+                {
+                    throw new InvalidOperationException("Injected test failure.");
+                }
             }
         }
     }
