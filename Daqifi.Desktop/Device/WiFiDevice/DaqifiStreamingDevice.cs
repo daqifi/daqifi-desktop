@@ -3,6 +3,7 @@ using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
 using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.IO.Messages;
+using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
@@ -14,7 +15,7 @@ namespace Daqifi.Desktop.Device.WiFiDevice;
 public class DaqifiStreamingDevice : AbstractStreamingDevice
 {
     #region Private Fields
-    private DaqifiDevice? _coreDevice;
+    private CoreStreamingDevice? _coreDevice;
     #endregion
 
     #region Properties
@@ -24,6 +25,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
     public override bool IsConnected => _coreDevice?.IsConnected == true;
     protected override bool RequestDeviceInfoOnInitialize => false;
+    protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
 
     #endregion
 
@@ -54,7 +56,13 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 InitializeDevice = false
             };
 
-            _coreDevice = DaqifiDeviceFactory.ConnectTcp(IpAddress, Port, options);
+            _coreDevice = DaqifiDeviceFactory.ConnectTcp(IpAddress, Port, options) as CoreStreamingDevice;
+            if (_coreDevice == null)
+            {
+                AppLogger.Error($"Expected a Core streaming device for {IpAddress}:{Port}, but the factory returned a different type.");
+                return false;
+            }
+
             if (!_coreDevice.IsConnected)
             {
                 AppLogger.Error($"Failed to connect to DAQiFi device at {IpAddress}:{Port}");
