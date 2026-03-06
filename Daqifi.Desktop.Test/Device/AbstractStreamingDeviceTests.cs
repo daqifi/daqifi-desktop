@@ -210,6 +210,23 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenDisconnected_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+
+        try
+        {
+            await device.UpdateNetworkConfiguration();
+            Assert.Fail("Expected UpdateNetworkConfiguration to throw when the device is disconnected.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.AreEqual("Device is not connected.", exception.Message);
+        }
+    }
+
+    [TestMethod]
     public async Task UpdateNetworkConfiguration_WhenStreaming_StopsStreamingBeforeDelegatingToCore()
     {
         // Arrange

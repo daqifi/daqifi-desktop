@@ -511,9 +511,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private CoreStreamingDevice GetCoreDeviceForNetworkConfiguration()
     {
         var coreDevice = CoreDeviceForNetworkConfiguration;
-        if (coreDevice == null)
+        if (coreDevice == null || !coreDevice.IsConnected)
         {
-            throw new InvalidOperationException("Core network configuration operations are not available for this device.");
+            throw new InvalidOperationException("Device is not connected.");
         }
 
         return coreDevice;
