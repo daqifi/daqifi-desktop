@@ -23,6 +23,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     private int _precision = 4;
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = [];
     private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = [];
+    private readonly TimestampGapDetector _gapDetector = new();
     #endregion
 
     #region Properties
@@ -201,6 +202,15 @@ public partial class PlotLogger : ObservableObject, ILogger
 
         lock (PlotModel.SyncRoot)
         {
+            if (_gapDetector.IsGap(key, deltaTime))
+            {
+                LoggedPoints[key].Add(DataPoint.Undefined);
+                if (LoggedPoints[key].Count >= 5000)
+                {
+                    LoggedPoints[key].RemoveAt(0);
+                }
+            }
+
             LoggedPoints[key].Add(new DataPoint(deltaTime, scaledSampleValue));
             if (LoggedPoints[key].Count >= 5000)
             {
@@ -291,6 +301,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     {
         LoggedChannels.Clear();
         LoggedPoints.Clear();
+        _gapDetector.Clear();
         PlotModel.Series.Clear();
         PlotModel.InvalidatePlot(true);
         FirstTime = null;
