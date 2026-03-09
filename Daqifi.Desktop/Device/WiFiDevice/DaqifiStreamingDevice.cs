@@ -50,37 +50,16 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             throw new ArgumentException("WiFi device discovery info must include a TCP port.", nameof(deviceInfo));
         }
 
-        InitializeDeviceMetadata(
-            deviceInfo.Name,
-            deviceInfo.SerialNumber,
-            deviceInfo.IPAddress.ToString(),
-            deviceInfo.MacAddress ?? string.Empty,
-            deviceInfo.Port.Value,
-            deviceInfo.IsPowerOn,
-            deviceInfo.FirmwareVersion);
-    }
-
-    #endregion
-
-    #region Private Methods
-    private void InitializeDeviceMetadata(
-        string name,
-        string serialNumber,
-        string ipAddress,
-        string macAddress,
-        int port,
-        bool isPowerOn,
-        string deviceVersion)
-    {
-        Name = name;
-        DeviceSerialNo = serialNumber;
-        IpAddress = ipAddress;
-        MacAddress = macAddress;
-        Port = port;
-        IsPowerOn = isPowerOn;
+        Name = deviceInfo.Name;
+        DeviceSerialNo = deviceInfo.SerialNumber;
+        IpAddress = deviceInfo.IPAddress.ToString();
+        MacAddress = deviceInfo.MacAddress ?? string.Empty;
+        Port = deviceInfo.Port.Value;
+        IsPowerOn = deviceInfo.IsPowerOn;
         IsStreaming = false;
-        DeviceVersion = deviceVersion;
+        DeviceVersion = deviceInfo.FirmwareVersion;
     }
+
     #endregion
 
     #region Override Methods

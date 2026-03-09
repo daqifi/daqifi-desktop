@@ -283,7 +283,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     #region Core Device Discovery Event Handlers
 
-    private void HandleCoreWifiDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
+    internal void HandleCoreWifiDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
     {
         try
         {

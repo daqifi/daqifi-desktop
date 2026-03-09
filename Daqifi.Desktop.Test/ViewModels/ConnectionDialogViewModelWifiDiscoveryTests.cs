@@ -4,7 +4,6 @@ using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.ViewModels;
 using Moq;
 using System.Net;
-using System.Reflection;
 
 namespace Daqifi.Desktop.Test.ViewModels;
 
@@ -45,7 +44,7 @@ public class ConnectionDialogViewModelWifiDiscoveryTests
         var eventArgs = new DeviceDiscoveredEventArgs(deviceInfo);
 
         // Act
-        InvokeHandleCoreWifiDeviceDiscovered(viewModel, eventArgs);
+        viewModel.HandleCoreWifiDeviceDiscovered(null, eventArgs);
 
         // Assert
         Assert.HasCount(1, viewModel.AvailableWiFiDevices);
@@ -65,17 +64,5 @@ public class ConnectionDialogViewModelWifiDiscoveryTests
     {
         var dialogService = new Mock<IDialogService>();
         return new ConnectionDialogViewModel(dialogService.Object);
-    }
-
-    private static void InvokeHandleCoreWifiDeviceDiscovered(
-        ConnectionDialogViewModel viewModel,
-        DeviceDiscoveredEventArgs eventArgs)
-    {
-        var method = typeof(ConnectionDialogViewModel).GetMethod(
-            "HandleCoreWifiDeviceDiscovered",
-            BindingFlags.Instance | BindingFlags.NonPublic);
-
-        Assert.IsNotNull(method);
-        method.Invoke(viewModel, [null, eventArgs]);
     }
 }

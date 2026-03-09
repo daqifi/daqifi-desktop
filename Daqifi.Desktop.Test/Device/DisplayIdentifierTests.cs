@@ -134,9 +134,10 @@ public class DisplayIdentifierTests
     }
     
     [TestMethod]
-    public void DaqifiStreamingDevice_DisplayIdentifier_ShouldHandleEmptyIpAddress()
+    public void DaqifiStreamingDevice_DisplayIdentifier_ShouldReturnEmptyWhenIpAddressClearedAfterConstruction()
     {
-        // Arrange
+        // Arrange - construct with a valid IP (required by constructor), then clear it
+        // to simulate a device whose address is unset at display time.
         var deviceInfo = new CoreDeviceInfo
         {
             Name = "Test Device",
@@ -150,13 +151,13 @@ public class DisplayIdentifierTests
         };
         var device = new DaqifiStreamingDevice(deviceInfo);
         device.IpAddress = string.Empty;
-        
+
         // Act
         var displayIdentifier = device.DisplayIdentifier;
-        
+
         // Assert
         Assert.AreEqual("", displayIdentifier,
-            "WiFi device with empty IP address should return empty string");
+            "WiFi device should return empty string when IpAddress is empty");
     }
     
     [TestMethod]
