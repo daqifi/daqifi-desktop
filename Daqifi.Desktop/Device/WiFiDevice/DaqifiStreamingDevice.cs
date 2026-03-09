@@ -51,13 +51,13 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         }
 
         Name = deviceInfo.Name;
-        DeviceSerialNo = deviceInfo.SerialNumber;
-        IpAddress = deviceInfo.IPAddress.ToString();
-        MacAddress = deviceInfo.MacAddress ?? string.Empty;
+        Metadata.SerialNumber = deviceInfo.SerialNumber;
+        Metadata.IpAddress = deviceInfo.IPAddress.ToString();
+        Metadata.MacAddress = deviceInfo.MacAddress ?? string.Empty;
+        Metadata.FirmwareVersion = deviceInfo.FirmwareVersion;
         Port = deviceInfo.Port.Value;
         IsPowerOn = deviceInfo.IsPowerOn;
         IsStreaming = false;
-        DeviceVersion = deviceInfo.FirmwareVersion;
     }
 
     #endregion

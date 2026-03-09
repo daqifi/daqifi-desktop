@@ -75,8 +75,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     {
         Name = !string.IsNullOrWhiteSpace(deviceName) ? deviceName : portName;
         Port = new SerialPort(portName);
-        DeviceSerialNo = serialNumber ?? string.Empty;
-        DeviceVersion = firmwareVersion ?? string.Empty;
+        Metadata.SerialNumber = serialNumber ?? string.Empty;
+        Metadata.FirmwareVersion = firmwareVersion ?? string.Empty;
     }
 
     #endregion

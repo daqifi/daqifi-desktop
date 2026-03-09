@@ -83,30 +83,43 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     [NotifyPropertyChangedFor(nameof(DisplayIdentifier))]
     private string _name = string.Empty;
 
-    public string MacAddress { get; set; }
+    /// <summary>Gets or sets the device MAC address. Backed by <see cref="Metadata"/>.</summary>
+    public string MacAddress
+    {
+        get => Metadata.MacAddress;
+        set { if (Metadata.MacAddress != value) { Metadata.MacAddress = value; OnPropertyChanged(); } }
+    }
 
-    public string DevicePartNumber { get; private set; } = string.Empty;
+    /// <summary>Gets the device part number. Backed by <see cref="Metadata"/>.</summary>
+    public string DevicePartNumber => Metadata.PartNumber;
 
-    [ObservableProperty]
-    private string _deviceSerialNo = string.Empty;
+    /// <summary>Gets or sets the device serial number. Backed by <see cref="Metadata"/>.</summary>
+    public string DeviceSerialNo
+    {
+        get => Metadata.SerialNumber;
+        set { if (Metadata.SerialNumber != value) { Metadata.SerialNumber = value; OnPropertyChanged(); } }
+    }
 
-    [ObservableProperty]
-    private string _deviceVersion = string.Empty;
+    /// <summary>Gets or sets the firmware version. Backed by <see cref="Metadata"/>.</summary>
+    public string DeviceVersion
+    {
+        get => Metadata.FirmwareVersion;
+        set { if (Metadata.FirmwareVersion != value) { Metadata.FirmwareVersion = value; OnPropertyChanged(); } }
+    }
 
-    private string _ipAddress = string.Empty;
-    
-    public string IpAddress 
-    { 
-        get => _ipAddress; 
-        set 
-        { 
-            if (_ipAddress != value)
+    /// <summary>Gets or sets the IP address. Backed by <see cref="Metadata"/>.</summary>
+    public string IpAddress
+    {
+        get => Metadata.IpAddress;
+        set
+        {
+            if (Metadata.IpAddress != value)
             {
-                _ipAddress = value;
+                Metadata.IpAddress = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(DisplayIdentifier));
             }
-        } 
+        }
     }
 
     /// <summary>
@@ -751,16 +764,18 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     protected void HydrateDeviceMetadata(DaqifiOutMessage message)
     {
-        // Use Core's metadata update method
         Metadata.UpdateFromProtobuf(message);
 
-        // Map Core metadata to desktop properties for backward compatibility
-        DevicePartNumber = Metadata.PartNumber;
-        DeviceSerialNo = Metadata.SerialNumber;
-        DeviceVersion = Metadata.FirmwareVersion;
+        // DeviceType is an [ObservableProperty] and not backed by Metadata, so set it explicitly.
         DeviceType = Metadata.DeviceType;
-        IpAddress = Metadata.IpAddress;
-        MacAddress = Metadata.MacAddress;
+
+        // All other identity properties delegate directly to Metadata — just notify bindings.
+        OnPropertyChanged(nameof(DevicePartNumber));
+        OnPropertyChanged(nameof(DeviceSerialNo));
+        OnPropertyChanged(nameof(DeviceVersion));
+        OnPropertyChanged(nameof(IpAddress));
+        OnPropertyChanged(nameof(MacAddress));
+        OnPropertyChanged(nameof(DisplayIdentifier));
 
         // Update NetworkConfiguration from metadata
         if (!string.IsNullOrWhiteSpace(Metadata.Ssid))
