@@ -1,8 +1,10 @@
 using Daqifi.Desktop.Device;
 using Daqifi.Core.Device.Network;
 using Daqifi.Core.Communication.Messages;
+using Daqifi.Core.Communication.Producers;
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
 using Moq;
+using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Test.Device;
 
@@ -207,11 +209,192 @@ public class AbstractStreamingDeviceTests
         Assert.AreEqual(DeviceType.Unknown, deviceType, "Should return Unknown for whitespace");
     }
 
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenDisconnected_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+
+        try
+        {
+            await device.UpdateNetworkConfiguration();
+            Assert.Fail("Expected UpdateNetworkConfiguration to throw when the device is disconnected.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.AreEqual("Device is not connected.", exception.Message);
+        }
+    }
+
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenStreamingAndDisconnected_ThrowsWithoutStoppingStreaming()
+    {
+        // Arrange
+        var device = new TestStreamingDevice
+        {
+            IsStreaming = true
+        };
+
+        try
+        {
+            await device.UpdateNetworkConfiguration();
+            Assert.Fail("Expected UpdateNetworkConfiguration to throw when the device is disconnected.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.AreEqual("Device is not connected.", exception.Message);
+        }
+
+        Assert.IsTrue(device.IsStreaming, "Streaming state should be preserved when the Core device is not connected.");
+        Assert.AreEqual(0, device.SentCommands.Count, "No commands should be sent when the Core device is not connected.");
+    }
+
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenStreaming_StopsStreamingBeforeDelegatingToCore()
+    {
+        // Arrange
+        var device = new NetworkConfigurationTestDevice();
+        device.NetworkConfiguration = new NetworkConfiguration(
+            WifiMode.ExistingNetwork,
+            WifiSecurityType.WpaPskPhrase,
+            "TestNetwork",
+            "TestPassword");
+        device.IsStreaming = true;
+
+        // Act
+        await device.UpdateNetworkConfiguration();
+
+        // Assert
+        Assert.IsFalse(device.IsStreaming, "Desktop streaming state should be reset before delegating to Core.");
+        Assert.AreEqual(
+            $"desktop:{ScpiMessageProducer.StopStreaming.Data}",
+            device.SentCommands[0],
+            "Desktop should stop its own streaming session before handing off to Core.");
+        Assert.IsTrue(
+            device.SentCommands.Contains($"core:{ScpiMessageProducer.SetNetworkWifiModeExisting.Data}"),
+            "Core should own the network configuration command sequence.");
+        Assert.IsFalse(
+            device.SentCommands.Contains($"desktop:{ScpiMessageProducer.SetNetworkWifiModeExisting.Data}"),
+            "Desktop should no longer duplicate the network configuration command sequence.");
+    }
+
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenNotStreaming_DelegatesWithoutSendingStopStreaming()
+    {
+        // Arrange
+        var device = new NetworkConfigurationTestDevice();
+        device.NetworkConfiguration = new NetworkConfiguration(
+            WifiMode.ExistingNetwork,
+            WifiSecurityType.WpaPskPhrase,
+            "TestNetwork",
+            "TestPassword");
+
+        // Act
+        await device.UpdateNetworkConfiguration();
+
+        // Assert
+        Assert.IsFalse(
+            device.SentCommands.Contains($"desktop:{ScpiMessageProducer.StopStreaming.Data}"),
+            "Desktop should not send StopStreaming when it was not streaming.");
+        Assert.IsTrue(
+            device.SentCommands.Contains($"core:{ScpiMessageProducer.SetNetworkWifiModeExisting.Data}"),
+            "Core should still receive the full network configuration command sequence.");
+    }
+
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenWifi_DoesNotRestoreSdInterface()
+    {
+        // Arrange
+        var device = new NetworkConfigurationTestDevice(connectionType: ConnectionType.Wifi);
+        device.NetworkConfiguration = new NetworkConfiguration(
+            WifiMode.ExistingNetwork,
+            WifiSecurityType.WpaPskPhrase,
+            "TestNetwork",
+            "TestPassword");
+
+        // Act
+        await device.UpdateNetworkConfiguration();
+
+        // Assert
+        Assert.IsFalse(
+            device.SentCommands.Contains($"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}"),
+            "Desktop should not disable LAN for a WiFi device after a network update.");
+        Assert.IsFalse(
+            device.SentCommands.Contains($"desktop:{ScpiMessageProducer.EnableStorageSd.Data}"),
+            "Desktop should not re-enable SD for a WiFi device; it shares no SPI bus with the desktop transport.");
+    }
+
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenInLogToDevice_RestoresSdInterfaceAfterCoreUpdate()
+    {
+        // Arrange
+        var device = new NetworkConfigurationTestDevice();
+        device.NetworkConfiguration = new NetworkConfiguration(
+            WifiMode.SelfHosted,
+            WifiSecurityType.None,
+            "DAQiFi_Device",
+            string.Empty);
+        device.SwitchMode(DeviceMode.LogToDevice);
+        device.SentCommands.Clear();
+
+        // Act
+        await device.UpdateNetworkConfiguration();
+
+        // Assert
+        Assert.AreEqual(
+            $"core:{ScpiMessageProducer.SaveNetworkLan.Data}",
+            device.SentCommands[^3],
+            "Core should finish persisting the network configuration before desktop restores SD access.");
+        Assert.AreEqual(
+            $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
+            device.SentCommands[^2],
+            "Desktop should disable LAN after the Core network update when the device is in LogToDevice mode.");
+        Assert.AreEqual(
+            $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
+            device.SentCommands[^1],
+            "Desktop should re-enable SD access after the Core network update when the device is in LogToDevice mode.");
+    }
+
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenCoreUpdateThrowsInLogToDevice_RestoresSdInterface()
+    {
+        // Arrange
+        var device = new NetworkConfigurationTestDevice(throwOnCommandData: ScpiMessageProducer.SaveNetworkLan.Data);
+        device.NetworkConfiguration = new NetworkConfiguration(
+            WifiMode.SelfHosted,
+            WifiSecurityType.None,
+            "DAQiFi_Device",
+            string.Empty);
+        device.SwitchMode(DeviceMode.LogToDevice);
+        device.SentCommands.Clear();
+
+        try
+        {
+            await device.UpdateNetworkConfiguration();
+            Assert.Fail("Expected the Core update to throw.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.AreEqual("Injected test failure.", exception.Message);
+        }
+
+        Assert.AreEqual(
+            $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
+            device.SentCommands[^2],
+            "Desktop should restore SD access even when the Core network update fails.");
+        Assert.AreEqual(
+            $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
+            device.SentCommands[^1],
+            "Desktop should re-enable SD access even when the Core network update fails.");
+    }
+
     /// <summary>
     /// Test implementation of AbstractStreamingDevice for testing purposes
     /// </summary>
     private class TestStreamingDevice : AbstractStreamingDevice
     {
+        public List<string> SentCommands { get; } = [];
+
         public override ConnectionType ConnectionType => ConnectionType.Usb;
 
         public override bool Connect() => true;
@@ -220,6 +403,55 @@ public class AbstractStreamingDeviceTests
 
         public override bool Write(string command) => true;
 
-        protected override void SendMessage(IOutboundMessage<string> message) { }
+        protected override void SendMessage(IOutboundMessage<string> message)
+        {
+            SentCommands.Add(message.Data);
+        }
+    }
+
+    private sealed class NetworkConfigurationTestDevice : AbstractStreamingDevice
+    {
+        private readonly RecordingCoreStreamingDevice _coreDevice;
+        private readonly ConnectionType _connectionType;
+
+        public NetworkConfigurationTestDevice(string? throwOnCommandData = null, ConnectionType connectionType = ConnectionType.Usb)
+        {
+            _coreDevice = new RecordingCoreStreamingDevice(SentCommands, throwOnCommandData);
+            _coreDevice.Connect();
+            _connectionType = connectionType;
+        }
+
+        public List<string> SentCommands { get; } = [];
+
+        public override ConnectionType ConnectionType => _connectionType;
+
+        protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
+
+        public override bool Connect() => true;
+
+        public override bool Disconnect() => true;
+
+        public override bool Write(string command) => true;
+
+        protected override void SendMessage(IOutboundMessage<string> message)
+        {
+            SentCommands.Add($"desktop:{message.Data}");
+        }
+    }
+
+    private sealed class RecordingCoreStreamingDevice(List<string> sentCommands, string? throwOnCommandData) : CoreStreamingDevice("TestDevice")
+    {
+        public override void Send<T>(IOutboundMessage<T> message)
+        {
+            if (message is IOutboundMessage<string> stringMessage)
+            {
+                sentCommands.Add($"core:{stringMessage.Data}");
+
+                if (throwOnCommandData == stringMessage.Data)
+                {
+                    throw new InvalidOperationException("Injected test failure.");
+                }
+            }
+        }
     }
 }
