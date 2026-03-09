@@ -832,14 +832,14 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public async Task UpdateNetworkConfiguration()
     {
+        var coreDevice = GetCoreDeviceForNetworkConfiguration();
+
         var restoreSdInterface = ConnectionType == ConnectionType.Usb && Mode == DeviceMode.LogToDevice;
 
         if (IsStreaming)
         {
             StopStreaming();
         }
-
-        var coreDevice = GetCoreDeviceForNetworkConfiguration();
 
         try
         {

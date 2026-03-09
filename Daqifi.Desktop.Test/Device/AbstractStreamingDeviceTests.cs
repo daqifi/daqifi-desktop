@@ -227,7 +227,7 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
-    public async Task UpdateNetworkConfiguration_WhenStreamingAndDisconnected_StopsStreamingBeforeThrowing()
+    public async Task UpdateNetworkConfiguration_WhenStreamingAndDisconnected_ThrowsWithoutStoppingStreaming()
     {
         // Arrange
         var device = new TestStreamingDevice
@@ -245,11 +245,8 @@ public class AbstractStreamingDeviceTests
             Assert.AreEqual("Device is not connected.", exception.Message);
         }
 
-        Assert.IsFalse(device.IsStreaming, "Streaming state should be cleared even when Core device resolution fails.");
-        Assert.AreEqual(
-            ScpiMessageProducer.StopStreaming.Data,
-            device.SentCommands[0],
-            "Desktop should stop streaming before attempting to resolve the Core device.");
+        Assert.IsTrue(device.IsStreaming, "Streaming state should be preserved when the Core device is not connected.");
+        Assert.AreEqual(0, device.SentCommands.Count, "No commands should be sent when the Core device is not connected.");
     }
 
     [TestMethod]
@@ -279,6 +276,52 @@ public class AbstractStreamingDeviceTests
         Assert.IsFalse(
             device.SentCommands.Contains($"desktop:{ScpiMessageProducer.SetNetworkWifiModeExisting.Data}"),
             "Desktop should no longer duplicate the network configuration command sequence.");
+    }
+
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenNotStreaming_DelegatesWithoutSendingStopStreaming()
+    {
+        // Arrange
+        var device = new NetworkConfigurationTestDevice();
+        device.NetworkConfiguration = new NetworkConfiguration(
+            WifiMode.ExistingNetwork,
+            WifiSecurityType.WpaPskPhrase,
+            "TestNetwork",
+            "TestPassword");
+
+        // Act
+        await device.UpdateNetworkConfiguration();
+
+        // Assert
+        Assert.IsFalse(
+            device.SentCommands.Contains($"desktop:{ScpiMessageProducer.StopStreaming.Data}"),
+            "Desktop should not send StopStreaming when it was not streaming.");
+        Assert.IsTrue(
+            device.SentCommands.Contains($"core:{ScpiMessageProducer.SetNetworkWifiModeExisting.Data}"),
+            "Core should still receive the full network configuration command sequence.");
+    }
+
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenWifi_DoesNotRestoreSdInterface()
+    {
+        // Arrange
+        var device = new NetworkConfigurationTestDevice(connectionType: ConnectionType.Wifi);
+        device.NetworkConfiguration = new NetworkConfiguration(
+            WifiMode.ExistingNetwork,
+            WifiSecurityType.WpaPskPhrase,
+            "TestNetwork",
+            "TestPassword");
+
+        // Act
+        await device.UpdateNetworkConfiguration();
+
+        // Assert
+        Assert.IsFalse(
+            device.SentCommands.Contains($"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}"),
+            "Desktop should not disable LAN for a WiFi device after a network update.");
+        Assert.IsFalse(
+            device.SentCommands.Contains($"desktop:{ScpiMessageProducer.EnableStorageSd.Data}"),
+            "Desktop should not re-enable SD for a WiFi device; it shares no SPI bus with the desktop transport.");
     }
 
     [TestMethod]
@@ -369,16 +412,18 @@ public class AbstractStreamingDeviceTests
     private sealed class NetworkConfigurationTestDevice : AbstractStreamingDevice
     {
         private readonly RecordingCoreStreamingDevice _coreDevice;
+        private readonly ConnectionType _connectionType;
 
-        public NetworkConfigurationTestDevice(string? throwOnCommandData = null)
+        public NetworkConfigurationTestDevice(string? throwOnCommandData = null, ConnectionType connectionType = ConnectionType.Usb)
         {
             _coreDevice = new RecordingCoreStreamingDevice(SentCommands, throwOnCommandData);
             _coreDevice.Connect();
+            _connectionType = connectionType;
         }
 
         public List<string> SentCommands { get; } = [];
 
-        public override ConnectionType ConnectionType => ConnectionType.Usb;
+        public override ConnectionType ConnectionType => _connectionType;
 
         protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
 
