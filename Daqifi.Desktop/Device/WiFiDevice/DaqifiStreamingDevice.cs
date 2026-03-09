@@ -1,8 +1,8 @@
 ﻿using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
-using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.IO.Messages;
+using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
@@ -28,16 +28,36 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     #endregion
 
     #region Constructor
-    public DaqifiStreamingDevice(DeviceInfo deviceInfo)
+    /// <summary>
+    /// Creates a WiFi device wrapper from Core discovery metadata.
+    /// </summary>
+    /// <param name="deviceInfo">The discovered device metadata.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="deviceInfo"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="deviceInfo"/> does not contain the IP address or TCP port required for WiFi.
+    /// </exception>
+    public DaqifiStreamingDevice(CoreDeviceInfo deviceInfo)
     {
-        Name = deviceInfo.DeviceName;
-        DeviceSerialNo = deviceInfo.DeviceSerialNo;
-        IpAddress = deviceInfo.IpAddress;
-        MacAddress = deviceInfo.MacAddress;
-        Port = (int)deviceInfo.Port;
+        ArgumentNullException.ThrowIfNull(deviceInfo);
+
+        if (deviceInfo.IPAddress == null)
+        {
+            throw new ArgumentException("WiFi device discovery info must include an IP address.", nameof(deviceInfo));
+        }
+
+        if (!deviceInfo.Port.HasValue)
+        {
+            throw new ArgumentException("WiFi device discovery info must include a TCP port.", nameof(deviceInfo));
+        }
+
+        Name = deviceInfo.Name;
+        Metadata.SerialNumber = deviceInfo.SerialNumber;
+        Metadata.IpAddress = deviceInfo.IPAddress.ToString();
+        Metadata.MacAddress = deviceInfo.MacAddress ?? string.Empty;
+        Metadata.FirmwareVersion = deviceInfo.FirmwareVersion;
+        Port = deviceInfo.Port.Value;
         IsPowerOn = deviceInfo.IsPowerOn;
         IsStreaming = false;
-        DeviceVersion = deviceInfo.DeviceVersion;
     }
 
     #endregion

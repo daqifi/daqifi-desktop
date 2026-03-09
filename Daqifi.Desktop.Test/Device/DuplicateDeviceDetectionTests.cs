@@ -1,5 +1,4 @@
 using Daqifi.Desktop.Device;
-using Daqifi.Desktop.DataModel.Device;
 using Moq;
 
 namespace Daqifi.Desktop.Test.Device;
