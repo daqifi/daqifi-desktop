@@ -62,6 +62,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     protected virtual CoreStreamingDevice? CoreDeviceForNetworkConfiguration => null;
 
+    /// <summary>
+    /// Core device that owns transport, status, and channel population for this desktop wrapper.
+    /// </summary>
+    protected virtual DaqifiDevice? CoreDevice => null;
+
     #region Properties
 
     protected readonly AppLogger AppLogger = AppLogger.Instance;
@@ -187,12 +192,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     #region Message Handlers
     /// <summary>
     /// Initializes the protocol handler for automatic message routing.
-    /// Uses Core's ProtobufProtocolHandler to route status, streaming, and SD card messages.
+    /// Uses Core's ProtobufProtocolHandler to route streaming protobuf messages while Core
+    /// itself owns status parsing and channel population.
     /// </summary>
     private void InitializeProtocolHandler()
     {
         _protocolHandler = new ProtobufProtocolHandler(
-            statusMessageHandler: OnStatusMessageReceived,
             streamMessageHandler: OnStreamMessageReceived,
             sdCardMessageHandler: _ => { } // SD card messages are text-based, handled separately; empty handler prevents NullReferenceException
         );
@@ -215,22 +220,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             // Fire and forget - we don't need to wait for the handler to complete
             _ = _protocolHandler.HandleAsync(inboundMessage);
         }
-    }
-
-    /// <summary>
-    /// Handles status messages received from the device during initialization.
-    /// Called automatically by ProtobufProtocolHandler when a status message is detected.
-    /// </summary>
-    private void OnStatusMessageReceived(DaqifiOutMessage message)
-    {
-        // Protocol handler already validated this is a status message via IsStatusMessage()
-        // No need to revalidate here - just process it
-
-        HydrateDeviceMetadata(message);
-        PopulateChannelsFromCore(message);
-        PopulateAnalogOutChannels(message);
-
-        AppLogger.Information("Status message processed - device metadata populated");
     }
 
     /// <summary>
@@ -738,49 +727,119 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
-    /// Populates channels using Core's DaqifiDevice.PopulateChannelsFromStatus method.
-    /// This leverages Core's channel creation logic and wraps the resulting channels
-    /// with Desktop-specific wrappers that add UI features (colors, expressions, database).
+    /// Applies the current Core device metadata and channel state to the desktop wrapper.
+    /// Core remains the source of truth for status parsing and channel creation; desktop keeps
+    /// its richer channel objects for WPF-only concerns.
     /// </summary>
-    /// <param name="message">The protobuf status message containing channel configuration.</param>
-    private void PopulateChannelsFromCore(DaqifiOutMessage message)
+    /// <param name="coreDevice">The already-populated Core device.</param>
+    /// <param name="statusMessage">
+    /// Optional raw status message for desktop-only fields that Core does not currently project.
+    /// </param>
+    protected void SyncFromCoreDevice(DaqifiDevice coreDevice, DaqifiOutMessage? statusMessage = null)
     {
+        ArgumentNullException.ThrowIfNull(coreDevice);
+
         try
         {
-            // Use Core's DaqifiDevice to populate channels from the status message
-            var coreDevice = new DaqifiDevice(Name ?? "Unknown");
-            coreDevice.PopulateChannelsFromStatus(message);
+            HydrateDeviceMetadata(coreDevice.Metadata);
+            SyncChannelsFromCore(coreDevice.Channels);
 
-            // Clear existing channels before repopulating to prevent duplicates (Issue #29)
-            DataChannels.Clear();
-
-            // Wrap Core channels with Desktop-specific wrappers
-            foreach (var coreChannel in coreDevice.Channels)
+            if (statusMessage != null)
             {
-                if (coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel)
-                {
-                    DataChannels.Add(new AnalogChannel(this, coreAnalogChannel));
-                }
-                else if (coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel)
-                {
-                    DataChannels.Add(new DigitalChannel(this, coreDigitalChannel));
-                }
+                PopulateAnalogOutChannels(statusMessage);
             }
 
-            AppLogger.Information($"Populated {coreDevice.Channels.Count} channels from Core " +
+            DeviceState = coreDevice.State;
+
+            AppLogger.Information(
+                $"Synchronized {coreDevice.Channels.Count} channels from Core " +
                 $"({coreDevice.Channels.Count(c => c.Type == ChannelType.Analog)} analog, " +
                 $"{coreDevice.Channels.Count(c => c.Type == ChannelType.Digital)} digital)");
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to populate channels from Core for device {DisplayIdentifier}");
+            AppLogger.Error(ex, $"Failed to synchronize Core device state for {DisplayIdentifier}");
             throw;
         }
     }
 
-    protected void HydrateDeviceMetadata(DaqifiOutMessage message)
+    private void SyncChannelsFromCore(IReadOnlyList<Daqifi.Core.Channel.IChannel> coreChannels)
     {
-        Metadata.UpdateFromProtobuf(message);
+        var existingChannels = DataChannels.ToDictionary(GetChannelKey);
+        var updatedChannels = new List<IChannel>(coreChannels.Count);
+
+        foreach (var coreChannel in coreChannels)
+        {
+            var channelKey = GetChannelKey(coreChannel);
+
+            if (existingChannels.TryGetValue(channelKey, out var existingChannel))
+            {
+                switch (existingChannel)
+                {
+                    case AnalogChannel desktopAnalogChannel when coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel:
+                        desktopAnalogChannel.ReplaceCoreChannel(coreAnalogChannel);
+                        desktopAnalogChannel.DeviceName = DevicePartNumber;
+                        desktopAnalogChannel.DeviceSerialNo = DeviceSerialNo;
+                        updatedChannels.Add(desktopAnalogChannel);
+                        continue;
+
+                    case DigitalChannel desktopDigitalChannel when coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel:
+                        desktopDigitalChannel.ReplaceCoreChannel(coreDigitalChannel);
+                        desktopDigitalChannel.DeviceName = DevicePartNumber;
+                        desktopDigitalChannel.DeviceSerialNo = DeviceSerialNo;
+                        updatedChannels.Add(desktopDigitalChannel);
+                        continue;
+                }
+            }
+
+            var desktopChannel = CreateDesktopChannel(coreChannel);
+            if (desktopChannel != null)
+            {
+                updatedChannels.Add(desktopChannel);
+            }
+        }
+
+        DataChannels.Clear();
+        DataChannels.AddRange(updatedChannels);
+    }
+
+    private IChannel? CreateDesktopChannel(Daqifi.Core.Channel.IChannel coreChannel)
+    {
+        return coreChannel switch
+        {
+            Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel => new AnalogChannel(this, coreAnalogChannel),
+            Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel => new DigitalChannel(this, coreDigitalChannel),
+            _ => null
+        };
+    }
+
+    private static string GetChannelKey(IChannel channel)
+    {
+        return $"{channel.Type}:{channel.Index}";
+    }
+
+    private static string GetChannelKey(Daqifi.Core.Channel.IChannel channel)
+    {
+        return $"{channel.Type}:{channel.ChannelNumber}";
+    }
+
+    private void HydrateDeviceMetadata(DeviceMetadata coreMetadata)
+    {
+        ArgumentNullException.ThrowIfNull(coreMetadata);
+
+        Metadata.PartNumber = coreMetadata.PartNumber;
+        Metadata.SerialNumber = coreMetadata.SerialNumber;
+        Metadata.FirmwareVersion = coreMetadata.FirmwareVersion;
+        Metadata.HardwareRevision = coreMetadata.HardwareRevision;
+        Metadata.DeviceType = coreMetadata.DeviceType;
+        Metadata.Capabilities = CloneCapabilities(coreMetadata.Capabilities);
+        Metadata.IpAddress = coreMetadata.IpAddress;
+        Metadata.MacAddress = coreMetadata.MacAddress;
+        Metadata.Ssid = coreMetadata.Ssid;
+        Metadata.HostName = coreMetadata.HostName;
+        Metadata.DevicePort = coreMetadata.DevicePort;
+        Metadata.WifiSecurityMode = coreMetadata.WifiSecurityMode;
+        Metadata.WifiInfrastructureMode = coreMetadata.WifiInfrastructureMode;
 
         // DeviceType is an [ObservableProperty] and not backed by Metadata, so set it explicitly.
         DeviceType = Metadata.DeviceType;
@@ -793,13 +852,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         OnPropertyChanged(nameof(MacAddress));
         OnPropertyChanged(nameof(DisplayIdentifier));
 
-        // Update NetworkConfiguration from metadata
         if (!string.IsNullOrWhiteSpace(Metadata.Ssid))
         {
             NetworkConfiguration.Ssid = Metadata.Ssid;
         }
 
-        // This now correctly handles security mode 0 (open network) - fixes WiFi bug!
+        // Security type 0 is the open-network case and should not be filtered out.
         NetworkConfiguration.SecurityType = (WifiSecurityType)Metadata.WifiSecurityMode;
 
         if (Metadata.WifiInfrastructureMode > 0)
@@ -808,6 +866,21 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         AppLogger.Information($"Detected device type: {DeviceType} from part number: {Metadata.PartNumber}");
+    }
+
+    private static DeviceCapabilities CloneCapabilities(DeviceCapabilities capabilities)
+    {
+        return new DeviceCapabilities
+        {
+            SupportsStreaming = capabilities.SupportsStreaming,
+            HasSdCard = capabilities.HasSdCard,
+            HasWiFi = capabilities.HasWiFi,
+            HasUsb = capabilities.HasUsb,
+            AnalogInputChannels = capabilities.AnalogInputChannels,
+            AnalogOutputChannels = capabilities.AnalogOutputChannels,
+            DigitalChannels = capabilities.DigitalChannels,
+            MaxSamplingRate = capabilities.MaxSamplingRate
+        };
     }
 
     private void PopulateAnalogOutChannels(DaqifiOutMessage message)

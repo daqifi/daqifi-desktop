@@ -1,6 +1,7 @@
 ﻿using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
+using Daqifi.Core.Device.Protocol;
 using Daqifi.Desktop.IO.Messages;
 using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
@@ -26,6 +27,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     public override bool IsConnected => _coreDevice?.IsConnected == true;
     protected override bool RequestDeviceInfoOnInitialize => false;
     protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice as CoreStreamingDevice;
+    protected override DaqifiDevice? CoreDevice => _coreDevice;
 
     #endregion
 
@@ -177,6 +179,14 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     /// </summary>
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
+        if (e.Message.Data is DaqifiOutMessage protobufMessage &&
+            ProtobufProtocolHandler.DetectMessageType(protobufMessage) == ProtobufMessageType.Status &&
+            _coreDevice != null)
+        {
+            SyncFromCoreDevice(_coreDevice, protobufMessage);
+            return;
+        }
+
         // Core's message is already an IInboundMessage<object>, wrap it for Desktop's event args
         var args = new MessageEventArgs<object>(e.Message);
         HandleInboundMessage(args);

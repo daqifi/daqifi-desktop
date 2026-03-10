@@ -1,9 +1,11 @@
 using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Channel;
 using Daqifi.Core.Device.Network;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Producers;
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
 using Moq;
+using System.Windows.Media;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Test.Device;
@@ -388,6 +390,78 @@ public class AbstractStreamingDeviceTests
             "Desktop should re-enable SD access even when the Core network update fails.");
     }
 
+    [TestMethod]
+    public void SyncFromCoreDevice_ReusesExistingDesktopChannelsAndPreservesDesktopState()
+    {
+        // Arrange
+        var device = new CoreSynchronizationTestDevice();
+        var initialCoreDevice = BuildCoreDeviceSnapshot(
+            firmwareVersion: "1.0.0",
+            calibrationM: 1.5f);
+
+        device.ApplyCoreSnapshot(initialCoreDevice, BuildStatusMessage("1.0.0", 1.5f));
+
+        var analogChannel = device.DataChannels.OfType<AnalogChannel>().Single();
+        var digitalChannel = device.DataChannels.OfType<DigitalChannel>().Single();
+        analogChannel.ScaleExpression = "x * 2";
+        analogChannel.IsScalingActive = true;
+        analogChannel.IsVisible = false;
+        analogChannel.ChannelColorBrush = Brushes.Orange;
+        digitalChannel.IsActive = true;
+
+        var refreshedCoreDevice = BuildCoreDeviceSnapshot(
+            firmwareVersion: "2.0.0",
+            calibrationM: 2.5f);
+
+        // Act
+        device.ApplyCoreSnapshot(refreshedCoreDevice, BuildStatusMessage("2.0.0", 2.5f));
+
+        // Assert
+        var refreshedAnalogChannel = device.DataChannels.OfType<AnalogChannel>().Single();
+        var refreshedDigitalChannel = device.DataChannels.OfType<DigitalChannel>().Single();
+
+        Assert.AreSame(analogChannel, refreshedAnalogChannel, "Analog channel wrapper should be preserved.");
+        Assert.AreSame(digitalChannel, refreshedDigitalChannel, "Digital channel wrapper should be preserved.");
+        Assert.AreEqual("x * 2", refreshedAnalogChannel.ScaleExpression);
+        Assert.IsTrue(refreshedAnalogChannel.IsScalingActive);
+        Assert.IsFalse(refreshedAnalogChannel.IsVisible);
+        Assert.AreSame(Brushes.Orange, refreshedAnalogChannel.ChannelColorBrush);
+        Assert.IsTrue(refreshedDigitalChannel.IsActive, "Desktop channel activation state should be preserved.");
+        Assert.AreEqual(2.5d, refreshedAnalogChannel.CalibrationMValue, 0.001d, "Core calibration data should refresh.");
+        Assert.AreEqual("2.0.0", device.DeviceVersion);
+        Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType);
+        Assert.AreEqual(WifiSecurityType.None, device.NetworkConfiguration.SecurityType);
+    }
+
+    private static DaqifiDevice BuildCoreDeviceSnapshot(string firmwareVersion, float calibrationM)
+    {
+        var statusMessage = BuildStatusMessage(firmwareVersion, calibrationM);
+        var coreDevice = new DaqifiDevice("Core Test Device");
+        coreDevice.Metadata.UpdateFromProtobuf(statusMessage);
+        coreDevice.PopulateChannelsFromStatus(statusMessage);
+        return coreDevice;
+    }
+
+    private static DaqifiOutMessage BuildStatusMessage(string firmwareVersion, float calibrationM)
+    {
+        return new DaqifiOutMessage
+        {
+            DevicePn = "Nq1",
+            DeviceSn = 12345,
+            DeviceFwRev = firmwareVersion,
+            AnalogInPortNum = 1,
+            AnalogInRes = 4095,
+            DigitalPortNum = 1,
+            WifiSecurityMode = 0,
+            WifiInfMode = (uint)WifiMode.ExistingNetwork,
+            Ssid = "TestNetwork",
+            AnalogInCalM = { calibrationM },
+            AnalogInCalB = { 0.25f },
+            AnalogInIntScaleM = { 1.0f },
+            AnalogInPortRange = { 10.0f }
+        };
+    }
+
     /// <summary>
     /// Test implementation of AbstractStreamingDevice for testing purposes
     /// </summary>
@@ -436,6 +510,26 @@ public class AbstractStreamingDeviceTests
         protected override void SendMessage(IOutboundMessage<string> message)
         {
             SentCommands.Add($"desktop:{message.Data}");
+        }
+    }
+
+    private sealed class CoreSynchronizationTestDevice : AbstractStreamingDevice
+    {
+        public override ConnectionType ConnectionType => ConnectionType.Usb;
+
+        public override bool Connect() => true;
+
+        public override bool Disconnect() => true;
+
+        public override bool Write(string command) => true;
+
+        public void ApplyCoreSnapshot(DaqifiDevice coreDevice, DaqifiOutMessage? statusMessage = null)
+        {
+            SyncFromCoreDevice(coreDevice, statusMessage);
+        }
+
+        protected override void SendMessage(IOutboundMessage<string> message)
+        {
         }
     }
 
