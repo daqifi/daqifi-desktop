@@ -1802,6 +1802,19 @@ public partial class DaqifiViewModel : ObservableObject
                 ConnectedDevices.Clear();
                 await UpdateConnectedDeviceUI();
 
+                // Unsubscribe channels for devices that are no longer connected.
+                // Covers auto-removal paths (physical unplug, WiFi timeout, serial removed)
+                // that bypass DisconnectDevice and skip its per-channel Unsubscribe loop.
+                var stillConnected = ConnectionManager.Instance.ConnectedDevices
+                    .Select(d => d.DeviceSerialNo)
+                    .ToHashSet();
+                foreach (var orphan in LoggingManager.Instance.SubscribedChannels
+                    .Where(c => !stillConnected.Contains(c.DeviceSerialNo))
+                    .ToList())
+                {
+                    LoggingManager.Instance.Unsubscribe(orphan);
+                }
+
                 GetUpdateProfileAvailableDevice();
                 break;
             case "SubscribedChannels":
