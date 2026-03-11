@@ -776,14 +776,16 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             {
                 switch (existingChannel)
                 {
-                    case AnalogChannel desktopAnalogChannel when coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel:
+                    case AnalogChannel desktopAnalogChannel
+                        when coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel:
                         desktopAnalogChannel.ReplaceCoreChannel(coreAnalogChannel);
                         desktopAnalogChannel.DeviceName = DevicePartNumber;
                         desktopAnalogChannel.DeviceSerialNo = DeviceSerialNo;
                         updatedChannels.Add(desktopAnalogChannel);
                         continue;
 
-                    case DigitalChannel desktopDigitalChannel when coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel:
+                    case DigitalChannel desktopDigitalChannel
+                        when coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel:
                         desktopDigitalChannel.ReplaceCoreChannel(coreDigitalChannel);
                         desktopDigitalChannel.DeviceName = DevicePartNumber;
                         desktopDigitalChannel.DeviceSerialNo = DeviceSerialNo;

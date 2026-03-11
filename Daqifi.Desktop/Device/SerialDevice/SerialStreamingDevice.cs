@@ -339,13 +339,13 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
             $"Core streaming device for {PortName} is not connected.");
     }
 
-    public void EnableLanUpdateMode()
+    public bool EnableLanUpdateMode()
     {
         AppLogger.Information($"Preparing {PortName} for WiFi firmware mode.");
         if (_coreDevice == null || !_coreDevice.IsConnected)
         {
             AppLogger.Warning($"Cannot prepare {PortName} for WiFi firmware mode: core device is not connected.");
-            return;
+            return false;
         }
 
         // Power on the WiFi module and set the FW-update-requested flag.
@@ -363,6 +363,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         Thread.Sleep(1000);
         AppLogger.Information("Sending LAN FW update prep command: SYSTem:COMMUnicate:LAN:FWUpdate");
         _coreDevice.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
+        return true;
     }
 
     public void ResetLanAfterUpdate()

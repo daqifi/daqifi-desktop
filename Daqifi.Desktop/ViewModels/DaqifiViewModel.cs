@@ -672,8 +672,7 @@ public partial class DaqifiViewModel : ObservableObject
         var lanUpdateModeEnabled = false;
         try
         {
-            serialStreamingDevice.EnableLanUpdateMode();
-            lanUpdateModeEnabled = true;
+            lanUpdateModeEnabled = serialStreamingDevice.EnableLanUpdateMode();
 
             using var wifiUpdateService = CreateWifiFirmwareUpdateService(wifiVersion, serialStreamingDevice.PortName);
             await wifiUpdateService.UpdateWifiModuleAsync(
