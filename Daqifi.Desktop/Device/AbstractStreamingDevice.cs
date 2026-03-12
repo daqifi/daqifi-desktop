@@ -249,7 +249,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         var digitalData1 = new byte();
         var digitalData2 = new byte();
         var hasDigitalData = message.DigitalData.Length > 0;
-        var hasAnalogData = message.AnalogInData.Count > 0;
+        // USB firmware sends pre-scaled floats (AnalogInDataFloat); WiFi sends raw ADC counts (AnalogInData).
+        var hasAnalogData = message.AnalogInData.Count > 0 || message.AnalogInDataFloat.Count > 0;
 
 
 
@@ -269,20 +270,33 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                                                       .OrderBy(c => c.Index)
                                                       .ToList();
 
+                // USB firmware sends pre-scaled float values (already in volts); use them directly.
+                // WiFi firmware sends raw integer ADC counts; apply channel calibration scaling.
+                var hasFloatData = message.AnalogInDataFloat.Count > 0;
+                var dataCount = hasFloatData ? message.AnalogInDataFloat.Count : message.AnalogInData.Count;
 
-                for (var dataIndex = 0; dataIndex < message.AnalogInData.Count && dataIndex < activeAnalogChannels.Count; dataIndex++)
+                for (var dataIndex = 0; dataIndex < dataCount && dataIndex < activeAnalogChannels.Count; dataIndex++)
                 {
                     var channel = activeAnalogChannels[dataIndex];
-                    var rawValue = message.AnalogInData[dataIndex];
-                    // Use core's scaling implementation for correct formula and thread-safety
-                    var scaledValue = channel.GetScaledValue((int)rawValue);
+                    double scaledValue;
+                    if (hasFloatData)
+                    {
+                        // Float values are already voltage-scaled by the firmware — no calibration needed
+                        scaledValue = message.AnalogInDataFloat[dataIndex];
+                    }
+                    else
+                    {
+                        // Raw ADC count — apply channel calibration/scaling via Core
+                        scaledValue = channel.GetScaledValue((int)message.AnalogInData[dataIndex]);
+                    }
+
                     var sample = new DataSample(this, channel, messageTimestamp, scaledValue);
                     channel.ActiveSample = sample;
                 }
 
-                if (message.AnalogInData.Count != activeAnalogChannels.Count)
+                if (dataCount != activeAnalogChannels.Count)
                 {
-                    AppLogger.Warning($"[CHANNEL_MAPPING] Analog data count mismatch: received {message.AnalogInData.Count} data points for {activeAnalogChannels.Count} active channels");
+                    AppLogger.Warning($"[CHANNEL_MAPPING] Analog data count mismatch: received {dataCount} data points for {activeAnalogChannels.Count} active channels");
                 }
 
                 // Send debug data if debug mode is enabled
