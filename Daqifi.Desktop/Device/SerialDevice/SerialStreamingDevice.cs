@@ -59,6 +59,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
     protected override CoreStreamingDevice? CoreDeviceForSd => _coreDevice;
     protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
+    protected override DaqifiDevice? CoreDevice => _coreDevice;
     #endregion
 
     #region Constructor
@@ -129,15 +130,24 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     /// </summary>
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
-        if (e.Message.Data is DaqifiOutMessage protobufMessage &&
-            ProtobufProtocolHandler.DetectMessageType(protobufMessage) == ProtobufMessageType.Status)
+        if (e.Message.Data is DaqifiOutMessage protobufMessage)
         {
-            if (ShouldSuppressDuplicateInitialStatus(protobufMessage))
+            var messageType = ProtobufProtocolHandler.DetectMessageType(protobufMessage);
+            if (messageType == ProtobufMessageType.Status)
             {
-                return;
-            }
+                if (ShouldSuppressDuplicateInitialStatus(protobufMessage))
+                {
+                    return;
+                }
 
-            _initialStatusReceivedSource?.TrySetResult(true);
+                _initialStatusReceivedSource?.TrySetResult(true);
+
+                if (_coreDevice != null)
+                {
+                    SyncFromCoreDevice(_coreDevice, protobufMessage);
+                    return;
+                }
+            }
         }
 
         // Core's message is already an IInboundMessage<object>, wrap it for Desktop's event args
@@ -323,13 +333,19 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         SendMessage(message);
     }
 
-    public void EnableLanUpdateMode()
+    internal Daqifi.Core.Device.IStreamingDevice GetRequiredCoreStreamingDevice()
+    {
+        return _coreDevice ?? throw new InvalidOperationException(
+            $"Core streaming device for {PortName} is not connected.");
+    }
+
+    public bool EnableLanUpdateMode()
     {
         AppLogger.Information($"Preparing {PortName} for WiFi firmware mode.");
         if (_coreDevice == null || !_coreDevice.IsConnected)
         {
             AppLogger.Warning($"Cannot prepare {PortName} for WiFi firmware mode: core device is not connected.");
-            return;
+            return false;
         }
 
         // Power on the WiFi module and set the FW-update-requested flag.
@@ -347,6 +363,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         Thread.Sleep(1000);
         AppLogger.Information("Sending LAN FW update prep command: SYSTem:COMMUnicate:LAN:FWUpdate");
         _coreDevice.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
+        return true;
     }
 
     public void ResetLanAfterUpdate()

@@ -3,6 +3,7 @@ using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Logger;
 using System.ComponentModel;
+using System.IO.Ports;
 using System.Management;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -186,55 +187,45 @@ public partial class ConnectionManager : ObservableObject
         var bw = new BackgroundWorker();
         bw.DoWork += delegate
         {
-            var availableSerialPorts = SerialDeviceHelper.GetAvailableDaqifiPorts();
-            var devicesToRemove = new List<SerialStreamingDevice>();
-            var lDevicesToRemove = new List<IStreamingDevice>();
+            HashSet<string> availableSerialPorts;
+            try
+            {
+                availableSerialPorts = new HashSet<string>(
+                    SerialPort.GetPortNames(),
+                    StringComparer.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Instance.Error(ex, "Failed to enumerate serial ports after device change.");
+                return;
+            }
 
-            if (availableSerialPorts.Length == 0)
-            {
-                foreach (var device in ConnectedDevices)
-                {
-                    lDevicesToRemove.Add(device);
-                }
-            }
-            else
-            {
-                foreach (var device in ConnectedDevices)
-                {
-                    if (device is SerialStreamingDevice serialDevice)
-                    {
-                        if (!availableSerialPorts.Contains(serialDevice.Port.PortName))
-                        {
-                            devicesToRemove.Add(serialDevice);
-                        }
-                    }
-                }
-            }
+            var devicesToRemove = ConnectedDevices
+                .OfType<SerialStreamingDevice>()
+                .Where(device =>
+                    string.IsNullOrWhiteSpace(device.Port?.PortName) ||
+                    !availableSerialPorts.Contains(device.Port.PortName))
+                .Cast<IStreamingDevice>()
+                .ToList();
+
             foreach (var serialDevice in devicesToRemove)
             {
                 System.Windows.Application.Current.Dispatcher.Invoke(delegate
                 {
-                    Disconnect(serialDevice);
-                });
-            }
-            foreach (var serialDevice in lDevicesToRemove)
-            {
-                if (!NotifyConnection)
-                {
-                    System.Windows.Application.Current.Dispatcher.Invoke(delegate
+                    foreach (var channel in serialDevice.DataChannels)
                     {
-                        foreach (var channel in serialDevice.DataChannels)
-                        {
-                            LoggingManager.Instance.Unsubscribe(channel);
-                        }
-                        Disconnect(serialDevice);
-                        // Only notify if this isn't an intentional disconnect during firmware update
-                        if (DeviceBeingUpdated == null || DeviceBeingUpdated.Name != serialDevice.Name)
-                        {
-                            NotifyConnection = true;
-                        }
-                    });
-                }
+                        LoggingManager.Instance.Unsubscribe(channel);
+                    }
+
+                    Disconnect(serialDevice);
+
+                    // Only notify if this isn't an intentional disconnect during firmware update
+                    if (!NotifyConnection &&
+                        (DeviceBeingUpdated == null || DeviceBeingUpdated.Name != serialDevice.Name))
+                    {
+                        NotifyConnection = true;
+                    }
+                });
             }
         };
 

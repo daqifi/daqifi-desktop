@@ -417,57 +417,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
     }
 
-    private void HandleWifiDeviceRemoved(object sender, IDevice device)
-    {
-        if (device is not DaqifiStreamingDevice wifiDevice)
-        {
-            return;
-        }
-
-        var matchingDevice = AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress);
-        if (matchingDevice != null)
-        {
-            InvokeOnUiThread(() =>
-            {
-                AvailableWiFiDevices.Remove(matchingDevice);
-            });
-        }
-    }
-
-    private void HandleSerialDeviceFound(object sender, IDevice device)
-    {
-        if (device is not SerialStreamingDevice serialDevice)
-        {
-            return;
-        }
-
-        if (AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == serialDevice.Port.PortName) == null)
-        {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                AvailableSerialDevices.Add(serialDevice);
-                if (HasNoSerialDevices) { HasNoSerialDevices = false; }
-            });
-        }
-    }
-
-    private void HandleSerialDeviceRemoved(object sender, IDevice device)
-    {
-        if (device is not SerialStreamingDevice serialDevice)
-        {
-            return;
-        }
-
-        var matchingDevice = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == serialDevice.Port.PortName);
-        if (matchingDevice != null)
-        {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                AvailableSerialDevices.Remove(matchingDevice);
-            });
-        }
-    }
-
     public void Close()
     {
         StopWiFiDiscovery();

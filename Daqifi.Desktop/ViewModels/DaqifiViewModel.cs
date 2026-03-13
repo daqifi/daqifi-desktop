@@ -495,7 +495,7 @@ public partial class DaqifiViewModel : ObservableObject
 
         try
         {
-            var coreDevice = new CoreStreamingDeviceAdapter(serialStreamingDevice);
+            var coreDevice = serialStreamingDevice.GetRequiredCoreStreamingDevice();
 
             if (!coreDevice.IsConnected)
             {
@@ -667,12 +667,27 @@ public partial class DaqifiViewModel : ObservableObject
             }
         });
 
-        using var wifiUpdateService = CreateWifiFirmwareUpdateService(wifiVersion, coreDevice.Name);
-        await wifiUpdateService.UpdateWifiModuleAsync(
-            coreDevice,
-            wifiPackage.Value.ExtractedPath,
-            wifiUpdateProgress,
-            cancellationToken);
+        // Preserve the legacy serial prep/reset sequence now that the firmware flow uses the
+        // underlying Core device directly instead of routing through a desktop-shaped adapter.
+        var lanUpdateModeEnabled = false;
+        try
+        {
+            lanUpdateModeEnabled = serialStreamingDevice.EnableLanUpdateMode();
+
+            using var wifiUpdateService = CreateWifiFirmwareUpdateService(wifiVersion, serialStreamingDevice.PortName);
+            await wifiUpdateService.UpdateWifiModuleAsync(
+                coreDevice,
+                wifiPackage.Value.ExtractedPath,
+                wifiUpdateProgress,
+                cancellationToken);
+        }
+        finally
+        {
+            if (lanUpdateModeEnabled)
+            {
+                serialStreamingDevice.ResetLanAfterUpdate();
+            }
+        }
     }
 
     private async Task<LanChipInfo?> TryGetLanChipInfoAsync(
@@ -770,6 +785,7 @@ public partial class DaqifiViewModel : ObservableObject
                 // winc_flash_tool.cmd requires an explicit release version folder.
                 // Keep legacy argument profile used by shipped WINC tool bundle.
                 WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /k /e /i aio /w",
+                WifiPortOverride = portName,
                 // After sending FWUpdate (flag-only, no APPLY), disconnect quickly so the
                 // COM port is free for the bridge activation raw write at the "Power cycle
                 // WINC" prompt.  The FWUpdate flag persists in firmware RAM until APPLY fires.
@@ -1785,6 +1801,19 @@ public partial class DaqifiViewModel : ObservableObject
             case "ConnectedDevices":
                 ConnectedDevices.Clear();
                 await UpdateConnectedDeviceUI();
+
+                // Unsubscribe channels for devices that are no longer connected.
+                // Covers auto-removal paths (physical unplug, WiFi timeout, serial removed)
+                // that bypass DisconnectDevice and skip its per-channel Unsubscribe loop.
+                var stillConnected = ConnectionManager.Instance.ConnectedDevices
+                    .Select(d => d.DeviceSerialNo)
+                    .ToHashSet();
+                foreach (var orphan in LoggingManager.Instance.SubscribedChannels
+                    .Where(c => !stillConnected.Contains(c.DeviceSerialNo))
+                    .ToList())
+                {
+                    LoggingManager.Instance.Unsubscribe(orphan);
+                }
 
                 GetUpdateProfileAvailableDevice();
                 break;

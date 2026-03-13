@@ -216,6 +216,50 @@ public class ChannelDataMappingTests
         Assert.IsNotNull(channel2.ActiveSample, "AI2 should receive data");
     }
 
+    [TestMethod]
+    public void FloatData_SingleChannel_AI0_ShouldReceivePreScaledValue()
+    {
+        // USB firmware sends AnalogInDataFloat (pre-scaled volts) instead of AnalogInData (raw ADC counts)
+        // Arrange
+        var channel0 = _device.DataChannels[0] as AnalogChannel;
+        channel0.IsActive = true;
+
+        var message = CreateTestMessage();
+        message.AnalogInDataFloat.Add(2.75f); // Pre-scaled: 2.75 V already
+
+        // Act
+        _device.TestHandleStreamingMessage(message);
+
+        // Assert
+        Assert.IsNotNull(channel0.ActiveSample, "AI0 should receive data from AnalogInDataFloat");
+        Assert.AreEqual(2.75, channel0.ActiveSample.Value, 0.001, "AI0 should show pre-scaled float value directly");
+    }
+
+    [TestMethod]
+    public void FloatData_MultipleChannels_ShouldReceivePreScaledValues()
+    {
+        // Arrange
+        var channel0 = _device.DataChannels[0] as AnalogChannel;
+        var channel1 = _device.DataChannels[1] as AnalogChannel;
+
+        channel0.IsActive = true;
+        channel1.IsActive = true;
+
+        var message = CreateTestMessage();
+        message.AnalogInDataFloat.Add(1.1f); // AI0
+        message.AnalogInDataFloat.Add(3.3f); // AI1
+
+        // Act
+        _device.TestHandleStreamingMessage(message);
+
+        // Assert
+        Assert.IsNotNull(channel0.ActiveSample, "AI0 should receive data");
+        Assert.AreEqual(1.1, channel0.ActiveSample.Value, 0.001, "AI0 should show 1.1V");
+
+        Assert.IsNotNull(channel1.ActiveSample, "AI1 should receive data");
+        Assert.AreEqual(3.3, channel1.ActiveSample.Value, 0.001, "AI1 should show 3.3V");
+    }
+
     private DaqifiOutMessage CreateTestMessage()
     {
         return new DaqifiOutMessage
@@ -250,9 +294,11 @@ public class TestableStreamingDevice : AbstractStreamingDevice
 
     private void TestDirectDataMapping(DaqifiOutMessage message)
     {
-        // Simulate the data mapping logic from HandleStreamingMessageReceived
+        // Mirrors the logic in AbstractStreamingDevice.OnStreamMessageReceived
         var messageTimestamp = DateTime.Now;
-        var hasAnalogData = message.AnalogInData.Count > 0;
+        // USB firmware sends pre-scaled floats; WiFi sends raw ADC counts
+        var hasFloatData = message.AnalogInDataFloat.Count > 0;
+        var hasAnalogData = message.AnalogInData.Count > 0 || hasFloatData;
 
         if (hasAnalogData)
         {
@@ -261,12 +307,20 @@ public class TestableStreamingDevice : AbstractStreamingDevice
                                                   .OrderBy(c => c.Index)
                                                   .ToList();
 
-            for (var dataIndex = 0; dataIndex < message.AnalogInData.Count && dataIndex < activeAnalogChannels.Count; dataIndex++)
+            var dataCount = hasFloatData ? message.AnalogInDataFloat.Count : message.AnalogInData.Count;
+
+            for (var dataIndex = 0; dataIndex < dataCount && dataIndex < activeAnalogChannels.Count; dataIndex++)
             {
                 var channel = activeAnalogChannels[dataIndex];
-                var rawValue = message.AnalogInData.ElementAt(dataIndex);
-                // Simple scaling for test - just convert to double
-                var scaledValue = Convert.ToDouble(rawValue);
+                double scaledValue;
+                if (hasFloatData)
+                {
+                    scaledValue = message.AnalogInDataFloat[dataIndex]; // already in volts
+                }
+                else
+                {
+                    scaledValue = Convert.ToDouble(message.AnalogInData[dataIndex]);
+                }
                 var sample = new DataSample(this, channel, messageTimestamp, scaledValue);
                 channel.ActiveSample = sample;
             }
