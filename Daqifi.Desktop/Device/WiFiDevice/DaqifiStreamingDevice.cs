@@ -25,7 +25,6 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     public bool IsPowerOn { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
     public override bool IsConnected => _coreDevice?.IsConnected == true;
-    protected override bool RequestDeviceInfoOnInitialize => false;
     protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
     protected override DaqifiDevice? CoreDevice => _coreDevice;
 
