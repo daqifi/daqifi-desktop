@@ -52,11 +52,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     /// </summary>
     public override bool IsConnected => _coreDevice?.IsConnected == true;
 
-    /// <summary>
-    /// Disable base class device info request since Core handles initialization via InitializeAsync.
-    /// </summary>
-    protected override bool RequestDeviceInfoOnInitialize => false;
-
     protected override CoreStreamingDevice? CoreDeviceForSd => _coreDevice;
     protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
     protected override DaqifiDevice? CoreDevice => _coreDevice;

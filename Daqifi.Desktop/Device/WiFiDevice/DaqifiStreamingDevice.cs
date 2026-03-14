@@ -9,14 +9,14 @@ using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
 /// <summary>
-/// WiFi streaming device that uses Core's DaqifiDevice directly for communication.
+/// WiFi streaming device that uses Core's DaqifiStreamingDevice directly for communication.
 /// Unlike USB devices, WiFi devices don't need consumer swapping because SD card operations
 /// are only available over USB.
 /// </summary>
 public class DaqifiStreamingDevice : AbstractStreamingDevice
 {
     #region Private Fields
-    private DaqifiDevice? _coreDevice;
+    private CoreStreamingDevice? _coreDevice;
     #endregion
 
     #region Properties
@@ -25,8 +25,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     public bool IsPowerOn { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
     public override bool IsConnected => _coreDevice?.IsConnected == true;
-    protected override bool RequestDeviceInfoOnInitialize => false;
-    protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice as CoreStreamingDevice;
+    protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
     protected override DaqifiDevice? CoreDevice => _coreDevice;
 
     #endregion
@@ -78,7 +77,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 InitializeDevice = false
             };
 
-            _coreDevice = DaqifiDeviceFactory.ConnectTcp(IpAddress, Port, options);
+            _coreDevice = (CoreStreamingDevice)DaqifiDeviceFactory.ConnectTcp(IpAddress, Port, options);
             if (!_coreDevice.IsConnected)
             {
                 AppLogger.Error($"Failed to connect to DAQiFi device at {IpAddress}:{Port}");
@@ -118,9 +117,14 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         }
     }
 
+    /// <summary>
+    /// Not supported for WiFi devices. Commands are sent internally via the Core device.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Always thrown.</exception>
     public override bool Write(string command)
     {
-        return true;
+        throw new NotSupportedException(
+            "Raw text writes are not supported on WiFi devices.");
     }
 
     public override bool Disconnect()

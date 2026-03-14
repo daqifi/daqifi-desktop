@@ -172,8 +172,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public event Action<DebugDataModel>? DebugDataReceived;
     #endregion
 
-    protected virtual bool RequestDeviceInfoOnInitialize => true;
-
     #region Abstract Methods
     public abstract bool Connect();
 
@@ -601,39 +599,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
 
-    protected void TurnOffEcho()
-    {
-        SendMessage(ScpiMessageProducer.DisableDeviceEcho);
-    }
-
-    protected void TurnDeviceOn()
-    {
-        SendMessage(ScpiMessageProducer.TurnDeviceOn);
-    }
-
-    protected void SetProtobufMessageFormat()
-    {
-        SendMessage(ScpiMessageProducer.SetProtobufStreamFormat);
-    }
-
-    /// <summary>
-    /// Initializes the device using the standard initialization sequence with proper delays.
-    /// This async method provides non-blocking initialization similar to Core's approach.
-    /// </summary>
-    protected virtual async Task InitializeDeviceAsync()
-    {
-        TurnOffEcho();
-        await Task.Delay(100);  // Device needs time to process
-
-        SendMessage(ScpiMessageProducer.StopStreaming);
-        await Task.Delay(100);
-
-        TurnDeviceOn();
-        await Task.Delay(100);
-
-        SetProtobufMessageFormat();
-        await Task.Delay(100);
-    }
     #endregion
 
     #region Channel Methods
@@ -911,12 +876,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         // Initialize protocol handler for automatic message routing
         InitializeProtocolHandler();
-
-        if (RequestDeviceInfoOnInitialize)
-        {
-            // Request device info - protocol handler will automatically route the response
-            SendMessage(ScpiMessageProducer.GetDeviceInfo);
-        }
     }
 
     public async Task UpdateNetworkConfiguration()
