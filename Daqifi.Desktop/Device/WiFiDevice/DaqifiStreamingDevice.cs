@@ -118,14 +118,13 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     }
 
     /// <summary>
-    /// Not supported for WiFi devices. All command sending goes through
-    /// <see cref="SendMessage"/> which delegates to Core's <c>Send()</c>.
+    /// Not supported for WiFi devices. Commands are sent internally via the Core device.
     /// </summary>
     /// <exception cref="NotSupportedException">Always thrown.</exception>
     public override bool Write(string command)
     {
         throw new NotSupportedException(
-            "Raw text writes are not supported on WiFi devices. Use SendMessage() for SCPI commands.");
+            "Raw text writes are not supported on WiFi devices.");
     }
 
     public override bool Disconnect()
