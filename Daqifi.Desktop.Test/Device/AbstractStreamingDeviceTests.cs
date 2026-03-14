@@ -399,7 +399,7 @@ public class AbstractStreamingDeviceTests
             firmwareVersion: "1.0.0",
             calibrationM: 1.5f);
 
-        device.ApplyCoreSnapshot(initialCoreDevice, BuildStatusMessage("1.0.0", 1.5f));
+        device.ApplyCoreSnapshot(initialCoreDevice);
 
         var analogChannel = device.DataChannels.OfType<AnalogChannel>().Single();
         var digitalChannel = device.DataChannels.OfType<DigitalChannel>().Single();
@@ -414,7 +414,7 @@ public class AbstractStreamingDeviceTests
             calibrationM: 2.5f);
 
         // Act
-        device.ApplyCoreSnapshot(refreshedCoreDevice, BuildStatusMessage("2.0.0", 2.5f));
+        device.ApplyCoreSnapshot(refreshedCoreDevice);
 
         // Assert
         var refreshedAnalogChannel = device.DataChannels.OfType<AnalogChannel>().Single();
@@ -431,6 +431,94 @@ public class AbstractStreamingDeviceTests
         Assert.AreEqual("2.0.0", device.DeviceVersion);
         Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType);
         Assert.AreEqual(WifiSecurityType.None, device.NetworkConfiguration.SecurityType);
+    }
+
+    [TestMethod]
+    public void OnCoreChannelsPopulated_BuildsDesktopChannelsFromCoreDevice()
+    {
+        // Arrange
+        var device = new CoreSynchronizationTestDevice();
+        var coreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "1.0.0", calibrationM: 1.5f);
+
+        // Act — simulate the ChannelsPopulated event
+        device.SimulateChannelsPopulated(coreDevice);
+
+        // Assert
+        Assert.AreEqual(2, device.DataChannels.Count, "Should have 1 analog + 1 digital channel.");
+        var analog = device.DataChannels.OfType<AnalogChannel>().Single();
+        var digital = device.DataChannels.OfType<DigitalChannel>().Single();
+        Assert.AreEqual("AI0", analog.Name);
+        Assert.AreEqual("DIO0", digital.Name);
+        Assert.AreEqual(1.5d, analog.CalibrationMValue, 0.001d);
+        Assert.AreEqual("1.0.0", device.DeviceVersion);
+    }
+
+    [TestMethod]
+    public void OnCoreChannelsPopulated_ReconnectRebuildsChannelsCorrectly()
+    {
+        // Arrange — first connection
+        var device = new CoreSynchronizationTestDevice();
+        var firstCoreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "1.0.0", calibrationM: 1.0f);
+        device.SimulateChannelsPopulated(firstCoreDevice);
+
+        var firstAnalog = device.DataChannels.OfType<AnalogChannel>().Single();
+        firstAnalog.ScaleExpression = "x * 10";
+
+        // Simulate disconnect: clear channels (as the real devices do)
+        device.DataChannels.Clear();
+        Assert.AreEqual(0, device.DataChannels.Count);
+
+        // Act — reconnect with new core device
+        var secondCoreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "2.0.0", calibrationM: 3.0f);
+        device.SimulateChannelsPopulated(secondCoreDevice);
+
+        // Assert — channels rebuilt from scratch (no ghost state from first connection)
+        Assert.AreEqual(2, device.DataChannels.Count);
+        var reconnectedAnalog = device.DataChannels.OfType<AnalogChannel>().Single();
+        Assert.AreEqual(3.0d, reconnectedAnalog.CalibrationMValue, 0.001d);
+        Assert.AreEqual("2.0.0", device.DeviceVersion);
+        // Scale expression should NOT carry over after disconnect+reconnect
+        Assert.AreNotEqual("x * 10", reconnectedAnalog.ScaleExpression,
+            "Desktop-only state should not persist across disconnect/reconnect.");
+    }
+
+    [TestMethod]
+    public void OnCoreChannelsPopulated_ChannelRefreshPreservesWrappersWhenNotDisconnected()
+    {
+        // Arrange — initial population
+        var device = new CoreSynchronizationTestDevice();
+        var coreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "1.0.0", calibrationM: 1.0f);
+        device.SimulateChannelsPopulated(coreDevice);
+
+        var originalAnalog = device.DataChannels.OfType<AnalogChannel>().Single();
+        originalAnalog.ScaleExpression = "x * 5";
+        originalAnalog.IsScalingActive = true;
+
+        // Act — same-session channel refresh (e.g., re-query device info)
+        var refreshedCoreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "1.0.0", calibrationM: 2.0f);
+        device.SimulateChannelsPopulated(refreshedCoreDevice);
+
+        // Assert — wrapper identity preserved, core calibration refreshed
+        var refreshedAnalog = device.DataChannels.OfType<AnalogChannel>().Single();
+        Assert.AreSame(originalAnalog, refreshedAnalog, "Same wrapper should be reused during refresh.");
+        Assert.AreEqual("x * 5", refreshedAnalog.ScaleExpression, "Desktop expression should survive a refresh.");
+        Assert.IsTrue(refreshedAnalog.IsScalingActive, "Desktop scaling flag should survive a refresh.");
+        Assert.AreEqual(2.0d, refreshedAnalog.CalibrationMValue, 0.001d, "Core calibration should update.");
+    }
+
+    [TestMethod]
+    public void OnCoreChannelsPopulated_IgnoresNonDaqifiDeviceSender()
+    {
+        // Arrange
+        var device = new CoreSynchronizationTestDevice();
+
+        // Act — fire with a non-DaqifiDevice sender
+        device.SimulateChannelsPopulatedFromSender(
+            sender: "not a device",
+            new ChannelsPopulatedEventArgs(Array.Empty<Daqifi.Core.Channel.IChannel>().AsReadOnly(), 0, 0));
+
+        // Assert — no channels should be created or modified
+        Assert.AreEqual(0, device.DataChannels.Count);
     }
 
     private static DaqifiDevice BuildCoreDeviceSnapshot(string firmwareVersion, float calibrationM)
@@ -523,9 +611,29 @@ public class AbstractStreamingDeviceTests
 
         public override bool Write(string command) => true;
 
-        public void ApplyCoreSnapshot(DaqifiDevice coreDevice, DaqifiOutMessage? statusMessage = null)
+        public void ApplyCoreSnapshot(DaqifiDevice coreDevice)
         {
-            SyncFromCoreDevice(coreDevice, statusMessage);
+            SyncFromCoreDevice(coreDevice);
+        }
+
+        /// <summary>
+        /// Simulates a <see cref="DaqifiDevice.ChannelsPopulated"/> event from a Core device.
+        /// </summary>
+        public void SimulateChannelsPopulated(DaqifiDevice coreDevice)
+        {
+            var args = new ChannelsPopulatedEventArgs(
+                coreDevice.Channels,
+                coreDevice.Channels.Count(c => c.Type == Daqifi.Core.Channel.ChannelType.Analog),
+                coreDevice.Channels.Count(c => c.Type == Daqifi.Core.Channel.ChannelType.Digital));
+            OnCoreChannelsPopulated(coreDevice, args);
+        }
+
+        /// <summary>
+        /// Simulates a <see cref="DaqifiDevice.ChannelsPopulated"/> event with an arbitrary sender.
+        /// </summary>
+        public void SimulateChannelsPopulatedFromSender(object? sender, ChannelsPopulatedEventArgs args)
+        {
+            OnCoreChannelsPopulated(sender, args);
         }
 
         protected override void SendMessage(IOutboundMessage<string> message)

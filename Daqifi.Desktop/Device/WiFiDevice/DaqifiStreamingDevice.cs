@@ -1,7 +1,6 @@
 ﻿using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
-using Daqifi.Core.Device.Protocol;
 using Daqifi.Desktop.IO.Messages;
 using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
@@ -84,7 +83,8 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 return false;
             }
 
-            // Subscribe directly to Core's message events
+            // Subscribe to Core device events
+            _coreDevice.ChannelsPopulated += OnCoreChannelsPopulated;
             _coreDevice.MessageReceived += OnCoreMessageReceived;
 
             InitializeDeviceState();
@@ -102,6 +102,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             {
                 try
                 {
+                    _coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
                     _coreDevice.MessageReceived -= OnCoreMessageReceived;
                     _coreDevice.Disconnect();
                     _coreDevice.Dispose();
@@ -136,6 +137,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             // Unsubscribe from Core device events
             if (_coreDevice != null)
             {
+                _coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
                 _coreDevice.MessageReceived -= OnCoreMessageReceived;
             }
 
@@ -179,19 +181,12 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
 
     #region Event Handlers
     /// <summary>
-    /// Handles messages received from Core's DaqifiDevice and routes them to the protocol handler.
+    /// Handles non-status messages received from Core's DaqifiDevice and routes them
+    /// to the protocol handler for streaming data processing.
+    /// Status messages are handled via <see cref="AbstractStreamingDevice.OnCoreChannelsPopulated"/>.
     /// </summary>
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
-        if (e.Message.Data is DaqifiOutMessage protobufMessage &&
-            ProtobufProtocolHandler.DetectMessageType(protobufMessage) == ProtobufMessageType.Status &&
-            _coreDevice != null)
-        {
-            SyncFromCoreDevice(_coreDevice, protobufMessage);
-            return;
-        }
-
-        // Core's message is already an IInboundMessage<object>, wrap it for Desktop's event args
         var args = new MessageEventArgs<object>(e.Message);
         HandleInboundMessage(args);
     }

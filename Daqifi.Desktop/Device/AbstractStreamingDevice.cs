@@ -706,15 +706,26 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
+    /// Handles the <see cref="DaqifiDevice.ChannelsPopulated"/> event from Core.
+    /// Syncs metadata and channel wrappers from the already-populated Core device.
+    /// </summary>
+    protected void OnCoreChannelsPopulated(object? sender, ChannelsPopulatedEventArgs e)
+    {
+        if (sender is not DaqifiDevice coreDevice)
+        {
+            return;
+        }
+
+        SyncFromCoreDevice(coreDevice);
+    }
+
+    /// <summary>
     /// Applies the current Core device metadata and channel state to the desktop wrapper.
     /// Core remains the source of truth for status parsing and channel creation; desktop keeps
     /// its richer channel objects for WPF-only concerns.
     /// </summary>
     /// <param name="coreDevice">The already-populated Core device.</param>
-    /// <param name="statusMessage">
-    /// Optional raw status message for desktop-only fields that Core does not currently project.
-    /// </param>
-    protected void SyncFromCoreDevice(DaqifiDevice coreDevice, DaqifiOutMessage? statusMessage = null)
+    protected void SyncFromCoreDevice(DaqifiDevice coreDevice)
     {
         ArgumentNullException.ThrowIfNull(coreDevice);
 
@@ -722,12 +733,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             HydrateDeviceMetadata(coreDevice.Metadata);
             SyncChannelsFromCore(coreDevice.Channels);
-
-            if (statusMessage != null)
-            {
-                PopulateAnalogOutChannels(statusMessage);
-            }
-
             DeviceState = coreDevice.State;
 
             AppLogger.Information(
@@ -864,12 +869,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         };
     }
 
-    private void PopulateAnalogOutChannels(DaqifiOutMessage message)
-    {
-        if (message.AnalogOutPortNum == 0) { return; }
-
-        // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
-    }
     #endregion
 
     public void InitializeDeviceState()
