@@ -62,11 +62,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     protected virtual CoreStreamingDevice? CoreDeviceForNetworkConfiguration => null;
 
-    /// <summary>
-    /// Core device that owns transport, status, and channel population for this desktop wrapper.
-    /// </summary>
-    protected virtual DaqifiDevice? CoreDevice => null;
-
     #region Properties
 
     protected readonly AppLogger AppLogger = AppLogger.Instance;

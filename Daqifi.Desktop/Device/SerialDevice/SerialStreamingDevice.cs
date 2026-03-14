@@ -50,7 +50,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
     protected override CoreStreamingDevice? CoreDeviceForSd => _coreDevice;
     protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
-    protected override DaqifiDevice? CoreDevice => _coreDevice;
     #endregion
 
     #region Constructor
