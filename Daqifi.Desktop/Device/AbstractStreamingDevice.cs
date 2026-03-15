@@ -448,7 +448,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             var coreDevice = GetCoreDeviceForSd();
             coreDevice.StreamingFrequency = StreamingFrequency;
-            coreDevice.StartSdCardLoggingAsync().GetAwaiter().GetResult();
+
+            // The Core package resumes StartSdCardLoggingAsync continuations on the caller's
+            // synchronization context. Running it on the thread pool prevents UI deadlocks.
+            Task.Run(() => coreDevice.StartSdCardLoggingAsync()).GetAwaiter().GetResult();
 
             IsLoggingToSdCard = coreDevice.IsLoggingToSdCard;
             IsStreaming = true; // We're streaming to SD card
@@ -496,7 +499,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         var coreDevice = GetCoreDeviceForSd();
-        var files = coreDevice.GetSdCardFilesAsync().GetAwaiter().GetResult();
+        var files = Task.Run(() => coreDevice.GetSdCardFilesAsync()).GetAwaiter().GetResult();
         UpdateSdCardFiles(MapSdCardFiles(files));
     }
 

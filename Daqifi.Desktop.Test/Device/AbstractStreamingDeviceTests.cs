@@ -5,6 +5,7 @@ using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Producers;
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
 using Moq;
+using System.Threading;
 using System.Windows.Media;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
@@ -521,6 +522,45 @@ public class AbstractStreamingDeviceTests
         Assert.AreEqual(0, device.DataChannels.Count);
     }
 
+    [TestMethod]
+    public void StartSdCardLogging_WhenSynchronizationContextIsBlocked_CompletesWithoutDeadlock()
+    {
+        // Arrange
+        var device = new SdCardLoggingTestDevice();
+        device.SwitchMode(DeviceMode.LogToDevice);
+        Exception? capturedException = null;
+
+        var thread = new Thread(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new NonPumpingSynchronizationContext());
+
+            try
+            {
+                device.StartSdCardLogging();
+            }
+            catch (Exception exception)
+            {
+                capturedException = exception;
+            }
+        })
+        {
+            IsBackground = true
+        };
+
+        // Act
+        thread.Start();
+        var completed = thread.Join(TimeSpan.FromSeconds(5));
+
+        // Assert
+        Assert.IsTrue(completed, "StartSdCardLogging should not deadlock on a synchronization-context-bound thread.");
+        Assert.IsNull(capturedException, capturedException?.ToString());
+        Assert.IsTrue(device.IsLoggingToSdCard, "Desktop state should reflect the Core SD logging state after the call completes.");
+        CollectionAssert.Contains(
+            device.SentCommands,
+            $"core:{ScpiMessageProducer.EnableStorageSd.Data}",
+            "Core SD enable command should still be issued.");
+    }
+
     private static DaqifiDevice BuildCoreDeviceSnapshot(string firmwareVersion, float calibrationM)
     {
         var statusMessage = BuildStatusMessage(firmwareVersion, calibrationM);
@@ -637,6 +677,41 @@ public class AbstractStreamingDeviceTests
         }
 
         protected override void SendMessage(IOutboundMessage<string> message)
+        {
+        }
+    }
+
+    private sealed class SdCardLoggingTestDevice : AbstractStreamingDevice
+    {
+        private readonly RecordingCoreStreamingDevice _coreDevice;
+
+        public SdCardLoggingTestDevice()
+        {
+            _coreDevice = new RecordingCoreStreamingDevice(SentCommands, throwOnCommandData: null);
+            _coreDevice.Connect();
+        }
+
+        public List<string> SentCommands { get; } = [];
+
+        public override ConnectionType ConnectionType => ConnectionType.Usb;
+
+        protected override CoreStreamingDevice? CoreDeviceForSd => _coreDevice;
+
+        public override bool Connect() => true;
+
+        public override bool Disconnect() => true;
+
+        public override bool Write(string command) => true;
+
+        protected override void SendMessage(IOutboundMessage<string> message)
+        {
+            SentCommands.Add($"desktop:{message.Data}");
+        }
+    }
+
+    private sealed class NonPumpingSynchronizationContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback d, object? state)
         {
         }
     }
