@@ -116,6 +116,7 @@ public partial class DaqifiViewModel : ObservableObject
     private bool _selectedDeviceSupportsFirmwareUpdate;
     private readonly IFirmwareUpdateService _firmwareUpdateService;
     private readonly IFirmwareDownloadService _firmwareDownloadService;
+    private readonly Func<string, string, IFirmwareUpdateService> _wifiFirmwareUpdateServiceFactory;
     private CancellationTokenSource? _firmwareUploadCts;
     private ConnectionDialogViewModel _connectionDialogViewModel;
     private string _selectedLoggingMode = "Stream to App";
@@ -125,13 +126,16 @@ public partial class DaqifiViewModel : ObservableObject
 
     #region Properties
 
+    private readonly ObservableCollection<Profile> _fallbackProfiles = [];
+    private readonly ObservableCollection<LoggingSession> _fallbackLoggingSessions = [];
+
     public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = [];
-    public ObservableCollection<Profile> Profiles { get; } = LoggingManager.Instance.SubscribedProfiles;
+    public ObservableCollection<Profile> Profiles => TryGetLoggingManager()?.SubscribedProfiles ?? _fallbackProfiles;
 
     public ObservableCollection<Notifications> NotificationList { get; } = [];
     public ObservableCollection<IChannel> ActiveChannels { get; } = [];
     public ObservableCollection<IChannel> ActiveInputChannels { get; } = [];
-    public ObservableCollection<LoggingSession> LoggingSessions => LoggingManager.Instance.LoggingSessions;
+    public ObservableCollection<LoggingSession> LoggingSessions => TryGetLoggingManager()?.LoggingSessions ?? _fallbackLoggingSessions;
 
     public PlotLogger Plotter { get; private set; }
     public DatabaseLogger DbLogger { get; private set; }
@@ -353,6 +357,9 @@ public partial class DaqifiViewModel : ObservableObject
     #endregion
 
     #region Constructor
+    /// <summary>
+    /// Initializes a new instance of the view model using services from the desktop application container.
+    /// </summary>
     public DaqifiViewModel() : this(
         ServiceLocator.Resolve<IDialogService>(),
         App.ServiceProvider?.GetService<IFirmwareUpdateService>(),
@@ -361,16 +368,28 @@ public partial class DaqifiViewModel : ObservableObject
     {
     }
 
+    /// <summary>
+    /// Initializes a new instance of the main desktop view model.
+    /// </summary>
+    /// <param name="dialogService">Dialog service used for modal and flyout dialogs.</param>
+    /// <param name="firmwareUpdateService">Firmware update service for PIC32 updates.</param>
+    /// <param name="firmwareDownloadService">Firmware download service for package acquisition.</param>
+    /// <param name="firmwareLogger">Logger used when creating the default firmware update service.</param>
+    /// <param name="wifiFirmwareUpdateServiceFactory">
+    /// Factory used to create the WiFi firmware update service for a specific firmware version and COM port.
+    /// </param>
     public DaqifiViewModel(
         IDialogService dialogService,
         IFirmwareUpdateService? firmwareUpdateService = null,
         IFirmwareDownloadService? firmwareDownloadService = null,
-        ILogger<FirmwareUpdateService>? firmwareLogger = null)
+        ILogger<FirmwareUpdateService>? firmwareLogger = null,
+        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null)
     {
         _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
         _firmwareDownloadService = firmwareDownloadService ?? CreateDefaultFirmwareDownloadService();
         var resolvedLogger = firmwareLogger ?? NullLogger<FirmwareUpdateService>.Instance;
         _firmwareUpdateService = firmwareUpdateService ?? CreateDefaultFirmwareUpdateService(_firmwareDownloadService, resolvedLogger);
+        _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
 
         var app = Application.Current as App;
         if (app != null)
@@ -430,6 +449,13 @@ public partial class DaqifiViewModel : ObservableObject
 
             app.IsWindowInit = true;
         }
+    }
+
+    private static LoggingManager? TryGetLoggingManager()
+    {
+        return App.ServiceProvider?.GetService<IDbContextFactory<LoggingContext>>() == null
+            ? null
+            : LoggingManager.Instance;
     }
 
     #endregion
@@ -510,7 +536,7 @@ public partial class DaqifiViewModel : ObservableObject
 
         try
         {
-            var coreDevice = serialStreamingDevice.GetRequiredCoreStreamingDevice();
+            var coreDevice = serialStreamingDevice.ConnectedCoreStreamingDevice;
 
             if (!coreDevice.IsConnected)
             {
@@ -609,9 +635,8 @@ public partial class DaqifiViewModel : ObservableObject
         CancellationToken cancellationToken)
     {
         // Core's WiFi updater also performs its own version probe when the passed device
-        // implements ILanChipInfoProvider. Keep the explicit desktop-side check here, but
-        // run the actual WiFi update through the same non-provider adapter used on main.
-        // Check the device's current WiFi version before downloading to avoid unnecessary flashing.
+        // implements ILanChipInfoProvider. Keep the explicit desktop-side check here so
+        // desktop can skip unnecessary downloads and surface the current/update version in UI.
         if (serialStreamingDevice is ILanChipInfoProvider lanChipProvider)
         {
             FirmwareUpdateStatusText = "Checking WiFi firmware version...";
@@ -689,12 +714,19 @@ public partial class DaqifiViewModel : ObservableObject
         {
             lanUpdateModeEnabled = serialStreamingDevice.EnableLanUpdateMode();
 
-            using var wifiUpdateService = CreateWifiFirmwareUpdateService(wifiVersion, serialStreamingDevice.PortName);
-            await wifiUpdateService.UpdateWifiModuleAsync(
-                coreDevice,
-                wifiPackage.Value.ExtractedPath,
-                wifiUpdateProgress,
-                cancellationToken);
+            var wifiUpdateService = _wifiFirmwareUpdateServiceFactory(wifiVersion, serialStreamingDevice.PortName);
+            try
+            {
+                await wifiUpdateService.UpdateWifiModuleAsync(
+                    coreDevice,
+                    wifiPackage.Value.ExtractedPath,
+                    wifiUpdateProgress,
+                    cancellationToken);
+            }
+            finally
+            {
+                (wifiUpdateService as IDisposable)?.Dispose();
+            }
         }
         finally
         {
@@ -863,11 +895,20 @@ public partial class DaqifiViewModel : ObservableObject
 
     private void ShowFirmwareErrorDialog(string message)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        void ShowDialog()
         {
             var errorDialogViewModel = new ErrorDialogViewModel(message);
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-        });
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            ShowDialog();
+            return;
+        }
+
+        dispatcher.Invoke(ShowDialog);
     }
 
     private static string GetFirmwareDownloadDirectory()
@@ -1757,12 +1798,22 @@ public partial class DaqifiViewModel : ObservableObject
 
     private void ShowUploadSuccessMessage()
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        void ShowDialog()
         {
             var successDialogViewModel =
                 new SuccessDialogViewModel("Firmware update completed successfully.");
             _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
-        });
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            ShowDialog();
+            CloseFlyouts();
+            return;
+        }
+
+        dispatcher.Invoke(ShowDialog);
         CloseFlyouts();
     }
 

@@ -59,6 +59,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         Port = new SerialPort(portName);
     }
 
+    internal SerialStreamingDevice(string portName, CoreStreamingDevice coreDevice)
+        : this(portName)
+    {
+        _coreDevice = coreDevice ?? throw new ArgumentNullException(nameof(coreDevice));
+    }
+
     /// <summary>
     /// Creates a SerialStreamingDevice with device info from Core's discovery.
     /// Use this constructor when device has already been probed.
@@ -293,11 +299,11 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         SendMessage(message);
     }
 
-    internal Daqifi.Core.Device.IStreamingDevice GetRequiredCoreStreamingDevice()
-    {
-        return _coreDevice ?? throw new InvalidOperationException(
-            $"Core streaming device for {PortName} is not connected.");
-    }
+    /// <summary>
+    /// Gets the connected Core serial streaming device used for firmware update workflows.
+    /// </summary>
+    internal CoreStreamingDevice ConnectedCoreStreamingDevice => _coreDevice ?? throw new InvalidOperationException(
+        $"Core streaming device for {PortName} is not connected.");
 
     public bool EnableLanUpdateMode()
     {
