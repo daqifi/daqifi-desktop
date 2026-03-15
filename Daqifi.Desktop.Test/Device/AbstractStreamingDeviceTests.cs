@@ -4,6 +4,7 @@ using Daqifi.Core.Device.Network;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Producers;
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
+using Daqifi.Desktop.IO.Messages;
 using Moq;
 using System.Threading;
 using System.Windows.Media;
@@ -561,6 +562,77 @@ public class AbstractStreamingDeviceTests
             "Core SD enable command should still be issued.");
     }
 
+    [TestMethod]
+    public void SwitchMode_WhenEnteringLogToDevice_SetsSdCardStreamInterface()
+    {
+        var device = new TestStreamingDevice();
+
+        device.SwitchMode(DeviceMode.LogToDevice);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                ScpiMessageProducer.DisableNetworkLan.Data,
+                ScpiMessageProducer.EnableStorageSd.Data,
+                ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data
+            },
+            device.SentCommands);
+    }
+
+    [TestMethod]
+    public void SwitchMode_WhenReturningToStreamToApp_SetsUsbStreamInterface()
+    {
+        var device = new TestStreamingDevice();
+        device.SwitchMode(DeviceMode.LogToDevice);
+        device.SentCommands.Clear();
+
+        device.SwitchMode(DeviceMode.StreamToApp);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                ScpiMessageProducer.DisableStorageSd.Data,
+                ScpiMessageProducer.EnableNetworkLan.Data,
+                ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.Usb).Data
+            },
+            device.SentCommands);
+    }
+
+    [TestMethod]
+    public void HandleInboundMessage_WhenInLogToDevice_IgnoresStreamingSamples()
+    {
+        var device = new TestStreamingDevice();
+        var coreChannel = new Daqifi.Core.Channel.AnalogChannel(0, 4096)
+        {
+            Name = "AI0",
+            Direction = Daqifi.Core.Channel.ChannelDirection.Input,
+            CalibrationB = 0,
+            CalibrationM = 1,
+            InternalScaleM = 1,
+            PortRange = 5
+        };
+
+        var channel = new AnalogChannel(device, coreChannel)
+        {
+            IsActive = true
+        };
+
+        device.DataChannels.Add(channel);
+        device.InitializeDeviceState();
+        device.SwitchMode(DeviceMode.LogToDevice);
+        device.IsStreaming = true;
+
+        device.RouteInboundMessage(new DaqifiOutMessage
+        {
+            MsgTimeStamp = 1000,
+            DeviceSn = 12345,
+            DeviceFwRev = "1.0.0",
+            AnalogInDataFloat = { 1.25f }
+        });
+
+        Assert.IsNull(channel.ActiveSample, "Streaming data should be ignored while the device is in LogToDevice mode.");
+    }
+
     private static DaqifiDevice BuildCoreDeviceSnapshot(string firmwareVersion, float calibrationM)
     {
         var statusMessage = BuildStatusMessage(firmwareVersion, calibrationM);
@@ -608,6 +680,13 @@ public class AbstractStreamingDeviceTests
         protected override void SendMessage(IOutboundMessage<string> message)
         {
             SentCommands.Add(message.Data);
+        }
+
+        public void RouteInboundMessage(DaqifiOutMessage message)
+        {
+            HandleInboundMessage(
+                new MessageEventArgs<object>(
+                    new GenericInboundMessage<object>(message)));
         }
     }
 

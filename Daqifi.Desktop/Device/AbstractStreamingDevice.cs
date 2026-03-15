@@ -1,5 +1,6 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Core.Communication;
 using Daqifi.Core.Device.Network;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
@@ -221,7 +222,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     private void OnStreamMessageReceived(DaqifiOutMessage message)
     {
-        if (!IsStreaming)
+        if (!IsStreaming || Mode != DeviceMode.StreamToApp)
         {
             return;
         }
@@ -913,6 +914,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         SendMessage(ScpiMessageProducer.DisableNetworkLan);
         SendMessage(ScpiMessageProducer.EnableStorageSd);
+
+        if (ConnectionType == ConnectionType.Usb)
+        {
+            SendMessage(ScpiMessageProducer.SetStreamInterface(StreamInterface.SdCard));
+        }
     }
 
     // SD and LAN can't both be enabled due to hardware limitations
@@ -920,6 +926,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         SendMessage(ScpiMessageProducer.DisableStorageSd);
         SendMessage(ScpiMessageProducer.EnableNetworkLan);
+
+        if (ConnectionType == ConnectionType.Usb)
+        {
+            SendMessage(ScpiMessageProducer.SetStreamInterface(StreamInterface.Usb));
+        }
     }
 
     #region Debug Mode Methods
