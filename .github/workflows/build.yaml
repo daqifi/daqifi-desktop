@@ -10,10 +10,13 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
       with:
-        dotnet-version: 9.0.x
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
 
     - name: Restore dependencies
       run: dotnet restore
