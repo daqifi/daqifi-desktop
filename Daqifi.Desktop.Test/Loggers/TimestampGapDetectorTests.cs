@@ -113,21 +113,37 @@ public class TimestampGapDetectorTests
         const double period = 10.0;
         WarmUp(_key, period, warmUpCount: 10);
         var lastTimestamp = 10 * period;
-        _detector.IsGap(_key, lastTimestamp + 500.0); // large gap
+        Assert.IsTrue(_detector.IsGap(_key, lastTimestamp + 500.0), "Large gap should be detected.");
 
-        // Act – subsequent samples at the original rate should not trigger further gaps
-        // (EMA adapts; need a few more normal samples first)
+        // Act / Assert – once the gap is marked, normal cadence should resume cleanly.
         var baseAfterGap = lastTimestamp + 500.0;
         for (var i = 1; i <= 5; i++)
         {
-            // These may show a gap as EMA adapts - that is acceptable behaviour.
-            // What we care about is that after the EMA stabilises, normal samples are clean.
-            _detector.IsGap(_key, baseAfterGap + i * period);
+            var isGap = _detector.IsGap(_key, baseAfterGap + i * period);
+            Assert.IsFalse(isGap, $"Normal-cadence sample {i} after a detected gap should not be a gap.");
         }
 
-        // After the EMA has had time to re-stabilise, normal samples should not fire.
         var result = _detector.IsGap(_key, baseAfterGap + 6 * period);
         Assert.IsFalse(result, "Normal-cadence sample after EMA re-stabilises should not be a gap.");
+    }
+
+    [TestMethod]
+    public void IsGap_AfterLargeGap_FutureGapStillDetects()
+    {
+        // Arrange – warm up and trigger one large gap
+        const double period = 10.0;
+        WarmUp(_key, period, warmUpCount: 10);
+        var lastTimestamp = 10 * period;
+        var baseAfterGap = lastTimestamp + 500.0;
+
+        Assert.IsTrue(_detector.IsGap(_key, baseAfterGap), "Large gap should be detected.");
+
+        // Act – resume normal cadence to re-seed the detector, then introduce another gap.
+        Assert.IsFalse(_detector.IsGap(_key, baseAfterGap + period), "First normal sample after a gap should re-seed the EMA.");
+        var result = _detector.IsGap(_key, baseAfterGap + period + period * 2.5);
+
+        // Assert – later gaps should still be detected once the detector is re-seeded.
+        Assert.IsTrue(result, "A later gap should still be detected after a previous large outage.");
     }
     #endregion
 

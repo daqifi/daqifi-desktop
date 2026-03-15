@@ -29,7 +29,7 @@ internal sealed class TimestampGapDetector
     #region Public Methods
     /// <summary>
     /// Evaluates whether a gap exists before the new sample at <paramref name="deltaTimeMs"/>
-    /// and updates the running EMA for the channel.
+    /// and updates or re-seeds the running EMA for the channel.
     /// </summary>
     /// <param name="key">The per-channel key.</param>
     /// <param name="deltaTimeMs">The new sample's time offset from session start, in milliseconds.</param>
@@ -39,8 +39,6 @@ internal sealed class TimestampGapDetector
     /// </returns>
     public bool IsGap((string deviceSerial, string channelName) key, double deltaTimeMs)
     {
-        bool gapDetected = false;
-
         if (_lastTimestampMs.TryGetValue(key, out var lastDeltaTime))
         {
             var timeDelta = deltaTimeMs - lastDeltaTime;
@@ -49,7 +47,11 @@ internal sealed class TimestampGapDetector
             {
                 if (avgDelta > 0 && timeDelta > GapThresholdMultiplier * avgDelta)
                 {
-                    gapDetected = true;
+                    // Reset the EMA after a detected gap so a single large outage does not
+                    // desensitize future gap detection on the same channel.
+                    _avgDeltaMs.Remove(key);
+                    _lastTimestampMs[key] = deltaTimeMs;
+                    return true;
                 }
 
                 _avgDeltaMs[key] = (1.0 - EmaAlpha) * avgDelta + EmaAlpha * timeDelta;
@@ -61,7 +63,7 @@ internal sealed class TimestampGapDetector
         }
 
         _lastTimestampMs[key] = deltaTimeMs;
-        return gapDetected;
+        return false;
     }
 
     /// <summary>
