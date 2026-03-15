@@ -1,5 +1,6 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Core.Communication;
 using Daqifi.Core.Device.Network;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
@@ -61,11 +62,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// Core streaming device used for network configuration orchestration.
     /// </summary>
     protected virtual CoreStreamingDevice? CoreDeviceForNetworkConfiguration => null;
-
-    /// <summary>
-    /// Core device that owns transport, status, and channel population for this desktop wrapper.
-    /// </summary>
-    protected virtual DaqifiDevice? CoreDevice => null;
 
     #region Properties
 
@@ -226,7 +222,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     private void OnStreamMessageReceived(DaqifiOutMessage message)
     {
-        if (!IsStreaming)
+        if (!IsStreaming || Mode != DeviceMode.StreamToApp)
         {
             return;
         }
@@ -396,15 +392,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             StopSdCardLogging();
         }
 
-        // Clean up old mode
-        switch (Mode)
-        {
-            case DeviceMode.LogToDevice:
-                // Ensure SD card logging is stopped
-                StopSdCardLogging();
-                break;
-        }
-
         Mode = newMode;
 
         // Setup new mode
@@ -437,23 +424,20 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         try
         {
-            // Enable any active channels
-            foreach (var channel in DataChannels.Where(c => c.IsActive))
-            {
-                if (channel.Type == ChannelType.Analog)
-                {
-                    var channelSetByte = 1u << channel.Index; // Use unsigned int for consistency
-                    SendMessage(ScpiMessageProducer.EnableAdcChannels(channelSetByte.ToString(CultureInfo.InvariantCulture)));
-                }
-                else if (channel.Type == ChannelType.Digital)
-                {
-                    SendMessage(ScpiMessageProducer.EnableDioPorts());
-                }
-            }
+            var analogChannelMask = BuildActiveAnalogChannelMask();
+            var hasActiveDigitalChannels = DataChannels.Any(
+                channel => channel.IsActive && channel.Type == ChannelType.Digital);
+
+            SendMessage(hasActiveDigitalChannels
+                ? ScpiMessageProducer.EnableDioPorts()
+                : ScpiMessageProducer.DisableDioPorts());
 
             var coreDevice = GetCoreDeviceForSd();
             coreDevice.StreamingFrequency = StreamingFrequency;
-            coreDevice.StartSdCardLoggingAsync().GetAwaiter().GetResult();
+
+            // The Core package resumes StartSdCardLoggingAsync continuations on the caller's
+            // synchronization context. Running it on the thread pool prevents UI deadlocks.
+            Task.Run(() => coreDevice.StartSdCardLoggingAsync(channelMask: analogChannelMask)).GetAwaiter().GetResult();
 
             IsLoggingToSdCard = coreDevice.IsLoggingToSdCard;
             IsStreaming = true; // We're streaming to SD card
@@ -501,8 +485,20 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         var coreDevice = GetCoreDeviceForSd();
-        var files = coreDevice.GetSdCardFilesAsync().GetAwaiter().GetResult();
+        var files = Task.Run(() => coreDevice.GetSdCardFilesAsync()).GetAwaiter().GetResult();
         UpdateSdCardFiles(MapSdCardFiles(files));
+    }
+
+    private string BuildActiveAnalogChannelMask()
+    {
+        var channelSetByte = 0u;
+
+        foreach (var channel in DataChannels.Where(c => c.IsActive && c.Type == ChannelType.Analog))
+        {
+            channelSetByte |= 1u << channel.Index;
+        }
+
+        return Convert.ToString((long)channelSetByte, 2);
     }
 
     public void UpdateSdCardFiles(List<SdCardFile> files)
@@ -706,15 +702,26 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
+    /// Handles the <see cref="DaqifiDevice.ChannelsPopulated"/> event from Core.
+    /// Syncs metadata and channel wrappers from the already-populated Core device.
+    /// </summary>
+    protected void OnCoreChannelsPopulated(object? sender, ChannelsPopulatedEventArgs e)
+    {
+        if (sender is not DaqifiDevice coreDevice)
+        {
+            return;
+        }
+
+        SyncFromCoreDevice(coreDevice);
+    }
+
+    /// <summary>
     /// Applies the current Core device metadata and channel state to the desktop wrapper.
     /// Core remains the source of truth for status parsing and channel creation; desktop keeps
     /// its richer channel objects for WPF-only concerns.
     /// </summary>
     /// <param name="coreDevice">The already-populated Core device.</param>
-    /// <param name="statusMessage">
-    /// Optional raw status message for desktop-only fields that Core does not currently project.
-    /// </param>
-    protected void SyncFromCoreDevice(DaqifiDevice coreDevice, DaqifiOutMessage? statusMessage = null)
+    protected void SyncFromCoreDevice(DaqifiDevice coreDevice)
     {
         ArgumentNullException.ThrowIfNull(coreDevice);
 
@@ -722,12 +729,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             HydrateDeviceMetadata(coreDevice.Metadata);
             SyncChannelsFromCore(coreDevice.Channels);
-
-            if (statusMessage != null)
-            {
-                PopulateAnalogOutChannels(statusMessage);
-            }
-
             DeviceState = coreDevice.State;
 
             AppLogger.Information(
@@ -864,12 +865,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         };
     }
 
-    private void PopulateAnalogOutChannels(DaqifiOutMessage message)
-    {
-        if (message.AnalogOutPortNum == 0) { return; }
-
-        // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
-    }
     #endregion
 
     public void InitializeDeviceState()
@@ -916,6 +911,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         SendMessage(ScpiMessageProducer.DisableNetworkLan);
         SendMessage(ScpiMessageProducer.EnableStorageSd);
+
+        if (ConnectionType == ConnectionType.Usb)
+        {
+            SendMessage(ScpiMessageProducer.SetStreamInterface(StreamInterface.SdCard));
+        }
     }
 
     // SD and LAN can't both be enabled due to hardware limitations
@@ -923,6 +923,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         SendMessage(ScpiMessageProducer.DisableStorageSd);
         SendMessage(ScpiMessageProducer.EnableNetworkLan);
+
+        if (ConnectionType == ConnectionType.Usb)
+        {
+            SendMessage(ScpiMessageProducer.SetStreamInterface(StreamInterface.Usb));
+        }
     }
 
     #region Debug Mode Methods

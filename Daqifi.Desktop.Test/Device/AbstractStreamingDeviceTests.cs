@@ -4,7 +4,9 @@ using Daqifi.Core.Device.Network;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Producers;
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
+using Daqifi.Desktop.IO.Messages;
 using Moq;
+using System.Threading;
 using System.Windows.Media;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
@@ -343,18 +345,16 @@ public class AbstractStreamingDeviceTests
         await device.UpdateNetworkConfiguration();
 
         // Assert
-        Assert.AreEqual(
-            $"core:{ScpiMessageProducer.SaveNetworkLan.Data}",
-            device.SentCommands[^3],
-            "Core should finish persisting the network configuration before desktop restores SD access.");
-        Assert.AreEqual(
-            $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
-            device.SentCommands[^2],
-            "Desktop should disable LAN after the Core network update when the device is in LogToDevice mode.");
-        Assert.AreEqual(
-            $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
-            device.SentCommands[^1],
-            "Desktop should re-enable SD access after the Core network update when the device is in LogToDevice mode.");
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                $"core:{ScpiMessageProducer.SaveNetworkLan.Data}",
+                $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
+                $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
+                $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data}"
+            },
+            device.SentCommands.TakeLast(4).ToArray(),
+            "Desktop should restore the full SD interface after the Core network update when the device is in LogToDevice mode.");
     }
 
     [TestMethod]
@@ -380,14 +380,15 @@ public class AbstractStreamingDeviceTests
             Assert.AreEqual("Injected test failure.", exception.Message);
         }
 
-        Assert.AreEqual(
-            $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
-            device.SentCommands[^2],
-            "Desktop should restore SD access even when the Core network update fails.");
-        Assert.AreEqual(
-            $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
-            device.SentCommands[^1],
-            "Desktop should re-enable SD access even when the Core network update fails.");
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
+                $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
+                $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data}"
+            },
+            device.SentCommands.TakeLast(3).ToArray(),
+            "Desktop should restore the full SD interface even when the Core network update fails.");
     }
 
     [TestMethod]
@@ -399,7 +400,7 @@ public class AbstractStreamingDeviceTests
             firmwareVersion: "1.0.0",
             calibrationM: 1.5f);
 
-        device.ApplyCoreSnapshot(initialCoreDevice, BuildStatusMessage("1.0.0", 1.5f));
+        device.ApplyCoreSnapshot(initialCoreDevice);
 
         var analogChannel = device.DataChannels.OfType<AnalogChannel>().Single();
         var digitalChannel = device.DataChannels.OfType<DigitalChannel>().Single();
@@ -414,7 +415,7 @@ public class AbstractStreamingDeviceTests
             calibrationM: 2.5f);
 
         // Act
-        device.ApplyCoreSnapshot(refreshedCoreDevice, BuildStatusMessage("2.0.0", 2.5f));
+        device.ApplyCoreSnapshot(refreshedCoreDevice);
 
         // Assert
         var refreshedAnalogChannel = device.DataChannels.OfType<AnalogChannel>().Single();
@@ -433,6 +434,231 @@ public class AbstractStreamingDeviceTests
         Assert.AreEqual(WifiSecurityType.None, device.NetworkConfiguration.SecurityType);
     }
 
+    [TestMethod]
+    public void OnCoreChannelsPopulated_BuildsDesktopChannelsFromCoreDevice()
+    {
+        // Arrange
+        var device = new CoreSynchronizationTestDevice();
+        var coreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "1.0.0", calibrationM: 1.5f);
+
+        // Act — simulate the ChannelsPopulated event
+        device.SimulateChannelsPopulated(coreDevice);
+
+        // Assert
+        Assert.AreEqual(2, device.DataChannels.Count, "Should have 1 analog + 1 digital channel.");
+        var analog = device.DataChannels.OfType<AnalogChannel>().Single();
+        var digital = device.DataChannels.OfType<DigitalChannel>().Single();
+        Assert.AreEqual("AI0", analog.Name);
+        Assert.AreEqual("DIO0", digital.Name);
+        Assert.AreEqual(1.5d, analog.CalibrationMValue, 0.001d);
+        Assert.AreEqual("1.0.0", device.DeviceVersion);
+    }
+
+    [TestMethod]
+    public void OnCoreChannelsPopulated_ReconnectRebuildsChannelsCorrectly()
+    {
+        // Arrange — first connection
+        var device = new CoreSynchronizationTestDevice();
+        var firstCoreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "1.0.0", calibrationM: 1.0f);
+        device.SimulateChannelsPopulated(firstCoreDevice);
+
+        var firstAnalog = device.DataChannels.OfType<AnalogChannel>().Single();
+        firstAnalog.ScaleExpression = "x * 10";
+
+        // Simulate disconnect: clear channels (as the real devices do)
+        device.DataChannels.Clear();
+        Assert.AreEqual(0, device.DataChannels.Count);
+
+        // Act — reconnect with new core device
+        var secondCoreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "2.0.0", calibrationM: 3.0f);
+        device.SimulateChannelsPopulated(secondCoreDevice);
+
+        // Assert — channels rebuilt from scratch (no ghost state from first connection)
+        Assert.AreEqual(2, device.DataChannels.Count);
+        var reconnectedAnalog = device.DataChannels.OfType<AnalogChannel>().Single();
+        Assert.AreEqual(3.0d, reconnectedAnalog.CalibrationMValue, 0.001d);
+        Assert.AreEqual("2.0.0", device.DeviceVersion);
+        // Scale expression should NOT carry over after disconnect+reconnect
+        Assert.AreNotEqual("x * 10", reconnectedAnalog.ScaleExpression,
+            "Desktop-only state should not persist across disconnect/reconnect.");
+    }
+
+    [TestMethod]
+    public void OnCoreChannelsPopulated_ChannelRefreshPreservesWrappersWhenNotDisconnected()
+    {
+        // Arrange — initial population
+        var device = new CoreSynchronizationTestDevice();
+        var coreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "1.0.0", calibrationM: 1.0f);
+        device.SimulateChannelsPopulated(coreDevice);
+
+        var originalAnalog = device.DataChannels.OfType<AnalogChannel>().Single();
+        originalAnalog.ScaleExpression = "x * 5";
+        originalAnalog.IsScalingActive = true;
+
+        // Act — same-session channel refresh (e.g., re-query device info)
+        var refreshedCoreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "1.0.0", calibrationM: 2.0f);
+        device.SimulateChannelsPopulated(refreshedCoreDevice);
+
+        // Assert — wrapper identity preserved, core calibration refreshed
+        var refreshedAnalog = device.DataChannels.OfType<AnalogChannel>().Single();
+        Assert.AreSame(originalAnalog, refreshedAnalog, "Same wrapper should be reused during refresh.");
+        Assert.AreEqual("x * 5", refreshedAnalog.ScaleExpression, "Desktop expression should survive a refresh.");
+        Assert.IsTrue(refreshedAnalog.IsScalingActive, "Desktop scaling flag should survive a refresh.");
+        Assert.AreEqual(2.0d, refreshedAnalog.CalibrationMValue, 0.001d, "Core calibration should update.");
+    }
+
+    [TestMethod]
+    public void OnCoreChannelsPopulated_IgnoresNonDaqifiDeviceSender()
+    {
+        // Arrange
+        var device = new CoreSynchronizationTestDevice();
+
+        // Act — fire with a non-DaqifiDevice sender
+        device.SimulateChannelsPopulatedFromSender(
+            sender: "not a device",
+            new ChannelsPopulatedEventArgs(Array.Empty<Daqifi.Core.Channel.IChannel>().AsReadOnly(), 0, 0));
+
+        // Assert — no channels should be created or modified
+        Assert.AreEqual(0, device.DataChannels.Count);
+    }
+
+    [TestMethod]
+    public void StartSdCardLogging_WhenSynchronizationContextIsBlocked_CompletesWithoutDeadlock()
+    {
+        // Arrange
+        var device = new SdCardLoggingTestDevice();
+        device.SwitchMode(DeviceMode.LogToDevice);
+        Exception? capturedException = null;
+
+        var thread = new Thread(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new NonPumpingSynchronizationContext());
+
+            try
+            {
+                device.StartSdCardLogging();
+            }
+            catch (Exception exception)
+            {
+                capturedException = exception;
+            }
+        })
+        {
+            IsBackground = true
+        };
+
+        // Act
+        thread.Start();
+        var completed = thread.Join(TimeSpan.FromSeconds(5));
+
+        // Assert
+        Assert.IsTrue(completed, "StartSdCardLogging should not deadlock on a synchronization-context-bound thread.");
+        Assert.IsNull(capturedException, capturedException?.ToString());
+        Assert.IsTrue(device.IsLoggingToSdCard, "Desktop state should reflect the Core SD logging state after the call completes.");
+        CollectionAssert.Contains(
+            device.SentCommands,
+            $"core:{ScpiMessageProducer.EnableStorageSd.Data}",
+            "Core SD enable command should still be issued.");
+    }
+
+    [TestMethod]
+    public void StartSdCardLogging_UsesCombinedAnalogMaskAndConfiguresDigitalPortsOnce()
+    {
+        var device = new SdCardLoggingTestDevice();
+        device.DataChannels.Add(new AnalogChannel(device, BuildAnalogInputCoreChannel(0)) { IsActive = true });
+        device.DataChannels.Add(new AnalogChannel(device, BuildAnalogInputCoreChannel(2)) { IsActive = true });
+        device.DataChannels.Add(new AnalogChannel(device, BuildAnalogInputCoreChannel(4)) { IsActive = true });
+        device.DataChannels.Add(new DigitalChannel(device, BuildDigitalInputCoreChannel(0)) { IsActive = true });
+        device.DataChannels.Add(new DigitalChannel(device, BuildDigitalInputCoreChannel(1)) { IsActive = true });
+        device.SwitchMode(DeviceMode.LogToDevice);
+
+        device.StartSdCardLogging();
+
+        Assert.AreEqual(
+            1,
+            device.SentCommands.Count(command => command == $"desktop:{ScpiMessageProducer.EnableDioPorts().Data}"),
+            "Desktop should enable digital ports once before starting SD logging.");
+        CollectionAssert.DoesNotContain(
+            device.SentCommands,
+            $"desktop:{ScpiMessageProducer.EnableAdcChannels("1").Data}",
+            "Desktop should not send per-channel analog enable commands during SD logging startup.");
+        CollectionAssert.Contains(
+            device.SentCommands,
+            $"core:{ScpiMessageProducer.EnableAdcChannels("10101").Data}",
+            "Core should receive a single combined binary analog mask for the active SD logging channels.");
+    }
+
+    [TestMethod]
+    public void SwitchMode_WhenEnteringLogToDevice_SetsSdCardStreamInterface()
+    {
+        var device = new TestStreamingDevice();
+
+        device.SwitchMode(DeviceMode.LogToDevice);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                ScpiMessageProducer.DisableNetworkLan.Data,
+                ScpiMessageProducer.EnableStorageSd.Data,
+                ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data
+            },
+            device.SentCommands);
+    }
+
+    [TestMethod]
+    public void SwitchMode_WhenReturningToStreamToApp_SetsUsbStreamInterface()
+    {
+        var device = new TestStreamingDevice();
+        device.SwitchMode(DeviceMode.LogToDevice);
+        device.SentCommands.Clear();
+
+        device.SwitchMode(DeviceMode.StreamToApp);
+
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                ScpiMessageProducer.DisableStorageSd.Data,
+                ScpiMessageProducer.EnableNetworkLan.Data,
+                ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.Usb).Data
+            },
+            device.SentCommands);
+    }
+
+    [TestMethod]
+    public void HandleInboundMessage_WhenInLogToDevice_IgnoresStreamingSamples()
+    {
+        var device = new TestStreamingDevice();
+        var coreChannel = new Daqifi.Core.Channel.AnalogChannel(0, 4096)
+        {
+            Name = "AI0",
+            Direction = Daqifi.Core.Channel.ChannelDirection.Input,
+            CalibrationB = 0,
+            CalibrationM = 1,
+            InternalScaleM = 1,
+            PortRange = 5
+        };
+
+        var channel = new AnalogChannel(device, coreChannel)
+        {
+            IsActive = true
+        };
+
+        device.DataChannels.Add(channel);
+        device.InitializeDeviceState();
+        device.SwitchMode(DeviceMode.LogToDevice);
+        device.IsStreaming = true;
+
+        device.RouteInboundMessage(new DaqifiOutMessage
+        {
+            MsgTimeStamp = 1000,
+            DeviceSn = 12345,
+            DeviceFwRev = "1.0.0",
+            AnalogInDataFloat = { 1.25f }
+        });
+
+        Assert.IsNull(channel.ActiveSample, "Streaming data should be ignored while the device is in LogToDevice mode.");
+    }
+
     private static DaqifiDevice BuildCoreDeviceSnapshot(string firmwareVersion, float calibrationM)
     {
         var statusMessage = BuildStatusMessage(firmwareVersion, calibrationM);
@@ -440,6 +666,28 @@ public class AbstractStreamingDeviceTests
         coreDevice.Metadata.UpdateFromProtobuf(statusMessage);
         coreDevice.PopulateChannelsFromStatus(statusMessage);
         return coreDevice;
+    }
+
+    private static Daqifi.Core.Channel.AnalogChannel BuildAnalogInputCoreChannel(int index)
+    {
+        return new Daqifi.Core.Channel.AnalogChannel(index, 4096)
+        {
+            Name = $"AI{index}",
+            Direction = Daqifi.Core.Channel.ChannelDirection.Input,
+            CalibrationB = 0,
+            CalibrationM = 1,
+            InternalScaleM = 1,
+            PortRange = 5
+        };
+    }
+
+    private static Daqifi.Core.Channel.DigitalChannel BuildDigitalInputCoreChannel(int index)
+    {
+        return new Daqifi.Core.Channel.DigitalChannel(index)
+        {
+            Name = $"DIO{index}",
+            Direction = Daqifi.Core.Channel.ChannelDirection.Input
+        };
     }
 
     private static DaqifiOutMessage BuildStatusMessage(string firmwareVersion, float calibrationM)
@@ -480,6 +728,13 @@ public class AbstractStreamingDeviceTests
         protected override void SendMessage(IOutboundMessage<string> message)
         {
             SentCommands.Add(message.Data);
+        }
+
+        public void RouteInboundMessage(DaqifiOutMessage message)
+        {
+            HandleInboundMessage(
+                new MessageEventArgs<object>(
+                    new GenericInboundMessage<object>(message)));
         }
     }
 
@@ -523,12 +778,67 @@ public class AbstractStreamingDeviceTests
 
         public override bool Write(string command) => true;
 
-        public void ApplyCoreSnapshot(DaqifiDevice coreDevice, DaqifiOutMessage? statusMessage = null)
+        public void ApplyCoreSnapshot(DaqifiDevice coreDevice)
         {
-            SyncFromCoreDevice(coreDevice, statusMessage);
+            SyncFromCoreDevice(coreDevice);
+        }
+
+        /// <summary>
+        /// Simulates a <see cref="DaqifiDevice.ChannelsPopulated"/> event from a Core device.
+        /// </summary>
+        public void SimulateChannelsPopulated(DaqifiDevice coreDevice)
+        {
+            var args = new ChannelsPopulatedEventArgs(
+                coreDevice.Channels,
+                coreDevice.Channels.Count(c => c.Type == Daqifi.Core.Channel.ChannelType.Analog),
+                coreDevice.Channels.Count(c => c.Type == Daqifi.Core.Channel.ChannelType.Digital));
+            OnCoreChannelsPopulated(coreDevice, args);
+        }
+
+        /// <summary>
+        /// Simulates a <see cref="DaqifiDevice.ChannelsPopulated"/> event with an arbitrary sender.
+        /// </summary>
+        public void SimulateChannelsPopulatedFromSender(object? sender, ChannelsPopulatedEventArgs args)
+        {
+            OnCoreChannelsPopulated(sender, args);
         }
 
         protected override void SendMessage(IOutboundMessage<string> message)
+        {
+        }
+    }
+
+    private sealed class SdCardLoggingTestDevice : AbstractStreamingDevice
+    {
+        private readonly RecordingCoreStreamingDevice _coreDevice;
+
+        public SdCardLoggingTestDevice()
+        {
+            _coreDevice = new RecordingCoreStreamingDevice(SentCommands, throwOnCommandData: null);
+            _coreDevice.Connect();
+        }
+
+        public List<string> SentCommands { get; } = [];
+
+        public override ConnectionType ConnectionType => ConnectionType.Usb;
+
+        protected override CoreStreamingDevice? CoreDeviceForSd => _coreDevice;
+
+        public override bool Connect() => true;
+
+        public override bool Disconnect() => true;
+
+        public override bool Write(string command) => true;
+
+        protected override void SendMessage(IOutboundMessage<string> message)
+        {
+            SentCommands.Add($"desktop:{message.Data}");
+        }
+    }
+
+    private sealed class NonPumpingSynchronizationContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback d, object? state)
         {
         }
     }

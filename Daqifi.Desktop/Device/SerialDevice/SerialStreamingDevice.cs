@@ -2,7 +2,6 @@
 using Daqifi.Core.Device;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Messages;
-using Daqifi.Core.Device.Protocol;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.IO.Messages;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
@@ -15,15 +14,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     private static readonly TimeSpan InitialStatusTimeout = TimeSpan.FromSeconds(8);
     private static readonly TimeSpan InitialStatusPollInterval = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan InitialStatusRequestInterval = TimeSpan.FromSeconds(1);
-    private static readonly TimeSpan DuplicateInitialStatusSuppressionWindow = TimeSpan.FromSeconds(2);
 
     #region Properties
     private SerialPort? _port;
     private CoreStreamingDevice? _coreDevice;
     private SerialStreamTransport? _transport;
     private TaskCompletionSource<bool>? _initialStatusReceivedSource;
-    private DaqifiOutMessage? _lastInitialStatusMessage;
-    private DateTime _lastInitialStatusReceivedAtUtc;
 
     public SerialPort? Port
     {
@@ -54,7 +50,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
     protected override CoreStreamingDevice? CoreDeviceForSd => _coreDevice;
     protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
-    protected override DaqifiDevice? CoreDevice => _coreDevice;
     #endregion
 
     #region Constructor
@@ -87,8 +82,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         {
             _initialStatusReceivedSource = new TaskCompletionSource<bool>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
-            _lastInitialStatusMessage = null;
-            _lastInitialStatusReceivedAtUtc = DateTime.MinValue;
 
             // Use Core's transport for unified message handling (both send and receive)
             // Note: Transport manages the actual SerialPort connection internally
@@ -101,8 +94,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
                 _transport);
             _coreDevice.Connect();
 
-            // Subscribe directly to Core's message events (like WiFi device does)
-            // This avoids the UI freeze caused by Desktop's MessageConsumer stop/start cycle
+            // Subscribe to Core device events
+            _coreDevice.ChannelsPopulated += OnCoreChannelsPopulatedSerial;
             _coreDevice.MessageReceived += OnCoreMessageReceived;
 
             InitializeDeviceState();
@@ -121,52 +114,24 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     }
 
     /// <summary>
-    /// Handles messages received from Core's DaqifiDevice and routes them to the protocol handler.
+    /// Handles the <see cref="DaqifiDevice.ChannelsPopulated"/> event from Core and
+    /// signals the initial-status wait so <see cref="WaitForInitialStatusMessage"/> can return.
+    /// </summary>
+    private void OnCoreChannelsPopulatedSerial(object? sender, ChannelsPopulatedEventArgs e)
+    {
+        _initialStatusReceivedSource?.TrySetResult(true);
+        OnCoreChannelsPopulated(sender, e);
+    }
+
+    /// <summary>
+    /// Handles non-status messages received from Core's DaqifiDevice and routes them
+    /// to the protocol handler for streaming data processing.
+    /// Status messages are handled via <see cref="OnCoreChannelsPopulatedSerial"/>.
     /// </summary>
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
-        if (e.Message.Data is DaqifiOutMessage protobufMessage)
-        {
-            var messageType = ProtobufProtocolHandler.DetectMessageType(protobufMessage);
-            if (messageType == ProtobufMessageType.Status)
-            {
-                if (ShouldSuppressDuplicateInitialStatus(protobufMessage))
-                {
-                    return;
-                }
-
-                _initialStatusReceivedSource?.TrySetResult(true);
-
-                if (_coreDevice != null)
-                {
-                    SyncFromCoreDevice(_coreDevice, protobufMessage);
-                    return;
-                }
-            }
-        }
-
-        // Core's message is already an IInboundMessage<object>, wrap it for Desktop's event args
         var args = new MessageEventArgs<object>(e.Message);
         HandleInboundMessage(args);
-    }
-
-    private bool ShouldSuppressDuplicateInitialStatus(DaqifiOutMessage statusMessage)
-    {
-        var initialStatusSource = _initialStatusReceivedSource;
-        if (initialStatusSource == null)
-        {
-            return false;
-        }
-
-        var now = DateTime.UtcNow;
-        var shouldSuppress = initialStatusSource.Task.IsCompleted &&
-                             _lastInitialStatusMessage != null &&
-                             now - _lastInitialStatusReceivedAtUtc <= DuplicateInitialStatusSuppressionWindow &&
-                             _lastInitialStatusMessage.Equals(statusMessage);
-
-        _lastInitialStatusMessage = statusMessage;
-        _lastInitialStatusReceivedAtUtc = now;
-        return shouldSuppress;
     }
 
     private void WaitForInitialStatusMessage()
@@ -262,6 +227,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
             // Unsubscribe from Core device events
             if (_coreDevice != null)
             {
+                _coreDevice.ChannelsPopulated -= OnCoreChannelsPopulatedSerial;
                 _coreDevice.MessageReceived -= OnCoreMessageReceived;
             }
 
@@ -282,14 +248,13 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     private void CleanupConnection()
     {
         _initialStatusReceivedSource = null;
-        _lastInitialStatusMessage = null;
-        _lastInitialStatusReceivedAtUtc = DateTime.MinValue;
 
         // Unsubscribe from Core device events first
         if (_coreDevice != null)
         {
             try
             {
+                _coreDevice.ChannelsPopulated -= OnCoreChannelsPopulatedSerial;
                 _coreDevice.MessageReceived -= OnCoreMessageReceived;
                 _coreDevice.Disconnect();
                 _coreDevice.Dispose();
