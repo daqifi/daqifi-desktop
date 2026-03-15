@@ -293,11 +293,11 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         SendMessage(message);
     }
 
-    internal Daqifi.Core.Device.IStreamingDevice GetRequiredCoreStreamingDevice()
-    {
-        return _coreDevice ?? throw new InvalidOperationException(
-            $"Core streaming device for {PortName} is not connected.");
-    }
+    /// <summary>
+    /// Gets the connected Core serial streaming device used for firmware update workflows.
+    /// </summary>
+    internal CoreStreamingDevice ConnectedCoreStreamingDevice => _coreDevice ?? throw new InvalidOperationException(
+        $"Core streaming device for {PortName} is not connected.");
 
     public bool EnableLanUpdateMode()
     {
