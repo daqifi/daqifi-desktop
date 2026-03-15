@@ -290,6 +290,7 @@ public partial class DaqifiViewModel : ObservableObject
 
                 IsLogToDeviceMode = mode == "Log to Device";
                 var deviceMode = IsLogToDeviceMode ? DeviceMode.LogToDevice : DeviceMode.StreamToApp;
+                LoggingManager.Instance.CurrentMode = IsLogToDeviceMode ? LoggingMode.SdCard : LoggingMode.Stream;
 
                 // Switch mode on all devices
                 foreach (var device in ConnectedDevices)

@@ -19,6 +19,7 @@ public partial class LoggingManager : ObservableObject
     private static string ProfileAppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
     private static readonly string ProfileSettingsXmlPath = ProfileAppDirectory + "\\DAQifiProfilesConfiguration.xml";
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
+    private bool _hasActiveApplicationSession;
     #endregion
 
     #region Properties
@@ -44,21 +45,18 @@ public partial class LoggingManager : ObservableObject
     {
         if (!newValue && oldValue) // Was active, now stopping
         {
-            if (Session != null)
+            if (_hasActiveApplicationSession && Session != null && !LoggingSessions.Any(s => s.ID == Session.ID))
             {
                 LoggingSessions.Add(Session);
             }
+
+            _hasActiveApplicationSession = false;
         }
         else if (newValue && !oldValue) // Was inactive, now starting
         {
-            using (var context = _loggingContext.CreateDbContext())
+            foreach (var channel in SubscribedChannels.ToList())
             {
-                var ids = context.Sessions.AsNoTracking().Select(s => s.ID).ToList();
-                var newId = ids.Count > 0 ? ids.Max() + 1 : 0;
-                var name = $"Session_{newId}";
-                Session = new LoggingSession(newId, name);
-                context.Sessions.Add(Session);
-                context.SaveChanges();
+                channel.OnChannelUpdated -= HandleChannelUpdate;
             }
 
             // Clear loggers
@@ -74,14 +72,28 @@ public partial class LoggingManager : ObservableObject
                 }
             }
 
+            if (CurrentMode != LoggingMode.Stream)
+            {
+                _hasActiveApplicationSession = false;
+                return;
+            }
+
+            using (var context = _loggingContext.CreateDbContext())
+            {
+                var ids = context.Sessions.AsNoTracking().Select(s => s.ID).ToList();
+                var newId = ids.Count > 0 ? ids.Max() + 1 : 0;
+                var name = $"Session_{newId}";
+                Session = new LoggingSession(newId, name);
+                context.Sessions.Add(Session);
+                context.SaveChanges();
+            }
+
+            _hasActiveApplicationSession = true;
+
             // Resubscribe channels
             foreach (var channel in SubscribedChannels.ToList())
             {
-                channel.OnChannelUpdated -= HandleChannelUpdate;
-                if (CurrentMode == LoggingMode.Stream)
-                {
-                    channel.OnChannelUpdated += HandleChannelUpdate;
-                }
+                channel.OnChannelUpdated += HandleChannelUpdate;
             }
         }
     }
@@ -382,7 +394,7 @@ public partial class LoggingManager : ObservableObject
 
     public void HandleDeviceMessage(object sender, DeviceMessage sample)
     {
-        if (!Active)
+        if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession)
         {
             return;
         }
@@ -398,7 +410,7 @@ public partial class LoggingManager : ObservableObject
 
     public void HandleChannelUpdate(object sender, DataSample sample)
     {
-        if (!Active)
+        if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession)
         {
             return;
         }
