@@ -392,15 +392,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             StopSdCardLogging();
         }
 
-        // Clean up old mode
-        switch (Mode)
-        {
-            case DeviceMode.LogToDevice:
-                // Ensure SD card logging is stopped
-                StopSdCardLogging();
-                break;
-        }
-
         Mode = newMode;
 
         // Setup new mode
@@ -433,26 +424,20 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         try
         {
-            // Enable any active channels
-            foreach (var channel in DataChannels.Where(c => c.IsActive))
-            {
-                if (channel.Type == ChannelType.Analog)
-                {
-                    var channelSetByte = 1u << channel.Index; // Use unsigned int for consistency
-                    SendMessage(ScpiMessageProducer.EnableAdcChannels(channelSetByte.ToString(CultureInfo.InvariantCulture)));
-                }
-                else if (channel.Type == ChannelType.Digital)
-                {
-                    SendMessage(ScpiMessageProducer.EnableDioPorts());
-                }
-            }
+            var analogChannelMask = BuildActiveAnalogChannelMask();
+            var hasActiveDigitalChannels = DataChannels.Any(
+                channel => channel.IsActive && channel.Type == ChannelType.Digital);
+
+            SendMessage(hasActiveDigitalChannels
+                ? ScpiMessageProducer.EnableDioPorts()
+                : ScpiMessageProducer.DisableDioPorts());
 
             var coreDevice = GetCoreDeviceForSd();
             coreDevice.StreamingFrequency = StreamingFrequency;
 
             // The Core package resumes StartSdCardLoggingAsync continuations on the caller's
             // synchronization context. Running it on the thread pool prevents UI deadlocks.
-            Task.Run(() => coreDevice.StartSdCardLoggingAsync()).GetAwaiter().GetResult();
+            Task.Run(() => coreDevice.StartSdCardLoggingAsync(channelMask: analogChannelMask)).GetAwaiter().GetResult();
 
             IsLoggingToSdCard = coreDevice.IsLoggingToSdCard;
             IsStreaming = true; // We're streaming to SD card
@@ -502,6 +487,18 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         var coreDevice = GetCoreDeviceForSd();
         var files = Task.Run(() => coreDevice.GetSdCardFilesAsync()).GetAwaiter().GetResult();
         UpdateSdCardFiles(MapSdCardFiles(files));
+    }
+
+    private string BuildActiveAnalogChannelMask()
+    {
+        var channelSetByte = 0u;
+
+        foreach (var channel in DataChannels.Where(c => c.IsActive && c.Type == ChannelType.Analog))
+        {
+            channelSetByte |= 1u << channel.Index;
+        }
+
+        return Convert.ToString((long)channelSetByte, 2);
     }
 
     public void UpdateSdCardFiles(List<SdCardFile> files)

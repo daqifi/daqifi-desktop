@@ -279,8 +279,6 @@ public partial class DaqifiViewModel : ObservableObject
         {
             if (_selectedLoggingMode != value)
             {
-                _selectedLoggingMode = value;
-
                 // Handle ComboBoxItem content
                 var mode = value;
                 if (value?.Contains("ComboBoxItem") == true)
@@ -288,15 +286,44 @@ public partial class DaqifiViewModel : ObservableObject
                     mode = value.Split(':').Last().Trim();
                 }
 
-                IsLogToDeviceMode = mode == "Log to Device";
-                var deviceMode = IsLogToDeviceMode ? DeviceMode.LogToDevice : DeviceMode.StreamToApp;
-                LoggingManager.Instance.CurrentMode = IsLogToDeviceMode ? LoggingMode.SdCard : LoggingMode.Stream;
+                var isLogToDeviceMode = mode == "Log to Device";
+                var deviceMode = isLogToDeviceMode ? DeviceMode.LogToDevice : DeviceMode.StreamToApp;
+                var originalDeviceModes = ConnectedDevices.ToDictionary(device => device, device => device.Mode);
 
-                // Switch mode on all devices
-                foreach (var device in ConnectedDevices)
+                try
                 {
-                    device.SwitchMode(deviceMode);
+                    foreach (var device in ConnectedDevices)
+                    {
+                        device.SwitchMode(deviceMode);
+                    }
                 }
+                catch (Exception ex)
+                {
+                    foreach (var originalDeviceMode in originalDeviceModes)
+                    {
+                        if (originalDeviceMode.Key.Mode == originalDeviceMode.Value)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            originalDeviceMode.Key.SwitchMode(originalDeviceMode.Value);
+                        }
+                        catch (Exception rollbackException)
+                        {
+                            _appLogger.Warning(
+                                $"Failed to roll back logging mode for {originalDeviceMode.Key.Name}: {rollbackException.Message}");
+                        }
+                    }
+
+                    _appLogger.Error(ex, "Failed to switch device logging mode.");
+                    throw;
+                }
+
+                _selectedLoggingMode = value;
+                IsLogToDeviceMode = isLogToDeviceMode;
+                LoggingManager.Instance.CurrentMode = isLogToDeviceMode ? LoggingMode.SdCard : LoggingMode.Stream;
 
                 OnPropertyChanged();
             }

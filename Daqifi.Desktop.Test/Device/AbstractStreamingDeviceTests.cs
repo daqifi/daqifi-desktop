@@ -345,18 +345,16 @@ public class AbstractStreamingDeviceTests
         await device.UpdateNetworkConfiguration();
 
         // Assert
-        Assert.AreEqual(
-            $"core:{ScpiMessageProducer.SaveNetworkLan.Data}",
-            device.SentCommands[^3],
-            "Core should finish persisting the network configuration before desktop restores SD access.");
-        Assert.AreEqual(
-            $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
-            device.SentCommands[^2],
-            "Desktop should disable LAN after the Core network update when the device is in LogToDevice mode.");
-        Assert.AreEqual(
-            $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
-            device.SentCommands[^1],
-            "Desktop should re-enable SD access after the Core network update when the device is in LogToDevice mode.");
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                $"core:{ScpiMessageProducer.SaveNetworkLan.Data}",
+                $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
+                $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
+                $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data}"
+            },
+            device.SentCommands.TakeLast(4).ToArray(),
+            "Desktop should restore the full SD interface after the Core network update when the device is in LogToDevice mode.");
     }
 
     [TestMethod]
@@ -382,14 +380,15 @@ public class AbstractStreamingDeviceTests
             Assert.AreEqual("Injected test failure.", exception.Message);
         }
 
-        Assert.AreEqual(
-            $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
-            device.SentCommands[^2],
-            "Desktop should restore SD access even when the Core network update fails.");
-        Assert.AreEqual(
-            $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
-            device.SentCommands[^1],
-            "Desktop should re-enable SD access even when the Core network update fails.");
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
+                $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
+                $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data}"
+            },
+            device.SentCommands.TakeLast(3).ToArray(),
+            "Desktop should restore the full SD interface even when the Core network update fails.");
     }
 
     [TestMethod]
@@ -563,6 +562,33 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
+    public void StartSdCardLogging_UsesCombinedAnalogMaskAndConfiguresDigitalPortsOnce()
+    {
+        var device = new SdCardLoggingTestDevice();
+        device.DataChannels.Add(new AnalogChannel(device, BuildAnalogInputCoreChannel(0)) { IsActive = true });
+        device.DataChannels.Add(new AnalogChannel(device, BuildAnalogInputCoreChannel(2)) { IsActive = true });
+        device.DataChannels.Add(new AnalogChannel(device, BuildAnalogInputCoreChannel(4)) { IsActive = true });
+        device.DataChannels.Add(new DigitalChannel(device, BuildDigitalInputCoreChannel(0)) { IsActive = true });
+        device.DataChannels.Add(new DigitalChannel(device, BuildDigitalInputCoreChannel(1)) { IsActive = true });
+        device.SwitchMode(DeviceMode.LogToDevice);
+
+        device.StartSdCardLogging();
+
+        Assert.AreEqual(
+            1,
+            device.SentCommands.Count(command => command == $"desktop:{ScpiMessageProducer.EnableDioPorts().Data}"),
+            "Desktop should enable digital ports once before starting SD logging.");
+        CollectionAssert.DoesNotContain(
+            device.SentCommands,
+            $"desktop:{ScpiMessageProducer.EnableAdcChannels("1").Data}",
+            "Desktop should not send per-channel analog enable commands during SD logging startup.");
+        CollectionAssert.Contains(
+            device.SentCommands,
+            $"core:{ScpiMessageProducer.EnableAdcChannels("10101").Data}",
+            "Core should receive a single combined binary analog mask for the active SD logging channels.");
+    }
+
+    [TestMethod]
     public void SwitchMode_WhenEnteringLogToDevice_SetsSdCardStreamInterface()
     {
         var device = new TestStreamingDevice();
@@ -640,6 +666,28 @@ public class AbstractStreamingDeviceTests
         coreDevice.Metadata.UpdateFromProtobuf(statusMessage);
         coreDevice.PopulateChannelsFromStatus(statusMessage);
         return coreDevice;
+    }
+
+    private static Daqifi.Core.Channel.AnalogChannel BuildAnalogInputCoreChannel(int index)
+    {
+        return new Daqifi.Core.Channel.AnalogChannel(index, 4096)
+        {
+            Name = $"AI{index}",
+            Direction = Daqifi.Core.Channel.ChannelDirection.Input,
+            CalibrationB = 0,
+            CalibrationM = 1,
+            InternalScaleM = 1,
+            PortRange = 5
+        };
+    }
+
+    private static Daqifi.Core.Channel.DigitalChannel BuildDigitalInputCoreChannel(int index)
+    {
+        return new Daqifi.Core.Channel.DigitalChannel(index)
+        {
+            Name = $"DIO{index}",
+            Direction = Daqifi.Core.Channel.ChannelDirection.Input
+        };
     }
 
     private static DaqifiOutMessage BuildStatusMessage(string firmwareVersion, float calibrationM)
