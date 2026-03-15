@@ -1,5 +1,6 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Core.Communication;
 using Daqifi.Core.Device.Network;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
@@ -64,6 +65,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     protected virtual CoreStreamingDevice? CoreDeviceForStreaming => null;
 
+    /// <summary>
+    /// Core streaming device used for network configuration orchestration.
+    /// </summary>
+    protected virtual CoreStreamingDevice? CoreDeviceForNetworkConfiguration => null;
+
     #region Properties
 
     protected readonly AppLogger AppLogger = AppLogger.Instance;
@@ -86,29 +92,47 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public int Id { get; set; }
 
-    public string Name { get; set; }
-    public string MacAddress { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayIdentifier))]
+    private string _name = string.Empty;
 
-    public string DevicePartNumber { get; private set; } = string.Empty;
+    /// <summary>Gets or sets the device MAC address. Backed by <see cref="Metadata"/>.</summary>
+    public string MacAddress
+    {
+        get => Metadata.MacAddress;
+        set { if (Metadata.MacAddress != value) { Metadata.MacAddress = value; OnPropertyChanged(); } }
+    }
 
-    public string DeviceSerialNo { get; set; } = string.Empty;
+    /// <summary>Gets the device part number. Backed by <see cref="Metadata"/>.</summary>
+    public string DevicePartNumber => Metadata.PartNumber;
 
-    public string DeviceVersion { get; set; }
+    /// <summary>Gets or sets the device serial number. Backed by <see cref="Metadata"/>.</summary>
+    public string DeviceSerialNo
+    {
+        get => Metadata.SerialNumber;
+        set { if (Metadata.SerialNumber != value) { Metadata.SerialNumber = value; OnPropertyChanged(); } }
+    }
 
-    private string _ipAddress = string.Empty;
-    
-    public string IpAddress 
-    { 
-        get => _ipAddress; 
-        set 
-        { 
-            if (_ipAddress != value)
+    /// <summary>Gets or sets the firmware version. Backed by <see cref="Metadata"/>.</summary>
+    public string DeviceVersion
+    {
+        get => Metadata.FirmwareVersion;
+        set { if (Metadata.FirmwareVersion != value) { Metadata.FirmwareVersion = value; OnPropertyChanged(); } }
+    }
+
+    /// <summary>Gets or sets the IP address. Backed by <see cref="Metadata"/>.</summary>
+    public string IpAddress
+    {
+        get => Metadata.IpAddress;
+        set
+        {
+            if (Metadata.IpAddress != value)
             {
-                _ipAddress = value;
+                Metadata.IpAddress = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(DisplayIdentifier));
             }
-        } 
+        }
     }
 
     /// <summary>
@@ -159,8 +183,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public event Action<DebugDataModel>? DebugDataReceived;
     #endregion
 
-    protected virtual bool RequestDeviceInfoOnInitialize => true;
-
     #region Abstract Methods
     public abstract bool Connect();
 
@@ -179,12 +201,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     #region Message Handlers
     /// <summary>
     /// Initializes the protocol handler for automatic message routing.
-    /// Uses Core's ProtobufProtocolHandler to route status, streaming, and SD card messages.
+    /// Uses Core's ProtobufProtocolHandler to route streaming protobuf messages while Core
+    /// itself owns status parsing and channel population.
     /// </summary>
     private void InitializeProtocolHandler()
     {
         _protocolHandler = new ProtobufProtocolHandler(
-            statusMessageHandler: OnStatusMessageReceived,
             streamMessageHandler: OnStreamMessageReceived,
             sdCardMessageHandler: _ => { } // SD card messages are text-based, handled separately; empty handler prevents NullReferenceException
         );
@@ -210,28 +232,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
-    /// Handles status messages received from the device during initialization.
-    /// Called automatically by ProtobufProtocolHandler when a status message is detected.
-    /// </summary>
-    private void OnStatusMessageReceived(DaqifiOutMessage message)
-    {
-        // Protocol handler already validated this is a status message via IsStatusMessage()
-        // No need to revalidate here - just process it
-
-        HydrateDeviceMetadata(message);
-        PopulateChannelsFromCore(message);
-        PopulateAnalogOutChannels(message);
-
-        AppLogger.Information("Status message processed - device metadata populated");
-    }
-
-    /// <summary>
     /// Handles streaming messages received from the device.
     /// Called automatically by ProtobufProtocolHandler when a streaming message is detected.
     /// </summary>
     private void OnStreamMessageReceived(DaqifiOutMessage message)
     {
-        if (!IsStreaming || Mode == DeviceMode.LogToDevice)
+        if (!IsStreaming || Mode != DeviceMode.StreamToApp)
         {
             return;
         }
@@ -252,7 +258,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         var digitalData1 = new byte();
         var digitalData2 = new byte();
         var hasDigitalData = message.DigitalData.Length > 0;
-        var hasAnalogData = message.AnalogInData.Count > 0;
+        // USB firmware sends pre-scaled floats (AnalogInDataFloat); WiFi sends raw ADC counts (AnalogInData).
+        var hasAnalogData = message.AnalogInData.Count > 0 || message.AnalogInDataFloat.Count > 0;
 
 
 
@@ -272,20 +279,33 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                                                       .OrderBy(c => c.Index)
                                                       .ToList();
 
+                // USB firmware sends pre-scaled float values (already in volts); use them directly.
+                // WiFi firmware sends raw integer ADC counts; apply channel calibration scaling.
+                var hasFloatData = message.AnalogInDataFloat.Count > 0;
+                var dataCount = hasFloatData ? message.AnalogInDataFloat.Count : message.AnalogInData.Count;
 
-                for (var dataIndex = 0; dataIndex < message.AnalogInData.Count && dataIndex < activeAnalogChannels.Count; dataIndex++)
+                for (var dataIndex = 0; dataIndex < dataCount && dataIndex < activeAnalogChannels.Count; dataIndex++)
                 {
                     var channel = activeAnalogChannels[dataIndex];
-                    var rawValue = message.AnalogInData[dataIndex];
-                    // Use core's scaling implementation for correct formula and thread-safety
-                    var scaledValue = channel.GetScaledValue((int)rawValue);
+                    double scaledValue;
+                    if (hasFloatData)
+                    {
+                        // Float values are already voltage-scaled by the firmware — no calibration needed
+                        scaledValue = message.AnalogInDataFloat[dataIndex];
+                    }
+                    else
+                    {
+                        // Raw ADC count — apply channel calibration/scaling via Core
+                        scaledValue = channel.GetScaledValue((int)message.AnalogInData[dataIndex]);
+                    }
+
                     var sample = new DataSample(this, channel, messageTimestamp, scaledValue);
                     channel.ActiveSample = sample;
                 }
 
-                if (message.AnalogInData.Count != activeAnalogChannels.Count)
+                if (dataCount != activeAnalogChannels.Count)
                 {
-                    AppLogger.Warning($"[CHANNEL_MAPPING] Analog data count mismatch: received {message.AnalogInData.Count} data points for {activeAnalogChannels.Count} active channels");
+                    AppLogger.Warning($"[CHANNEL_MAPPING] Analog data count mismatch: received {dataCount} data points for {activeAnalogChannels.Count} active channels");
                 }
 
                 // Send debug data if debug mode is enabled
@@ -387,15 +407,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             StopSdCardLogging();
         }
 
-        // Clean up old mode
-        switch (Mode)
-        {
-            case DeviceMode.LogToDevice:
-                // Ensure SD card logging is stopped
-                StopSdCardLogging();
-                break;
-        }
-
         Mode = newMode;
 
         // Setup new mode
@@ -445,20 +456,22 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 }
             }
 
+            SendMessage(hasDigitalChannels
+                ? ScpiMessageProducer.EnableDioPorts()
+                : ScpiMessageProducer.DisableDioPorts());
+
             if (analogChannelMask != 0)
             {
                 SendMessage(ScpiMessageProducer.EnableAdcChannels(
                     analogChannelMask.ToString(CultureInfo.InvariantCulture)));
             }
 
-            if (hasDigitalChannels)
-            {
-                SendMessage(ScpiMessageProducer.EnableDioPorts());
-            }
-
             var coreDevice = GetCoreDeviceForSd();
             coreDevice.StreamingFrequency = StreamingFrequency;
-            coreDevice.StartSdCardLoggingAsync().GetAwaiter().GetResult();
+
+            // The Core package resumes StartSdCardLoggingAsync continuations on the caller's
+            // synchronization context. Running it on the thread pool prevents UI deadlocks.
+            Task.Run(() => coreDevice.StartSdCardLoggingAsync(channelMask: analogChannelMask)).GetAwaiter().GetResult();
 
             IsLoggingToSdCard = coreDevice.IsLoggingToSdCard;
             IsStreaming = true; // We're streaming to SD card
@@ -508,8 +521,20 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         EnsureSdOperationsQuiesced();
 
         var coreDevice = GetCoreDeviceForSd();
-        var files = coreDevice.GetSdCardFilesAsync().GetAwaiter().GetResult();
+        var files = Task.Run(() => coreDevice.GetSdCardFilesAsync()).GetAwaiter().GetResult();
         UpdateSdCardFiles(MapSdCardFiles(files));
+    }
+
+    private string BuildActiveAnalogChannelMask()
+    {
+        var channelSetByte = 0u;
+
+        foreach (var channel in DataChannels.Where(c => c.IsActive && c.Type == ChannelType.Analog))
+        {
+            channelSetByte |= 1u << channel.Index;
+        }
+
+        return Convert.ToString((long)channelSetByte, 2);
     }
 
     public void UpdateSdCardFiles(List<SdCardFile> files)
@@ -546,6 +571,17 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         var coreDevice = GetCoreDeviceForSd();
         await coreDevice.DeleteSdCardFileAsync(fileName, ct);
+    }
+
+    private CoreStreamingDevice GetCoreDeviceForNetworkConfiguration()
+    {
+        var coreDevice = CoreDeviceForNetworkConfiguration;
+        if (coreDevice == null)
+        {
+            throw new InvalidOperationException("Device is not connected.");
+        }
+
+        return coreDevice;
     }
 
     private static List<SdCardFile> MapSdCardFiles(IEnumerable<CoreSdCardFileInfo> files)
@@ -653,39 +689,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
 
-    protected void TurnOffEcho()
-    {
-        SendMessage(ScpiMessageProducer.DisableDeviceEcho);
-    }
-
-    protected void TurnDeviceOn()
-    {
-        SendMessage(ScpiMessageProducer.TurnDeviceOn);
-    }
-
-    protected void SetProtobufMessageFormat()
-    {
-        SendMessage(ScpiMessageProducer.SetProtobufStreamFormat);
-    }
-
-    /// <summary>
-    /// Initializes the device using the standard initialization sequence with proper delays.
-    /// This async method provides non-blocking initialization similar to Core's approach.
-    /// </summary>
-    protected virtual async Task InitializeDeviceAsync()
-    {
-        TurnOffEcho();
-        await Task.Delay(100);  // Device needs time to process
-
-        SendMessage(ScpiMessageProducer.StopStreaming);
-        await Task.Delay(100);
-
-        TurnDeviceOn();
-        await Task.Delay(100);
-
-        SetProtobufMessageFormat();
-        await Task.Delay(100);
-    }
     #endregion
 
     #region Channel Methods
@@ -793,67 +796,144 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
-    /// Populates channels using Core's DaqifiDevice.PopulateChannelsFromStatus method.
-    /// This leverages Core's channel creation logic and wraps the resulting channels
-    /// with Desktop-specific wrappers that add UI features (colors, expressions, database).
+    /// Handles the <see cref="DaqifiDevice.ChannelsPopulated"/> event from Core.
+    /// Syncs metadata and channel wrappers from the already-populated Core device.
     /// </summary>
-    /// <param name="message">The protobuf status message containing channel configuration.</param>
-    private void PopulateChannelsFromCore(DaqifiOutMessage message)
+    protected void OnCoreChannelsPopulated(object? sender, ChannelsPopulatedEventArgs e)
     {
+        if (sender is not DaqifiDevice coreDevice)
+        {
+            return;
+        }
+
+        SyncFromCoreDevice(coreDevice);
+    }
+
+    /// <summary>
+    /// Applies the current Core device metadata and channel state to the desktop wrapper.
+    /// Core remains the source of truth for status parsing and channel creation; desktop keeps
+    /// its richer channel objects for WPF-only concerns.
+    /// </summary>
+    /// <param name="coreDevice">The already-populated Core device.</param>
+    protected void SyncFromCoreDevice(DaqifiDevice coreDevice)
+    {
+        ArgumentNullException.ThrowIfNull(coreDevice);
+
         try
         {
-            // Use Core's DaqifiDevice to populate channels from the status message
-            var coreDevice = new DaqifiDevice(Name ?? "Unknown");
-            coreDevice.PopulateChannelsFromStatus(message);
+            HydrateDeviceMetadata(coreDevice.Metadata);
+            SyncChannelsFromCore(coreDevice.Channels);
+            DeviceState = coreDevice.State;
 
-            // Clear existing channels before repopulating to prevent duplicates (Issue #29)
-            DataChannels.Clear();
-
-            // Wrap Core channels with Desktop-specific wrappers
-            foreach (var coreChannel in coreDevice.Channels)
-            {
-                if (coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel)
-                {
-                    DataChannels.Add(new AnalogChannel(this, coreAnalogChannel));
-                }
-                else if (coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel)
-                {
-                    // Core sets digital channels to IsEnabled = true by default, keep that behavior
-                    DataChannels.Add(new DigitalChannel(this, coreDigitalChannel));
-                }
-            }
-
-            AppLogger.Information($"Populated {coreDevice.Channels.Count} channels from Core " +
+            AppLogger.Information(
+                $"Synchronized {coreDevice.Channels.Count} channels from Core " +
                 $"({coreDevice.Channels.Count(c => c.Type == ChannelType.Analog)} analog, " +
                 $"{coreDevice.Channels.Count(c => c.Type == ChannelType.Digital)} digital)");
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to populate channels from Core for device {DisplayIdentifier}");
+            AppLogger.Error(ex, $"Failed to synchronize Core device state for {DisplayIdentifier}");
             throw;
         }
     }
 
-    protected void HydrateDeviceMetadata(DaqifiOutMessage message)
+    private void SyncChannelsFromCore(IReadOnlyList<Daqifi.Core.Channel.IChannel> coreChannels)
     {
-        // Use Core's metadata update method
-        Metadata.UpdateFromProtobuf(message);
+        var existingChannels = DataChannels.ToDictionary(GetChannelKey);
+        var updatedChannels = new List<IChannel>(coreChannels.Count);
 
-        // Map Core metadata to desktop properties for backward compatibility
-        DevicePartNumber = Metadata.PartNumber;
-        DeviceSerialNo = Metadata.SerialNumber;
-        DeviceVersion = Metadata.FirmwareVersion;
+        foreach (var coreChannel in coreChannels)
+        {
+            var channelKey = GetChannelKey(coreChannel);
+
+            if (existingChannels.TryGetValue(channelKey, out var existingChannel))
+            {
+                switch (existingChannel)
+                {
+                    case AnalogChannel desktopAnalogChannel
+                        when coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel:
+                        desktopAnalogChannel.ReplaceCoreChannel(coreAnalogChannel);
+                        desktopAnalogChannel.DeviceName = DevicePartNumber;
+                        desktopAnalogChannel.DeviceSerialNo = DeviceSerialNo;
+                        updatedChannels.Add(desktopAnalogChannel);
+                        continue;
+
+                    case DigitalChannel desktopDigitalChannel
+                        when coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel:
+                        desktopDigitalChannel.ReplaceCoreChannel(coreDigitalChannel);
+                        desktopDigitalChannel.DeviceName = DevicePartNumber;
+                        desktopDigitalChannel.DeviceSerialNo = DeviceSerialNo;
+                        updatedChannels.Add(desktopDigitalChannel);
+                        continue;
+                }
+            }
+
+            var desktopChannel = CreateDesktopChannel(coreChannel);
+            if (desktopChannel != null)
+            {
+                updatedChannels.Add(desktopChannel);
+            }
+        }
+
+        DataChannels.Clear();
+        DataChannels.AddRange(updatedChannels);
+    }
+
+    private IChannel? CreateDesktopChannel(Daqifi.Core.Channel.IChannel coreChannel)
+    {
+        return coreChannel switch
+        {
+            Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel => new AnalogChannel(this, coreAnalogChannel),
+            Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel => new DigitalChannel(this, coreDigitalChannel),
+            _ => null
+        };
+    }
+
+    private static string GetChannelKey(IChannel channel)
+    {
+        return $"{channel.Type}:{channel.Index}";
+    }
+
+    private static string GetChannelKey(Daqifi.Core.Channel.IChannel channel)
+    {
+        return $"{channel.Type}:{channel.ChannelNumber}";
+    }
+
+    private void HydrateDeviceMetadata(DeviceMetadata coreMetadata)
+    {
+        ArgumentNullException.ThrowIfNull(coreMetadata);
+
+        Metadata.PartNumber = coreMetadata.PartNumber;
+        Metadata.SerialNumber = coreMetadata.SerialNumber;
+        Metadata.FirmwareVersion = coreMetadata.FirmwareVersion;
+        Metadata.HardwareRevision = coreMetadata.HardwareRevision;
+        Metadata.DeviceType = coreMetadata.DeviceType;
+        Metadata.Capabilities = CloneCapabilities(coreMetadata.Capabilities);
+        Metadata.IpAddress = coreMetadata.IpAddress;
+        Metadata.MacAddress = coreMetadata.MacAddress;
+        Metadata.Ssid = coreMetadata.Ssid;
+        Metadata.HostName = coreMetadata.HostName;
+        Metadata.DevicePort = coreMetadata.DevicePort;
+        Metadata.WifiSecurityMode = coreMetadata.WifiSecurityMode;
+        Metadata.WifiInfrastructureMode = coreMetadata.WifiInfrastructureMode;
+
+        // DeviceType is an [ObservableProperty] and not backed by Metadata, so set it explicitly.
         DeviceType = Metadata.DeviceType;
-        IpAddress = Metadata.IpAddress;
-        MacAddress = Metadata.MacAddress;
 
-        // Update NetworkConfiguration from metadata
+        // All other identity properties delegate directly to Metadata — just notify bindings.
+        OnPropertyChanged(nameof(DevicePartNumber));
+        OnPropertyChanged(nameof(DeviceSerialNo));
+        OnPropertyChanged(nameof(DeviceVersion));
+        OnPropertyChanged(nameof(IpAddress));
+        OnPropertyChanged(nameof(MacAddress));
+        OnPropertyChanged(nameof(DisplayIdentifier));
+
         if (!string.IsNullOrWhiteSpace(Metadata.Ssid))
         {
             NetworkConfiguration.Ssid = Metadata.Ssid;
         }
 
-        // This now correctly handles security mode 0 (open network) - fixes WiFi bug!
+        // Security type 0 is the open-network case and should not be filtered out.
         NetworkConfiguration.SecurityType = (WifiSecurityType)Metadata.WifiSecurityMode;
 
         if (Metadata.WifiInfrastructureMode > 0)
@@ -864,73 +944,54 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         AppLogger.Information($"Detected device type: {DeviceType} from part number: {Metadata.PartNumber}");
     }
 
-    private void PopulateAnalogOutChannels(DaqifiOutMessage message)
+    private static DeviceCapabilities CloneCapabilities(DeviceCapabilities capabilities)
     {
-        if (message.AnalogOutPortNum == 0) { return; }
-
-        // TODO handle HasAnalogOutPortNum.  Firmware doesn't yet have this field
+        return new DeviceCapabilities
+        {
+            SupportsStreaming = capabilities.SupportsStreaming,
+            HasSdCard = capabilities.HasSdCard,
+            HasWiFi = capabilities.HasWiFi,
+            HasUsb = capabilities.HasUsb,
+            AnalogInputChannels = capabilities.AnalogInputChannels,
+            AnalogOutputChannels = capabilities.AnalogOutputChannels,
+            DigitalChannels = capabilities.DigitalChannels,
+            MaxSamplingRate = capabilities.MaxSamplingRate
+        };
     }
+
     #endregion
 
     public void InitializeDeviceState()
     {
         // Initialize protocol handler for automatic message routing
         InitializeProtocolHandler();
-
-        if (RequestDeviceInfoOnInitialize)
-        {
-            // Request device info - protocol handler will automatically route the response
-            SendMessage(ScpiMessageProducer.GetDeviceInfo);
-        }
     }
 
     public async Task UpdateNetworkConfiguration()
     {
-        if (IsStreaming) { StopStreaming(); }
+        var coreDevice = GetCoreDeviceForNetworkConfiguration();
 
-        switch (NetworkConfiguration.Mode)
+        var restoreSdInterface = ConnectionType == ConnectionType.Usb && Mode == DeviceMode.LogToDevice;
+
+        if (IsStreaming)
         {
-            case WifiMode.ExistingNetwork:
-                SendMessage(ScpiMessageProducer.SetNetworkWifiModeExisting);
-                break;
-            case WifiMode.SelfHosted:
-                SendMessage(ScpiMessageProducer.SetNetworkWifiModeSelfHosted);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
+            StopStreaming();
         }
 
-        SendMessage(ScpiMessageProducer.SetNetworkWifiSsid(NetworkConfiguration.Ssid));
-
-        switch (NetworkConfiguration.SecurityType)
+        try
         {
-            case WifiSecurityType.None:
-                SendMessage(ScpiMessageProducer.SetNetworkWifiSecurityOpen);
-                break;
-            case WifiSecurityType.WpaPskPhrase:
-                SendMessage(ScpiMessageProducer.SetNetworkWifiSecurityWpa);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
+            await coreDevice.UpdateNetworkConfigurationAsync(NetworkConfiguration);
         }
-
-        SendMessage(ScpiMessageProducer.SetNetworkWifiPassword(NetworkConfiguration.Password));
-        SendMessage(ScpiMessageProducer.ApplyNetworkLan);
-
-        // Wait for WiFi module to restart after applying settings
-        await Task.Delay(2000);
-
-        // Re-enable WiFi after the module restarts, but only if we're in StreamToApp mode
-        // The ApplyNetworkLan command causes the WiFi module to restart,
-        // so we need to re-enable it after the restart completes.
-        // SD and WiFi share the same SPI bus and cannot be enabled simultaneously.
-        if (Mode == DeviceMode.StreamToApp)
+        finally
         {
-            SendMessage(ScpiMessageProducer.DisableStorageSd);
-            SendMessage(ScpiMessageProducer.EnableNetworkLan);
+            // Core always restores LAN after applying settings. USB devices that are currently
+            // logging to the SD card need the desktop wrapper to switch the shared SPI bus back,
+            // even if the Core update fails after toggling the shared SPI bus to LAN.
+            if (restoreSdInterface)
+            {
+                PrepareSdInterface();
+            }
         }
-
-        SendMessage(ScpiMessageProducer.SaveNetworkLan);
     }
 
     public void Reboot()
@@ -944,6 +1005,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         SendMessage(ScpiMessageProducer.DisableNetworkLan);
         SendMessage(ScpiMessageProducer.EnableStorageSd);
+
+        if (ConnectionType == ConnectionType.Usb)
+        {
+            SendMessage(ScpiMessageProducer.SetStreamInterface(StreamInterface.SdCard));
+        }
     }
 
     // SD and LAN can't both be enabled due to hardware limitations
@@ -951,6 +1017,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         SendMessage(ScpiMessageProducer.DisableStorageSd);
         SendMessage(ScpiMessageProducer.EnableNetworkLan);
+
+        if (ConnectionType == ConnectionType.Usb)
+        {
+            SendMessage(ScpiMessageProducer.SetStreamInterface(StreamInterface.Usb));
+        }
     }
 
     #region Debug Mode Methods

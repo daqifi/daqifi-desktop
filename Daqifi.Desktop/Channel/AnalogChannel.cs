@@ -10,7 +10,7 @@ public class AnalogChannel : AbstractChannel
     /// <summary>
     /// Core channel implementation handling device communication and scaling
     /// </summary>
-    private readonly Daqifi.Core.Channel.IAnalogChannel _coreChannel;
+    private Daqifi.Core.Channel.IAnalogChannel _coreChannel;
     #endregion
 
     #region Properties
@@ -148,6 +148,28 @@ public class AnalogChannel : AbstractChannel
     internal double GetScaledValue(int rawValue)
     {
         return _coreChannel.GetScaledValue(rawValue);
+    }
+
+    internal void ReplaceCoreChannel(Daqifi.Core.Channel.IAnalogChannel coreChannel)
+    {
+        ArgumentNullException.ThrowIfNull(coreChannel);
+
+        var wasEnabled = _coreChannel.IsEnabled;
+        var direction = _coreChannel.Direction;
+
+        _coreChannel = coreChannel;
+        _coreChannel.IsEnabled = wasEnabled;
+        _coreChannel.Direction = direction;
+
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(Direction));
+        OnPropertyChanged(nameof(Index));
+        OnPropertyChanged(nameof(IsActive));
+        OnPropertyChanged(nameof(CalibrationBValue));
+        OnPropertyChanged(nameof(CalibrationMValue));
+        OnPropertyChanged(nameof(InternalScaleMValue));
+        OnPropertyChanged(nameof(PortRange));
+        OnPropertyChanged(nameof(Resolution));
     }
     #endregion
 

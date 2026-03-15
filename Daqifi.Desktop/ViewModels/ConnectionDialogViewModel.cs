@@ -1,15 +1,17 @@
-﻿using Daqifi.Desktop.DataModel.Device;
-using Daqifi.Desktop.Device;
-using Daqifi.Desktop.Device.HidDevice;
+﻿using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Device.WiFiDevice;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.View;
 using System.Collections;
 using System.Collections.ObjectModel;
+using System.Net;
+using System.Net.Sockets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Daqifi.Core.Device.Discovery;
+using CoreConcreteDeviceInfo = Daqifi.Core.Device.Discovery.DeviceInfo;
+using CoreConnectionType = Daqifi.Core.Device.Discovery.ConnectionType;
 using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
 
 namespace Daqifi.Desktop.ViewModels;
@@ -27,7 +29,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
     private Task? _serialDiscoveryTask;
     private Task? _hidDiscoveryTask;
     private readonly IDialogService _dialogService;
-    private readonly HashSet<string> _probedSerialPorts = new();
 
     [ObservableProperty]
     private bool _hasNoWiFiDevices = true;
@@ -42,7 +43,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
     #region Properties
     public ObservableCollection<DaqifiStreamingDevice> AvailableWiFiDevices { get; } = [];
     public ObservableCollection<SerialStreamingDevice> AvailableSerialDevices { get; } = [];
-    public ObservableCollection<HidFirmwareDevice> AvailableHidDevices { get; } = [];
+    public ObservableCollection<CoreDeviceInfo> AvailableHidDevices { get; } = [];
 
     public string ManualPortName { get; set; }
 
@@ -205,15 +206,64 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(ManualIpAddress)) { return; }
 
-        var deviceInfo = new Daqifi.Desktop.DataModel.Device.DeviceInfo
+        var endpointInput = ManualIpAddress.Trim();
+        IPAddress? ipAddress;
+        try
         {
-            IpAddress = ManualIpAddress,
-            DeviceName = "Manual IP Device",
-            Port = 9760 // Common DAQiFi TCP data port - TODO: make configurable or discover dynamically
+            ipAddress = await ResolveManualWifiEndpointAsync(endpointInput);
+        }
+        catch (ArgumentException ex)
+        {
+            Common.Loggers.AppLogger.Instance.Warning(
+                $"Manual WiFi connection requires a valid IP address or host name. " +
+                $"Received '{ManualIpAddress}': {ex.Message}");
+            return;
+        }
+        catch (SocketException ex)
+        {
+            Common.Loggers.AppLogger.Instance.Warning(
+                $"Failed to resolve manual WiFi endpoint '{ManualIpAddress}': {ex.Message}");
+            return;
+        }
+        catch (Exception ex)
+        {
+            Common.Loggers.AppLogger.Instance.Error(
+                ex,
+                $"Unexpected error while resolving manual WiFi endpoint '{ManualIpAddress}'.");
+            throw;
+        }
+
+        if (ipAddress == null)
+        {
+            Common.Loggers.AppLogger.Instance.Warning(
+                $"Manual WiFi endpoint '{ManualIpAddress}' did not resolve to an IP address.");
+            return;
+        }
+
+        var deviceInfo = new CoreConcreteDeviceInfo
+        {
+            Name = "Manual IP Device",
+            IPAddress = ipAddress,
+            Port = 9760, // Common DAQiFi TCP data port - TODO: make configurable or discover dynamically
+            IsPowerOn = true,
+            ConnectionType = CoreConnectionType.WiFi
         };
 
         var device = new DaqifiStreamingDevice(deviceInfo);
         await ConnectionManager.Instance.Connect(device);
+    }
+
+    private static async Task<IPAddress?> ResolveManualWifiEndpointAsync(string endpointInput)
+    {
+        if (IPAddress.TryParse(endpointInput, out var parsedIpAddress))
+        {
+            return parsedIpAddress;
+        }
+
+        var resolvedAddresses = await Dns.GetHostAddressesAsync(endpointInput);
+        return resolvedAddresses.FirstOrDefault(
+            address => address.AddressFamily == AddressFamily.InterNetwork)
+            ?? resolvedAddresses.FirstOrDefault();
     }
 
     [RelayCommand]
@@ -221,11 +271,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         //_hidDeviceFinder.Stop();
 
-        var selectedDevices = ((IEnumerable)selectedItems).Cast<HidFirmwareDevice>();
+        var selectedDevices = ((IEnumerable)selectedItems).Cast<CoreDeviceInfo>();
         var hidDevice = selectedDevices.FirstOrDefault();
         if (hidDevice == null) { return; }
 
-        var firmwareDialogViewModel = new FirmwareDialogViewModel(hidDevice);
+        var firmwareDialogViewModel = new FirmwareDialogViewModel(hidDevice.Name);
         _dialogService.ShowDialog<FirmwareDialog>(this, firmwareDialogViewModel);
 
     }
@@ -233,11 +283,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     #region Core Device Discovery Event Handlers
 
-    private void HandleCoreWifiDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
+    internal void HandleCoreWifiDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
     {
         try
         {
-            var wifiDevice = DeviceInfoConverter.ToWiFiDevice(e.DeviceInfo);
+            var wifiDevice = new DaqifiStreamingDevice(e.DeviceInfo);
             HandleWifiDeviceFound(sender, wifiDevice);
         }
         catch (Exception ex)
@@ -250,30 +300,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         try
         {
-            var portName = e.DeviceInfo.PortName;
-            if (string.IsNullOrEmpty(portName)) return;
-
-            // Prevent duplicate entries
-            lock (_probedSerialPorts)
-            {
-                if (_probedSerialPorts.Contains(portName)) return;
-                _probedSerialPorts.Add(portName);
-            }
-
-            // Core already probed and validated this is a DAQiFi device - use the info directly
-            var serialDevice = DeviceInfoConverter.ToSerialDevice(e.DeviceInfo);
-
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                var existing = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == portName);
-                if (existing == null)
-                {
-                    AvailableSerialDevices.Add(serialDevice);
-                    if (HasNoSerialDevices) { HasNoSerialDevices = false; }
-                    Common.Loggers.AppLogger.Instance.Information(
-                        $"Added DAQiFi device on {portName}: {serialDevice.Name} (S/N: {serialDevice.DeviceSerialNo})");
-                }
-            });
+            AddSerialDeviceFromDiscovery(e.DeviceInfo);
         }
         catch (Exception ex)
         {
@@ -281,19 +308,92 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
     }
 
+    private void AddSerialDeviceFromDiscovery(CoreDeviceInfo deviceInfo)
+    {
+        var portName = deviceInfo.PortName?.Trim();
+        if (string.IsNullOrWhiteSpace(portName))
+        {
+            return;
+        }
+
+        InvokeOnUiThread(() =>
+        {
+            var existing = FindSerialDeviceByPortName(portName);
+            if (existing == null)
+            {
+                var serialDevice = new SerialStreamingDevice(
+                    portName,
+                    deviceInfo.Name,
+                    deviceInfo.SerialNumber,
+                    deviceInfo.FirmwareVersion);
+                AvailableSerialDevices.Add(serialDevice);
+                if (HasNoSerialDevices) { HasNoSerialDevices = false; }
+                Common.Loggers.AppLogger.Instance.Information(
+                    $"Added DAQiFi device on {portName}: {serialDevice.Name} (S/N: {serialDevice.DeviceSerialNo})");
+                return;
+            }
+
+            UpdateSerialDeviceMetadata(existing, portName, deviceInfo);
+        });
+    }
+
+    private SerialStreamingDevice? FindSerialDeviceByPortName(string portName)
+    {
+        return AvailableSerialDevices.FirstOrDefault(d =>
+            d.Port?.PortName.Equals(portName, StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    private static void UpdateSerialDeviceMetadata(
+        SerialStreamingDevice serialDevice,
+        string portName,
+        CoreDeviceInfo deviceInfo)
+    {
+        serialDevice.Name = !string.IsNullOrWhiteSpace(deviceInfo.Name)
+            ? deviceInfo.Name
+            : portName;
+        serialDevice.DeviceSerialNo = deviceInfo.SerialNumber;
+        serialDevice.DeviceVersion = deviceInfo.FirmwareVersion;
+    }
+
+    private static void InvokeOnUiThread(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        dispatcher.Invoke(action);
+    }
+
     private void HandleCoreHidDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
     {
         try
         {
-            // HID devices are firmware devices for bootloader mode
-            // For now, core HID finder returns empty, so this won't be called often
-            // TODO: Create HID device from core IDeviceInfo when HID library is added
-            Common.Loggers.AppLogger.Instance.Information($"HID device discovered: {e.DeviceInfo.Name}");
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                var discoveredDevice = e.DeviceInfo;
+                var discoveredKey = BuildHidDeviceKey(discoveredDevice);
+                var alreadyTracked = AvailableHidDevices.Any(device => BuildHidDeviceKey(device) == discoveredKey);
+                if (alreadyTracked)
+                {
+                    return;
+                }
+
+                AvailableHidDevices.Add(discoveredDevice);
+                HasNoHidDevices = AvailableHidDevices.Count == 0;
+            });
         }
         catch (Exception ex)
         {
             Common.Loggers.AppLogger.Instance.Error(ex, "Error handling HID device discovery");
         }
+    }
+
+    private static string BuildHidDeviceKey(CoreDeviceInfo deviceInfo)
+    {
+        return $"{deviceInfo.DevicePath}|{deviceInfo.SerialNumber}|{deviceInfo.Name}";
     }
 
     #endregion
@@ -309,91 +409,12 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         if (AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress) == null)
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            InvokeOnUiThread(() =>
             {
                 AvailableWiFiDevices.Add(wifiDevice);
                 if (HasNoWiFiDevices) { HasNoWiFiDevices = false; }
             });
         }
-    }
-
-    private void HandleWifiDeviceRemoved(object sender, IDevice device)
-    {
-        if (device is not DaqifiStreamingDevice wifiDevice)
-        {
-            return;
-        }
-
-        var matchingDevice = AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress);
-        if (matchingDevice != null)
-        {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                AvailableWiFiDevices.Remove(matchingDevice);
-            });
-        }
-    }
-
-    private void HandleSerialDeviceFound(object sender, IDevice device)
-    {
-        if (device is not SerialStreamingDevice serialDevice)
-        {
-            return;
-        }
-
-        if (AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == serialDevice.Port.PortName) == null)
-        {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                AvailableSerialDevices.Add(serialDevice);
-                if (HasNoSerialDevices) { HasNoSerialDevices = false; }
-            });
-        }
-    }
-
-    private void HandleSerialDeviceRemoved(object sender, IDevice device)
-    {
-        if (device is not SerialStreamingDevice serialDevice)
-        {
-            return;
-        }
-
-        var matchingDevice = AvailableSerialDevices.FirstOrDefault(d => d.Port.PortName == serialDevice.Port.PortName);
-        if (matchingDevice != null)
-        {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                AvailableSerialDevices.Remove(matchingDevice);
-            });
-        }
-    }
-
-    private void HandleHidDeviceFound(object sender, IDevice device)
-    {
-        if (device is not HidFirmwareDevice hidDevice)
-        {
-            return;
-        }
-
-        System.Windows.Application.Current.Dispatcher.Invoke(() =>
-        {
-            AvailableHidDevices.Add(hidDevice);
-            if (HasNoHidDevices) { HasNoHidDevices = false; }
-        });
-    }
-
-    private void HandleHidDeviceRemoved(object sender, IDevice device)
-    {
-        if (device is not HidFirmwareDevice hidDevice)
-        {
-            return;
-        }
-
-        System.Windows.Application.Current.Dispatcher.Invoke(() =>
-        {
-            AvailableHidDevices.Remove(hidDevice);
-            if (AvailableHidDevices.Count == 0) { HasNoHidDevices = true; }
-        });
     }
 
     public void Close()
@@ -459,11 +480,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
         _serialDiscoveryCts?.Dispose();
         _serialDiscoveryCts = null;
 
-        // Clear probed ports so they can be probed again next time
-        lock (_probedSerialPorts)
-        {
-            _probedSerialPorts.Clear();
-        }
     }
 
     private void StopHidDiscovery()

@@ -10,10 +10,13 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v5
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
       with:
-        dotnet-version: 9.0.x
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
 
     - name: Restore dependencies
       run: dotnet restore
@@ -34,7 +37,7 @@ jobs:
       run: reportgenerator -reports:"./TestResults/**/coverage.cobertura.xml" -targetdir:"./CoverageReport" -reporttypes:"HtmlInline_AzurePipelines;TextSummary;MarkdownSummaryGithub" -verbosity:Warning
 
     - name: Upload Coverage Report
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: coverage-report
         path: ./CoverageReport/
@@ -91,7 +94,7 @@ jobs:
         dotnet build -c Release
 
     - name: Upload MSI Artifact
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: DAQifiDesktop-Installer
         path: Daqifi.Desktop.Setup/DAQifiDesktopSetup/bin/x86/Release/DAQifiDesktop_Setup.msi

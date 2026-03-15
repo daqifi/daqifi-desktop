@@ -1,14 +1,14 @@
 ﻿using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
-using Daqifi.Desktop.DataModel.Device;
 using Daqifi.Desktop.IO.Messages;
+using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Device.WiFiDevice;
 
 /// <summary>
-/// WiFi streaming device that uses Core's DaqifiDevice directly for communication.
+/// WiFi streaming device that uses Core's DaqifiStreamingDevice directly for communication.
 /// Unlike USB devices, WiFi devices don't need consumer swapping because SD card operations
 /// are only available over USB.
 /// </summary>
@@ -24,22 +24,42 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     public bool IsPowerOn { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
     public override bool IsConnected => _coreDevice?.IsConnected == true;
-    protected override bool RequestDeviceInfoOnInitialize => false;
     protected override CoreStreamingDevice? CoreDeviceForStreaming => _coreDevice;
+    protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
 
     #endregion
 
     #region Constructor
-    public DaqifiStreamingDevice(DeviceInfo deviceInfo)
+    /// <summary>
+    /// Creates a WiFi device wrapper from Core discovery metadata.
+    /// </summary>
+    /// <param name="deviceInfo">The discovered device metadata.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="deviceInfo"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="deviceInfo"/> does not contain the IP address or TCP port required for WiFi.
+    /// </exception>
+    public DaqifiStreamingDevice(CoreDeviceInfo deviceInfo)
     {
-        Name = deviceInfo.DeviceName;
-        DeviceSerialNo = deviceInfo.DeviceSerialNo;
-        IpAddress = deviceInfo.IpAddress;
-        MacAddress = deviceInfo.MacAddress;
-        Port = (int)deviceInfo.Port;
+        ArgumentNullException.ThrowIfNull(deviceInfo);
+
+        if (deviceInfo.IPAddress == null)
+        {
+            throw new ArgumentException("WiFi device discovery info must include an IP address.", nameof(deviceInfo));
+        }
+
+        if (!deviceInfo.Port.HasValue)
+        {
+            throw new ArgumentException("WiFi device discovery info must include a TCP port.", nameof(deviceInfo));
+        }
+
+        Name = deviceInfo.Name;
+        Metadata.SerialNumber = deviceInfo.SerialNumber;
+        Metadata.IpAddress = deviceInfo.IPAddress.ToString();
+        Metadata.MacAddress = deviceInfo.MacAddress ?? string.Empty;
+        Metadata.FirmwareVersion = deviceInfo.FirmwareVersion;
+        Port = deviceInfo.Port.Value;
         IsPowerOn = deviceInfo.IsPowerOn;
         IsStreaming = false;
-        DeviceVersion = deviceInfo.DeviceVersion;
     }
 
     #endregion
@@ -70,7 +90,8 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 return false;
             }
 
-            // Subscribe directly to Core's message events
+            // Subscribe to Core device events
+            _coreDevice.ChannelsPopulated += OnCoreChannelsPopulated;
             _coreDevice.MessageReceived += OnCoreMessageReceived;
 
             InitializeDeviceState();
@@ -88,6 +109,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             {
                 try
                 {
+                    _coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
                     _coreDevice.MessageReceived -= OnCoreMessageReceived;
                     _coreDevice.Disconnect();
                     _coreDevice.Dispose();
@@ -103,9 +125,14 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         }
     }
 
+    /// <summary>
+    /// Not supported for WiFi devices. Commands are sent internally via the Core device.
+    /// </summary>
+    /// <exception cref="NotSupportedException">Always thrown.</exception>
     public override bool Write(string command)
     {
-        return true;
+        throw new NotSupportedException(
+            "Raw text writes are not supported on WiFi devices.");
     }
 
     public override bool Disconnect()
@@ -117,6 +144,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             // Unsubscribe from Core device events
             if (_coreDevice != null)
             {
+                _coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
                 _coreDevice.MessageReceived -= OnCoreMessageReceived;
             }
 
@@ -160,11 +188,12 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
 
     #region Event Handlers
     /// <summary>
-    /// Handles messages received from Core's DaqifiDevice and routes them to the protocol handler.
+    /// Handles non-status messages received from Core's DaqifiDevice and routes them
+    /// to the protocol handler for streaming data processing.
+    /// Status messages are handled via <see cref="AbstractStreamingDevice.OnCoreChannelsPopulated"/>.
     /// </summary>
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
-        // Core's message is already an IInboundMessage<object>, wrap it for Desktop's event args
         var args = new MessageEventArgs<object>(e.Message);
         HandleInboundMessage(args);
     }

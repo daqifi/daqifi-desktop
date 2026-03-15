@@ -10,7 +10,7 @@ public class DigitalChannel : AbstractChannel
     /// <summary>
     /// Core channel implementation handling device communication
     /// </summary>
-    private readonly Daqifi.Core.Channel.IDigitalChannel _coreChannel;
+    private Daqifi.Core.Channel.IDigitalChannel _coreChannel;
     #endregion
 
     #region Properties
@@ -110,6 +110,23 @@ public class DigitalChannel : AbstractChannel
 
         // Initialize derived desktop state based on core
         IsOutput = coreChannel.Direction == ChannelDirection.Output;
+    }
+
+    internal void ReplaceCoreChannel(Daqifi.Core.Channel.IDigitalChannel coreChannel)
+    {
+        ArgumentNullException.ThrowIfNull(coreChannel);
+
+        var wasEnabled = _coreChannel.IsEnabled;
+        var direction = _coreChannel.Direction;
+
+        _coreChannel = coreChannel;
+        _coreChannel.IsEnabled = wasEnabled;
+        _coreChannel.Direction = direction;
+
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(Direction));
+        OnPropertyChanged(nameof(Index));
+        OnPropertyChanged(nameof(IsActive));
     }
     #endregion
 

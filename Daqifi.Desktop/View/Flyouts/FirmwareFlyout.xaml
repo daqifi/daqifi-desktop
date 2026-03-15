@@ -76,6 +76,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <Label Grid.Column="0" Grid.Row="0" Content="Firmware Update" VerticalAlignment="Center" />
@@ -84,7 +85,9 @@
                     <Label Grid.Column="0" Grid.Row="2" Content="WIFI Module Update" VerticalAlignment="Center" />
                     <controls:MetroProgressBar Grid.Column="0" Grid.Row="3" Height="25" Minimum="0" Maximum="100" Value="{Binding UploadWiFiProgress}" />
 
-                    <Button Grid.Column="1" Grid.Row="3" Width="50" Margin="5,0,0,0" Content="Update" Command="{Binding UploadFirmwareCommand}" />
+                    <Button Grid.Column="1" Grid.Row="3" Width="60" Margin="5,0,0,0" Content="Update" Command="{Binding UploadFirmwareCommand}" />
+                    <TextBlock Grid.Column="0" Grid.Row="4" Margin="0,8,0,0" Text="{Binding FirmwareUpdateStatusText}" TextWrapping="Wrap"/>
+                    <Button Grid.Column="1" Grid.Row="4" Width="60" Margin="5,8,0,0" Content="Cancel" Command="{Binding CancelFirmwareUploadCommand}" IsEnabled="{Binding IsFirmwareUploading}" />
                 </Grid>
                 <!-- Informational Message (Visible only for non-USB) -->
                 <TextBlock Text="Firmware updates require the device to be connected via USB." 
