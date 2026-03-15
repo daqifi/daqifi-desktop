@@ -471,7 +471,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             // The Core package resumes StartSdCardLoggingAsync continuations on the caller's
             // synchronization context. Running it on the thread pool prevents UI deadlocks.
-            Task.Run(() => coreDevice.StartSdCardLoggingAsync(channelMask: analogChannelMask)).GetAwaiter().GetResult();
+            var channelMaskString = Convert.ToString((long)analogChannelMask, 2);
+            Task.Run(() => coreDevice.StartSdCardLoggingAsync(channelMask: channelMaskString)).GetAwaiter().GetResult();
 
             IsLoggingToSdCard = coreDevice.IsLoggingToSdCard;
             IsStreaming = true; // We're streaming to SD card
@@ -523,18 +524,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         var coreDevice = GetCoreDeviceForSd();
         var files = Task.Run(() => coreDevice.GetSdCardFilesAsync()).GetAwaiter().GetResult();
         UpdateSdCardFiles(MapSdCardFiles(files));
-    }
-
-    private string BuildActiveAnalogChannelMask()
-    {
-        var channelSetByte = 0u;
-
-        foreach (var channel in DataChannels.Where(c => c.IsActive && c.Type == ChannelType.Analog))
-        {
-            channelSetByte |= 1u << channel.Index;
-        }
-
-        return Convert.ToString((long)channelSetByte, 2);
     }
 
     public void UpdateSdCardFiles(List<SdCardFile> files)
@@ -599,13 +588,14 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         if (IsLoggingToSdCard)
         {
-            StopSdCardLogging();
-            return;
+            throw new InvalidOperationException(
+                "Cannot perform SD card file operations while logging to the SD card. Stop logging first.");
         }
 
         if (IsStreaming)
         {
-            StopStreaming();
+            throw new InvalidOperationException(
+                "Cannot perform SD card file operations while streaming. Stop streaming first.");
         }
     }
 
