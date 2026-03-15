@@ -59,6 +59,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         Port = new SerialPort(portName);
     }
 
+    internal SerialStreamingDevice(string portName, CoreStreamingDevice coreDevice)
+        : this(portName)
+    {
+        _coreDevice = coreDevice ?? throw new ArgumentNullException(nameof(coreDevice));
+    }
+
     /// <summary>
     /// Creates a SerialStreamingDevice with device info from Core's discovery.
     /// Use this constructor when device has already been probed.

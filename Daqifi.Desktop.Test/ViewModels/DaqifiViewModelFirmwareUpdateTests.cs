@@ -1,4 +1,3 @@
-using System.Reflection;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
@@ -14,6 +13,29 @@ namespace Daqifi.Desktop.Test.ViewModels;
 [TestClass]
 public class DaqifiViewModelFirmwareUpdateTests
 {
+    private readonly List<string> _tempFiles = [];
+    private readonly List<string> _tempDirectories = [];
+
+    [TestCleanup]
+    public void TestCleanup()
+    {
+        foreach (var tempFile in _tempFiles)
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+
+        foreach (var tempDirectory in _tempDirectories)
+        {
+            if (Directory.Exists(tempDirectory))
+            {
+                Directory.Delete(tempDirectory, recursive: true);
+            }
+        }
+    }
+
     [TestMethod]
     public async Task UploadFirmware_ManualPackage_UsesConnectedCoreDeviceForPic32Only()
     {
@@ -72,8 +94,6 @@ public class DaqifiViewModelFirmwareUpdateTests
             It.IsAny<bool>(),
             It.IsAny<IProgress<int>>(),
             It.IsAny<CancellationToken>()), Times.Never);
-
-        File.Delete(firmwareFilePath);
     }
 
     [TestMethod]
@@ -169,12 +189,12 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.IsTrue(viewModel.IsUploadComplete);
         Assert.IsFalse(viewModel.HasErrorOccured);
 
-        Assert.IsTrue(coreDevice.SentCommands.Any(command => command.Contains("SYSTem:POWer:STATe 1", StringComparison.Ordinal)));
-        Assert.IsTrue(coreDevice.SentCommands.Any(command => command.Contains("SYSTem:COMMUnicate:LAN:FWUpdate", StringComparison.Ordinal)));
-        Assert.IsTrue(coreDevice.SentCommands.Any(command => command.Contains("SYSTem:COMMUnicate:USB:TRANsparent 0", StringComparison.Ordinal)));
-        Assert.IsTrue(coreDevice.SentCommands.Any(command => command.Contains("SYSTem:COMMunicate:LAN:ENAbled 1", StringComparison.Ordinal)));
-        Assert.IsTrue(coreDevice.SentCommands.Any(command => command.Contains("SYSTem:COMMunicate:LAN:APPLY", StringComparison.Ordinal)));
-        Assert.IsTrue(coreDevice.SentCommands.Any(command => command.Contains("SYSTem:COMMunicate:LAN:SAVE", StringComparison.Ordinal)));
+        AssertCommandSent(coreDevice, "SYSTem:POWer:STATe 1");
+        AssertCommandSent(coreDevice, "SYSTem:COMMUnicate:LAN:FWUpdate");
+        AssertCommandSent(coreDevice, "SYSTem:COMMUnicate:USB:TRANsparent 0");
+        AssertCommandSent(coreDevice, "SYSTem:COMMunicate:LAN:ENAbled 1");
+        AssertCommandSent(coreDevice, "SYSTem:COMMunicate:LAN:APPLY");
+        AssertCommandSent(coreDevice, "SYSTem:COMMunicate:LAN:SAVE");
 
         pic32FirmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
@@ -186,48 +206,41 @@ public class DaqifiViewModelFirmwareUpdateTests
             wifiPackageDirectory,
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
             It.IsAny<CancellationToken>()), Times.Once);
-
-        File.Delete(pic32FirmwarePath);
-        Directory.Delete(wifiPackageDirectory, recursive: true);
     }
 
     private static SerialStreamingDevice CreateSerialDeviceWithCoreDevice(string portName, TestCoreStreamingDevice coreDevice)
     {
-        var serialDevice = new SerialStreamingDevice(portName);
-        var coreDeviceField = typeof(SerialStreamingDevice).GetField("_coreDevice", BindingFlags.Instance | BindingFlags.NonPublic);
-
-        Assert.IsNotNull(coreDeviceField);
-        coreDeviceField.SetValue(serialDevice, coreDevice);
-
-        return serialDevice;
+        return new SerialStreamingDevice(portName, coreDevice);
     }
 
     private static async Task InvokeUploadFirmwareAsync(DaqifiViewModel viewModel)
     {
-        var method = typeof(DaqifiViewModel).GetMethod("UploadFirmware", BindingFlags.Instance | BindingFlags.NonPublic);
-
-        Assert.IsNotNull(method);
-
-        var task = method.Invoke(viewModel, null) as Task;
-        Assert.IsNotNull(task);
-
-        await task;
+        await viewModel.UploadFirmwareCommand.ExecuteAsync(null);
     }
 
-    private static string CreateTempFile(string extension)
+    private string CreateTempFile(string extension)
     {
         var tempFile = Path.GetTempFileName();
         var path = Path.ChangeExtension(tempFile, extension);
         File.Delete(tempFile);
         File.WriteAllText(path, ":00000001FF");
+        _tempFiles.Add(path);
         return path;
     }
 
-    private static string CreateTempDirectory()
+    private string CreateTempDirectory()
     {
         var path = Path.Combine(Path.GetTempPath(), $"daqifi-{Guid.NewGuid():N}");
         Directory.CreateDirectory(path);
+        _tempDirectories.Add(path);
         return path;
+    }
+
+    private static void AssertCommandSent(TestCoreStreamingDevice coreDevice, string expectedCommand)
+    {
+        Assert.IsTrue(
+            coreDevice.SentCommands.Any(command => command.Contains(expectedCommand, StringComparison.Ordinal)),
+            $"Expected command '{expectedCommand}' to be sent.");
     }
 
     private sealed class TestCoreStreamingDevice : DaqifiStreamingDevice, ILanChipInfoProvider

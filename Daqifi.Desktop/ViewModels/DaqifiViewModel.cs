@@ -126,13 +126,16 @@ public partial class DaqifiViewModel : ObservableObject
 
     #region Properties
 
+    private readonly ObservableCollection<Profile> _fallbackProfiles = [];
+    private readonly ObservableCollection<LoggingSession> _fallbackLoggingSessions = [];
+
     public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = [];
-    public ObservableCollection<Profile> Profiles { get; } = LoggingManager.Instance.SubscribedProfiles;
+    public ObservableCollection<Profile> Profiles => TryGetLoggingManager()?.SubscribedProfiles ?? _fallbackProfiles;
 
     public ObservableCollection<Notifications> NotificationList { get; } = [];
     public ObservableCollection<IChannel> ActiveChannels { get; } = [];
     public ObservableCollection<IChannel> ActiveInputChannels { get; } = [];
-    public ObservableCollection<LoggingSession> LoggingSessions => LoggingManager.Instance.LoggingSessions;
+    public ObservableCollection<LoggingSession> LoggingSessions => TryGetLoggingManager()?.LoggingSessions ?? _fallbackLoggingSessions;
 
     public PlotLogger Plotter { get; private set; }
     public DatabaseLogger DbLogger { get; private set; }
@@ -354,6 +357,9 @@ public partial class DaqifiViewModel : ObservableObject
     #endregion
 
     #region Constructor
+    /// <summary>
+    /// Initializes a new instance of the view model using services from the desktop application container.
+    /// </summary>
     public DaqifiViewModel() : this(
         ServiceLocator.Resolve<IDialogService>(),
         App.ServiceProvider?.GetService<IFirmwareUpdateService>(),
@@ -362,6 +368,16 @@ public partial class DaqifiViewModel : ObservableObject
     {
     }
 
+    /// <summary>
+    /// Initializes a new instance of the main desktop view model.
+    /// </summary>
+    /// <param name="dialogService">Dialog service used for modal and flyout dialogs.</param>
+    /// <param name="firmwareUpdateService">Firmware update service for PIC32 updates.</param>
+    /// <param name="firmwareDownloadService">Firmware download service for package acquisition.</param>
+    /// <param name="firmwareLogger">Logger used when creating the default firmware update service.</param>
+    /// <param name="wifiFirmwareUpdateServiceFactory">
+    /// Factory used to create the WiFi firmware update service for a specific firmware version and COM port.
+    /// </param>
     public DaqifiViewModel(
         IDialogService dialogService,
         IFirmwareUpdateService? firmwareUpdateService = null,
@@ -433,6 +449,13 @@ public partial class DaqifiViewModel : ObservableObject
 
             app.IsWindowInit = true;
         }
+    }
+
+    private static LoggingManager? TryGetLoggingManager()
+    {
+        return App.ServiceProvider?.GetService<IDbContextFactory<LoggingContext>>() == null
+            ? null
+            : LoggingManager.Instance;
     }
 
     #endregion
