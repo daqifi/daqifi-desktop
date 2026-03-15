@@ -1,4 +1,5 @@
 using Daqifi.Core.Communication.Messages;
+using Daqifi.Core.Communication.Producers;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
 using Daqifi.Core.Firmware;
@@ -189,12 +190,12 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.IsTrue(viewModel.IsUploadComplete);
         Assert.IsFalse(viewModel.HasErrorOccured);
 
-        AssertCommandSent(coreDevice, "SYSTem:POWer:STATe 1");
-        AssertCommandSent(coreDevice, "SYSTem:COMMUnicate:LAN:FWUpdate");
-        AssertCommandSent(coreDevice, "SYSTem:COMMUnicate:USB:TRANsparent 0");
-        AssertCommandSent(coreDevice, "SYSTem:COMMunicate:LAN:ENAbled 1");
-        AssertCommandSent(coreDevice, "SYSTem:COMMunicate:LAN:APPLY");
-        AssertCommandSent(coreDevice, "SYSTem:COMMunicate:LAN:SAVE");
+        AssertCommandSent(coreDevice, ScpiMessageProducer.TurnDeviceOn);
+        AssertCommandSent(coreDevice, ScpiMessageProducer.SetLanFirmwareUpdateMode);
+        AssertCommandSent(coreDevice, ScpiMessageProducer.SetUsbTransparencyMode(0));
+        AssertCommandSent(coreDevice, ScpiMessageProducer.EnableNetworkLan);
+        AssertCommandSent(coreDevice, ScpiMessageProducer.ApplyNetworkLan);
+        AssertCommandSent(coreDevice, ScpiMessageProducer.SaveNetworkLan);
 
         pic32FirmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
@@ -236,11 +237,14 @@ public class DaqifiViewModelFirmwareUpdateTests
         return path;
     }
 
-    private static void AssertCommandSent(TestCoreStreamingDevice coreDevice, string expectedCommand)
+    private static void AssertCommandSent(
+        TestCoreStreamingDevice coreDevice,
+        IOutboundMessage<string> expectedCommand)
     {
+        var expectedCommandText = expectedCommand.Data?.ToString() ?? string.Empty;
         Assert.IsTrue(
-            coreDevice.SentCommands.Any(command => command.Contains(expectedCommand, StringComparison.Ordinal)),
-            $"Expected command '{expectedCommand}' to be sent.");
+            coreDevice.SentCommands.Any(command => command.Contains(expectedCommandText, StringComparison.Ordinal)),
+            $"Expected command '{expectedCommandText}' to be sent.");
     }
 
     private sealed class TestCoreStreamingDevice : DaqifiStreamingDevice, ILanChipInfoProvider
