@@ -380,12 +380,12 @@ Once complete, desktop can:
 
 **IMPORTANT**: This phase should NOT be attempted until Phases 3-7 are complete. Issue #39 demonstrates the problems with premature integration.
 
-### 8.1 Desktop Integration Adapters (NOW is the time)
-- [ ] Build `CoreDeviceAdapter` as true drop-in replacement
-- [ ] Direct message format compatibility with desktop expectations
-- [ ] Desktop-specific extensions (`IDesktopMessageConsumer`, `IDesktopMessageProducer`)
-- [ ] Support for legacy desktop interfaces during transition
-- [ ] Migration from desktop's `MessageProducer`/`MessageConsumer` to core equivalents
+### 8.1 Core-First Desktop Integration
+- [ ] Desktop uses connected core device types directly
+- [ ] No desktop-only compatibility communication layer remains in core
+- [ ] Desktop-specific state stays in desktop wrappers only
+- [ ] Migration from desktop-owned channel/status synchronization to core-owned synchronization
+- [ ] Remove dead transition shims once both consumers are aligned
 
 ### 8.2 Integration Testing
 - [ ] Create `Daqifi.Core.DesktopTests` integration test project
@@ -420,9 +420,9 @@ Once complete, desktop can:
 - [ ] Troubleshooting guide
 
 ### Success Criteria
-- [ ] `CoreDeviceAdapter` is true drop-in replacement (no wrapper code needed)
+- [ ] Desktop uses core device APIs directly without compatibility adapters
 - [ ] Desktop integration tests pass with 100% success rate
-- [ ] Zero code bloat from adapters (net reduction in desktop code)
+- [ ] Zero code bloat from compatibility layers (net reduction in desktop code)
 - [ ] Desktop-specific features work (buffer clearing, safe shutdown)
 - [ ] Message format compatibility (no casting failures)
 - [ ] Performance parity or improvement vs legacy desktop code
@@ -435,12 +435,10 @@ Once complete, desktop can:
 MessageProducer = new Desktop.MessageProducer(stream);
 MessageConsumer = new Desktop.TextMessageConsumer(stream);
 
-// After (CoreDeviceAdapter - should be this simple):
-var adapter = CoreDeviceAdapter.CreateTcpAdapter(host, port);
-await adapter.ConnectAsync();
-MessageProducer = adapter.DesktopMessageProducer;
-MessageConsumer = adapter.DesktopMessageConsumer;
-// All existing message handling code works unchanged
+// After (current direction):
+var device = await DaqifiDeviceFactory.ConnectTcpAsync(host, port);
+await device.InitializeAsync();
+// Desktop binds to the connected core device and keeps only UI-specific state
 ```
 
 ### Desktop Migration Impact
@@ -455,7 +453,7 @@ Once complete, desktop can:
 **Deliverable**: Core 1.0.0 - Stable API for device communication
 
 **Related Issues**:
-- [#39](https://github.com/daqifi/daqifi-core/issues/39) - CoreDeviceAdapter issues (deferred to this phase)
+- [#390](https://github.com/daqifi/daqifi-desktop/issues/390) - Remove redundant desktop/core compatibility layers
 - Phases 3-7 must be complete before this phase begins
 
 ## Implementation Guidelines

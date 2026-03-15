@@ -39,15 +39,7 @@ public partial class LoggedSessionFlyout
                 }
             }
         }
-        using (var context = _loggingContext.CreateDbContext())
-        {
-            var savedLoggingSessions = new ObservableCollection<LoggingSession>();
-            var previousSampleSessions = (from s in context.Sessions select s).ToList();
-            foreach (var lsession in previousSampleSessions)
-            {
-                if (!savedLoggingSessions.Contains(lsession)) { savedLoggingSessions.Add(lsession); }
-            }
-            LoggingManager.Instance.LoggingSessions = savedLoggingSessions;
-        }
+
+        LoggingManager.Instance.LoggingSessions = LoggingManager.Instance.LoadPersistedLoggingSessions();
     }
 }

@@ -34,6 +34,9 @@ namespace Daqifi.Desktop.ViewModels;
 
 public partial class DaqifiViewModel : ObservableObject
 {
+    private const int WifiChipInfoMaxAttempts = 3;
+    private static readonly TimeSpan WifiChipInfoRetryDelay = TimeSpan.FromSeconds(2);
+
     private readonly AppLogger _appLogger = AppLogger.Instance;
 
     #region Private Variables
@@ -113,6 +116,7 @@ public partial class DaqifiViewModel : ObservableObject
     private bool _selectedDeviceSupportsFirmwareUpdate;
     private readonly IFirmwareUpdateService _firmwareUpdateService;
     private readonly IFirmwareDownloadService _firmwareDownloadService;
+    private readonly Func<string, string, IFirmwareUpdateService> _wifiFirmwareUpdateServiceFactory;
     private CancellationTokenSource? _firmwareUploadCts;
     private ConnectionDialogViewModel _connectionDialogViewModel;
     private string _selectedLoggingMode = "Stream to App";
@@ -122,13 +126,16 @@ public partial class DaqifiViewModel : ObservableObject
 
     #region Properties
 
+    private readonly ObservableCollection<Profile> _fallbackProfiles = [];
+    private readonly ObservableCollection<LoggingSession> _fallbackLoggingSessions = [];
+
     public ObservableCollection<IStreamingDevice> ConnectedDevices { get; } = [];
-    public ObservableCollection<Profile> Profiles { get; } = LoggingManager.Instance.SubscribedProfiles;
+    public ObservableCollection<Profile> Profiles => TryGetLoggingManager()?.SubscribedProfiles ?? _fallbackProfiles;
 
     public ObservableCollection<Notifications> NotificationList { get; } = [];
     public ObservableCollection<IChannel> ActiveChannels { get; } = [];
     public ObservableCollection<IChannel> ActiveInputChannels { get; } = [];
-    public ObservableCollection<LoggingSession> LoggingSessions => LoggingManager.Instance.LoggingSessions;
+    public ObservableCollection<LoggingSession> LoggingSessions => TryGetLoggingManager()?.LoggingSessions ?? _fallbackLoggingSessions;
 
     public PlotLogger Plotter { get; private set; }
     public DatabaseLogger DbLogger { get; private set; }
@@ -276,8 +283,6 @@ public partial class DaqifiViewModel : ObservableObject
         {
             if (_selectedLoggingMode != value)
             {
-                _selectedLoggingMode = value;
-
                 // Handle ComboBoxItem content
                 var mode = value;
                 if (value?.Contains("ComboBoxItem") == true)
@@ -285,14 +290,44 @@ public partial class DaqifiViewModel : ObservableObject
                     mode = value.Split(':').Last().Trim();
                 }
 
-                IsLogToDeviceMode = mode == "Log to Device";
-                var deviceMode = IsLogToDeviceMode ? DeviceMode.LogToDevice : DeviceMode.StreamToApp;
+                var isLogToDeviceMode = mode == "Log to Device";
+                var deviceMode = isLogToDeviceMode ? DeviceMode.LogToDevice : DeviceMode.StreamToApp;
+                var originalDeviceModes = ConnectedDevices.ToDictionary(device => device, device => device.Mode);
 
-                // Switch mode on all devices
-                foreach (var device in ConnectedDevices)
+                try
                 {
-                    device.SwitchMode(deviceMode);
+                    foreach (var device in ConnectedDevices)
+                    {
+                        device.SwitchMode(deviceMode);
+                    }
                 }
+                catch (Exception ex)
+                {
+                    foreach (var originalDeviceMode in originalDeviceModes)
+                    {
+                        if (originalDeviceMode.Key.Mode == originalDeviceMode.Value)
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            originalDeviceMode.Key.SwitchMode(originalDeviceMode.Value);
+                        }
+                        catch (Exception rollbackException)
+                        {
+                            _appLogger.Warning(
+                                $"Failed to roll back logging mode for {originalDeviceMode.Key.Name}: {rollbackException.Message}");
+                        }
+                    }
+
+                    _appLogger.Error(ex, "Failed to switch device logging mode.");
+                    throw;
+                }
+
+                _selectedLoggingMode = value;
+                IsLogToDeviceMode = isLogToDeviceMode;
+                LoggingManager.Instance.CurrentMode = isLogToDeviceMode ? LoggingMode.SdCard : LoggingMode.Stream;
 
                 OnPropertyChanged();
             }
@@ -322,6 +357,9 @@ public partial class DaqifiViewModel : ObservableObject
     #endregion
 
     #region Constructor
+    /// <summary>
+    /// Initializes a new instance of the view model using services from the desktop application container.
+    /// </summary>
     public DaqifiViewModel() : this(
         ServiceLocator.Resolve<IDialogService>(),
         App.ServiceProvider?.GetService<IFirmwareUpdateService>(),
@@ -330,16 +368,28 @@ public partial class DaqifiViewModel : ObservableObject
     {
     }
 
+    /// <summary>
+    /// Initializes a new instance of the main desktop view model.
+    /// </summary>
+    /// <param name="dialogService">Dialog service used for modal and flyout dialogs.</param>
+    /// <param name="firmwareUpdateService">Firmware update service for PIC32 updates.</param>
+    /// <param name="firmwareDownloadService">Firmware download service for package acquisition.</param>
+    /// <param name="firmwareLogger">Logger used when creating the default firmware update service.</param>
+    /// <param name="wifiFirmwareUpdateServiceFactory">
+    /// Factory used to create the WiFi firmware update service for a specific firmware version and COM port.
+    /// </param>
     public DaqifiViewModel(
         IDialogService dialogService,
         IFirmwareUpdateService? firmwareUpdateService = null,
         IFirmwareDownloadService? firmwareDownloadService = null,
-        ILogger<FirmwareUpdateService>? firmwareLogger = null)
+        ILogger<FirmwareUpdateService>? firmwareLogger = null,
+        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null)
     {
         _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
         _firmwareDownloadService = firmwareDownloadService ?? CreateDefaultFirmwareDownloadService();
         var resolvedLogger = firmwareLogger ?? NullLogger<FirmwareUpdateService>.Instance;
         _firmwareUpdateService = firmwareUpdateService ?? CreateDefaultFirmwareUpdateService(_firmwareDownloadService, resolvedLogger);
+        _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
 
         var app = Application.Current as App;
         if (app != null)
@@ -380,22 +430,9 @@ public partial class DaqifiViewModel : ObservableObject
                     SummaryLogger = new SummaryLogger();
                     LoggingManager.Instance.AddLogger(SummaryLogger);
 
-                    using (var context = loggingContext.CreateDbContext())
+                    if (LoggingManager.Instance.LoggingSessions == null || !LoggingManager.Instance.LoggingSessions.Any())
                     {
-                        var savedLoggingSessions = new ObservableCollection<LoggingSession>();
-                        var previousSampleSessions = (from s in context.Sessions select s).ToList();
-                        foreach (var session in previousSampleSessions)
-                        {
-                            if (!savedLoggingSessions.Any(ls => ls.ID == session.ID))
-                            {
-                                savedLoggingSessions.Add(session);
-                            }
-                        }
-
-                        if (LoggingManager.Instance.LoggingSessions == null || !LoggingManager.Instance.LoggingSessions.Any())
-                        {
-                            LoggingManager.Instance.LoggingSessions = savedLoggingSessions;
-                        }
+                        LoggingManager.Instance.LoggingSessions = LoggingManager.Instance.LoadPersistedLoggingSessions();
                     }
 
                     // Configure default grid lines
@@ -412,6 +449,13 @@ public partial class DaqifiViewModel : ObservableObject
 
             app.IsWindowInit = true;
         }
+    }
+
+    private static LoggingManager? TryGetLoggingManager()
+    {
+        return App.ServiceProvider?.GetService<IDbContextFactory<LoggingContext>>() == null
+            ? null
+            : LoggingManager.Instance;
     }
 
     #endregion
@@ -492,7 +536,7 @@ public partial class DaqifiViewModel : ObservableObject
 
         try
         {
-            var coreDevice = new CoreStreamingDeviceAdapter(serialStreamingDevice);
+            var coreDevice = serialStreamingDevice.ConnectedCoreStreamingDevice;
 
             if (!coreDevice.IsConnected)
             {
@@ -537,7 +581,7 @@ public partial class DaqifiViewModel : ObservableObject
 
             if (!isManualUpload)
             {
-                await UpdateWifiModuleAsync(coreDevice, _firmwareUploadCts.Token);
+                await UpdateWifiModuleAsync(coreDevice, serialStreamingDevice, _firmwareUploadCts.Token);
             }
 
             IsUploadComplete = true;
@@ -585,8 +629,56 @@ public partial class DaqifiViewModel : ObservableObject
         return IsFirmwareUploading;
     }
 
-    private async Task UpdateWifiModuleAsync(Daqifi.Core.Device.IStreamingDevice coreDevice, CancellationToken cancellationToken)
+    private async Task UpdateWifiModuleAsync(
+        Daqifi.Core.Device.IStreamingDevice coreDevice,
+        SerialStreamingDevice serialStreamingDevice,
+        CancellationToken cancellationToken)
     {
+        // Core's WiFi updater also performs its own version probe when the passed device
+        // implements ILanChipInfoProvider. Keep the explicit desktop-side check here so
+        // desktop can skip unnecessary downloads and surface the current/update version in UI.
+        if (serialStreamingDevice is ILanChipInfoProvider lanChipProvider)
+        {
+            FirmwareUpdateStatusText = "Checking WiFi firmware version...";
+            _appLogger.Information("Checking WiFi firmware version before deciding whether to flash the WiFi module.");
+
+            var chipInfo = await TryGetLanChipInfoAsync(lanChipProvider, cancellationToken);
+
+            if (chipInfo == null)
+            {
+                _appLogger.Warning("WiFi chip info unavailable after startup retries; continuing with WiFi update.");
+                FirmwareUpdateStatusText = "WiFi firmware version unavailable; continuing with update.";
+            }
+            else
+            {
+                _appLogger.Information(
+                    $"WiFi chip info query succeeded. Device WiFi firmware version: {chipInfo.FwVersion}.");
+
+                var latestRelease = await _firmwareDownloadService.GetLatestWifiReleaseAsync(cancellationToken);
+
+                if (latestRelease != null)
+                {
+                    var latestVersion = NormalizeWifiFirmwareVersion(latestRelease.TagName);
+                    if (IsWifiVersionCurrent(chipInfo.FwVersion, latestVersion))
+                    {
+                        FirmwareUpdateStatusText = $"WiFi firmware already up to date ({chipInfo.FwVersion}).";
+                        _appLogger.Information(
+                            $"WiFi firmware is already up to date (device: {chipInfo.FwVersion}, latest: {latestVersion}); skipping WiFi flash.");
+                        UploadWiFiProgress = 100;
+                        return;
+                    }
+
+                    FirmwareUpdateStatusText = $"WiFi update available ({chipInfo.FwVersion} → {latestVersion}). Downloading...";
+                    _appLogger.Information(
+                        $"WiFi firmware update required (device: {chipInfo.FwVersion}, latest: {latestVersion}); proceeding with WiFi flash.");
+                }
+                else
+                {
+                    _appLogger.Warning("Latest WiFi firmware release metadata was unavailable; continuing with WiFi update.");
+                }
+            }
+        }
+
         FirmwareUpdateStatusText = "Downloading WiFi firmware package...";
         var wifiDownloadProgress = new Progress<int>(percent =>
         {
@@ -615,12 +707,74 @@ public partial class DaqifiViewModel : ObservableObject
             }
         });
 
-        using var wifiUpdateService = CreateWifiFirmwareUpdateService(wifiVersion, coreDevice.Name);
-        await wifiUpdateService.UpdateWifiModuleAsync(
-            coreDevice,
-            wifiPackage.Value.ExtractedPath,
-            wifiUpdateProgress,
-            cancellationToken);
+        // Preserve the legacy serial prep/reset sequence now that the firmware flow uses the
+        // underlying Core device directly instead of routing through a desktop-shaped adapter.
+        var lanUpdateModeEnabled = false;
+        try
+        {
+            lanUpdateModeEnabled = serialStreamingDevice.EnableLanUpdateMode();
+
+            var wifiUpdateService = _wifiFirmwareUpdateServiceFactory(wifiVersion, serialStreamingDevice.PortName);
+            try
+            {
+                await wifiUpdateService.UpdateWifiModuleAsync(
+                    coreDevice,
+                    wifiPackage.Value.ExtractedPath,
+                    wifiUpdateProgress,
+                    cancellationToken);
+            }
+            finally
+            {
+                (wifiUpdateService as IDisposable)?.Dispose();
+            }
+        }
+        finally
+        {
+            if (lanUpdateModeEnabled)
+            {
+                serialStreamingDevice.ResetLanAfterUpdate();
+            }
+        }
+    }
+
+    private async Task<LanChipInfo?> TryGetLanChipInfoAsync(
+        ILanChipInfoProvider lanChipProvider,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= WifiChipInfoMaxAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                var chipInfo = await lanChipProvider.GetLanChipInfoAsync(cancellationToken);
+                if (chipInfo != null)
+                {
+                    return chipInfo;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Warning(
+                    $"WiFi chip info query attempt {attempt}/{WifiChipInfoMaxAttempts} failed: {ex.Message}");
+            }
+
+            if (attempt >= WifiChipInfoMaxAttempts)
+            {
+                break;
+            }
+
+            _appLogger.Information(
+                $"WiFi chip info unavailable on attempt {attempt}/{WifiChipInfoMaxAttempts}; retrying after startup delay.");
+            FirmwareUpdateStatusText = "Waiting for device to finish starting up before checking WiFi firmware version...";
+            await Task.Delay(WifiChipInfoRetryDelay, cancellationToken);
+        }
+
+        return null;
     }
 
     private FirmwareUpdateService CreateWifiFirmwareUpdateService(string wifiVersion, string portName)
@@ -678,6 +832,7 @@ public partial class DaqifiViewModel : ObservableObject
                 // winc_flash_tool.cmd requires an explicit release version folder.
                 // Keep legacy argument profile used by shipped WINC tool bundle.
                 WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /k /e /i aio /w",
+                WifiPortOverride = portName,
                 // After sending FWUpdate (flag-only, no APPLY), disconnect quickly so the
                 // COM port is free for the bridge activation raw write at the "Power cycle
                 // WINC" prompt.  The FWUpdate flag persists in firmware RAM until APPLY fires.
@@ -710,6 +865,13 @@ public partial class DaqifiViewModel : ObservableObject
         return normalized;
     }
 
+    private static bool IsWifiVersionCurrent(string deviceVersion, string latestVersion)
+    {
+        if (!FirmwareVersion.TryParse(deviceVersion, out var device)) return false;
+        if (!FirmwareVersion.TryParse(latestVersion, out var latest)) return false;
+        return device >= latest;
+    }
+
     private void HandleFirmwareUpdateException(FirmwareUpdateException exception)
     {
         HasErrorOccured = true;
@@ -733,11 +895,20 @@ public partial class DaqifiViewModel : ObservableObject
 
     private void ShowFirmwareErrorDialog(string message)
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        void ShowDialog()
         {
             var errorDialogViewModel = new ErrorDialogViewModel(message);
             _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-        });
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            ShowDialog();
+            return;
+        }
+
+        dispatcher.Invoke(ShowDialog);
     }
 
     private static string GetFirmwareDownloadDirectory()
@@ -1627,12 +1798,22 @@ public partial class DaqifiViewModel : ObservableObject
 
     private void ShowUploadSuccessMessage()
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        void ShowDialog()
         {
             var successDialogViewModel =
                 new SuccessDialogViewModel("Firmware update completed successfully.");
             _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
-        });
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            ShowDialog();
+            CloseFlyouts();
+            return;
+        }
+
+        dispatcher.Invoke(ShowDialog);
         CloseFlyouts();
     }
 
@@ -1686,6 +1867,19 @@ public partial class DaqifiViewModel : ObservableObject
             case "ConnectedDevices":
                 ConnectedDevices.Clear();
                 await UpdateConnectedDeviceUI();
+
+                // Unsubscribe channels for devices that are no longer connected.
+                // Covers auto-removal paths (physical unplug, WiFi timeout, serial removed)
+                // that bypass DisconnectDevice and skip its per-channel Unsubscribe loop.
+                var stillConnected = ConnectionManager.Instance.ConnectedDevices
+                    .Select(d => d.DeviceSerialNo)
+                    .ToHashSet();
+                foreach (var orphan in LoggingManager.Instance.SubscribedChannels
+                    .Where(c => !stillConnected.Contains(c.DeviceSerialNo))
+                    .ToList())
+                {
+                    LoggingManager.Instance.Unsubscribe(orphan);
+                }
 
                 GetUpdateProfileAvailableDevice();
                 break;
