@@ -20,6 +20,7 @@ public partial class LoggingManager : ObservableObject
     private static readonly string ProfileSettingsXmlPath = ProfileAppDirectory + "\\DAQifiProfilesConfiguration.xml";
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     private bool _hasActiveApplicationSession;
+    private bool _hasActiveApplicationSamples;
     #endregion
 
     #region Properties
@@ -45,12 +46,23 @@ public partial class LoggingManager : ObservableObject
     {
         if (!newValue && oldValue) // Was active, now stopping
         {
-            if (_hasActiveApplicationSession && Session != null && !LoggingSessions.Any(s => s.ID == Session.ID))
+            if (_hasActiveApplicationSession && Session != null)
             {
-                LoggingSessions.Add(Session);
+                if (_hasActiveApplicationSamples)
+                {
+                    if (!LoggingSessions.Any(s => s.ID == Session.ID))
+                    {
+                        LoggingSessions.Add(Session);
+                    }
+                }
+                else
+                {
+                    DeleteLoggingSessionIfPresent(Session.ID);
+                }
             }
 
             _hasActiveApplicationSession = false;
+            _hasActiveApplicationSamples = false;
         }
         else if (newValue && !oldValue) // Was inactive, now starting
         {
@@ -75,6 +87,7 @@ public partial class LoggingManager : ObservableObject
             if (CurrentMode != LoggingMode.Stream)
             {
                 _hasActiveApplicationSession = false;
+                _hasActiveApplicationSamples = false;
                 return;
             }
 
@@ -89,6 +102,7 @@ public partial class LoggingManager : ObservableObject
             }
 
             _hasActiveApplicationSession = true;
+            _hasActiveApplicationSamples = false;
 
             // Resubscribe channels
             foreach (var channel in SubscribedChannels.ToList())
@@ -420,6 +434,7 @@ public partial class LoggingManager : ObservableObject
             return;
         }
 
+        _hasActiveApplicationSamples = true;
         sample.LoggingSessionID = Session.ID;
 
         // Log channel value to whatever loggers are being managed
@@ -439,6 +454,47 @@ public partial class LoggingManager : ObservableObject
         await versionNotification.CheckForUpdatesAsync();
         OnPropertyChanged("NotificationCount");
         OnPropertyChanged("VersionNumber");
+    }
+
+    public ObservableCollection<LoggingSession> LoadPersistedLoggingSessions()
+    {
+        using var context = _loggingContext.CreateDbContext();
+
+        var emptySessions = context.Sessions
+            .Where(session => !context.Samples.Any(sample => sample.LoggingSessionID == session.ID))
+            .ToList();
+
+        if (emptySessions.Count > 0)
+        {
+            context.Sessions.RemoveRange(emptySessions);
+            context.SaveChanges();
+        }
+
+        return new ObservableCollection<LoggingSession>(
+            context.Sessions
+                .AsNoTracking()
+                .Where(session => context.Samples.Any(sample => sample.LoggingSessionID == session.ID))
+                .OrderBy(session => session.ID)
+                .ToList());
+    }
+
+    private void DeleteLoggingSessionIfPresent(int sessionId)
+    {
+        var existingSession = LoggingSessions.FirstOrDefault(session => session.ID == sessionId);
+        if (existingSession != null)
+        {
+            LoggingSessions.Remove(existingSession);
+        }
+
+        using var context = _loggingContext.CreateDbContext();
+        var persistedSession = context.Sessions.Find(sessionId);
+        if (persistedSession == null)
+        {
+            return;
+        }
+
+        context.Sessions.Remove(persistedSession);
+        context.SaveChanges();
     }
 
     private void ClearChannelList()

@@ -411,22 +411,9 @@ public partial class DaqifiViewModel : ObservableObject
                     SummaryLogger = new SummaryLogger();
                     LoggingManager.Instance.AddLogger(SummaryLogger);
 
-                    using (var context = loggingContext.CreateDbContext())
+                    if (LoggingManager.Instance.LoggingSessions == null || !LoggingManager.Instance.LoggingSessions.Any())
                     {
-                        var savedLoggingSessions = new ObservableCollection<LoggingSession>();
-                        var previousSampleSessions = (from s in context.Sessions select s).ToList();
-                        foreach (var session in previousSampleSessions)
-                        {
-                            if (!savedLoggingSessions.Any(ls => ls.ID == session.ID))
-                            {
-                                savedLoggingSessions.Add(session);
-                            }
-                        }
-
-                        if (LoggingManager.Instance.LoggingSessions == null || !LoggingManager.Instance.LoggingSessions.Any())
-                        {
-                            LoggingManager.Instance.LoggingSessions = savedLoggingSessions;
-                        }
+                        LoggingManager.Instance.LoggingSessions = LoggingManager.Instance.LoadPersistedLoggingSessions();
                     }
 
                     // Configure default grid lines
