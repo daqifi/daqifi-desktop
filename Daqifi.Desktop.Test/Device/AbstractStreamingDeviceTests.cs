@@ -271,9 +271,9 @@ public class AbstractStreamingDeviceTests
         // Assert
         Assert.IsFalse(device.IsStreaming, "Desktop streaming state should be reset before delegating to Core.");
         Assert.AreEqual(
-            $"desktop:{ScpiMessageProducer.StopStreaming.Data}",
+            $"core:{ScpiMessageProducer.StopStreaming.Data}",
             device.SentCommands[0],
-            "Desktop should stop its own streaming session before handing off to Core.");
+            "StopStreaming should be the first command sent via the Core layer.");
         Assert.IsTrue(
             device.SentCommands.Contains($"core:{ScpiMessageProducer.SetNetworkWifiModeExisting.Data}"),
             "Core should own the network configuration command sequence.");
