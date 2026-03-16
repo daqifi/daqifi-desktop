@@ -1,3 +1,5 @@
+using System.IO;
+
 namespace Daqifi.Desktop.Models;
 
 public class SdCardFile
@@ -18,4 +20,15 @@ public class SdCardFile
     public string CreatedDateDisplay => CreatedDate == DateTime.MinValue
         ? "Unknown"
         : CreatedDate.ToString("g");
+
+    /// <summary>
+    /// Gets a user-facing format label based on the file extension.
+    /// </summary>
+    public string FormatDisplay => Path.GetExtension(FileName)?.ToLowerInvariant() switch
+    {
+        ".bin" => "Protobuf",
+        ".json" => "JSON",
+        ".csv" => "CSV",
+        _ => "Unknown"
+    };
 }

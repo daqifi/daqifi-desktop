@@ -30,6 +30,7 @@ using System.IO.Ports;
 using Application = System.Windows.Application;
 using File = System.IO.File;
 using CommunityToolkit.Mvvm.Input;
+using Daqifi.Core.Device.SdCard;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -122,6 +123,7 @@ public partial class DaqifiViewModel : ObservableObject
     private ConnectionDialogViewModel _connectionDialogViewModel;
     private string _selectedLoggingMode = "Stream to App";
     private bool _isLogToDeviceMode;
+    private SdCardLogFormat _selectedSdCardLogFormat = SdCardLogFormat.Protobuf;
     private IStreamingDevice? _deviceBeingUpdated;
     #endregion
 
@@ -343,6 +345,23 @@ public partial class DaqifiViewModel : ObservableObject
             if (_isLogToDeviceMode != value)
             {
                 _isLogToDeviceMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public SdCardLogFormat SelectedSdCardLogFormat
+    {
+        get => _selectedSdCardLogFormat;
+        set
+        {
+            if (_selectedSdCardLogFormat != value)
+            {
+                _selectedSdCardLogFormat = value;
+                foreach (var device in ConnectedDevices)
+                {
+                    device.SdCardLogFormat = value;
+                }
                 OnPropertyChanged();
             }
         }
@@ -1192,7 +1211,7 @@ public partial class DaqifiViewModel : ObservableObject
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = "SD Card Log Files (*.bin)|*.bin|All Files (*.*)|*.*",
+                Filter = "SD Card Log Files (*.bin;*.json;*.csv)|*.bin;*.json;*.csv|Protobuf (*.bin)|*.bin|JSON (*.json)|*.json|CSV (*.csv)|*.csv|All Files (*.*)|*.*",
                 Title = "Select SD Card Log File to Import"
             };
 
@@ -1890,6 +1909,9 @@ public partial class DaqifiViewModel : ObservableObject
             }
 
             ConnectedDevices.Add(connectedDevice);
+
+            // Sync SD card log format so newly connected devices match the UI selection
+            connectedDevice.SdCardLogFormat = _selectedSdCardLogFormat;
 
             // Subscribe to debug events if this is a streaming device
             if (connectedDevice is AbstractStreamingDevice streamingDevice)

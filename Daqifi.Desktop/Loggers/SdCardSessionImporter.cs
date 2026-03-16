@@ -32,8 +32,7 @@ public class SdCardSessionImporter
         CancellationToken ct = default)
     {
         _logger.Information($"Starting file import from '{Path.GetFileName(filePath)}'");
-        var parser = new SdCardFileParser();
-        var logSession = await parser.ParseFileAsync(filePath, null, ct);
+        var logSession = await SdCardFileParserFactory.ParseFileAsync(filePath, null, ct);
         return await ImportSessionAsync(logSession, options, progress, ct);
     }
 
@@ -48,8 +47,7 @@ public class SdCardSessionImporter
         CancellationToken ct = default)
     {
         _logger.Information($"Starting stream import for '{fileName}'");
-        var parser = new SdCardFileParser();
-        var logSession = await parser.ParseAsync(stream, fileName, null, ct);
+        var logSession = await SdCardFileParserFactory.ParseAsync(stream, fileName, null, ct);
         return await ImportSessionAsync(logSession, options, progress, ct);
     }
 
@@ -118,11 +116,10 @@ public class SdCardSessionImporter
                     $"AnalogPorts={deviceConfig.AnalogPortCount}, DigitalPorts={deviceConfig.DigitalPortCount}");
             }
 
-            var parser = new SdCardFileParser();
             await using var fileStream = new FileStream(
                 downloadResult.FilePath, FileMode.Open, FileAccess.Read,
                 FileShare.Read, 65536, useAsync: true);
-            var logSession = await parser.ParseAsync(
+            var logSession = await SdCardFileParserFactory.ParseAsync(
                 fileStream, downloadResult.FileName, parseOptions, ct);
             var session = await ImportSessionAsync(logSession, options, progress, ct);
 
