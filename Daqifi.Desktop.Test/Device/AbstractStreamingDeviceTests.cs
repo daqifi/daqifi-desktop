@@ -264,6 +264,7 @@ public class AbstractStreamingDeviceTests
             "TestNetwork",
             "TestPassword");
         device.IsStreaming = true;
+        device.SetCoreStreaming();
 
         // Act
         await device.UpdateNetworkConfiguration();
@@ -757,6 +758,17 @@ public class AbstractStreamingDeviceTests
         protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
 
         protected override CoreStreamingDevice? CoreDeviceForStreaming => _coreDevice;
+
+        /// <summary>
+        /// Puts the Core device into the streaming state and clears recorded commands,
+        /// so that subsequent stop-streaming calls flow through the Core layer correctly.
+        /// </summary>
+        public void SetCoreStreaming()
+        {
+            _coreDevice.StreamingFrequency = 1;
+            _coreDevice.StartStreaming();
+            SentCommands.Clear();
+        }
 
         public override bool Connect() => true;
 
