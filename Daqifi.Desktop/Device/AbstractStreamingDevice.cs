@@ -86,6 +86,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public DeviceMode Mode { get; private set; } = DeviceMode.StreamToApp;
 
+    public SdCardLogFormat SdCardLogFormat { get; set; } = SdCardLogFormat.Protobuf;
+
     public bool IsLoggingToSdCard { get; private set; }
 
     public IReadOnlyList<SdCardFile> SdCardFiles => _sdCardFiles.AsReadOnly();
@@ -472,7 +474,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             // The Core package resumes StartSdCardLoggingAsync continuations on the caller's
             // synchronization context. Running it on the thread pool prevents UI deadlocks.
             var channelMaskString = Convert.ToString((long)analogChannelMask, 2);
-            Task.Run(() => coreDevice.StartSdCardLoggingAsync(channelMask: channelMaskString)).GetAwaiter().GetResult();
+            Task.Run(() => coreDevice.StartSdCardLoggingAsync(channelMask: channelMaskString, format: SdCardLogFormat)).GetAwaiter().GetResult();
 
             IsLoggingToSdCard = coreDevice.IsLoggingToSdCard;
             IsStreaming = true; // We're streaming to SD card
@@ -626,8 +628,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return false;
         }
 
-        var normalizedName = Path.GetFileName(fileName);
-        return normalizedName.EndsWith(".bin", StringComparison.OrdinalIgnoreCase);
+        var extension = Path.GetExtension(fileName);
+        return extension.Equals(".bin", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".json", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".csv", StringComparison.OrdinalIgnoreCase);
     }
 
     public void InitializeStreaming()

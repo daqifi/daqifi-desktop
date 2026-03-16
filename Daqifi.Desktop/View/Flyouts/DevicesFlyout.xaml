@@ -10,6 +10,7 @@
              xmlns:controls="http://metro.mahapps.com/winfx/xaml/controls"
              xmlns:local="clr-namespace:Daqifi.Desktop.Converters"
              xmlns:converters="clr-namespace:Daqifi.Desktop.Converters"
+             xmlns:sdCard="clr-namespace:Daqifi.Core.Device.SdCard;assembly=Daqifi.Core"
              mc:Ignorable="d" 
              d:DataContext="{d:DesignInstance Type=vm:DaqifiViewModel}"
              Position="Right"
@@ -32,6 +33,11 @@
         <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="{StaticResource HeaderBackgroundColor}"/>
         
         <!-- Data Providers -->
+        <ObjectDataProvider MethodName="GetValues" ObjectType="{x:Type sys:Enum}" x:Key="SdCardLogFormats">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="sdCard:SdCardLogFormat" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
         <ObjectDataProvider MethodName="GetValues" ObjectType="{x:Type sys:Enum}" x:Key="WifiModes">
             <ObjectDataProvider.MethodParameters>
                 <x:Type TypeName="networkDataModel:WifiMode" />
@@ -411,7 +417,16 @@
                                    Value="{Binding SelectedDevice.StreamingFrequency, Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <!-- Data Format section removed since we only support Protobuf now -->
+                        <!-- Data Format (visible only when logging to device) -->
+                        <TextBlock Text="DATA FORMAT"
+                                 Style="{StaticResource SectionHeaderStyle}"
+                                 Margin="0,0,0,10"
+                                 Visibility="{Binding IsLogToDeviceMode, Converter={StaticResource BoolToVis}}"/>
+                        <ComboBox Style="{StaticResource ComboBoxStyle}"
+                                 Margin="0,0,0,20"
+                                 ItemsSource="{Binding Source={StaticResource SdCardLogFormats}}"
+                                 SelectedItem="{Binding SelectedSdCardLogFormat, Mode=TwoWay}"
+                                 Visibility="{Binding IsLogToDeviceMode, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
