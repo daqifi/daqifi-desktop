@@ -756,6 +756,8 @@ public class AbstractStreamingDeviceTests
 
         protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
 
+        protected override CoreStreamingDevice? CoreDeviceForStreaming => _coreDevice;
+
         public override bool Connect() => true;
 
         public override bool Disconnect() => true;
