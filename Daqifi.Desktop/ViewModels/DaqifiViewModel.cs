@@ -5,6 +5,7 @@ using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Models;
 using Daqifi.Desktop.UpdateVersion;
 using Daqifi.Desktop.View;
@@ -1182,6 +1183,60 @@ public partial class DaqifiViewModel : ObservableObject
 
         var exportDialogViewModel = new ExportDialogViewModel(LoggingSessions);
         _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
+    }
+
+    [RelayCommand]
+    private async Task ImportSdCardLogFile()
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "SD Card Log Files (*.bin)|*.bin|All Files (*.*)|*.*",
+                Title = "Select SD Card Log File to Import"
+            };
+
+            if (dialog.ShowDialog() != true) return;
+
+            IsLoggedDataBusy = true;
+            LoggedDataBusyReason = $"Importing {System.IO.Path.GetFileName(dialog.FileName)}...";
+
+            var loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+            var importer = new SdCardSessionImporter(loggingContext);
+
+            var progress = new Progress<ImportProgress>(p =>
+            {
+                LoggedDataBusyReason = $"Importing... {p.SamplesProcessed:N0} samples";
+            });
+
+            var session = await Task.Run(() =>
+                importer.ImportFromFileAsync(dialog.FileName, null, progress, CancellationToken.None));
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                LoggingManager.Instance.LoggingSessions.Add(session);
+            });
+
+            await ShowMessage("Import Complete",
+                $"Successfully imported {System.IO.Path.GetFileName(dialog.FileName)}",
+                MessageDialogStyle.Affirmative);
+        }
+        catch (OperationCanceledException)
+        {
+            // User cancelled — do nothing
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, "Error importing SD card log file");
+            await ShowMessage("Import Failed",
+                "Failed to import the selected file. Please verify the file is a valid SD card log file and try again.",
+                MessageDialogStyle.Affirmative);
+        }
+        finally
+        {
+            IsLoggedDataBusy = false;
+            LoggedDataBusyReason = string.Empty;
+        }
     }
 
     private async Task DeleteLoggingSessionAsync(LoggingSession? session)

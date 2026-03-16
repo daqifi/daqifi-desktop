@@ -7,14 +7,14 @@
 	<PropertyGroup>
 		<AssemblyVersion>3.0.0.0</AssemblyVersion>
 		<FileVersion>3.0.0.0</FileVersion>
-		</PropertyGroup>
-		<ItemGroup>
-			<PackageReference Include="System.IO.Ports" Version="10.0.5" />
-			<PackageReference Include="Daqifi.Core" Version="0.19.1" />
-			<PackageReference Include="Google.Protobuf" Version="3.34.0" />
-			<PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
-				<PrivateAssets>all</PrivateAssets>
-				<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="System.IO.Ports" Version="10.0.5" />
+		<PackageReference Include="Daqifi.Core" Version="0.19.2" />
+		<PackageReference Include="Google.Protobuf" Version="3.34.0" />
+		<PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 	</ItemGroup>
 	<ItemGroup>

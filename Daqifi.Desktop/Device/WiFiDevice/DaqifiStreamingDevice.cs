@@ -24,6 +24,7 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     public bool IsPowerOn { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
     public override bool IsConnected => _coreDevice?.IsConnected == true;
+    protected override CoreStreamingDevice? CoreDeviceForStreaming => _coreDevice;
     protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
 
     #endregion
@@ -75,7 +76,14 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 InitializeDevice = false
             };
 
-            _coreDevice = (CoreStreamingDevice)DaqifiDeviceFactory.ConnectTcp(IpAddress, Port, options);
+            var connectedDevice = DaqifiDeviceFactory.ConnectTcp(IpAddress, Port, options);
+            _coreDevice = connectedDevice as CoreStreamingDevice;
+            if (_coreDevice == null)
+            {
+                connectedDevice.Dispose();
+                throw new InvalidOperationException("Connected Core device does not support streaming operations.");
+            }
+
             if (!_coreDevice.IsConnected)
             {
                 AppLogger.Error($"Failed to connect to DAQiFi device at {IpAddress}:{Port}");

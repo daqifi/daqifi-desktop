@@ -49,6 +49,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     public override bool IsConnected => _coreDevice?.IsConnected == true;
 
     protected override CoreStreamingDevice? CoreDeviceForSd => _coreDevice;
+    protected override CoreStreamingDevice? CoreDeviceForStreaming => _coreDevice;
     protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
     #endregion
 

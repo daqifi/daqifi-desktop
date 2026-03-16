@@ -1,6 +1,7 @@
 ﻿using Daqifi.Desktop.Channel;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using Daqifi.Core.Device.Network;
+using Daqifi.Core.Device.SdCard;
 using Daqifi.Desktop.Models;
 
 namespace Daqifi.Desktop.Device;
@@ -38,6 +39,12 @@ public interface IStreamingDevice : IDevice
     void RefreshSdCardFiles();
     void UpdateSdCardFiles(List<SdCardFile> files);
     string DevicePartNumber { get; }
+
+    /// <summary>
+    /// Gets the device's hardware timestamp clock frequency in Hz.
+    /// Used as a fallback when parsing SD card files that lack this field.
+    /// </summary>
+    uint TimestampFrequency { get; }
     NetworkConfiguration NetworkConfiguration { get; }
     string MacAddress { get; set; }
     string DeviceSerialNo { get; set; }
@@ -77,4 +84,17 @@ public interface IStreamingDevice : IDevice
     void SetChannelDirection(IChannel channel, ChannelDirection direction);
 
     Task UpdateNetworkConfiguration();
+
+    /// <summary>
+    /// Downloads a file from the device's SD card over USB to a temporary file.
+    /// </summary>
+    Task<SdCardDownloadResult> DownloadSdCardFileAsync(
+        string fileName,
+        IProgress<SdCardTransferProgress>? progress = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Deletes a file from the device's SD card.
+    /// </summary>
+    Task DeleteSdCardFileAsync(string fileName, CancellationToken ct = default);
 }

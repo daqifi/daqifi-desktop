@@ -671,6 +671,15 @@
                                                             <iconPacks:PackIconMaterial Kind="DownloadCircleOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
                                                         </Button.Content>
                                                     </Button>
+                                                    <!-- Import SD Log File -->
+                                                    <Button Name="ImportSdLogFileButton" DockPanel.Dock="Left" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.ImportSdCardLogFileCommand}" Background="#88FFFFFF" ToolTip="Import SD Card Log File" Padding="5">
+                                                        <Button.Content>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <iconPacks:PackIconMaterial Kind="Import" HorizontalAlignment="Center" Height="20" Width="20" Margin="0,0,5,0"/>
+                                                                <TextBlock Text="Import .bin File" VerticalAlignment="Center"/>
+                                                            </StackPanel>
+                                                        </Button.Content>
+                                                    </Button>
                                                 </DockPanel>
                                                 <Border Name="EmptyLoggingSessionListLabel" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                                                     <Label HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalAlignment="Stretch" VerticalContentAlignment="Center">

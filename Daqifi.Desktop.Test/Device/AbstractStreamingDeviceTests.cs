@@ -264,6 +264,7 @@ public class AbstractStreamingDeviceTests
             "TestNetwork",
             "TestPassword");
         device.IsStreaming = true;
+        device.SetCoreStreaming();
 
         // Act
         await device.UpdateNetworkConfiguration();
@@ -271,9 +272,9 @@ public class AbstractStreamingDeviceTests
         // Assert
         Assert.IsFalse(device.IsStreaming, "Desktop streaming state should be reset before delegating to Core.");
         Assert.AreEqual(
-            $"desktop:{ScpiMessageProducer.StopStreaming.Data}",
+            $"core:{ScpiMessageProducer.StopStreaming.Data}",
             device.SentCommands[0],
-            "Desktop should stop its own streaming session before handing off to Core.");
+            "StopStreaming should be the first command sent via the Core layer.");
         Assert.IsTrue(
             device.SentCommands.Contains($"core:{ScpiMessageProducer.SetNetworkWifiModeExisting.Data}"),
             "Core should own the network configuration command sequence.");
@@ -755,6 +756,19 @@ public class AbstractStreamingDeviceTests
         public override ConnectionType ConnectionType => _connectionType;
 
         protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
+
+        protected override CoreStreamingDevice? CoreDeviceForStreaming => _coreDevice;
+
+        /// <summary>
+        /// Puts the Core device into the streaming state and clears recorded commands,
+        /// so that subsequent stop-streaming calls flow through the Core layer correctly.
+        /// </summary>
+        public void SetCoreStreaming()
+        {
+            _coreDevice.StreamingFrequency = 1;
+            _coreDevice.StartStreaming();
+            SentCommands.Clear();
+        }
 
         public override bool Connect() => true;
 
