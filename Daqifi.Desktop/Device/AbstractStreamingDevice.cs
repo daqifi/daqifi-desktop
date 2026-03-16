@@ -512,6 +512,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
+    /// <summary>
+    /// Refreshes the list of SD card log files from the connected USB device.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown when the device is not connected via USB or SD operations cannot be performed.</exception>
     public void RefreshSdCardFiles()
     {
         if (ConnectionType != ConnectionType.Usb)
@@ -526,6 +530,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         UpdateSdCardFiles(MapSdCardFiles(files));
     }
 
+    /// <summary>
+    /// Replaces the current SD card file list and raises a property change notification.
+    /// </summary>
     public void UpdateSdCardFiles(List<SdCardFile> files)
     {
         _sdCardFiles = files;
@@ -543,6 +550,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         return coreDevice;
     }
 
+    /// <summary>
+    /// Downloads an SD card log file from the connected device to a local temp path.
+    /// </summary>
+    /// <param name="fileName">The name of the file on the SD card.</param>
+    /// <param name="progress">Optional progress reporter for transfer updates.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="InvalidOperationException">Thrown when streaming or SD logging is active.</exception>
     public async Task<SdCardDownloadResult> DownloadSdCardFileAsync(
         string fileName,
         IProgress<SdCardTransferProgress>? progress = null,
@@ -554,6 +568,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         return await coreDevice.DownloadSdCardFileAsync(fileName, progress, ct);
     }
 
+    /// <summary>
+    /// Deletes an SD card log file from the connected device.
+    /// </summary>
+    /// <param name="fileName">The name of the file to delete.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="InvalidOperationException">Thrown when streaming or SD logging is active.</exception>
     public async Task DeleteSdCardFileAsync(string fileName, CancellationToken ct = default)
     {
         EnsureSdOperationsQuiesced();

@@ -144,7 +144,7 @@ public class SdCardSessionImporter
                 }
                 catch (Exception ex)
                 {
-                    _logger.Warning($"Failed to clean up temp file '{downloadResult.FilePath}': {ex.Message}");
+                    _logger.Warning($"Failed to clean up temp file '{downloadResult.FilePath}': {ex}");
                 }
             }
         }
