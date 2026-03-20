@@ -579,10 +579,9 @@ public class AbstractStreamingDeviceTests
             1,
             device.SentCommands.Count(command => command == $"desktop:{ScpiMessageProducer.EnableDioPorts().Data}"),
             "Desktop should enable digital ports once before starting SD logging.");
-        CollectionAssert.DoesNotContain(
-            device.SentCommands,
-            $"desktop:{ScpiMessageProducer.EnableAdcChannels("1").Data}",
-            "Desktop should not send per-channel analog enable commands during SD logging startup.");
+        Assert.IsFalse(
+            device.SentCommands.Any(c => c.StartsWith("desktop:") && c.Contains("ENAble:VOLTage:DC")),
+            "Desktop should not send any EnableAdcChannels commands — Core handles this via the channelMask parameter.");
         CollectionAssert.Contains(
             device.SentCommands,
             $"core:{ScpiMessageProducer.EnableAdcChannels("10101").Data}",
@@ -590,20 +589,16 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
-    public void SwitchMode_WhenEnteringLogToDevice_SetsSdCardStreamInterface()
+    public void SwitchMode_WhenEnteringLogToDevice_DoesNotSendInterfaceCommands()
     {
+        // Core's StartSdCardLoggingAsync now handles SD interface setup,
+        // so SwitchMode should not eagerly send these commands.
         var device = new TestStreamingDevice();
 
         device.SwitchMode(DeviceMode.LogToDevice);
 
-        CollectionAssert.AreEqual(
-            new[]
-            {
-                ScpiMessageProducer.DisableNetworkLan.Data,
-                ScpiMessageProducer.EnableStorageSd.Data,
-                ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data
-            },
-            device.SentCommands);
+        Assert.AreEqual(0, device.SentCommands.Count,
+            "No commands should be sent when switching to LogToDevice — Core handles SD interface setup at logging start.");
     }
 
     [TestMethod]
