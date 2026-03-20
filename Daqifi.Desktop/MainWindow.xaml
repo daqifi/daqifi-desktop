@@ -676,7 +676,7 @@
                                                         <Button.Content>
                                                             <StackPanel Orientation="Horizontal">
                                                                 <iconPacks:PackIconMaterial Kind="Import" HorizontalAlignment="Center" Height="20" Width="20" Margin="0,0,5,0"/>
-                                                                <TextBlock Text="Import .bin File" VerticalAlignment="Center"/>
+                                                                <TextBlock Text="Import SD Log" VerticalAlignment="Center"/>
                                                             </StackPanel>
                                                         </Button.Content>
                                                     </Button>

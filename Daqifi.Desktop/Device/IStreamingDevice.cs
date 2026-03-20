@@ -33,6 +33,11 @@ public interface IStreamingDevice : IDevice
     bool IsLoggingToSdCard { get; }
     IReadOnlyList<SdCardFile> SdCardFiles { get; }
 
+    /// <summary>
+    /// Gets or sets the SD card logging format used when starting SD card logging.
+    /// </summary>
+    SdCardLogFormat SdCardLogFormat { get; set; }
+
     void SwitchMode(DeviceMode newMode);
     void StartSdCardLogging();
     void StopSdCardLogging();
