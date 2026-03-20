@@ -358,7 +358,7 @@ public partial class DaqifiViewModel : ObservableObject
             if (_selectedSdCardLogFormat != value)
             {
                 _selectedSdCardLogFormat = value;
-                foreach (var device in ConnectedDevices)
+                foreach (var device in ConnectedDevices.ToList())
                 {
                     device.SdCardLogFormat = value;
                 }
