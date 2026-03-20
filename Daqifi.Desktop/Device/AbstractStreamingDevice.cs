@@ -418,7 +418,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 PrepareLanInterface();
                 break;
             case DeviceMode.LogToDevice:
-                PrepareSdInterface();
+                // Core's StartSdCardLoggingAsync handles the SD interface setup
+                // (DisableNetworkLan, EnableStorageSd, SetStreamInterface).
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -441,8 +442,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         try
         {
-            // Enable active channels — build a single bitmask for all analog channels
-            // (each EnableAdcChannels call replaces the previous setting, so we must send all at once)
+            // Build channel bitmask — Core's StartSdCardLoggingAsync sends EnableAdcChannels
             var analogChannelMask = 0u;
             var hasDigitalChannels = false;
 
@@ -458,15 +458,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 }
             }
 
+            // Core doesn't handle DIO enable yet, so desktop still sends this directly
             SendMessage(hasDigitalChannels
                 ? ScpiMessageProducer.EnableDioPorts()
                 : ScpiMessageProducer.DisableDioPorts());
-
-            if (analogChannelMask != 0)
-            {
-                SendMessage(ScpiMessageProducer.EnableAdcChannels(
-                    analogChannelMask.ToString(CultureInfo.InvariantCulture)));
-            }
 
             var coreDevice = GetCoreDeviceForSd();
             coreDevice.StreamingFrequency = StreamingFrequency;
