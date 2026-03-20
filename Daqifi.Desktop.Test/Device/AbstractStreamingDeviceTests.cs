@@ -580,8 +580,10 @@ public class AbstractStreamingDeviceTests
             device.SentCommands.Count(command => command == $"desktop:{ScpiMessageProducer.EnableDioPorts().Data}"),
             "Desktop should enable digital ports once before starting SD logging.");
         Assert.IsFalse(
-            device.SentCommands.Any(c => c.StartsWith("desktop:") && c.Contains("ENAble:VOLTage:DC")),
-            "Desktop should not send any EnableAdcChannels commands — Core handles this via the channelMask parameter.");
+            device.SentCommands.Any(c =>
+                c.StartsWith("desktop:") && c.Contains("ENAble:VOLTage:DC")),
+            "Desktop should not send any EnableAdcChannels commands — " +
+            "Core handles this via the channelMask parameter.");
         CollectionAssert.Contains(
             device.SentCommands,
             $"core:{ScpiMessageProducer.EnableAdcChannels("10101").Data}",
@@ -598,7 +600,8 @@ public class AbstractStreamingDeviceTests
         device.SwitchMode(DeviceMode.LogToDevice);
 
         Assert.AreEqual(0, device.SentCommands.Count,
-            "No commands should be sent when switching to LogToDevice — Core handles SD interface setup at logging start.");
+            "No commands should be sent when switching to LogToDevice — " +
+            "Core handles SD interface setup at logging start.");
     }
 
     [TestMethod]
@@ -854,6 +857,8 @@ public class AbstractStreamingDeviceTests
 
     private sealed class RecordingCoreStreamingDevice(List<string> sentCommands, string? throwOnCommandData) : CoreStreamingDevice("TestDevice")
     {
+        public override bool IsUsbConnection => true;
+
         public override void Send<T>(IOutboundMessage<T> message)
         {
             if (message is IOutboundMessage<string> stringMessage)
