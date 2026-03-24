@@ -1,32 +1,32 @@
-# Set default behavior to automatically normalize line endings to CRLF
-* text=auto eol=crlf
+# Set default behavior to automatically normalize line endings to LF
+* text=auto eol=lf
 
 # Explicitly declare text files you want to always be normalized and converted
 # to native line endings on checkout.
-*.cs text eol=crlf
-*.xaml text eol=crlf
-*.xml text eol=crlf
-*.json text eol=crlf
-*.md text eol=crlf
-*.txt text eol=crlf
-*.yml text eol=crlf
-*.yaml text eol=crlf
-*.sln text eol=crlf
-*.csproj text eol=crlf
-*.props text eol=crlf
-*.targets text eol=crlf
-*.config text eol=crlf
-*.resx text eol=crlf
-*.settings text eol=crlf
-*.manifest text eol=crlf
-*.rc text eol=crlf
-*.def text eol=crlf
+*.cs text eol=lf
+*.xaml text eol=lf
+*.xml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sln text eol=lf
+*.csproj text eol=lf
+*.props text eol=lf
+*.targets text eol=lf
+*.config text eol=lf
+*.resx text eol=lf
+*.settings text eol=lf
+*.manifest text eol=lf
+*.rc text eol=lf
+*.def text eol=lf
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
 *.sh text eol=lf
-*.gitignore text eol=crlf
-*.gitattributes text eol=crlf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
 
 # Denote all files that are truly binary and should not be modified.
 *.png binary
@@ -57,6 +57,6 @@ Makefile text eol=lf
 makefile text eol=lf
 *.mk text eol=lf
 
-# Note: We intentionally use eol=crlf as the default (line 2) rather than auto
-# because this is a Windows desktop application (.NET/WPF) and we want consistent
-# CRLF line endings across all development environments (Windows, WSL, etc.)
+# Note: We intentionally use LF as the default (line 2) because the team develops
+# primarily on macOS and automation tooling is less error-prone with LF-normalized
+# text files. Windows-native shell scripts remain CRLF where that convention helps.
