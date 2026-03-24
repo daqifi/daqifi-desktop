@@ -6,7 +6,6 @@ using System.Text;
 using Daqifi.Desktop.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.ComponentModel;
 
 namespace Daqifi.Desktop.Exporter;
 
@@ -33,7 +32,7 @@ public class OptimizedLoggingSessionExporter
         _loggingContext = loggingContext;
     }
 
-    public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
+    public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool exportRelativeTime, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
         try
         {
@@ -41,12 +40,12 @@ public class OptimizedLoggingSessionExporter
             if (loggingSession.DataSamples?.Any() == true)
             {
                 // Use optimized in-memory processing for test scenarios
-                ExportFromMemory(loggingSession, filepath, exportRelativeTime, bw, sessionIndex, totalSessions);
+                ExportFromMemory(loggingSession, filepath, exportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
             }
             else if (_loggingContext != null)
             {
                 // Use database streaming for production scenarios
-                ExportFromDatabase(loggingSession, filepath, exportRelativeTime, bw, sessionIndex, totalSessions);
+                ExportFromDatabase(loggingSession, filepath, exportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
             }
             else
             {
@@ -59,7 +58,7 @@ public class OptimizedLoggingSessionExporter
         }
     }
 
-    private void ExportFromMemory(LoggingSession loggingSession, string filepath, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
+    private void ExportFromMemory(LoggingSession loggingSession, string filepath, bool exportRelativeTime, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
         var channelNames = loggingSession.DataSamples
             .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
@@ -80,10 +79,10 @@ public class OptimizedLoggingSessionExporter
         WriteHeaderToWriter(writer, channelNames, exportRelativeTime);
 
         // Process data without creating intermediate collections
-        WriteMemoryDataDirectly(writer, loggingSession.DataSamples, channelNames, firstTimestamp, exportRelativeTime, bw, sessionIndex, totalSessions);
+        WriteMemoryDataDirectly(writer, loggingSession.DataSamples, channelNames, firstTimestamp, exportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
     }
 
-    private void ExportFromDatabase(LoggingSession loggingSession, string filepath, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
+    private void ExportFromDatabase(LoggingSession loggingSession, string filepath, bool exportRelativeTime, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
         // Get channel names and basic info without loading all data
         var channelInfo = GetChannelInfoFromDatabase(loggingSession);
@@ -96,7 +95,7 @@ public class OptimizedLoggingSessionExporter
         WriteHeader(filepath, channelInfo.channelNames, exportRelativeTime);
 
         // Process data in streaming fashion using database queries
-        StreamDataToFile(loggingSession, filepath, channelInfo, exportRelativeTime, bw, sessionIndex, totalSessions);
+        StreamDataToFile(loggingSession, filepath, channelInfo, exportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
     }
 
     private (List<string> channelNames, bool hasTimestamps, int samplesCount, long firstTimestamp) GetChannelInfoFromDatabase(LoggingSession loggingSession)
@@ -143,7 +142,7 @@ public class OptimizedLoggingSessionExporter
     }
 
     private void WriteMemoryDataDirectly(StreamWriter writer, ICollection<DataSample> dataSamples, List<string> channelNames,
-        long firstTimestamp, bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
+        long firstTimestamp, bool exportRelativeTime, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
         var sb = new StringBuilder(1024 * 4);
         var processedSamples = 0;
@@ -157,7 +156,7 @@ public class OptimizedLoggingSessionExporter
 
         foreach (var sample in orderedSamples)
         {
-            if (bw.CancellationPending)
+            if (cancellationToken.IsCancellationRequested)
             {
                 _appLogger.Warning("Export operation cancelled by user.");
                 return;
@@ -175,7 +174,7 @@ public class OptimizedLoggingSessionExporter
                 {
                     var sessionProgress = Math.Min(100, (int)((double)processedSamples / totalSamples * 100));
                     var overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
-                    bw.ReportProgress(overallProgress, "Exporting");
+                    progress?.Report(overallProgress);
                 }
 
                 timestampBucket.Clear();
@@ -193,7 +192,7 @@ public class OptimizedLoggingSessionExporter
 
             // Final progress update
             var finalProgress = (int)((sessionIndex + 1.0) * (100.0 / totalSessions));
-            bw.ReportProgress(finalProgress, "Exporting");
+            progress?.Report(finalProgress);
         }
     }
 
@@ -246,7 +245,7 @@ public class OptimizedLoggingSessionExporter
 
     private void StreamDataToFile(LoggingSession loggingSession, string filepath,
         (List<string> channelNames, bool hasTimestamps, int samplesCount, long firstTimestamp) channelInfo,
-        bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
+        bool exportRelativeTime, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
         using var context = _loggingContext.CreateDbContext();
         context.ChangeTracker.AutoDetectChangesEnabled = false;
@@ -259,7 +258,7 @@ public class OptimizedLoggingSessionExporter
 
         while (processedSamples < channelInfo.samplesCount)
         {
-            if (bw.CancellationPending)
+            if (cancellationToken.IsCancellationRequested)
             {
                 _appLogger.Warning("Export operation cancelled by user.");
                 return;
@@ -282,7 +281,7 @@ public class OptimizedLoggingSessionExporter
             // Process each timestamp completely to maintain data integrity
             foreach (var timestamp in timestampBatch)
             {
-                if (bw.CancellationPending)
+                if (cancellationToken.IsCancellationRequested)
                 {
                     _appLogger.Warning("Export operation cancelled by user.");
                     return;
@@ -306,7 +305,7 @@ public class OptimizedLoggingSessionExporter
             // Update progress
             var sessionProgress = Math.Min(100, (int)((double)processedSamples / channelInfo.samplesCount * 100));
             var overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
-            bw.ReportProgress(overallProgress, loggingSession.Name);
+            progress?.Report(overallProgress);
         }
     }
 
@@ -345,7 +344,7 @@ public class OptimizedLoggingSessionExporter
 
 
     public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity,
-        bool exportRelativeTime, BackgroundWorker bw, int sessionIndex, int totalSessions)
+        bool exportRelativeTime, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
         try
         {
@@ -376,7 +375,7 @@ public class OptimizedLoggingSessionExporter
             writer.WriteLine();
 
             // Stream and process averages in batches
-            StreamAverageData(context, session.ID, writer, channelNames, averageQuantity, exportRelativeTime, bw, sessionIndex, totalSessions);
+            StreamAverageData(context, session.ID, writer, channelNames, averageQuantity, exportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
         }
         catch (Exception ex)
         {
@@ -386,7 +385,7 @@ public class OptimizedLoggingSessionExporter
 
     private void StreamAverageData(LoggingContext context, int sessionId, StreamWriter writer,
         List<string> channelNames, double averageQuantity, bool exportRelativeTime,
-        BackgroundWorker bw, int sessionIndex, int totalSessions)
+        IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
         var tempTotals = channelNames.ToDictionary(name => name, _ => 0.0);
         var tempCounts = channelNames.ToDictionary(name => name, _ => 0);
@@ -452,11 +451,11 @@ public class OptimizedLoggingSessionExporter
                 {
                     var progressPercentage = Math.Min(100, (int)((double)totalProcessed / totalSamples * 100));
                     var overallProgress = (int)((sessionIndex + progressPercentage / 100.0) * (100.0 / totalSessions));
-                    bw.ReportProgress(overallProgress);
+                    progress?.Report(overallProgress);
                 }
             }
 
-            if (bw.CancellationPending)
+            if (cancellationToken.IsCancellationRequested)
                 return;
         }
     }

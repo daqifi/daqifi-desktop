@@ -1,7 +1,6 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
-using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Daqifi.Desktop.Test.Exporter;
@@ -22,22 +21,22 @@ public class OptimizedExporterValidationTests
     {
         var samples = GenerateTestDataset(3, 50);
         var loggingSession = new LoggingSession { ID = 1, DataSamples = samples };
-        
+
         var exportPath = Path.Combine(TestDirectoryPath, "basic_test.csv");
-        var bw = new BackgroundWorker { WorkerReportsProgress = true, WorkerSupportsCancellation = true };
+        var progress = new Progress<int>();
 
         var exporter = new OptimizedLoggingSessionExporter();
-        exporter.ExportLoggingSession(loggingSession, exportPath, false, bw, 0, 1);
+        exporter.ExportLoggingSession(loggingSession, exportPath, false, progress, CancellationToken.None, 0, 1);
 
         // Verify output structure and content
         Assert.IsTrue(File.Exists(exportPath), "Export file should be created");
-        
+
         var content = File.ReadAllText(exportPath);
         Assert.StartsWith("Time,", content, "Should start with time header");
-        
+
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.AreEqual(51, lines.Length); // Header + 50 data rows
-        
+
         Assert.Contains("TestDevice:TEST001:Channel 1", content, "Should contain expected channel names");
     }
 
@@ -46,12 +45,12 @@ public class OptimizedExporterValidationTests
     {
         var samples = GenerateTestDataset(2, 20);
         var loggingSession = new LoggingSession { ID = 1, DataSamples = samples };
-        
+
         var exportPath = Path.Combine(TestDirectoryPath, "relative_time_test.csv");
-        var bw = new BackgroundWorker { WorkerReportsProgress = true, WorkerSupportsCancellation = true };
+        var progress = new Progress<int>();
 
         var exporter = new OptimizedLoggingSessionExporter();
-        exporter.ExportLoggingSession(loggingSession, exportPath, true, bw, 0, 1);
+        exporter.ExportLoggingSession(loggingSession, exportPath, true, progress, CancellationToken.None, 0, 1);
 
         var content = File.ReadAllText(exportPath);
         Assert.StartsWith("Relative Time (s),", content, "Should start with relative time header");
@@ -63,22 +62,22 @@ public class OptimizedExporterValidationTests
     {
         var samples = GenerateTestDataset(8, 2000); // 16,000 samples
         var loggingSession = new LoggingSession { ID = 1, DataSamples = samples };
-        
+
         var exportPath = Path.Combine(TestDirectoryPath, "large_test.csv");
-        var bw = new BackgroundWorker { WorkerReportsProgress = true, WorkerSupportsCancellation = true };
+        var progress = new Progress<int>();
 
         var stopwatch = Stopwatch.StartNew();
         var exporter = new OptimizedLoggingSessionExporter();
-        exporter.ExportLoggingSession(loggingSession, exportPath, false, bw, 0, 1);
+        exporter.ExportLoggingSession(loggingSession, exportPath, false, progress, CancellationToken.None, 0, 1);
         stopwatch.Stop();
 
         Assert.IsTrue(File.Exists(exportPath), "Export file should be created");
-        
+
         var lines = File.ReadAllLines(exportPath);
         Assert.AreEqual(2001, lines.Length); // Header + 2000 data rows
-        
+
         Console.WriteLine($"Large dataset export took: {stopwatch.ElapsedMilliseconds}ms");
-        
+
         // Should be reasonably fast for this size
         Assert.IsLessThan(5000,
 stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5 seconds. Actual: {stopwatch.ElapsedMilliseconds}ms");
@@ -89,15 +88,15 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
     {
         var samples = GenerateNonUniformTestDataset();
         var loggingSession = new LoggingSession { ID = 1, DataSamples = samples };
-        
+
         var exportPath = Path.Combine(TestDirectoryPath, "nonuniform_test.csv");
-        var bw = new BackgroundWorker { WorkerReportsProgress = true, WorkerSupportsCancellation = true };
+        var progress = new Progress<int>();
 
         var exporter = new OptimizedLoggingSessionExporter();
-        exporter.ExportLoggingSession(loggingSession, exportPath, false, bw, 0, 1);
+        exporter.ExportLoggingSession(loggingSession, exportPath, false, progress, CancellationToken.None, 0, 1);
 
         var content = File.ReadAllText(exportPath);
-        
+
         Assert.IsTrue(File.Exists(exportPath), "Export file should be created");
         Assert.Contains(",,", content, "Should contain empty cells for missing data");
     }
@@ -106,11 +105,11 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
     {
         var samples = new List<DataSample>();
         var baseTime = new DateTime(2018, 1, 1, 0, 0, 0);
-        
+
         for (var timeStep = 0; timeStep < samplesPerChannel; timeStep++)
         {
             var timestamp = baseTime.AddMilliseconds(timeStep * 10); // 100Hz equivalent
-            
+
             for (var channel = 1; channel <= channelCount; channel++)
             {
                 samples.Add(new DataSample
@@ -125,7 +124,7 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
                 });
             }
         }
-        
+
         return samples;
     }
 
@@ -133,17 +132,17 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
     {
         var samples = new List<DataSample>();
         var baseTime = new DateTime(2018, 1, 1, 0, 0, 0);
-        
+
         // Generate irregular data pattern
         for (var timeStep = 0; timeStep < 10; timeStep++)
         {
             var timestamp = baseTime.AddSeconds(timeStep);
-            
+
             // Sometimes skip channel 2
             for (var channel = 1; channel <= 3; channel++)
             {
                 if (channel == 2 && timeStep % 3 == 0) continue; // Skip channel 2 every 3rd timestamp
-                
+
                 samples.Add(new DataSample
                 {
                     ID = timeStep * 3 + channel,
@@ -156,7 +155,7 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
                 });
             }
         }
-        
+
         return samples;
     }
 

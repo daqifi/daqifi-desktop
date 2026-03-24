@@ -1,7 +1,6 @@
-﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
-using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Daqifi.Desktop.Test.Exporter;
@@ -77,14 +76,9 @@ public class OptimizedLoggingSessionExporterTests
 
         var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
-            
-        var bw = new BackgroundWorker
-        {
-            WorkerReportsProgress = true,
-            WorkerSupportsCancellation = true
-        };
+        var progress = new Progress<int>();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, bw, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
 
         var expectedOutput = "Time,device1:123:Channel 1,device1:123:Channel 2,device1:123:Channel 3\r\n";
         expectedOutput += "2018-02-09T01:03:30.0000000,0.01,0.02,0.03\r\n";
@@ -110,14 +104,9 @@ public class OptimizedLoggingSessionExporterTests
 
         var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
+        var progress = new Progress<int>();
 
-        var bw = new BackgroundWorker
-        {
-            WorkerReportsProgress = true,
-            WorkerSupportsCancellation = true
-        };
-
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, bw, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
 
         var expectedOutput = "Time,device1:123:Channel 1,device1:123:Channel 2,device1:123:Channel 3\r\n";
         expectedOutput += "2018-02-09T01:03:30.0000000,0.01,0.02,0.03\r\n";
@@ -139,14 +128,9 @@ public class OptimizedLoggingSessionExporterTests
 
         var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
+        var progress = new Progress<int>();
 
-        var bw = new BackgroundWorker
-        {
-            WorkerReportsProgress = true,
-            WorkerSupportsCancellation = true
-        };
-            
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, bw, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
 
         Assert.IsFalse(File.Exists(exportFilePath));
     }
@@ -163,14 +147,9 @@ public class OptimizedLoggingSessionExporterTests
 
         var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, "relative_" + ExportFileName);
-            
-        var bw = new BackgroundWorker
-        {
-            WorkerReportsProgress = true,
-            WorkerSupportsCancellation = true
-        };
+        var progress = new Progress<int>();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, true, bw, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, true, progress, CancellationToken.None, 0, 0);
 
         var expectedOutput = "Relative Time (s),device1:123:Channel 1,device1:123:Channel 2,device1:123:Channel 3\r\n";
         expectedOutput += "0.000,0.01,0.02,0.03\r\n";
@@ -186,7 +165,7 @@ public class OptimizedLoggingSessionExporterTests
     {
         // Create a larger dataset: 4 channels, 1000 samples (4000 total samples)
         var largeDataSamples = GenerateLargeDataset(4, 1000);
-        
+
         var loggingSession = new LoggingSession
         {
             ID = 1,
@@ -196,24 +175,19 @@ public class OptimizedLoggingSessionExporterTests
 
         var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, "large_" + ExportFileName);
-            
-        var bw = new BackgroundWorker
-        {
-            WorkerReportsProgress = true,
-            WorkerSupportsCancellation = true
-        };
+        var progress = new Progress<int>();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, bw, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
 
         // Verify file exists and has correct structure
         Assert.IsTrue(File.Exists(exportFilePath));
-        
+
         var lines = File.ReadAllLines(exportFilePath);
         Assert.AreEqual(1001, lines.Length); // Header + 1000 data rows
-        
+
         // Verify header
         Assert.StartsWith("Time,", lines[0]);
-        
+
         // Verify first data row format
         var firstDataRow = lines[1].Split(',');
         Assert.AreEqual(5, firstDataRow.Length); // Time + 4 channels
@@ -224,7 +198,7 @@ public class OptimizedLoggingSessionExporterTests
     {
         // Create medium dataset: 8 channels, 5000 samples (40,000 total samples)
         var performanceDataSamples = GenerateLargeDataset(8, 5000);
-        
+
         var loggingSession = new LoggingSession
         {
             ID = 1,
@@ -234,19 +208,14 @@ public class OptimizedLoggingSessionExporterTests
 
         var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, "performance_" + ExportFileName);
-            
-        var bw = new BackgroundWorker
-        {
-            WorkerReportsProgress = true,
-            WorkerSupportsCancellation = true
-        };
+        var progress = new Progress<int>();
 
         // Measure execution time and memory
         var initialMemory = GC.GetTotalMemory(true);
         var stopwatch = Stopwatch.StartNew();
-        
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, bw, 0, 0);
-        
+
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
+
         stopwatch.Stop();
         var finalMemory = GC.GetTotalMemory(false);
         var memoryUsed = finalMemory - initialMemory;
@@ -256,7 +225,7 @@ public class OptimizedLoggingSessionExporterTests
         Console.WriteLine($"Export time: {stopwatch.ElapsedMilliseconds}ms");
         Console.WriteLine($"Memory used: {memoryUsed / 1024 / 1024}MB");
         Console.WriteLine($"Samples per second: {40000.0 / stopwatch.Elapsed.TotalSeconds:F0}");
-        
+
         // Verify output correctness
         Assert.IsTrue(File.Exists(exportFilePath));
         var lines = File.ReadAllLines(exportFilePath);
@@ -281,7 +250,7 @@ public class OptimizedLoggingSessionExporterTests
                 ChannelName = "Channel 2", TimestampTicks = _firstTime.Ticks, Value = 0.03
             }
         };
-        
+
         var loggingSession = new LoggingSession
         {
             ID = 1,
@@ -291,22 +260,17 @@ public class OptimizedLoggingSessionExporterTests
 
         var exporter = new OptimizedLoggingSessionExporter();
         var exportFilePath = Path.Combine(TestDirectoryPath, "multidevice_" + ExportFileName);
-            
-        var bw = new BackgroundWorker
-        {
-            WorkerReportsProgress = true,
-            WorkerSupportsCancellation = true
-        };
+        var progress = new Progress<int>();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, bw, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
 
         var actualOutput = File.ReadAllText(exportFilePath);
-        
+
         // Verify channels are sorted properly
         Assert.Contains("device1:123:Channel 1", actualOutput);
         Assert.Contains("device1:123:Channel 2", actualOutput);
         Assert.Contains("device2:456:Channel 1", actualOutput);
-        
+
         var lines = File.ReadAllLines(exportFilePath);
         Assert.AreEqual(2, lines.Length); // Header + 1 data row
     }
@@ -315,11 +279,11 @@ public class OptimizedLoggingSessionExporterTests
     {
         var samples = new List<DataSample>();
         var baseTime = new DateTime(2018, 2, 9, 1, 0, 0);
-        
+
         for (var timeStep = 0; timeStep < samplesPerChannel; timeStep++)
         {
             var timestamp = baseTime.AddSeconds(timeStep);
-            
+
             for (var channel = 1; channel <= channelCount; channel++)
             {
                 samples.Add(new DataSample
@@ -334,7 +298,7 @@ public class OptimizedLoggingSessionExporterTests
                 });
             }
         }
-        
+
         return samples;
     }
 

@@ -1,7 +1,6 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
-using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Daqifi.Desktop.Test.Exporter;
@@ -25,7 +24,7 @@ public class ExportPerformanceTests
         var results = MeasureExportPerformance(samples, "small");
 
         Console.WriteLine($"Small Dataset (400 samples): {results.ElapsedMs}ms, {results.MemoryMB}MB");
-        
+
         // Baseline assertions - should pass easily
         Assert.IsLessThan(1000, results.ElapsedMs, "Small dataset should export in under 1 second");
         Assert.IsLessThan(10, results.MemoryMB, "Small dataset should use under 10MB memory");
@@ -34,13 +33,13 @@ public class ExportPerformanceTests
     [TestMethod]
     public void ExportLoggingSession_MediumDataset_ShowsPerformanceDegradation()
     {
-        // Medium dataset: 8 channels, 2000 samples (16,000 total samples)  
+        // Medium dataset: 8 channels, 2000 samples (16,000 total samples)
         var samples = GenerateTestDataset(8, 2000);
         var results = MeasureExportPerformance(samples, "medium");
 
         Console.WriteLine($"Medium Dataset (16K samples): {results.ElapsedMs}ms, {results.MemoryMB}MB");
         Console.WriteLine($"Samples per second: {16000.0 / results.ElapsedMs * 1000:F0}");
-        
+
         // These will likely fail with current implementation, demonstrating performance issues
         Assert.IsLessThan(5000,
 results.ElapsedMs, $"Medium dataset took {results.ElapsedMs}ms - should be under 5 seconds");
@@ -59,13 +58,13 @@ results.MemoryMB, $"Medium dataset used {results.MemoryMB}MB - should be under 5
         Console.WriteLine($"Large Dataset (80K samples): {results.ElapsedMs}ms, {results.MemoryMB}MB");
         Console.WriteLine($"Samples per second: {80000.0 / results.ElapsedMs * 1000:F0}");
         Console.WriteLine($"Projected time for 51.8M samples: {results.ElapsedMs * (51800000.0 / 80000) / 1000 / 60:F1} minutes");
-        
+
         // These assertions will fail with current implementation, proving the performance problem
         Assert.IsLessThan(10000,
 results.ElapsedMs, $"Large dataset took {results.ElapsedMs}ms - performance issues detected");
         Assert.IsLessThan(100,
 results.MemoryMB, $"Large dataset used {results.MemoryMB}MB - memory usage too high");
-        
+
         // Target performance: should process at least 50K samples/second
         var samplesPerSecond = 80000.0 / results.ElapsedMs * 1000;
         Assert.IsGreaterThan(50000,
@@ -76,9 +75,9 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
     [TestCategory("Documentation")]
     public void DocumentPerformanceImprovements_OriginalVsOptimized()
     {
-        // This test documents the performance improvements achieved by replacing 
+        // This test documents the performance improvements achieved by replacing
         // LoggingSessionExporter with OptimizedLoggingSessionExporter
-        
+
         Console.WriteLine("=== PERFORMANCE IMPROVEMENT DOCUMENTATION ===");
         Console.WriteLine("GitHub Issue #188 - Export Performance Optimization Results:");
         Console.WriteLine("");
@@ -98,7 +97,7 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
         Console.WriteLine("- LoggingSessionExporter.cs removed from codebase");
         Console.WriteLine("- ExportDialogViewModel updated to use OptimizedLoggingSessionExporter");
         Console.WriteLine("- All export operations now benefit from optimization");
-        
+
         // This test always passes - it's just documentation
         Assert.IsTrue(true, "Performance improvements successfully documented and deployed");
     }
@@ -111,17 +110,17 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
         // Test the optimized exporter that is now used in production
         var samples = GenerateTestDataset(16, 3000); // 48,000 samples
         var loggingSession = new LoggingSession { ID = 1, DataSamples = samples };
-        
+
         var exportFilePath = Path.Combine(TestDirectoryPath, "optimized_production_test.csv");
-        var bw = new BackgroundWorker { WorkerReportsProgress = true, WorkerSupportsCancellation = true };
+        var progress = new Progress<int>();
 
         // Measure optimized exporter performance
         var initialMemory = GC.GetTotalMemory(true);
         var stopwatch = Stopwatch.StartNew();
-        
+
         var optimizedExporter = new OptimizedLoggingSessionExporter();
-        optimizedExporter.ExportLoggingSession(loggingSession, exportFilePath, false, bw, 0, 1);
-        
+        optimizedExporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 1);
+
         stopwatch.Stop();
         var finalMemory = GC.GetTotalMemory(false);
         var memoryUsed = Math.Max(0, finalMemory - initialMemory) / 1024 / 1024;
@@ -129,23 +128,23 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
         Console.WriteLine("Optimized Export Results:");
         Console.WriteLine($"Time: {stopwatch.ElapsedMilliseconds}ms");
         Console.WriteLine($"Memory: {memoryUsed}MB");
-        
+
         var samplesPerSecond = stopwatch.ElapsedMilliseconds > 0 ? 48000.0 / stopwatch.ElapsedMilliseconds * 1000 : double.PositiveInfinity;
         Console.WriteLine($"Samples per second: {(samplesPerSecond == double.PositiveInfinity ? "∞" : samplesPerSecond.ToString("F0"))}");
 
         // Verify file was created and has correct structure
         Assert.IsTrue(File.Exists(exportFilePath), "Export file should be created");
-        
+
         var lines = File.ReadAllLines(exportFilePath);
         Assert.IsGreaterThan(1, lines.Length, "Export should contain header and data rows");
-        
+
         // Performance targets for production deployment
         if (stopwatch.ElapsedMilliseconds > 10) // Only check if measurable
         {
             Assert.IsGreaterThan(50000,
 samplesPerSecond, $"Production optimized exporter should process >50K samples/second. Actual: {samplesPerSecond:F0}");
         }
-        
+
         // Memory should be reasonable for this dataset size
         Assert.IsLessThan(100,
 memoryUsed, $"Production optimized exporter should use <100MB for 48K samples. Actual: {memoryUsed}MB");
@@ -155,12 +154,12 @@ memoryUsed, $"Production optimized exporter should use <100MB for 48K samples. A
     {
         var samples = new List<DataSample>();
         var baseTime = new DateTime(2018, 1, 1, 0, 0, 0);
-        
+
         // Generate time-series data
         for (var timeStep = 0; timeStep < samplesPerChannel; timeStep++)
         {
             var timestamp = baseTime.AddMilliseconds(timeStep * 10); // 100Hz equivalent
-            
+
             for (var channel = 1; channel <= channelCount; channel++)
             {
                 samples.Add(new DataSample
@@ -175,14 +174,14 @@ memoryUsed, $"Production optimized exporter should use <100MB for 48K samples. A
                 });
             }
         }
-        
+
         return samples;
     }
 
     private static (long ElapsedMs, long MemoryMB) MeasureExportPerformance(List<DataSample> samples, string testName)
     {
         var exportFilePath = Path.Combine(TestDirectoryPath, $"{testName}_export.csv");
-        
+
         var loggingSession = new LoggingSession
         {
             ID = 1,
@@ -190,22 +189,18 @@ memoryUsed, $"Production optimized exporter should use <100MB for 48K samples. A
         };
 
         var exporter = new OptimizedLoggingSessionExporter();
-        var bw = new BackgroundWorker
-        {
-            WorkerReportsProgress = true,
-            WorkerSupportsCancellation = true
-        };
+        var progress = new Progress<int>();
 
         // Force garbage collection before measurement
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
-        
+
         var initialMemory = GC.GetTotalMemory(false);
         var stopwatch = Stopwatch.StartNew();
-        
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, bw, 0, 0);
-        
+
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
+
         stopwatch.Stop();
         var finalMemory = GC.GetTotalMemory(false);
         var memoryUsed = Math.Max(0, finalMemory - initialMemory);
