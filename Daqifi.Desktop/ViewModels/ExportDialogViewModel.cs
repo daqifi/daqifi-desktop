@@ -118,9 +118,9 @@ public partial class ExportDialogViewModel : ObservableObject
     [RelayCommand]
     private async Task ExportLoggingSessions()
     {
-        IsExporting = true;
         if (string.IsNullOrWhiteSpace(ExportFilePath)) { return; }
 
+        IsExporting = true;
         _cts = new CancellationTokenSource();
         var cancellationToken = _cts.Token;
         var progress = new Progress<int>(progressValue => ExportProgress = progressValue);
