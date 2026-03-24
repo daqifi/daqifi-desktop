@@ -1324,7 +1324,13 @@ public partial class DaqifiViewModel : ObservableObject
                 return;
             }
 
-            var result = await ShowMessage("Delete Confirmation", "Are you sure you want to delete all logging sessions?", MessageDialogStyle.AffirmativeAndNegative).ConfigureAwait(false);
+            if (LoggingManager.Instance.Active)
+            {
+                await ShowMessage("Cannot Delete", "Please stop logging before deleting all sessions.", MessageDialogStyle.Affirmative).ConfigureAwait(false);
+                return;
+            }
+
+            var result = await ShowMessage("Delete Confirmation", "Are you sure you want to delete all logging sessions? This cannot be undone.", MessageDialogStyle.AffirmativeAndNegative).ConfigureAwait(false);
             if (result != MessageDialogResult.Affirmative)
             {
                 return;
@@ -1335,31 +1341,33 @@ public partial class DaqifiViewModel : ObservableObject
             var bw = new BackgroundWorker();
             bw.DoWork += delegate
             {
-                var sessionsToDelete = LoggingManager.Instance.LoggingSessions.ToList();
-                var successfullyDeletedSessions = new List<LoggingSession>();
-
-                foreach (var session in sessionsToDelete)
+                try
                 {
-                    try
-                    {
-                        DbLogger.DeleteLoggingSession(session);
-                        successfullyDeletedSessions.Add(session);
-                    }
-                    catch (Exception dbEx)
-                    {
-                        _appLogger.Error(dbEx, $"Failed to delete session {session.ID} from database during delete all.");
-                    }
-                }
+                    DbLogger.ClearBuffer();
 
-                if (successfullyDeletedSessions.Any())
-                {
+                    var dbPath = App.DatabasePath;
+                    DeleteFileIfExists(dbPath);
+                    DeleteFileIfExists(dbPath + "-wal");
+                    DeleteFileIfExists(dbPath + "-shm");
+
+                    // Recreate the database schema by creating a fresh context
+                    using var context = App.ServiceProvider
+                        .GetRequiredService<IDbContextFactory<LoggingContext>>()
+                        .CreateDbContext();
+
                     Application.Current.Dispatcher.Invoke(delegate
                     {
-                        foreach (var sessionToRemove in successfullyDeletedSessions)
-                        {
-                            LoggingManager.Instance.LoggingSessions.Remove(sessionToRemove);
-                        }
+                        LoggingManager.Instance.LoggingSessions.Clear();
+                        DbLogger.ClearPlot();
                     });
+                }
+                catch (IOException ioEx)
+                {
+                    _appLogger.Error(ioEx, "Database file is in use. Please try again.");
+                }
+                catch (Exception ex)
+                {
+                    _appLogger.Error(ex, "Failed to delete all logging sessions.");
                 }
             };
 
@@ -1373,6 +1381,14 @@ public partial class DaqifiViewModel : ObservableObject
         catch (Exception ex)
         {
             _appLogger.Error(ex, "Error initiating deletion of all logging sessions");
+        }
+    }
+
+    private static void DeleteFileIfExists(string path)
+    {
+        if (File.Exists(path))
+        {
+            File.Delete(path);
         }
     }
 

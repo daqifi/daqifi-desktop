@@ -332,18 +332,38 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
     public void DeleteLoggingSession(LoggingSession session)
     {
-        var stopwatch = new Stopwatch();
-        stopwatch.Start();
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             using var context = _loggingContext.CreateDbContext();
-            context.ChangeTracker.AutoDetectChangesEnabled = false;
+            var connection = context.Database.GetDbConnection();
+            connection.Open();
 
-            var loggingSession = context.Sessions.Find(session.ID);
-            // This will cascade delete and delete all corresponding data samples
-            context.Sessions.Remove(loggingSession);
-            context.ChangeTracker.DetectChanges();
-            context.SaveChanges();
+            using var transaction = connection.BeginTransaction();
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM DataSamples WHERE LoggingSessionID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = session.ID;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM LoggingSessions WHERE ID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = session.ID;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
         }
         catch (Exception ex)
         {
@@ -352,8 +372,16 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         finally
         {
             stopwatch.Stop();
-            Console.WriteLine(stopwatch.ElapsedMilliseconds / 1000);
+            _appLogger.Information($"DeleteLoggingSession completed in {stopwatch.ElapsedMilliseconds}ms");
         }
+    }
+
+    /// <summary>
+    /// Drains the sample buffer to prevent stale data from being inserted after a database reset.
+    /// </summary>
+    public void ClearBuffer()
+    {
+        while (_buffer.TryTake(out _)) { }
     }
 
     private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(string channelName, string deviceSerialNo, ChannelType type, string color)
