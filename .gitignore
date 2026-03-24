@@ -39,7 +39,6 @@ msbuild.wrn
 # IDE files
 .idea/
 .vscode/
-.editorconfig
 
 # NuGet Packages
 *.nupkg
