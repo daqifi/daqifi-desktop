@@ -344,7 +344,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             using (var cmd = connection.CreateCommand())
             {
                 cmd.Transaction = transaction;
-                cmd.CommandText = "DELETE FROM DataSamples WHERE LoggingSessionID = @id";
+                cmd.CommandText = "DELETE FROM Samples WHERE LoggingSessionID = @id";
                 var param = cmd.CreateParameter();
                 param.ParameterName = "@id";
                 param.Value = session.ID;
@@ -355,7 +355,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             using (var cmd = connection.CreateCommand())
             {
                 cmd.Transaction = transaction;
-                cmd.CommandText = "DELETE FROM LoggingSessions WHERE ID = @id";
+                cmd.CommandText = "DELETE FROM Sessions WHERE ID = @id";
                 var param = cmd.CreateParameter();
                 param.ParameterName = "@id";
                 param.Value = session.ID;

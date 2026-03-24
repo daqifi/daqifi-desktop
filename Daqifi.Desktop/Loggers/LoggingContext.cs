@@ -12,10 +12,8 @@ public class LoggingContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<LoggingSession>().ToTable("LoggingSessions");
         modelBuilder.Entity<LoggingSession>().HasMany(c => c.DataSamples).WithOne(p => p.LoggingSession).IsRequired().OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<LoggingSession>().Property(ls => ls.Name).IsRequired();
-        modelBuilder.Entity<DataSample>().ToTable("DataSamples");
         modelBuilder.Entity<Channel.Channel>().Ignore(c => c.ChannelColorBrush);
         base.OnModelCreating(modelBuilder);
     }
