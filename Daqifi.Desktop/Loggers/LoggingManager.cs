@@ -322,7 +322,7 @@ public partial class LoggingManager : ObservableObject
                             Name = (string)c.Element("Name"),
                             Type = (string)c.Element("Type"),
                             IsChannelActive = (bool)c.Element("IsActive"),
-                            SerialNo = (string)c.Element("DeviceSerialNo")
+                            SerialNo = (string)d.Element("DeviceSerialNo")
                         }).ToList()
                     }).ToList())
                 }).ToList();
