@@ -76,6 +76,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private DateTime? _firstTime;
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
+    private readonly ManualResetEventSlim _consumerGate = new(true);
 
     [ObservableProperty]
     private PlotModel _plotModel;
@@ -188,6 +189,9 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 bufferCount = _buffer.Count;
 
                 if (bufferCount < 1) { continue; }
+
+                // Wait if the consumer is suspended (e.g. during delete-all)
+                _consumerGate.Wait();
 
                 // Remove the samples from the collection
                 for (var i = 0; i < bufferCount; i++)
@@ -384,6 +388,25 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         while (_buffer.TryTake(out _))
         {
         }
+    }
+
+    /// <summary>
+    /// Suspends the background consumer thread so no new database connections are opened.
+    /// Must be followed by <see cref="ResumeConsumer"/>.
+    /// </summary>
+    public void SuspendConsumer()
+    {
+        _consumerGate.Reset();
+        // Give the consumer time to finish any in-flight DB operation
+        Thread.Sleep(200);
+    }
+
+    /// <summary>
+    /// Resumes the background consumer thread after a <see cref="SuspendConsumer"/> call.
+    /// </summary>
+    public void ResumeConsumer()
+    {
+        _consumerGate.Set();
     }
 
     private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(string channelName, string deviceSerialNo, ChannelType type, string color)

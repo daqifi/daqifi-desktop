@@ -1348,6 +1348,8 @@ public partial class DaqifiViewModel : ObservableObject
             var bw = new BackgroundWorker();
             bw.DoWork += delegate
             {
+                // Stop the consumer thread so it releases all DB connections
+                DbLogger.SuspendConsumer();
                 try
                 {
                     DbLogger.ClearBuffer();
@@ -1378,6 +1380,10 @@ public partial class DaqifiViewModel : ObservableObject
                 catch (Exception ex)
                 {
                     _appLogger.Error(ex, "Failed to delete all logging sessions.");
+                }
+                finally
+                {
+                    DbLogger.ResumeConsumer();
                 }
             };
 
