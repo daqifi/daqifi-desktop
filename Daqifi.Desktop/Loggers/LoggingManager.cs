@@ -486,15 +486,42 @@ public partial class LoggingManager : ObservableObject
             LoggingSessions.Remove(existingSession);
         }
 
-        using var context = _loggingContext.CreateDbContext();
-        var persistedSession = context.Sessions.Find(sessionId);
-        if (persistedSession == null)
+        try
         {
-            return;
-        }
+            using var context = _loggingContext.CreateDbContext();
+            var connection = context.Database.GetDbConnection();
+            connection.Open();
 
-        context.Sessions.Remove(persistedSession);
-        context.SaveChanges();
+            using var transaction = connection.BeginTransaction();
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM Samples WHERE LoggingSessionID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = sessionId;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM Sessions WHERE ID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = sessionId;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to delete logging session {sessionId}");
+        }
     }
 
     private void ClearChannelList()
