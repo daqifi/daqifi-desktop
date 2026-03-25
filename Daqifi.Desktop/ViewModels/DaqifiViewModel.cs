@@ -18,6 +18,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Daqifi.Core.Firmware;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Desktop.Device.Firmware;
+using Microsoft.Data.Sqlite;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -1350,6 +1351,9 @@ public partial class DaqifiViewModel : ObservableObject
                 try
                 {
                     DbLogger.ClearBuffer();
+
+                    // Release all pooled SQLite connections so the file is not locked
+                    SqliteConnection.ClearAllPools();
 
                     var dbPath = App.DatabasePath;
                     DeleteFileIfExists(dbPath);
