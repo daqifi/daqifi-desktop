@@ -156,7 +156,7 @@ public partial class ExportDialogViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
-            AppLogger.Instance.Info("Export operation was cancelled by user.");
+            AppLogger.Instance.Information("Export operation was cancelled by user.");
         }
         catch (Exception ex)
         {
