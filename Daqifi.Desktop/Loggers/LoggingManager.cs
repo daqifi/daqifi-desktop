@@ -202,12 +202,11 @@ public partial class LoggingManager : ObservableObject
                     );
 
                     var activeChannels = device.Channels
-                        .Where(channel => channel.IsChannelActive && channel.SerialNo == device.DeviceSerialNo)
+                        .Where(channel => channel.IsChannelActive)
                         .Select(channel => new XElement("Channel",
                             new XElement("Name", channel.Name),
                             new XElement("Type", channel.Type),
-                            new XElement("IsActive", channel.IsChannelActive),
-                            new XElement("SerialNo", device.DeviceSerialNo)
+                            new XElement("IsActive", channel.IsChannelActive)
                         )).ToList();
 
                     if (activeChannels.Any())
@@ -263,12 +262,11 @@ public partial class LoggingManager : ObservableObject
                                 new XElement("DeviceSerialNo", device.DeviceSerialNo),
                                 new XElement("Channels",
                                     from channel in device.Channels
-                                    where channel.IsChannelActive && channel.SerialNo == device.DeviceSerialNo
+                                    where channel.IsChannelActive
                                     select new XElement("Channel",
                                         new XElement("Name", channel.Name),
                                         new XElement("Type", channel.Type),
-                                        new XElement("IsActive", channel.IsChannelActive),
-                                        new XElement("SerialNo", device.DeviceSerialNo)
+                                        new XElement("IsActive", channel.IsChannelActive)
                                     )
                                 ),
                                 new XElement("SamplingFrequency", device.SamplingFrequency)
