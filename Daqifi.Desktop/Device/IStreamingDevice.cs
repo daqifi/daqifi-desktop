@@ -84,8 +84,14 @@ public interface IStreamingDevice : IDevice
     /// </summary>
     void RemoveChannel(IChannel channel);
 
+    /// <summary>
+    /// Enables multiple channels on the device with a single SCPI command per channel type.
+    /// </summary>
     void AddChannels(IEnumerable<IChannel> channels);
 
+    /// <summary>
+    /// Disables all channels on the device.
+    /// </summary>
     void RemoveAllChannels();
 
     void SetChannelOutputValue(IChannel channel, double value);

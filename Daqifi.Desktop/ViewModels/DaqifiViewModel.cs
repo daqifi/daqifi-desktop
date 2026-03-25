@@ -1857,11 +1857,11 @@ public partial class DaqifiViewModel : ObservableObject
 
                 if (SelectedProfile.IsProfileActive)
                 {
+                    connectedDevice.RemoveAllChannels();
                     foreach (var ch in channelsToActivate)
                     {
                         LoggingManager.Instance.Unsubscribe(ch);
                     }
-                    connectedDevice.RemoveAllChannels();
                 }
                 else
                 {
