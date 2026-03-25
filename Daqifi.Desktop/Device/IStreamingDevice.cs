@@ -84,6 +84,10 @@ public interface IStreamingDevice : IDevice
     /// </summary>
     void RemoveChannel(IChannel channel);
 
+    void AddChannels(IEnumerable<IChannel> channels);
+
+    void RemoveAllChannels();
+
     void SetChannelOutputValue(IChannel channel, double value);
 
     void SetChannelDirection(IChannel channel, ChannelDirection direction);
