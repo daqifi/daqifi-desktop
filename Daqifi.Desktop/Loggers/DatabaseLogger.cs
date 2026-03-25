@@ -381,7 +381,9 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     /// </summary>
     public void ClearBuffer()
     {
-        while (_buffer.TryTake(out _)) { }
+        while (_buffer.TryTake(out _))
+        {
+        }
     }
 
     private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(string channelName, string deviceSerialNo, ChannelType type, string color)

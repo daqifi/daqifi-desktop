@@ -16,9 +16,15 @@ public partial class App
     private SplashScreen SplashScreen { get; set; }
     public static IServiceProvider ServiceProvider { get; private set; }
 
+    /// <summary>
+    /// Root directory for DAQiFi application data (logs, database).
+    /// </summary>
     public static string DaqifiDataDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DAQiFi");
 
+    /// <summary>
+    /// Full path to the SQLite database file.
+    /// </summary>
     public static string DatabasePath { get; } = Path.Combine(DaqifiDataDirectory, "DAQiFiDatabase.db");
 
     public bool IsWindowInit { get; set; }

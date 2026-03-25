@@ -1326,11 +1326,17 @@ public partial class DaqifiViewModel : ObservableObject
 
             if (LoggingManager.Instance.Active)
             {
-                await ShowMessage("Cannot Delete", "Please stop logging before deleting all sessions.", MessageDialogStyle.Affirmative).ConfigureAwait(false);
+                await ShowMessage(
+                    "Cannot Delete",
+                    "Please stop logging before deleting all sessions.",
+                    MessageDialogStyle.Affirmative).ConfigureAwait(false);
                 return;
             }
 
-            var result = await ShowMessage("Delete Confirmation", "Are you sure you want to delete all logging sessions? This cannot be undone.", MessageDialogStyle.AffirmativeAndNegative).ConfigureAwait(false);
+            var result = await ShowMessage(
+                "Delete Confirmation",
+                "Are you sure you want to delete all logging sessions? This cannot be undone.",
+                MessageDialogStyle.AffirmativeAndNegative).ConfigureAwait(false);
             if (result != MessageDialogResult.Affirmative)
             {
                 return;
