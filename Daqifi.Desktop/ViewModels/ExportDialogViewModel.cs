@@ -190,16 +190,7 @@ public partial class ExportDialogViewModel : ObservableObject
             .Where(s => s.ID == sessionId)
             .Select(s => new LoggingSession
             {
-                ID = s.ID,
-                DataSamples = s.DataSamples.Select(d => new DataSample
-                {
-                    ID = d.ID,
-                    Value = d.Value,
-                    TimestampTicks = d.TimestampTicks,
-                    ChannelName = d.ChannelName,
-                    DeviceSerialNo = d.DeviceSerialNo,
-                    DeviceName = d.DeviceName
-                }).ToList()
+                ID = s.ID
             }).FirstOrDefaultAsync();
         return loggingSession;
     }
