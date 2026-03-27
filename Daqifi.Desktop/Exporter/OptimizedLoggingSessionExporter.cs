@@ -294,6 +294,8 @@ public class OptimizedLoggingSessionExporter
                 var timestampSamples = context.Samples
                     .AsNoTracking()
                     .Where(s => s.LoggingSessionID == loggingSession.ID && s.TimestampTicks == timestamp)
+                    .Select(s => new { s.TimestampTicks, s.DeviceName, s.DeviceSerialNo, s.ChannelName, s.Value })
+                    .AsEnumerable()
                     .Select(s => new SampleData(s.TimestampTicks, $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value))
                     .ToList();
 
@@ -357,9 +359,11 @@ public class OptimizedLoggingSessionExporter
             var channelNames = context.Samples
                 .AsNoTracking()
                 .Where(s => s.LoggingSessionID == session.ID)
-                .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
+                .Select(s => new { s.DeviceName, s.DeviceSerialNo, s.ChannelName })
                 .Distinct()
-                .OrderBy(name => name)
+                .OrderBy(s => s.DeviceName).ThenBy(s => s.DeviceSerialNo).ThenBy(s => s.ChannelName)
+                .AsEnumerable()
+                .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
                 .ToList();
 
             if (!channelNames.Any())
@@ -403,6 +407,8 @@ public class OptimizedLoggingSessionExporter
             .AsNoTracking()
             .Where(s => s.LoggingSessionID == sessionId)
             .OrderBy(s => s.TimestampTicks)
+            .Select(s => new { s.TimestampTicks, s.DeviceName, s.DeviceSerialNo, s.ChannelName, s.Value })
+            .AsEnumerable()
             .Select(s => new SampleData(s.TimestampTicks, $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value));
 
         var totalSamples = context.Samples
