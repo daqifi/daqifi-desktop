@@ -107,11 +107,14 @@ public class OptimizedLoggingSessionExporter
             .AsNoTracking()
             .Where(s => s.LoggingSessionID == loggingSession.ID);
 
-        // Get channel names with EF Core compatible ordering
+        // Get channel names - select raw fields first (EF Core can't translate string.Format),
+        // then format on the client side
         var channelNames = query
-            .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
+            .Select(s => new { s.DeviceName, s.DeviceSerialNo, s.ChannelName })
             .Distinct()
-            .OrderBy(name => name)
+            .OrderBy(s => s.DeviceName).ThenBy(s => s.DeviceSerialNo).ThenBy(s => s.ChannelName)
+            .AsEnumerable()
+            .Select(s => $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}")
             .ToList();
 
         // Get min timestamp and count in a single query to avoid logic errors and reduce roundtrips
