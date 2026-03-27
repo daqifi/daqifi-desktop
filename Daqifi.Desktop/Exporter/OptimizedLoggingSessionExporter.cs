@@ -16,7 +16,6 @@ public class OptimizedLoggingSessionExporter
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly string _delimiter = DaqifiSettings.Instance.CsvDelimiter;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
-    private const int BATCH_SIZE = 50000; // Process samples in batches
     private const int BUFFER_SIZE = 1024 * 1024; // 1MB buffer for file writes
 
     public OptimizedLoggingSessionExporter()
