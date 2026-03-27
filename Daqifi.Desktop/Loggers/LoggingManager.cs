@@ -202,12 +202,11 @@ public partial class LoggingManager : ObservableObject
                     );
 
                     var activeChannels = device.Channels
-                        .Where(channel => channel.IsChannelActive && channel.SerialNo == device.DeviceSerialNo)
+                        .Where(channel => channel.IsChannelActive)
                         .Select(channel => new XElement("Channel",
                             new XElement("Name", channel.Name),
                             new XElement("Type", channel.Type),
-                            new XElement("IsActive", channel.IsChannelActive),
-                            new XElement("SerialNo", device.DeviceSerialNo)
+                            new XElement("IsActive", channel.IsChannelActive)
                         )).ToList();
 
                     if (activeChannels.Any())
@@ -263,12 +262,11 @@ public partial class LoggingManager : ObservableObject
                                 new XElement("DeviceSerialNo", device.DeviceSerialNo),
                                 new XElement("Channels",
                                     from channel in device.Channels
-                                    where channel.IsChannelActive && channel.SerialNo == device.DeviceSerialNo
+                                    where channel.IsChannelActive
                                     select new XElement("Channel",
                                         new XElement("Name", channel.Name),
                                         new XElement("Type", channel.Type),
-                                        new XElement("IsActive", channel.IsChannelActive),
-                                        new XElement("SerialNo", device.DeviceSerialNo)
+                                        new XElement("IsActive", channel.IsChannelActive)
                                     )
                                 ),
                                 new XElement("SamplingFrequency", device.SamplingFrequency)
@@ -324,7 +322,7 @@ public partial class LoggingManager : ObservableObject
                             Name = (string)c.Element("Name"),
                             Type = (string)c.Element("Type"),
                             IsChannelActive = (bool)c.Element("IsActive"),
-                            SerialNo = (string)c.Element("DeviceSerialNo")
+                            SerialNo = (string)d.Element("DeviceSerialNo")
                         }).ToList()
                     }).ToList())
                 }).ToList();
@@ -486,15 +484,42 @@ public partial class LoggingManager : ObservableObject
             LoggingSessions.Remove(existingSession);
         }
 
-        using var context = _loggingContext.CreateDbContext();
-        var persistedSession = context.Sessions.Find(sessionId);
-        if (persistedSession == null)
+        try
         {
-            return;
-        }
+            using var context = _loggingContext.CreateDbContext();
+            var connection = context.Database.GetDbConnection();
+            connection.Open();
 
-        context.Sessions.Remove(persistedSession);
-        context.SaveChanges();
+            using var transaction = connection.BeginTransaction();
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM Samples WHERE LoggingSessionID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = sessionId;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM Sessions WHERE ID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = sessionId;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to delete logging session {sessionId}");
+        }
     }
 
     private void ClearChannelList()
