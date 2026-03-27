@@ -776,6 +776,57 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
+    /// <summary>
+    /// Enables multiple channels on the device with a single SCPI command per channel type.
+    /// </summary>
+    public void AddChannels(IEnumerable<IChannel> channelsToAdd)
+    {
+        var channelSetByte = 0u;
+        var hasAnalog = false;
+        var hasDigital = false;
+
+        foreach (var channelToAdd in channelsToAdd)
+        {
+            var channel = DataChannels.FirstOrDefault(c => Equals(c, channelToAdd));
+            if (channel == null) continue;
+
+            switch (channel.Type)
+            {
+                case ChannelType.Analog:
+                    channelSetByte |= (1u << channel.Index);
+                    channel.IsActive = true;
+                    hasAnalog = true;
+                    break;
+                case ChannelType.Digital:
+                    channel.IsActive = true;
+                    hasDigital = true;
+                    break;
+            }
+        }
+
+        if (hasAnalog)
+        {
+            SendMessage(ScpiMessageProducer.EnableAdcChannels(Convert.ToString(channelSetByte)));
+        }
+        if (hasDigital)
+        {
+            SendMessage(ScpiMessageProducer.EnableDioPorts());
+        }
+    }
+
+    /// <summary>
+    /// Disables all channels on the device.
+    /// </summary>
+    public void RemoveAllChannels()
+    {
+        SendMessage(ScpiMessageProducer.EnableAdcChannels("0"));
+        SendMessage(ScpiMessageProducer.DisableDioPorts());
+        foreach (var channel in DataChannels)
+        {
+            channel.IsActive = false;
+        }
+    }
+
     private IEnumerable<IChannel> GetActiveAnalogChannels()
     {
         return DataChannels.Where(channel => channel.Type == ChannelType.Analog && channel.IsActive).ToList();

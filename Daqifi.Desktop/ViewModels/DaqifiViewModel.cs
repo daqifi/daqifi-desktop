@@ -1867,7 +1867,8 @@ public partial class DaqifiViewModel : ObservableObject
                     connectedDevice.StreamingFrequency = matchingDevice.SamplingFrequency;
                 }
 
-                // Handle profile activation or deactivation
+                // Collect all matching channels first, then send a single SCPI command
+                var channelsToActivate = new List<IChannel>();
                 foreach (var device in SelectedProfile.Devices)
                 {
                     foreach (var channel in device.Channels)
@@ -1882,15 +1883,25 @@ public partial class DaqifiViewModel : ObservableObject
 
                         if (profileChannel != null)
                         {
-                            if (SelectedProfile.IsProfileActive)
-                            {
-                                LoggingManager.Instance.Unsubscribe(profileChannel);
-                            }
-                            else
-                            {
-                                LoggingManager.Instance.Subscribe(profileChannel);
-                            }
+                            channelsToActivate.Add(profileChannel);
                         }
+                    }
+                }
+
+                if (SelectedProfile.IsProfileActive)
+                {
+                    connectedDevice.RemoveAllChannels();
+                    foreach (var ch in channelsToActivate)
+                    {
+                        LoggingManager.Instance.Unsubscribe(ch);
+                    }
+                }
+                else
+                {
+                    connectedDevice.AddChannels(channelsToActivate);
+                    foreach (var ch in channelsToActivate)
+                    {
+                        LoggingManager.Instance.Subscribe(ch);
                     }
                 }
             }
