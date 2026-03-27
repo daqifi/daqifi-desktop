@@ -106,7 +106,7 @@ public class DuplicateDeviceDetectionTests
         _mockDevice2.Setup(d => d.DeviceSerialNo).Returns(serialNumber);
         _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.Wifi);
 
-        _connectionManager.DuplicateDeviceHandler = (result) =>
+        _connectionManager.DuplicateDeviceHandler = result =>
         {
             handlerCalled = true;
             return DuplicateDeviceAction.KeepExisting;

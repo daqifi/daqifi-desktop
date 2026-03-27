@@ -1,8 +1,8 @@
-﻿using Daqifi.Desktop.Channel;
-using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
-using Daqifi.Core.Device.Network;
+﻿using Daqifi.Core.Device.Network;
 using Daqifi.Core.Device.SdCard;
+using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Models;
+using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 
 namespace Daqifi.Desktop.Device;
 

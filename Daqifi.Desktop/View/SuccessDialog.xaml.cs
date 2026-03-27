@@ -1,4 +1,6 @@
 ﻿
+using System.Windows;
+
 namespace Daqifi.Desktop.View;
 
 /// <summary>
@@ -11,7 +13,7 @@ public partial class SuccessDialog
         InitializeComponent();
     }
 
-    private void btnOk_Click(object sender, System.Windows.RoutedEventArgs e)
+    private void btnOk_Click(object sender, RoutedEventArgs e)
     {
         Close();
     }

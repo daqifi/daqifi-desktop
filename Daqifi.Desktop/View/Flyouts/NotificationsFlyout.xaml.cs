@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Windows.Navigation;
 
 namespace Daqifi.Desktop.View.Flyouts;
 
@@ -12,7 +13,7 @@ public partial class NotificationsFlyout
         InitializeComponent();
     }
 
-    private void Hyperlink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)
     {
         Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
         e.Handled = true;

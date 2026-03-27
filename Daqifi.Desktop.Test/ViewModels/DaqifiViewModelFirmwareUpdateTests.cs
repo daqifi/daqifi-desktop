@@ -50,16 +50,16 @@ public class DaqifiViewModelFirmwareUpdateTests
         var serialDevice = CreateSerialDeviceWithCoreDevice("COM7", coreDevice);
         var firmwareFilePath = CreateTempFile(".hex");
 
-        Daqifi.Core.Device.IStreamingDevice? pic32Device = null;
+        IStreamingDevice? pic32Device = null;
         var wifiFactoryCalls = 0;
 
         firmwareUpdateService
             .Setup(service => service.UpdateFirmwareAsync(
-                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                It.IsAny<IStreamingDevice>(),
                 firmwareFilePath,
                 It.IsAny<IProgress<FirmwareUpdateProgress>>(),
                 It.IsAny<CancellationToken>()))
-            .Callback<Daqifi.Core.Device.IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?, CancellationToken>(
+            .Callback<IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?, CancellationToken>(
                 (device, _, _, _) => pic32Device = device)
             .Returns(Task.CompletedTask);
 
@@ -86,7 +86,7 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.IsFalse(viewModel.HasErrorOccured);
 
         firmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
-            It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+            It.IsAny<IStreamingDevice>(),
             firmwareFilePath,
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -117,28 +117,28 @@ public class DaqifiViewModelFirmwareUpdateTests
         var pic32FirmwarePath = CreateTempFile(".hex");
         var wifiPackageDirectory = CreateTempDirectory();
 
-        Daqifi.Core.Device.IStreamingDevice? pic32Device = null;
-        Daqifi.Core.Device.IStreamingDevice? wifiDevice = null;
+        IStreamingDevice? pic32Device = null;
+        IStreamingDevice? wifiDevice = null;
         string? wifiVersion = null;
         string? wifiPort = null;
 
         pic32FirmwareUpdateService
             .Setup(service => service.UpdateFirmwareAsync(
-                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                It.IsAny<IStreamingDevice>(),
                 pic32FirmwarePath,
                 It.IsAny<IProgress<FirmwareUpdateProgress>>(),
                 It.IsAny<CancellationToken>()))
-            .Callback<Daqifi.Core.Device.IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?, CancellationToken>(
+            .Callback<IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?, CancellationToken>(
                 (device, _, _, _) => pic32Device = device)
             .Returns(Task.CompletedTask);
 
         wifiFirmwareUpdateService
             .Setup(service => service.UpdateWifiModuleAsync(
-                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                It.IsAny<IStreamingDevice>(),
                 wifiPackageDirectory,
                 It.IsAny<IProgress<FirmwareUpdateProgress>>(),
                 It.IsAny<CancellationToken>()))
-            .Callback<Daqifi.Core.Device.IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?, CancellationToken>(
+            .Callback<IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?, CancellationToken>(
                 (device, _, _, _) => wifiDevice = device)
             .Returns(Task.CompletedTask);
 
@@ -198,12 +198,12 @@ public class DaqifiViewModelFirmwareUpdateTests
         AssertCommandSent(coreDevice, ScpiMessageProducer.SaveNetworkLan);
 
         pic32FirmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
-            It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+            It.IsAny<IStreamingDevice>(),
             pic32FirmwarePath,
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
             It.IsAny<CancellationToken>()), Times.Once);
         wifiFirmwareUpdateService.Verify(service => service.UpdateWifiModuleAsync(
-            It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+            It.IsAny<IStreamingDevice>(),
             wifiPackageDirectory,
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
             It.IsAny<CancellationToken>()), Times.Once);
@@ -241,7 +241,7 @@ public class DaqifiViewModelFirmwareUpdateTests
         TestCoreStreamingDevice coreDevice,
         IOutboundMessage<string> expectedCommand)
     {
-        var expectedCommandText = expectedCommand.Data?.ToString() ?? string.Empty;
+        var expectedCommandText = expectedCommand.Data ?? string.Empty;
         Assert.IsTrue(
             coreDevice.SentCommands.Any(command => command.Contains(expectedCommandText, StringComparison.Ordinal)),
             $"Expected command '{expectedCommandText}' to be sent.");

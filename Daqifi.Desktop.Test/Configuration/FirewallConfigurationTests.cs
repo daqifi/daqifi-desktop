@@ -1,7 +1,7 @@
-using Moq;
+using System.Windows;
 using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.Services;
-using System.Windows;
+using Moq;
 
 namespace Daqifi.Desktop.Test.Configuration;
 

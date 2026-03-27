@@ -1,23 +1,25 @@
-﻿using Daqifi.Desktop.Channel;
+﻿using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
-using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
-using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Helpers;
+using EFCore.BulkExtensions;
+using Microsoft.EntityFrameworkCore;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
-using System.Collections.Concurrent;
-using System.Collections.ObjectModel;
-using System.Diagnostics;
+using OxyPlot.Wpf;
+using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Exception = System.Exception;
 using TickStyle = OxyPlot.Axes.TickStyle;
-using Microsoft.EntityFrameworkCore;
-using EFCore.BulkExtensions;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Application = System.Windows.Application;
 using FontWeights = OxyPlot.FontWeights;
+using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 
 namespace Daqifi.Desktop.Logger;
 
@@ -449,7 +451,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     [RelayCommand]
     private void SaveGraph()
     {
-        var dialog = new Microsoft.Win32.SaveFileDialog
+        var dialog = new SaveFileDialog
         {
             DefaultExt = ".png",
             Filter = "PNG|*.png"
@@ -459,8 +461,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
         if (result == false) { return; }
 
-        var pngExporter = new OxyPlot.Wpf.PngExporter { Width = 1024, Height = 768 };
-        using var stream = System.IO.File.Create(dialog.FileName);
+        var pngExporter = new PngExporter { Width = 1024, Height = 768 };
+        using var stream = File.Create(dialog.FileName);
         pngExporter.Export(PlotModel, stream);
     }
 

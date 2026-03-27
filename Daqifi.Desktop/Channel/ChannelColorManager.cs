@@ -1,7 +1,6 @@
-﻿using Daqifi.Desktop.DataModel.Channel;
-using System.Windows.Media;
-using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
-using ChannelType = Daqifi.Core.Channel.ChannelType;
+﻿using System.Windows.Media;
+using Daqifi.Desktop.DataModel.Channel;
+using Brush = System.Windows.Media.Brush;
 
 namespace Daqifi.Desktop.Channel;
 
@@ -16,7 +15,7 @@ public class ChannelColorManager
     #region Properties
 
 
-    public List<System.Windows.Media.Brush> Brushes { get; } =
+    public List<Brush> Brushes { get; } =
     [
         // 700-shade set — interleaved warm/cool for maximum perceptual separation
         (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Red700),
@@ -80,7 +79,7 @@ public class ChannelColorManager
 
     #endregion
 
-    public System.Windows.Media.Brush NewColor()
+    public Brush NewColor()
     {
         var newColor = Brushes[_colorCount++ % Brushes.Count];
         return newColor;

@@ -1,4 +1,5 @@
-﻿using Daqifi.Desktop.Device;
+﻿using Daqifi.Core.Channel;
+using Daqifi.Desktop.Device;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 
@@ -10,7 +11,7 @@ public class DigitalChannel : AbstractChannel
     /// <summary>
     /// Core channel implementation handling device communication
     /// </summary>
-    private Daqifi.Core.Channel.IDigitalChannel _coreChannel;
+    private IDigitalChannel _coreChannel;
     #endregion
 
     #region Properties
@@ -83,7 +84,7 @@ public class DigitalChannel : AbstractChannel
     /// <summary>
     /// Gets the core channel for device communication
     /// </summary>
-    internal Daqifi.Core.Channel.IDigitalChannel CoreChannel => _coreChannel;
+    internal IDigitalChannel CoreChannel => _coreChannel;
 
     #endregion
 
@@ -94,7 +95,7 @@ public class DigitalChannel : AbstractChannel
     /// <param name="owner">The device that owns this channel.</param>
     /// <param name="coreChannel">The Core channel instance to wrap.</param>
     /// <exception cref="ArgumentNullException">Thrown when owner or coreChannel is null.</exception>
-    public DigitalChannel(IStreamingDevice owner, Daqifi.Core.Channel.IDigitalChannel coreChannel)
+    public DigitalChannel(IStreamingDevice owner, IDigitalChannel coreChannel)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(coreChannel);
@@ -112,7 +113,7 @@ public class DigitalChannel : AbstractChannel
         IsOutput = coreChannel.Direction == ChannelDirection.Output;
     }
 
-    internal void ReplaceCoreChannel(Daqifi.Core.Channel.IDigitalChannel coreChannel)
+    internal void ReplaceCoreChannel(IDigitalChannel coreChannel)
     {
         ArgumentNullException.ThrowIfNull(coreChannel);
 

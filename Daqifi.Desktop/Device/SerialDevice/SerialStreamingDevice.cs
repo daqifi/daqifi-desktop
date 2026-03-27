@@ -1,7 +1,8 @@
 ﻿using System.IO.Ports;
-using Daqifi.Core.Device;
-using Daqifi.Core.Communication.Transport;
+using System.Text;
 using Daqifi.Core.Communication.Messages;
+using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Device;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.IO.Messages;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
@@ -202,7 +203,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
             // Use transport's stream for raw writes when available
             if (_transport?.IsConnected == true)
             {
-                var bytes = System.Text.Encoding.ASCII.GetBytes(command);
+                var bytes = Encoding.ASCII.GetBytes(command);
                 _transport.Stream.Write(bytes, 0, bytes.Length);
                 return true;
             }

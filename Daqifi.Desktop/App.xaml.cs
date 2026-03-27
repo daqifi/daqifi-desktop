@@ -1,13 +1,13 @@
-﻿using Daqifi.Core.Communication.Transport;
+﻿using System.IO;
+using System.Net.Http;
+using System.Windows;
+using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.WindowViewModelMapping;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.IO;
-using System.Net.Http;
-using System.Windows;
 
 namespace Daqifi.Desktop;
 

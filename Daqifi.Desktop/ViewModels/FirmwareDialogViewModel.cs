@@ -1,20 +1,22 @@
+using System.Net.Http;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Device;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device.Firmware;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Net.Http;
 using File = System.IO.File;
+using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 
 namespace Daqifi.Desktop.ViewModels;
 
 public partial class FirmwareDialogViewModel : ObservableObject
 {
     private readonly IFirmwareUpdateService _firmwareUpdateService;
-    private readonly Daqifi.Core.Device.IStreamingDevice _coreDevice;
+    private readonly IStreamingDevice _coreDevice;
     private CancellationTokenSource? _updateCts;
 
     [ObservableProperty]
@@ -53,7 +55,7 @@ public partial class FirmwareDialogViewModel : ObservableObject
     [RelayCommand]
     private void BrowseFirmwarePath()
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog
+        var dialog = new OpenFileDialog
         {
             DefaultExt = ".hex",
             Filter = "Firmware|*.hex"

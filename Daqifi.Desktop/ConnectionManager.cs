@@ -1,11 +1,12 @@
-﻿using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Desktop.Device;
-using Daqifi.Desktop.Device.SerialDevice;
-using Daqifi.Desktop.Logger;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.IO.Ports;
 using System.Management;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Device.SerialDevice;
+using Daqifi.Desktop.Logger;
+using Application = System.Windows.Application;
 
 namespace Daqifi.Desktop;
 
@@ -210,7 +211,7 @@ public partial class ConnectionManager : ObservableObject
 
             foreach (var serialDevice in devicesToRemove)
             {
-                System.Windows.Application.Current.Dispatcher.Invoke(delegate
+                Application.Current.Dispatcher.Invoke(delegate
                 {
                     foreach (var channel in serialDevice.DataChannels)
                     {

@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using System.ComponentModel;
+using System.Windows;
 using Daqifi.Desktop.ViewModels;
 
 namespace Daqifi.Desktop.View;
@@ -18,7 +19,7 @@ public partial class ConnectionDialog
         Close();
     }
 
-    private void MetroWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+    private void MetroWindow_Closing(object sender, CancelEventArgs e)
     {
         var vm = DataContext as ConnectionDialogViewModel;
         vm.Close();

@@ -1,9 +1,8 @@
+using System.Reflection;
 using Daqifi.Core.Device.Discovery;
-using Daqifi.Desktop;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.ViewModels;
 using Moq;
-using System.Reflection;
 
 namespace Daqifi.Desktop.Test.ViewModels;
 

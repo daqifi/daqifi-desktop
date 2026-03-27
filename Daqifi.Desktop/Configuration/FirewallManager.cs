@@ -1,10 +1,11 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Windows;
-using System.Runtime.InteropServices;
 using System.IO;
-using Daqifi.Desktop.Services;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Windows;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Services;
 
 namespace Daqifi.Desktop.Configuration;
 
@@ -131,19 +132,19 @@ public class WindowsFirewallWrapper : IFirewallHelper
         {
             policy = GetPolicy();
             dynamic rules = policy.GetType().InvokeMember("Rules",
-                System.Reflection.BindingFlags.GetProperty, null, policy, null);
+                BindingFlags.GetProperty, null, policy, null);
 
             try
             {
                 _ = rules.GetType().InvokeMember("Item",
-                    System.Reflection.BindingFlags.InvokeMethod, null, rules, new object[] { ruleName });
+                    BindingFlags.InvokeMethod, null, rules, new object[] { ruleName });
                 return true;
             }
             catch (COMException ex) when (ex.HResult == unchecked((int)0x80070002)) // ERROR_FILE_NOT_FOUND
             {
                 return false;
             }
-            catch (System.Reflection.TargetInvocationException ex) when (
+            catch (TargetInvocationException ex) when (
                 (ex.InnerException is COMException comEx && comEx.HResult == unchecked((int)0x80070002)) ||
                 ex.InnerException is FileNotFoundException)
             {
@@ -195,9 +196,9 @@ public class WindowsFirewallWrapper : IFirewallHelper
 
             // Add rule to policy
             var rules = policy.GetType().InvokeMember("Rules",
-                System.Reflection.BindingFlags.GetProperty, null, policy, null);
+                BindingFlags.GetProperty, null, policy, null);
             rules.GetType().InvokeMember("Add",
-                System.Reflection.BindingFlags.InvokeMethod, null, rules, [rule]);
+                BindingFlags.InvokeMethod, null, rules, [rule]);
         }
         catch (Exception ex)
         {
@@ -222,7 +223,7 @@ public class WindowsFirewallWrapper : IFirewallHelper
         try
         {
             rule.GetType().InvokeMember(propertyName,
-                System.Reflection.BindingFlags.SetProperty, null, rule, [value]);
+                BindingFlags.SetProperty, null, rule, [value]);
         }
         catch (Exception ex)
         {
@@ -236,7 +237,7 @@ public class WindowsFirewallWrapper : IFirewallHelper
             return false;
 
         // Check for potentially dangerous characters that could be used for injection
-        var invalidChars = new char[] { '<', '>', '|', '&', ';', '$', '`', '\0', '\r', '\n' };
+        var invalidChars = new[] { '<', '>', '|', '&', ';', '$', '`', '\0', '\r', '\n' };
         return !ruleName.Any(c => invalidChars.Contains(c)) && ruleName.Length <= 255;
     }
 

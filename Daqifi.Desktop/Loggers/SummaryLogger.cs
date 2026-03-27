@@ -1,8 +1,8 @@
-﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Device;
-using System.Text;
+﻿using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Device;
 
 namespace Daqifi.Desktop.Logger;
 

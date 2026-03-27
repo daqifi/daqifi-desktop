@@ -1,14 +1,16 @@
-using Daqifi.Desktop.Device;
-using Daqifi.Desktop.Channel;
-using Daqifi.Core.Device.Network;
+using System.Windows.Media;
+using Daqifi.Core.Channel;
+using Daqifi.Core.Communication;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Producers;
-using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
+using Daqifi.Core.Device;
+using Daqifi.Core.Device.Network;
+using Daqifi.Desktop.Device;
 using Daqifi.Desktop.IO.Messages;
-using Moq;
-using System.Threading;
-using System.Windows.Media;
+// Added for DeviceType, DeviceTypeDetector from Core
+using AnalogChannel = Daqifi.Desktop.Channel.AnalogChannel;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
+using DigitalChannel = Daqifi.Desktop.Channel.DigitalChannel;
 
 namespace Daqifi.Desktop.Test.Device;
 
@@ -352,7 +354,7 @@ public class AbstractStreamingDeviceTests
                 $"core:{ScpiMessageProducer.SaveNetworkLan.Data}",
                 $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
                 $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
-                $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data}"
+                $"desktop:{ScpiMessageProducer.SetStreamInterface(StreamInterface.SdCard).Data}"
             },
             device.SentCommands.TakeLast(4).ToArray(),
             "Desktop should restore the full SD interface after the Core network update when the device is in LogToDevice mode.");
@@ -386,7 +388,7 @@ public class AbstractStreamingDeviceTests
             {
                 $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
                 $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
-                $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data}"
+                $"desktop:{ScpiMessageProducer.SetStreamInterface(StreamInterface.SdCard).Data}"
             },
             device.SentCommands.TakeLast(3).ToArray(),
             "Desktop should restore the full SD interface even when the Core network update fails.");
@@ -517,7 +519,7 @@ public class AbstractStreamingDeviceTests
         // Act — fire with a non-DaqifiDevice sender
         device.SimulateChannelsPopulatedFromSender(
             sender: "not a device",
-            new ChannelsPopulatedEventArgs(Array.Empty<Daqifi.Core.Channel.IChannel>().AsReadOnly(), 0, 0));
+            new ChannelsPopulatedEventArgs(Array.Empty<IChannel>().AsReadOnly(), 0, 0));
 
         // Assert — no channels should be created or modified
         Assert.AreEqual(0, device.DataChannels.Count);
@@ -618,7 +620,7 @@ public class AbstractStreamingDeviceTests
             {
                 ScpiMessageProducer.DisableStorageSd.Data,
                 ScpiMessageProducer.EnableNetworkLan.Data,
-                ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.Usb).Data
+                ScpiMessageProducer.SetStreamInterface(StreamInterface.Usb).Data
             },
             device.SentCommands);
     }
@@ -627,10 +629,10 @@ public class AbstractStreamingDeviceTests
     public void HandleInboundMessage_WhenInLogToDevice_IgnoresStreamingSamples()
     {
         var device = new TestStreamingDevice();
-        var coreChannel = new Daqifi.Core.Channel.AnalogChannel(0, 4096)
+        var coreChannel = new Core.Channel.AnalogChannel(0, 4096)
         {
             Name = "AI0",
-            Direction = Daqifi.Core.Channel.ChannelDirection.Input,
+            Direction = ChannelDirection.Input,
             CalibrationB = 0,
             CalibrationM = 1,
             InternalScaleM = 1,
@@ -667,12 +669,12 @@ public class AbstractStreamingDeviceTests
         return coreDevice;
     }
 
-    private static Daqifi.Core.Channel.AnalogChannel BuildAnalogInputCoreChannel(int index)
+    private static Core.Channel.AnalogChannel BuildAnalogInputCoreChannel(int index)
     {
-        return new Daqifi.Core.Channel.AnalogChannel(index, 4096)
+        return new Core.Channel.AnalogChannel(index, 4096)
         {
             Name = $"AI{index}",
-            Direction = Daqifi.Core.Channel.ChannelDirection.Input,
+            Direction = ChannelDirection.Input,
             CalibrationB = 0,
             CalibrationM = 1,
             InternalScaleM = 1,
@@ -680,12 +682,12 @@ public class AbstractStreamingDeviceTests
         };
     }
 
-    private static Daqifi.Core.Channel.DigitalChannel BuildDigitalInputCoreChannel(int index)
+    private static Core.Channel.DigitalChannel BuildDigitalInputCoreChannel(int index)
     {
-        return new Daqifi.Core.Channel.DigitalChannel(index)
+        return new Core.Channel.DigitalChannel(index)
         {
             Name = $"DIO{index}",
-            Direction = Daqifi.Core.Channel.ChannelDirection.Input
+            Direction = ChannelDirection.Input
         };
     }
 
@@ -802,8 +804,8 @@ public class AbstractStreamingDeviceTests
         {
             var args = new ChannelsPopulatedEventArgs(
                 coreDevice.Channels,
-                coreDevice.Channels.Count(c => c.Type == Daqifi.Core.Channel.ChannelType.Analog),
-                coreDevice.Channels.Count(c => c.Type == Daqifi.Core.Channel.ChannelType.Digital));
+                coreDevice.Channels.Count(c => c.Type == ChannelType.Analog),
+                coreDevice.Channels.Count(c => c.Type == ChannelType.Digital));
             OnCoreChannelsPopulated(coreDevice, args);
         }
 

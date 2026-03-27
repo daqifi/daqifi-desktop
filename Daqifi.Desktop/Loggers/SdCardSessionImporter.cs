@@ -339,7 +339,7 @@ public class SdCardSessionImporter
         }
 
         var digitalCount = device.DataChannels
-            .Count(ch => ch.Type == Daqifi.Core.Channel.ChannelType.Digital);
+            .Count(ch => ch.Type == ChannelType.Digital);
 
         return new SdCardDeviceConfiguration(
             AnalogPortCount: analogChannels.Count,

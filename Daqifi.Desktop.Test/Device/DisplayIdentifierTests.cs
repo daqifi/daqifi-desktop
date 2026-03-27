@@ -1,11 +1,11 @@
+using System.IO.Ports;
+using System.Net;
+using Daqifi.Core.Communication.Messages;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Device.WiFiDevice;
-using System.ComponentModel;
-using System.IO.Ports;
 using CoreDeviceInfo = Daqifi.Core.Device.Discovery.DeviceInfo;
 using CoreConnectionType = Daqifi.Core.Device.Discovery.ConnectionType;
-using System.Net;
 
 namespace Daqifi.Desktop.Test.Device;
 
@@ -62,7 +62,7 @@ public class DisplayIdentifierTests
         };
         
         // Act
-        device.Port = new System.IO.Ports.SerialPort("COM5");
+        device.Port = new SerialPort("COM5");
         
         // Assert
         Assert.IsTrue(propertyChangedFired, "PropertyChanged should fire for DisplayIdentifier when Port changes");
@@ -236,5 +236,5 @@ public class TestStreamingDevice : AbstractStreamingDevice
     public override bool Disconnect() => true;
     public override bool Write(string command) => true;
 
-    protected override void SendMessage(Daqifi.Core.Communication.Messages.IOutboundMessage<string> message) { }
+    protected override void SendMessage(IOutboundMessage<string> message) { }
 }

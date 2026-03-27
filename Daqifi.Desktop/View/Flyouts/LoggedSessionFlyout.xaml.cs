@@ -1,8 +1,9 @@
-﻿using System.Collections.ObjectModel;
+﻿using System.Windows.Controls;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using TextBox = System.Windows.Controls.TextBox;
 
 namespace Daqifi.Desktop.View.Flyouts;
 
@@ -19,11 +20,11 @@ public partial class LoggedSessionFlyout
 
     }
 
-    private void UpdateSessionName(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    private void UpdateSessionName(object sender, TextChangedEventArgs e)
     {
         if ((DataContext as DaqifiViewModel)?.SelectedLoggingSession is LoggingSession session)
         {
-            var textBox = sender as System.Windows.Controls.TextBox;
+            var textBox = sender as TextBox;
             if (textBox != null)
             {
 

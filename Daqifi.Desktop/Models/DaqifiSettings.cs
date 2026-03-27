@@ -1,7 +1,7 @@
-﻿using Daqifi.Desktop.Common.Loggers;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Xml.Linq;
+using Daqifi.Desktop.Common.Loggers;
 
 namespace Daqifi.Desktop.Models;
 

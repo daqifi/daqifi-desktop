@@ -1,7 +1,8 @@
+using Daqifi.Core.Communication.Messages;
 using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Device;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
-using Daqifi.Desktop.Device;
 using CoreAnalogChannel = Daqifi.Core.Channel.AnalogChannel;
 
 namespace Daqifi.Desktop.Test.Device;
@@ -280,7 +281,7 @@ public class TestableStreamingDevice : AbstractStreamingDevice
     public override bool Disconnect() => true;
     public override bool Write(string command) => true;
 
-    protected override void SendMessage(Daqifi.Core.Communication.Messages.IOutboundMessage<string> message) { }
+    protected override void SendMessage(IOutboundMessage<string> message) { }
 
     // Expose protected methods for testing
     public void TestHandleStreamingMessage(DaqifiOutMessage message)

@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Windows;
 using Daqifi.Desktop.WindowViewModelMapping;
+using MessageBox = System.Windows.MessageBox;
 
 namespace Daqifi.Desktop.DialogService;
 
@@ -118,7 +119,7 @@ public class DialogService : IDialogService
         MessageBoxButton button,
         MessageBoxImage icon)
     {
-        return System.Windows.MessageBox.Show(FindOwnerWindow(ownerViewModel), messageBoxText, caption, button, icon);
+        return MessageBox.Show(FindOwnerWindow(ownerViewModel), messageBoxText, caption, button, icon);
     }
     #endregion
 

@@ -1,4 +1,5 @@
-﻿using MahApps.Metro.Controls;
+﻿using System.Windows;
+using MahApps.Metro.Controls;
 
 namespace Daqifi.Desktop.View;
 
@@ -12,12 +13,12 @@ public partial class FirmwareDialog : MetroWindow
         InitializeComponent();
     }
 
-    private void btnCancel_Click(object sender, System.Windows.RoutedEventArgs e)
+    private void btnCancel_Click(object sender, RoutedEventArgs e)
     {
         Close();
     }
 
-    private void btnOk_Click(object sender, System.Windows.RoutedEventArgs e)
+    private void btnOk_Click(object sender, RoutedEventArgs e)
     {
         Close();
     }

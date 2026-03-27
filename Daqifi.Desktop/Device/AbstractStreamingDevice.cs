@@ -1,22 +1,32 @@
-﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Common.Loggers;
+﻿using System.Globalization;
+using System.IO;
+using System.Runtime.InteropServices;
+using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Core.Channel;
 using Daqifi.Core.Communication;
+using Daqifi.Core.Communication.Messages;
+using Daqifi.Core.Device;
 using Daqifi.Core.Device.Network;
+using Daqifi.Core.Device.Protocol;
+using Daqifi.Core.Device.SdCard;
+using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.IO.Messages;
+using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Models;
+using AnalogChannel = Daqifi.Desktop.Channel.AnalogChannel;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
-using Daqifi.Desktop.IO.Messages;
-using Daqifi.Desktop.Models;
-using System.Globalization;
-using System.IO;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
-using System.Runtime.InteropServices; // Added for P/Invoke
-using CommunityToolkit.Mvvm.ComponentModel; // Added using
-using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector, DeviceMetadata, DeviceCapabilities, DeviceState
-using Daqifi.Core.Device.Protocol; // Added for ProtobufProtocolHandler
-using Daqifi.Core.Communication.Messages; // Added for IInboundMessage
+// Added for P/Invoke
+// Added using
+// Added for DeviceType, DeviceTypeDetector, DeviceMetadata, DeviceCapabilities, DeviceState
+// Added for ProtobufProtocolHandler
+// Added for IInboundMessage
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
-using Daqifi.Core.Device.SdCard;
 using CoreSdCardFileInfo = Daqifi.Core.Device.SdCard.SdCardFileInfo;
+using DataSample = Daqifi.Desktop.Channel.DataSample;
+using DigitalChannel = Daqifi.Desktop.Channel.DigitalChannel;
+using IChannel = Daqifi.Desktop.Channel.IChannel;
 
 namespace Daqifi.Desktop.Device;
 
@@ -298,7 +308,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                     else
                     {
                         // Raw ADC count — apply channel calibration/scaling via Core
-                        scaledValue = channel.GetScaledValue((int)message.AnalogInData[dataIndex]);
+                        scaledValue = channel.GetScaledValue(message.AnalogInData[dataIndex]);
                     }
 
                     var sample = new DataSample(this, channel, messageTimestamp, scaledValue);
@@ -372,7 +382,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             Rollover = rollover,
         };
 
-        Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
+        LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
     }
 
     /// <summary>
@@ -468,7 +478,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             // The Core package resumes StartSdCardLoggingAsync continuations on the caller's
             // synchronization context. Running it on the thread pool prevents UI deadlocks.
-            var channelMaskString = Convert.ToString((long)analogChannelMask, 2);
+            var channelMaskString = Convert.ToString(analogChannelMask, 2);
             Task.Run(() => coreDevice.StartSdCardLoggingAsync(channelMask: channelMaskString, format: SdCardLogFormat)).GetAwaiter().GetResult();
 
             IsLoggingToSdCard = coreDevice.IsLoggingToSdCard;
@@ -846,7 +856,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    private void SyncChannelsFromCore(IReadOnlyList<Daqifi.Core.Channel.IChannel> coreChannels)
+    private void SyncChannelsFromCore(IReadOnlyList<Core.Channel.IChannel> coreChannels)
     {
         var existingChannels = DataChannels.ToDictionary(GetChannelKey);
         var updatedChannels = new List<IChannel>(coreChannels.Count);
@@ -860,7 +870,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 switch (existingChannel)
                 {
                     case AnalogChannel desktopAnalogChannel
-                        when coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel:
+                        when coreChannel is IAnalogChannel coreAnalogChannel:
                         desktopAnalogChannel.ReplaceCoreChannel(coreAnalogChannel);
                         desktopAnalogChannel.DeviceName = DevicePartNumber;
                         desktopAnalogChannel.DeviceSerialNo = DeviceSerialNo;
@@ -868,7 +878,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                         continue;
 
                     case DigitalChannel desktopDigitalChannel
-                        when coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel:
+                        when coreChannel is IDigitalChannel coreDigitalChannel:
                         desktopDigitalChannel.ReplaceCoreChannel(coreDigitalChannel);
                         desktopDigitalChannel.DeviceName = DevicePartNumber;
                         desktopDigitalChannel.DeviceSerialNo = DeviceSerialNo;
@@ -888,12 +898,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         DataChannels.AddRange(updatedChannels);
     }
 
-    private IChannel? CreateDesktopChannel(Daqifi.Core.Channel.IChannel coreChannel)
+    private IChannel? CreateDesktopChannel(Core.Channel.IChannel coreChannel)
     {
         return coreChannel switch
         {
-            Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel => new AnalogChannel(this, coreAnalogChannel),
-            Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel => new DigitalChannel(this, coreDigitalChannel),
+            IAnalogChannel coreAnalogChannel => new AnalogChannel(this, coreAnalogChannel),
+            IDigitalChannel coreDigitalChannel => new DigitalChannel(this, coreDigitalChannel),
             _ => null
         };
     }
@@ -903,7 +913,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         return $"{channel.Type}:{channel.Index}";
     }
 
-    private static string GetChannelKey(Daqifi.Core.Channel.IChannel channel)
+    private static string GetChannelKey(Core.Channel.IChannel channel)
     {
         return $"{channel.Type}:{channel.ChannelNumber}";
     }
@@ -1080,7 +1090,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 var channel = activeChannels[i];
                 var rawValue = message.AnalogInData[i];
                 // Use core's scaling implementation for correct formula and thread-safety
-                var scaledValue = channel.GetScaledValue((int)rawValue);
+                var scaledValue = channel.GetScaledValue(rawValue);
                 debugData.ScaledAnalogValues.Add(scaledValue);
             }
 

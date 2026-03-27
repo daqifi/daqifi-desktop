@@ -1,13 +1,13 @@
-using Daqifi.Desktop.Channel;
+using System.IO;
+using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.IO;
-using System.Windows.Input;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
+using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -84,7 +84,7 @@ public partial class ExportDialogViewModel : ObservableObject
     [RelayCommand]
     private void BrowseExportPath()
     {
-        var dialog = new Microsoft.Win32.SaveFileDialog
+        var dialog = new SaveFileDialog
         {
             DefaultExt = ".csv",
             Filter = "Log File|*.csv"

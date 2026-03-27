@@ -1,7 +1,7 @@
-﻿using Daqifi.Desktop.Device;
-using Daqifi.Desktop.ViewModels;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
+using Daqifi.Desktop.Device;
+using Daqifi.Desktop.ViewModels;
 
 namespace Daqifi.Desktop.View;
 
@@ -38,7 +38,7 @@ public partial class AddprofileDialog
 
     private void SelectedDevice_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var datacontext = this.DataContext as AddProfileDialogViewModel;
+        var datacontext = DataContext as AddProfileDialogViewModel;
 
         if (datacontext != null)
         {

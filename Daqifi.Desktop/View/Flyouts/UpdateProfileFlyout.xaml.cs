@@ -1,13 +1,15 @@
-﻿using Daqifi.Desktop.Common.Loggers;
-using Daqifi.Desktop.Device;
-using Daqifi.Desktop.DialogService;
-using Daqifi.Desktop.Logger;
-using Daqifi.Desktop.Models;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Device;
+using Daqifi.Desktop.DialogService;
+using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Models;
+using ListViewItem = System.Windows.Controls.ListViewItem;
+using TextBox = System.Windows.Controls.TextBox;
 
 namespace Daqifi.Desktop.View.Flyouts;
 
@@ -60,7 +62,7 @@ public partial class UpdateProfileFlyout
         {
             if (LoggingManager.Instance.SelectedProfile != null)
             {
-                var item = sender as System.Windows.Controls.ListViewItem;
+                var item = sender as ListViewItem;
                 if (item.DataContext is ProfileChannel channel)
                 {
                     foreach (var device in LoggingManager.Instance.SelectedProfile.Devices)
@@ -94,10 +96,8 @@ public partial class UpdateProfileFlyout
                             SelectedDevice.SelectedIndex = 0;
                             return;
                         }
-                        else
-                        {
-                            LoggingManager.Instance.SelectedProfile.Devices.Remove(data);
-                        }
+
+                        LoggingManager.Instance.SelectedProfile.Devices.Remove(data);
                     }
                     else
                     {
@@ -154,7 +154,7 @@ public partial class UpdateProfileFlyout
             if (LoggingManager.Instance.SelectedProfile != null)
             {
 
-                if (sender is System.Windows.Controls.TextBox profilename && !string.IsNullOrWhiteSpace(profilename.Text))
+                if (sender is TextBox profilename && !string.IsNullOrWhiteSpace(profilename.Text))
                 {
                     LoggingManager.Instance.SelectedProfile.Name = profilename.Text;
                 }
@@ -174,7 +174,7 @@ public partial class UpdateProfileFlyout
             {
 
 
-                if (sender is Slider freq && freq.Value != 0 && freq.Parent is DockPanel dockpanel && dockpanel.Children[1] is System.Windows.Controls.TextBox textbox)
+                if (sender is Slider freq && freq.Value != 0 && freq.Parent is DockPanel dockpanel && dockpanel.Children[1] is TextBox textbox)
                 {
                     foreach (var item in LoggingManager.Instance.SelectedProfile.Devices)
                     {

@@ -1,15 +1,18 @@
-﻿using Daqifi.Desktop.Device;
+﻿using System.Collections;
+using System.Collections.ObjectModel;
+using System.Net;
+using System.Net.Sockets;
+using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Daqifi.Core.Device.Discovery;
+using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Device.WiFiDevice;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.View;
-using System.Collections;
-using System.Collections.ObjectModel;
-using System.Net;
-using System.Net.Sockets;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using Daqifi.Core.Device.Discovery;
+using Application = System.Windows.Application;
 using CoreConcreteDeviceInfo = Daqifi.Core.Device.Discovery.DeviceInfo;
 using CoreConnectionType = Daqifi.Core.Device.Discovery.ConnectionType;
 using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
@@ -20,8 +23,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
 {
     #region Private Variables
     private WiFiDeviceFinder? _wifiFinder;
-    private Daqifi.Core.Device.Discovery.SerialDeviceFinder? _serialFinder;
-    private Daqifi.Core.Device.Discovery.HidDeviceFinder? _hidDeviceFinder;
+    private SerialDeviceFinder? _serialFinder;
+    private HidDeviceFinder? _hidDeviceFinder;
     private CancellationTokenSource? _wifiDiscoveryCts;
     private CancellationTokenSource? _serialDiscoveryCts;
     private CancellationTokenSource? _hidDiscoveryCts;
@@ -76,13 +79,13 @@ public partial class ConnectionDialogViewModel : ObservableObject
         _wifiDiscoveryTask = RunContinuousWiFiDiscoveryAsync(_wifiDiscoveryCts.Token);
 
         // Serial Discovery
-        _serialFinder = new Daqifi.Core.Device.Discovery.SerialDeviceFinder();
+        _serialFinder = new SerialDeviceFinder();
         _serialDiscoveryCts = new CancellationTokenSource();
         _serialFinder.DeviceDiscovered += HandleCoreSerialDeviceDiscovered;
         _serialDiscoveryTask = RunContinuousSerialDiscoveryAsync(_serialDiscoveryCts.Token);
 
         // HID Discovery
-        _hidDeviceFinder = new Daqifi.Core.Device.Discovery.HidDeviceFinder();
+        _hidDeviceFinder = new HidDeviceFinder();
         _hidDiscoveryCts = new CancellationTokenSource();
         _hidDeviceFinder.DeviceDiscovered += HandleCoreHidDeviceDiscovered;
         _hidDiscoveryTask = RunContinuousHidDiscoveryAsync(_hidDiscoveryCts.Token);
@@ -109,7 +112,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Common.Loggers.AppLogger.Instance.Error(ex, "Error in WiFi discovery loop");
+            AppLogger.Instance.Error(ex, "Error in WiFi discovery loop");
         }
     }
 
@@ -134,7 +137,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Common.Loggers.AppLogger.Instance.Error(ex, "Error in Serial discovery loop");
+            AppLogger.Instance.Error(ex, "Error in Serial discovery loop");
         }
     }
 
@@ -159,7 +162,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Common.Loggers.AppLogger.Instance.Error(ex, "Error in HID discovery loop");
+            AppLogger.Instance.Error(ex, "Error in HID discovery loop");
         }
     }
     #endregion
@@ -214,20 +217,20 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
         catch (ArgumentException ex)
         {
-            Common.Loggers.AppLogger.Instance.Warning(
+            AppLogger.Instance.Warning(
                 $"Manual WiFi connection requires a valid IP address or host name. " +
                 $"Received '{ManualIpAddress}': {ex.Message}");
             return;
         }
         catch (SocketException ex)
         {
-            Common.Loggers.AppLogger.Instance.Warning(
+            AppLogger.Instance.Warning(
                 $"Failed to resolve manual WiFi endpoint '{ManualIpAddress}': {ex.Message}");
             return;
         }
         catch (Exception ex)
         {
-            Common.Loggers.AppLogger.Instance.Error(
+            AppLogger.Instance.Error(
                 ex,
                 $"Unexpected error while resolving manual WiFi endpoint '{ManualIpAddress}'.");
             throw;
@@ -235,7 +238,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         if (ipAddress == null)
         {
-            Common.Loggers.AppLogger.Instance.Warning(
+            AppLogger.Instance.Warning(
                 $"Manual WiFi endpoint '{ManualIpAddress}' did not resolve to an IP address.");
             return;
         }
@@ -292,7 +295,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Common.Loggers.AppLogger.Instance.Error(ex, "Error handling WiFi device discovery");
+            AppLogger.Instance.Error(ex, "Error handling WiFi device discovery");
         }
     }
 
@@ -304,7 +307,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Common.Loggers.AppLogger.Instance.Error(ex, "Error handling Serial device discovery");
+            AppLogger.Instance.Error(ex, "Error handling Serial device discovery");
         }
     }
 
@@ -328,7 +331,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
                     deviceInfo.FirmwareVersion);
                 AvailableSerialDevices.Add(serialDevice);
                 if (HasNoSerialDevices) { HasNoSerialDevices = false; }
-                Common.Loggers.AppLogger.Instance.Information(
+                AppLogger.Instance.Information(
                     $"Added DAQiFi device on {portName}: {serialDevice.Name} (S/N: {serialDevice.DeviceSerialNo})");
                 return;
             }
@@ -357,7 +360,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     private static void InvokeOnUiThread(Action action)
     {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher == null || dispatcher.CheckAccess())
         {
             action();
@@ -371,7 +374,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         try
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            Application.Current.Dispatcher.Invoke(() =>
             {
                 var discoveredDevice = e.DeviceInfo;
                 var discoveredKey = BuildHidDeviceKey(discoveredDevice);
@@ -387,7 +390,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            Common.Loggers.AppLogger.Instance.Error(ex, "Error handling HID device discovery");
+            AppLogger.Instance.Error(ex, "Error handling HID device discovery");
         }
     }
 
@@ -453,7 +456,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
             }
             catch (TimeoutException)
             {
-                Common.Loggers.AppLogger.Instance.Warning("Serial discovery task did not complete within timeout");
+                AppLogger.Instance.Warning("Serial discovery task did not complete within timeout");
             }
             catch (OperationCanceledException)
             {
@@ -465,7 +468,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
             }
             catch (Exception ex)
             {
-                Common.Loggers.AppLogger.Instance.Error(ex, "Unexpected error while stopping serial discovery");
+                AppLogger.Instance.Error(ex, "Unexpected error while stopping serial discovery");
             }
             _serialDiscoveryTask = null;
         }
@@ -515,8 +518,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
             dialog.DataContext = duplicateDialogViewModel;
             
             // Find the owner window
-            var ownerWindow = System.Windows.Application.Current.Windows
-                .Cast<System.Windows.Window>()
+            var ownerWindow = Application.Current.Windows
+                .Cast<Window>()
                 .FirstOrDefault(w => w.DataContext == this);
                 
             if (ownerWindow != null)
@@ -524,7 +527,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
                 dialog.Owner = ownerWindow;
             }
             
-            dialog.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner;
+            dialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
             
             var dialogResult = dialog.ShowDialog();
             
@@ -543,7 +546,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         catch (Exception ex)
         {
             // Log error and default to cancel - this should rarely happen
-            Daqifi.Desktop.Common.Loggers.AppLogger.Instance.Error(ex, "Failed to show duplicate device dialog");
+            AppLogger.Instance.Error(ex, "Failed to show duplicate device dialog");
             return DuplicateDeviceAction.Cancel;
         }
     }

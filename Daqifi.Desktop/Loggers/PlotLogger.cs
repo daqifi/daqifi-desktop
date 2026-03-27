@@ -1,15 +1,16 @@
-﻿using Daqifi.Desktop.Channel;
-using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
-using ChannelType = Daqifi.Core.Channel.ChannelType;
-using Daqifi.Desktop.Device;
-using OxyPlot;
-using OxyPlot.Axes;
-using OxyPlot.Series;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Device;
+using OxyPlot;
+using OxyPlot.Axes;
+using OxyPlot.Series;
+using OxyPlot.Wpf;
+using ChannelType = Daqifi.Core.Channel.ChannelType;
+using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 using TickStyle = OxyPlot.Axes.TickStyle;
 
 namespace Daqifi.Desktop.Logger;
@@ -349,7 +350,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     [RelayCommand]
     private void SaveLiveGraph()
     {
-        var dialog = new Microsoft.Win32.SaveFileDialog
+        var dialog = new SaveFileDialog
         {
             DefaultExt = ".png",
             Filter = "PNG|*.png"
@@ -359,7 +360,7 @@ public partial class PlotLogger : ObservableObject, ILogger
 
         if (result == false) { return; }
 
-        var pngExporter = new OxyPlot.Wpf.PngExporter { Width = 1024, Height = 768 };
+        var pngExporter = new PngExporter { Width = 1024, Height = 768 };
         using var stream = File.Create(dialog.FileName);
         pngExporter.Export(PlotModel, stream);
     }

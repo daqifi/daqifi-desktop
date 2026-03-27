@@ -1,4 +1,5 @@
-﻿using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
+﻿using Brush = System.Windows.Media.Brush;
+using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 
 namespace Daqifi.Desktop.Channel;
@@ -17,7 +18,7 @@ public class Channel : IChannel
     public string TypeString { get; set; }
 
     public string ScaleExpression { get; set; }
-    public System.Windows.Media.Brush ChannelColorBrush { get; set; }
+    public Brush ChannelColorBrush { get; set; }
     public bool IsBidirectional { get; set; }
     public bool IsOutput { get; set; }
     public bool HasAdc { get; set; }
@@ -42,7 +43,7 @@ public class Channel : IChannel
         OnChannelUpdated?.Invoke(sender, e);
     }
 
-    public void SetColor(System.Windows.Media.Brush color)
+    public void SetColor(Brush color)
     {
         color = ChannelColorBrush;
     }

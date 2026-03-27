@@ -72,10 +72,8 @@ static class ServiceLocator
                 {
                     return serviceImplementation ?? (serviceImplementation = CreateInstance(serviceImplementationType));
                 }
-                else
-                {
-                    return CreateInstance(serviceImplementationType);
-                }
+
+                return CreateInstance(serviceImplementationType);
             }
         }
 

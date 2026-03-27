@@ -1,7 +1,7 @@
+using System.Diagnostics;
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
-using System.Diagnostics;
 
 namespace Daqifi.Desktop.Test.Exporter;
 

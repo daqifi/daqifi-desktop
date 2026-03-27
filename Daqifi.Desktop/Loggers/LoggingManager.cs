@@ -1,14 +1,14 @@
-﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Device;
-using Daqifi.Desktop.Models;
-using Daqifi.Desktop.Common.Loggers;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Xml.Linq;
-using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Models;
 using Daqifi.Desktop.UpdateVersion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.Logger;
 

@@ -1,5 +1,5 @@
-﻿using Daqifi.Desktop.Device;
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Desktop.Device;
 
 namespace Daqifi.Desktop.ViewModels;
 

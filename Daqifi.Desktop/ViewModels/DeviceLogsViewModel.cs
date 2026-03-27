@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
-using Application = System.Windows.Application;
-using MahApps.Metro.Controls;
-using MahApps.Metro.Controls.Dialogs;
+using System.Collections.Specialized;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Daqifi.Desktop.Common.Loggers;
@@ -9,9 +8,11 @@ using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Models;
+using MahApps.Metro.Controls;
+using MahApps.Metro.Controls.Dialogs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.Windows.Input;
+using Application = System.Windows.Application;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -92,7 +93,7 @@ public partial class DeviceLogsViewModel : ObservableObject
         UpdateConnectedDevices();
     }
 
-    private void OnDeviceFilesCollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    private void OnDeviceFilesCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(HasNoFiles));
     }

@@ -1,9 +1,9 @@
-﻿using Daqifi.Desktop.Common.Loggers;
+﻿using System.ComponentModel.DataAnnotations.Schema;
+using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using NCalc;
-using System.ComponentModel.DataAnnotations.Schema;
 using Brush = System.Windows.Media.Brush;
-using CommunityToolkit.Mvvm.ComponentModel;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 

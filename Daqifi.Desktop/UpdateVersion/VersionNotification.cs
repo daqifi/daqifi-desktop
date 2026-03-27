@@ -1,8 +1,8 @@
-﻿using Daqifi.Desktop.Common.Loggers;
-using Newtonsoft.Json.Linq;
-using System.Net.Http;
+﻿using System.Net.Http;
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Desktop.Common.Loggers;
+using Newtonsoft.Json.Linq;
 
 namespace Daqifi.Desktop.UpdateVersion;
 

@@ -1,10 +1,10 @@
-﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Configuration;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.ObjectModel;
-using Brush = System.Windows.Media.Brush;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Configuration;
+using Brush = System.Windows.Media.Brush;
 
 namespace Daqifi.Desktop.ViewModels;
 

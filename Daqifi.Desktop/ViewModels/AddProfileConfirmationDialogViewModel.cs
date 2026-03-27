@@ -1,10 +1,10 @@
-﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Device;
-using Daqifi.Desktop.DialogService;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Device;
+using Daqifi.Desktop.DialogService;
 
 namespace Daqifi.Desktop.ViewModels;
 

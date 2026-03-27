@@ -1,7 +1,22 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Ports;
+using System.Net.Http;
+using System.Windows;
+using System.Windows.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Device.SdCard;
+using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Device.Firmware;
+using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
@@ -11,27 +26,13 @@ using Daqifi.Desktop.UpdateVersion;
 using Daqifi.Desktop.View;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Daqifi.Core.Firmware;
-using Daqifi.Core.Communication.Transport;
-using Daqifi.Desktop.Device.Firmware;
-using Microsoft.Data.Sqlite;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.IO;
-using System.Net.Http;
-using System.Windows;
-using System.Windows.Input;
-using CommunityToolkit.Mvvm.ComponentModel;
-using Daqifi.Desktop.Device.SerialDevice;
-using System.IO.Ports;
 using Application = System.Windows.Application;
 using File = System.IO.File;
-using CommunityToolkit.Mvvm.Input;
-using Daqifi.Core.Device.SdCard;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -529,7 +530,7 @@ public partial class DaqifiViewModel : ObservableObject
             return;
         }
 
-        if (SelectedDevice?.ConnectionType != Device.ConnectionType.Usb)
+        if (SelectedDevice?.ConnectionType != ConnectionType.Usb)
         {
             return;
         }
@@ -651,7 +652,7 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     private async Task UpdateWifiModuleAsync(
-        Daqifi.Core.Device.IStreamingDevice coreDevice,
+        Core.Device.IStreamingDevice coreDevice,
         SerialStreamingDevice serialStreamingDevice,
         CancellationToken cancellationToken)
     {
@@ -1086,7 +1087,7 @@ public partial class DaqifiViewModel : ObservableObject
             return;
         }
 
-        SelectedDeviceSupportsFirmwareUpdate = device.ConnectionType == Device.ConnectionType.Usb;
+        SelectedDeviceSupportsFirmwareUpdate = device.ConnectionType == ConnectionType.Usb;
 
         CloseFlyouts();
         SelectedDevice = device;
@@ -1101,7 +1102,7 @@ public partial class DaqifiViewModel : ObservableObject
             return;
         }
 
-        SelectedDeviceSupportsFirmwareUpdate = device.ConnectionType == Device.ConnectionType.Usb;
+        SelectedDeviceSupportsFirmwareUpdate = device.ConnectionType == ConnectionType.Usb;
 
         CloseFlyouts();
         SelectedDevice = device;
@@ -1219,7 +1220,7 @@ public partial class DaqifiViewModel : ObservableObject
             if (dialog.ShowDialog() != true) return;
 
             IsLoggedDataBusy = true;
-            LoggedDataBusyReason = $"Importing {System.IO.Path.GetFileName(dialog.FileName)}...";
+            LoggedDataBusyReason = $"Importing {Path.GetFileName(dialog.FileName)}...";
 
             var loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
             var importer = new SdCardSessionImporter(loggingContext);
@@ -1238,7 +1239,7 @@ public partial class DaqifiViewModel : ObservableObject
             });
 
             await ShowMessage("Import Complete",
-                $"Successfully imported {System.IO.Path.GetFileName(dialog.FileName)}",
+                $"Successfully imported {Path.GetFileName(dialog.FileName)}",
                 MessageDialogStyle.Affirmative);
         }
         catch (OperationCanceledException)
@@ -1443,13 +1444,13 @@ public partial class DaqifiViewModel : ObservableObject
         {
             const string url = "https://www.daqifi.com/support";
 
-            var processStartInfo = new System.Diagnostics.ProcessStartInfo
+            var processStartInfo = new ProcessStartInfo
             {
                 FileName = url,
                 UseShellExecute = true
             };
 
-            System.Diagnostics.Process.Start(processStartInfo);
+            Process.Start(processStartInfo);
         }
         catch (Exception ex)
         {

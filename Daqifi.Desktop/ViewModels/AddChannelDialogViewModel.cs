@@ -1,11 +1,11 @@
-﻿using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Device;
-using Daqifi.Desktop.Helpers;
-using Daqifi.Desktop.Logger;
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Helpers;
+using Daqifi.Desktop.Logger;
 
 namespace Daqifi.Desktop.ViewModels;
 

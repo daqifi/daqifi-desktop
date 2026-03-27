@@ -1,4 +1,6 @@
-﻿namespace Daqifi.Desktop.View;
+﻿using System.Windows;
+
+namespace Daqifi.Desktop.View;
 
 /// <summary>
 /// Interaction logic for SettingsDialog.xaml
@@ -10,7 +12,7 @@ public partial class SettingsDialog
         InitializeComponent();
     }
 
-    private void Close_Click(object sender, System.Windows.RoutedEventArgs e)
+    private void Close_Click(object sender, RoutedEventArgs e)
     {
         Close();
     }

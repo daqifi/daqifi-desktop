@@ -1,8 +1,8 @@
-﻿using NLog;
+﻿using System.Reflection;
+using Bugsnag;
+using NLog;
 using NLog.Config;
 using NLog.Targets;
-using Bugsnag;
-using System.Reflection;
 
 namespace Daqifi.Desktop.Common.Loggers;
 

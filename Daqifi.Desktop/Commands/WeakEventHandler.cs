@@ -40,7 +40,7 @@ public static class WeakEventHandlerManager
         {
             if (syncContext != null)
             {
-                syncContext.Post((o) => eventHandler(sender, EventArgs.Empty), null);
+                syncContext.Post(o => eventHandler(sender, EventArgs.Empty), null);
             }
             else
             {

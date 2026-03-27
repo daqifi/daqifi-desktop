@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Application = System.Windows.Application;
 
 namespace Daqifi.Desktop.Models;
 
@@ -104,9 +105,9 @@ public partial class DebugDataCollection : ObservableObject
     public void AddEntry(DebugDataModel entry)
     {
         // Ensure we're on the UI thread
-        if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+        if (Application.Current?.Dispatcher?.CheckAccess() == false)
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() => AddEntry(entry));
+            Application.Current.Dispatcher.Invoke(() => AddEntry(entry));
             return;
         }
 
@@ -124,9 +125,9 @@ public partial class DebugDataCollection : ObservableObject
     public void Clear()
     {
         // Ensure we're on the UI thread
-        if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+        if (Application.Current?.Dispatcher?.CheckAccess() == false)
         {
-            System.Windows.Application.Current.Dispatcher.Invoke(() => Clear());
+            Application.Current.Dispatcher.Invoke(() => Clear());
             return;
         }
 
