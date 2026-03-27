@@ -76,6 +76,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private DateTime? _firstTime;
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
+    private readonly ManualResetEventSlim _consumerGate = new(true);
 
     [ObservableProperty]
     private PlotModel _plotModel;
@@ -188,6 +189,9 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 bufferCount = _buffer.Count;
 
                 if (bufferCount < 1) { continue; }
+
+                // Wait if the consumer is suspended (e.g. during delete-all)
+                _consumerGate.Wait();
 
                 // Remove the samples from the collection
                 for (var i = 0; i < bufferCount; i++)
@@ -332,18 +336,38 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
     public void DeleteLoggingSession(LoggingSession session)
     {
-        var stopwatch = new Stopwatch();
-        stopwatch.Start();
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             using var context = _loggingContext.CreateDbContext();
-            context.ChangeTracker.AutoDetectChangesEnabled = false;
+            var connection = context.Database.GetDbConnection();
+            connection.Open();
 
-            var loggingSession = context.Sessions.Find(session.ID);
-            // This will cascade delete and delete all corresponding data samples
-            context.Sessions.Remove(loggingSession);
-            context.ChangeTracker.DetectChanges();
-            context.SaveChanges();
+            using var transaction = connection.BeginTransaction();
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM Samples WHERE LoggingSessionID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = session.ID;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM Sessions WHERE ID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = session.ID;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
         }
         catch (Exception ex)
         {
@@ -352,8 +376,37 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         finally
         {
             stopwatch.Stop();
-            Console.WriteLine(stopwatch.ElapsedMilliseconds / 1000);
+            _appLogger.Information($"DeleteLoggingSession completed in {stopwatch.ElapsedMilliseconds}ms");
         }
+    }
+
+    /// <summary>
+    /// Drains the sample buffer to prevent stale data from being inserted after a database reset.
+    /// </summary>
+    public void ClearBuffer()
+    {
+        while (_buffer.TryTake(out _))
+        {
+        }
+    }
+
+    /// <summary>
+    /// Suspends the background consumer thread so no new database connections are opened.
+    /// Must be followed by <see cref="ResumeConsumer"/>.
+    /// </summary>
+    public void SuspendConsumer()
+    {
+        _consumerGate.Reset();
+        // Give the consumer time to finish any in-flight DB operation
+        Thread.Sleep(200);
+    }
+
+    /// <summary>
+    /// Resumes the background consumer thread after a <see cref="SuspendConsumer"/> call.
+    /// </summary>
+    public void ResumeConsumer()
+    {
+        _consumerGate.Set();
     }
 
     private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(string channelName, string deviceSerialNo, ChannelType type, string color)

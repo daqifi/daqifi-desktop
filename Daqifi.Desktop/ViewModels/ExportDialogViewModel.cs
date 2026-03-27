@@ -1,10 +1,9 @@
-﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.ComponentModel;
 using System.IO;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -17,6 +16,7 @@ public partial class ExportDialogViewModel : ObservableObject
     #region Private Variables
     private readonly List<int> _sessionsIds;
     private string _exportFilePath;
+    private CancellationTokenSource _cts;
 
     [ObservableProperty]
     private bool _exportAllSelected = true;
@@ -108,82 +108,78 @@ public partial class ExportDialogViewModel : ObservableObject
 
         ExportFilePath = dialog.SelectedPath;
     }
-    private BackgroundWorker _bw;
+
     [RelayCommand]
     private void CancelExport()
     {
-        if (_bw is { WorkerSupportsCancellation: true })
-        {
-            _bw.CancelAsync();
-        }
+        _cts?.Cancel();
     }
 
     [RelayCommand]
-    private void ExportLoggingSessions()
+    private async Task ExportLoggingSessions()
     {
-        IsExporting = true;
         if (string.IsNullOrWhiteSpace(ExportFilePath)) { return; }
-        _bw = new BackgroundWorker
-        {
-            WorkerReportsProgress = true,
-            WorkerSupportsCancellation = true
-        };
-        _bw.DoWork += async (sender, args) =>
-        {
-            var totalSessions = _sessionsIds.Count;
-            for (var i = 0; i < totalSessions; i++)
-            {
-                if (_bw.CancellationPending)
-                {
-                    return;
-                }
-                var sessionId = _sessionsIds[i];
-                var loggingSession = await GetLoggingSessionFromId(sessionId);
-                var sessionName = LoggingManager.Instance.LoggingSessions.FirstOrDefault(s => s.ID == sessionId).Name;
-                var filepath = totalSessions > 1
-                    ? Path.Combine(ExportFilePath, $"{sessionName}.csv")
-                    : ExportFilePath;
 
-                if (ExportAllSelected)
-                {
-                    ExportAllSamples(loggingSession, filepath, _bw, i, totalSessions);
-                }
-                else if (ExportAverageSelected)
-                {
-                    ExportAverageSamples(loggingSession, filepath, _bw, i, totalSessions);
-                }
-            }
-        };
-        _bw.ProgressChanged += UploadFirmwareProgressChanged;
-        _bw.RunWorkerCompleted += (sender, args) =>
+        IsExporting = true;
+        _cts = new CancellationTokenSource();
+        var cancellationToken = _cts.Token;
+        var progress = new Progress<int>(progressValue => ExportProgress = progressValue);
+
+        try
         {
-            if (args.Error != null)
+            await Task.Run(async () =>
             {
-                AppLogger.Instance.Error(args.Error, "Problem Exporting Data");
-            }
-            else
-            {
-                IsExporting = false;
-            }
-        };
-        _bw.RunWorkerAsync();
+                var totalSessions = _sessionsIds.Count;
+                for (var i = 0; i < totalSessions; i++)
+                {
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        return;
+                    }
+                    var sessionId = _sessionsIds[i];
+                    var loggingSession = await GetLoggingSessionFromId(sessionId);
+                    var sessionName = LoggingManager.Instance.LoggingSessions.FirstOrDefault(s => s.ID == sessionId).Name;
+                    var filepath = totalSessions > 1
+                        ? Path.Combine(ExportFilePath, $"{sessionName}.csv")
+                        : ExportFilePath;
+
+                    if (ExportAllSelected)
+                    {
+                        ExportAllSamples(loggingSession, filepath, progress, cancellationToken, i, totalSessions);
+                    }
+                    else if (ExportAverageSelected)
+                    {
+                        ExportAverageSamples(loggingSession, filepath, progress, cancellationToken, i, totalSessions);
+                    }
+                }
+            }, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            AppLogger.Instance.Information("Export operation was cancelled by user.");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Instance.Error(ex, "Problem Exporting Data");
+        }
+        finally
+        {
+            IsExporting = false;
+            _cts.Dispose();
+            _cts = null;
+        }
     }
 
-    private void UploadFirmwareProgressChanged(object? sender, ProgressChangedEventArgs e)
-    {
-        ExportProgress = e.ProgressPercentage;
-    }
-
-    private void ExportAllSamples(LoggingSession session, string filepath, BackgroundWorker bw, int sessionIndex, int totalSessions)
-    {
-        var loggingSessionExporter = new OptimizedLoggingSessionExporter();
-        loggingSessionExporter.ExportLoggingSession(session, filepath, ExportRelativeTime, bw, sessionIndex, totalSessions);
-    }
-
-    private void ExportAverageSamples(LoggingSession session, string filepath, BackgroundWorker bw, int sessionIndex, int totalSessions)
+    private void ExportAllSamples(LoggingSession session, string filepath, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
         var loggingSessionExporter = new OptimizedLoggingSessionExporter();
-        loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime, bw, sessionIndex, totalSessions);
+        loggingSessionExporter.ExportLoggingSession(session, filepath, ExportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
+    }
+
+    private void ExportAverageSamples(LoggingSession session, string filepath, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
+    {
+        var loggingSessionExporter = new OptimizedLoggingSessionExporter();
+        loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
     }
 
     private async Task<LoggingSession> GetLoggingSessionFromId(int sessionId)
@@ -194,16 +190,7 @@ public partial class ExportDialogViewModel : ObservableObject
             .Where(s => s.ID == sessionId)
             .Select(s => new LoggingSession
             {
-                ID = s.ID,
-                DataSamples = s.DataSamples.Select(d => new DataSample
-                {
-                    ID = d.ID,
-                    Value = d.Value,
-                    TimestampTicks = d.TimestampTicks,
-                    ChannelName = d.ChannelName,
-                    DeviceSerialNo = d.DeviceSerialNo,
-                    DeviceName = d.DeviceName
-                }).ToList()
+                ID = s.ID
             }).FirstOrDefaultAsync();
         return loggingSession;
     }
