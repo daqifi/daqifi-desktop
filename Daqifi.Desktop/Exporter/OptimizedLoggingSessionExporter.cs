@@ -256,10 +256,18 @@ public class OptimizedLoggingSessionExporter
         using var writer = new StreamWriter(filepath, true, Encoding.UTF8, BUFFER_SIZE);
         var sb = new StringBuilder(1024 * 4);
 
-        var processedSamples = 0;
-        long? lastProcessedTimestamp = null;
+        // Single query, streamed row-by-row via IEnumerable — no N+1
+        var samplesStream = context.Samples
+            .AsNoTracking()
+            .Where(s => s.LoggingSessionID == loggingSession.ID)
+            .OrderBy(s => s.TimestampTicks)
+            .Select(s => new { s.TimestampTicks, s.DeviceName, s.DeviceSerialNo, s.ChannelName, s.Value });
 
-        while (processedSamples < channelInfo.samplesCount)
+        var processedSamples = 0;
+        long? currentTimestamp = null;
+        var timestampBucket = new List<SampleData>();
+
+        foreach (var s in samplesStream)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -267,51 +275,38 @@ public class OptimizedLoggingSessionExporter
                 return;
             }
 
-            // Get distinct timestamps in batch to ensure we don't split timestamp groups
-            var timestampBatch = context.Samples
-                .AsNoTracking()
-                .Where(s => s.LoggingSessionID == loggingSession.ID &&
-                          (lastProcessedTimestamp == null || s.TimestampTicks > lastProcessedTimestamp.Value))
-                .OrderBy(s => s.TimestampTicks)
-                .Select(s => s.TimestampTicks)
-                .Distinct()
-                .Take(BATCH_SIZE / channelInfo.channelNames.Count) // Estimate timestamps per batch
-                .ToList();
+            var sample = new SampleData(s.TimestampTicks, $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value);
 
-            if (!timestampBatch.Any())
-                break;
-
-            // Process each timestamp completely to maintain data integrity
-            foreach (var timestamp in timestampBatch)
+            if (currentTimestamp.HasValue && s.TimestampTicks != currentTimestamp.Value)
             {
-                if (cancellationToken.IsCancellationRequested)
+                WriteCompleteTimestampRow(writer, sb, timestampBucket, channelInfo.channelNames,
+                    channelInfo.firstTimestamp, exportRelativeTime);
+                processedSamples += timestampBucket.Count;
+
+                if (processedSamples % 5000 == 0)
                 {
-                    _appLogger.Warning("Export operation cancelled by user.");
-                    return;
+                    var sessionProgress = Math.Min(100, (int)((double)processedSamples / channelInfo.samplesCount * 100));
+                    var overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
+                    progress?.Report(overallProgress);
                 }
 
-                // Get all samples for this specific timestamp
-                var timestampSamples = context.Samples
-                    .AsNoTracking()
-                    .Where(s => s.LoggingSessionID == loggingSession.ID && s.TimestampTicks == timestamp)
-                    .Select(s => new { s.TimestampTicks, s.DeviceName, s.DeviceSerialNo, s.ChannelName, s.Value })
-                    .AsEnumerable()
-                    .Select(s => new SampleData(s.TimestampTicks, $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}", s.Value))
-                    .ToList();
-
-                // Write complete timestamp group
-                WriteCompleteTimestampRow(writer, sb, timestampSamples, channelInfo.channelNames,
-                    channelInfo.firstTimestamp, exportRelativeTime);
-
-                processedSamples += timestampSamples.Count;
-                lastProcessedTimestamp = timestamp;
+                timestampBucket.Clear();
             }
 
-            // Update progress
-            var sessionProgress = Math.Min(100, (int)((double)processedSamples / channelInfo.samplesCount * 100));
-            var overallProgress = (int)((sessionIndex + sessionProgress / 100.0) * (100.0 / totalSessions));
-            progress?.Report(overallProgress);
+            currentTimestamp = s.TimestampTicks;
+            timestampBucket.Add(sample);
         }
+
+        // Write final group
+        if (timestampBucket.Count > 0)
+        {
+            WriteCompleteTimestampRow(writer, sb, timestampBucket, channelInfo.channelNames,
+                channelInfo.firstTimestamp, exportRelativeTime);
+            processedSamples += timestampBucket.Count;
+        }
+
+        var finalProgress = (int)((sessionIndex + 1.0) * (100.0 / totalSessions));
+        progress?.Report(finalProgress);
     }
 
     private void WriteCompleteTimestampRow(StreamWriter writer, StringBuilder sb, List<SampleData> timestampSamples,
