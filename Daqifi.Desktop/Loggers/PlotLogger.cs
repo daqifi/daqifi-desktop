@@ -202,7 +202,7 @@ public partial class PlotLogger : ObservableObject, ILogger
 
         lock (PlotModel.SyncRoot)
         {
-            if (_gapDetector.IsGap(key, deltaTime))
+            if (_gapDetector.IsGap(key, dataSample.FirmwareDeltaMs))
             {
                 LoggedPoints[key].Add(DataPoint.Undefined);
                 if (LoggedPoints[key].Count >= 5000)

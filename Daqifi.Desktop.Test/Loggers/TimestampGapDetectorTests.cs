@@ -21,26 +21,27 @@ public class TimestampGapDetectorTests
 
     #region First Sample Tests
     [TestMethod]
-    public void IsGap_FirstSample_ReturnsFalse()
+    public void IsGap_NullDelta_ReturnsFalse()
     {
-        // Arrange / Act
-        var result = _detector.IsGap(_key, 0.0);
-
-        // Assert
-        Assert.IsFalse(result, "First sample should never be flagged as a gap.");
+        // First message has no prior reference point — firmware delta is null.
+        var result = _detector.IsGap(_key, null);
+        Assert.IsFalse(result, "Null firmware delta (first message) should never be flagged as a gap.");
     }
 
     [TestMethod]
-    public void IsGap_SecondSample_ReturnsFalse()
+    public void IsGap_ZeroDelta_ReturnsFalse()
     {
-        // Arrange
-        _detector.IsGap(_key, 0.0);   // first sample – initialises lastTimestamp
+        var result = _detector.IsGap(_key, 0.0);
+        Assert.IsFalse(result, "Zero firmware delta should never be flagged as a gap.");
+    }
 
-        // Act
-        var result = _detector.IsGap(_key, 10.0);  // second sample – initialises EMA
-
-        // Assert
-        Assert.IsFalse(result, "Second sample initialises the EMA and should not be flagged.");
+    [TestMethod]
+    public void IsGap_FirstRealDelta_SeedsEmaAndReturnsFalse()
+    {
+        // First message (null delta), then second message with a real firmware delta.
+        _detector.IsGap(_key, null);
+        var result = _detector.IsGap(_key, 10.0);
+        Assert.IsFalse(result, "First real firmware delta should seed the EMA and not be flagged.");
     }
     #endregion
 
@@ -48,14 +49,13 @@ public class TimestampGapDetectorTests
     [TestMethod]
     public void IsGap_ConsistentSampleRate_NeverDetectsGap()
     {
-        // Arrange – simulate 10 ms sample period (100 Hz)
-        const double period = 10.0;
-        _detector.IsGap(_key, 0.0);
+        const double period = 10.0; // 100 Hz
+        WarmUp(_key, period, warmUpCount: 10);
 
-        // Act / Assert – 50 consecutive samples at the same rate
+        // 50 more samples at the same rate
         for (var i = 1; i <= 50; i++)
         {
-            var isGap = _detector.IsGap(_key, i * period);
+            var isGap = _detector.IsGap(_key, period);
             Assert.IsFalse(isGap, $"Sample {i} at consistent cadence should not be a gap.");
         }
     }
@@ -63,14 +63,11 @@ public class TimestampGapDetectorTests
     [TestMethod]
     public void IsGap_DeltaExactlyAtThreshold_ReturnsFalse()
     {
-        // Arrange – warm up EMA with a 10 ms period
         const double period = 10.0;
         WarmUp(_key, period, warmUpCount: 10);
 
-        // Act – delta is exactly 2× average (equal, not strictly greater)
-        var result = _detector.IsGap(_key, 11 * period);  // 10 ms × 2.0 exactly
-
-        // Assert
+        // Delta exactly 2× average (equal, not strictly greater)
+        var result = _detector.IsGap(_key, period * 2.0);
         Assert.IsFalse(result, "A delta equal to the threshold should not be detected as a gap.");
     }
     #endregion
@@ -79,71 +76,89 @@ public class TimestampGapDetectorTests
     [TestMethod]
     public void IsGap_DeltaExceedsThreshold_ReturnsTrue()
     {
-        // Arrange – warm up EMA with a 10 ms period
         const double period = 10.0;
         WarmUp(_key, period, warmUpCount: 10);
 
-        // Act – introduce a gap significantly larger than 2× average (e.g. 5× period)
-        var result = _detector.IsGap(_key, 11 * period + 5 * period);
-
-        // Assert
+        // Firmware reports a 50 ms gap (5× period, well above 2× threshold)
+        var result = _detector.IsGap(_key, 5 * period);
         Assert.IsTrue(result, "A delta well above 2× average should be detected as a gap.");
     }
 
     [TestMethod]
     public void IsGap_SlightlyAboveThreshold_ReturnsTrue()
     {
-        // Arrange – warm up EMA with a 10 ms period
         const double period = 10.0;
         WarmUp(_key, period, warmUpCount: 20);
 
-        // Act – delta is just over 2× the stable average of ~10 ms
-        // After warm-up the EMA converges closely to 10 ms; 20.01 ms is just above 20 ms threshold
-        var lastTimestamp = 20 * period;
-        var result = _detector.IsGap(_key, lastTimestamp + period * 2.01);
-
-        // Assert
+        // After warm-up the EMA converges closely to 10 ms; 20.1 ms is just above 20 ms threshold
+        var result = _detector.IsGap(_key, period * 2.01);
         Assert.IsTrue(result, "A delta just above 2× the EMA average should be detected as a gap.");
     }
 
     [TestMethod]
     public void IsGap_AfterGap_ResumesWithoutFalsePositives()
     {
-        // Arrange – warm up and trigger one gap
         const double period = 10.0;
         WarmUp(_key, period, warmUpCount: 10);
-        var lastTimestamp = 10 * period;
-        Assert.IsTrue(_detector.IsGap(_key, lastTimestamp + 500.0), "Large gap should be detected.");
 
-        // Act / Assert – once the gap is marked, normal cadence should resume cleanly.
-        var baseAfterGap = lastTimestamp + 500.0;
+        // Trigger a gap
+        Assert.IsTrue(_detector.IsGap(_key, 500.0), "Large gap should be detected.");
+
+        // Normal cadence resumes — gap detection reseeds
         for (var i = 1; i <= 5; i++)
         {
-            var isGap = _detector.IsGap(_key, baseAfterGap + i * period);
+            var isGap = _detector.IsGap(_key, period);
             Assert.IsFalse(isGap, $"Normal-cadence sample {i} after a detected gap should not be a gap.");
         }
-
-        var result = _detector.IsGap(_key, baseAfterGap + 6 * period);
-        Assert.IsFalse(result, "Normal-cadence sample after EMA re-stabilises should not be a gap.");
     }
 
     [TestMethod]
     public void IsGap_AfterLargeGap_FutureGapStillDetects()
     {
-        // Arrange – warm up and trigger one large gap
         const double period = 10.0;
         WarmUp(_key, period, warmUpCount: 10);
-        var lastTimestamp = 10 * period;
-        var baseAfterGap = lastTimestamp + 500.0;
 
-        Assert.IsTrue(_detector.IsGap(_key, baseAfterGap), "Large gap should be detected.");
+        Assert.IsTrue(_detector.IsGap(_key, 500.0), "Large gap should be detected.");
 
-        // Act – resume normal cadence to re-seed the detector, then introduce another gap.
-        Assert.IsFalse(_detector.IsGap(_key, baseAfterGap + period), "First normal sample after a gap should re-seed the EMA.");
-        var result = _detector.IsGap(_key, baseAfterGap + period + period * 2.5);
+        // Re-seed with one normal delta, then hit another gap
+        Assert.IsFalse(_detector.IsGap(_key, period), "First normal sample after a gap should re-seed the EMA.");
+        var result = _detector.IsGap(_key, period * 2.5);
 
-        // Assert – later gaps should still be detected once the detector is re-seeded.
         Assert.IsTrue(result, "A later gap should still be detected after a previous large outage.");
+    }
+    #endregion
+
+    #region TCP Jitter Immunity Tests
+    [TestMethod]
+    public void IsGap_TcpJitterBurst_DoesNotFalsePositive()
+    {
+        // Simulate 1000 Hz streaming where TCP batching causes bursty arrival
+        // but firmware timestamps are perfectly consistent.
+        const double period = 1.0; // 1 ms at 1000 Hz
+        WarmUp(_key, period, warmUpCount: 20);
+
+        // Firmware says exactly 1 ms between each sample — no gap regardless of arrival pattern
+        for (var i = 0; i < 100; i++)
+        {
+            var isGap = _detector.IsGap(_key, period);
+            Assert.IsFalse(isGap, $"Consistent firmware delta should never be flagged, even if TCP batches arrivals.");
+        }
+    }
+
+    [TestMethod]
+    public void IsGap_MildFirmwareJitter_DoesNotFalsePositive()
+    {
+        // Firmware timer has slight jitter (±10%) — should not trigger false positives
+        const double period = 1.0;
+        WarmUp(_key, period, warmUpCount: 20);
+
+        var rng = new Random(42);
+        for (var i = 0; i < 100; i++)
+        {
+            var jitteredDelta = period * (0.9 + rng.NextDouble() * 0.2); // 0.9–1.1 ms
+            var isGap = _detector.IsGap(_key, jitteredDelta);
+            Assert.IsFalse(isGap, $"Mild firmware jitter at step {i} should not be detected as a gap.");
+        }
     }
     #endregion
 
@@ -151,33 +166,30 @@ public class TimestampGapDetectorTests
     [TestMethod]
     public void Clear_ResetsStateForAllChannels()
     {
-        // Arrange – warm up two channels
         const double period = 10.0;
         WarmUp(_key, period, warmUpCount: 10);
         WarmUp(_key2, period, warmUpCount: 10);
 
-        // Act
         _detector.Clear();
 
-        // Assert – after clear, both channels behave as if freshly created
-        Assert.IsFalse(_detector.IsGap(_key, 0.0), "After Clear(), first sample on channel 1 should not be a gap.");
-        Assert.IsFalse(_detector.IsGap(_key2, 0.0), "After Clear(), first sample on channel 2 should not be a gap.");
+        // After clear, both channels behave as if freshly created
+        Assert.IsFalse(_detector.IsGap(_key, null), "After Clear(), first sample on channel 1 should not be a gap.");
+        Assert.IsFalse(_detector.IsGap(_key2, null), "After Clear(), first sample on channel 2 should not be a gap.");
     }
 
     [TestMethod]
     public void Clear_AfterGapWouldHaveFired_NoLongerFires()
     {
-        // Arrange – warm up and establish an EMA
         const double period = 10.0;
         WarmUp(_key, period, warmUpCount: 10);
 
-        // Act – clear, then feed two seed samples to reinitialise the channel
         _detector.Clear();
-        _detector.IsGap(_key, 0.0);   // first sample post-clear
-        _detector.IsGap(_key, period); // second sample post-clear (seeds EMA)
 
-        // A gap that would have fired pre-clear should now be irrelevant; check a normal sample
-        var result = _detector.IsGap(_key, 2 * period);
+        // Re-seed: null (first message), then one real delta
+        _detector.IsGap(_key, null);
+        _detector.IsGap(_key, period);
+
+        var result = _detector.IsGap(_key, period);
         Assert.IsFalse(result, "Normal sample after Clear() and re-seed should not be a gap.");
     }
     #endregion
@@ -186,30 +198,26 @@ public class TimestampGapDetectorTests
     [TestMethod]
     public void IsGap_TwoChannels_StateIsIsolated()
     {
-        // Arrange – warm up only channel 1
         const double period = 10.0;
         WarmUp(_key, period, warmUpCount: 10);
 
-        // Act – channel 2 sees its first sample (no EMA yet), should not be a gap
-        var result = _detector.IsGap(_key2, 0.0);
-
-        // Assert
+        // Channel 2 sees its first sample — no gap
+        var result = _detector.IsGap(_key2, null);
         Assert.IsFalse(result, "An unrelated channel should not be affected by another channel's EMA.");
     }
 
     [TestMethod]
     public void IsGap_Gap_OnOneChannel_DoesNotAffectOther()
     {
-        // Arrange – warm up both channels
         const double period = 10.0;
         WarmUp(_key, period, warmUpCount: 10);
         WarmUp(_key2, period, warmUpCount: 10);
 
-        // Act – trigger a gap on channel 1 only
-        _detector.IsGap(_key, 10 * period + 500.0);
+        // Trigger a gap on channel 1 only
+        _detector.IsGap(_key, 500.0);
 
-        // Assert – channel 2 next normal sample is still clean
-        var result = _detector.IsGap(_key2, 11 * period);
+        // Channel 2 next normal sample is still clean
+        var result = _detector.IsGap(_key2, period);
         Assert.IsFalse(result, "A gap on one channel should not affect another channel.");
     }
     #endregion
@@ -218,15 +226,15 @@ public class TimestampGapDetectorTests
     [TestMethod]
     public void IsGap_EmaAdaptsToSlowerSampleRate_DoesNotFalsePositive()
     {
-        // Arrange – start at 10 ms, then gradually slow to 50 ms
-        _detector.IsGap(_key, 0.0);
-        double t = 0;
+        // Start at 10 ms, gradually slow to 50 ms
+        _detector.IsGap(_key, null); // first message
+        _detector.IsGap(_key, 10.0); // seed EMA
+
         for (var i = 1; i <= 30; i++)
         {
             // Linearly increase the period from 10 ms to 50 ms
             var currentPeriod = 10.0 + (40.0 / 30) * i;
-            t += currentPeriod;
-            var isGap = _detector.IsGap(_key, t);
+            var isGap = _detector.IsGap(_key, currentPeriod);
             Assert.IsFalse(isGap, $"Gradually slowing sample rate at step {i} should not be detected as a gap.");
         }
     }
@@ -234,13 +242,15 @@ public class TimestampGapDetectorTests
 
     #region Helpers
     /// <summary>
-    /// Feeds <paramref name="warmUpCount"/> evenly-spaced samples to stabilise the EMA.
+    /// Seeds the detector with <paramref name="warmUpCount"/> firmware deltas to stabilise the EMA.
+    /// Sends a null delta first (first message), then <paramref name="warmUpCount"/> constant deltas.
     /// </summary>
     private void WarmUp((string, string) key, double period, int warmUpCount)
     {
-        for (var i = 0; i <= warmUpCount; i++)
+        _detector.IsGap(key, null); // first message — no prior reference
+        for (var i = 0; i < warmUpCount; i++)
         {
-            _detector.IsGap(key, i * period);
+            _detector.IsGap(key, period);
         }
     }
     #endregion
