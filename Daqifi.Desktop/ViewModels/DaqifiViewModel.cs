@@ -1462,6 +1462,8 @@ public partial class DaqifiViewModel : ObservableObject
     {
         try
         {
+            if (!EnsureAnyDeviceConnected()) return;
+
             var addProfileDialogViewModel = new AddProfileDialogViewModel();
             _dialogService.ShowDialog<AddprofileDialog>(this, addProfileDialogViewModel);
         }
@@ -1476,6 +1478,8 @@ public partial class DaqifiViewModel : ObservableObject
     {
         try
         {
+            if (!EnsureAnyDeviceConnected()) return;
+
             LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
             var addProfileConfirmationDialogViewModel = new AddProfileConfirmationDialogViewModel();
             _dialogService.ShowDialog<AddProfileConfirmationDialog>(this, addProfileConfirmationDialogViewModel);
@@ -1737,7 +1741,9 @@ public partial class DaqifiViewModel : ObservableObject
     {
         try
         {
-            if (ConnectedDevices.Count > 2)
+            if (!EnsureAnyDeviceConnected()) return;
+
+            if (ConnectionManager.Instance.ConnectedDevices.Count > 2)
             {
                 var errorDialogViewModel = new ErrorDialogViewModel("Cannot add profile with  connected devices more than two");
                 _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
@@ -1933,6 +1939,17 @@ public partial class DaqifiViewModel : ObservableObject
 
         dispatcher.Invoke(ShowDialog);
         CloseFlyouts();
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    private bool EnsureAnyDeviceConnected()
+    {
+        if (ConnectionManager.Instance.ConnectedDevices.Count > 0) return true;
+        _dialogService.ShowDialog<ErrorDialog>(this, new ErrorDialogViewModel("Please connect a device before creating a profile."));
+        return false;
     }
 
     #endregion
