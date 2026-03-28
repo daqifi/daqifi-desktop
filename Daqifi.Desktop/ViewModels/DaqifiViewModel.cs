@@ -1743,7 +1743,7 @@ public partial class DaqifiViewModel : ObservableObject
         {
             if (!EnsureAnyDeviceConnected()) return;
 
-            if (ConnectedDevices.Count > 2)
+            if (ConnectionManager.Instance.ConnectedDevices.Count > 2)
             {
                 var errorDialogViewModel = new ErrorDialogViewModel("Cannot add profile with  connected devices more than two");
                 _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
