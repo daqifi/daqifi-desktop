@@ -253,6 +253,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         var timestampResult = _timestampProcessor.ProcessTimestamp(deviceId, message.MsgTimeStamp);
         var messageTimestamp = timestampResult.Timestamp;
         var rollover = timestampResult.WasRollover;
+        // Firmware-measured inter-message delta (immune to TCP jitter); null for the first message.
+        var firmwareDeltaMs = timestampResult.IsFirstMessage
+            ? (double?)null
+            : timestampResult.SecondsBetweenMessages * 1000.0;
 
         var digitalCount = 0;
         var analogCount = 0;
@@ -301,7 +305,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                         scaledValue = channel.GetScaledValue((int)message.AnalogInData[dataIndex]);
                     }
 
-                    var sample = new DataSample(this, channel, messageTimestamp, scaledValue);
+                    var sample = new DataSample(this, channel, messageTimestamp, scaledValue, firmwareDeltaMs);
                     channel.ActiveSample = sample;
                 }
 
@@ -345,7 +349,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                     // Assign the sample for the digital input channel
                     if (channel.Direction == ChannelDirection.Input)
                     {
-                        channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit));
+                        channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit), firmwareDeltaMs);
                     }
                 }
             }
