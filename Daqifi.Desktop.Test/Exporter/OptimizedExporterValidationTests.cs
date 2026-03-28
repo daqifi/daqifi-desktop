@@ -199,7 +199,8 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
         var exporter = new OptimizedLoggingSessionExporter();
 
         // Act — must not throw
-        exporter.ExportLoggingSession(loggingSession, exportPath, false, new Progress<int>(), CancellationToken.None, 0, 1);
+        exporter.ExportLoggingSession(
+            loggingSession, exportPath, false, new Progress<int>(), CancellationToken.None, 0, 1);
 
         // Assert
         Assert.IsTrue(File.Exists(exportPath), "Export file should be created");

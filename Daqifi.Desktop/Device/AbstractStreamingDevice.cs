@@ -349,7 +349,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                     // Assign the sample for the digital input channel
                     if (channel.Direction == ChannelDirection.Input)
                     {
-                        channel.ActiveSample = new DataSample(this, channel, messageTimestamp, Convert.ToInt32(bit), firmwareDeltaMs);
+                        channel.ActiveSample = new DataSample(
+                            this, channel, messageTimestamp, Convert.ToInt32(bit), firmwareDeltaMs);
                     }
                 }
             }

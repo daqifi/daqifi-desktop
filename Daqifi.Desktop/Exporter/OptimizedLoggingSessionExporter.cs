@@ -310,8 +310,9 @@ public class OptimizedLoggingSessionExporter
 
     /// <summary>
     /// Formats a timestamp tick value as an ISO 8601 string, or returns an error token if the value is outside
-    /// the valid <see cref="DateTime"/> range (0–<see cref="DateTime.MaxValue"/> ticks).
-    /// Prevents <see cref="OverflowException"/> when the database contains corrupt timestamp values.
+    /// the valid <see cref="DateTime"/> range (1–<see cref="DateTime.MaxValue"/> ticks inclusive).
+    /// Zero and negative values are treated as invalid. Prevents <see cref="OverflowException"/> when the
+    /// database contains corrupt timestamp values.
     /// </summary>
     private static string FormatAbsoluteTimestamp(long ticks)
         => (ticks > 0 && ticks <= DateTime.MaxValue.Ticks)
