@@ -48,7 +48,8 @@ public class DataSample
     /// Firmware-measured time since the previous message, in milliseconds.
     /// Null for the first message in a session or when firmware timing is unavailable.
     /// </param>
-    public DataSample(IDevice streamingDevice, IChannel channel, DateTime timestamp, double value, double? firmwareDeltaMs = null)
+    public DataSample(
+        IDevice streamingDevice, IChannel channel, DateTime timestamp, double value, double? firmwareDeltaMs = null)
     {
         DeviceName = streamingDevice.Name;
         DeviceSerialNo=channel.DeviceSerialNo;
