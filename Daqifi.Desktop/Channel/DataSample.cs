@@ -37,6 +37,17 @@ public class DataSample
     #region Constructors
     public DataSample() { }
 
+    /// <summary>
+    /// Initializes a new <see cref="DataSample"/> from a live streaming device message.
+    /// </summary>
+    /// <param name="streamingDevice">The device that produced the sample.</param>
+    /// <param name="channel">The channel the sample belongs to.</param>
+    /// <param name="timestamp">The calculated system timestamp for the sample.</param>
+    /// <param name="value">The scaled sample value (volts for analog, 0/1 for digital).</param>
+    /// <param name="firmwareDeltaMs">
+    /// Firmware-measured time since the previous message, in milliseconds.
+    /// Null for the first message in a session or when firmware timing is unavailable.
+    /// </param>
     public DataSample(IDevice streamingDevice, IChannel channel, DateTime timestamp, double value, double? firmwareDeltaMs = null)
     {
         DeviceName = streamingDevice.Name;
