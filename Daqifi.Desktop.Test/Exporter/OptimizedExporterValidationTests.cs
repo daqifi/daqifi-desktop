@@ -159,6 +159,54 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
         return samples;
     }
 
+    [TestMethod]
+    public void OptimizedExporter_InvalidTimestamps_DoesNotThrowAndMarksInvalidRows()
+    {
+        // Arrange — include negative, zero, and a value exceeding DateTime.MaxValue.Ticks
+        var invalidTimestamps = new[] { -1L, 0L, DateTime.MaxValue.Ticks + 1L };
+        var baseTime = new DateTime(2018, 1, 1, 0, 0, 0);
+
+        var samples = new List<DataSample>();
+        int id = 1;
+        foreach (var ts in invalidTimestamps)
+        {
+            samples.Add(new DataSample
+            {
+                ID = id++,
+                DeviceName = "TestDevice",
+                DeviceSerialNo = "TEST001",
+                LoggingSessionID = 1,
+                ChannelName = "Channel 1",
+                TimestampTicks = ts,
+                Value = 1.0
+            });
+        }
+        // Also include one valid sample so the file is actually created
+        samples.Add(new DataSample
+        {
+            ID = id,
+            DeviceName = "TestDevice",
+            DeviceSerialNo = "TEST001",
+            LoggingSessionID = 1,
+            ChannelName = "Channel 1",
+            TimestampTicks = baseTime.Ticks,
+            Value = 2.0
+        });
+
+        var loggingSession = new LoggingSession { ID = 1, DataSamples = samples };
+        var exportPath = Path.Combine(TestDirectoryPath, "invalid_timestamps_test.csv");
+
+        var exporter = new OptimizedLoggingSessionExporter();
+
+        // Act — must not throw
+        exporter.ExportLoggingSession(loggingSession, exportPath, false, new Progress<int>(), CancellationToken.None, 0, 1);
+
+        // Assert
+        Assert.IsTrue(File.Exists(exportPath), "Export file should be created");
+        var content = File.ReadAllText(exportPath);
+        Assert.Contains("INVALID(", content, "Invalid timestamps should be labelled rather than throwing");
+    }
+
     [TestCleanup]
     public void CleanUp()
     {

@@ -206,7 +206,7 @@ public class OptimizedLoggingSessionExporter
         var timestamp = timestampSamples[0].TimestampTicks;
         var timeString = exportRelativeTime
             ? ((timestamp - firstTimestamp) / (double)TimeSpan.TicksPerSecond).ToString("F3")
-            : new DateTime(timestamp).ToString("O");
+            : FormatAbsoluteTimestamp(timestamp);
 
         sb.Clear();
         sb.Append(timeString);
@@ -308,6 +308,16 @@ public class OptimizedLoggingSessionExporter
         progress?.Report(finalProgress);
     }
 
+    /// <summary>
+    /// Formats a timestamp tick value as an ISO 8601 string, or returns an error token if the value is outside
+    /// the valid <see cref="DateTime"/> range (0–<see cref="DateTime.MaxValue"/> ticks).
+    /// Prevents <see cref="OverflowException"/> when the database contains corrupt timestamp values.
+    /// </summary>
+    private static string FormatAbsoluteTimestamp(long ticks)
+        => (ticks > 0 && ticks <= DateTime.MaxValue.Ticks)
+            ? new DateTime(ticks).ToString("O")
+            : $"INVALID({ticks})";
+
     private void WriteCompleteTimestampRow(StreamWriter writer, StringBuilder sb, List<SampleData> timestampSamples,
         List<string> channelNames, long firstTimestamp, bool exportRelativeTime)
     {
@@ -316,7 +326,7 @@ public class OptimizedLoggingSessionExporter
         var timestamp = timestampSamples[0].TimestampTicks;
         var timeString = exportRelativeTime
             ? ((timestamp - firstTimestamp) / (double)TimeSpan.TicksPerSecond).ToString("F3")
-            : new DateTime(timestamp).ToString("O");
+            : FormatAbsoluteTimestamp(timestamp);
 
         sb.Clear();
         sb.Append(timeString);
@@ -423,7 +433,7 @@ public class OptimizedLoggingSessionExporter
             {
                 var timeString = exportRelativeTime
                     ? ((sample.TimestampTicks - firstTimestampTicks.Value) / (double)TimeSpan.TicksPerSecond).ToString("F3")
-                    : new DateTime(sample.TimestampTicks).ToString("O");
+                    : FormatAbsoluteTimestamp(sample.TimestampTicks);
 
                 sb.Clear();
                 sb.Append(timeString);
