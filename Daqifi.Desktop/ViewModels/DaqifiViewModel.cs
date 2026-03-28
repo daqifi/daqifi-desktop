@@ -1462,12 +1462,7 @@ public partial class DaqifiViewModel : ObservableObject
     {
         try
         {
-            if (ConnectedDevices.Count == 0)
-            {
-                var errorDialogViewModel = new ErrorDialogViewModel("Please connect a device before creating a profile.");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                return;
-            }
+            if (!EnsureAnyDeviceConnected()) return;
 
             var addProfileDialogViewModel = new AddProfileDialogViewModel();
             _dialogService.ShowDialog<AddprofileDialog>(this, addProfileDialogViewModel);
@@ -1483,12 +1478,7 @@ public partial class DaqifiViewModel : ObservableObject
     {
         try
         {
-            if (ConnectedDevices.Count == 0)
-            {
-                var errorDialogViewModel = new ErrorDialogViewModel("Please connect a device before creating a profile.");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                return;
-            }
+            if (!EnsureAnyDeviceConnected()) return;
 
             LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
             var addProfileConfirmationDialogViewModel = new AddProfileConfirmationDialogViewModel();
@@ -1751,12 +1741,7 @@ public partial class DaqifiViewModel : ObservableObject
     {
         try
         {
-            if (ConnectedDevices.Count == 0)
-            {
-                var errorDialogViewModel = new ErrorDialogViewModel("Please connect a device before creating a profile.");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                return;
-            }
+            if (!EnsureAnyDeviceConnected()) return;
 
             if (ConnectedDevices.Count > 2)
             {
@@ -1954,6 +1939,17 @@ public partial class DaqifiViewModel : ObservableObject
 
         dispatcher.Invoke(ShowDialog);
         CloseFlyouts();
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    private bool EnsureAnyDeviceConnected()
+    {
+        if (ConnectionManager.Instance.ConnectedDevices.Count > 0) return true;
+        _dialogService.ShowDialog<ErrorDialog>(this, new ErrorDialogViewModel("Please connect a device before creating a profile."));
+        return false;
     }
 
     #endregion
