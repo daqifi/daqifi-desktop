@@ -1676,7 +1676,7 @@ public partial class DaqifiViewModel : ObservableObject
         {
             var exactMatch = ConnectionManager.Instance.ConnectedDevices.FirstOrDefault(cd =>
                 !string.IsNullOrEmpty(profileDev.DeviceSerialNo) &&
-                cd.DeviceSerialNo == profileDev.DeviceSerialNo &&
+                string.Equals(cd.DeviceSerialNo, profileDev.DeviceSerialNo, StringComparison.OrdinalIgnoreCase) &&
                 !claimedDevices.Contains(cd));
 
             if (exactMatch != null)
@@ -1871,7 +1871,7 @@ public partial class DaqifiViewModel : ObservableObject
             {
                 var exactMatch = ConnectedDevices.FirstOrDefault(cd =>
                     !string.IsNullOrEmpty(profileDevice.DeviceSerialNo) &&
-                    cd.DeviceSerialNo == profileDevice.DeviceSerialNo &&
+                    string.Equals(cd.DeviceSerialNo, profileDevice.DeviceSerialNo, StringComparison.OrdinalIgnoreCase) &&
                     !claimedDevices.Contains(cd));
 
                 if (exactMatch != null)
