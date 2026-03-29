@@ -30,7 +30,7 @@ All workflows run on .NET 9.0 with Windows runners for WPF compatibility.
 
 ## Observability
 
-Exceptions are sent to [BugSnag](https://app.bugsnag.com/daqifi/daqifi-desktop/)
+Exceptions are sent to [Sentry](https://sentry.io/organizations/daqifi/)
 
 ## Documentation
 

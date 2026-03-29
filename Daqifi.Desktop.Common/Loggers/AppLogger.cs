@@ -1,7 +1,9 @@
-﻿using NLog;
+using NLog;
 using NLog.Config;
 using NLog.Targets;
-using Bugsnag;
+using Sentry;
+using Sentry.NLog;
+using System.Configuration;
 using System.Reflection;
 
 namespace Daqifi.Desktop.Common.Loggers;
@@ -9,8 +11,8 @@ namespace Daqifi.Desktop.Common.Loggers;
 public class AppLogger : IAppLogger
 {
     #region Private Data
-    private readonly Logger _logger;
-    private readonly Client _client;
+    private readonly Logger? _logger;
+    private IDisposable? _sentryDisposable;
     private static readonly NoOpLogger NoOpLogger = new();
     private static readonly bool IsTestMode = IsRunningInTestEnvironment();
     #endregion
@@ -40,18 +42,18 @@ public class AppLogger : IAppLogger
         {
             // In test mode, don't initialize real logging
             _logger = null;
-            _client = null;
+            _sentryDisposable = null;
             return;
         }
 
-        // Step 1. Create configuration object 
+        // Step 1. Create configuration object
         var config = new LoggingConfiguration();
 
-        // Step 2. Create targets and add them to the configuration 
+        // Step 2. Create targets and add them to the configuration
         var fileTarget = new FileTarget();
         config.AddTarget("file", fileTarget);
 
-        // Step 3. Set target properties 
+        // Step 3. Set target properties
         fileTarget.CreateDirs = true;
         fileTarget.FileName = @"${specialfolder:folder=CommonApplicationData}\DAQifi\Logs\DAQifiAppLog.log";
         fileTarget.Layout = "${longdate} LEVEL=${level:upperCase=true}: ${message}${newline} (${stacktrace}) ${exception:format=tostring} ${newline}";
@@ -67,23 +69,43 @@ public class AppLogger : IAppLogger
         // Keep a maximum of 5 archives
         fileTarget.MaxArchiveFiles = 5;
 
-        // Step 4. Define rules
+        // Step 4. Add Sentry NLog target so errors are forwarded to Sentry automatically
+        var sentryTarget = new SentryTarget
+        {
+            Name = "sentry",
+            Layout = "${message}",
+            MinimumEventLevel = "Error"
+        };
+        config.AddTarget("sentry", sentryTarget);
+
+        // Step 5. Define rules
         var rule = new LoggingRule("*", LogLevel.Debug, fileTarget);
         config.LoggingRules.Add(rule);
+        var sentryRule = new LoggingRule("*", LogLevel.Error, sentryTarget);
+        config.LoggingRules.Add(sentryRule);
 
-        // Step 5. Activate the configuration
+        // Step 6. Activate the configuration
         LogManager.Configuration = config;
 
         _logger = LogManager.GetCurrentClassLogger();
 
-        var configuration = new Configuration("899ecd666668c33e02cc5adc651a11b8")
+        // Step 7. Initialize Sentry SDK
+        var dsn = ConfigurationManager.AppSettings["SentryDsn"] ?? string.Empty;
+        var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
+
+        _sentryDisposable = SentrySdk.Init(options =>
         {
-            AppVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0"
-        };
-        _client = new Client(configuration);
+            options.Dsn = dsn;
+            options.Release = version;
+            options.AutoSessionTracking = true;
+            options.IsGlobalModeEnabled = true;
+        });
     }
 
     #region Logger Methods
+    /// <summary>
+    /// Logs an informational message.
+    /// </summary>
     public void Information(string message)
     {
         if (IsTestMode)
@@ -94,6 +116,9 @@ public class AppLogger : IAppLogger
         _logger.Info(message);
     }
 
+    /// <summary>
+    /// Logs a warning message.
+    /// </summary>
     public void Warning(string message)
     {
         if (IsTestMode)
@@ -104,6 +129,9 @@ public class AppLogger : IAppLogger
         _logger.Warn(message);
     }
 
+    /// <summary>
+    /// Logs an error message and captures it in Sentry.
+    /// </summary>
     public void Error(string message)
     {
         if (IsTestMode)
@@ -112,9 +140,12 @@ public class AppLogger : IAppLogger
             return;
         }
         _logger.Error(message);
-        _client.Notify(new Exception(message), Severity.Error);
+        SentrySdk.CaptureException(new Exception(message));
     }
 
+    /// <summary>
+    /// Logs an exception with a descriptive message and captures it in Sentry.
+    /// </summary>
     public void Error(Exception ex, string message)
     {
         if (IsTestMode)
@@ -123,7 +154,7 @@ public class AppLogger : IAppLogger
             return;
         }
         _logger.Error(ex, message);
-        _client.Notify(ex, Severity.Error);
+        SentrySdk.CaptureException(ex);
     }
     #endregion
 }

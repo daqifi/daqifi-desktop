@@ -1,13 +1,16 @@
-﻿using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Firmware;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.WindowViewModelMapping;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Sentry;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace Daqifi.Desktop;
 
@@ -28,6 +31,13 @@ public partial class App
     public static string DatabasePath { get; } = Path.Combine(DaqifiDataDirectory, "DAQiFiDatabase.db");
 
     public bool IsWindowInit { get; set; }
+
+    public App()
+    {
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+    }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -62,6 +72,26 @@ public partial class App
         // Create and show main window
         var view = new MainWindow();
         view.Show();
+    }
+
+    private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        AppLogger.Instance.Error(e.Exception, "Unhandled dispatcher exception");
+        SentrySdk.CaptureException(e.Exception);
+    }
+
+    private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception ex)
+        {
+            SentrySdk.CaptureException(ex);
+        }
+    }
+
+    private static void OnUnobservedTaskException(object sender, UnobservedTaskExceptionEventArgs e)
+    {
+        SentrySdk.CaptureException(e.Exception);
+        e.SetObserved();
     }
 
     private void ShowSplashScreen()
