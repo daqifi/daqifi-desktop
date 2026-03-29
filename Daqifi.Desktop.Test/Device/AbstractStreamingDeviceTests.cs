@@ -586,8 +586,8 @@ public class AbstractStreamingDeviceTests
             "Core handles this via the channelMask parameter.");
         CollectionAssert.Contains(
             device.SentCommands,
-            $"core:{ScpiMessageProducer.EnableAdcChannels("10101").Data}",
-            "Core should receive a single combined binary analog mask for the active SD logging channels.");
+            $"core:{ScpiMessageProducer.EnableAdcChannels("21").Data}",
+            "Core should receive a decimal channel mask for the active SD logging channels.");
     }
 
     [TestMethod]
