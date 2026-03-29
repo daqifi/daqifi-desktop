@@ -2,7 +2,6 @@ using NLog;
 using NLog.Config;
 using NLog.Targets;
 using Sentry;
-using Sentry.NLog;
 using System.Configuration;
 using System.Reflection;
 
@@ -69,27 +68,17 @@ public class AppLogger : IAppLogger
         // Keep a maximum of 5 archives
         fileTarget.MaxArchiveFiles = 5;
 
-        // Step 4. Add Sentry NLog target so errors are forwarded to Sentry automatically
-        var sentryTarget = new SentryTarget
-        {
-            Name = "sentry",
-            Layout = "${message}",
-            MinimumEventLevel = "Error"
-        };
-        config.AddTarget("sentry", sentryTarget);
-
-        // Step 5. Define rules
+        // Step 4. Define rules
         var rule = new LoggingRule("*", LogLevel.Debug, fileTarget);
         config.LoggingRules.Add(rule);
-        var sentryRule = new LoggingRule("*", LogLevel.Error, sentryTarget);
-        config.LoggingRules.Add(sentryRule);
 
-        // Step 6. Activate the configuration
+        // Step 5. Activate the configuration
         LogManager.Configuration = config;
 
         _logger = LogManager.GetCurrentClassLogger();
 
-        // Step 7. Initialize Sentry SDK
+        // Step 6. Initialize Sentry SDK — explicit CaptureException calls in Error() are the
+        // sole capture path; SentryTarget is intentionally omitted to avoid double-reporting.
         var dsn = ConfigurationManager.AppSettings["SentryDsn"] ?? string.Empty;
         var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
 
@@ -103,9 +92,6 @@ public class AppLogger : IAppLogger
     }
 
     #region Logger Methods
-    /// <summary>
-    /// Logs an informational message.
-    /// </summary>
     public void Information(string message)
     {
         if (IsTestMode)
@@ -116,9 +102,6 @@ public class AppLogger : IAppLogger
         _logger.Info(message);
     }
 
-    /// <summary>
-    /// Logs a warning message.
-    /// </summary>
     public void Warning(string message)
     {
         if (IsTestMode)
@@ -129,9 +112,6 @@ public class AppLogger : IAppLogger
         _logger.Warn(message);
     }
 
-    /// <summary>
-    /// Logs an error message and captures it in Sentry.
-    /// </summary>
     public void Error(string message)
     {
         if (IsTestMode)
@@ -143,9 +123,6 @@ public class AppLogger : IAppLogger
         SentrySdk.CaptureException(new Exception(message));
     }
 
-    /// <summary>
-    /// Logs an exception with a descriptive message and captures it in Sentry.
-    /// </summary>
     public void Error(Exception ex, string message)
     {
         if (IsTestMode)

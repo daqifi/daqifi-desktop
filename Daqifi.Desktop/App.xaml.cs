@@ -6,7 +6,6 @@ using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.WindowViewModelMapping;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Sentry;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
@@ -77,7 +76,6 @@ public partial class App
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         AppLogger.Instance.Error(e.Exception, "Unhandled dispatcher exception");
-        SentrySdk.CaptureException(e.Exception);
     }
 
     private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
