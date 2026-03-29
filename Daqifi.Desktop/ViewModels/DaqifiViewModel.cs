@@ -1667,6 +1667,44 @@ public partial class DaqifiViewModel : ObservableObject
         LoggingManager.Instance.SelectedProfileChannels.Clear();
         LoggingManager.Instance.SelectedProfileDevices.Clear();
 
+        // Build profile-to-device mapping using two-pass strategy
+        var claimedDevices = new HashSet<IStreamingDevice>();
+        var profileToDevice = new Dictionary<ProfileDevice, IStreamingDevice>();
+
+        // Pass 1: Prefer exact serial number match
+        foreach (var profileDev in SelectedProfile.Devices)
+        {
+            var exactMatch = ConnectionManager.Instance.ConnectedDevices.FirstOrDefault(cd =>
+                !string.IsNullOrEmpty(profileDev.DeviceSerialNo) &&
+                string.Equals(cd.DeviceSerialNo, profileDev.DeviceSerialNo, StringComparison.OrdinalIgnoreCase) &&
+                !claimedDevices.Contains(cd));
+
+            if (exactMatch != null)
+            {
+                profileToDevice[profileDev] = exactMatch;
+                claimedDevices.Add(exactMatch);
+            }
+        }
+
+        // Pass 2: Fall back to model match for unmatched profile devices
+        foreach (var profileDev in SelectedProfile.Devices)
+        {
+            if (profileToDevice.ContainsKey(profileDev))
+            {
+                continue;
+            }
+
+            var modelMatch = ConnectionManager.Instance.ConnectedDevices.FirstOrDefault(cd =>
+                cd.DevicePartNumber == profileDev.DevicePartName &&
+                !claimedDevices.Contains(cd));
+
+            if (modelMatch != null)
+            {
+                profileToDevice[profileDev] = modelMatch;
+                claimedDevices.Add(modelMatch);
+            }
+        }
+
         foreach (var selectedDevice in SelectedProfile.Devices)
         {
             LoggingManager.Instance.SelectedProfileDevices.Add(selectedDevice);
@@ -1681,42 +1719,36 @@ public partial class DaqifiViewModel : ObservableObject
                     }
                 }
             }
-            if (ConnectionManager.Instance.ConnectedDevices.Any(x => x.DevicePartNumber == selectedDevice.DevicePartName))
+
+            // Use the matched connected device from two-pass mapping
+            if (profileToDevice.TryGetValue(selectedDevice, out var device))
             {
-                var device = ConnectionManager.Instance.ConnectedDevices.FirstOrDefault(x => x.DevicePartNumber == selectedDevice.DevicePartName);
-                if (device != null)
+                foreach (var channels in device.DataChannels)
                 {
-                    foreach (var channels in device.DataChannels)
+                    // Check if the channel is already in the selected profile channels
+                    var profileChannel = LoggingManager.Instance.SelectedProfileChannels
+                        .FirstOrDefault(x => x.Name == channels.Name && x.SerialNo == selectedDevice.DeviceSerialNo);
+
+                    if (profileChannel == null)
                     {
-                        // Check if the channel is already in the selected profile channels
-                        var profileChannel = LoggingManager.Instance.SelectedProfileChannels
-                            .FirstOrDefault(x => x.Name == channels.Name && x.SerialNo == selectedDevice.DeviceSerialNo);
-
-                        if (profileChannel == null)
+                        profileChannel = new ProfileChannel
                         {
-                            profileChannel = new ProfileChannel
-                            {
-                                Name = channels.Name,
-                                SerialNo = selectedDevice.DeviceSerialNo,
-                                Type = channels.TypeString,
-                                IsChannelActive = false,
-
-                            };
-                            // Add channels not in the selected profile channels
-                            //profileChannel.SerialNo = selectedDevice.DeviceSerialNo; // Associate the serial number
-                            LoggingManager.Instance.SelectedProfileChannels.Add(profileChannel);
-                        }
-
+                            Name = channels.Name,
+                            SerialNo = selectedDevice.DeviceSerialNo,
+                            Type = channels.TypeString,
+                            IsChannelActive = false,
+                        };
+                        LoggingManager.Instance.SelectedProfileChannels.Add(profileChannel);
                     }
                 }
             }
+
             var deviceSelected = LoggingManager.Instance.SelectedProfileDevices.FirstOrDefault(x => x.DeviceSerialNo == selectedDevice.DeviceSerialNo);
             if (deviceSelected?.Channels is { Count: > 0 })
             {
                 deviceSelected.Channels.Clear();
                 deviceSelected.Channels = LoggingManager.Instance.SelectedProfileChannels.Where(x => x.SerialNo == selectedDevice.DeviceSerialNo).ToList();
             }
-
         }
         LoggingManager.Instance.callPropertyChange();
         IsProfileSettingsOpen = true;
@@ -1828,25 +1860,61 @@ public partial class DaqifiViewModel : ObservableObject
                 return;
             }
 
-            var connectedDevices = ConnectedDevices
-                .Where(cd => SelectedProfile.Devices.Any(id => id.DevicePartName == cd.DevicePartNumber))
-                .ToList();
+            // Build profile-to-device mapping using two-pass strategy:
+            // Pass 1: exact serial number match
+            // Pass 2: fall back to model match for unmatched profile devices
+            var claimedDevices = new HashSet<IStreamingDevice>();
+            var profileToDevice = new Dictionary<ProfileDevice, IStreamingDevice>();
 
-            // Block only if no devices are connected
-            if (connectedDevices == null || connectedDevices.Count == 0)
+            // Pass 1: Prefer exact serial number match
+            foreach (var profileDevice in SelectedProfile.Devices)
+            {
+                var exactMatch = ConnectedDevices.FirstOrDefault(cd =>
+                    !string.IsNullOrEmpty(profileDevice.DeviceSerialNo) &&
+                    string.Equals(cd.DeviceSerialNo, profileDevice.DeviceSerialNo, StringComparison.OrdinalIgnoreCase) &&
+                    !claimedDevices.Contains(cd));
+
+                if (exactMatch != null)
+                {
+                    profileToDevice[profileDevice] = exactMatch;
+                    claimedDevices.Add(exactMatch);
+                }
+            }
+
+            // Pass 2: Fall back to model match for unmatched profile devices
+            foreach (var profileDevice in SelectedProfile.Devices)
+            {
+                if (profileToDevice.ContainsKey(profileDevice))
+                {
+                    continue;
+                }
+
+                var modelMatch = ConnectedDevices.FirstOrDefault(cd =>
+                    cd.DevicePartNumber == profileDevice.DevicePartName &&
+                    !claimedDevices.Contains(cd));
+
+                if (modelMatch != null)
+                {
+                    profileToDevice[profileDevice] = modelMatch;
+                    claimedDevices.Add(modelMatch);
+                }
+            }
+
+            // Block only if no devices were matched
+            if (profileToDevice.Count == 0)
             {
                 var errorDialogViewModel = new ErrorDialogViewModel("Profile cannot be active. No connected devices with matching device model.");
                 _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
                 return;
             }
 
-            // Warn if some devices are missing
-            var missingDevices = SelectedProfile.Devices
-                .Where(pd => !ConnectedDevices.Any(cd => cd.DevicePartNumber == pd.DevicePartName))
+            // Warn if some profile devices could not be matched (count-aware)
+            var unmatchedProfileDevices = SelectedProfile.Devices
+                .Where(pd => !profileToDevice.ContainsKey(pd))
                 .ToList();
-            if (missingDevices.Count > 0)
+            if (unmatchedProfileDevices.Count > 0)
             {
-                var warningMsg = $"Warning: The following devices from the profile are not currently connected: {string.Join(", ", missingDevices.Select(d => d.DeviceName))}. Profile will be loaded with available devices.";
+                var warningMsg = $"Warning: The following devices from the profile are not currently connected: {string.Join(", ", unmatchedProfileDevices.Select(d => $"{d.DeviceName} (S/N: {d.DeviceSerialNo})"))}. Profile will be loaded with available devices.";
                 var warningDialogViewModel = new ErrorDialogViewModel(warningMsg);
                 _dialogService.ShowDialog<ErrorDialog>(this, warningDialogViewModel);
             }
@@ -1859,38 +1927,34 @@ public partial class DaqifiViewModel : ObservableObject
                 return;
             }
 
-            // Iterate through connected devices
-            foreach (var connectedDevice in connectedDevices)
+            // Iterate through matched profile-device pairs
+            foreach (var (profileDevice, connectedDevice) in profileToDevice)
             {
                 SelectedDevice = connectedDevice;
                 UpdateProfileSelectedDevice = SelectedDevice;
 
                 // Update device frequencies
-                var matchingDevice = SelectedProfile.Devices.FirstOrDefault(device => device.DevicePartName == connectedDevice.DevicePartNumber);
-                if (matchingDevice != null)
-                {
-                    SelectedStreamingFrequency = matchingDevice.SamplingFrequency;
-                    connectedDevice.StreamingFrequency = matchingDevice.SamplingFrequency;
-                }
+                SelectedStreamingFrequency = profileDevice.SamplingFrequency;
+                connectedDevice.StreamingFrequency = profileDevice.SamplingFrequency;
 
-                // Collect all matching channels first, then send a single SCPI command
+                // Collect matching channels for this specific profile device
                 var channelsToActivate = new List<IChannel>();
-                foreach (var device in SelectedProfile.Devices)
+                foreach (var channel in profileDevice.Channels)
                 {
-                    foreach (var channel in device.Channels)
+                    if (!channel.IsChannelActive)
                     {
-                        // Match both device and channel information to ensure distinct mapping
-                        // Match by device model and channel info — allows profile to work across devices of the same model
-                        var profileChannel = AvailableChannels
-                            .FirstOrDefault(x => x.Name == channel.Name.Trim() &&
-                                                 x.TypeString == channel.Type.Trim() &&
-                                                 x.DeviceName == device.DevicePartName &&
-                                                 channel.IsChannelActive);
+                        continue;
+                    }
 
-                        if (profileChannel != null)
-                        {
-                            channelsToActivate.Add(profileChannel);
-                        }
+                    // Match channel by name, type, and the connected device's model
+                    var matchedChannel = AvailableChannels
+                        .FirstOrDefault(x => x.Name == channel.Name.Trim() &&
+                                             x.TypeString == channel.Type.Trim() &&
+                                             x.DeviceName == connectedDevice.DevicePartNumber);
+
+                    if (matchedChannel != null)
+                    {
+                        channelsToActivate.Add(matchedChannel);
                     }
                 }
 
