@@ -1,5 +1,6 @@
-﻿using Daqifi.Core.Communication.Transport;
+using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Firmware;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.WindowViewModelMapping;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace Daqifi.Desktop;
 
@@ -28,6 +30,16 @@ public partial class App
     public static string DatabasePath { get; } = Path.Combine(DaqifiDataDirectory, "DAQiFiDatabase.db");
 
     public bool IsWindowInit { get; set; }
+
+    /// <summary>
+    /// Initializes the application and wires global exception handlers for Sentry reporting.
+    /// </summary>
+    public App()
+    {
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+    }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -62,6 +74,36 @@ public partial class App
         // Create and show main window
         var view = new MainWindow();
         view.Show();
+    }
+
+    private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        AppLogger.Instance.Error(e.Exception, "Unhandled dispatcher exception");
+    }
+
+    private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception ex)
+        {
+            AppLogger.Instance.Error(ex, "Unhandled AppDomain exception");
+        }
+
+        if (e.IsTerminating)
+        {
+            try { AppLogger.Instance.Shutdown(); } catch { }
+        }
+    }
+
+    private static void OnUnobservedTaskException(object sender, UnobservedTaskExceptionEventArgs e)
+    {
+        AppLogger.Instance.Error(e.Exception, "Unobserved task exception");
+        e.SetObserved();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        AppLogger.Instance.Shutdown();
+        base.OnExit(e);
     }
 
     private void ShowSplashScreen()

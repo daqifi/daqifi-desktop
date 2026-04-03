@@ -6,4 +6,8 @@ public interface IAppLogger
     void Warning(string message);
     void Error(string message);
     void Error(Exception ex, string message);
+    /// <summary>
+    /// Flushes pending error reports and releases logging resources.
+    /// </summary>
+    void Shutdown();
 }
