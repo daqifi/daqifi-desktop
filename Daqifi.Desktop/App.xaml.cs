@@ -31,6 +31,9 @@ public partial class App
 
     public bool IsWindowInit { get; set; }
 
+    /// <summary>
+    /// Initializes the application and wires global exception handlers for Sentry reporting.
+    /// </summary>
     public App()
     {
         DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -83,6 +86,11 @@ public partial class App
         if (e.ExceptionObject is Exception ex)
         {
             AppLogger.Instance.Error(ex, "Unhandled AppDomain exception");
+        }
+
+        if (e.IsTerminating)
+        {
+            try { AppLogger.Instance.Shutdown(); } catch { }
         }
     }
 

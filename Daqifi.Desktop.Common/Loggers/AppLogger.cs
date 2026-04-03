@@ -134,6 +134,7 @@ public class AppLogger : IAppLogger
         SentrySdk.CaptureException(ex, scope => scope.SetExtra("message", message));
     }
 
+    /// <inheritdoc />
     public void Shutdown()
     {
         SentrySdk.FlushAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
