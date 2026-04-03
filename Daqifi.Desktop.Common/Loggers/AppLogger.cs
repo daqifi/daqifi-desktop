@@ -131,7 +131,13 @@ public class AppLogger : IAppLogger
             return;
         }
         _logger.Error(ex, message);
-        SentrySdk.CaptureException(ex);
+        SentrySdk.CaptureException(ex, scope => scope.SetExtra("message", message));
+    }
+
+    public void Shutdown()
+    {
+        SentrySdk.FlushAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+        _sentryDisposable?.Dispose();
     }
     #endregion
 }

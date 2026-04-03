@@ -82,14 +82,20 @@ public partial class App
     {
         if (e.ExceptionObject is Exception ex)
         {
-            SentrySdk.CaptureException(ex);
+            AppLogger.Instance.Error(ex, "Unhandled AppDomain exception");
         }
     }
 
     private static void OnUnobservedTaskException(object sender, UnobservedTaskExceptionEventArgs e)
     {
-        SentrySdk.CaptureException(e.Exception);
+        AppLogger.Instance.Error(e.Exception, "Unobserved task exception");
         e.SetObserved();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        AppLogger.Instance.Shutdown();
+        base.OnExit(e);
     }
 
     private void ShowSplashScreen()
