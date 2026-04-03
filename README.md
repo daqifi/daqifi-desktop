@@ -30,7 +30,7 @@ All workflows run on .NET 9.0 with Windows runners for WPF compatibility.
 
 ## Observability
 
-Exceptions are sent to Sentry. Set the `SentryDsn` key in `Daqifi.Desktop/App.config` to your project's DSN.
+Exceptions are sent to [Sentry](https://o4511134234640384.sentry.io/). The DSN is configured in `Daqifi.Desktop/App.config`.
 
 ## Documentation
 
