@@ -79,8 +79,14 @@ public class AppLogger : IAppLogger
 
         // Step 6. Initialize Sentry SDK — explicit CaptureException calls in Error() are the
         // sole capture path; SentryTarget is intentionally omitted to avoid double-reporting.
-        var dsn = ConfigurationManager.AppSettings["SentryDsn"] ?? string.Empty;
+        var dsn = ConfigurationManager.AppSettings["SentryDsn"];
         var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
+
+        if (string.IsNullOrWhiteSpace(dsn))
+        {
+            _logger.Warn("SentryDsn not found in AppSettings — Sentry error reporting is disabled");
+            return;
+        }
 
         _sentryDisposable = SentrySdk.Init(options =>
         {
@@ -89,6 +95,8 @@ public class AppLogger : IAppLogger
             options.AutoSessionTracking = true;
             options.IsGlobalModeEnabled = true;
         });
+
+        _logger.Info($"Sentry initialized (release={version})");
     }
 
     #region Logger Methods
