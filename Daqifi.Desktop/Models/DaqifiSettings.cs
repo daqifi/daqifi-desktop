@@ -8,7 +8,7 @@ namespace Daqifi.Desktop.Models;
 public class DaqifiSettings
 {
     #region Private Data
-    private string _csvDelimiter;
+    private string _csvDelimiter = ",";
     private static readonly string AppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
     private static readonly string SettingsXmlPath = AppDirectory + "\\DAQifiConfiguration.xml";
     #endregion
