@@ -2,7 +2,7 @@ using NLog;
 using NLog.Config;
 using NLog.Targets;
 using Sentry;
-using Sentry.Infrastructure;
+using Sentry.Extensibility;
 using System.Configuration;
 using System.Reflection;
 
