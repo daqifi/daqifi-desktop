@@ -2,7 +2,6 @@ using NLog;
 using NLog.Config;
 using NLog.Targets;
 using Sentry;
-using Sentry.Extensibility;
 using System.Configuration;
 using System.Reflection;
 
@@ -95,11 +94,7 @@ public class AppLogger : IAppLogger
             options.Release = version;
             options.AutoSessionTracking = true;
             options.IsGlobalModeEnabled = true;
-            options.Debug = true;
-            options.DiagnosticLogger = new SentryNLogDiagnosticLogger(_logger);
         });
-
-        _logger.Info($"Sentry initialized (release={version})");
     }
 
     #region Logger Methods
@@ -152,29 +147,4 @@ public class AppLogger : IAppLogger
         _sentryDisposable?.Dispose();
     }
     #endregion
-}
-
-/// <summary>
-/// Routes Sentry diagnostic output to the NLog file for troubleshooting SDK issues.
-/// </summary>
-internal class SentryNLogDiagnosticLogger : IDiagnosticLogger
-{
-    private readonly Logger _logger;
-
-    public SentryNLogDiagnosticLogger(Logger logger)
-    {
-        _logger = logger;
-    }
-
-    public bool IsEnabled(SentryLevel level) => true;
-
-    public void Log(SentryLevel logLevel, string message, Exception? exception = null, params object?[] args)
-    {
-        var formatted = args.Length > 0 ? string.Format(message, args) : message;
-        _logger.Info($"[Sentry-{logLevel}] {formatted}");
-        if (exception != null)
-        {
-            _logger.Info($"[Sentry-{logLevel}] {exception}");
-        }
-    }
 }
