@@ -466,7 +466,57 @@
                                         <ColumnDefinition Width="Auto"/>   <!-- New Legend -->
                                     </Grid.ColumnDefinitions>
 
-                                    <oxy:PlotView Grid.Column="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
+                                    <Grid Grid.Column="0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="80"/>
+                                        </Grid.RowDefinitions>
+
+                                        <oxy:PlotView Grid.Row="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
+
+                                        <!-- Save/Zoom button overlays on the main plot -->
+                                        <DockPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                            <Button Command="{Binding DbLogger.SaveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
+                                                <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                            </Button>
+                                        </DockPanel>
+                                        <DockPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                            <Button Command="{Binding DbLogger.ZoomOutXCommand}" ToolTip="Zoom Out (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
+                                                <Button.Content>
+                                                    <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                                </Button.Content>
+                                            </Button>
+                                            <Button Command="{Binding DbLogger.ZoomInXCommand}" ToolTip="Zoom In (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
+                                                <Button.Content>
+                                                    <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                                </Button.Content>
+                                            </Button>
+                                            <StackPanel>
+                                                <Button Command="{Binding DbLogger.ZoomInYCommand}" ToolTip="Zoom In (Analog)" Style="{StaticResource FadeButton}">
+                                                    <Button.Content>
+                                                        <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                                    </Button.Content>
+                                                </Button>
+                                                <Button Command="{Binding DbLogger.ZoomOutYCommand}" ToolTip="Zoom Out (Analog)" Style="{StaticResource FadeButton}">
+                                                    <Button.Content>
+                                                        <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                                    </Button.Content>
+                                                </Button>
+                                                <Button Command="{Binding DbLogger.ResetZoomCommand }" CommandParameter="{Binding}" Style="{StaticResource FadeButton}" ToolTip="Reset Zoom" VerticalAlignment="Bottom" >
+                                                    <Button.Content>
+                                                        <iconPacks:PackIconMaterial Kind="Crosshairs" HorizontalAlignment="Center" Height="15" Width="15"/>
+                                                    </Button.Content>
+                                                </Button>
+                                            </StackPanel>
+                                        </DockPanel>
+
+                                        <!-- Overview Minimap -->
+                                        <oxy:PlotView Grid.Row="1"
+                                                       Model="{Binding DbLogger.MinimapPlotModel}"
+                                                       Margin="5,0,20,5"
+                                                       MinHeight="60"
+                                                       MaxHeight="100"/>
+                                    </Grid>
 
                                     <ListView Grid.Column="1"
                                               ItemsSource="{Binding DbLogger.LegendItems}"
@@ -573,40 +623,6 @@
                                         </ListView.ItemTemplate>
                                     </ListView>
 
-                                    <DockPanel Grid.Column="0" Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top">
-                                        <Button Command="{Binding DbLogger.SaveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
-                                            <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                        </Button>
-                                    </DockPanel>
-                                    <DockPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
-                                        <Button Command="{Binding DbLogger.ZoomOutXCommand}" ToolTip="Zoom Out (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
-                                            <Button.Content>
-                                                <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                            </Button.Content>
-                                        </Button>
-                                        <Button Command="{Binding DbLogger.ZoomInXCommand}" ToolTip="Zoom In (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
-                                            <Button.Content>
-                                                <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                            </Button.Content>
-                                        </Button>
-                                        <StackPanel>
-                                            <Button Command="{Binding DbLogger.ZoomInYCommand}" ToolTip="Zoom In (Analog)" Style="{StaticResource FadeButton}">
-                                                <Button.Content>
-                                                    <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                                </Button.Content>
-                                            </Button>
-                                            <Button Command="{Binding DbLogger.ZoomOutYCommand}" ToolTip="Zoom Out (Analog)" Style="{StaticResource FadeButton}">
-                                                <Button.Content>
-                                                    <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                                </Button.Content>
-                                            </Button>
-                                            <Button Command="{Binding DbLogger.ResetZoomCommand }" CommandParameter="{Binding}" Style="{StaticResource FadeButton}" ToolTip="Reset Zoom" VerticalAlignment="Bottom" >
-                                                <Button.Content>
-                                                    <iconPacks:PackIconMaterial Kind="Crosshairs" HorizontalAlignment="Center" Height="15" Width="15"/>
-                                                </Button.Content>
-                                            </Button>
-                                        </StackPanel>
-                                    </DockPanel>
                                 </Grid>
 
                                 <!-- Logged Data List -->
