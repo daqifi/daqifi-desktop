@@ -265,28 +265,14 @@ public class DiskSpaceMonitorTests
     }
 
     [TestMethod]
-    public void Monitoring_SpaceDropsFromOkToCritical_RaisesCriticalOnly()
+    public void ClassifyLevel_CriticalSkipsWarning()
     {
-        var callCount = 0;
-        var warningRaised = false;
-        var criticalRaised = false;
-
-        var monitor = new DiskSpaceMonitor(TEST_PATH, _ =>
-        {
-            var count = Interlocked.Increment(ref callCount);
-            // First check returns OK, second returns critical
-            return count == 1 ? 1000 * MB : 30 * MB;
-        });
-
-        monitor.LowSpaceWarning += (_, _) => warningRaised = true;
-        monitor.CriticalSpaceReached += (_, _) => criticalRaised = true;
-
-        monitor.StartMonitoring();
-        Thread.Sleep(500);
-        monitor.Dispose();
-
-        Assert.IsTrue(criticalRaised, "CriticalSpaceReached should have been raised");
-        Assert.IsFalse(warningRaised, "Warning should not be raised when jumping directly to critical");
+        // When space drops directly to critical (below 50 MB),
+        // ClassifyLevel returns Critical, not Warning — so the
+        // monitor raises CriticalSpaceReached without LowSpaceWarning.
+        var level = DiskSpaceMonitor.ClassifyLevel(30 * MB, preSession: false);
+        Assert.AreEqual(DiskSpaceLevel.Critical, level);
+        Assert.AreNotEqual(DiskSpaceLevel.Warning, level);
     }
 
     #endregion

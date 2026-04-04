@@ -63,12 +63,20 @@ public class DiskSpaceMonitor : IDiskSpaceMonitor
     #region Public Methods
     public DiskSpaceCheckResult CheckPreLoggingSpace()
     {
-        var available = GetAvailableSpace();
-        var level = ClassifyLevel(available, preSession: true);
+        try
+        {
+            var available = GetAvailableSpace();
+            var level = ClassifyLevel(available, preSession: true);
 
-        _appLogger.Information($"Pre-logging disk space check: {available / (1024 * 1024)} MB available, level={level}");
+            _appLogger.Information($"Pre-logging disk space check: {available / (1024 * 1024)} MB available, level={level}");
 
-        return new DiskSpaceCheckResult(available, level);
+            return new DiskSpaceCheckResult(available, level);
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, "Failed to check disk space — assuming OK to avoid blocking logging");
+            return new DiskSpaceCheckResult(long.MaxValue, DiskSpaceLevel.Ok);
+        }
     }
 
     public void StartMonitoring()

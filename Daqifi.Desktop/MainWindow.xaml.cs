@@ -23,6 +23,11 @@ public partial class MainWindow
 
             Closing += (sender, e) =>
             {
+                if (DataContext is DaqifiViewModel viewModel)
+                {
+                    viewModel.DisposeDiskSpaceMonitor();
+                }
+
                 if (HostCommands.ShutdownCommand.CanExecute(e))
                 {
                     HostCommands.ShutdownCommand.Execute(e);

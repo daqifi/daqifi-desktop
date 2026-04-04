@@ -170,6 +170,8 @@ public partial class DaqifiViewModel : ObservableObject
                 var check = _diskSpaceMonitor.CheckPreLoggingSpace();
                 if (check.Level == DiskSpaceLevel.Critical)
                 {
+                    // Notify bindings so TwoWay toggle reverts to false
+                    OnPropertyChanged(nameof(IsLogging));
                     _ = ShowDiskSpaceMessage(
                         "Cannot Start Logging",
                         $"Only {check.AvailableMegabytes} MB of disk space remaining. " +
@@ -2256,6 +2258,22 @@ public partial class DaqifiViewModel : ObservableObject
     #endregion
 
     #region Disk Space Monitoring
+
+    /// <summary>
+    /// Disposes disk space monitoring resources. Call on application shutdown.
+    /// </summary>
+    public void DisposeDiskSpaceMonitor()
+    {
+        if (_diskSpaceMonitor == null)
+        {
+            return;
+        }
+
+        _diskSpaceMonitor.LowSpaceWarning -= OnDiskSpaceLowWarning;
+        _diskSpaceMonitor.CriticalSpaceReached -= OnDiskSpaceCritical;
+        _diskSpaceMonitor.Dispose();
+        _diskSpaceMonitor = null;
+    }
 
     private void OnDiskSpaceLowWarning(object? sender, DiskSpaceEventArgs e)
     {
