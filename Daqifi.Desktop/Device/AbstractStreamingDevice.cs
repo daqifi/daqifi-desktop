@@ -473,7 +473,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             // The Core package resumes StartSdCardLoggingAsync continuations on the caller's
             // synchronization context. Running it on the thread pool prevents UI deadlocks.
-            var channelMaskString = Convert.ToString((long)analogChannelMask, 2);
+            var channelMaskString = analogChannelMask.ToString(CultureInfo.InvariantCulture);
             Task.Run(() => coreDevice.StartSdCardLoggingAsync(channelMask: channelMaskString, format: SdCardLogFormat)).GetAwaiter().GetResult();
 
             IsLoggingToSdCard = coreDevice.IsLoggingToSdCard;
