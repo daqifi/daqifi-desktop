@@ -59,7 +59,18 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     private readonly PlotModel _plotModel;
     private readonly DatabaseLogger _databaseLogger;
 
-    public LoggedSeriesLegendItem(string displayName, string channelName, string deviceSerialNo, OxyColor seriesColor, bool isVisible, LineSeries actualSeries, PlotModel plotModel, DatabaseLogger databaseLogger = null)
+    /// <summary>
+    /// Initializes a new legend item linked to a plot series and optional minimap sync.
+    /// </summary>
+    public LoggedSeriesLegendItem(
+        string displayName,
+        string channelName,
+        string deviceSerialNo,
+        OxyColor seriesColor,
+        bool isVisible,
+        LineSeries actualSeries,
+        PlotModel plotModel,
+        DatabaseLogger databaseLogger = null)
     {
         _displayName = displayName;
         _channelName = channelName;
@@ -96,6 +107,9 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     [ObservableProperty]
     private PlotModel _plotModel;
 
+    /// <summary>
+    /// PlotModel for the overview minimap showing downsampled data and a selection rectangle.
+    /// </summary>
     [ObservableProperty]
     private PlotModel _minimapPlotModel;
     #endregion
@@ -344,6 +358,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
                 var dbSamples = context.Samples.AsNoTracking()
                     .Where(s => s.LoggingSessionID == session.ID)
+                    .OrderBy(s => s.TimestampTicks)
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color, s.TimestampTicks, s.Value })
                     .ToList(); // Bring data into memory
 
