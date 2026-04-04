@@ -255,16 +255,11 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
                 var dbSamples = context.Samples.AsNoTracking()
                     .Where(s => s.LoggingSessionID == session.ID)
+                    .OrderBy(s => s.TimestampTicks)
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color, s.TimestampTicks, s.Value })
-                    .ToList(); // Bring data into memory
+                    .ToList();
 
                 var samplesCount = dbSamples.Count;
-                const int dataPointsToShow = 1000000;
-
-                if (samplesCount > dataPointsToShow)
-                {
-                    subtitle = $"\nOnly showing {dataPointsToShow:n0} out of {samplesCount:n0} data points";
-                }
 
                 var channelInfoList = dbSamples
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color })
@@ -279,9 +274,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     tempLegendItemsList.Add(legendItem);
                 }
 
-                // This part still needs to be careful about _allSessionPoints access if it's used by UI directly
-                // For now, _allSessionPoints is used to populate series ItemsSource later on UI thread
-                var dataSampleCount = 0;
+                // Build full data point lists per channel
                 foreach (var sample in dbSamples)
                 {
                     var key = (sample.DeviceSerialNo, sample.ChannelName);
@@ -292,12 +285,21 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     {
                         points.Add(new DataPoint(deltaTime, sample.Value));
                     }
+                }
 
-                    dataSampleCount++;
-                    if (dataSampleCount >= dataPointsToShow)
-                    {
-                        break;
-                    }
+                // Decimate each channel's data for efficient rendering
+                var totalDisplayPoints = 0;
+                foreach (var key in _allSessionPoints.Keys.ToList())
+                {
+                    var fullPoints = _allSessionPoints[key];
+                    var decimated = DataPointDecimator.Decimate(fullPoints);
+                    _allSessionPoints[key] = decimated;
+                    totalDisplayPoints += decimated.Count;
+                }
+
+                if (totalDisplayPoints < samplesCount)
+                {
+                    subtitle = $"\nShowing {totalDisplayPoints:n0} downsampled points from {samplesCount:n0} total samples";
                 }
             }
 

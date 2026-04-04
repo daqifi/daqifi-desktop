@@ -16,12 +16,17 @@ namespace Daqifi.Desktop.Logger;
 
 public partial class PlotLogger : ObservableObject, ILogger
 {
+    #region Constants
+    private const int MAX_RAW_POINTS_PER_CHANNEL = 50000;
+    #endregion
+
     #region Private Data
     private PlotModel _plotModel;
     private readonly Stopwatch _stopwatch = new();
     private long _lastUpdateMilliSeconds;
     private int _precision = 4;
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = [];
+    private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _decimatedPoints = [];
     private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = [];
     private readonly TimestampGapDetector _gapDetector = new();
     #endregion
@@ -205,14 +210,14 @@ public partial class PlotLogger : ObservableObject, ILogger
             if (_gapDetector.IsGap(key, dataSample.FirmwareDeltaMs))
             {
                 LoggedPoints[key].Add(DataPoint.Undefined);
-                if (LoggedPoints[key].Count >= 5000)
+                if (LoggedPoints[key].Count >= MAX_RAW_POINTS_PER_CHANNEL)
                 {
                     LoggedPoints[key].RemoveAt(0);
                 }
             }
 
             LoggedPoints[key].Add(new DataPoint(deltaTime, scaledSampleValue));
-            if (LoggedPoints[key].Count >= 5000)
+            if (LoggedPoints[key].Count >= MAX_RAW_POINTS_PER_CHANNEL)
             {
                 LoggedPoints[key].RemoveAt(0);
             }
@@ -234,12 +239,14 @@ public partial class PlotLogger : ObservableObject, ILogger
     {
         var key = (DeviceSerialNo, channelName);
         var newDataPoints = new List<DataPoint>();
+        var decimatedDataPoints = new List<DataPoint>();
         LoggedPoints.Add(key, newDataPoints);
+        _decimatedPoints.Add(key, decimatedDataPoints);
 
         var newLineSeries = new LineSeries
         {
             Title = channelName,
-            ItemsSource = newDataPoints,
+            ItemsSource = decimatedDataPoints,
             Color = OxyColor.Parse(newColor)
         };
 
@@ -272,12 +279,12 @@ public partial class PlotLogger : ObservableObject, ILogger
 
     private void CompositionTargetRendering(object sender, EventArgs e)
     {
-        if (_stopwatch.ElapsedMilliseconds > _lastUpdateMilliSeconds + 1000) // Or your existing update interval
+        if (_stopwatch.ElapsedMilliseconds > _lastUpdateMilliSeconds + 1000)
         {
             lock (PlotModel.SyncRoot)
             {
                 // Iterate through subscribed channels to update series visibility
-                if (LoggingManager.Instance != null) // Ensure LoggingManager instance is available
+                if (LoggingManager.Instance != null)
                 {
                     foreach (var channel in LoggingManager.Instance.SubscribedChannels)
                     {
@@ -291,7 +298,20 @@ public partial class PlotLogger : ObservableObject, ILogger
                         }
                     }
                 }
-                PlotModel.InvalidatePlot(true); // This will redraw the plot with updated series visibility
+
+                // Decimate raw points into the display lists bound to each series
+                // Use DecimateWithGaps to preserve line breaks at data stream gaps
+                foreach (var kvp in LoggedPoints)
+                {
+                    if (_decimatedPoints.TryGetValue(kvp.Key, out var displayPoints))
+                    {
+                        var decimated = DataPointDecimator.DecimateWithGaps(kvp.Value);
+                        displayPoints.Clear();
+                        displayPoints.AddRange(decimated);
+                    }
+                }
+
+                PlotModel.InvalidatePlot(true);
                 _lastUpdateMilliSeconds = _stopwatch.ElapsedMilliseconds;
             }
         }
@@ -301,6 +321,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     {
         LoggedChannels.Clear();
         LoggedPoints.Clear();
+        _decimatedPoints.Clear();
         _gapDetector.Clear();
         PlotModel.Series.Clear();
         PlotModel.InvalidatePlot(true);
