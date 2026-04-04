@@ -3,10 +3,6 @@ name: Build
 on:
   pull_request:
 
-permissions:
-  contents: read
-  pull-requests: write
-
 jobs:
   build-and-test:
     runs-on: windows-latest
@@ -59,6 +55,7 @@ jobs:
 
     - name: Comment Coverage on PR
       if: github.event_name == 'pull_request'
+      continue-on-error: true
       run: |
         if (Test-Path "./CoverageReport/SummaryGithub.md") {
           $summary = Get-Content "./CoverageReport/SummaryGithub.md" -Raw
