@@ -12,7 +12,6 @@ public class AppLogger : IAppLogger
     #region Private Data
     private readonly Logger? _logger;
     private IDisposable? _sentryDisposable;
-    private static readonly NoOpLogger NoOpLogger = new();
     private static readonly bool IsTestMode = IsRunningInTestEnvironment();
     #endregion
 
@@ -100,51 +99,29 @@ public class AppLogger : IAppLogger
     #region Logger Methods
     public void Information(string message)
     {
-        if (IsTestMode)
-        {
-            NoOpLogger.Information(message);
-            return;
-        }
-        _logger.Info(message);
+        _logger?.Info(message);
     }
 
     public void Warning(string message)
     {
-        if (IsTestMode)
-        {
-            NoOpLogger.Warning(message);
-            return;
-        }
-        _logger.Warn(message);
+        _logger?.Warn(message);
     }
 
     public void Error(string message)
     {
-        if (IsTestMode)
-        {
-            NoOpLogger.Error(message);
-            return;
-        }
-        _logger.Error(message);
+        _logger?.Error(message);
         SentrySdk.CaptureException(new Exception(message));
     }
 
     public void Error(Exception ex, string message)
     {
-        if (IsTestMode)
-        {
-            NoOpLogger.Error(ex, message);
-            return;
-        }
-        _logger.Error(ex, message);
+        _logger?.Error(ex, message);
         SentrySdk.CaptureException(ex, scope => scope.SetExtra("message", message));
     }
 
     /// <inheritdoc />
     public void AddBreadcrumb(string category, string message, BreadcrumbLevel level = BreadcrumbLevel.Info)
     {
-        if (IsTestMode) return;
-
         SentrySdk.AddBreadcrumb(
             message: message,
             category: category,
@@ -154,8 +131,6 @@ public class AppLogger : IAppLogger
     /// <inheritdoc />
     public void SetDeviceContext(string model, string firmwareVersion, string connectionType, int activeChannels)
     {
-        if (IsTestMode) return;
-
         SentrySdk.ConfigureScope(scope =>
         {
             scope.SetTag("daqifi.device_model", model ?? "unknown");
@@ -168,8 +143,6 @@ public class AppLogger : IAppLogger
     /// <inheritdoc />
     public void ClearDeviceContext()
     {
-        if (IsTestMode) return;
-
         SentrySdk.ConfigureScope(scope =>
         {
             scope.UnsetTag("daqifi.device_model");
