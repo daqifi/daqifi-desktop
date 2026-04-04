@@ -10,12 +10,6 @@ public class SettingsViewModel
     #endregion
 
     #region Properties
-    public bool CanReportErrors
-    {
-        get => _settings.CanReportErrors;
-        set => _settings.CanReportErrors = value;
-    }
-
     public ObservableCollection<string> CsvDelimiterOptions
     {
         get => _settings.CsvDelimiterOptions;
