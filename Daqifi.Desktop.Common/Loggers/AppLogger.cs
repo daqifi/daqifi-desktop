@@ -141,10 +141,62 @@ public class AppLogger : IAppLogger
     }
 
     /// <inheritdoc />
+    public void AddBreadcrumb(string category, string message, BreadcrumbLevel level = BreadcrumbLevel.Info)
+    {
+        if (IsTestMode) return;
+
+        SentrySdk.AddBreadcrumb(
+            message: message,
+            category: category,
+            level: MapBreadcrumbLevel(level));
+    }
+
+    /// <inheritdoc />
+    public void SetDeviceContext(string model, string firmwareVersion, string connectionType, int activeChannels)
+    {
+        if (IsTestMode) return;
+
+        SentrySdk.ConfigureScope(scope =>
+        {
+            scope.SetTag("daqifi.device_model", model ?? "unknown");
+            scope.SetTag("daqifi.firmware_version", firmwareVersion ?? "unknown");
+            scope.SetTag("daqifi.connection_type", connectionType);
+            scope.SetTag("daqifi.active_channels", activeChannels.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        });
+    }
+
+    /// <inheritdoc />
+    public void ClearDeviceContext()
+    {
+        if (IsTestMode) return;
+
+        SentrySdk.ConfigureScope(scope =>
+        {
+            scope.UnsetTag("daqifi.device_model");
+            scope.UnsetTag("daqifi.firmware_version");
+            scope.UnsetTag("daqifi.connection_type");
+            scope.UnsetTag("daqifi.active_channels");
+        });
+    }
+
+    /// <inheritdoc />
     public void Shutdown()
     {
         SentrySdk.FlushAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
         _sentryDisposable?.Dispose();
+    }
+
+    private static Sentry.BreadcrumbLevel MapBreadcrumbLevel(BreadcrumbLevel level)
+    {
+        return level switch
+        {
+            BreadcrumbLevel.Debug => Sentry.BreadcrumbLevel.Debug,
+            BreadcrumbLevel.Info => Sentry.BreadcrumbLevel.Info,
+            BreadcrumbLevel.Warning => Sentry.BreadcrumbLevel.Warning,
+            BreadcrumbLevel.Error => Sentry.BreadcrumbLevel.Error,
+            BreadcrumbLevel.Critical => Sentry.BreadcrumbLevel.Error,
+            _ => Sentry.BreadcrumbLevel.Info
+        };
     }
     #endregion
 }

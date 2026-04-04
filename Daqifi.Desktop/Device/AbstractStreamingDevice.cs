@@ -658,6 +658,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         coreStreamingDevice.StreamingFrequency = StreamingFrequency;
         coreStreamingDevice.StartStreaming();
         IsStreaming = coreStreamingDevice.IsStreaming;
+        AppLogger.AddBreadcrumb("streaming", $"Streaming started at {StreamingFrequency} Hz");
     }
 
     public void StopStreaming()
@@ -678,6 +679,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         var coreStreamingDevice = GetCoreDeviceForStreaming();
         coreStreamingDevice.StopStreaming();
         IsStreaming = coreStreamingDevice.IsStreaming;
+        AppLogger.AddBreadcrumb("streaming", "Streaming stopped");
 
         // Reset timestamp processor state for clean restart
         _timestampProcessor.ResetAll();

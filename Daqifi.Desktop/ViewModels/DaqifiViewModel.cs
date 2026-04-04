@@ -554,6 +554,7 @@ public partial class DaqifiViewModel : ObservableObject
         _firmwareUploadCts?.Dispose();
         _firmwareUploadCts = new CancellationTokenSource();
         IsFirmwareUploading = true;
+        _appLogger.AddBreadcrumb("firmware", $"Firmware update started for {serialStreamingDevice.Name}");
 
         try
         {
@@ -606,21 +607,25 @@ public partial class DaqifiViewModel : ObservableObject
             }
 
             IsUploadComplete = true;
+            _appLogger.AddBreadcrumb("firmware", "Firmware update completed");
             ShowUploadSuccessMessage();
         }
         catch (OperationCanceledException)
         {
             FirmwareUpdateStatusText = "Firmware update canceled.";
             _appLogger.Warning("Firmware update canceled by user.");
+            _appLogger.AddBreadcrumb("firmware", "Firmware update cancelled", Common.Loggers.BreadcrumbLevel.Warning);
         }
         catch (FirmwareUpdateException ex)
         {
+            _appLogger.AddBreadcrumb("firmware", $"Firmware update failed: {ex.FailedState}", Common.Loggers.BreadcrumbLevel.Error);
             HandleFirmwareUpdateException(ex);
         }
         catch (Exception ex)
         {
             HasErrorOccured = true;
             _appLogger.Error(ex, "Problem Uploading Firmware");
+            _appLogger.AddBreadcrumb("firmware", "Firmware update failed", Common.Loggers.BreadcrumbLevel.Error);
             ShowFirmwareErrorDialog("Firmware update failed. Please try again.");
         }
         finally
@@ -1831,6 +1836,7 @@ public partial class DaqifiViewModel : ObservableObject
             }
             addProfileModel.ProfileList.Add(newProfile);
             LoggingManager.Instance.SubscribeProfile(newProfile);
+            _appLogger.AddBreadcrumb("profile", $"Profile saved: {newProfile.Name}");
         }
         catch (Exception ex)
         {
@@ -1977,6 +1983,7 @@ public partial class DaqifiViewModel : ObservableObject
             }
             // Toggle profile's active state
             SelectedProfile.IsProfileActive = !SelectedProfile.IsProfileActive;
+            _appLogger.AddBreadcrumb("profile", $"Profile {(SelectedProfile.IsProfileActive ? "activated" : "deactivated")}: {SelectedProfile.Name}");
         }
         catch (Exception ex)
         {

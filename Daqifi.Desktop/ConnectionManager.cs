@@ -132,6 +132,14 @@ public partial class ConnectionManager : ObservableObject
             await Task.Delay(1000);
             OnPropertyChanged("ConnectedDevices");
             ConnectionStatus = DAQiFiConnectionStatus.Connected;
+
+            var connectionType = device.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
+            AppLogger.Instance.SetDeviceContext(
+                device.DevicePartNumber,
+                device.DeviceVersion,
+                connectionType,
+                device.DataChannels?.Count(c => c.IsActive) ?? 0);
+            AppLogger.Instance.AddBreadcrumb("device", $"Device connected: {device.Name} via {connectionType}");
         }
         catch (Exception ex)
         {
@@ -144,9 +152,17 @@ public partial class ConnectionManager : ObservableObject
     {
         try
         {
+            var connectionType = device.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
+            AppLogger.Instance.AddBreadcrumb("device", $"Device disconnected: {device.Name} via {connectionType}");
+
             device.Disconnect();
             ConnectedDevices.Remove(device);
             OnPropertyChanged("ConnectedDevices");
+
+            if (ConnectedDevices.Count == 0)
+            {
+                AppLogger.Instance.ClearDeviceContext();
+            }
         }
         catch (Exception ex)
         {
