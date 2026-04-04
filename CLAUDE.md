@@ -228,6 +228,10 @@ public void InitializeFirewallRules()
 - Squash merge to main
 - All PRs require code review
 
+## Code Review
+
+- **Qodo (automated reviewer)**: When Qodo leaves review comments on a PR, always reply to each comment on GitHub explaining what action was taken (fixed, partially fixed, or disagreed with and why). Use `gh api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies` to post threaded replies.
+
 ## Common Tasks
 
 When working on:
