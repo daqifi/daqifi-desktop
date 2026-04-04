@@ -10,12 +10,13 @@
 		<FileVersion>3.0.0.0</FileVersion>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="Bugsnag.AspNet.Core" Version="4.1.0" />
 		<PackageReference Include="NLog" Version="6.1.1" />
 		<PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
+		<PackageReference Include="Sentry" Version="6.2.0" />
+		<PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.5" />
 	</ItemGroup>
 
 </Project>

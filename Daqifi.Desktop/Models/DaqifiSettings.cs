@@ -8,8 +8,7 @@ namespace Daqifi.Desktop.Models;
 public class DaqifiSettings
 {
     #region Private Data
-    private bool _canReportErrors;
-    private string _csvDelimiter;
+    private string _csvDelimiter = ",";
     private static readonly string AppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
     private static readonly string SettingsXmlPath = AppDirectory + "\\DAQifiConfiguration.xml";
     #endregion
@@ -23,16 +22,6 @@ public class DaqifiSettings
         set
         {
             _csvDelimiter = value;
-            SaveSettings();
-        }
-    }
-
-    public bool CanReportErrors
-    {
-        get => _canReportErrors;
-        set
-        {
-            _canReportErrors = value;
             SaveSettings();
         }
     }
@@ -67,14 +56,6 @@ public class DaqifiSettings
 
             var xml = XElement.Load(SettingsXmlPath);
 
-            if (xml.Element("CanReportErrors") != null)
-            {
-                if (bool.TryParse(xml.Element("CanReportErrors").Value, out var temp))
-                {
-                    _canReportErrors = temp;
-                }
-            }
-
             if (xml.Element("CsvDelimiter") != null)
             {
                 _csvDelimiter = xml.Element("CsvDelimiter").Value;
@@ -88,7 +69,6 @@ public class DaqifiSettings
 
     private void LoadDefaultValues()
     {
-        CanReportErrors = true;
         CsvDelimiter = ",";
         SaveSettings();
     }
@@ -98,7 +78,6 @@ public class DaqifiSettings
         try
         {
             var xml = new XElement("DAQifiSettings");
-            xml.Add(new XElement("CanReportErrors", CanReportErrors));
             xml.Add(new XElement("CsvDelimiter", CsvDelimiter));
             xml.Save(SettingsXmlPath);
         }

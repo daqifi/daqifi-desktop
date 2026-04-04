@@ -6,4 +6,6 @@ public class NoOpLogger : IAppLogger
     public void Warning(string message) { }
     public void Error(string message) { }
     public void Error(Exception ex, string message) { }
+    /// <inheritdoc />
+    public void Shutdown() { }
 }

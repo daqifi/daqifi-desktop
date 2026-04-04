@@ -1,7 +1,8 @@
-﻿using NLog;
+using NLog;
 using NLog.Config;
 using NLog.Targets;
-using Bugsnag;
+using Sentry;
+using System.Configuration;
 using System.Reflection;
 
 namespace Daqifi.Desktop.Common.Loggers;
@@ -9,8 +10,8 @@ namespace Daqifi.Desktop.Common.Loggers;
 public class AppLogger : IAppLogger
 {
     #region Private Data
-    private readonly Logger _logger;
-    private readonly Client _client;
+    private readonly Logger? _logger;
+    private IDisposable? _sentryDisposable;
     private static readonly NoOpLogger NoOpLogger = new();
     private static readonly bool IsTestMode = IsRunningInTestEnvironment();
     #endregion
@@ -40,18 +41,18 @@ public class AppLogger : IAppLogger
         {
             // In test mode, don't initialize real logging
             _logger = null;
-            _client = null;
+            _sentryDisposable = null;
             return;
         }
 
-        // Step 1. Create configuration object 
+        // Step 1. Create configuration object
         var config = new LoggingConfiguration();
 
-        // Step 2. Create targets and add them to the configuration 
+        // Step 2. Create targets and add them to the configuration
         var fileTarget = new FileTarget();
         config.AddTarget("file", fileTarget);
 
-        // Step 3. Set target properties 
+        // Step 3. Set target properties
         fileTarget.CreateDirs = true;
         fileTarget.FileName = @"${specialfolder:folder=CommonApplicationData}\DAQifi\Logs\DAQifiAppLog.log";
         fileTarget.Layout = "${longdate} LEVEL=${level:upperCase=true}: ${message}${newline} (${stacktrace}) ${exception:format=tostring} ${newline}";
@@ -76,11 +77,24 @@ public class AppLogger : IAppLogger
 
         _logger = LogManager.GetCurrentClassLogger();
 
-        var configuration = new Configuration("899ecd666668c33e02cc5adc651a11b8")
+        // Step 6. Initialize Sentry SDK — explicit CaptureException calls in Error() are the
+        // sole capture path; SentryTarget is intentionally omitted to avoid double-reporting.
+        var dsn = ConfigurationManager.AppSettings["SentryDsn"];
+        var version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
+
+        if (string.IsNullOrWhiteSpace(dsn))
         {
-            AppVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0"
-        };
-        _client = new Client(configuration);
+            _logger.Warn("SentryDsn not found in AppSettings — Sentry error reporting is disabled");
+            return;
+        }
+
+        _sentryDisposable = SentrySdk.Init(options =>
+        {
+            options.Dsn = dsn;
+            options.Release = version;
+            options.AutoSessionTracking = true;
+            options.IsGlobalModeEnabled = true;
+        });
     }
 
     #region Logger Methods
@@ -112,7 +126,7 @@ public class AppLogger : IAppLogger
             return;
         }
         _logger.Error(message);
-        _client.Notify(new Exception(message), Severity.Error);
+        SentrySdk.CaptureException(new Exception(message));
     }
 
     public void Error(Exception ex, string message)
@@ -123,7 +137,14 @@ public class AppLogger : IAppLogger
             return;
         }
         _logger.Error(ex, message);
-        _client.Notify(ex, Severity.Error);
+        SentrySdk.CaptureException(ex, scope => scope.SetExtra("message", message));
+    }
+
+    /// <inheritdoc />
+    public void Shutdown()
+    {
+        SentrySdk.FlushAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+        _sentryDisposable?.Dispose();
     }
     #endregion
 }
