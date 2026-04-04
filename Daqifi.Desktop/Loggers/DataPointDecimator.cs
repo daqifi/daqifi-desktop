@@ -143,13 +143,31 @@ public static class DataPointDecimator
             return points;
         }
 
-        // Distribute the threshold proportionally across segments
+        // Distribute the threshold proportionally across segments, enforcing global cap
         var totalDataPoints = segments.Sum(s => s.Count);
         var gapMarkerCount = segments.Count - 1;
-        var availableThreshold = threshold - gapMarkerCount;
-        if (availableThreshold < segments.Count * 3)
+        var availableThreshold = Math.Max(segments.Count * 3, threshold - gapMarkerCount);
+
+        // Use floor allocation, then distribute remainder to largest segments
+        var segmentThresholds = new int[segments.Count];
+        var allocated = 0;
+        for (var i = 0; i < segments.Count; i++)
         {
-            availableThreshold = segments.Count * 3;
+            segmentThresholds[i] = Math.Max(3, (int)Math.Floor((double)segments[i].Count / totalDataPoints * availableThreshold));
+            allocated += segmentThresholds[i];
+        }
+
+        // Distribute remaining budget to the largest segments
+        var remaining = availableThreshold - allocated;
+        if (remaining > 0)
+        {
+            var sortedIndices = Enumerable.Range(0, segments.Count)
+                .OrderByDescending(i => segments[i].Count)
+                .ToList();
+            for (var r = 0; r < remaining && r < sortedIndices.Count; r++)
+            {
+                segmentThresholds[sortedIndices[r]]++;
+            }
         }
 
         var result = new List<DataPoint>(threshold);
@@ -161,9 +179,7 @@ public static class DataPointDecimator
                 result.Add(DataPoint.Undefined);
             }
 
-            var segment = segments[i];
-            var segmentThreshold = Math.Max(3, (int)Math.Round((double)segment.Count / totalDataPoints * availableThreshold));
-            var decimated = Decimate(segment, segmentThreshold);
+            var decimated = Decimate(segments[i], segmentThresholds[i]);
             result.AddRange(decimated);
         }
 

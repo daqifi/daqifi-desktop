@@ -25,7 +25,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     private readonly Stopwatch _stopwatch = new();
     private long _lastUpdateMilliSeconds;
     private int _precision = 4;
-    private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = [];
+    private Dictionary<(string deviceSerial, string channelName), CircularBuffer<DataPoint>> _loggedPoints = [];
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _decimatedPoints = [];
     private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = [];
     private readonly TimestampGapDetector _gapDetector = new();
@@ -44,7 +44,7 @@ public partial class PlotLogger : ObservableObject, ILogger
 
     public DateTime? FirstTime { get; set; }
 
-    public Dictionary<(string deviceSerial, string channelName), List<DataPoint>> LoggedPoints
+    public Dictionary<(string deviceSerial, string channelName), CircularBuffer<DataPoint>> LoggedPoints
     {
         get => _loggedPoints;
         private set { _loggedPoints = value; OnPropertyChanged(); }
@@ -210,17 +210,9 @@ public partial class PlotLogger : ObservableObject, ILogger
             if (_gapDetector.IsGap(key, dataSample.FirmwareDeltaMs))
             {
                 LoggedPoints[key].Add(DataPoint.Undefined);
-                if (LoggedPoints[key].Count >= MAX_RAW_POINTS_PER_CHANNEL)
-                {
-                    LoggedPoints[key].RemoveAt(0);
-                }
             }
 
             LoggedPoints[key].Add(new DataPoint(deltaTime, scaledSampleValue));
-            if (LoggedPoints[key].Count >= MAX_RAW_POINTS_PER_CHANNEL)
-            {
-                LoggedPoints[key].RemoveAt(0);
-            }
         }
 
         OnPropertyChanged(nameof(LoggedPoints));
@@ -238,7 +230,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     private void AddChannelSeries(string channelName, string DeviceSerialNo, ChannelType channelType, string newColor)
     {
         var key = (DeviceSerialNo, channelName);
-        var newDataPoints = new List<DataPoint>();
+        var newDataPoints = new CircularBuffer<DataPoint>(MAX_RAW_POINTS_PER_CHANNEL);
         var decimatedDataPoints = new List<DataPoint>();
         LoggedPoints.Add(key, newDataPoints);
         _decimatedPoints.Add(key, decimatedDataPoints);
@@ -305,7 +297,8 @@ public partial class PlotLogger : ObservableObject, ILogger
                 {
                     if (_decimatedPoints.TryGetValue(kvp.Key, out var displayPoints))
                     {
-                        var decimated = DataPointDecimator.DecimateWithGaps(kvp.Value);
+                        var rawPoints = kvp.Value.ToList();
+                        var decimated = DataPointDecimator.DecimateWithGaps(rawPoints);
                         displayPoints.Clear();
                         displayPoints.AddRange(decimated);
                     }

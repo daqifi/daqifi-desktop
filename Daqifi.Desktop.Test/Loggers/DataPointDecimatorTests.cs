@@ -229,6 +229,35 @@ public class DataPointDecimatorTests
     }
 
     [TestMethod]
+    public void DecimateWithGaps_RespectsGlobalThreshold()
+    {
+        // Create data with many gaps to stress the threshold enforcement
+        var points = new List<DataPoint>();
+        const int segmentSize = 2000;
+        const int segmentCount = 10;
+        for (var seg = 0; seg < segmentCount; seg++)
+        {
+            if (seg > 0) points.Add(DataPoint.Undefined);
+            var offset = seg * (segmentSize + 100);
+            for (var i = 0; i < segmentSize; i++)
+            {
+                points.Add(new DataPoint(offset + i, Math.Sin(i * 0.01)));
+            }
+        }
+
+        const int threshold = 500;
+        var result = DataPointDecimator.DecimateWithGaps(points, threshold);
+
+        // Total output (data points + gap markers) should not exceed the threshold
+        Assert.IsTrue(result.Count <= threshold,
+            $"DecimateWithGaps returned {result.Count} points, expected <= {threshold}");
+
+        // Gap markers should still be preserved
+        var gapCount = result.Count(p => double.IsNaN(p.X));
+        Assert.AreEqual(segmentCount - 1, gapCount, "All gap markers should be preserved");
+    }
+
+    [TestMethod]
     public void DecimateWithGaps_PreservesFirstAndLastOfEachSegment()
     {
         var points = new List<DataPoint>();
