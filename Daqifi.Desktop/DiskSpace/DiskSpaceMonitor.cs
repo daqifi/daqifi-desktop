@@ -61,6 +61,7 @@ public class DiskSpaceMonitor : IDiskSpaceMonitor
     #endregion
 
     #region Public Methods
+    /// <inheritdoc />
     public DiskSpaceCheckResult CheckPreLoggingSpace()
     {
         try
@@ -79,6 +80,7 @@ public class DiskSpaceMonitor : IDiskSpaceMonitor
         }
     }
 
+    /// <inheritdoc />
     public void StartMonitoring()
     {
         if (_timer != null)
@@ -91,6 +93,7 @@ public class DiskSpaceMonitor : IDiskSpaceMonitor
         _appLogger.Information("Disk space monitoring started");
     }
 
+    /// <inheritdoc />
     public void StopMonitoring()
     {
         if (_timer == null)
@@ -104,6 +107,7 @@ public class DiskSpaceMonitor : IDiskSpaceMonitor
         _appLogger.Information("Disk space monitoring stopped");
     }
 
+    /// <inheritdoc />
     public void Dispose()
     {
         if (_disposed)
