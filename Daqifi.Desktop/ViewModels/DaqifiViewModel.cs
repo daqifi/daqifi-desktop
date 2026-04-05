@@ -3,6 +3,7 @@ using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.DialogService;
+using Daqifi.Desktop.DiskSpace;
 using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
@@ -126,6 +127,7 @@ public partial class DaqifiViewModel : ObservableObject
     private bool _isLogToDeviceMode;
     private SdCardLogFormat _selectedSdCardLogFormat = SdCardLogFormat.Protobuf;
     private IStreamingDevice? _deviceBeingUpdated;
+    private IDiskSpaceMonitor? _diskSpaceMonitor;
     #endregion
 
     #region Properties
@@ -163,10 +165,39 @@ public partial class DaqifiViewModel : ObservableObject
         get => _isLogging;
         set
         {
+            var preSessionWarningShown = false;
+            if (value && _diskSpaceMonitor != null)
+            {
+                var check = _diskSpaceMonitor.CheckPreLoggingSpace();
+                if (check.Level == DiskSpaceLevel.Critical)
+                {
+                    // Notify bindings so TwoWay toggle reverts to false
+                    OnPropertyChanged(nameof(IsLogging));
+                    _ = ShowDiskSpaceMessage(
+                        "Cannot Start Logging",
+                        $"Only {check.AvailableMegabytes} MB of disk space remaining. " +
+                        "Logging cannot start because the disk is critically low.\n\n" +
+                        "Please free disk space by deleting old logging sessions or removing other files.");
+                    return;
+                }
+
+                if (check.Level == DiskSpaceLevel.PreSessionWarning || check.Level == DiskSpaceLevel.Warning)
+                {
+                    preSessionWarningShown = true;
+                    _ = ShowDiskSpaceMessage(
+                        "Low Disk Space Warning",
+                        $"Only {check.AvailableMegabytes} MB of disk space remaining. " +
+                        "Logging may be stopped automatically if space runs out.\n\n" +
+                        "Consider freeing disk space by deleting old logging sessions or removing other files.");
+                }
+            }
+
             _isLogging = value;
             LoggingManager.Instance.Active = value;
             if (_isLogging)
             {
+                _diskSpaceMonitor?.StartMonitoring(suppressInitialWarning: preSessionWarningShown);
+
                 foreach (var device in ConnectedDevices)
                 {
                     if (device.Mode == DeviceMode.StreamToApp)
@@ -181,6 +212,8 @@ public partial class DaqifiViewModel : ObservableObject
             }
             else
             {
+                _diskSpaceMonitor?.StopMonitoring();
+
                 foreach (var device in ConnectedDevices)
                 {
                     if (device.Mode == DeviceMode.StreamToApp)
@@ -450,6 +483,11 @@ public partial class DaqifiViewModel : ObservableObject
                     // Summary Logger
                     SummaryLogger = new SummaryLogger();
                     LoggingManager.Instance.AddLogger(SummaryLogger);
+
+                    // Disk space monitoring
+                    _diskSpaceMonitor = new DiskSpaceMonitor(App.DaqifiDataDirectory);
+                    _diskSpaceMonitor.LowSpaceWarning += OnDiskSpaceLowWarning;
+                    _diskSpaceMonitor.CriticalSpaceReached += OnDiskSpaceCritical;
 
                     if (LoggingManager.Instance.LoggingSessions == null || !LoggingManager.Instance.LoggingSessions.Any())
                     {
@@ -2224,6 +2262,71 @@ public partial class DaqifiViewModel : ObservableObject
     private void OnDebugDataReceived(DebugDataModel debugData)
     {
         DebugData.AddEntry(debugData);
+    }
+
+    #endregion
+
+    #region Disk Space Monitoring
+
+    /// <summary>
+    /// Disposes disk space monitoring resources. Call on application shutdown.
+    /// </summary>
+    public void DisposeDiskSpaceMonitor()
+    {
+        if (_diskSpaceMonitor == null)
+        {
+            return;
+        }
+
+        _diskSpaceMonitor.LowSpaceWarning -= OnDiskSpaceLowWarning;
+        _diskSpaceMonitor.CriticalSpaceReached -= OnDiskSpaceCritical;
+        _diskSpaceMonitor.Dispose();
+        _diskSpaceMonitor = null;
+    }
+
+    private void OnDiskSpaceLowWarning(object? sender, DiskSpaceEventArgs e)
+    {
+        // BeginInvoke (async) to avoid blocking the timer thread
+        Application.Current?.Dispatcher?.BeginInvoke(() =>
+        {
+            _ = ShowDiskSpaceMessage(
+                "Low Disk Space Warning",
+                $"Only {e.AvailableMegabytes} MB of disk space remaining. " +
+                "Logging will be stopped automatically if space drops below 50 MB.\n\n" +
+                "Consider freeing disk space by deleting old logging sessions or removing other files.");
+        });
+    }
+
+    private void OnDiskSpaceCritical(object? sender, DiskSpaceEventArgs e)
+    {
+        // BeginInvoke (async) to avoid blocking the timer thread
+        Application.Current?.Dispatcher?.BeginInvoke(() =>
+        {
+            _appLogger.Warning($"Disk space critical ({e.AvailableMegabytes} MB) — automatically stopping logging");
+            IsLogging = false;
+            OnPropertyChanged(nameof(IsLogging));
+
+            _ = ShowDiskSpaceMessage(
+                "Logging Stopped — Disk Space Critical",
+                $"Logging was automatically stopped because disk space dropped to {e.AvailableMegabytes} MB.\n\n" +
+                "To prevent system instability, logging has been halted. " +
+                "Please free disk space by deleting old logging sessions or removing other files before resuming.");
+        });
+    }
+
+    private async Task ShowDiskSpaceMessage(string title, string message)
+    {
+        try
+        {
+            if (Application.Current?.MainWindow is MetroWindow metroWindow)
+            {
+                await metroWindow.ShowMessageAsync(title, message, MessageDialogStyle.Affirmative, metroWindow.MetroDialogOptions);
+            }
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, "Failed to show disk space warning dialog");
+        }
     }
 
     #endregion
