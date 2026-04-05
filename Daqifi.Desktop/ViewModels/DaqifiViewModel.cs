@@ -2277,7 +2277,8 @@ public partial class DaqifiViewModel : ObservableObject
 
     private void OnDiskSpaceLowWarning(object? sender, DiskSpaceEventArgs e)
     {
-        Application.Current?.Dispatcher?.Invoke(() =>
+        // BeginInvoke (async) to avoid blocking the timer thread
+        Application.Current?.Dispatcher?.BeginInvoke(() =>
         {
             _ = ShowDiskSpaceMessage(
                 "Low Disk Space Warning",
@@ -2289,7 +2290,8 @@ public partial class DaqifiViewModel : ObservableObject
 
     private void OnDiskSpaceCritical(object? sender, DiskSpaceEventArgs e)
     {
-        Application.Current?.Dispatcher?.Invoke(() =>
+        // BeginInvoke (async) to avoid blocking the timer thread
+        Application.Current?.Dispatcher?.BeginInvoke(() =>
         {
             _appLogger.Warning($"Disk space critical ({e.AvailableMegabytes} MB) — automatically stopping logging");
             IsLogging = false;
