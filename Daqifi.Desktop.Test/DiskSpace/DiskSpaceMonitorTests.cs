@@ -135,6 +135,16 @@ public class DiskSpaceMonitorTests
         Assert.AreEqual(DiskSpaceLevel.Critical, result.Level);
     }
 
+    [TestMethod]
+    public void CheckPreLoggingSpace_WhenExceptionThrown_ReturnsOk()
+    {
+        var monitor = new DiskSpaceMonitor(TEST_PATH, _ => throw new IOException("Drive not ready"));
+
+        var result = monitor.CheckPreLoggingSpace();
+
+        Assert.AreEqual(DiskSpaceLevel.Ok, result.Level);
+    }
+
     #endregion
 
     #region StartMonitoring / StopMonitoring Tests
