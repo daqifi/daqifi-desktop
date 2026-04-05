@@ -25,7 +25,11 @@ public interface IDiskSpaceMonitor : IDisposable
     /// <summary>
     /// Starts periodic monitoring of disk space during an active logging session.
     /// </summary>
-    void StartMonitoring();
+    /// <param name="suppressInitialWarning">
+    /// When true, suppresses the first warning-level notification (e.g., because a pre-session
+    /// warning was already shown to the user).
+    /// </param>
+    void StartMonitoring(bool suppressInitialWarning = false);
 
     /// <summary>
     /// Stops periodic disk space monitoring.

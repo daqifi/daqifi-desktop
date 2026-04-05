@@ -26,6 +26,7 @@ public class DiskSpaceMonitor : IDiskSpaceMonitor
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly string _monitoredPath;
     private readonly Func<string, long> _getAvailableFreeSpace;
+    private readonly object _lock = new();
     private System.Threading.Timer? _timer;
     private bool _disposed;
     private bool _warningRaised;
@@ -81,30 +82,36 @@ public class DiskSpaceMonitor : IDiskSpaceMonitor
     }
 
     /// <inheritdoc />
-    public void StartMonitoring()
+    public void StartMonitoring(bool suppressInitialWarning = false)
     {
-        if (_timer != null)
+        lock (_lock)
         {
-            return;
-        }
+            if (_timer != null)
+            {
+                return;
+            }
 
-        _warningRaised = false;
-        _timer = new System.Threading.Timer(OnTimerTick, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(MONITOR_INTERVAL_MS));
-        _appLogger.Information("Disk space monitoring started");
+            _warningRaised = suppressInitialWarning;
+            _timer = new System.Threading.Timer(OnTimerTick, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(MONITOR_INTERVAL_MS));
+            _appLogger.Information("Disk space monitoring started");
+        }
     }
 
     /// <inheritdoc />
     public void StopMonitoring()
     {
-        if (_timer == null)
+        lock (_lock)
         {
-            return;
-        }
+            if (_timer == null)
+            {
+                return;
+            }
 
-        _timer.Dispose();
-        _timer = null;
-        _warningRaised = false;
-        _appLogger.Information("Disk space monitoring stopped");
+            _timer.Dispose();
+            _timer = null;
+            _warningRaised = false;
+            _appLogger.Information("Disk space monitoring stopped");
+        }
     }
 
     /// <inheritdoc />
@@ -129,21 +136,24 @@ public class DiskSpaceMonitor : IDiskSpaceMonitor
             var available = GetAvailableSpace();
             var level = ClassifyLevel(available, preSession: false);
 
-            switch (level)
+            lock (_lock)
             {
-                case DiskSpaceLevel.Critical:
-                    // Stop the timer first to prevent duplicate critical events
-                    // before the UI thread can call StopMonitoring()
-                    _timer?.Change(Timeout.Infinite, Timeout.Infinite);
-                    _appLogger.Warning($"Disk space critically low: {available / (1024 * 1024)} MB — triggering hard stop");
-                    CriticalSpaceReached?.Invoke(this, new DiskSpaceEventArgs(available, DiskSpaceLevel.Critical));
-                    break;
+                switch (level)
+                {
+                    case DiskSpaceLevel.Critical:
+                        // Stop the timer first to prevent duplicate critical events
+                        // before the UI thread can call StopMonitoring()
+                        _timer?.Change(Timeout.Infinite, Timeout.Infinite);
+                        _appLogger.Warning($"Disk space critically low: {available / (1024 * 1024)} MB — triggering hard stop");
+                        CriticalSpaceReached?.Invoke(this, new DiskSpaceEventArgs(available, DiskSpaceLevel.Critical));
+                        break;
 
-                case DiskSpaceLevel.Warning when !_warningRaised:
-                    _appLogger.Warning($"Disk space low: {available / (1024 * 1024)} MB");
-                    _warningRaised = true;
-                    LowSpaceWarning?.Invoke(this, new DiskSpaceEventArgs(available, DiskSpaceLevel.Warning));
-                    break;
+                    case DiskSpaceLevel.Warning when !_warningRaised:
+                        _appLogger.Warning($"Disk space low: {available / (1024 * 1024)} MB");
+                        _warningRaised = true;
+                        LowSpaceWarning?.Invoke(this, new DiskSpaceEventArgs(available, DiskSpaceLevel.Warning));
+                        break;
+                }
             }
         }
         catch (Exception ex)

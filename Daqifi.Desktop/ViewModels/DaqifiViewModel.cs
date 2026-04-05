@@ -165,6 +165,7 @@ public partial class DaqifiViewModel : ObservableObject
         get => _isLogging;
         set
         {
+            var preSessionWarningShown = false;
             if (value && _diskSpaceMonitor != null)
             {
                 var check = _diskSpaceMonitor.CheckPreLoggingSpace();
@@ -182,6 +183,7 @@ public partial class DaqifiViewModel : ObservableObject
 
                 if (check.Level == DiskSpaceLevel.PreSessionWarning || check.Level == DiskSpaceLevel.Warning)
                 {
+                    preSessionWarningShown = true;
                     _ = ShowDiskSpaceMessage(
                         "Low Disk Space Warning",
                         $"Only {check.AvailableMegabytes} MB of disk space remaining. " +
@@ -194,7 +196,7 @@ public partial class DaqifiViewModel : ObservableObject
             LoggingManager.Instance.Active = value;
             if (_isLogging)
             {
-                _diskSpaceMonitor?.StartMonitoring();
+                _diskSpaceMonitor?.StartMonitoring(suppressInitialWarning: preSessionWarningShown);
 
                 foreach (var device in ConnectedDevices)
                 {
