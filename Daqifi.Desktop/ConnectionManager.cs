@@ -150,22 +150,33 @@ public partial class ConnectionManager : ObservableObject
 
     public void Disconnect(IStreamingDevice device)
     {
+        var connectionType = device.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
         try
         {
-            var connectionType = device.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
-            AppLogger.Instance.AddBreadcrumb("device", $"Device disconnected: {device.Name} via {connectionType}");
-
             device.Disconnect();
             ConnectedDevices.Remove(device);
             OnPropertyChanged("ConnectedDevices");
+
+            AppLogger.Instance.AddBreadcrumb("device", $"Device disconnected: {device.Name} via {connectionType}");
 
             if (ConnectedDevices.Count == 0)
             {
                 AppLogger.Instance.ClearDeviceContext();
             }
+            else
+            {
+                var remaining = ConnectedDevices[^1];
+                var remainingType = remaining.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
+                AppLogger.Instance.SetDeviceContext(
+                    remaining.DevicePartNumber,
+                    remaining.DeviceVersion,
+                    remainingType,
+                    remaining.DataChannels?.Count(c => c.IsActive) ?? 0);
+            }
         }
         catch (Exception ex)
         {
+            AppLogger.Instance.AddBreadcrumb("device", $"Device disconnect failed: {device.Name} via {connectionType}", Common.Loggers.BreadcrumbLevel.Error);
             AppLogger.Instance.Error(ex, "Failed in Disconnect");
         }
     }
