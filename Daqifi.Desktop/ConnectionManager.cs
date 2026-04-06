@@ -136,10 +136,11 @@ public partial class ConnectionManager : ObservableObject
             var connectionType = device.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
             AppLogger.Instance.SetDeviceContext(
                 device.DevicePartNumber,
+                device.DeviceSerialNo,
                 device.DeviceVersion,
                 connectionType,
                 device.DataChannels?.Count(c => c.IsActive) ?? 0);
-            AppLogger.Instance.AddBreadcrumb("device", $"Device connected: {device.Name} via {connectionType}");
+            AppLogger.Instance.AddBreadcrumb("device", $"Device connected: {device.Name} (S/N: {device.DeviceSerialNo}) via {connectionType}");
         }
         catch (Exception ex)
         {
@@ -157,7 +158,7 @@ public partial class ConnectionManager : ObservableObject
             ConnectedDevices.Remove(device);
             OnPropertyChanged("ConnectedDevices");
 
-            AppLogger.Instance.AddBreadcrumb("device", $"Device disconnected: {device.Name} via {connectionType}");
+            AppLogger.Instance.AddBreadcrumb("device", $"Device disconnected: {device.Name} (S/N: {device.DeviceSerialNo}) via {connectionType}");
 
             if (ConnectedDevices.Count == 0)
             {
@@ -169,6 +170,7 @@ public partial class ConnectionManager : ObservableObject
                 var remainingType = remaining.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
                 AppLogger.Instance.SetDeviceContext(
                     remaining.DevicePartNumber,
+                    remaining.DeviceSerialNo,
                     remaining.DeviceVersion,
                     remainingType,
                     remaining.DataChannels?.Count(c => c.IsActive) ?? 0);
@@ -176,7 +178,7 @@ public partial class ConnectionManager : ObservableObject
         }
         catch (Exception ex)
         {
-            AppLogger.Instance.AddBreadcrumb("device", $"Device disconnect failed: {device.Name} via {connectionType}", Common.Loggers.BreadcrumbLevel.Error);
+            AppLogger.Instance.AddBreadcrumb("device", $"Device disconnect failed: {device.Name} (S/N: {device.DeviceSerialNo}) via {connectionType}", Common.Loggers.BreadcrumbLevel.Error);
             AppLogger.Instance.Error(ex, "Failed in Disconnect");
         }
     }

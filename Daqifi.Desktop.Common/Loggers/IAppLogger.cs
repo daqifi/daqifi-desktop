@@ -16,7 +16,7 @@ public interface IAppLogger
     /// Sets DAQiFi-specific device context tags on the Sentry scope so errors can be
     /// filtered and grouped by hardware environment.
     /// </summary>
-    void SetDeviceContext(string model, string firmwareVersion, string connectionType, int activeChannels);
+    void SetDeviceContext(string model, string serialNumber, string firmwareVersion, string connectionType, int activeChannels);
 
     /// <summary>
     /// Clears DAQiFi device context tags from the Sentry scope on disconnect.

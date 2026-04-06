@@ -129,11 +129,12 @@ public class AppLogger : IAppLogger
     }
 
     /// <inheritdoc />
-    public void SetDeviceContext(string model, string firmwareVersion, string connectionType, int activeChannels)
+    public void SetDeviceContext(string model, string serialNumber, string firmwareVersion, string connectionType, int activeChannels)
     {
         SentrySdk.ConfigureScope(scope =>
         {
             scope.SetTag("daqifi.device_model", model ?? "unknown");
+            scope.SetTag("daqifi.serial_number", serialNumber ?? "unknown");
             scope.SetTag("daqifi.firmware_version", firmwareVersion ?? "unknown");
             scope.SetTag("daqifi.connection_type", connectionType);
             scope.SetTag("daqifi.active_channels", activeChannels.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -146,6 +147,7 @@ public class AppLogger : IAppLogger
         SentrySdk.ConfigureScope(scope =>
         {
             scope.UnsetTag("daqifi.device_model");
+            scope.UnsetTag("daqifi.serial_number");
             scope.UnsetTag("daqifi.firmware_version");
             scope.UnsetTag("daqifi.connection_type");
             scope.UnsetTag("daqifi.active_channels");
