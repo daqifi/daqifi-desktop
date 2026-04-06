@@ -74,6 +74,8 @@ public partial class App
         // Create and show main window
         var view = new MainWindow();
         view.Show();
+
+        AppLogger.Instance.AddBreadcrumb("app", "App startup complete");
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

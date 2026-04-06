@@ -69,6 +69,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     public void StartConnectionFinders()
     {
+        Common.Loggers.AppLogger.Instance.AddBreadcrumb("discovery", "Device discovery started");
+
         // WiFi Discovery
         _wifiFinder = new WiFiDeviceFinder(30303);
         _wifiDiscoveryCts = new CancellationTokenSource();
@@ -287,6 +289,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         try
         {
+            Common.Loggers.AppLogger.Instance.AddBreadcrumb("discovery", $"WiFi device found: {e.DeviceInfo.Name}");
             var wifiDevice = new DaqifiStreamingDevice(e.DeviceInfo);
             HandleWifiDeviceFound(sender, wifiDevice);
         }
@@ -300,6 +303,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         try
         {
+            Common.Loggers.AppLogger.Instance.AddBreadcrumb("discovery", $"Serial device found: {e.DeviceInfo.Name}");
             AddSerialDeviceFromDiscovery(e.DeviceInfo);
         }
         catch (Exception ex)
