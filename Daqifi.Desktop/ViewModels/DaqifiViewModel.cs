@@ -499,6 +499,9 @@ public partial class DaqifiViewModel : ObservableObject
                     Plotter.ShowingMinorYAxisGrid = false;
 
                     FirewallConfiguration.InitializeFirewallRules();
+
+                    // Initialize range selection helpers
+                    InitializeRangeSelection();
                 }
                 catch (Exception ex)
                 {

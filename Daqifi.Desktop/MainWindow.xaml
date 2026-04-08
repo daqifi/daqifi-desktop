@@ -13,6 +13,7 @@
         xmlns:local="clr-namespace:Daqifi.Desktop.View"
         xmlns:converters="clr-namespace:Daqifi.Desktop.Converters"
         xmlns:logger="clr-namespace:Daqifi.Desktop.Logger"
+        xmlns:behaviors="clr-namespace:Daqifi.Desktop.Behaviors"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:DaqifiViewModel}"
         service:DialogService.IsRegisteredView="True"
