@@ -1388,58 +1388,66 @@ public partial class DaqifiViewModel : ObservableObject
 
             IsLoggedDataBusy = true;
             LoggedDataBusyReason = "Deleting All Logging Sessions";
-            var bw = new BackgroundWorker();
-            bw.DoWork += delegate
+
+            try
             {
-                // Stop the consumer thread so it releases all DB connections
-                DbLogger.SuspendConsumer();
-                try
+                await Task.Run(() =>
                 {
-                    DbLogger.ClearBuffer();
-
-                    // Release all pooled SQLite connections so the file is not locked
-                    SqliteConnection.ClearAllPools();
-
-                    var dbPath = App.DatabasePath;
-                    DeleteFileIfExists(dbPath);
-                    DeleteFileIfExists(dbPath + "-wal");
-                    DeleteFileIfExists(dbPath + "-shm");
-
-                    // Recreate the database schema by creating a fresh context
-                    using var context = App.ServiceProvider
-                        .GetRequiredService<IDbContextFactory<LoggingContext>>()
-                        .CreateDbContext();
-
-                    Application.Current.Dispatcher.Invoke(delegate
+                    // Stop the consumer thread so it releases all DB connections
+                    DbLogger.SuspendConsumer();
+                    try
                     {
-                        LoggingManager.Instance.LoggingSessions.Clear();
-                        DbLogger.ClearPlot();
-                    });
-                }
-                catch (IOException ioEx)
-                {
-                    _appLogger.Error(ioEx, "Database file is in use. Please try again.");
-                }
-                catch (Exception ex)
-                {
-                    _appLogger.Error(ex, "Failed to delete all logging sessions.");
-                }
-                finally
-                {
-                    DbLogger.ResumeConsumer();
-                }
-            };
+                        DbLogger.ClearBuffer();
 
-            bw.RunWorkerCompleted += (s, e) =>
+                        // Release all pooled SQLite connections so the file is not locked
+                        SqliteConnection.ClearAllPools();
+
+                        var dbPath = App.DatabasePath;
+                        DeleteFileIfExists(dbPath);
+                        DeleteFileIfExists(dbPath + "-wal");
+                        DeleteFileIfExists(dbPath + "-shm");
+
+                        // Recreate the database schema by creating a fresh context
+                        using var context = App.ServiceProvider
+                            .GetRequiredService<IDbContextFactory<LoggingContext>>()
+                            .CreateDbContext();
+                    }
+                    catch (IOException ioEx)
+                    {
+                        _appLogger.Error(ioEx, "Database file is in use. Please try again.");
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        _appLogger.Error(ex, "Failed to delete all logging sessions.");
+                        throw;
+                    }
+                }).ConfigureAwait(false);
+
+                // Clear UI on the UI thread and ensure this happens BEFORE resuming consumer
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    LoggingManager.Instance.LoggingSessions.Clear();
+                    DbLogger.ClearPlot();
+                });
+
+                // Only resume consumer AFTER UI has been cleared to prevent race condition
+                DbLogger.ResumeConsumer();
+            }
+            catch
             {
-                IsLoggedDataBusy = false;
-            };
-
-            bw.RunWorkerAsync();
+                // Ensure we always resume the consumer even if something fails
+                DbLogger.ResumeConsumer();
+                throw;
+            }
         }
         catch (Exception ex)
         {
-            _appLogger.Error(ex, "Error initiating deletion of all logging sessions");
+            _appLogger.Error(ex, "Error during deletion of all logging sessions");
+        }
+        finally
+        {
+            IsLoggedDataBusy = false;
         }
     }
 
