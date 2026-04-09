@@ -476,6 +476,17 @@ public partial class LoggingManager : ObservableObject
                 .ToList());
     }
 
+    public void ReloadPersistedLoggingSessions()
+    {
+        var persistedSessions = LoadPersistedLoggingSessions();
+        LoggingSessions.Clear();
+
+        foreach (var session in persistedSessions)
+        {
+            LoggingSessions.Add(session);
+        }
+    }
+
     private void DeleteLoggingSessionIfPresent(int sessionId)
     {
         var existingSession = LoggingSessions.FirstOrDefault(session => session.ID == sessionId);

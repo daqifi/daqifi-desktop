@@ -1,5 +1,4 @@
-﻿using System.Collections.ObjectModel;
-using Daqifi.Desktop.Logger;
+﻿using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,25 +20,21 @@ public partial class LoggedSessionFlyout
 
     private void UpdateSessionName(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
-        if ((DataContext as DaqifiViewModel)?.SelectedLoggingSession is LoggingSession session)
+        if ((DataContext as DaqifiViewModel)?.SelectedLoggingSession is not LoggingSession session ||
+            sender is not System.Windows.Controls.TextBox textBox)
         {
-            var textBox = sender as System.Windows.Controls.TextBox;
-            if (textBox != null)
-            {
-
-                var newName = textBox.Text;
-
-                session.Name = newName;
-                using var context = _loggingContext.CreateDbContext();
-                var sessionToUpdate = context.Sessions.Find(session.ID);
-                if (sessionToUpdate != null)
-                {
-                    sessionToUpdate.Name = newName;
-                    context.SaveChanges();
-                }
-            }
+            return;
         }
 
-        LoggingManager.Instance.LoggingSessions = LoggingManager.Instance.LoadPersistedLoggingSessions();
+        var newName = textBox.Text;
+
+        session.Name = newName;
+        using var context = _loggingContext.CreateDbContext();
+        var sessionToUpdate = context.Sessions.Find(session.ID);
+        if (sessionToUpdate != null)
+        {
+            sessionToUpdate.Name = newName;
+            context.SaveChanges();
+        }
     }
 }
