@@ -476,6 +476,9 @@ public partial class LoggingManager : ObservableObject
                 .ToList());
     }
 
+    /// <summary>
+    /// Reloads persisted logging sessions from storage and repopulates the current collection in place.
+    /// </summary>
     public void ReloadPersistedLoggingSessions()
     {
         var persistedSessions = LoadPersistedLoggingSessions();

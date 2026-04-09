@@ -21,6 +21,7 @@ using Daqifi.Core.Communication.Transport;
 using Daqifi.Desktop.Device.Firmware;
 using Microsoft.Data.Sqlite;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
@@ -129,6 +130,7 @@ public partial class DaqifiViewModel : ObservableObject
     private SdCardLogFormat _selectedSdCardLogFormat = SdCardLogFormat.Protobuf;
     private IStreamingDevice? _deviceBeingUpdated;
     private IDiskSpaceMonitor? _diskSpaceMonitor;
+    private ObservableCollection<LoggingSession>? _observedLoggingSessions;
     #endregion
 
     #region Properties
@@ -463,6 +465,7 @@ public partial class DaqifiViewModel : ObservableObject
 
                     // Manage data for plotting
                     LoggingManager.Instance.PropertyChanged += UpdateUi;
+                    AttachLoggingSessionsCollection(LoggingManager.Instance.LoggingSessions);
                     Plotter = new PlotLogger();
                     LoggingManager.Instance.AddLogger(Plotter);
 
@@ -1454,6 +1457,33 @@ public partial class DaqifiViewModel : ObservableObject
             ?? throw new InvalidOperationException("Logging context factory is not available.");
     }
 
+    private void AttachLoggingSessionsCollection(ObservableCollection<LoggingSession> loggingSessions)
+    {
+        if (ReferenceEquals(_observedLoggingSessions, loggingSessions))
+        {
+            return;
+        }
+
+        if (_observedLoggingSessions != null)
+        {
+            _observedLoggingSessions.CollectionChanged -= OnLoggingSessionsCollectionChanged;
+        }
+
+        _observedLoggingSessions = loggingSessions;
+        _observedLoggingSessions.CollectionChanged += OnLoggingSessionsCollectionChanged;
+    }
+
+    private void OnLoggingSessionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(NotifyLoggingSessionsChanged);
+            return;
+        }
+
+        NotifyLoggingSessionsChanged();
+    }
+
     private void NotifyLoggingSessionsChanged()
     {
         OnPropertyChanged(nameof(LoggingSessions));
@@ -2166,6 +2196,7 @@ public partial class DaqifiViewModel : ObservableObject
                 }
                 break;
             case nameof(LoggingManager.LoggingSessions):
+                AttachLoggingSessionsCollection(LoggingManager.Instance.LoggingSessions);
                 NotifyLoggingSessionsChanged();
                 break;
             case "NotificationCount":
