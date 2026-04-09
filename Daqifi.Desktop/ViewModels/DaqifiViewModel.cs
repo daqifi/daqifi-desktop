@@ -120,7 +120,7 @@ public partial class DaqifiViewModel : ObservableObject
     private bool _selectedDeviceSupportsFirmwareUpdate;
     private readonly IFirmwareUpdateService _firmwareUpdateService;
     private readonly IFirmwareDownloadService _firmwareDownloadService;
-    private readonly IDbContextFactory<LoggingContext> _loggingContextFactory;
+    private readonly IDbContextFactory<LoggingContext>? _loggingContextFactory;
     private readonly Func<string, string, IFirmwareUpdateService> _wifiFirmwareUpdateServiceFactory;
     private CancellationTokenSource? _firmwareUploadCts;
     private ConnectionDialogViewModel _connectionDialogViewModel;
@@ -446,7 +446,7 @@ public partial class DaqifiViewModel : ObservableObject
         _firmwareDownloadService = firmwareDownloadService ?? CreateDefaultFirmwareDownloadService();
         var resolvedLogger = firmwareLogger ?? NullLogger<FirmwareUpdateService>.Instance;
         _firmwareUpdateService = firmwareUpdateService ?? CreateDefaultFirmwareUpdateService(_firmwareDownloadService, resolvedLogger);
-        _loggingContextFactory = loggingContextFactory ?? App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+        _loggingContextFactory = loggingContextFactory;
         _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
 
         var app = Application.Current as App;
@@ -467,7 +467,7 @@ public partial class DaqifiViewModel : ObservableObject
                     LoggingManager.Instance.AddLogger(Plotter);
 
                     // Database logging
-                    DbLogger = new DatabaseLogger(_loggingContextFactory);
+                    DbLogger = new DatabaseLogger(GetLoggingContextFactory());
                     LoggingManager.Instance.AddLogger(DbLogger);
 
                     // Device Logs View Model
@@ -1439,12 +1439,19 @@ public partial class DaqifiViewModel : ObservableObject
             DeleteFileIfExists(dbPath + "-shm");
 
             // Recreate the database schema by creating a fresh context.
-            using var context = _loggingContextFactory.CreateDbContext();
+            using var context = GetLoggingContextFactory().CreateDbContext();
         }
         finally
         {
             DbLogger.ResumeConsumer();
         }
+    }
+
+    private IDbContextFactory<LoggingContext> GetLoggingContextFactory()
+    {
+        return _loggingContextFactory
+            ?? App.ServiceProvider?.GetService<IDbContextFactory<LoggingContext>>()
+            ?? throw new InvalidOperationException("Logging context factory is not available.");
     }
 
     private void NotifyLoggingSessionsChanged()
