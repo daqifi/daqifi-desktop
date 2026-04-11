@@ -76,7 +76,7 @@ public partial class App
 
         // Apply database migrations before any DB access
         var contextFactory = ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
-        DatabaseMigrator.MigrateDatabase(contextFactory);
+        DatabaseMigrator.MigrateDatabase(contextFactory, DatabasePath);
 
         // Create and show main window
         var view = new MainWindow();

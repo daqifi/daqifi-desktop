@@ -23,12 +23,13 @@ public static class DatabaseMigrator
     /// to recreate existing tables.
     /// </summary>
     /// <param name="contextFactory">The DbContext factory registered in DI.</param>
-    public static void MigrateDatabase(IDbContextFactory<LoggingContext> contextFactory)
+    /// <param name="databasePath">Full path to the SQLite database file.</param>
+    public static void MigrateDatabase(IDbContextFactory<LoggingContext> contextFactory, string databasePath)
     {
-        using var context = contextFactory.CreateDbContext();
+        BackupDatabase(databasePath);
+        SeedMigrationHistoryIfNeeded(contextFactory);
 
-        BackupDatabase(context);
-        SeedMigrationHistoryIfNeeded(context);
+        using var context = contextFactory.CreateDbContext();
         context.Database.Migrate();
 
         AppLogger.Instance.AddBreadcrumb("database", "Database migration completed successfully");
@@ -39,24 +40,17 @@ public static class DatabaseMigrator
     /// <summary>
     /// Creates a backup copy of the SQLite database file before applying migrations.
     /// </summary>
-    private static void BackupDatabase(LoggingContext context)
+    private static void BackupDatabase(string databasePath)
     {
         try
         {
-            var connectionString = context.Database.GetConnectionString();
-            if (string.IsNullOrEmpty(connectionString))
+            if (!File.Exists(databasePath))
             {
                 return;
             }
 
-            var dbPath = ExtractDatabasePath(connectionString);
-            if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
-            {
-                return;
-            }
-
-            var backupPath = dbPath + ".backup";
-            File.Copy(dbPath, backupPath, overwrite: true);
+            var backupPath = databasePath + ".backup";
+            File.Copy(databasePath, backupPath, overwrite: true);
             AppLogger.Instance.AddBreadcrumb("database", $"Database backed up to {backupPath}");
         }
         catch (Exception ex)
@@ -69,9 +63,12 @@ public static class DatabaseMigrator
     /// For databases created by <c>EnsureCreated()</c>, the <c>__EFMigrationsHistory</c>
     /// table does not exist. This method creates it and seeds the initial migration entry
     /// so that <c>Migrate()</c> only applies subsequent migrations.
+    /// Uses a separate context that is fully disposed before Migrate() runs.
     /// </summary>
-    private static void SeedMigrationHistoryIfNeeded(LoggingContext context)
+    private static void SeedMigrationHistoryIfNeeded(IDbContextFactory<LoggingContext> contextFactory)
     {
+        using var context = contextFactory.CreateDbContext();
+
         if (HasMigrationHistoryTable(context))
         {
             return;
@@ -128,23 +125,6 @@ public static class DatabaseMigrator
         {
             return false;
         }
-    }
-
-    /// <summary>
-    /// Extracts the file path from a SQLite connection string.
-    /// </summary>
-    private static string ExtractDatabasePath(string connectionString)
-    {
-        foreach (var part in connectionString.Split(';'))
-        {
-            var trimmed = part.Trim();
-            if (trimmed.StartsWith("Data source=", StringComparison.OrdinalIgnoreCase))
-            {
-                return trimmed.Substring(trimmed.IndexOf('=') + 1).Trim();
-            }
-        }
-
-        return null;
     }
     #endregion
 }
