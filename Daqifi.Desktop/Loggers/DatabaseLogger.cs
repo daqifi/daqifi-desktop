@@ -102,6 +102,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     private readonly ManualResetEventSlim _consumerGate = new(true);
     private RectangleAnnotation _minimapSelectionRect;
+    private RectangleAnnotation _minimapDimLeft;
+    private RectangleAnnotation _minimapDimRight;
     private MinimapInteractionController _minimapInteraction;
 
     [ObservableProperty]
@@ -235,11 +237,14 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         MinimapPlotModel.Axes.Add(minimapTimeAxis);
         MinimapPlotModel.Axes.Add(minimapYAxis);
 
-        _minimapSelectionRect = new RectangleAnnotation
+        // Dim overlays for areas outside the selected range
+        _minimapDimLeft = new RectangleAnnotation
         {
-            Fill = OxyColor.FromArgb(40, 0, 120, 215),
-            Stroke = OxyColor.FromRgb(0, 120, 215),
-            StrokeThickness = 1.5,
+            Fill = OxyColor.FromArgb(140, 255, 255, 255),
+            Stroke = OxyColors.Transparent,
+            StrokeThickness = 0,
+            MinimumX = double.MinValue,
+            MaximumX = 0,
             MinimumY = double.MinValue,
             MaximumY = double.MaxValue,
             Layer = AnnotationLayer.AboveSeries,
@@ -247,12 +252,43 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             YAxisKey = "MinimapY"
         };
 
+        _minimapDimRight = new RectangleAnnotation
+        {
+            Fill = OxyColor.FromArgb(140, 255, 255, 255),
+            Stroke = OxyColors.Transparent,
+            StrokeThickness = 0,
+            MinimumX = 0,
+            MaximumX = double.MaxValue,
+            MinimumY = double.MinValue,
+            MaximumY = double.MaxValue,
+            Layer = AnnotationLayer.AboveSeries,
+            XAxisKey = "MinimapTime",
+            YAxisKey = "MinimapY"
+        };
+
+        // Selection rectangle border
+        _minimapSelectionRect = new RectangleAnnotation
+        {
+            Fill = OxyColor.FromArgb(20, 0, 120, 215),
+            Stroke = OxyColor.FromRgb(0, 120, 215),
+            StrokeThickness = 2,
+            MinimumY = double.MinValue,
+            MaximumY = double.MaxValue,
+            Layer = AnnotationLayer.AboveSeries,
+            XAxisKey = "MinimapTime",
+            YAxisKey = "MinimapY"
+        };
+
+        MinimapPlotModel.Annotations.Add(_minimapDimLeft);
+        MinimapPlotModel.Annotations.Add(_minimapDimRight);
         MinimapPlotModel.Annotations.Add(_minimapSelectionRect);
 
         _minimapInteraction = new MinimapInteractionController(
             PlotModel,
             MinimapPlotModel,
-            _minimapSelectionRect);
+            _minimapSelectionRect,
+            _minimapDimLeft,
+            _minimapDimRight);
     }
     #endregion
 
@@ -471,6 +507,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     var dataMaxX = minimapSeriesData.Where(d => d.downsampled.Count > 0).Max(d => d.downsampled[^1].X);
                     _minimapSelectionRect.MinimumX = dataMinX;
                     _minimapSelectionRect.MaximumX = dataMaxX;
+                    _minimapDimLeft.MaximumX = dataMinX;
+                    _minimapDimRight.MinimumX = dataMaxX;
                 }
 
                 MinimapPlotModel.InvalidatePlot(true);
@@ -608,6 +646,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
         _minimapSelectionRect.MinimumX = timeAxis.ActualMinimum;
         _minimapSelectionRect.MaximumX = timeAxis.ActualMaximum;
+        _minimapDimLeft.MaximumX = timeAxis.ActualMinimum;
+        _minimapDimRight.MinimumX = timeAxis.ActualMaximum;
         MinimapPlotModel.InvalidatePlot(false);
     }
 

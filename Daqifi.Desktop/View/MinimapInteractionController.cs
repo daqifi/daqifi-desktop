@@ -14,6 +14,8 @@ public class MinimapInteractionController
     private readonly PlotModel _mainPlotModel;
     private readonly PlotModel _minimapPlotModel;
     private readonly RectangleAnnotation _selectionRect;
+    private readonly RectangleAnnotation _dimLeft;
+    private readonly RectangleAnnotation _dimRight;
     private readonly string _mainTimeAxisKey;
     private readonly string _minimapTimeAxisKey;
 
@@ -31,12 +33,16 @@ public class MinimapInteractionController
         PlotModel mainPlotModel,
         PlotModel minimapPlotModel,
         RectangleAnnotation selectionRect,
+        RectangleAnnotation dimLeft,
+        RectangleAnnotation dimRight,
         string mainTimeAxisKey = "Time",
         string minimapTimeAxisKey = "MinimapTime")
     {
         _mainPlotModel = mainPlotModel;
         _minimapPlotModel = minimapPlotModel;
         _selectionRect = selectionRect;
+        _dimLeft = dimLeft;
+        _dimRight = dimRight;
         _mainTimeAxisKey = mainTimeAxisKey;
         _minimapTimeAxisKey = minimapTimeAxisKey;
 
@@ -92,6 +98,8 @@ public class MinimapInteractionController
 
             _selectionRect.MinimumX = newMin;
             _selectionRect.MaximumX = newMax;
+            _dimLeft.MaximumX = newMin;
+            _dimRight.MinimumX = newMax;
             ApplyToMainPlot(newMin, newMax);
             _dragMode = DragMode.Pan;
         }
@@ -209,6 +217,8 @@ public class MinimapInteractionController
         }
 
         mainTimeAxis.Zoom(min, max);
+        _dimLeft.MaximumX = min;
+        _dimRight.MinimumX = max;
         _mainPlotModel.InvalidatePlot(false);
         _minimapPlotModel.InvalidatePlot(false);
     }
