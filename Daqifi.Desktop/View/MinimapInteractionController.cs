@@ -1,6 +1,8 @@
+using Daqifi.Desktop.Logger;
 using OxyPlot;
 using OxyPlot.Annotations;
 using OxyPlot.Axes;
+using System.Windows.Threading;
 using Cursor = System.Windows.Input.Cursor;
 using Cursors = System.Windows.Input.Cursors;
 using Application = System.Windows.Application;
@@ -12,7 +14,7 @@ namespace Daqifi.Desktop.View;
 /// Handles mouse interactions on the minimap PlotModel to enable drag/resize
 /// of the selection rectangle, synchronized with the main plot's time axis.
 /// Provides cursor feedback: resize arrows on edges, grab hand inside selection,
-/// and pointer outside.
+/// and pointer outside. Renders are throttled to 60fps via a DispatcherTimer.
 /// </summary>
 public class MinimapInteractionController : IDisposable
 {
@@ -24,6 +26,7 @@ public class MinimapInteractionController : IDisposable
     private readonly RectangleAnnotation _dimRight;
     private readonly string _mainTimeAxisKey;
     private readonly string _minimapTimeAxisKey;
+    private readonly DatabaseLogger _databaseLogger;
 
     private enum DragMode { None, Pan, ResizeLeft, ResizeRight }
     private DragMode _dragMode = DragMode.None;
@@ -33,6 +36,9 @@ public class MinimapInteractionController : IDisposable
     private Cursor _lastCursor;
 
     private const double EDGE_TOLERANCE_FRACTION = 0.02;
+
+    private bool _isDirty;
+    private readonly DispatcherTimer _renderTimer;
     #endregion
 
     #region Constructor
@@ -42,6 +48,7 @@ public class MinimapInteractionController : IDisposable
         RectangleAnnotation selectionRect,
         RectangleAnnotation dimLeft,
         RectangleAnnotation dimRight,
+        DatabaseLogger databaseLogger,
         string mainTimeAxisKey = "Time",
         string minimapTimeAxisKey = "MinimapTime")
     {
@@ -50,12 +57,20 @@ public class MinimapInteractionController : IDisposable
         _selectionRect = selectionRect;
         _dimLeft = dimLeft;
         _dimRight = dimRight;
+        _databaseLogger = databaseLogger;
         _mainTimeAxisKey = mainTimeAxisKey;
         _minimapTimeAxisKey = minimapTimeAxisKey;
 
         _minimapPlotModel.MouseDown += OnMouseDown;
         _minimapPlotModel.MouseMove += OnMouseMove;
         _minimapPlotModel.MouseUp += OnMouseUp;
+
+        _renderTimer = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromMilliseconds(16)
+        };
+        _renderTimer.Tick += OnRenderTick;
+        _renderTimer.Start();
     }
     #endregion
 
@@ -261,6 +276,15 @@ public class MinimapInteractionController : IDisposable
         {
             _dragMode = DragMode.None;
 
+            // Flush final render for accuracy
+            if (_isDirty)
+            {
+                _isDirty = false;
+                _databaseLogger.OnMinimapViewportChanged();
+                _mainPlotModel.InvalidatePlot(false);
+                _minimapPlotModel.InvalidatePlot(false);
+            }
+
             // Update cursor based on final position
             var minimapTimeAxis = GetMinimapTimeAxis();
             if (minimapTimeAxis != null)
@@ -274,6 +298,21 @@ public class MinimapInteractionController : IDisposable
     }
     #endregion
 
+    #region Render Throttling
+    private void OnRenderTick(object? sender, EventArgs e)
+    {
+        if (!_isDirty)
+        {
+            return;
+        }
+
+        _isDirty = false;
+        _databaseLogger.OnMinimapViewportChanged();
+        _mainPlotModel.InvalidatePlot(false);
+        _minimapPlotModel.InvalidatePlot(false);
+    }
+    #endregion
+
     #region Private Methods
     private void ApplyToMainPlot(double min, double max)
     {
@@ -283,11 +322,13 @@ public class MinimapInteractionController : IDisposable
             return;
         }
 
+        _databaseLogger.IsSyncingFromMinimap = true;
         mainTimeAxis.Zoom(min, max);
+        _databaseLogger.IsSyncingFromMinimap = false;
+
         _dimLeft.MaximumX = min;
         _dimRight.MinimumX = max;
-        _mainPlotModel.InvalidatePlot(false);
-        _minimapPlotModel.InvalidatePlot(false);
+        _isDirty = true;
     }
 
     private LinearAxis? GetMinimapTimeAxis()
@@ -316,10 +357,12 @@ public class MinimapInteractionController : IDisposable
 
     #region IDisposable
     /// <summary>
-    /// Unsubscribes all event handlers from the minimap PlotModel.
+    /// Unsubscribes all event handlers from the minimap PlotModel and stops the render timer.
     /// </summary>
     public void Dispose()
     {
+        _renderTimer.Stop();
+        _renderTimer.Tick -= OnRenderTick;
         _minimapPlotModel.MouseDown -= OnMouseDown;
         _minimapPlotModel.MouseMove -= OnMouseMove;
         _minimapPlotModel.MouseUp -= OnMouseUp;

@@ -23,24 +23,52 @@ public static class MinMaxDownsampler
             return [];
         }
 
-        if (points.Count <= bucketCount * 2)
+        return Downsample(points, 0, points.Count, bucketCount);
+    }
+
+    /// <summary>
+    /// Downsamples a sub-range of a sorted list using min/max aggregation per bucket.
+    /// Operates on indices [<paramref name="startIndex"/>, <paramref name="endIndex"/>)
+    /// without copying the source list.
+    /// </summary>
+    /// <param name="points">Time-sorted data points.</param>
+    /// <param name="startIndex">Inclusive start index of the sub-range.</param>
+    /// <param name="endIndex">Exclusive end index of the sub-range.</param>
+    /// <param name="bucketCount">Number of buckets to divide the time range into.</param>
+    /// <returns>A downsampled list of data points preserving the visual envelope.</returns>
+    public static List<DataPoint> Downsample(IReadOnlyList<DataPoint> points, int startIndex, int endIndex, int bucketCount)
+    {
+        ArgumentNullException.ThrowIfNull(points);
+
+        var count = endIndex - startIndex;
+        if (count <= 0 || bucketCount <= 0)
         {
-            return new List<DataPoint>(points);
+            return [];
         }
 
-        var result = new List<DataPoint>(bucketCount * 2);
+        if (count <= bucketCount * 2)
+        {
+            var result = new List<DataPoint>(count);
+            for (var i = startIndex; i < endIndex; i++)
+            {
+                result.Add(points[i]);
+            }
+            return result;
+        }
 
-        var xMin = points[0].X;
-        var xMax = points[points.Count - 1].X;
+        var output = new List<DataPoint>(bucketCount * 2);
+
+        var xMin = points[startIndex].X;
+        var xMax = points[endIndex - 1].X;
         var xRange = xMax - xMin;
 
         if (xRange <= 0)
         {
-            return [points[0]];
+            return [points[startIndex]];
         }
 
         var bucketWidth = xRange / bucketCount;
-        var pointIndex = 0;
+        var pointIndex = startIndex;
 
         for (var bucket = 0; bucket < bucketCount; bucket++)
         {
@@ -54,7 +82,7 @@ public static class MinMaxDownsampler
             var hasPoints = false;
 
             var isLastBucket = bucket == bucketCount - 1;
-            while (pointIndex < points.Count && (isLastBucket || points[pointIndex].X < bucketEnd))
+            while (pointIndex < endIndex && (isLastBucket || points[pointIndex].X < bucketEnd))
             {
                 var p = points[pointIndex];
                 hasPoints = true;
@@ -82,22 +110,100 @@ public static class MinMaxDownsampler
             // Emit min and max in X-order to preserve visual continuity
             if (minYX <= maxYX)
             {
-                result.Add(new DataPoint(minYX, minY));
+                output.Add(new DataPoint(minYX, minY));
                 if (Math.Abs(minY - maxY) > double.Epsilon)
                 {
-                    result.Add(new DataPoint(maxYX, maxY));
+                    output.Add(new DataPoint(maxYX, maxY));
                 }
             }
             else
             {
-                result.Add(new DataPoint(maxYX, maxY));
+                output.Add(new DataPoint(maxYX, maxY));
                 if (Math.Abs(minY - maxY) > double.Epsilon)
                 {
-                    result.Add(new DataPoint(minYX, minY));
+                    output.Add(new DataPoint(minYX, minY));
                 }
             }
         }
 
-        return result;
+        return output;
+    }
+
+    /// <summary>
+    /// Finds the index range [startIndex, endIndex) of points whose X values
+    /// fall within [xMin, xMax], with one-point padding on each side for visual continuity.
+    /// Uses binary search for O(log n) performance on sorted data.
+    /// </summary>
+    /// <param name="sortedPoints">Time-sorted data points.</param>
+    /// <param name="xMin">Minimum visible X value.</param>
+    /// <param name="xMax">Maximum visible X value.</param>
+    /// <returns>Tuple of (inclusive start index, exclusive end index).</returns>
+    public static (int startIndex, int endIndex) FindVisibleRange(
+        IReadOnlyList<DataPoint> sortedPoints, double xMin, double xMax)
+    {
+        if (sortedPoints.Count == 0)
+        {
+            return (0, 0);
+        }
+
+        // Binary search for first index where X >= xMin, then back up 1 for continuity
+        var start = BinarySearchLower(sortedPoints, xMin);
+        if (start > 0)
+        {
+            start--;
+        }
+
+        // Binary search for first index where X > xMax, then add 1 for continuity
+        var end = BinarySearchUpper(sortedPoints, xMax);
+        if (end < sortedPoints.Count)
+        {
+            end++;
+        }
+
+        return (start, end);
+    }
+
+    /// <summary>
+    /// Returns the index of the first element whose X is >= value.
+    /// </summary>
+    private static int BinarySearchLower(IReadOnlyList<DataPoint> points, double value)
+    {
+        var lo = 0;
+        var hi = points.Count;
+        while (lo < hi)
+        {
+            var mid = lo + (hi - lo) / 2;
+            if (points[mid].X < value)
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    /// <summary>
+    /// Returns the index of the first element whose X is > value.
+    /// </summary>
+    private static int BinarySearchUpper(IReadOnlyList<DataPoint> points, double value)
+    {
+        var lo = 0;
+        var hi = points.Count;
+        while (lo < hi)
+        {
+            var mid = lo + (hi - lo) / 2;
+            if (points[mid].X <= value)
+            {
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid;
+            }
+        }
+        return lo;
     }
 }

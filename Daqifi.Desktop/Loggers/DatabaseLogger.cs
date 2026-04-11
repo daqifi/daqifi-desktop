@@ -103,6 +103,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 {
     #region Constants
     private const int MINIMAP_BUCKET_COUNT = 800;
+    private const int MAIN_PLOT_BUCKET_COUNT = 2000;
+    private const int MAX_IN_MEMORY_POINTS = 50_000_000;
     #endregion
 
     #region Private Data
@@ -110,7 +112,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     public ObservableCollection<DeviceLegendGroup> DeviceLegendGroups { get; } = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
     private readonly BlockingCollection<DataSample> _buffer = new();
-    private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _sessionPoints = new();
     private readonly Dictionary<(string deviceSerial, string channelName), LineSeries> _minimapSeries = new();
 
     private DateTime? _firstTime;
@@ -121,6 +122,9 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private RectangleAnnotation _minimapDimLeft;
     private RectangleAnnotation _minimapDimRight;
     private MinimapInteractionController _minimapInteraction;
+    internal bool IsSyncingFromMinimap;
+    private double _lastViewportMin = double.NaN;
+    private double _lastViewportMax = double.NaN;
 
     [ObservableProperty]
     private PlotModel _plotModel;
@@ -325,7 +329,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             MinimapPlotModel,
             _minimapSelectionRect,
             _minimapDimLeft,
-            _minimapDimRight);
+            _minimapDimRight,
+            this);
     }
     #endregion
 
@@ -397,7 +402,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         Application.Current.Dispatcher.Invoke(() =>
         {
             _firstTime = null;
-            _sessionPoints.Clear();
+            _lastViewportMin = double.NaN;
+            _lastViewportMax = double.NaN;
             _allSessionPoints.Clear();
             _minimapSeries.Clear();
             PlotModel.Series.Clear();
@@ -432,19 +438,22 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             {
                 context.ChangeTracker.AutoDetectChangesEnabled = false;
 
-                var dbSamples = context.Samples.AsNoTracking()
-                    .Where(s => s.LoggingSessionID == session.ID)
+                var baseQuery = context.Samples.AsNoTracking()
+                    .Where(s => s.LoggingSessionID == session.ID);
+
+                var totalSamplesCount = baseQuery.Count();
+
+                if (totalSamplesCount > MAX_IN_MEMORY_POINTS)
+                {
+                    subtitle = $"\nShowing first {MAX_IN_MEMORY_POINTS:n0} of {totalSamplesCount:n0} data points";
+                }
+
+                // Only materialize up to the limit to avoid excessive memory usage
+                var dbSamples = baseQuery
                     .OrderBy(s => s.TimestampTicks)
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color, s.TimestampTicks, s.Value })
-                    .ToList(); // Bring data into memory
-
-                var samplesCount = dbSamples.Count;
-                const int dataPointsToShow = 1000000;
-
-                if (samplesCount > dataPointsToShow)
-                {
-                    subtitle = $"\nOnly showing {dataPointsToShow:n0} out of {samplesCount:n0} data points";
-                }
+                    .Take(MAX_IN_MEMORY_POINTS)
+                    .ToList();
 
                 var channelInfoList = dbSamples
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color })
@@ -459,9 +468,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     tempLegendItemsList.Add(legendItem);
                 }
 
-                // This part still needs to be careful about _allSessionPoints access if it's used by UI directly
-                // For now, _allSessionPoints is used to populate series ItemsSource later on UI thread
-                var dataSampleCount = 0;
                 foreach (var sample in dbSamples)
                 {
                     var key = (sample.DeviceSerialNo, sample.ChannelName);
@@ -471,12 +477,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     if (_allSessionPoints.TryGetValue(key, out var points))
                     {
                         points.Add(new DataPoint(deltaTime, sample.Value));
-                    }
-
-                    dataSampleCount++;
-                    if (dataSampleCount >= dataPointsToShow)
-                    {
-                        break;
                     }
                 }
             }
@@ -489,10 +489,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 {
                     var downsampled = MinMaxDownsampler.Downsample(kvp.Value, MINIMAP_BUCKET_COUNT);
                     var matchingSeries = tempSeriesList.FirstOrDefault(s =>
-                    {
-                        var parts = s.Title.Split([" : ("], StringSplitOptions.None);
-                        return parts.Length == 2 && parts[0] == kvp.Key.channelName && parts[1].TrimEnd(')') == kvp.Key.deviceSerial;
-                    });
+                        s.Tag is (string ds, string cn) && ds == kvp.Key.deviceSerial && cn == kvp.Key.channelName);
                     minimapSeriesData.Add((kvp.Key.channelName, kvp.Key.deviceSerial, matchingSeries?.Color ?? OxyColors.Gray, downsampled));
                 }
             }
@@ -525,12 +522,18 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 foreach (var series in tempSeriesList)
                 {
                     PlotModel.Series.Add(series);
-                    // Assign data to series (ItemsSource)
-                    // The key for _allSessionPoints must match how it was populated
-                    var key = (series.Title.Split([" : ("], StringSplitOptions.None)[1].TrimEnd(')'), series.Title.Split([" : ("], StringSplitOptions.None)[0]);
-                    if (_allSessionPoints.TryGetValue(key, out var points))
+                    if (series.Tag is (string deviceSerial, string channelName)
+                        && _allSessionPoints.TryGetValue((deviceSerial, channelName), out var points))
                     {
-                        series.ItemsSource = points;
+                        // Set initial ItemsSource to downsampled full range
+                        if (points.Count > MAIN_PLOT_BUCKET_COUNT * 2)
+                        {
+                            series.ItemsSource = MinMaxDownsampler.Downsample(points, MAIN_PLOT_BUCKET_COUNT);
+                        }
+                        else
+                        {
+                            series.ItemsSource = points;
+                        }
                     }
                 }
 
@@ -657,15 +660,14 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(string channelName, string deviceSerialNo, ChannelType type, string color)
     {
         var key = (DeviceSerialNo: deviceSerialNo, channelName);
-        _sessionPoints.Add(key, []);
         _allSessionPoints.Add(key, []);
 
         var newLineSeries = new LineSeries
         {
             Title = $"{channelName} : ({deviceSerialNo})",
-            ItemsSource = _sessionPoints.Last().Value, // This will be empty initially, data is added later
+            Tag = (deviceSerialNo, channelName),
             Color = OxyColor.Parse(color),
-            IsVisible = true // Default to visible
+            IsVisible = true
         };
 
         var legendItem = new LoggedSeriesLegendItem(
@@ -677,7 +679,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             newLineSeries,
             PlotModel,
             this);
-        // LegendItems.Add(legendItem); // Removed: To be added in DisplayLoggingSession on UI thread
 
         newLineSeries.YAxisKey = type switch
         {
@@ -686,14 +687,19 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             _ => newLineSeries.YAxisKey
         };
 
-        // PlotModel.Series.Add(newLineSeries); // Removed: To be added in DisplayLoggingSession on UI thread
-        // OnPropertyChanged("PlotModel"); // Removed: To be called in DisplayLoggingSession on UI thread
         return (newLineSeries, legendItem);
     }
 
     #region Minimap Synchronization
     private void OnMainTimeAxisChanged(object? sender, AxisChangedEventArgs e)
     {
+        if (IsSyncingFromMinimap)
+        {
+            return;
+        }
+
+        UpdateMainPlotViewport();
+
         var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
         if (timeAxis == null)
         {
@@ -705,6 +711,67 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         _minimapDimLeft.MaximumX = timeAxis.ActualMinimum;
         _minimapDimRight.MinimumX = timeAxis.ActualMaximum;
         MinimapPlotModel.InvalidatePlot(false);
+    }
+
+    /// <summary>
+    /// Re-downsamples each main plot series for the currently visible time range.
+    /// Skips the update if the viewport hasn't changed since the last call.
+    /// </summary>
+    private void UpdateMainPlotViewport()
+    {
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        if (timeAxis == null)
+        {
+            return;
+        }
+
+        var visibleMin = timeAxis.ActualMinimum;
+        var visibleMax = timeAxis.ActualMaximum;
+
+        // Skip if viewport hasn't changed
+        if (visibleMin == _lastViewportMin && visibleMax == _lastViewportMax)
+        {
+            return;
+        }
+
+        _lastViewportMin = visibleMin;
+        _lastViewportMax = visibleMax;
+
+        foreach (var series in PlotModel.Series.OfType<LineSeries>())
+        {
+            if (series.Tag is not (string deviceSerial, string channelName))
+            {
+                continue;
+            }
+
+            var key = (deviceSerial, channelName);
+            if (!_allSessionPoints.TryGetValue(key, out var allPoints) || allPoints.Count == 0)
+            {
+                continue;
+            }
+
+            var (startIdx, endIdx) = MinMaxDownsampler.FindVisibleRange(allPoints, visibleMin, visibleMax);
+            var visibleCount = endIdx - startIdx;
+
+            if (visibleCount <= MAIN_PLOT_BUCKET_COUNT * 2)
+            {
+                // Few enough points to render directly
+                series.ItemsSource = allPoints.GetRange(startIdx, visibleCount);
+            }
+            else
+            {
+                series.ItemsSource = MinMaxDownsampler.Downsample(allPoints, startIdx, endIdx, MAIN_PLOT_BUCKET_COUNT);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Called by the minimap interaction controller to update the main plot's
+    /// viewport downsampling after a minimap-driven zoom/pan.
+    /// </summary>
+    public void OnMinimapViewportChanged()
+    {
+        UpdateMainPlotViewport();
     }
 
     /// <summary>
@@ -743,6 +810,9 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private void ResetZoom()
     {
         PlotModel.ResetAllAxes();
+        _lastViewportMin = double.NaN;
+        _lastViewportMax = double.NaN;
+        UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
     }
 
@@ -750,6 +820,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private void ZoomOutX()
     {
         PlotModel.Axes[2].ZoomAtCenter(0.8);
+        UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
     }
 
@@ -757,6 +828,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private void ZoomInX()
     {
         PlotModel.Axes[2].ZoomAtCenter(1.25);
+        UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
     }
 

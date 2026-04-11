@@ -1,4 +1,4 @@
-﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Channel;
 using Microsoft.EntityFrameworkCore;
 
 namespace Daqifi.Desktop.Logger;
@@ -18,7 +18,12 @@ public class LoggingContext : DbContext
             entity.Property(ls => ls.Name).IsRequired();
         });
 
-        modelBuilder.Entity<DataSample>().ToTable("Samples");
+        modelBuilder.Entity<DataSample>(entity =>
+        {
+            entity.ToTable("Samples");
+            entity.HasIndex(s => new { s.LoggingSessionID, s.TimestampTicks })
+                .HasDatabaseName("IX_Samples_SessionTime");
+        });
 
         modelBuilder.Entity<Channel.Channel>(entity =>
         {
