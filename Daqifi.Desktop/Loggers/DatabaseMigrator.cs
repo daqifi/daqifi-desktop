@@ -1,5 +1,6 @@
 using System.IO;
 using Daqifi.Desktop.Common.Loggers;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace Daqifi.Desktop.Logger;
@@ -27,7 +28,10 @@ public static class DatabaseMigrator
     public static void MigrateDatabase(IDbContextFactory<LoggingContext> contextFactory, string databasePath)
     {
         BackupDatabase(databasePath);
-        SeedMigrationHistoryIfNeeded(contextFactory);
+
+        // Seed migration history using raw ADO.NET to avoid EF connection
+        // pooling issues that can leave locks blocking Migrate().
+        SeedMigrationHistoryIfNeeded(databasePath);
 
         using var context = contextFactory.CreateDbContext();
         context.Database.Migrate();
@@ -63,18 +67,25 @@ public static class DatabaseMigrator
     /// For databases created by <c>EnsureCreated()</c>, the <c>__EFMigrationsHistory</c>
     /// table does not exist. This method creates it and seeds the initial migration entry
     /// so that <c>Migrate()</c> only applies subsequent migrations.
-    /// Uses a separate context that is fully disposed before Migrate() runs.
+    /// Uses a raw <see cref="SqliteConnection"/> to avoid EF connection pooling locks.
     /// </summary>
-    private static void SeedMigrationHistoryIfNeeded(IDbContextFactory<LoggingContext> contextFactory)
+    private static void SeedMigrationHistoryIfNeeded(string databasePath)
     {
-        using var context = contextFactory.CreateDbContext();
-
-        if (HasMigrationHistoryTable(context))
+        if (!File.Exists(databasePath))
         {
             return;
         }
 
-        if (!HasExistingTables(context))
+        var connectionString = $"Data source={databasePath}";
+        using var connection = new SqliteConnection(connectionString);
+        connection.Open();
+
+        if (HasMigrationHistoryTable(connection))
+        {
+            return;
+        }
+
+        if (!HasExistingTables(connection))
         {
             return;
         }
@@ -82,49 +93,39 @@ public static class DatabaseMigrator
         AppLogger.Instance.AddBreadcrumb("database",
             "Existing database detected without migration history — seeding initial migration");
 
-        context.Database.ExecuteSqlRaw(
+        using var command = connection.CreateCommand();
+        command.CommandText =
             "CREATE TABLE IF NOT EXISTS \"__EFMigrationsHistory\" " +
-            "(\"MigrationId\" TEXT NOT NULL PRIMARY KEY, \"ProductVersion\" TEXT NOT NULL)");
-
-        context.Database.ExecuteSqlRaw(
+            "(\"MigrationId\" TEXT NOT NULL PRIMARY KEY, \"ProductVersion\" TEXT NOT NULL); " +
             "INSERT OR IGNORE INTO \"__EFMigrationsHistory\" " +
-            $"VALUES ('{INITIAL_MIGRATION_ID}', '{EF_PRODUCT_VERSION}')");
+            $"VALUES ('{INITIAL_MIGRATION_ID}', '{EF_PRODUCT_VERSION}');";
+        command.ExecuteNonQuery();
     }
 
     /// <summary>
     /// Checks whether the <c>__EFMigrationsHistory</c> table exists in the database.
     /// </summary>
-    private static bool HasMigrationHistoryTable(LoggingContext context)
+    private static bool HasMigrationHistoryTable(SqliteConnection connection)
     {
-        try
-        {
-            var result = context.Database.SqlQueryRaw<int>(
-                "SELECT COUNT(*) AS \"Value\" FROM sqlite_master " +
-                "WHERE type='table' AND name='__EFMigrationsHistory'").ToList();
-            return result.Count > 0 && result[0] > 0;
-        }
-        catch
-        {
-            return false;
-        }
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT COUNT(*) FROM sqlite_master " +
+            "WHERE type='table' AND name='__EFMigrationsHistory'";
+        var result = command.ExecuteScalar();
+        return result is long count && count > 0;
     }
 
     /// <summary>
     /// Checks whether the database has existing application tables (created by <c>EnsureCreated()</c>).
     /// </summary>
-    private static bool HasExistingTables(LoggingContext context)
+    private static bool HasExistingTables(SqliteConnection connection)
     {
-        try
-        {
-            var result = context.Database.SqlQueryRaw<int>(
-                "SELECT COUNT(*) AS \"Value\" FROM sqlite_master " +
-                "WHERE type='table' AND name='Samples'").ToList();
-            return result.Count > 0 && result[0] > 0;
-        }
-        catch
-        {
-            return false;
-        }
+        using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT COUNT(*) FROM sqlite_master " +
+            "WHERE type='table' AND name='Samples'";
+        var result = command.ExecuteScalar();
+        return result is long count && count > 0;
     }
     #endregion
 }
