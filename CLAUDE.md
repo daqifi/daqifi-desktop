@@ -255,19 +255,12 @@ When working on:
 
 ### Plot Rendering (OxyPlot)
 
-The logged data viewer uses viewport-aware MinMax downsampling to handle large datasets (16+ channels × 1M+ points). Key architecture decisions and gotchas:
+The logged data viewer uses viewport-aware downsampling for 60fps interaction with large datasets. See [ADR 001](docs/adr/001-viewport-aware-downsampling.md) for full context. Key gotchas when modifying plot code:
 
-**Viewport-aware downsampling over global decimation**: Global downsampling (e.g., LTTB to ~5000 points) conflicts with the minimap — when zoomed into a 1-minute slice of 24 hours, only ~3 points would be visible. Instead, we binary search the visible range and downsample only that slice to ~4000 points per channel. This gives full detail when zoomed in. See `MinMaxDownsampler.FindVisibleRange()` and `DatabaseLogger.UpdateMainPlotViewport()`.
-
-**OxyPlot `InvalidatePlot(true)` vs `InvalidatePlot(false)`**: `false` re-renders from OxyPlot's internal cached point arrays. `true` forces OxyPlot to re-read `ItemsSource` and rebuild those arrays. You MUST use `true` whenever you change a series' `ItemsSource` or mutate the underlying list — otherwise the plot renders stale data. This was the root cause of a bug where zoom + minimap drag showed missing data.
-
-**MinMax downsampling does NOT preserve original X boundaries**: Downsampled data emits points at min/max Y positions within each bucket, not at bucket edges. So the first and last X values of downsampled data may differ from the original data. This means `ResetAllAxes()` (which auto-ranges from current `ItemsSource`) can progressively shrink the visible range. Fix: explicitly compute the full time range from source data and use `axis.Zoom(min, max)` instead of auto-range.
-
-**Feedback loops between minimap and main plot**: The minimap syncs bidirectionally with the main plot's time axis. Without a guard flag (`IsSyncingFromMinimap`), dragging the minimap triggers `AxisChanged` on the main plot, which updates the minimap, creating a render loop. Always set the guard before programmatic axis changes.
-
-**GC pressure during interaction**: Allocating new `List<DataPoint>` per channel per frame (~960/sec at 60fps with 16 channels) causes Gen0 GC micro-stutters. Reuse cached lists per series key — clear and refill instead of allocating new ones. See `_downsampledCache` in `DatabaseLogger`.
-
-**Throttle pattern**: Both minimap drag and main plot pan/zoom use a `DispatcherTimer` (16ms / 60fps) + dirty flag pattern. Mouse events set the flag; the timer tick does the actual work. This caps expensive operations (re-downsample + render) at 60Hz regardless of input event frequency.
+- **`InvalidatePlot(true)` vs `(false)`**: Use `true` whenever `ItemsSource` or its underlying list has changed — `false` renders stale cached data
+- **Don't use `ResetAllAxes()` with downsampled data**: Auto-range reads from `ItemsSource`, which may have shifted X boundaries. Use explicit `axis.Zoom(min, max)` from source data
+- **Guard flag for minimap sync**: Always set `IsSyncingFromMinimap` before programmatic axis changes to prevent feedback loops
+- **Reuse cached lists**: Don't allocate new `List<DataPoint>` per frame — use `_downsampledCache`
 
 ## Error Handling
 
