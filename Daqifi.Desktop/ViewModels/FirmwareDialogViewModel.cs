@@ -92,6 +92,7 @@ public partial class FirmwareDialogViewModel : ObservableObject
             IsUploadComplete = false;
             UploadFirmwareProgress = 0;
             IsFirmwareUploading = true;
+            AppLogger.Instance.AddBreadcrumb("firmware", "Firmware update started");
 
             var progress = new Progress<FirmwareUpdateProgress>(report =>
             {
@@ -105,20 +106,24 @@ public partial class FirmwareDialogViewModel : ObservableObject
                 _updateCts.Token);
 
             IsUploadComplete = true;
+            AppLogger.Instance.AddBreadcrumb("firmware", "Firmware update completed");
         }
         catch (OperationCanceledException)
         {
             AppLogger.Instance.Warning("Manual firmware upload canceled by user.");
+            AppLogger.Instance.AddBreadcrumb("firmware", "Firmware update cancelled", Common.Loggers.BreadcrumbLevel.Warning);
         }
         catch (FirmwareUpdateException ex)
         {
             HasErrorOccured = true;
             AppLogger.Instance.Error(ex, $"Firmware upload failed in state {ex.FailedState}: {ex.Operation}");
+            AppLogger.Instance.AddBreadcrumb("firmware", $"Firmware update failed: {ex.FailedState}", Common.Loggers.BreadcrumbLevel.Error);
         }
         catch (Exception ex)
         {
             HasErrorOccured = true;
             AppLogger.Instance.Error(ex, "Problem Uploading Firmware");
+            AppLogger.Instance.AddBreadcrumb("firmware", "Firmware update failed", Common.Loggers.BreadcrumbLevel.Error);
         }
         finally
         {

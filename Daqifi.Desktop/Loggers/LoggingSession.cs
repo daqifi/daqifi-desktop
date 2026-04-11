@@ -1,9 +1,10 @@
-﻿using Daqifi.Desktop.Channel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Desktop.Channel;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Daqifi.Desktop.Logger;
 
-public class LoggingSession
+public class LoggingSession : ObservableObject
 {
     #region Private Data
     private string _name;
@@ -19,12 +20,7 @@ public class LoggingSession
     public string Name
     {
         get => string.IsNullOrWhiteSpace(_name) ? "Session " + ID : _name;
-        set
-        {
-            if (_name == value) { return; }
-
-            _name = value;
-        }
+        set => SetProperty(ref _name, value);
     }
     #endregion
 
@@ -43,6 +39,11 @@ public class LoggingSession
     public override bool Equals(object obj)
     {
         return obj is LoggingSession sessionObj && sessionObj.ID == ID;
+    }
+
+    public override int GetHashCode()
+    {
+        return ID.GetHashCode();
     }
     #endregion
 }

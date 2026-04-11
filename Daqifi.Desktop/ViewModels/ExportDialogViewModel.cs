@@ -124,6 +124,7 @@ public partial class ExportDialogViewModel : ObservableObject
         _cts = new CancellationTokenSource();
         var cancellationToken = _cts.Token;
         var progress = new Progress<int>(progressValue => ExportProgress = progressValue);
+        AppLogger.Instance.AddBreadcrumb("export", $"Data export started ({_sessionsIds.Count} session(s))");
 
         try
         {
@@ -153,14 +154,18 @@ public partial class ExportDialogViewModel : ObservableObject
                     }
                 }
             }, cancellationToken);
+
+            AppLogger.Instance.AddBreadcrumb("export", "Data export completed");
         }
         catch (OperationCanceledException)
         {
             AppLogger.Instance.Information("Export operation was cancelled by user.");
+            AppLogger.Instance.AddBreadcrumb("export", "Data export cancelled", Common.Loggers.BreadcrumbLevel.Warning);
         }
         catch (Exception ex)
         {
             AppLogger.Instance.Error(ex, "Problem Exporting Data");
+            AppLogger.Instance.AddBreadcrumb("export", "Data export failed", Common.Loggers.BreadcrumbLevel.Error);
         }
         finally
         {
