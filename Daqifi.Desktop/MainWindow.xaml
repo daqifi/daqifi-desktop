@@ -168,7 +168,7 @@
                     <Label>
                         <Label.Content>
                             <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="ChartLineVariant" HorizontalAlignment="Center" Height="30" Width="30"/>
+                                <iconPacks:PackIconMaterial Kind="ChartTimelineVariant" HorizontalAlignment="Center" Height="30" Width="30"/>
                                 <TextBlock TextWrapping="WrapWithOverflow" Text="Live Graph" TextAlignment="Center" IsEnabled="False"/>
                             </StackPanel>
                         </Label.Content>
