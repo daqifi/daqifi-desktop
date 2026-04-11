@@ -408,7 +408,7 @@ public partial class DaqifiViewModel : ObservableObject
 
     // Re-add properties for manually instantiated commands
     public ICommand DeleteLoggingSessionCommand { get; private set; }
-    public ICommand DeleteAllLoggingSessionCommand { get; private set; }
+    public AsyncRelayCommand DeleteAllLoggingSessionCommand { get; private set; }
     public ICommand ToggleChannelVisibilityCommand { get; private set; }
     public ICommand ToggleLoggedSeriesVisibilityCommand { get; private set; }
     #endregion
@@ -1405,7 +1405,8 @@ public partial class DaqifiViewModel : ObservableObject
 
             try
             {
-                await Task.Run(DeleteAllLoggingSessionsFromStorage);
+                var contextFactory = GetLoggingContextFactory();
+                await Task.Run(() => DeleteAllLoggingSessionsFromStorage(contextFactory));
                 LoggingManager.Instance.LoggingSessions.Clear();
                 NotifyLoggingSessionsChanged();
                 DbLogger.ClearPlot();
@@ -1426,7 +1427,7 @@ public partial class DaqifiViewModel : ObservableObject
         }
     }
 
-    private void DeleteAllLoggingSessionsFromStorage()
+    private void DeleteAllLoggingSessionsFromStorage(IDbContextFactory<LoggingContext> contextFactory)
     {
         DbLogger.SuspendConsumer();
         try
@@ -1442,7 +1443,7 @@ public partial class DaqifiViewModel : ObservableObject
             DeleteFileIfExists(dbPath + "-shm");
 
             // Recreate the database schema by creating a fresh context.
-            using var context = GetLoggingContextFactory().CreateDbContext();
+            using var context = contextFactory.CreateDbContext();
         }
         finally
         {
@@ -1487,7 +1488,7 @@ public partial class DaqifiViewModel : ObservableObject
     private void NotifyLoggingSessionsChanged()
     {
         OnPropertyChanged(nameof(LoggingSessions));
-        (DeleteAllLoggingSessionCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+        DeleteAllLoggingSessionCommand?.NotifyCanExecuteChanged();
         ExportAllLoggingSessionCommand.NotifyCanExecuteChanged();
     }
 

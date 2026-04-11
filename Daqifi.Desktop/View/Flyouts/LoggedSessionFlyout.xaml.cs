@@ -19,6 +19,12 @@ public partial class LoggedSessionFlyout
     {
         InitializeComponent();
         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+        Unloaded += (_, _) =>
+        {
+            _renameSessionCts?.Cancel();
+            _renameSessionCts?.Dispose();
+            _renameSessionCts = null;
+        };
     }
 
     private async void UpdateSessionName(object sender, System.Windows.Controls.TextChangedEventArgs e)

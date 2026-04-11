@@ -40,5 +40,10 @@ public class LoggingSession : ObservableObject
     {
         return obj is LoggingSession sessionObj && sessionObj.ID == ID;
     }
+
+    public override int GetHashCode()
+    {
+        return ID.GetHashCode();
+    }
     #endregion
 }
