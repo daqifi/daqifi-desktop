@@ -121,7 +121,7 @@ public static class DatabaseMigrator
         {
             var result = context.Database.SqlQueryRaw<int>(
                 "SELECT COUNT(*) AS \"Value\" FROM sqlite_master " +
-                "WHERE type='table' AND name='DataSamples'").ToList();
+                "WHERE type='table' AND name='Samples'").ToList();
             return result.Count > 0 && result[0] > 0;
         }
         catch
