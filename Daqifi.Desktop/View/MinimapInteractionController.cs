@@ -30,6 +30,7 @@ public class MinimapInteractionController : IDisposable
     private double _dragStartDataX;
     private double _dragStartRectMin;
     private double _dragStartRectMax;
+    private Cursor _lastCursor;
 
     private const double EDGE_TOLERANCE_FRACTION = 0.02;
     #endregion
@@ -84,13 +85,20 @@ public class MinimapInteractionController : IDisposable
     }
 
     /// <summary>
-    /// Sets the cursor on the WPF PlotView element.
+    /// Sets the cursor on the WPF PlotView element. Skips if unchanged from last value.
     /// </summary>
     private void SetCursor(Cursor cursor)
     {
+        if (cursor == _lastCursor)
+        {
+            return;
+        }
+
+        _lastCursor = cursor;
+
         if (_minimapPlotModel.PlotView is FrameworkElement element)
         {
-            Application.Current?.Dispatcher.Invoke(() => element.Cursor = cursor);
+            Application.Current?.Dispatcher.BeginInvoke(() => element.Cursor = cursor);
         }
     }
     #endregion
@@ -295,7 +303,8 @@ public class MinimapInteractionController : IDisposable
             return 1;
         }
 
-        return axis.DataMaximum - axis.DataMinimum;
+        var range = axis.DataMaximum - axis.DataMinimum;
+        return double.IsNaN(range) || double.IsInfinity(range) || range <= 0 ? 1 : range;
     }
 
     private double GetMinimapDataMin()

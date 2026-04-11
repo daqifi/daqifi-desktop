@@ -16,6 +16,13 @@ public static class MinMaxDownsampler
     /// <returns>A downsampled list of data points preserving the visual envelope.</returns>
     public static List<DataPoint> Downsample(IReadOnlyList<DataPoint> points, int bucketCount)
     {
+        ArgumentNullException.ThrowIfNull(points);
+
+        if (points.Count == 0 || bucketCount <= 0)
+        {
+            return [];
+        }
+
         if (points.Count <= bucketCount * 2)
         {
             return new List<DataPoint>(points);
