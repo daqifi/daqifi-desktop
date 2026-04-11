@@ -5,6 +5,7 @@ using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.WindowViewModelMapping;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using System.IO;
 using System.Net.Http;
@@ -53,6 +54,7 @@ public partial class App
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddDbContextFactory<LoggingContext>(options =>
             options.UseSqlite($"Data source={DatabasePath}")
+                .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
         );
 
         serviceCollection.AddLogging();
