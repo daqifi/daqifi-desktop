@@ -834,7 +834,7 @@
                     <Label>
                         <Label.Content>
                             <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="SineWave" HorizontalAlignment="Center" Height="30" Width="30"/>
+                                <iconPacks:PackIconMaterial Kind="HubOutline" HorizontalAlignment="Center" Height="30" Width="30"/>
                                 <TextBlock TextWrapping="WrapWithOverflow" Text="Channels" TextAlignment="Center" IsEnabled="False"/>
                             </StackPanel>
                         </Label.Content>
