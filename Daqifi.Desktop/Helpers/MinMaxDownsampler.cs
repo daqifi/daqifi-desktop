@@ -39,6 +39,8 @@ public static class MinMaxDownsampler
     public static List<DataPoint> Downsample(IReadOnlyList<DataPoint> points, int startIndex, int endIndex, int bucketCount)
     {
         ArgumentNullException.ThrowIfNull(points);
+        ArgumentOutOfRangeException.ThrowIfNegative(startIndex);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(endIndex, points.Count);
 
         var count = endIndex - startIndex;
         if (count <= 0 || bucketCount <= 0)

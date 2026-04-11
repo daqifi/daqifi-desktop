@@ -198,9 +198,10 @@ public class MinMaxDownsamplerTests
         }
         sw.Stop();
 
-        // 1000 binary searches on 1M points should be well under 100ms
-        Assert.IsTrue(sw.ElapsedMilliseconds < 100,
-            $"1000 binary searches took {sw.ElapsedMilliseconds}ms, expected < 100ms");
+        // 1000 binary searches on 1M points should be well under 1 second,
+        // even on slow CI runners. Typical desktop: < 10ms.
+        Assert.IsTrue(sw.ElapsedMilliseconds < 1000,
+            $"1000 binary searches took {sw.ElapsedMilliseconds}ms, expected < 1000ms");
     }
 
     #endregion

@@ -323,8 +323,14 @@ public class MinimapInteractionController : IDisposable
         }
 
         _databaseLogger.IsSyncingFromMinimap = true;
-        mainTimeAxis.Zoom(min, max);
-        _databaseLogger.IsSyncingFromMinimap = false;
+        try
+        {
+            mainTimeAxis.Zoom(min, max);
+        }
+        finally
+        {
+            _databaseLogger.IsSyncingFromMinimap = false;
+        }
 
         _dimLeft.MaximumX = min;
         _dimRight.MinimumX = max;
