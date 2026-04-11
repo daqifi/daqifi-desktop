@@ -21,6 +21,7 @@ using Daqifi.Core.Communication.Transport;
 using Daqifi.Desktop.Device.Firmware;
 using Microsoft.Data.Sqlite;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
@@ -120,6 +121,7 @@ public partial class DaqifiViewModel : ObservableObject
     private bool _selectedDeviceSupportsFirmwareUpdate;
     private readonly IFirmwareUpdateService _firmwareUpdateService;
     private readonly IFirmwareDownloadService _firmwareDownloadService;
+    private readonly IDbContextFactory<LoggingContext>? _loggingContextFactory;
     private readonly Func<string, string, IFirmwareUpdateService> _wifiFirmwareUpdateServiceFactory;
     private CancellationTokenSource? _firmwareUploadCts;
     private ConnectionDialogViewModel _connectionDialogViewModel;
@@ -128,6 +130,7 @@ public partial class DaqifiViewModel : ObservableObject
     private SdCardLogFormat _selectedSdCardLogFormat = SdCardLogFormat.Protobuf;
     private IStreamingDevice? _deviceBeingUpdated;
     private IDiskSpaceMonitor? _diskSpaceMonitor;
+    private ObservableCollection<LoggingSession>? _observedLoggingSessions;
     #endregion
 
     #region Properties
@@ -405,7 +408,7 @@ public partial class DaqifiViewModel : ObservableObject
 
     // Re-add properties for manually instantiated commands
     public ICommand DeleteLoggingSessionCommand { get; private set; }
-    public ICommand DeleteAllLoggingSessionCommand { get; private set; }
+    public AsyncRelayCommand DeleteAllLoggingSessionCommand { get; private set; }
     public ICommand ToggleChannelVisibilityCommand { get; private set; }
     public ICommand ToggleLoggedSeriesVisibilityCommand { get; private set; }
     #endregion
@@ -418,7 +421,8 @@ public partial class DaqifiViewModel : ObservableObject
         ServiceLocator.Resolve<IDialogService>(),
         App.ServiceProvider?.GetService<IFirmwareUpdateService>(),
         App.ServiceProvider?.GetService<IFirmwareDownloadService>(),
-        App.ServiceProvider?.GetService<ILogger<FirmwareUpdateService>>())
+        App.ServiceProvider?.GetService<ILogger<FirmwareUpdateService>>(),
+        loggingContextFactory: App.ServiceProvider?.GetService<IDbContextFactory<LoggingContext>>())
     {
     }
 
@@ -437,12 +441,14 @@ public partial class DaqifiViewModel : ObservableObject
         IFirmwareUpdateService? firmwareUpdateService = null,
         IFirmwareDownloadService? firmwareDownloadService = null,
         ILogger<FirmwareUpdateService>? firmwareLogger = null,
-        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null)
+        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null,
+        IDbContextFactory<LoggingContext>? loggingContextFactory = null)
     {
         _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
         _firmwareDownloadService = firmwareDownloadService ?? CreateDefaultFirmwareDownloadService();
         var resolvedLogger = firmwareLogger ?? NullLogger<FirmwareUpdateService>.Instance;
         _firmwareUpdateService = firmwareUpdateService ?? CreateDefaultFirmwareUpdateService(_firmwareDownloadService, resolvedLogger);
+        _loggingContextFactory = loggingContextFactory;
         _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
 
         var app = Application.Current as App;
@@ -452,7 +458,6 @@ public partial class DaqifiViewModel : ObservableObject
             {
                 try
                 {
-                    var loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
                     RegisterCommands();
 
                     // Manage connected streamingDevice list
@@ -460,11 +465,12 @@ public partial class DaqifiViewModel : ObservableObject
 
                     // Manage data for plotting
                     LoggingManager.Instance.PropertyChanged += UpdateUi;
+                    AttachLoggingSessionsCollection(LoggingManager.Instance.LoggingSessions);
                     Plotter = new PlotLogger();
                     LoggingManager.Instance.AddLogger(Plotter);
 
                     // Database logging
-                    DbLogger = new DatabaseLogger(loggingContext);
+                    DbLogger = new DatabaseLogger(GetLoggingContextFactory());
                     LoggingManager.Instance.AddLogger(DbLogger);
 
                     // Device Logs View Model
@@ -489,9 +495,9 @@ public partial class DaqifiViewModel : ObservableObject
                     _diskSpaceMonitor.LowSpaceWarning += OnDiskSpaceLowWarning;
                     _diskSpaceMonitor.CriticalSpaceReached += OnDiskSpaceCritical;
 
-                    if (LoggingManager.Instance.LoggingSessions == null || !LoggingManager.Instance.LoggingSessions.Any())
+                    if (LoggingManager.Instance.LoggingSessions.Count == 0)
                     {
-                        LoggingManager.Instance.LoggingSessions = LoggingManager.Instance.LoadPersistedLoggingSessions();
+                        LoggingManager.Instance.ReloadPersistedLoggingSessions();
                     }
 
                     // Configure default grid lines
@@ -1212,10 +1218,16 @@ public partial class DaqifiViewModel : ObservableObject
             {
                 DbLogger.DisplayLoggingSession(SelectedLoggingSession);
             }
-            finally
+            catch (Exception ex)
             {
-                IsLoggedDataBusy = false;
+                _appLogger.Error(ex, $"Failed to display logging session {SelectedLoggingSession.ID}.");
             }
+        };
+
+        bw.RunWorkerCompleted += (s, e) =>
+        {
+            IsLoggedDataBusy = false;
+            LoggedDataBusyReason = string.Empty;
         };
 
         bw.RunWorkerAsync();
@@ -1314,7 +1326,7 @@ public partial class DaqifiViewModel : ObservableObject
 
             SelectedLoggingSession = session;
 
-            var result = await ShowMessage("Delete Confirmation", $"Are you sure you want to delete {SelectedLoggingSession.Name}?", MessageDialogStyle.AffirmativeAndNegative).ConfigureAwait(false);
+            var result = await ShowMessage("Delete Confirmation", $"Are you sure you want to delete {SelectedLoggingSession.Name}?", MessageDialogStyle.AffirmativeAndNegative);
             if (result != MessageDialogResult.Affirmative)
             {
                 return;
@@ -1323,10 +1335,10 @@ public partial class DaqifiViewModel : ObservableObject
             IsLoggedDataBusy = true;
             LoggedDataBusyReason = $"Deleting Logging Session #{SelectedLoggingSession.ID}";
             var bw = new BackgroundWorker();
+            var sessionToDelete = SelectedLoggingSession;
             bw.DoWork += delegate
             {
                 var deleteSucceeded = false;
-                var sessionToDelete = SelectedLoggingSession;
                 try
                 {
                     DbLogger.DeleteLoggingSession(sessionToDelete);
@@ -1342,6 +1354,7 @@ public partial class DaqifiViewModel : ObservableObject
                     Application.Current.Dispatcher.Invoke(delegate
                     {
                         LoggingManager.Instance.LoggingSessions.Remove(sessionToDelete);
+                        NotifyLoggingSessionsChanged();
                     });
                 }
             };
@@ -1349,6 +1362,7 @@ public partial class DaqifiViewModel : ObservableObject
             bw.RunWorkerCompleted += (s, e) =>
             {
                 IsLoggedDataBusy = false;
+                LoggedDataBusyReason = string.Empty;
             };
 
             bw.RunWorkerAsync();
@@ -1363,7 +1377,7 @@ public partial class DaqifiViewModel : ObservableObject
     {
         try
         {
-            if (LoggingManager.Instance.LoggingSessions.Count == 0)
+            if (LoggingSessions.Count == 0)
             {
                 return;
             }
@@ -1373,14 +1387,14 @@ public partial class DaqifiViewModel : ObservableObject
                 await ShowMessage(
                     "Cannot Delete",
                     "Please stop logging before deleting all sessions.",
-                    MessageDialogStyle.Affirmative).ConfigureAwait(false);
+                    MessageDialogStyle.Affirmative);
                 return;
             }
 
             var result = await ShowMessage(
                 "Delete Confirmation",
                 "Are you sure you want to delete all logging sessions? This cannot be undone.",
-                MessageDialogStyle.AffirmativeAndNegative).ConfigureAwait(false);
+                MessageDialogStyle.AffirmativeAndNegative);
             if (result != MessageDialogResult.Affirmative)
             {
                 return;
@@ -1388,59 +1402,94 @@ public partial class DaqifiViewModel : ObservableObject
 
             IsLoggedDataBusy = true;
             LoggedDataBusyReason = "Deleting All Logging Sessions";
-            var bw = new BackgroundWorker();
-            bw.DoWork += delegate
+
+            try
             {
-                // Stop the consumer thread so it releases all DB connections
-                DbLogger.SuspendConsumer();
-                try
-                {
-                    DbLogger.ClearBuffer();
-
-                    // Release all pooled SQLite connections so the file is not locked
-                    SqliteConnection.ClearAllPools();
-
-                    var dbPath = App.DatabasePath;
-                    DeleteFileIfExists(dbPath);
-                    DeleteFileIfExists(dbPath + "-wal");
-                    DeleteFileIfExists(dbPath + "-shm");
-
-                    // Recreate the database schema by creating a fresh context
-                    using var context = App.ServiceProvider
-                        .GetRequiredService<IDbContextFactory<LoggingContext>>()
-                        .CreateDbContext();
-
-                    Application.Current.Dispatcher.Invoke(delegate
-                    {
-                        LoggingManager.Instance.LoggingSessions.Clear();
-                        DbLogger.ClearPlot();
-                    });
-                }
-                catch (IOException ioEx)
-                {
-                    _appLogger.Error(ioEx, "Database file is in use. Please try again.");
-                }
-                catch (Exception ex)
-                {
-                    _appLogger.Error(ex, "Failed to delete all logging sessions.");
-                }
-                finally
-                {
-                    DbLogger.ResumeConsumer();
-                }
-            };
-
-            bw.RunWorkerCompleted += (s, e) =>
+                var contextFactory = GetLoggingContextFactory();
+                await Task.Run(() => DeleteAllLoggingSessionsFromStorage(contextFactory));
+                LoggingManager.Instance.LoggingSessions.Clear();
+                NotifyLoggingSessionsChanged();
+                DbLogger.ClearPlot();
+            }
+            catch (IOException ioEx)
             {
-                IsLoggedDataBusy = false;
-            };
-
-            bw.RunWorkerAsync();
+                _appLogger.Error(ioEx, "Database file is in use. Please try again.");
+            }
         }
         catch (Exception ex)
         {
-            _appLogger.Error(ex, "Error initiating deletion of all logging sessions");
+            _appLogger.Error(ex, "Error during deletion of all logging sessions");
         }
+        finally
+        {
+            IsLoggedDataBusy = false;
+            LoggedDataBusyReason = string.Empty;
+        }
+    }
+
+    private void DeleteAllLoggingSessionsFromStorage(IDbContextFactory<LoggingContext> contextFactory)
+    {
+        DbLogger.SuspendConsumer();
+        try
+        {
+            DbLogger.ClearBuffer();
+
+            // Release all pooled SQLite connections so the file is not locked.
+            SqliteConnection.ClearAllPools();
+
+            var dbPath = App.DatabasePath;
+            DeleteFileIfExists(dbPath);
+            DeleteFileIfExists(dbPath + "-wal");
+            DeleteFileIfExists(dbPath + "-shm");
+
+            // Recreate the database schema by creating a fresh context.
+            using var context = contextFactory.CreateDbContext();
+        }
+        finally
+        {
+            DbLogger.ResumeConsumer();
+        }
+    }
+
+    private IDbContextFactory<LoggingContext> GetLoggingContextFactory()
+    {
+        return _loggingContextFactory
+            ?? App.ServiceProvider?.GetService<IDbContextFactory<LoggingContext>>()
+            ?? throw new InvalidOperationException("Logging context factory is not available.");
+    }
+
+    private void AttachLoggingSessionsCollection(ObservableCollection<LoggingSession> loggingSessions)
+    {
+        if (ReferenceEquals(_observedLoggingSessions, loggingSessions))
+        {
+            return;
+        }
+
+        if (_observedLoggingSessions != null)
+        {
+            _observedLoggingSessions.CollectionChanged -= OnLoggingSessionsCollectionChanged;
+        }
+
+        _observedLoggingSessions = loggingSessions;
+        _observedLoggingSessions.CollectionChanged += OnLoggingSessionsCollectionChanged;
+    }
+
+    private void OnLoggingSessionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(NotifyLoggingSessionsChanged);
+            return;
+        }
+
+        NotifyLoggingSessionsChanged();
+    }
+
+    private void NotifyLoggingSessionsChanged()
+    {
+        OnPropertyChanged(nameof(LoggingSessions));
+        DeleteAllLoggingSessionCommand?.NotifyCanExecuteChanged();
+        ExportAllLoggingSessionCommand.NotifyCanExecuteChanged();
     }
 
     private static void DeleteFileIfExists(string path)
@@ -2146,6 +2195,10 @@ public partial class DaqifiViewModel : ObservableObject
                     }
                     ActiveChannels.Add(channel);
                 }
+                break;
+            case nameof(LoggingManager.LoggingSessions):
+                AttachLoggingSessionsCollection(LoggingManager.Instance.LoggingSessions);
+                NotifyLoggingSessionsChanged();
                 break;
             case "NotificationCount":
                 var data = _versionNotification;
