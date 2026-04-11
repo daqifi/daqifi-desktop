@@ -202,7 +202,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         MinimapPlotModel = new PlotModel
         {
             IsLegendVisible = false,
-            PlotMargins = new OxyThickness(50, 2, 20, 20),
+            PlotMargins = new OxyThickness(4, 2, 4, 2),
             Padding = new OxyThickness(0)
         };
 
@@ -210,11 +210,11 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         {
             Position = AxisPosition.Bottom,
             Key = "MinimapTime",
-            TickStyle = TickStyle.Inside,
+            TickStyle = TickStyle.None,
             MajorGridlineStyle = LineStyle.None,
             MinorGridlineStyle = LineStyle.None,
             TitleFontSize = 0,
-            FontSize = 9,
+            FontSize = 0,
             IsZoomEnabled = false,
             IsPanEnabled = false
         };
@@ -270,8 +270,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         _minimapSelectionRect = new RectangleAnnotation
         {
             Fill = OxyColors.Transparent,
-            Stroke = OxyColor.FromRgb(0, 120, 215),
-            StrokeThickness = 2,
+            Stroke = OxyColor.FromRgb(0, 90, 180),
+            StrokeThickness = 3,
             MinimumY = -1e18,
             MaximumY = 1e18,
             Layer = AnnotationLayer.AboveSeries,
