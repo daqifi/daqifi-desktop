@@ -11,8 +11,8 @@ public partial class AddSamplesSessionTimeIndex : Migration
     protected override void Up(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.CreateIndex(
-            name: "IX_DataSamples_LoggingSessionID_TimestampTicks",
-            table: "DataSamples",
+            name: "IX_Samples_LoggingSessionID_TimestampTicks",
+            table: "Samples",
             columns: new[] { "LoggingSessionID", "TimestampTicks" });
     }
 
@@ -20,7 +20,7 @@ public partial class AddSamplesSessionTimeIndex : Migration
     protected override void Down(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.DropIndex(
-            name: "IX_DataSamples_LoggingSessionID_TimestampTicks",
-            table: "DataSamples");
+            name: "IX_Samples_LoggingSessionID_TimestampTicks",
+            table: "Samples");
     }
 }

@@ -26,13 +26,15 @@ partial class InitialSQLiteMigration
                     .ValueGeneratedOnAdd()
                     .HasColumnType("INTEGER");
 
-                b.Property<int?>("ActiveSampleID")
+                b.Property<int>("ActiveSampleID")
                     .HasColumnType("INTEGER");
 
                 b.Property<string>("DeviceName")
+                    .IsRequired()
                     .HasColumnType("TEXT");
 
                 b.Property<string>("DeviceSerialNo")
+                    .IsRequired()
                     .HasColumnType("TEXT");
 
                 b.Property<int>("Direction")
@@ -75,18 +77,21 @@ partial class InitialSQLiteMigration
                     .HasColumnType("INTEGER");
 
                 b.Property<string>("Name")
+                    .IsRequired()
                     .HasColumnType("TEXT");
 
                 b.Property<double>("OutputValue")
                     .HasColumnType("REAL");
 
                 b.Property<string>("ScaleExpression")
+                    .IsRequired()
                     .HasColumnType("TEXT");
 
                 b.Property<int>("Type")
                     .HasColumnType("INTEGER");
 
                 b.Property<string>("TypeString")
+                    .IsRequired()
                     .HasColumnType("TEXT");
 
                 b.HasKey("ID");
@@ -95,7 +100,7 @@ partial class InitialSQLiteMigration
 
                 b.HasIndex("LoggingSessionID");
 
-                b.ToTable("Channels");
+                b.ToTable("Channel");
             });
 
         modelBuilder.Entity("Daqifi.Desktop.Channel.DataSample", b =>
@@ -105,15 +110,19 @@ partial class InitialSQLiteMigration
                     .HasColumnType("INTEGER");
 
                 b.Property<string>("ChannelName")
+                    .IsRequired()
                     .HasColumnType("TEXT");
 
                 b.Property<string>("Color")
+                    .IsRequired()
                     .HasColumnType("TEXT");
 
                 b.Property<string>("DeviceName")
+                    .IsRequired()
                     .HasColumnType("TEXT");
 
                 b.Property<string>("DeviceSerialNo")
+                    .IsRequired()
                     .HasColumnType("TEXT");
 
                 b.Property<int>("LoggingSessionID")
@@ -132,7 +141,7 @@ partial class InitialSQLiteMigration
 
                 b.HasIndex("LoggingSessionID");
 
-                b.ToTable("DataSamples");
+                b.ToTable("Samples");
             });
 
         modelBuilder.Entity("Daqifi.Desktop.Logger.LoggingSession", b =>
@@ -149,14 +158,16 @@ partial class InitialSQLiteMigration
 
                 b.HasKey("ID");
 
-                b.ToTable("LoggingSessions");
+                b.ToTable("Sessions");
             });
 
         modelBuilder.Entity("Daqifi.Desktop.Channel.Channel", b =>
             {
                 b.HasOne("Daqifi.Desktop.Channel.DataSample", "ActiveSample")
                     .WithMany()
-                    .HasForeignKey("ActiveSampleID");
+                    .HasForeignKey("ActiveSampleID")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
                 b.HasOne("Daqifi.Desktop.Logger.LoggingSession", null)
                     .WithMany("Channels")
