@@ -1,12 +1,18 @@
 using OxyPlot;
 using OxyPlot.Annotations;
 using OxyPlot.Axes;
+using Cursor = System.Windows.Input.Cursor;
+using Cursors = System.Windows.Input.Cursors;
+using Application = System.Windows.Application;
+using FrameworkElement = System.Windows.FrameworkElement;
 
 namespace Daqifi.Desktop.View;
 
 /// <summary>
 /// Handles mouse interactions on the minimap PlotModel to enable drag/resize
 /// of the selection rectangle, synchronized with the main plot's time axis.
+/// Provides cursor feedback: resize arrows on edges, grab hand inside selection,
+/// and pointer outside.
 /// </summary>
 public class MinimapInteractionController
 {
@@ -52,6 +58,43 @@ public class MinimapInteractionController
     }
     #endregion
 
+    #region Cursor Management
+    /// <summary>
+    /// Determines the appropriate cursor based on the mouse position relative
+    /// to the selection rectangle edges and interior.
+    /// </summary>
+    private Cursor GetCursorForPosition(double dataX)
+    {
+        var rectMin = _selectionRect.MinimumX;
+        var rectMax = _selectionRect.MaximumX;
+        var rectRange = rectMax - rectMin;
+        var edgeTolerance = Math.Max(rectRange * EDGE_TOLERANCE_FRACTION, GetMinimapDataRange() * 0.005);
+
+        if (Math.Abs(dataX - rectMin) < edgeTolerance || Math.Abs(dataX - rectMax) < edgeTolerance)
+        {
+            return Cursors.SizeWE;
+        }
+
+        if (dataX >= rectMin && dataX <= rectMax)
+        {
+            return Cursors.Hand;
+        }
+
+        return Cursors.Arrow;
+    }
+
+    /// <summary>
+    /// Sets the cursor on the WPF PlotView element.
+    /// </summary>
+    private void SetCursor(Cursor cursor)
+    {
+        if (_minimapPlotModel.PlotView is FrameworkElement element)
+        {
+            Application.Current?.Dispatcher.Invoke(() => element.Cursor = cursor);
+        }
+    }
+    #endregion
+
     #region Mouse Handlers
     private void OnMouseDown(object? sender, OxyMouseDownEventArgs e)
     {
@@ -75,14 +118,17 @@ public class MinimapInteractionController
         if (Math.Abs(dataX - rectMin) < edgeTolerance)
         {
             _dragMode = DragMode.ResizeLeft;
+            SetCursor(Cursors.SizeWE);
         }
         else if (Math.Abs(dataX - rectMax) < edgeTolerance)
         {
             _dragMode = DragMode.ResizeRight;
+            SetCursor(Cursors.SizeWE);
         }
         else if (dataX >= rectMin && dataX <= rectMax)
         {
             _dragMode = DragMode.Pan;
+            SetCursor(Cursors.ScrollAll);
         }
         else
         {
@@ -102,6 +148,7 @@ public class MinimapInteractionController
             _dimRight.MinimumX = newMax;
             ApplyToMainPlot(newMin, newMax);
             _dragMode = DragMode.Pan;
+            SetCursor(Cursors.ScrollAll);
         }
 
         _dragStartDataX = dataX;
@@ -113,11 +160,6 @@ public class MinimapInteractionController
 
     private void OnMouseMove(object? sender, OxyMouseEventArgs e)
     {
-        if (_dragMode == DragMode.None)
-        {
-            return;
-        }
-
         var minimapTimeAxis = GetMinimapTimeAxis();
         if (minimapTimeAxis == null)
         {
@@ -125,6 +167,14 @@ public class MinimapInteractionController
         }
 
         var dataX = minimapTimeAxis.InverseTransform(e.Position.X);
+
+        // Update cursor on hover when not dragging
+        if (_dragMode == DragMode.None)
+        {
+            SetCursor(GetCursorForPosition(dataX));
+            return;
+        }
+
         var delta = dataX - _dragStartDataX;
         var fullRange = GetMinimapDataRange();
         var fullMin = GetMinimapDataMin();
@@ -202,6 +252,15 @@ public class MinimapInteractionController
         if (_dragMode != DragMode.None)
         {
             _dragMode = DragMode.None;
+
+            // Update cursor based on final position
+            var minimapTimeAxis = GetMinimapTimeAxis();
+            if (minimapTimeAxis != null)
+            {
+                var dataX = minimapTimeAxis.InverseTransform(e.Position.X);
+                SetCursor(GetCursorForPosition(dataX));
+            }
+
             e.Handled = true;
         }
     }
