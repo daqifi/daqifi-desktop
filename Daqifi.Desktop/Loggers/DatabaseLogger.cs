@@ -4,7 +4,9 @@ using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Helpers;
+using Daqifi.Desktop.View;
 using OxyPlot;
+using OxyPlot.Annotations;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Collections.Concurrent;
@@ -32,6 +34,13 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     [ObservableProperty]
     private string _deviceSerialNo;
 
+    /// <summary>
+    /// Truncated serial number for compact legend display (e.g., "...4104").
+    /// </summary>
+    public string TruncatedSerialNo => _deviceSerialNo?.Length > 4
+        ? $"...{_deviceSerialNo[^4..]}"
+        : _deviceSerialNo ?? string.Empty;
+
     [ObservableProperty]
     private OxyColor _seriesColor;
 
@@ -44,15 +53,39 @@ public partial class LoggedSeriesLegendItem : ObservableObject
             if (SetProperty(ref _isVisible, value) && ActualSeries != null)
             {
                 ActualSeries.IsVisible = _isVisible;
-                Application.Current.Dispatcher.Invoke(() => _plotModel?.InvalidatePlot(true));
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    _plotModel?.InvalidatePlot(true);
+                    _databaseLogger?.SetMinimapSeriesVisibility(_deviceSerialNo, _channelName, _isVisible);
+                });
             }
         }
     }
 
     public LineSeries ActualSeries { get; }
     private readonly PlotModel _plotModel;
+    private readonly DatabaseLogger _databaseLogger;
 
-    public LoggedSeriesLegendItem(string displayName, string channelName, string deviceSerialNo, OxyColor seriesColor, bool isVisible, LineSeries actualSeries, PlotModel plotModel)
+    /// <summary>
+    /// Initializes a new legend item linked to a plot series and optional minimap sync.
+    /// </summary>
+    /// <param name="displayName">Full display name including channel and device info.</param>
+    /// <param name="channelName">Channel identifier (e.g., "AI0").</param>
+    /// <param name="deviceSerialNo">Device serial number for grouping.</param>
+    /// <param name="seriesColor">Color of the associated plot series.</param>
+    /// <param name="isVisible">Initial visibility state of the series.</param>
+    /// <param name="actualSeries">The OxyPlot LineSeries this legend item controls.</param>
+    /// <param name="plotModel">The main PlotModel to invalidate on visibility changes.</param>
+    /// <param name="databaseLogger">Optional logger for syncing minimap series visibility.</param>
+    public LoggedSeriesLegendItem(
+        string displayName,
+        string channelName,
+        string deviceSerialNo,
+        OxyColor seriesColor,
+        bool isVisible,
+        LineSeries actualSeries,
+        PlotModel plotModel,
+        DatabaseLogger databaseLogger = null)
     {
         _displayName = displayName;
         _channelName = channelName;
@@ -62,24 +95,62 @@ public partial class LoggedSeriesLegendItem : ObservableObject
         ActualSeries = actualSeries;
         ActualSeries.IsVisible = isVisible; // Ensure series visibility matches
         _plotModel = plotModel;
+        _databaseLogger = databaseLogger;
     }
 }
 
 public partial class DatabaseLogger : ObservableObject, ILogger
 {
+    #region Constants
+    private const int MINIMAP_BUCKET_COUNT = 800;
+    #endregion
+
     #region Private Data
     public ObservableCollection<LoggedSeriesLegendItem> LegendItems { get; } = new();
+    public ObservableCollection<DeviceLegendGroup> DeviceLegendGroups { get; } = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
     private readonly BlockingCollection<DataSample> _buffer = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _sessionPoints = new();
+    private readonly Dictionary<(string deviceSerial, string channelName), LineSeries> _minimapSeries = new();
 
     private DateTime? _firstTime;
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     private readonly ManualResetEventSlim _consumerGate = new(true);
+    private RectangleAnnotation _minimapSelectionRect;
+    private RectangleAnnotation _minimapDimLeft;
+    private RectangleAnnotation _minimapDimRight;
+    private MinimapInteractionController _minimapInteraction;
 
     [ObservableProperty]
     private PlotModel _plotModel;
+
+    /// <summary>
+    /// PlotModel for the overview minimap showing downsampled data and a selection rectangle.
+    /// </summary>
+    [ObservableProperty]
+    private PlotModel _minimapPlotModel;
+
+    /// <summary>
+    /// Controls visibility of the channel legend panel.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isLegendPanelVisible = true;
+
+    /// <summary>
+    /// Indicates whether a session with data is currently loaded.
+    /// Controls visibility of the minimap, legend, and empty state placeholder.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasSessionData;
+    #endregion
+
+    #region Legend
+    [RelayCommand]
+    private void ToggleLegendPanel()
+    {
+        IsLegendPanelVisible = !IsLegendPanelVisible;
+    }
     #endregion
 
     #region Constructor
@@ -150,10 +221,111 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         PlotModel.Axes.Add(digitalAxis);
         PlotModel.Axes.Add(timeAxis);
         PlotModel.IsLegendVisible = false; // Disable the built-in legend
-        // PlotModel.Legends.Add(legend); // Remove legend from plot model
+
+        // Subscribe to main time axis changes for minimap sync
+        timeAxis.AxisChanged += OnMainTimeAxisChanged;
+
+        // Initialize minimap PlotModel
+        InitializeMinimapPlotModel();
 
         var consumerThread = new Thread(Consumer) { IsBackground = true };
         consumerThread.Start();
+    }
+    #endregion
+
+    #region Minimap Initialization
+    private void InitializeMinimapPlotModel()
+    {
+        MinimapPlotModel = new PlotModel
+        {
+            IsLegendVisible = false,
+            PlotMargins = new OxyThickness(4, 2, 4, 2),
+            Padding = new OxyThickness(0)
+        };
+
+        var minimapTimeAxis = new LinearAxis
+        {
+            Position = AxisPosition.Bottom,
+            Key = "MinimapTime",
+            TickStyle = TickStyle.None,
+            MajorGridlineStyle = LineStyle.None,
+            MinorGridlineStyle = LineStyle.None,
+            TitleFontSize = 0,
+            FontSize = 0,
+            IsZoomEnabled = false,
+            IsPanEnabled = false
+        };
+
+        var minimapYAxis = new LinearAxis
+        {
+            Position = AxisPosition.Left,
+            Key = "MinimapY",
+            TickStyle = TickStyle.None,
+            MajorGridlineStyle = LineStyle.None,
+            MinorGridlineStyle = LineStyle.None,
+            TitleFontSize = 0,
+            FontSize = 0,
+            IsZoomEnabled = false,
+            IsPanEnabled = false,
+            MinimumPadding = 0.1,
+            MaximumPadding = 0.1
+        };
+
+        MinimapPlotModel.Axes.Add(minimapTimeAxis);
+        MinimapPlotModel.Axes.Add(minimapYAxis);
+
+        // Dim overlays for areas outside the selected range
+        _minimapDimLeft = new RectangleAnnotation
+        {
+            Fill = OxyColor.FromArgb(150, 200, 200, 200),
+            Stroke = OxyColors.Transparent,
+            StrokeThickness = 0,
+            MinimumX = -1e18,
+            MaximumX = 0,
+            MinimumY = -1e18,
+            MaximumY = 1e18,
+            Layer = AnnotationLayer.AboveSeries,
+            XAxisKey = "MinimapTime",
+            YAxisKey = "MinimapY"
+        };
+
+        _minimapDimRight = new RectangleAnnotation
+        {
+            Fill = OxyColor.FromArgb(150, 200, 200, 200),
+            Stroke = OxyColors.Transparent,
+            StrokeThickness = 0,
+            MinimumX = 0,
+            MaximumX = 1e18,
+            MinimumY = -1e18,
+            MaximumY = 1e18,
+            Layer = AnnotationLayer.AboveSeries,
+            XAxisKey = "MinimapTime",
+            YAxisKey = "MinimapY"
+        };
+
+        // Selection rectangle border
+        _minimapSelectionRect = new RectangleAnnotation
+        {
+            Fill = OxyColors.Transparent,
+            Stroke = OxyColor.FromRgb(0, 90, 180),
+            StrokeThickness = 3,
+            MinimumY = -1e18,
+            MaximumY = 1e18,
+            Layer = AnnotationLayer.AboveSeries,
+            XAxisKey = "MinimapTime",
+            YAxisKey = "MinimapY"
+        };
+
+        MinimapPlotModel.Annotations.Add(_minimapDimLeft);
+        MinimapPlotModel.Annotations.Add(_minimapDimRight);
+        MinimapPlotModel.Annotations.Add(_minimapSelectionRect);
+
+        _minimapInteraction = new MinimapInteractionController(
+            PlotModel,
+            MinimapPlotModel,
+            _minimapSelectionRect,
+            _minimapDimLeft,
+            _minimapDimRight);
     }
     #endregion
 
@@ -227,11 +399,18 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             _firstTime = null;
             _sessionPoints.Clear();
             _allSessionPoints.Clear();
+            _minimapSeries.Clear();
             PlotModel.Series.Clear();
             LegendItems.Clear();
+            DeviceLegendGroups.Clear();
             PlotModel.Title = string.Empty;
             PlotModel.Subtitle = string.Empty;
             PlotModel.InvalidatePlot(true);
+
+            MinimapPlotModel.Series.Clear();
+            MinimapPlotModel.InvalidatePlot(true);
+
+            HasSessionData = false;
         });
     }
 
@@ -255,6 +434,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
                 var dbSamples = context.Samples.AsNoTracking()
                     .Where(s => s.LoggingSessionID == session.ID)
+                    .OrderBy(s => s.TimestampTicks)
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color, s.TimestampTicks, s.Value })
                     .ToList(); // Bring data into memory
 
@@ -301,6 +481,22 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 }
             }
 
+            // Prepare downsampled minimap data on the background thread
+            var minimapSeriesData = new List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)>();
+            foreach (var kvp in _allSessionPoints)
+            {
+                if (kvp.Value.Count > 0)
+                {
+                    var downsampled = MinMaxDownsampler.Downsample(kvp.Value, MINIMAP_BUCKET_COUNT);
+                    var matchingSeries = tempSeriesList.FirstOrDefault(s =>
+                    {
+                        var parts = s.Title.Split([" : ("], StringSplitOptions.None);
+                        return parts.Length == 2 && parts[0] == kvp.Key.channelName && parts[1].TrimEnd(')') == kvp.Key.deviceSerial;
+                    });
+                    minimapSeriesData.Add((kvp.Key.channelName, kvp.Key.deviceSerial, matchingSeries?.Color ?? OxyColors.Gray, downsampled));
+                }
+            }
+
             // Update UI-bound collections and properties on the UI thread
             Application.Current.Dispatcher.Invoke(() =>
             {
@@ -310,6 +506,20 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 foreach (var legendItem in tempLegendItemsList)
                 {
                     LegendItems.Add(legendItem);
+                }
+
+                // Build grouped legend by device
+                DeviceLegendGroups.Clear();
+                var groupDict = new Dictionary<string, DeviceLegendGroup>();
+                foreach (var legendItem in tempLegendItemsList)
+                {
+                    if (!groupDict.TryGetValue(legendItem.DeviceSerialNo, out var group))
+                    {
+                        group = new DeviceLegendGroup(legendItem.DeviceSerialNo);
+                        groupDict[legendItem.DeviceSerialNo] = group;
+                        DeviceLegendGroups.Add(group);
+                    }
+                    group.Channels.Add(legendItem);
                 }
 
                 foreach (var series in tempSeriesList)
@@ -323,6 +533,41 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                         series.ItemsSource = points;
                     }
                 }
+
+                // Populate minimap with downsampled series
+                MinimapPlotModel.Series.Clear();
+                _minimapSeries.Clear();
+                foreach (var (channelName, deviceSerial, color, downsampled) in minimapSeriesData)
+                {
+                    var minimapLine = new LineSeries
+                    {
+                        Color = color,
+                        StrokeThickness = 1,
+                        ItemsSource = downsampled,
+                        XAxisKey = "MinimapTime",
+                        YAxisKey = "MinimapY"
+                    };
+                    MinimapPlotModel.Series.Add(minimapLine);
+                    _minimapSeries[(deviceSerial, channelName)] = minimapLine;
+                }
+
+                MinimapPlotModel.ResetAllAxes();
+
+                // Initialize selection rectangle to full data range
+                // Use data bounds directly since ActualMinimum/Maximum aren't set until render
+                if (minimapSeriesData.Count > 0)
+                {
+                    var dataMinX = minimapSeriesData.Where(d => d.downsampled.Count > 0).Min(d => d.downsampled[0].X);
+                    var dataMaxX = minimapSeriesData.Where(d => d.downsampled.Count > 0).Max(d => d.downsampled[^1].X);
+                    _minimapSelectionRect.MinimumX = dataMinX;
+                    _minimapSelectionRect.MaximumX = dataMaxX;
+                    _minimapDimLeft.MaximumX = dataMinX;
+                    _minimapDimRight.MinimumX = dataMaxX;
+                }
+
+                MinimapPlotModel.InvalidatePlot(true);
+
+                HasSessionData = tempSeriesList.Count > 0;
 
                 OnPropertyChanged("SessionPoints"); // If SessionPoints is still relevant
                 PlotModel.InvalidatePlot(true);
@@ -430,7 +675,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             newLineSeries.Color,
             newLineSeries.IsVisible,
             newLineSeries,
-            PlotModel);
+            PlotModel,
+            this);
         // LegendItems.Add(legendItem); // Removed: To be added in DisplayLoggingSession on UI thread
 
         newLineSeries.YAxisKey = type switch
@@ -444,6 +690,35 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         // OnPropertyChanged("PlotModel"); // Removed: To be called in DisplayLoggingSession on UI thread
         return (newLineSeries, legendItem);
     }
+
+    #region Minimap Synchronization
+    private void OnMainTimeAxisChanged(object? sender, AxisChangedEventArgs e)
+    {
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        if (timeAxis == null)
+        {
+            return;
+        }
+
+        _minimapSelectionRect.MinimumX = timeAxis.ActualMinimum;
+        _minimapSelectionRect.MaximumX = timeAxis.ActualMaximum;
+        _minimapDimLeft.MaximumX = timeAxis.ActualMinimum;
+        _minimapDimRight.MinimumX = timeAxis.ActualMaximum;
+        MinimapPlotModel.InvalidatePlot(false);
+    }
+
+    /// <summary>
+    /// Updates the visibility of a minimap series to match its main plot counterpart.
+    /// </summary>
+    public void SetMinimapSeriesVisibility(string deviceSerialNo, string channelName, bool visible)
+    {
+        if (_minimapSeries.TryGetValue((deviceSerialNo, channelName), out var series))
+        {
+            series.IsVisible = visible;
+            MinimapPlotModel.InvalidatePlot(false);
+        }
+    }
+    #endregion
 
     #region Commands
     [RelayCommand]
