@@ -71,6 +71,11 @@ public partial class App
         ServiceLocator.RegisterSingleton<IWindowViewModelMappings, WindowViewModelMappings>();
 
         ServiceProvider = serviceCollection.BuildServiceProvider();
+
+        // Apply database migrations before any DB access
+        var contextFactory = ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+        DatabaseMigrator.MigrateDatabase(contextFactory);
+
         // Create and show main window
         var view = new MainWindow();
         view.Show();

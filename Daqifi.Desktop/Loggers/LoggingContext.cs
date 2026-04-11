@@ -7,7 +7,6 @@ public class LoggingContext : DbContext
 {
     public LoggingContext(DbContextOptions<LoggingContext> options) : base(options)
     {
-        Database.EnsureCreated();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

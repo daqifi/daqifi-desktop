@@ -3,6 +3,7 @@ using System;
 using Daqifi.Desktop.Logger;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Daqifi.Desktop.Migrations;
 
 [DbContext(typeof(LoggingContext))]
-partial class LoggingContextModelSnapshot : ModelSnapshot
+[Migration("20250812100000_AddSamplesSessionTimeIndex")]
+partial class AddSamplesSessionTimeIndex
 {
-    protected override void BuildModel(ModelBuilder modelBuilder)
+    /// <inheritdoc />
+    protected override void BuildTargetModel(ModelBuilder modelBuilder)
     {
 #pragma warning disable 612, 618
         modelBuilder.HasAnnotation("ProductVersion", "9.0.14");
