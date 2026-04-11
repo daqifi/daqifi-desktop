@@ -809,10 +809,26 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     [RelayCommand]
     private void ResetZoom()
     {
-        PlotModel.ResetAllAxes();
+        // Restore full-range downsampled data before resetting axes, otherwise
+        // OxyPlot auto-ranges to the current (viewport-subset) ItemsSource.
+        foreach (var series in PlotModel.Series.OfType<LineSeries>())
+        {
+            if (series.Tag is not (string deviceSerial, string channelName))
+            {
+                continue;
+            }
+
+            if (_allSessionPoints.TryGetValue((deviceSerial, channelName), out var allPoints) && allPoints.Count > 0)
+            {
+                series.ItemsSource = allPoints.Count > MAIN_PLOT_BUCKET_COUNT * 2
+                    ? MinMaxDownsampler.Downsample(allPoints, MAIN_PLOT_BUCKET_COUNT)
+                    : allPoints;
+            }
+        }
+
         _lastViewportMin = double.NaN;
         _lastViewportMax = double.NaN;
-        UpdateMainPlotViewport();
+        PlotModel.ResetAllAxes();
         PlotModel.InvalidatePlot(true);
     }
 
