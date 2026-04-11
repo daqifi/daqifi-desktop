@@ -34,6 +34,13 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     [ObservableProperty]
     private string _deviceSerialNo;
 
+    /// <summary>
+    /// Truncated serial number for compact legend display (e.g., "...4104").
+    /// </summary>
+    public string TruncatedSerialNo => _deviceSerialNo?.Length > 4
+        ? $"...{_deviceSerialNo[^4..]}"
+        : _deviceSerialNo ?? string.Empty;
+
     [ObservableProperty]
     private OxyColor _seriesColor;
 
@@ -114,6 +121,20 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     /// </summary>
     [ObservableProperty]
     private PlotModel _minimapPlotModel;
+
+    /// <summary>
+    /// Controls visibility of the channel legend panel.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isLegendPanelVisible = true;
+    #endregion
+
+    #region Legend
+    [RelayCommand]
+    private void ToggleLegendPanel()
+    {
+        IsLegendPanelVisible = !IsLegendPanelVisible;
+    }
     #endregion
 
     #region Constructor
