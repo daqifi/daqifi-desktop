@@ -240,13 +240,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         // Dim overlays for areas outside the selected range
         _minimapDimLeft = new RectangleAnnotation
         {
-            Fill = OxyColor.FromArgb(140, 255, 255, 255),
+            Fill = OxyColor.FromArgb(150, 200, 200, 200),
             Stroke = OxyColors.Transparent,
             StrokeThickness = 0,
-            MinimumX = double.MinValue,
+            MinimumX = -1e18,
             MaximumX = 0,
-            MinimumY = double.MinValue,
-            MaximumY = double.MaxValue,
+            MinimumY = -1e18,
+            MaximumY = 1e18,
             Layer = AnnotationLayer.AboveSeries,
             XAxisKey = "MinimapTime",
             YAxisKey = "MinimapY"
@@ -254,13 +254,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
         _minimapDimRight = new RectangleAnnotation
         {
-            Fill = OxyColor.FromArgb(140, 255, 255, 255),
+            Fill = OxyColor.FromArgb(150, 200, 200, 200),
             Stroke = OxyColors.Transparent,
             StrokeThickness = 0,
             MinimumX = 0,
-            MaximumX = double.MaxValue,
-            MinimumY = double.MinValue,
-            MaximumY = double.MaxValue,
+            MaximumX = 1e18,
+            MinimumY = -1e18,
+            MaximumY = 1e18,
             Layer = AnnotationLayer.AboveSeries,
             XAxisKey = "MinimapTime",
             YAxisKey = "MinimapY"
@@ -269,11 +269,11 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         // Selection rectangle border
         _minimapSelectionRect = new RectangleAnnotation
         {
-            Fill = OxyColor.FromArgb(20, 0, 120, 215),
+            Fill = OxyColors.Transparent,
             Stroke = OxyColor.FromRgb(0, 120, 215),
             StrokeThickness = 2,
-            MinimumY = double.MinValue,
-            MaximumY = double.MaxValue,
+            MinimumY = -1e18,
+            MaximumY = 1e18,
             Layer = AnnotationLayer.AboveSeries,
             XAxisKey = "MinimapTime",
             YAxisKey = "MinimapY"
