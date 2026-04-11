@@ -540,18 +540,13 @@
                                             </iconPacks:PackIconMaterial>
                                         </Button>
 
-                                        <!-- Collapsible Legend ListView -->
-                                        <ListView ItemsSource="{Binding DbLogger.LegendItems}"
-                                                  Background="Transparent"
-                                                  BorderThickness="0"
-                                                  HorizontalContentAlignment="Stretch"
-                                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                                  MaxHeight="400"
-                                                  MinWidth="120"
-                                                  MaxWidth="160">
-                                            <ListView.Style>
-                                                <Style TargetType="ListView">
+                                        <!-- Collapsible Grouped Legend -->
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                      HorizontalScrollBarVisibility="Disabled"
+                                                      MaxHeight="500"
+                                                      Margin="4,0,4,0">
+                                            <ScrollViewer.Style>
+                                                <Style TargetType="ScrollViewer">
                                                     <Setter Property="Visibility" Value="Visible"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding DbLogger.IsLegendPanelVisible}" Value="False">
@@ -559,101 +554,83 @@
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
-                                            </ListView.Style>
-                                            <ListView.ItemContainerStyle>
-                                                <Style TargetType="ListViewItem">
-                                                    <Setter Property="Focusable" Value="False"/>
-                                                    <Setter Property="Background" Value="Transparent"/>
-                                                    <Setter Property="Template">
-                                                        <Setter.Value>
-                                                            <ControlTemplate TargetType="ListViewItem">
-                                                                <ContentPresenter/>
-                                                            </ControlTemplate>
-                                                        </Setter.Value>
-                                                    </Setter>
-                                                </Style>
-                                            </ListView.ItemContainerStyle>
-                                            <ListView.ItemTemplate>
-                                                <DataTemplate DataType="{x:Type logger:LoggedSeriesLegendItem}">
-                                                    <Button Command="{Binding DataContext.ToggleLoggedSeriesVisibilityCommand, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"
-                                                            CommandParameter="{Binding}"
-                                                            Padding="4,4">
-                                                        <Button.ToolTip>
-                                                            <ToolTip>
-                                                                <TextBlock Text="{Binding DeviceSerialNo, StringFormat='Click to show/hide channel ({0})'}" FontSize="10" FontStyle="Italic"/>
-                                                            </ToolTip>
-                                                        </Button.ToolTip>
-                                                        <Button.Style>
-                                                            <Style TargetType="Button" BasedOn="{StaticResource TransparentButtonStyle}">
-                                                                <Setter Property="Cursor" Value="Hand"/>
-                                                                <Style.Triggers>
-                                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                                        <Setter Property="Background" Value="#15FFFFFF"/>
-                                                                    </Trigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                            </Grid.ColumnDefinitions>
+                                            </ScrollViewer.Style>
+                                            <ItemsControl ItemsSource="{Binding DbLogger.DeviceLegendGroups}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type logger:DeviceLegendGroup}">
+                                                        <StackPanel Margin="0,2,0,4">
+                                                            <!-- Device Header -->
+                                                            <TextBlock FontSize="9" Opacity="0.6" Margin="0,0,0,2"
+                                                                       ToolTip="{Binding DeviceSerialNo}">
+                                                                <Run Text="Device: "/><Run Text="{Binding TruncatedSerialNo, Mode=OneWay}"/>
+                                                            </TextBlock>
 
-                                                            <!-- Color Indicator -->
-                                                            <Rectangle Grid.Column="0"
-                                                                      Width="14" Height="14"
-                                                                      Fill="{Binding SeriesColor, Converter={StaticResource OxyColorToBrushConverter}}"
-                                                                      Margin="0,0,6,0"
-                                                                      VerticalAlignment="Center">
-                                                                <Rectangle.Style>
-                                                                    <Style TargetType="Rectangle">
-                                                                        <Setter Property="Opacity" Value="1.0"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding IsVisible}" Value="False">
-                                                                                <Setter Property="Opacity" Value="0.3"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Rectangle.Style>
-                                                            </Rectangle>
-
-                                                            <!-- Channel Info -->
-                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                                <TextBlock Text="{Binding ChannelName}"
-                                                                          FontSize="11"
-                                                                          FontWeight="Medium">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Opacity" Value="1.0"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsVisible}" Value="False">
-                                                                                    <Setter Property="Opacity" Value="0.4"/>
-                                                                                    <Setter Property="TextDecorations" Value="Strikethrough"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <TextBlock Text="{Binding TruncatedSerialNo}"
-                                                                          FontSize="9"
-                                                                          Opacity="0.5"
-                                                                          Margin="0,0,0,0">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsVisible}" Value="False">
-                                                                                    <Setter Property="Opacity" Value="0.3"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                            </StackPanel>
-                                                        </Grid>
-                                                    </Button>
-                                                </DataTemplate>
-                                            </ListView.ItemTemplate>
-                                        </ListView>
+                                                            <!-- Channel Grid (2 columns) -->
+                                                            <ItemsControl ItemsSource="{Binding Channels}">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <UniformGrid Columns="2"/>
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate DataType="{x:Type logger:LoggedSeriesLegendItem}">
+                                                                        <Button Command="{Binding DataContext.ToggleLoggedSeriesVisibilityCommand, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"
+                                                                                CommandParameter="{Binding}"
+                                                                                Padding="3,3"
+                                                                                ToolTip="Click to show/hide channel">
+                                                                            <Button.Style>
+                                                                                <Style TargetType="Button" BasedOn="{StaticResource TransparentButtonStyle}">
+                                                                                    <Setter Property="Cursor" Value="Hand"/>
+                                                                                    <Style.Triggers>
+                                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                                            <Setter Property="Background" Value="#15FFFFFF"/>
+                                                                                        </Trigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Button.Style>
+                                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                                <!-- Color Swatch -->
+                                                                                <Rectangle Width="12" Height="12"
+                                                                                           Fill="{Binding SeriesColor, Converter={StaticResource OxyColorToBrushConverter}}"
+                                                                                           Margin="0,0,4,0"
+                                                                                           VerticalAlignment="Center">
+                                                                                    <Rectangle.Style>
+                                                                                        <Style TargetType="Rectangle">
+                                                                                            <Setter Property="Opacity" Value="1.0"/>
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                                                    <Setter Property="Opacity" Value="0.3"/>
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </Rectangle.Style>
+                                                                                </Rectangle>
+                                                                                <!-- Channel Name -->
+                                                                                <TextBlock Text="{Binding ChannelName}"
+                                                                                           FontSize="11"
+                                                                                           VerticalAlignment="Center">
+                                                                                    <TextBlock.Style>
+                                                                                        <Style TargetType="TextBlock">
+                                                                                            <Setter Property="Opacity" Value="1.0"/>
+                                                                                            <Style.Triggers>
+                                                                                                <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                                                    <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                                                                </DataTrigger>
+                                                                                            </Style.Triggers>
+                                                                                        </Style>
+                                                                                    </TextBlock.Style>
+                                                                                </TextBlock>
+                                                                            </StackPanel>
+                                                                        </Button>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
                                     </StackPanel>
 
                                 </Grid>

@@ -23,6 +23,34 @@ using FontWeights = OxyPlot.FontWeights;
 
 namespace Daqifi.Desktop.Logger;
 
+/// <summary>
+/// Groups legend items by device for compact display in the legend panel.
+/// </summary>
+public partial class DeviceLegendGroup : ObservableObject
+{
+    /// <summary>
+    /// Full device serial number.
+    /// </summary>
+    public string DeviceSerialNo { get; }
+
+    /// <summary>
+    /// Truncated serial for display (e.g., "...4104").
+    /// </summary>
+    public string TruncatedSerialNo => DeviceSerialNo?.Length > 4
+        ? $"...{DeviceSerialNo[^4..]}"
+        : DeviceSerialNo ?? string.Empty;
+
+    /// <summary>
+    /// Channel legend items belonging to this device.
+    /// </summary>
+    public ObservableCollection<LoggedSeriesLegendItem> Channels { get; } = new();
+
+    public DeviceLegendGroup(string deviceSerialNo)
+    {
+        DeviceSerialNo = deviceSerialNo;
+    }
+}
+
 public partial class LoggedSeriesLegendItem : ObservableObject
 {
     [ObservableProperty]
@@ -99,6 +127,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
     #region Private Data
     public ObservableCollection<LoggedSeriesLegendItem> LegendItems { get; } = new();
+    public ObservableCollection<DeviceLegendGroup> DeviceLegendGroups { get; } = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
     private readonly BlockingCollection<DataSample> _buffer = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _sessionPoints = new();
@@ -386,6 +415,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             _minimapSeries.Clear();
             PlotModel.Series.Clear();
             LegendItems.Clear();
+            DeviceLegendGroups.Clear();
             PlotModel.Title = string.Empty;
             PlotModel.Subtitle = string.Empty;
             PlotModel.InvalidatePlot(true);
@@ -487,6 +517,20 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 foreach (var legendItem in tempLegendItemsList)
                 {
                     LegendItems.Add(legendItem);
+                }
+
+                // Build grouped legend by device
+                DeviceLegendGroups.Clear();
+                var groupDict = new Dictionary<string, DeviceLegendGroup>();
+                foreach (var legendItem in tempLegendItemsList)
+                {
+                    if (!groupDict.TryGetValue(legendItem.DeviceSerialNo, out var group))
+                    {
+                        group = new DeviceLegendGroup(legendItem.DeviceSerialNo);
+                        groupDict[legendItem.DeviceSerialNo] = group;
+                        DeviceLegendGroups.Add(group);
+                    }
+                    group.Channels.Add(legendItem);
                 }
 
                 foreach (var series in tempSeriesList)
