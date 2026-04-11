@@ -14,7 +14,7 @@ namespace Daqifi.Desktop.View;
 /// Provides cursor feedback: resize arrows on edges, grab hand inside selection,
 /// and pointer outside.
 /// </summary>
-public class MinimapInteractionController
+public class MinimapInteractionController : IDisposable
 {
     #region Private Fields
     private readonly PlotModel _mainPlotModel;
@@ -302,6 +302,18 @@ public class MinimapInteractionController
     {
         var axis = GetMinimapTimeAxis();
         return axis?.DataMinimum ?? 0;
+    }
+    #endregion
+
+    #region IDisposable
+    /// <summary>
+    /// Unsubscribes all event handlers from the minimap PlotModel.
+    /// </summary>
+    public void Dispose()
+    {
+        _minimapPlotModel.MouseDown -= OnMouseDown;
+        _minimapPlotModel.MouseMove -= OnMouseMove;
+        _minimapPlotModel.MouseUp -= OnMouseUp;
     }
     #endregion
 }

@@ -97,6 +97,14 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     /// <summary>
     /// Initializes a new legend item linked to a plot series and optional minimap sync.
     /// </summary>
+    /// <param name="displayName">Full display name including channel and device info.</param>
+    /// <param name="channelName">Channel identifier (e.g., "AI0").</param>
+    /// <param name="deviceSerialNo">Device serial number for grouping.</param>
+    /// <param name="seriesColor">Color of the associated plot series.</param>
+    /// <param name="isVisible">Initial visibility state of the series.</param>
+    /// <param name="actualSeries">The OxyPlot LineSeries this legend item controls.</param>
+    /// <param name="plotModel">The main PlotModel to invalidate on visibility changes.</param>
+    /// <param name="databaseLogger">Optional logger for syncing minimap series visibility.</param>
     public LoggedSeriesLegendItem(
         string displayName,
         string channelName,
