@@ -281,7 +281,7 @@ public class MinimapInteractionController : IDisposable
             {
                 _isDirty = false;
                 _databaseLogger.OnMinimapViewportChanged();
-                _mainPlotModel.InvalidatePlot(false);
+                _mainPlotModel.InvalidatePlot(true);
                 _minimapPlotModel.InvalidatePlot(false);
             }
 
@@ -308,7 +308,7 @@ public class MinimapInteractionController : IDisposable
 
         _isDirty = false;
         _databaseLogger.OnMinimapViewportChanged();
-        _mainPlotModel.InvalidatePlot(false);
+        _mainPlotModel.InvalidatePlot(true);
         _minimapPlotModel.InvalidatePlot(false);
     }
     #endregion
