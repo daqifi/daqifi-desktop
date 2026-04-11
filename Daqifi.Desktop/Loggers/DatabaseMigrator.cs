@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using Daqifi.Desktop.Common.Loggers;
 using Microsoft.Data.Sqlite;
@@ -27,20 +28,44 @@ public static class DatabaseMigrator
     /// <param name="databasePath">Full path to the SQLite database file.</param>
     public static void MigrateDatabase(IDbContextFactory<LoggingContext> contextFactory, string databasePath)
     {
+        Log("MigrateDatabase started");
+
         BackupDatabase(databasePath);
 
         // Seed migration history using raw ADO.NET to avoid EF connection
         // pooling issues that can leave locks blocking Migrate().
         SeedMigrationHistoryIfNeeded(databasePath);
 
+        // Clear any pooled connections before Migrate() to prevent lock conflicts
+        Log("Clearing SQLite connection pool");
+        SqliteConnection.ClearAllPools();
+
+        // Delete WAL/SHM files that may hold stale locks
+        CleanupWalFiles(databasePath);
+
+        Log("Creating context for Migrate()");
         using var context = contextFactory.CreateDbContext();
+
+        Log("Calling Database.Migrate()");
+        var sw = Stopwatch.StartNew();
         context.Database.Migrate();
+        sw.Stop();
+        Log($"Database.Migrate() completed in {sw.Elapsed.TotalSeconds:F1}s");
 
         AppLogger.Instance.AddBreadcrumb("database", "Database migration completed successfully");
     }
     #endregion
 
     #region Private Methods
+    /// <summary>
+    /// Writes a debug message to both Debug output and AppLogger.
+    /// </summary>
+    private static void Log(string message)
+    {
+        Debug.WriteLine($"[DatabaseMigrator] {message}");
+        AppLogger.Instance.AddBreadcrumb("database", message);
+    }
+
     /// <summary>
     /// Creates a backup copy of the SQLite database file before applying migrations.
     /// </summary>
@@ -50,16 +75,46 @@ public static class DatabaseMigrator
         {
             if (!File.Exists(databasePath))
             {
+                Log("No database file found — skipping backup");
                 return;
             }
 
             var backupPath = databasePath + ".backup";
+            Log($"Backing up database ({new FileInfo(databasePath).Length / 1024 / 1024}MB)");
             File.Copy(databasePath, backupPath, overwrite: true);
-            AppLogger.Instance.AddBreadcrumb("database", $"Database backed up to {backupPath}");
+            Log("Backup complete");
         }
         catch (Exception ex)
         {
             AppLogger.Instance.Error(ex, "Failed to back up database before migration");
+        }
+    }
+
+    /// <summary>
+    /// Removes WAL and SHM files that can hold stale locks from previous sessions.
+    /// </summary>
+    private static void CleanupWalFiles(string databasePath)
+    {
+        try
+        {
+            var walPath = databasePath + "-wal";
+            var shmPath = databasePath + "-shm";
+
+            if (File.Exists(walPath))
+            {
+                Log($"Deleting stale WAL file ({new FileInfo(walPath).Length} bytes)");
+                File.Delete(walPath);
+            }
+
+            if (File.Exists(shmPath))
+            {
+                Log("Deleting stale SHM file");
+                File.Delete(shmPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"Warning: could not clean WAL files: {ex.Message}");
         }
     }
 
@@ -73,25 +128,30 @@ public static class DatabaseMigrator
     {
         if (!File.Exists(databasePath))
         {
+            Log("No database file — skipping seed check");
             return;
         }
 
+        Log("Opening raw connection for seed check");
         var connectionString = $"Data source={databasePath}";
         using var connection = new SqliteConnection(connectionString);
         connection.Open();
 
         if (HasMigrationHistoryTable(connection))
         {
+            Log("Migration history table already exists — skipping seed");
+            connection.Close();
             return;
         }
 
         if (!HasExistingTables(connection))
         {
+            Log("No existing tables found — fresh database, skipping seed");
+            connection.Close();
             return;
         }
 
-        AppLogger.Instance.AddBreadcrumb("database",
-            "Existing database detected without migration history — seeding initial migration");
+        Log("Existing database without migration history — seeding initial migration");
 
         using var command = connection.CreateCommand();
         command.CommandText =
@@ -100,6 +160,9 @@ public static class DatabaseMigrator
             "INSERT OR IGNORE INTO \"__EFMigrationsHistory\" " +
             $"VALUES ('{INITIAL_MIGRATION_ID}', '{EF_PRODUCT_VERSION}');";
         command.ExecuteNonQuery();
+
+        Log("Seed complete — closing raw connection");
+        connection.Close();
     }
 
     /// <summary>
