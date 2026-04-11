@@ -100,12 +100,12 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     }
 }
 
-public partial class DatabaseLogger : ObservableObject, ILogger
+public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 {
     #region Constants
     private const int MINIMAP_BUCKET_COUNT = 800;
     private const int MAIN_PLOT_BUCKET_COUNT = 2000;
-    private const int MAX_IN_MEMORY_POINTS = 50_000_000;
+    private const int MAX_IN_MEMORY_POINTS = 10_000_000;
     #endregion
 
     #region Private Data
@@ -461,16 +461,11 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     subtitle = $"\nShowing first {MAX_IN_MEMORY_POINTS:n0} of {totalSamplesCount:n0} data points";
                 }
 
-                // Only materialize up to the limit to avoid excessive memory usage
-                var dbSamples = baseQuery
-                    .OrderBy(s => s.TimestampTicks)
-                    .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color, s.TimestampTicks, s.Value })
-                    .Take(MAX_IN_MEMORY_POINTS)
-                    .ToList();
-
-                var channelInfoList = dbSamples
+                // Query channel metadata first (small result set)
+                var channelInfoList = baseQuery
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color })
                     .Distinct()
+                    .ToList()
                     .NaturalOrderBy(s => s.ChannelName)
                     .ToList();
 
@@ -481,7 +476,14 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     tempLegendItemsList.Add(legendItem);
                 }
 
-                foreach (var sample in dbSamples)
+                // Stream samples directly into per-channel lists to avoid
+                // materializing a massive intermediate list (addresses OOM risk)
+                var sampleCount = 0;
+                foreach (var sample in baseQuery
+                    .OrderBy(s => s.TimestampTicks)
+                    .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.TimestampTicks, s.Value })
+                    .Take(MAX_IN_MEMORY_POINTS)
+                    .AsEnumerable())
                 {
                     var key = (sample.DeviceSerialNo, sample.ChannelName);
                     if (_firstTime == null) { _firstTime = new DateTime(sample.TimestampTicks); }
@@ -491,6 +493,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     {
                         points.Add(new DataPoint(deltaTime, sample.Value));
                     }
+
+                    sampleCount++;
                 }
             }
 
@@ -932,6 +936,20 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     {
         PlotModel.Axes[0].ZoomAtCenter(1.25);
         PlotModel.InvalidatePlot(true);
+    }
+    #endregion
+
+    #region IDisposable
+    /// <summary>
+    /// Stops timers and unsubscribes event handlers to prevent leaks.
+    /// </summary>
+    public void Dispose()
+    {
+        _viewportThrottleTimer.Stop();
+        _viewportThrottleTimer.Tick -= OnViewportThrottleTick;
+        _minimapInteraction?.Dispose();
+        _buffer.Dispose();
+        _consumerGate.Dispose();
     }
     #endregion
 }
