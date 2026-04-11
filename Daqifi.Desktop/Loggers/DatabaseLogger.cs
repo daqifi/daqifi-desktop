@@ -18,6 +18,7 @@ using Microsoft.EntityFrameworkCore;
 using EFCore.BulkExtensions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.Windows.Threading;
 using Application = System.Windows.Application;
 using FontWeights = OxyPlot.FontWeights;
 
@@ -111,6 +112,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     public ObservableCollection<LoggedSeriesLegendItem> LegendItems { get; } = new();
     public ObservableCollection<DeviceLegendGroup> DeviceLegendGroups { get; } = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
+    private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _downsampledCache = new();
     private readonly BlockingCollection<DataSample> _buffer = new();
     private readonly Dictionary<(string deviceSerial, string channelName), LineSeries> _minimapSeries = new();
 
@@ -125,6 +127,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     internal bool IsSyncingFromMinimap;
     private double _lastViewportMin = double.NaN;
     private double _lastViewportMax = double.NaN;
+    private bool _viewportDirty;
+    private DispatcherTimer _viewportThrottleTimer;
 
     [ObservableProperty]
     private PlotModel _plotModel;
@@ -228,6 +232,14 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
         // Subscribe to main time axis changes for minimap sync
         timeAxis.AxisChanged += OnMainTimeAxisChanged;
+
+        // Throttle viewport updates from main plot interaction to 60fps
+        _viewportThrottleTimer = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromMilliseconds(16)
+        };
+        _viewportThrottleTimer.Tick += OnViewportThrottleTick;
+        _viewportThrottleTimer.Start();
 
         // Initialize minimap PlotModel
         InitializeMinimapPlotModel();
@@ -405,6 +417,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             _lastViewportMin = double.NaN;
             _lastViewportMax = double.NaN;
             _allSessionPoints.Clear();
+            _downsampledCache.Clear();
             _minimapSeries.Clear();
             PlotModel.Series.Clear();
             LegendItems.Clear();
@@ -525,15 +538,25 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     if (series.Tag is (string deviceSerial, string channelName)
                         && _allSessionPoints.TryGetValue((deviceSerial, channelName), out var points))
                     {
-                        // Set initial ItemsSource to downsampled full range
+                        // Set initial ItemsSource to downsampled full range using cached list
+                        var key = (deviceSerial, channelName);
+                        if (!_downsampledCache.TryGetValue(key, out var cached))
+                        {
+                            cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
+                            _downsampledCache[key] = cached;
+                        }
+
+                        cached.Clear();
                         if (points.Count > MAIN_PLOT_BUCKET_COUNT * 2)
                         {
-                            series.ItemsSource = MinMaxDownsampler.Downsample(points, MAIN_PLOT_BUCKET_COUNT);
+                            cached.AddRange(MinMaxDownsampler.Downsample(points, MAIN_PLOT_BUCKET_COUNT));
                         }
                         else
                         {
-                            series.ItemsSource = points;
+                            cached.AddRange(points);
                         }
+
+                        series.ItemsSource = cached;
                     }
                 }
 
@@ -698,7 +721,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             return;
         }
 
-        UpdateMainPlotViewport();
+        // Mark viewport dirty — the throttle timer will handle the actual update at 60fps
+        _viewportDirty = true;
 
         var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
         if (timeAxis == null)
@@ -711,6 +735,22 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         _minimapDimLeft.MaximumX = timeAxis.ActualMinimum;
         _minimapDimRight.MinimumX = timeAxis.ActualMaximum;
         MinimapPlotModel.InvalidatePlot(false);
+    }
+
+    /// <summary>
+    /// Throttled viewport update tick — processes dirty flag at 60fps to avoid
+    /// re-downsampling on every mouse move during main plot pan/zoom.
+    /// </summary>
+    private void OnViewportThrottleTick(object? sender, EventArgs e)
+    {
+        if (!_viewportDirty)
+        {
+            return;
+        }
+
+        _viewportDirty = false;
+        UpdateMainPlotViewport();
+        PlotModel.InvalidatePlot(true);
     }
 
     /// <summary>
@@ -753,14 +793,33 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             var (startIdx, endIdx) = MinMaxDownsampler.FindVisibleRange(allPoints, visibleMin, visibleMax);
             var visibleCount = endIdx - startIdx;
 
+            // Reuse cached list to avoid GC pressure during interaction
+            if (!_downsampledCache.TryGetValue(key, out var cached))
+            {
+                cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
+                _downsampledCache[key] = cached;
+            }
+
             if (visibleCount <= MAIN_PLOT_BUCKET_COUNT * 2)
             {
-                // Few enough points to render directly
-                series.ItemsSource = allPoints.GetRange(startIdx, visibleCount);
+                // Few enough points to render directly — copy into cached list
+                cached.Clear();
+                for (var i = startIdx; i < endIdx; i++)
+                {
+                    cached.Add(allPoints[i]);
+                }
             }
             else
             {
-                series.ItemsSource = MinMaxDownsampler.Downsample(allPoints, startIdx, endIdx, MAIN_PLOT_BUCKET_COUNT);
+                var downsampled = MinMaxDownsampler.Downsample(allPoints, startIdx, endIdx, MAIN_PLOT_BUCKET_COUNT);
+                cached.Clear();
+                cached.AddRange(downsampled);
+            }
+
+            // Only set ItemsSource once per series — subsequent updates reuse the same list
+            if (series.ItemsSource != cached)
+            {
+                series.ItemsSource = cached;
             }
         }
     }
