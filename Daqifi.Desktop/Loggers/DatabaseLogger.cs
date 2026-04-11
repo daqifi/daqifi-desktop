@@ -156,6 +156,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     /// </summary>
     [ObservableProperty]
     private bool _isLegendPanelVisible = true;
+
+    /// <summary>
+    /// Indicates whether a session with data is currently loaded.
+    /// Controls visibility of the minimap, legend, and empty state placeholder.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasSessionData;
     #endregion
 
     #region Legend
@@ -422,6 +429,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
             MinimapPlotModel.Series.Clear();
             MinimapPlotModel.InvalidatePlot(true);
+
+            HasSessionData = false;
         });
     }
 
@@ -577,6 +586,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                 }
 
                 MinimapPlotModel.InvalidatePlot(true);
+
+                HasSessionData = tempSeriesList.Count > 0;
 
                 OnPropertyChanged("SessionPoints"); // If SessionPoints is still relevant
                 PlotModel.InvalidatePlot(true);

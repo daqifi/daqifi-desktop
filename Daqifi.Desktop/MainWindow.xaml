@@ -469,18 +469,73 @@
                                     <Grid Grid.Column="0">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="*"/>
-                                            <RowDefinition Height="80"/>
+                                            <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
 
-                                        <oxy:PlotView Grid.Row="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0"/>
+                                        <oxy:PlotView Grid.Row="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0">
+                                            <oxy:PlotView.Style>
+                                                <Style TargetType="oxy:PlotView">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                                            <Setter Property="Visibility" Value="Hidden"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </oxy:PlotView.Style>
+                                        </oxy:PlotView>
+
+                                        <!-- Empty State Placeholder -->
+                                        <StackPanel Grid.Row="0"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <iconPacks:PackIconMaterial Kind="ChartLine" Width="48" Height="48"
+                                                                        HorizontalAlignment="Center"
+                                                                        Opacity="0.25"
+                                                                        Margin="0,0,0,12"/>
+                                            <TextBlock Text="Select a session to view data"
+                                                       FontSize="14"
+                                                       Opacity="0.4"
+                                                       HorizontalAlignment="Center"/>
+                                        </StackPanel>
 
                                         <!-- Save/Zoom button overlays on the main plot -->
                                         <DockPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                            <DockPanel.Style>
+                                                <Style TargetType="DockPanel">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </DockPanel.Style>
                                             <Button Command="{Binding DbLogger.SaveGraphCommand }" CommandParameter="{Binding}" ToolTip="Save as Image" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
                                                 <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                                             </Button>
                                         </DockPanel>
                                         <DockPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                            <DockPanel.Style>
+                                                <Style TargetType="DockPanel">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </DockPanel.Style>
                                             <Button Command="{Binding DbLogger.ZoomOutXCommand}" ToolTip="Zoom Out (Time)" VerticalAlignment="Bottom" Style="{StaticResource FadeButton}">
                                                 <Button.Content>
                                                     <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
@@ -510,16 +565,36 @@
                                             </StackPanel>
                                         </DockPanel>
 
-                                        <!-- Overview Minimap -->
+                                        <!-- Overview Minimap (hidden when no data) -->
                                         <oxy:PlotView Grid.Row="1"
                                                        Model="{Binding DbLogger.MinimapPlotModel}"
                                                        Margin="5,0,20,5"
-                                                       MinHeight="60"
-                                                       MaxHeight="100"/>
+                                                       Height="80">
+                                            <oxy:PlotView.Style>
+                                                <Style TargetType="oxy:PlotView">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </oxy:PlotView.Style>
+                                        </oxy:PlotView>
                                     </Grid>
 
-                                    <!-- Legend Panel with Collapse Toggle -->
+                                    <!-- Legend Panel with Collapse Toggle (hidden when no data) -->
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
                                         <!-- Collapse/Expand Toggle Button -->
                                         <Button Command="{Binding DbLogger.ToggleLegendPanelCommand}"
                                                 VerticalAlignment="Top"
