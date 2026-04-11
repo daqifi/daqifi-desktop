@@ -809,26 +809,39 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     [RelayCommand]
     private void ResetZoom()
     {
-        // Restore full-range downsampled data before resetting axes, otherwise
-        // OxyPlot auto-ranges to the current (viewport-subset) ItemsSource.
-        foreach (var series in PlotModel.Series.OfType<LineSeries>())
+        // Reset Y axes to auto-range for amplitude
+        foreach (var axis in PlotModel.Axes)
         {
-            if (series.Tag is not (string deviceSerial, string channelName))
+            if (axis.Key != "Time")
             {
-                continue;
+                axis.Reset();
             }
+        }
 
-            if (_allSessionPoints.TryGetValue((deviceSerial, channelName), out var allPoints) && allPoints.Count > 0)
+        // Compute the full data range from source data (not downsampled) and
+        // explicitly set the time axis rather than relying on auto-range, which
+        // would use the current ItemsSource extent (potentially narrowed by
+        // viewport downsampling).
+        var fullMin = double.MaxValue;
+        var fullMax = double.MinValue;
+        foreach (var kvp in _allSessionPoints)
+        {
+            if (kvp.Value.Count > 0)
             {
-                series.ItemsSource = allPoints.Count > MAIN_PLOT_BUCKET_COUNT * 2
-                    ? MinMaxDownsampler.Downsample(allPoints, MAIN_PLOT_BUCKET_COUNT)
-                    : allPoints;
+                fullMin = Math.Min(fullMin, kvp.Value[0].X);
+                fullMax = Math.Max(fullMax, kvp.Value[^1].X);
             }
+        }
+
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        if (timeAxis != null && fullMin < fullMax)
+        {
+            timeAxis.Zoom(fullMin, fullMax);
         }
 
         _lastViewportMin = double.NaN;
         _lastViewportMax = double.NaN;
-        PlotModel.ResetAllAxes();
+        UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
     }
 
