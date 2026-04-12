@@ -23,19 +23,21 @@ Use **viewport-aware MinMax downsampling**: on every viewport change, binary sea
 
 ### How it works
 
-1. Each channel's full dataset is kept in memory as a sorted `List<DataPoint>` (`_allSessionPoints`)
-2. When the viewport changes (minimap drag, zoom, pan), `UpdateMainPlotViewport()`:
-   - Binary searches for the visible range indices — O(log n) via `MinMaxDownsampler.FindVisibleRange()`
-   - If the visible slice is small enough (< 4000 points), uses it directly
-   - Otherwise, downsamples via `MinMaxDownsampler.Downsample(points, startIdx, endIdx, 2000)` — divides into 2000 buckets, emits the min and max Y value per bucket (up to 4000 output points)
-3. The downsampled data is written into a **reusable cached list** per series (not a new allocation) and set as the series' `ItemsSource`
-4. Viewport updates are **throttled to 60fps** via DispatcherTimer + dirty flag, both for minimap-driven changes and main plot pan/zoom
+**Session loading (two-phase progressive):**
+1. **Phase 1** (<1s): Load first 100K samples via index scan for immediate display
+2. **Phase 2** (~1-3s): Load a sampled overview via ~3000 targeted index seeks spread across the full time range. Each seek reads one batch of interleaved channel data. Result: ~3000 points/channel covering the full range
+
+**Viewport updates (drag vs settle):**
+1. **During interaction** (minimap drag, pan/zoom): `UpdateMainPlotViewport(highFidelity: false)` uses only in-memory sampled data. Binary searches for the visible range — O(log n) via `MinMaxDownsampler.FindVisibleRange()` — then downsamples to ~4000 points per channel via min/max aggregation. Written into a **reusable cached list** per series (no allocation).
+2. **On settle** (mouse-up or 200ms idle): `UpdateMainPlotViewport(highFidelity: true)` checks if the in-memory data is too sparse for the current zoom level. If so, fires an async background DB fetch using sampled index seeks within the visible window, then marshals results back to the UI thread. A `CancellationToken` ensures only the latest fetch completes.
+3. Viewport updates are **throttled to 60fps** via DispatcherTimer + dirty flag, both for minimap-driven changes and main plot pan/zoom
 
 ### Key files
 
 - `MinMaxDownsampler.cs` — binary search + min/max downsampling algorithm
-- `DatabaseLogger.UpdateMainPlotViewport()` — viewport change handler
-- `MinimapInteractionController.cs` — 60fps throttled minimap interaction
+- `DatabaseLogger.cs` — two-phase loading, viewport updates, async DB fetch (`UpdateMainPlotViewport`, `FetchViewportDataFromDb`, `LoadSampledData`)
+- `MinimapInteractionController.cs` — 60fps throttled minimap interaction with drag/settle distinction
+- `LoggingContext.cs` — composite DB index `IX_Samples_SessionTime` on `(LoggingSessionID, TimestampTicks)`
 
 ## Alternatives Considered
 
@@ -59,29 +61,38 @@ Replace OxyPlot with a GPU-backed charting library (e.g., SciChart, LiveCharts2 
 
 **Rejected because**: Major dependency change with significant migration cost. OxyPlot is well-integrated with our WPF MVVM architecture. Viewport-aware downsampling reduces the point count enough (~64K total) that OxyPlot renders comfortably within a 16ms frame budget. If we outgrow this approach, GPU rendering remains a future option.
 
-### 4. Virtual Scrolling / On-Demand DB Queries
+### 4. Virtual Scrolling / On-Demand DB Queries (Partially Adopted)
 
 Only load the visible time range from SQLite on each viewport change, avoiding keeping all data in memory.
 
-**Rejected because**: SQLite query latency (~5-50ms depending on range size) is too high for 60fps interaction. Users would see visible lag during minimap drag. Keeping data in memory with a practical cap (50M points, ~800MB) is the right trade-off for interactive performance. The DB index we added (`IX_Samples_SessionTime`) supports this pattern if we ever need to implement paging for truly enormous datasets.
+**Initially rejected** for pure on-demand because SQLite query latency is too high for 60fps continuous interaction (minimap drag, pan). **However**, we adopted a hybrid approach:
+
+- **During drag**: use in-memory sampled data only (3000 points/channel, loaded at session start via sampled index seeks). This guarantees <1ms viewport updates for smooth 60fps.
+- **On settle** (mouse-up or 200ms idle): fetch high-resolution data from SQLite for just the visible window via async sampled index seeks on a background thread. The composite index (`IX_Samples_SessionTime`) makes these seeks fast regardless of total dataset size.
+
+This gives the best of both worlds: instantaneous interaction with progressive refinement to full fidelity when the user stops moving.
 
 ## Consequences
 
 ### Positive
 
-- **60fps interaction**: ~10-15ms per frame with 16 channels × 1M points
-- **Full zoom fidelity**: Zooming into a 1-second window of a 24-hour session shows every data point
+- **60fps interaction**: <1ms per viewport update during drag (in-memory sampled data only)
+- **Full zoom fidelity**: Zooming into a 1-second window triggers an async DB fetch that fills in full-resolution data
+- **Fast session loading**: Two-phase progressive — data visible in <1s, full overview in ~1-3s regardless of dataset size
+- **Non-blocking UI**: DB fetches run on background thread with cancellation. A thin progress bar indicates when refinement is in progress
 - **Low complexity**: The core algorithm is ~80 lines (binary search + min/max loop)
 - **No external dependencies**: Pure C# implementation
 
 ### Negative
 
-- **Memory usage**: Full dataset lives in memory. Capped at 50M points (~800MB). Sessions exceeding this are truncated with a UI warning.
+- **Memory usage for overview**: Sampled data (~3000 points/channel) lives in memory. Much smaller than keeping the full dataset in memory.
 - **MinMax doesn't preserve exact X boundaries**: Downsampled first/last X values may differ from source data. This required explicit time axis ranging in `ResetZoom` instead of relying on OxyPlot auto-range (see `InvalidatePlot` gotchas in CLAUDE.md).
 - **List mutation pattern**: Reusing cached lists and calling `InvalidatePlot(true)` is non-obvious. `InvalidatePlot(false)` silently renders stale data. This is documented in CLAUDE.md but remains a footgun for future changes.
+- **Thread safety**: `_allSessionPoints` is written on background threads (session loading) and read on the UI thread (viewport updates). Currently relies on non-overlapping access patterns rather than explicit synchronization. A future refactor should add proper locking.
 
 ### Follow-up Work
 
-- If datasets exceed the 50M point memory cap, consider hybrid approach: keep a coarse in-memory overview + on-demand DB queries for zoomed-in detail
-- Monitor whether the `GetRange()` copy in the "few enough points" path becomes a bottleneck — could be replaced with a `ListSegment` wrapper if needed
+- Add thread synchronization for `_allSessionPoints` (lock or move all mutations to UI thread)
+- Add cancellation token to the consumer thread for clean shutdown on `Dispose()`
+- Existing DB migration path: the composite index `IX_Samples_SessionTime` is only created via `EnsureCreated`, not applied to existing databases. See GitHub issue #468 for the `EnsureCreated` → EF Core migrations switch.
 - PR #457 should be closed as superseded
