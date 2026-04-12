@@ -3,6 +3,7 @@ using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.View;
 using Daqifi.Desktop.WindowViewModelMapping;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -76,7 +77,15 @@ public partial class App
 
         // Apply database migrations before any DB access
         var contextFactory = ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
-        DatabaseMigrator.MigrateDatabase(contextFactory, DatabasePath);
+        if (DatabaseMigrator.PrepareMigration(contextFactory, DatabasePath))
+        {
+            var statusWindow = new MigrationStatusWindow();
+            statusWindow.Show();
+
+            DatabaseMigrator.ApplyMigrations(contextFactory, DatabasePath);
+
+            statusWindow.Close();
+        }
 
         // Create and show main window
         var view = new MainWindow();

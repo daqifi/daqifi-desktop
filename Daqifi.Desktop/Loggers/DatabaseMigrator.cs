@@ -18,27 +18,29 @@ public static class DatabaseMigrator
 
     #region Public Methods
     /// <summary>
-    /// Applies pending EF Core migrations. For existing databases created by
-    /// <c>EnsureCreated()</c> (which lack a <c>__EFMigrationsHistory</c> table),
-    /// seeds the migration history first so <c>Migrate()</c> does not attempt
-    /// to recreate existing tables.
+    /// Seeds migration history for existing databases and checks whether
+    /// there are pending migrations. Call this before <see cref="ApplyMigrations"/>
+    /// to determine if a status UI should be shown.
     /// </summary>
     /// <param name="contextFactory">The DbContext factory registered in DI.</param>
     /// <param name="databasePath">Full path to the SQLite database file.</param>
-    public static void MigrateDatabase(IDbContextFactory<LoggingContext> contextFactory, string databasePath)
+    /// <returns><c>true</c> if there are pending migrations to apply.</returns>
+    public static bool PrepareMigration(IDbContextFactory<LoggingContext> contextFactory, string databasePath)
     {
-        // Seed migration history before EF checks for pending migrations.
-        // Must happen first so EF can accurately determine what's pending.
         SeedMigrationHistoryIfNeeded(databasePath);
         SqliteConnection.ClearAllPools();
+        return HasPendingMigrations(contextFactory);
+    }
 
-        // Check if there are actually pending migrations before doing
-        // the expensive backup + migrate cycle.
-        if (!HasPendingMigrations(contextFactory))
-        {
-            return;
-        }
-
+    /// <summary>
+    /// Applies pending EF Core migrations with backup and rollback support.
+    /// Call <see cref="PrepareMigration"/> first to seed history and check
+    /// whether migrations are needed.
+    /// </summary>
+    /// <param name="contextFactory">The DbContext factory registered in DI.</param>
+    /// <param name="databasePath">Full path to the SQLite database file.</param>
+    public static void ApplyMigrations(IDbContextFactory<LoggingContext> contextFactory, string databasePath)
+    {
         var backupPath = BackupDatabase(databasePath);
         CheckpointWal(databasePath);
 
