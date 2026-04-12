@@ -27,11 +27,19 @@ public static class DatabaseMigrator
     /// <param name="databasePath">Full path to the SQLite database file.</param>
     public static void MigrateDatabase(IDbContextFactory<LoggingContext> contextFactory, string databasePath)
     {
-        var backupPath = BackupDatabase(databasePath);
+        // Seed migration history before EF checks for pending migrations.
+        // Must happen first so EF can accurately determine what's pending.
         SeedMigrationHistoryIfNeeded(databasePath);
-
-        // Clear pooled connections and stale WAL files to prevent lock conflicts
         SqliteConnection.ClearAllPools();
+
+        // Check if there are actually pending migrations before doing
+        // the expensive backup + migrate cycle.
+        if (!HasPendingMigrations(contextFactory))
+        {
+            return;
+        }
+
+        var backupPath = BackupDatabase(databasePath);
         CleanupWalFiles(databasePath);
 
         using var context = contextFactory.CreateDbContext();
@@ -43,6 +51,16 @@ public static class DatabaseMigrator
     #endregion
 
     #region Private Methods
+    /// <summary>
+    /// Checks whether there are any pending migrations to apply.
+    /// </summary>
+    private static bool HasPendingMigrations(IDbContextFactory<LoggingContext> contextFactory)
+    {
+        using var context = contextFactory.CreateDbContext();
+        var pending = context.Database.GetPendingMigrations();
+        return pending.Any();
+    }
+
     /// <summary>
     /// Creates a backup copy of the SQLite database file before applying migrations.
     /// </summary>
