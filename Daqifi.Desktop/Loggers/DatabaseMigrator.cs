@@ -40,10 +40,19 @@ public static class DatabaseMigrator
         }
 
         var backupPath = BackupDatabase(databasePath);
-        CleanupWalFiles(databasePath);
+        CheckpointWal(databasePath);
 
-        using var context = contextFactory.CreateDbContext();
-        context.Database.Migrate();
+        try
+        {
+            using var context = contextFactory.CreateDbContext();
+            context.Database.Migrate();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Instance.Error(ex, "Database migration failed");
+            RestoreBackup(backupPath, databasePath);
+            throw;
+        }
 
         CleanupBackup(backupPath);
         AppLogger.Instance.AddBreadcrumb("database", "Database migration completed successfully");
@@ -104,28 +113,47 @@ public static class DatabaseMigrator
     }
 
     /// <summary>
-    /// Removes WAL and SHM files that can hold stale locks from previous sessions.
+    /// Flushes the WAL journal into the main database file using PRAGMA wal_checkpoint.
+    /// This is safer than deleting WAL/SHM files directly, which could cause data loss
+    /// if uncommitted transactions exist.
     /// </summary>
-    private static void CleanupWalFiles(string databasePath)
+    private static void CheckpointWal(string databasePath)
     {
         try
         {
-            var walPath = databasePath + "-wal";
-            var shmPath = databasePath + "-shm";
+            var connectionString = $"Data source={databasePath}";
+            using var connection = new SqliteConnection(connectionString);
+            connection.Open();
 
-            if (File.Exists(walPath))
-            {
-                File.Delete(walPath);
-            }
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+            command.ExecuteNonQuery();
 
-            if (File.Exists(shmPath))
+            connection.Close();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Instance.Error(ex, "Failed to checkpoint WAL — migration will proceed anyway");
+        }
+    }
+
+    /// <summary>
+    /// Restores the database from backup after a failed migration.
+    /// </summary>
+    private static void RestoreBackup(string backupPath, string databasePath)
+    {
+        try
+        {
+            if (!string.IsNullOrEmpty(backupPath) && File.Exists(backupPath))
             {
-                File.Delete(shmPath);
+                SqliteConnection.ClearAllPools();
+                File.Copy(backupPath, databasePath, overwrite: true);
+                AppLogger.Instance.Error(null, "Database restored from backup after migration failure");
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Non-critical — WAL files will be recreated by SQLite
+            AppLogger.Instance.Error(ex, "Failed to restore database from backup — manual recovery may be needed");
         }
     }
 
