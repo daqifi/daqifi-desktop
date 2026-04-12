@@ -436,6 +436,11 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             _currentSessionId = null;
             _lastViewportMin = double.NaN;
             _lastViewportMax = double.NaN;
+            _fetchCts?.Cancel();
+            _fetchCts?.Dispose();
+            _fetchCts = null;
+            IsRefiningData = false;
+            _settleTimer.Stop();
             _allSessionPoints.Clear();
             _downsampledCache.Clear();
             _minimapSeries.Clear();
@@ -444,6 +449,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             DeviceLegendGroups.Clear();
             PlotModel.Title = string.Empty;
             PlotModel.Subtitle = string.Empty;
+
+            // Reset all axes so the new session starts at full extent
+            foreach (var axis in PlotModel.Axes)
+            {
+                axis.Reset();
+            }
+
             PlotModel.InvalidatePlot(true);
 
             MinimapPlotModel.Series.Clear();
