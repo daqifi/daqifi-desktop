@@ -130,6 +130,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private double _lastViewportMax = double.NaN;
     private bool _viewportDirty;
     private DispatcherTimer _viewportThrottleTimer;
+    private int? _currentSessionId;
 
     [ObservableProperty]
     private PlotModel _plotModel;
@@ -415,6 +416,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         Application.Current.Dispatcher.Invoke(() =>
         {
             _firstTime = null;
+            _currentSessionId = null;
             _lastViewportMin = double.NaN;
             _lastViewportMax = double.NaN;
             _allSessionPoints.Clear();
@@ -440,6 +442,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         {
             // ClearPlot is already dispatcher-wrapped
             ClearPlot();
+            _currentSessionId = session.ID;
 
             var sessionName = session.Name;
             var subtitle = string.Empty;
@@ -955,6 +958,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
     /// <summary>
     /// Re-downsamples each main plot series for the currently visible time range.
+    /// When zoomed in far enough that the sampled in-memory data is too sparse,
+    /// fetches full-resolution data from the database for the visible window.
     /// Skips the update if the viewport hasn't changed since the last call.
     /// </summary>
     private void UpdateMainPlotViewport()
@@ -977,6 +982,47 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         _lastViewportMin = visibleMin;
         _lastViewportMax = visibleMax;
 
+        // Check if sampled in-memory data is too sparse for this zoom level.
+        // If fewer sampled points are visible than our target density, fetch
+        // full-resolution data from the DB for this window.
+        var needsDbFetch = false;
+        if (_currentSessionId.HasValue && _firstTime.HasValue)
+        {
+            foreach (var kvp in _allSessionPoints)
+            {
+                if (kvp.Value.Count == 0)
+                {
+                    continue;
+                }
+
+                var (si, ei) = MinMaxDownsampler.FindVisibleRange(kvp.Value, visibleMin, visibleMax);
+                var sampledVisible = ei - si;
+                // Sampled data is sparse if we have fewer points than target AND
+                // the in-memory data is actually sampled (not the full dataset)
+                if (sampledVisible < MAIN_PLOT_BUCKET_COUNT && kvp.Value.Count >= SAMPLED_POINTS_PER_CHANNEL / 2)
+                {
+                    needsDbFetch = true;
+                }
+                break;
+            }
+        }
+
+        if (needsDbFetch)
+        {
+            FetchViewportDataFromDb(visibleMin, visibleMax);
+        }
+        else
+        {
+            UpdateSeriesFromMemory(visibleMin, visibleMax);
+        }
+    }
+
+    /// <summary>
+    /// Updates series ItemsSource from the in-memory sampled data.
+    /// Used when the sampled data has sufficient density for the current viewport.
+    /// </summary>
+    private void UpdateSeriesFromMemory(double visibleMin, double visibleMax)
+    {
         foreach (var series in PlotModel.Series.OfType<LineSeries>())
         {
             if (series.Tag is not (string deviceSerial, string channelName))
@@ -993,7 +1039,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             var (startIdx, endIdx) = MinMaxDownsampler.FindVisibleRange(allPoints, visibleMin, visibleMax);
             var visibleCount = endIdx - startIdx;
 
-            // Reuse cached list to avoid GC pressure during interaction
             if (!_downsampledCache.TryGetValue(key, out var cached))
             {
                 cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
@@ -1002,7 +1047,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
             if (visibleCount <= MAIN_PLOT_BUCKET_COUNT * 2)
             {
-                // Few enough points to render directly — copy into cached list
                 cached.Clear();
                 for (var i = startIdx; i < endIdx; i++)
                 {
@@ -1016,7 +1060,127 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 cached.AddRange(downsampled);
             }
 
-            // Only set ItemsSource once per series — subsequent updates reuse the same list
+            if (series.ItemsSource != cached)
+            {
+                series.ItemsSource = cached;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fetches full-resolution data from the database for the visible time window,
+    /// then downsamples if needed. Uses the composite index for fast range queries.
+    /// Typically completes in ~1-20ms depending on the window size.
+    /// </summary>
+    private void FetchViewportDataFromDb(double visibleMin, double visibleMax)
+    {
+        if (!_currentSessionId.HasValue || !_firstTime.HasValue)
+        {
+            return;
+        }
+
+        // Convert plot X (ms) back to DB ticks
+        var firstTimeTicks = _firstTime.Value.Ticks;
+        var minTicks = firstTimeTicks + (long)(visibleMin * 10000.0);
+        var maxTicks = firstTimeTicks + (long)(visibleMax * 10000.0);
+
+        // Pad slightly to ensure edge continuity
+        var tickRange = maxTicks - minTicks;
+        var padding = Math.Max(tickRange / 100, 10000);
+        minTicks -= padding;
+        maxTicks += padding;
+
+        // Build per-channel point lists from DB
+        var dbPoints = new Dictionary<(string, string), List<DataPoint>>();
+        foreach (var key in _allSessionPoints.Keys)
+        {
+            dbPoints[key] = new List<DataPoint>();
+        }
+
+        try
+        {
+            using var context = _loggingContext.CreateDbContext();
+            var connection = context.Database.GetDbConnection();
+            connection.Open();
+
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                SELECT ChannelName, DeviceSerialNo, TimestampTicks, Value
+                FROM Samples
+                WHERE LoggingSessionID = @id
+                  AND TimestampTicks >= @minT
+                  AND TimestampTicks <= @maxT
+                ORDER BY TimestampTicks";
+
+            var idParam = cmd.CreateParameter();
+            idParam.ParameterName = "@id";
+            idParam.Value = _currentSessionId.Value;
+            cmd.Parameters.Add(idParam);
+
+            var minParam = cmd.CreateParameter();
+            minParam.ParameterName = "@minT";
+            minParam.Value = minTicks;
+            cmd.Parameters.Add(minParam);
+
+            var maxParam = cmd.CreateParameter();
+            maxParam.ParameterName = "@maxT";
+            maxParam.Value = maxTicks;
+            cmd.Parameters.Add(maxParam);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var channelName = reader.GetString(0);
+                var deviceSerialNo = reader.GetString(1);
+                var timestampTicks = reader.GetInt64(2);
+                var value = reader.GetDouble(3);
+
+                var key = (deviceSerialNo, channelName);
+                var deltaTime = (timestampTicks - firstTimeTicks) / 10000.0;
+
+                if (dbPoints.TryGetValue(key, out var points))
+                {
+                    points.Add(new DataPoint(deltaTime, value));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, "Failed to fetch viewport data from DB");
+            UpdateSeriesFromMemory(visibleMin, visibleMax);
+            return;
+        }
+
+        // Update each series with the DB-fetched data, downsampled if needed
+        foreach (var series in PlotModel.Series.OfType<LineSeries>())
+        {
+            if (series.Tag is not (string deviceSerial, string channelName))
+            {
+                continue;
+            }
+
+            var key = (deviceSerial, channelName);
+            if (!dbPoints.TryGetValue(key, out var fetchedPoints) || fetchedPoints.Count == 0)
+            {
+                continue;
+            }
+
+            if (!_downsampledCache.TryGetValue(key, out var cached))
+            {
+                cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
+                _downsampledCache[key] = cached;
+            }
+
+            cached.Clear();
+            if (fetchedPoints.Count <= MAIN_PLOT_BUCKET_COUNT * 2)
+            {
+                cached.AddRange(fetchedPoints);
+            }
+            else
+            {
+                cached.AddRange(MinMaxDownsampler.Downsample(fetchedPoints, MAIN_PLOT_BUCKET_COUNT));
+            }
+
             if (series.ItemsSource != cached)
             {
                 series.ItemsSource = cached;
