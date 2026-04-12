@@ -3,8 +3,10 @@ using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.View;
 using Daqifi.Desktop.WindowViewModelMapping;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using System.IO;
 using System.Net.Http;
@@ -53,6 +55,7 @@ public partial class App
         var serviceCollection = new ServiceCollection();
         serviceCollection.AddDbContextFactory<LoggingContext>(options =>
             options.UseSqlite($"Data source={DatabasePath}")
+                .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
         );
 
         serviceCollection.AddLogging();
@@ -71,6 +74,25 @@ public partial class App
         ServiceLocator.RegisterSingleton<IWindowViewModelMappings, WindowViewModelMappings>();
 
         ServiceProvider = serviceCollection.BuildServiceProvider();
+
+        // Apply database migrations before any DB access.
+        // Temporarily switch to OnExplicitShutdown so closing the migration
+        // status window does not terminate the application.
+        var contextFactory = ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+        if (DatabaseMigrator.PrepareMigration(contextFactory, DatabasePath))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+            var statusWindow = new MigrationStatusWindow();
+            statusWindow.Show();
+
+            DatabaseMigrator.ApplyMigrations(contextFactory, DatabasePath);
+
+            statusWindow.Close();
+
+            ShutdownMode = ShutdownMode.OnLastWindowClose;
+        }
+
         // Create and show main window
         var view = new MainWindow();
         view.Show();

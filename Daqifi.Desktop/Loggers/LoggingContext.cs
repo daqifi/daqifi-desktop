@@ -7,14 +7,25 @@ public class LoggingContext : DbContext
 {
     public LoggingContext(DbContextOptions<LoggingContext> options) : base(options)
     {
-        Database.EnsureCreated();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<LoggingSession>().HasMany(c => c.DataSamples).WithOne(p => p.LoggingSession).IsRequired().OnDelete(DeleteBehavior.Cascade);
-        modelBuilder.Entity<LoggingSession>().Property(ls => ls.Name).IsRequired();
-        modelBuilder.Entity<Channel.Channel>().Ignore(c => c.ChannelColorBrush);
+        modelBuilder.Entity<LoggingSession>(entity =>
+        {
+            entity.ToTable("Sessions");
+            entity.HasMany(c => c.DataSamples).WithOne(p => p.LoggingSession).IsRequired().OnDelete(DeleteBehavior.Cascade);
+            entity.Property(ls => ls.Name).IsRequired();
+        });
+
+        modelBuilder.Entity<DataSample>().ToTable("Samples");
+
+        modelBuilder.Entity<Channel.Channel>(entity =>
+        {
+            entity.ToTable("Channel");
+            entity.Ignore(c => c.ChannelColorBrush);
+        });
+
         base.OnModelCreating(modelBuilder);
     }
 
