@@ -276,13 +276,19 @@ public class MinimapInteractionController : IDisposable
         {
             _dragMode = DragMode.None;
 
-            // Flush final render for accuracy
+            // Flush final render and trigger high-fidelity DB fetch
             if (_isDirty)
             {
                 _isDirty = false;
-                _databaseLogger.OnMinimapViewportChanged();
+                _databaseLogger.OnMinimapInteractionEnded();
                 _mainPlotModel.InvalidatePlot(true);
                 _minimapPlotModel.InvalidatePlot(false);
+            }
+            else
+            {
+                // Even if no pending render, trigger DB fetch for the final position
+                _databaseLogger.OnMinimapInteractionEnded();
+                _mainPlotModel.InvalidatePlot(true);
             }
 
             // Update cursor based on final position

@@ -130,6 +130,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private double _lastViewportMax = double.NaN;
     private bool _viewportDirty;
     private DispatcherTimer _viewportThrottleTimer;
+    private DispatcherTimer _settleTimer;
     private int? _currentSessionId;
 
     [ObservableProperty]
@@ -242,6 +243,14 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         };
         _viewportThrottleTimer.Tick += OnViewportThrottleTick;
         _viewportThrottleTimer.Start();
+
+        // Settle timer: triggers high-fidelity DB fetch 200ms after the last
+        // viewport change (covers both main plot pan/zoom and minimap drag)
+        _settleTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(200)
+        };
+        _settleTimer.Tick += OnSettleTick;
 
         // Initialize minimap PlotModel
         InitializeMinimapPlotModel();
@@ -952,7 +961,24 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         }
 
         _viewportDirty = false;
-        UpdateMainPlotViewport();
+        UpdateMainPlotViewport(highFidelity: false);
+        PlotModel.InvalidatePlot(true);
+
+        // Restart the settle timer — it will fire 200ms after the last change
+        _settleTimer.Stop();
+        _settleTimer.Start();
+    }
+
+    /// <summary>
+    /// Fires 200ms after the last viewport change. Triggers a high-fidelity
+    /// DB fetch so zoomed-in views show full-resolution data once interaction settles.
+    /// </summary>
+    private void OnSettleTick(object? sender, EventArgs e)
+    {
+        _settleTimer.Stop();
+        _lastViewportMin = double.NaN;
+        _lastViewportMax = double.NaN;
+        UpdateMainPlotViewport(highFidelity: true);
         PlotModel.InvalidatePlot(true);
     }
 
@@ -962,7 +988,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// fetches full-resolution data from the database for the visible window.
     /// Skips the update if the viewport hasn't changed since the last call.
     /// </summary>
-    private void UpdateMainPlotViewport()
+    private void UpdateMainPlotViewport(bool highFidelity = true)
     {
         var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
         if (timeAxis == null)
@@ -981,6 +1007,15 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
         _lastViewportMin = visibleMin;
         _lastViewportMax = visibleMax;
+
+        // During drag (highFidelity=false), always use fast in-memory data to
+        // maintain smooth 60fps. DB fetches only happen on settle (mouse up,
+        // zoom buttons) when highFidelity=true.
+        if (!highFidelity)
+        {
+            UpdateSeriesFromMemory(visibleMin, visibleMax);
+            return;
+        }
 
         // Check if sampled in-memory data is too sparse for this zoom level.
         // If fewer sampled points are visible than our target density, fetch
@@ -1189,12 +1224,24 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     }
 
     /// <summary>
-    /// Called by the minimap interaction controller to update the main plot's
-    /// viewport downsampling after a minimap-driven zoom/pan.
+    /// Called by the minimap interaction controller during drag to update the
+    /// main plot. Uses in-memory sampled data only (no DB queries) for smooth 60fps.
     /// </summary>
     public void OnMinimapViewportChanged()
     {
-        UpdateMainPlotViewport();
+        UpdateMainPlotViewport(highFidelity: false);
+    }
+
+    /// <summary>
+    /// Called when minimap interaction ends (mouse up). Fetches full-resolution
+    /// data from the database if the zoom level warrants it.
+    /// </summary>
+    public void OnMinimapInteractionEnded()
+    {
+        _settleTimer.Stop();
+        _lastViewportMin = double.NaN;
+        _lastViewportMax = double.NaN;
+        UpdateMainPlotViewport(highFidelity: true);
     }
 
     /// <summary>
@@ -1307,6 +1354,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     {
         _viewportThrottleTimer.Stop();
         _viewportThrottleTimer.Tick -= OnViewportThrottleTick;
+        _settleTimer.Stop();
+        _settleTimer.Tick -= OnSettleTick;
         _minimapInteraction?.Dispose();
         _buffer.Dispose();
         _consumerGate.Dispose();
