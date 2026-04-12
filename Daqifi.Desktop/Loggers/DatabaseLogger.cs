@@ -1017,9 +1017,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             return;
         }
 
-        // Check if sampled in-memory data is too sparse for this zoom level.
-        // If fewer sampled points are visible than our target density, fetch
-        // full-resolution data from the DB for this window.
+        // Check if ANY channel's sampled in-memory data is too sparse for
+        // this zoom level. If so, fetch full-resolution data from the DB.
         var needsDbFetch = false;
         if (_currentSessionId.HasValue && _firstTime.HasValue)
         {
@@ -1030,15 +1029,19 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                     continue;
                 }
 
+                // Only check channels that are actually sampled (not full datasets)
+                if (kvp.Value.Count < SAMPLED_POINTS_PER_CHANNEL / 2)
+                {
+                    continue;
+                }
+
                 var (si, ei) = MinMaxDownsampler.FindVisibleRange(kvp.Value, visibleMin, visibleMax);
                 var sampledVisible = ei - si;
-                // Sampled data is sparse if we have fewer points than target AND
-                // the in-memory data is actually sampled (not the full dataset)
-                if (sampledVisible < MAIN_PLOT_BUCKET_COUNT && kvp.Value.Count >= SAMPLED_POINTS_PER_CHANNEL / 2)
+                if (sampledVisible < MAIN_PLOT_BUCKET_COUNT)
                 {
                     needsDbFetch = true;
+                    break;
                 }
-                break;
             }
         }
 
@@ -1318,7 +1321,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     [RelayCommand]
     private void ZoomOutX()
     {
-        PlotModel.Axes[2].ZoomAtCenter(0.8);
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        timeAxis?.ZoomAtCenter(0.8);
         UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
     }
@@ -1326,7 +1330,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     [RelayCommand]
     private void ZoomInX()
     {
-        PlotModel.Axes[2].ZoomAtCenter(1.25);
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        timeAxis?.ZoomAtCenter(1.25);
         UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
     }
@@ -1334,14 +1339,16 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     [RelayCommand]
     private void ZoomOutY()
     {
-        PlotModel.Axes[0].ZoomAtCenter(0.8);
+        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Analog");
+        analogAxis?.ZoomAtCenter(0.8);
         PlotModel.InvalidatePlot(true);
     }
 
     [RelayCommand]
     private void ZoomInY()
     {
-        PlotModel.Axes[0].ZoomAtCenter(1.25);
+        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Analog");
+        analogAxis?.ZoomAtCenter(1.25);
         PlotModel.InvalidatePlot(true);
     }
     #endregion
