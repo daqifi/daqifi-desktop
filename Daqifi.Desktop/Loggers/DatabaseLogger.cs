@@ -132,6 +132,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private DispatcherTimer _viewportThrottleTimer;
     private DispatcherTimer _settleTimer;
     private int? _currentSessionId;
+    private CancellationTokenSource _fetchCts;
 
     [ObservableProperty]
     private PlotModel _plotModel;
@@ -154,6 +155,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// </summary>
     [ObservableProperty]
     private bool _hasSessionData;
+
+    /// <summary>
+    /// True while fetching high-fidelity data from the database in the background.
+    /// Bound to a subtle progress indicator in the UI.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isRefiningData;
     #endregion
 
     #region Legend
@@ -1106,9 +1114,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     }
 
     /// <summary>
-    /// Fetches full-resolution data from the database for the visible time window,
-    /// then downsamples if needed. Uses the composite index for fast range queries.
-    /// Typically completes in ~1-20ms depending on the window size.
+    /// Fetches high-resolution data from the database for the visible time window
+    /// using sampled index seeks (same technique as LoadSampledData). Runs on a
+    /// background thread to keep the UI responsive. Cancels any in-flight fetch
+    /// when a new one starts. Results are marshaled back to the UI thread.
     /// </summary>
     private void FetchViewportDataFromDb(double visibleMin, double visibleMax)
     {
@@ -1117,113 +1126,178 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             return;
         }
 
-        // Convert plot X (ms) back to DB ticks
+        // Cancel any in-flight fetch
+        _fetchCts?.Cancel();
+        _fetchCts?.Dispose();
+        _fetchCts = new CancellationTokenSource();
+        var ct = _fetchCts.Token;
+
+        var sessionId = _currentSessionId.Value;
         var firstTimeTicks = _firstTime.Value.Ticks;
+        var channelKeys = _allSessionPoints.Keys.ToList();
+
+        // Convert plot X (ms) back to DB ticks with padding
         var minTicks = firstTimeTicks + (long)(visibleMin * 10000.0);
         var maxTicks = firstTimeTicks + (long)(visibleMax * 10000.0);
-
-        // Pad slightly to ensure edge continuity
         var tickRange = maxTicks - minTicks;
         var padding = Math.Max(tickRange / 100, 10000);
         minTicks -= padding;
         maxTicks += padding;
 
-        // Build per-channel point lists from DB
-        var dbPoints = new Dictionary<(string, string), List<DataPoint>>();
-        foreach (var key in _allSessionPoints.Keys)
+        IsRefiningData = true;
+
+        Task.Run(() =>
         {
-            dbPoints[key] = new List<DataPoint>();
-        }
-
-        try
-        {
-            using var context = _loggingContext.CreateDbContext();
-            var connection = context.Database.GetDbConnection();
-            connection.Open();
-
-            using var cmd = connection.CreateCommand();
-            cmd.CommandText = @"
-                SELECT ChannelName, DeviceSerialNo, TimestampTicks, Value
-                FROM Samples
-                WHERE LoggingSessionID = @id
-                  AND TimestampTicks >= @minT
-                  AND TimestampTicks <= @maxT
-                ORDER BY TimestampTicks";
-
-            var idParam = cmd.CreateParameter();
-            idParam.ParameterName = "@id";
-            idParam.Value = _currentSessionId.Value;
-            cmd.Parameters.Add(idParam);
-
-            var minParam = cmd.CreateParameter();
-            minParam.ParameterName = "@minT";
-            minParam.Value = minTicks;
-            cmd.Parameters.Add(minParam);
-
-            var maxParam = cmd.CreateParameter();
-            maxParam.ParameterName = "@maxT";
-            maxParam.Value = maxTicks;
-            cmd.Parameters.Add(maxParam);
-
-            using var reader = cmd.ExecuteReader();
-            while (reader.Read())
+            var dbPoints = new Dictionary<(string, string), List<DataPoint>>();
+            foreach (var key in channelKeys)
             {
-                var channelName = reader.GetString(0);
-                var deviceSerialNo = reader.GetString(1);
-                var timestampTicks = reader.GetInt64(2);
-                var value = reader.GetDouble(3);
+                dbPoints[key] = new List<DataPoint>();
+            }
 
-                var key = (deviceSerialNo, channelName);
-                var deltaTime = (timestampTicks - firstTimeTicks) / 10000.0;
+            try
+            {
+                ct.ThrowIfCancellationRequested();
 
-                if (dbPoints.TryGetValue(key, out var points))
+                using var context = _loggingContext.CreateDbContext();
+                var connection = context.Database.GetDbConnection();
+                connection.Open();
+
+                // Use sampled seeks: divide the visible window into
+                // MAIN_PLOT_BUCKET_COUNT segments and read a small batch
+                // at each position. This reads ~4000 * channelCount rows
+                // instead of potentially millions.
+                var seekCount = MAIN_PLOT_BUCKET_COUNT;
+                var seekTickStep = (maxTicks - minTicks) / seekCount;
+                var batchSize = Math.Max(channelKeys.Count * 2, 100);
+
+                using var seekCmd = connection.CreateCommand();
+                seekCmd.CommandText = @"
+                    SELECT ChannelName, DeviceSerialNo, TimestampTicks, Value
+                    FROM Samples
+                    WHERE LoggingSessionID = @id
+                      AND TimestampTicks >= @t
+                      AND TimestampTicks <= @maxT
+                    ORDER BY TimestampTicks
+                    LIMIT @limit";
+
+                var idParam = seekCmd.CreateParameter();
+                idParam.ParameterName = "@id";
+                idParam.Value = sessionId;
+                seekCmd.Parameters.Add(idParam);
+
+                var tParam = seekCmd.CreateParameter();
+                tParam.ParameterName = "@t";
+                tParam.Value = minTicks;
+                seekCmd.Parameters.Add(tParam);
+
+                var maxTParam = seekCmd.CreateParameter();
+                maxTParam.ParameterName = "@maxT";
+                maxTParam.Value = maxTicks;
+                seekCmd.Parameters.Add(maxTParam);
+
+                var limitParam = seekCmd.CreateParameter();
+                limitParam.ParameterName = "@limit";
+                limitParam.Value = batchSize;
+                seekCmd.Parameters.Add(limitParam);
+
+                seekCmd.Prepare();
+
+                var lastAddedTimestamp = new Dictionary<(string, string), long>();
+
+                for (var i = 0; i < seekCount; i++)
                 {
-                    points.Add(new DataPoint(deltaTime, value));
+                    ct.ThrowIfCancellationRequested();
+
+                    tParam.Value = minTicks + i * seekTickStep;
+
+                    using var reader = seekCmd.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        var channelName = reader.GetString(0);
+                        var deviceSerialNo = reader.GetString(1);
+                        var timestampTicks = reader.GetInt64(2);
+                        var value = reader.GetDouble(3);
+
+                        var key = (deviceSerialNo, channelName);
+
+                        if (lastAddedTimestamp.TryGetValue(key, out var lastT) && timestampTicks <= lastT)
+                        {
+                            continue;
+                        }
+
+                        lastAddedTimestamp[key] = timestampTicks;
+                        var deltaTime = (timestampTicks - firstTimeTicks) / 10000.0;
+
+                        if (dbPoints.TryGetValue(key, out var points))
+                        {
+                            points.Add(new DataPoint(deltaTime, value));
+                        }
+                    }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex, "Failed to fetch viewport data from DB");
-            UpdateSeriesFromMemory(visibleMin, visibleMax);
-            return;
-        }
-
-        // Update each series with the DB-fetched data, downsampled if needed
-        foreach (var series in PlotModel.Series.OfType<LineSeries>())
-        {
-            if (series.Tag is not (string deviceSerial, string channelName))
+            catch (OperationCanceledException)
             {
-                continue;
+                return;
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Error(ex, "Failed to fetch viewport data from DB");
+                Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    IsRefiningData = false;
+                    UpdateSeriesFromMemory(visibleMin, visibleMax);
+                    PlotModel.InvalidatePlot(true);
+                });
+                return;
             }
 
-            var key = (deviceSerial, channelName);
-            if (!dbPoints.TryGetValue(key, out var fetchedPoints) || fetchedPoints.Count == 0)
+            // Marshal results back to UI thread
+            Application.Current?.Dispatcher.Invoke(() =>
             {
-                continue;
-            }
+                if (ct.IsCancellationRequested)
+                {
+                    return;
+                }
 
-            if (!_downsampledCache.TryGetValue(key, out var cached))
-            {
-                cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
-                _downsampledCache[key] = cached;
-            }
+                foreach (var series in PlotModel.Series.OfType<LineSeries>())
+                {
+                    if (series.Tag is not (string deviceSerial, string channelName))
+                    {
+                        continue;
+                    }
 
-            cached.Clear();
-            if (fetchedPoints.Count <= MAIN_PLOT_BUCKET_COUNT * 2)
-            {
-                cached.AddRange(fetchedPoints);
-            }
-            else
-            {
-                cached.AddRange(MinMaxDownsampler.Downsample(fetchedPoints, MAIN_PLOT_BUCKET_COUNT));
-            }
+                    var key = (deviceSerial, channelName);
+                    if (!dbPoints.TryGetValue(key, out var fetchedPoints) || fetchedPoints.Count == 0)
+                    {
+                        continue;
+                    }
 
-            if (series.ItemsSource != cached)
-            {
-                series.ItemsSource = cached;
-            }
-        }
+                    if (!_downsampledCache.TryGetValue(key, out var cached))
+                    {
+                        cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
+                        _downsampledCache[key] = cached;
+                    }
+
+                    cached.Clear();
+                    if (fetchedPoints.Count <= MAIN_PLOT_BUCKET_COUNT * 2)
+                    {
+                        cached.AddRange(fetchedPoints);
+                    }
+                    else
+                    {
+                        cached.AddRange(MinMaxDownsampler.Downsample(fetchedPoints, MAIN_PLOT_BUCKET_COUNT));
+                    }
+
+                    if (series.ItemsSource != cached)
+                    {
+                        series.ItemsSource = cached;
+                    }
+                }
+
+                IsRefiningData = false;
+                PlotModel.InvalidatePlot(true);
+            });
+        }, ct);
     }
 
     /// <summary>
@@ -1363,6 +1437,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         _viewportThrottleTimer.Tick -= OnViewportThrottleTick;
         _settleTimer.Stop();
         _settleTimer.Tick -= OnSettleTick;
+        _fetchCts?.Cancel();
+        _fetchCts?.Dispose();
         _minimapInteraction?.Dispose();
         _buffer.Dispose();
         _consumerGate.Dispose();
