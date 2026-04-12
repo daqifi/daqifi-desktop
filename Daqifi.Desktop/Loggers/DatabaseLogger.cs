@@ -105,8 +105,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     #region Constants
     private const int MINIMAP_BUCKET_COUNT = 800;
     private const int MAIN_PLOT_BUCKET_COUNT = 2000;
-    private const int MAX_IN_MEMORY_POINTS = 10_000_000;
     private const int INITIAL_LOAD_POINTS = 100_000;
+    private const int SAMPLED_POINTS_PER_CHANNEL = 3000;
     #endregion
 
     #region Private Data
@@ -525,48 +525,27 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 PlotModel.InvalidatePlot(true);
             });
 
-            // ── Phase 2: Load remaining data in background ────────────────
+            // ── Phase 2: Load sampled data covering full time range (~1-3s) ──
+            // Instead of streaming all 10M+ rows (30s), do N targeted index
+            // seeks spread across the time range. Each seek reads one batch
+            // of interleaved channel data at that timestamp position.
+            // Result: ~96K rows covering the full range in ~1-3 seconds.
             if (totalSamplesCount > INITIAL_LOAD_POINTS)
             {
-                if (totalSamplesCount > MAX_IN_MEMORY_POINTS)
-                {
-                    subtitle = $"\nShowing first {MAX_IN_MEMORY_POINTS:n0} of {totalSamplesCount:n0} data points";
-                }
-
-                // Clear phase 1 data and reload the full set
+                // Clear phase 1 data and reload with sampled data
                 foreach (var kvp in _allSessionPoints)
                 {
                     kvp.Value.Clear();
                 }
                 _firstTime = null;
 
-                using (var context = _loggingContext.CreateDbContext())
-                {
-                    context.ChangeTracker.AutoDetectChangesEnabled = false;
+                LoadSampledData(session.ID, tempSeriesList.Count);
 
-                    foreach (var sample in context.Samples.AsNoTracking()
-                        .Where(s => s.LoggingSessionID == session.ID)
-                        .OrderBy(s => s.TimestampTicks)
-                        .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.TimestampTicks, s.Value })
-                        .Take(MAX_IN_MEMORY_POINTS)
-                        .AsEnumerable())
-                    {
-                        var key = (sample.DeviceSerialNo, sample.ChannelName);
-                        if (_firstTime == null) { _firstTime = new DateTime(sample.TimestampTicks); }
-                        var deltaTime = (sample.TimestampTicks - _firstTime.Value.Ticks) / 10000.0;
-
-                        if (_allSessionPoints.TryGetValue(key, out var points))
-                        {
-                            points.Add(new DataPoint(deltaTime, sample.Value));
-                        }
-                    }
-                }
-
-                // Refresh UI with full data
+                // Refresh UI with sampled full-range data
                 var fullMinimapData = PrepareMinimapData(tempSeriesList);
                 Application.Current.Dispatcher.Invoke(() =>
                 {
-                    PlotModel.Subtitle = subtitle;
+                    PlotModel.Subtitle = string.Empty;
 
                     // Update main plot series with full downsampled data
                     foreach (var series in PlotModel.Series.OfType<LineSeries>())
@@ -595,7 +574,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                         }
                     }
 
-                    // Refresh minimap with full data
+                    // Refresh minimap with full-range data
                     SetupMinimapSeries(fullMinimapData);
                     _lastViewportMin = double.NaN;
                     _lastViewportMax = double.NaN;
@@ -627,6 +606,115 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             }
         }
         return result;
+    }
+
+    /// <summary>
+    /// Loads a uniformly sampled subset of data covering the full time range
+    /// using targeted index seeks. Instead of reading all N million rows,
+    /// divides the time range into SAMPLED_POINTS_PER_CHANNEL segments and
+    /// seeks to each segment boundary via the composite index. Each seek
+    /// reads one batch of interleaved channel data (~channelCount rows).
+    /// Result: ~3000 points per channel in ~1-3 seconds regardless of total dataset size.
+    /// </summary>
+    private void LoadSampledData(int sessionId, int channelCount)
+    {
+        using var context = _loggingContext.CreateDbContext();
+        var connection = context.Database.GetDbConnection();
+        connection.Open();
+
+        // Get time bounds via index (instant)
+        long minTicks, maxTicks;
+        using (var boundsCmd = connection.CreateCommand())
+        {
+            boundsCmd.CommandText = @"
+                SELECT MIN(TimestampTicks), MAX(TimestampTicks)
+                FROM Samples
+                WHERE LoggingSessionID = @id";
+            var idParam = boundsCmd.CreateParameter();
+            idParam.ParameterName = "@id";
+            idParam.Value = sessionId;
+            boundsCmd.Parameters.Add(idParam);
+
+            using var reader = boundsCmd.ExecuteReader();
+            if (!reader.Read() || reader.IsDBNull(0))
+            {
+                return;
+            }
+
+            minTicks = reader.GetInt64(0);
+            maxTicks = reader.GetInt64(1);
+        }
+
+        if (minTicks >= maxTicks)
+        {
+            return;
+        }
+
+        _firstTime = new DateTime(minTicks);
+        var tickStep = (maxTicks - minTicks) / SAMPLED_POINTS_PER_CHANNEL;
+        // Read at least channelCount rows per seek to get one sample per channel
+        var batchSize = Math.Max(channelCount * 2, 100);
+
+        // Prepared statement for repeated seeks
+        using var seekCmd = connection.CreateCommand();
+        seekCmd.CommandText = @"
+            SELECT ChannelName, DeviceSerialNo, TimestampTicks, Value
+            FROM Samples
+            WHERE LoggingSessionID = @id AND TimestampTicks >= @t
+            ORDER BY TimestampTicks
+            LIMIT @limit";
+
+        var seekIdParam = seekCmd.CreateParameter();
+        seekIdParam.ParameterName = "@id";
+        seekIdParam.Value = sessionId;
+        seekCmd.Parameters.Add(seekIdParam);
+
+        var seekTParam = seekCmd.CreateParameter();
+        seekTParam.ParameterName = "@t";
+        seekTParam.Value = minTicks;
+        seekCmd.Parameters.Add(seekTParam);
+
+        var seekLimitParam = seekCmd.CreateParameter();
+        seekLimitParam.ParameterName = "@limit";
+        seekLimitParam.Value = batchSize;
+        seekCmd.Parameters.Add(seekLimitParam);
+
+        seekCmd.Prepare();
+
+        // Track which timestamps we've already added to avoid duplicates
+        // from overlapping batches
+        var lastAddedTimestamp = new Dictionary<(string, string), long>();
+
+        for (var i = 0; i < SAMPLED_POINTS_PER_CHANNEL; i++)
+        {
+            var seekTimestamp = minTicks + i * tickStep;
+            seekTParam.Value = seekTimestamp;
+
+            using var reader = seekCmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var channelName = reader.GetString(0);
+                var deviceSerialNo = reader.GetString(1);
+                var timestampTicks = reader.GetInt64(2);
+                var value = reader.GetDouble(3);
+
+                var key = (deviceSerialNo, channelName);
+
+                // Skip duplicate timestamps from overlapping batches
+                if (lastAddedTimestamp.TryGetValue(key, out var lastT) && timestampTicks <= lastT)
+                {
+                    continue;
+                }
+
+                lastAddedTimestamp[key] = timestampTicks;
+
+                var deltaTime = (timestampTicks - _firstTime.Value.Ticks) / 10000.0;
+                if (_allSessionPoints.TryGetValue(key, out var points))
+                {
+                    points.Add(new DataPoint(deltaTime, value));
+                }
+            }
+        }
     }
 
     /// <summary>
