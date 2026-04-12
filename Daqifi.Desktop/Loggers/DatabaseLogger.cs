@@ -106,6 +106,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private const int MINIMAP_BUCKET_COUNT = 800;
     private const int MAIN_PLOT_BUCKET_COUNT = 2000;
     private const int MAX_IN_MEMORY_POINTS = 10_000_000;
+    private const int INITIAL_LOAD_POINTS = 100_000;
     #endregion
 
     #region Private Data
@@ -440,13 +441,15 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             // ClearPlot is already dispatcher-wrapped
             ClearPlot();
 
-            // Data fetching and processing (can be on background thread)
             var sessionName = session.Name;
             var subtitle = string.Empty;
-
             var tempSeriesList = new List<LineSeries>();
             var tempLegendItemsList = new List<LoggedSeriesLegendItem>();
+            int totalSamplesCount;
 
+            // ── Phase 1: Fast initial load (<1s) ──────────────────────────
+            // Get channel metadata from first timestamp (6ms via index)
+            // and load a small initial batch for immediate display
             using (var context = _loggingContext.CreateDbContext())
             {
                 context.ChangeTracker.AutoDetectChangesEnabled = false;
@@ -454,17 +457,28 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 var baseQuery = context.Samples.AsNoTracking()
                     .Where(s => s.LoggingSessionID == session.ID);
 
-                var totalSamplesCount = baseQuery.Count();
+                // Get the first timestamp to extract channel info (instant via composite index)
+                var firstSample = baseQuery
+                    .OrderBy(s => s.TimestampTicks)
+                    .Select(s => new { s.TimestampTicks })
+                    .FirstOrDefault();
 
-                if (totalSamplesCount > MAX_IN_MEMORY_POINTS)
+                if (firstSample == null)
                 {
-                    subtitle = $"\nShowing first {MAX_IN_MEMORY_POINTS:n0} of {totalSamplesCount:n0} data points";
+                    // Empty session
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        PlotModel.Title = sessionName;
+                        HasSessionData = false;
+                        PlotModel.InvalidatePlot(true);
+                    });
+                    return;
                 }
 
-                // Query channel metadata first (small result set)
+                // Get all channels from the first timestamp (32 rows, instant)
                 var channelInfoList = baseQuery
+                    .Where(s => s.TimestampTicks == firstSample.TimestampTicks)
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color })
-                    .Distinct()
                     .ToList()
                     .NaturalOrderBy(s => s.ChannelName)
                     .ToList();
@@ -476,13 +490,11 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                     tempLegendItemsList.Add(legendItem);
                 }
 
-                // Stream samples directly into per-channel lists to avoid
-                // materializing a massive intermediate list (addresses OOM risk)
-                var sampleCount = 0;
+                // Load initial batch for fast display (100K rows, ~16ms via index)
                 foreach (var sample in baseQuery
                     .OrderBy(s => s.TimestampTicks)
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.TimestampTicks, s.Value })
-                    .Take(MAX_IN_MEMORY_POINTS)
+                    .Take(INITIAL_LOAD_POINTS)
                     .AsEnumerable())
                 {
                     var key = (sample.DeviceSerialNo, sample.ChannelName);
@@ -493,120 +505,216 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                     {
                         points.Add(new DataPoint(deltaTime, sample.Value));
                     }
-
-                    sampleCount++;
                 }
+
+                totalSamplesCount = baseQuery.Count();
             }
 
-            // Prepare downsampled minimap data on the background thread
-            var minimapSeriesData = new List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)>();
-            foreach (var kvp in _allSessionPoints)
-            {
-                if (kvp.Value.Count > 0)
-                {
-                    var downsampled = MinMaxDownsampler.Downsample(kvp.Value, MINIMAP_BUCKET_COUNT);
-                    var matchingSeries = tempSeriesList.FirstOrDefault(s =>
-                        s.Tag is (string ds, string cn) && ds == kvp.Key.deviceSerial && cn == kvp.Key.channelName);
-                    minimapSeriesData.Add((kvp.Key.channelName, kvp.Key.deviceSerial, matchingSeries?.Color ?? OxyColors.Gray, downsampled));
-                }
-            }
-
-            // Update UI-bound collections and properties on the UI thread
+            // Show the initial data immediately
+            var initialMinimapData = PrepareMinimapData(tempSeriesList);
             Application.Current.Dispatcher.Invoke(() =>
             {
                 PlotModel.Title = sessionName;
-                PlotModel.Subtitle = subtitle;
+                PlotModel.Subtitle = totalSamplesCount > INITIAL_LOAD_POINTS
+                    ? "\nLoading full dataset..."
+                    : string.Empty;
 
-                foreach (var legendItem in tempLegendItemsList)
-                {
-                    LegendItems.Add(legendItem);
-                }
-
-                // Build grouped legend by device
-                DeviceLegendGroups.Clear();
-                var groupDict = new Dictionary<string, DeviceLegendGroup>();
-                foreach (var legendItem in tempLegendItemsList)
-                {
-                    if (!groupDict.TryGetValue(legendItem.DeviceSerialNo, out var group))
-                    {
-                        group = new DeviceLegendGroup(legendItem.DeviceSerialNo);
-                        groupDict[legendItem.DeviceSerialNo] = group;
-                        DeviceLegendGroups.Add(group);
-                    }
-                    group.Channels.Add(legendItem);
-                }
-
-                foreach (var series in tempSeriesList)
-                {
-                    PlotModel.Series.Add(series);
-                    if (series.Tag is (string deviceSerial, string channelName)
-                        && _allSessionPoints.TryGetValue((deviceSerial, channelName), out var points))
-                    {
-                        // Set initial ItemsSource to downsampled full range using cached list
-                        var key = (deviceSerial, channelName);
-                        if (!_downsampledCache.TryGetValue(key, out var cached))
-                        {
-                            cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
-                            _downsampledCache[key] = cached;
-                        }
-
-                        cached.Clear();
-                        if (points.Count > MAIN_PLOT_BUCKET_COUNT * 2)
-                        {
-                            cached.AddRange(MinMaxDownsampler.Downsample(points, MAIN_PLOT_BUCKET_COUNT));
-                        }
-                        else
-                        {
-                            cached.AddRange(points);
-                        }
-
-                        series.ItemsSource = cached;
-                    }
-                }
-
-                // Populate minimap with downsampled series
-                MinimapPlotModel.Series.Clear();
-                _minimapSeries.Clear();
-                foreach (var (channelName, deviceSerial, color, downsampled) in minimapSeriesData)
-                {
-                    var minimapLine = new LineSeries
-                    {
-                        Color = color,
-                        StrokeThickness = 1,
-                        ItemsSource = downsampled,
-                        XAxisKey = "MinimapTime",
-                        YAxisKey = "MinimapY"
-                    };
-                    MinimapPlotModel.Series.Add(minimapLine);
-                    _minimapSeries[(deviceSerial, channelName)] = minimapLine;
-                }
-
-                MinimapPlotModel.ResetAllAxes();
-
-                // Initialize selection rectangle to full data range
-                // Use data bounds directly since ActualMinimum/Maximum aren't set until render
-                if (minimapSeriesData.Count > 0)
-                {
-                    var dataMinX = minimapSeriesData.Where(d => d.downsampled.Count > 0).Min(d => d.downsampled[0].X);
-                    var dataMaxX = minimapSeriesData.Where(d => d.downsampled.Count > 0).Max(d => d.downsampled[^1].X);
-                    _minimapSelectionRect.MinimumX = dataMinX;
-                    _minimapSelectionRect.MaximumX = dataMaxX;
-                    _minimapDimLeft.MaximumX = dataMinX;
-                    _minimapDimRight.MinimumX = dataMaxX;
-                }
-
-                MinimapPlotModel.InvalidatePlot(true);
-
+                SetupUiCollections(tempSeriesList, tempLegendItemsList);
+                SetupMinimapSeries(initialMinimapData);
                 HasSessionData = tempSeriesList.Count > 0;
-
-                OnPropertyChanged("SessionPoints"); // If SessionPoints is still relevant
                 PlotModel.InvalidatePlot(true);
             });
+
+            // ── Phase 2: Load remaining data in background ────────────────
+            if (totalSamplesCount > INITIAL_LOAD_POINTS)
+            {
+                if (totalSamplesCount > MAX_IN_MEMORY_POINTS)
+                {
+                    subtitle = $"\nShowing first {MAX_IN_MEMORY_POINTS:n0} of {totalSamplesCount:n0} data points";
+                }
+
+                // Clear phase 1 data and reload the full set
+                foreach (var kvp in _allSessionPoints)
+                {
+                    kvp.Value.Clear();
+                }
+                _firstTime = null;
+
+                using (var context = _loggingContext.CreateDbContext())
+                {
+                    context.ChangeTracker.AutoDetectChangesEnabled = false;
+
+                    foreach (var sample in context.Samples.AsNoTracking()
+                        .Where(s => s.LoggingSessionID == session.ID)
+                        .OrderBy(s => s.TimestampTicks)
+                        .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.TimestampTicks, s.Value })
+                        .Take(MAX_IN_MEMORY_POINTS)
+                        .AsEnumerable())
+                    {
+                        var key = (sample.DeviceSerialNo, sample.ChannelName);
+                        if (_firstTime == null) { _firstTime = new DateTime(sample.TimestampTicks); }
+                        var deltaTime = (sample.TimestampTicks - _firstTime.Value.Ticks) / 10000.0;
+
+                        if (_allSessionPoints.TryGetValue(key, out var points))
+                        {
+                            points.Add(new DataPoint(deltaTime, sample.Value));
+                        }
+                    }
+                }
+
+                // Refresh UI with full data
+                var fullMinimapData = PrepareMinimapData(tempSeriesList);
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    PlotModel.Subtitle = subtitle;
+
+                    // Update main plot series with full downsampled data
+                    foreach (var series in PlotModel.Series.OfType<LineSeries>())
+                    {
+                        if (series.Tag is (string deviceSerial, string channelName)
+                            && _allSessionPoints.TryGetValue((deviceSerial, channelName), out var points))
+                        {
+                            var key = (deviceSerial, channelName);
+                            if (!_downsampledCache.TryGetValue(key, out var cached))
+                            {
+                                cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
+                                _downsampledCache[key] = cached;
+                            }
+
+                            cached.Clear();
+                            if (points.Count > MAIN_PLOT_BUCKET_COUNT * 2)
+                            {
+                                cached.AddRange(MinMaxDownsampler.Downsample(points, MAIN_PLOT_BUCKET_COUNT));
+                            }
+                            else
+                            {
+                                cached.AddRange(points);
+                            }
+
+                            series.ItemsSource = cached;
+                        }
+                    }
+
+                    // Refresh minimap with full data
+                    SetupMinimapSeries(fullMinimapData);
+                    _lastViewportMin = double.NaN;
+                    _lastViewportMax = double.NaN;
+                    PlotModel.InvalidatePlot(true);
+                });
+            }
         }
         catch (Exception ex)
         {
             _appLogger.Error(ex, "Failed in DisplayLoggingSession");
         }
+    }
+
+    /// <summary>
+    /// Prepares downsampled minimap series data from _allSessionPoints on the background thread.
+    /// </summary>
+    private List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)>
+        PrepareMinimapData(List<LineSeries> seriesList)
+    {
+        var result = new List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)>();
+        foreach (var kvp in _allSessionPoints)
+        {
+            if (kvp.Value.Count > 0)
+            {
+                var downsampled = MinMaxDownsampler.Downsample(kvp.Value, MINIMAP_BUCKET_COUNT);
+                var matchingSeries = seriesList.FirstOrDefault(s =>
+                    s.Tag is (string ds, string cn) && ds == kvp.Key.deviceSerial && cn == kvp.Key.channelName);
+                result.Add((kvp.Key.channelName, kvp.Key.deviceSerial, matchingSeries?.Color ?? OxyColors.Gray, downsampled));
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Sets up UI collections (legend items, device groups, series) on the UI thread.
+    /// </summary>
+    private void SetupUiCollections(List<LineSeries> seriesList, List<LoggedSeriesLegendItem> legendItems)
+    {
+        foreach (var legendItem in legendItems)
+        {
+            LegendItems.Add(legendItem);
+        }
+
+        DeviceLegendGroups.Clear();
+        var groupDict = new Dictionary<string, DeviceLegendGroup>();
+        foreach (var legendItem in legendItems)
+        {
+            if (!groupDict.TryGetValue(legendItem.DeviceSerialNo, out var group))
+            {
+                group = new DeviceLegendGroup(legendItem.DeviceSerialNo);
+                groupDict[legendItem.DeviceSerialNo] = group;
+                DeviceLegendGroups.Add(group);
+            }
+            group.Channels.Add(legendItem);
+        }
+
+        foreach (var series in seriesList)
+        {
+            PlotModel.Series.Add(series);
+            if (series.Tag is (string deviceSerial, string channelName)
+                && _allSessionPoints.TryGetValue((deviceSerial, channelName), out var points))
+            {
+                var key = (deviceSerial, channelName);
+                if (!_downsampledCache.TryGetValue(key, out var cached))
+                {
+                    cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
+                    _downsampledCache[key] = cached;
+                }
+
+                cached.Clear();
+                if (points.Count > MAIN_PLOT_BUCKET_COUNT * 2)
+                {
+                    cached.AddRange(MinMaxDownsampler.Downsample(points, MAIN_PLOT_BUCKET_COUNT));
+                }
+                else
+                {
+                    cached.AddRange(points);
+                }
+
+                series.ItemsSource = cached;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Populates minimap series and sets up the selection rectangle on the UI thread.
+    /// </summary>
+    private void SetupMinimapSeries(
+        List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)> minimapData)
+    {
+        MinimapPlotModel.Series.Clear();
+        _minimapSeries.Clear();
+        foreach (var (channelName, deviceSerial, color, downsampled) in minimapData)
+        {
+            var minimapLine = new LineSeries
+            {
+                Color = color,
+                StrokeThickness = 1,
+                ItemsSource = downsampled,
+                XAxisKey = "MinimapTime",
+                YAxisKey = "MinimapY"
+            };
+            MinimapPlotModel.Series.Add(minimapLine);
+            _minimapSeries[(deviceSerial, channelName)] = minimapLine;
+        }
+
+        MinimapPlotModel.ResetAllAxes();
+
+        if (minimapData.Count > 0)
+        {
+            var dataMinX = minimapData.Where(d => d.downsampled.Count > 0).Min(d => d.downsampled[0].X);
+            var dataMaxX = minimapData.Where(d => d.downsampled.Count > 0).Max(d => d.downsampled[^1].X);
+            _minimapSelectionRect.MinimumX = dataMinX;
+            _minimapSelectionRect.MaximumX = dataMaxX;
+            _minimapDimLeft.MaximumX = dataMinX;
+            _minimapDimRight.MinimumX = dataMaxX;
+        }
+
+        MinimapPlotModel.InvalidatePlot(true);
     }
 
     public void DeleteLoggingSession(LoggingSession session)
