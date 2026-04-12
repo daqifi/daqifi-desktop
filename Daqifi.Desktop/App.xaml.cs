@@ -75,16 +75,22 @@ public partial class App
 
         ServiceProvider = serviceCollection.BuildServiceProvider();
 
-        // Apply database migrations before any DB access
+        // Apply database migrations before any DB access.
+        // Temporarily switch to OnExplicitShutdown so closing the migration
+        // status window does not terminate the application.
         var contextFactory = ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
         if (DatabaseMigrator.PrepareMigration(contextFactory, DatabasePath))
         {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
             var statusWindow = new MigrationStatusWindow();
             statusWindow.Show();
 
             DatabaseMigrator.ApplyMigrations(contextFactory, DatabasePath);
 
             statusWindow.Close();
+
+            ShutdownMode = ShutdownMode.OnLastWindowClose;
         }
 
         // Create and show main window
