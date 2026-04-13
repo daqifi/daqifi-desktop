@@ -133,6 +133,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private DispatcherTimer _settleTimer;
     private int? _currentSessionId;
     private CancellationTokenSource _fetchCts;
+    private readonly CancellationTokenSource _consumerCts = new();
 
     [ObservableProperty]
     private PlotModel _plotModel;
@@ -388,18 +389,20 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     {
         var samples = new List<DataSample>();
         int bufferCount;
-        while (true)
+        while (!_consumerCts.IsCancellationRequested)
         {
             try
             {
                 Thread.Sleep(100);
+
+                if (_consumerCts.IsCancellationRequested) { break; }
 
                 bufferCount = _buffer.Count;
 
                 if (bufferCount < 1) { continue; }
 
                 // Wait if the consumer is suspended (e.g. during delete-all)
-                _consumerGate.Wait();
+                _consumerGate.Wait(_consumerCts.Token);
 
                 // Remove the samples from the collection
                 for (var i = 0; i < bufferCount; i++)
@@ -420,8 +423,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 }
                 samples.Clear();
             }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
             catch (Exception ex)
             {
+                if (_consumerCts.IsCancellationRequested) { break; }
                 _appLogger.Error(ex, "Failed in Consumer Thread");
             }
         }
@@ -1481,7 +1489,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         }
 
         _minimapInteraction?.Dispose();
+        _consumerCts.Cancel();
+        _buffer.CompleteAdding();
         _buffer.Dispose();
+        _consumerCts.Dispose();
         _consumerGate.Dispose();
     }
     #endregion
