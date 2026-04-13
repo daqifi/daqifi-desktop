@@ -683,7 +683,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         }
 
         _firstTime = new DateTime(minTicks);
-        var tickStep = (maxTicks - minTicks) / SAMPLED_POINTS_PER_CHANNEL;
+        var tickStep = Math.Max(1, (maxTicks - minTicks) / SAMPLED_POINTS_PER_CHANNEL);
         // Read at least channelCount rows per seek to get one sample per channel
         var batchSize = Math.Max(channelCount * 2, 100);
 
@@ -717,9 +717,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         // from overlapping batches
         var lastAddedTimestamp = new Dictionary<(string, string), long>();
 
-        for (var i = 0; i < SAMPLED_POINTS_PER_CHANNEL; i++)
+        // Use <= so the final iteration (i == SAMPLED_POINTS_PER_CHANNEL)
+        // seeks at maxTicks, ensuring the session tail is always included
+        for (var i = 0; i <= SAMPLED_POINTS_PER_CHANNEL; i++)
         {
-            var seekTimestamp = minTicks + i * tickStep;
+            var seekTimestamp = i < SAMPLED_POINTS_PER_CHANNEL
+                ? minTicks + i * tickStep
+                : maxTicks;
             seekTParam.Value = seekTimestamp;
 
             using var reader = seekCmd.ExecuteReader();
@@ -822,12 +826,20 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             _minimapSeries[(deviceSerial, channelName)] = minimapLine;
         }
 
-        MinimapPlotModel.ResetAllAxes();
-
-        if (minimapData.Count > 0)
+        // Set minimap axes from source data bounds (not auto-range, which
+        // reads downsampled ItemsSource and may have shifted boundaries)
+        var nonEmpty = minimapData.Where(d => d.downsampled.Count > 0).ToList();
+        if (nonEmpty.Count > 0)
         {
-            var dataMinX = minimapData.Where(d => d.downsampled.Count > 0).Min(d => d.downsampled[0].X);
-            var dataMaxX = minimapData.Where(d => d.downsampled.Count > 0).Max(d => d.downsampled[^1].X);
+            var dataMinX = nonEmpty.Min(d => d.downsampled[0].X);
+            var dataMaxX = nonEmpty.Max(d => d.downsampled[^1].X);
+
+            var minimapTimeAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == "MinimapTime");
+            minimapTimeAxis?.Zoom(dataMinX, dataMaxX);
+
+            var minimapYAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == "MinimapY");
+            minimapYAxis?.Reset();
+
             _minimapSelectionRect.MinimumX = dataMinX;
             _minimapSelectionRect.MaximumX = dataMaxX;
             _minimapDimLeft.MaximumX = dataMinX;
@@ -1027,6 +1039,16 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
         _lastViewportMin = visibleMin;
         _lastViewportMax = visibleMax;
+
+        // Cancel any in-flight DB fetch — the viewport has changed, so its
+        // results would be stale and could overwrite the current view
+        if (_fetchCts != null)
+        {
+            _fetchCts.Cancel();
+            _fetchCts.Dispose();
+            _fetchCts = null;
+            IsRefiningData = false;
+        }
 
         // During drag (highFidelity=false), always use fast in-memory data to
         // maintain smooth 60fps. DB fetches only happen on settle (mouse up,
@@ -1451,6 +1473,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         _settleTimer.Tick -= OnSettleTick;
         _fetchCts?.Cancel();
         _fetchCts?.Dispose();
+
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        if (timeAxis != null)
+        {
+            timeAxis.AxisChanged -= OnMainTimeAxisChanged;
+        }
+
         _minimapInteraction?.Dispose();
         _buffer.Dispose();
         _consumerGate.Dispose();
