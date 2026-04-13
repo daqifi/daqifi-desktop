@@ -482,6 +482,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         });
     }
 
+    /// <summary>
+    /// Loads and displays a logging session on the plot. Designed to be called from a
+    /// background thread (e.g., BackgroundWorker). Builds point data in local dictionaries
+    /// on the calling thread, then swaps references atomically on the UI thread via
+    /// Dispatcher.Invoke to avoid concurrent access to shared state.
+    /// </summary>
+    /// <param name="session">The logging session to display.</param>
     public void DisplayLoggingSession(LoggingSession session)
     {
         try
@@ -565,6 +572,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 totalSamplesCount = baseQuery.Count();
             }
 
+            // Snapshot channel keys before the swap — after the swap, localPoints
+            // becomes UI-owned and must not be accessed from this background thread.
+            var channelKeys = localPoints.Keys.ToList();
+
             // Show the initial data immediately — swap local data to shared state on UI thread
             var initialMinimapData = PrepareMinimapData(tempSeriesList, localPoints);
             Application.Current.Dispatcher.Invoke(() =>
@@ -590,9 +601,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             // Result: ~96K rows covering the full range in ~1-3 seconds.
             if (totalSamplesCount > INITIAL_LOAD_POINTS)
             {
-                // Build Phase 2 data in a fresh local dictionary
+                // Build Phase 2 data in a fresh local dictionary using the
+                // snapshotted keys (not localPoints, which is now UI-owned)
                 var phase2Points = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
-                foreach (var key in localPoints.Keys)
+                foreach (var key in channelKeys)
                 {
                     phase2Points.Add(key, []);
                 }
