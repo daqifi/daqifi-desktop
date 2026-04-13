@@ -242,6 +242,7 @@ When working on:
 - **Firewall/Network**: Ensure admin privileges handled properly, verify ports match
 - **WiFi Discovery Issues**: Check network interface detection and port configuration
 - **Manual IP Connections**: Ensure TCP port matches what device discovery reports
+- **Plot/Minimap changes**: Read the "Plot Rendering (OxyPlot)" section below — there are non-obvious gotchas with `InvalidatePlot`, auto-range, and feedback loops. Key files: `DatabaseLogger.cs`, `MinimapInteractionController.cs`, `MinMaxDownsampler.cs`
 - **New features**: Add unit tests with 80% coverage minimum
 
 ## Performance Considerations
@@ -251,6 +252,18 @@ When working on:
 - Avoid blocking UI thread
 - Use dependency injection for testability
 - Cache expensive operations
+
+### Plot Rendering (OxyPlot)
+
+The logged data viewer uses viewport-aware downsampling with progressive loading for 60fps interaction with large datasets. See [ADR 001](docs/adr/001-viewport-aware-downsampling.md) for full context. Key gotchas when modifying plot code:
+
+- **`InvalidatePlot(true)` vs `(false)`**: Use `true` whenever `ItemsSource` or its underlying list has changed — `false` renders stale cached data
+- **Don't use `ResetAllAxes()` with downsampled data**: Auto-range reads from `ItemsSource`, which may have shifted X boundaries. Use explicit `axis.Zoom(min, max)` from source data
+- **Guard flag for minimap sync**: Always set `IsSyncingFromMinimap` before programmatic axis changes to prevent feedback loops
+- **Reuse cached lists**: Don't allocate new `List<DataPoint>` per frame — use `_downsampledCache`
+- **High-fidelity DB fetch is async**: `FetchViewportDataFromDb` runs on a background thread. Cancel in-flight fetches via `_fetchCts` before starting new ones. Results marshal back to UI via `Dispatcher.Invoke`
+- **Drag vs settle pattern**: During continuous interaction (minimap drag, main plot pan), use only in-memory sampled data (`highFidelity: false`). DB fetches happen on mouse-up or after 200ms idle (`highFidelity: true`)
+- **Session switching must reset axes**: `ClearPlot()` calls `axis.Reset()` on all axes. Without this, the new session inherits the previous session's zoom range
 
 ## Error Handling
 

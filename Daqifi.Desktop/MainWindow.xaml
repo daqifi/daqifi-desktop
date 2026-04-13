@@ -470,6 +470,7 @@
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="*"/>
                                             <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
 
                                         <oxy:PlotView Grid.Row="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0">
@@ -565,8 +566,28 @@
                                             </StackPanel>
                                         </DockPanel>
 
+                                        <!-- Refining data indicator — thin bar between plot and minimap -->
+                                        <ProgressBar Grid.Row="1"
+                                                     IsIndeterminate="{Binding DbLogger.IsRefiningData}"
+                                                     Height="2"
+                                                     Margin="5,0,20,0"
+                                                     Background="Transparent"
+                                                     Foreground="#119EDA"
+                                                     BorderThickness="0">
+                                            <ProgressBar.Style>
+                                                <Style TargetType="ProgressBar">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DbLogger.IsRefiningData}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ProgressBar.Style>
+                                        </ProgressBar>
+
                                         <!-- Overview Minimap (hidden when no data) -->
-                                        <oxy:PlotView Grid.Row="1"
+                                        <oxy:PlotView Grid.Row="2"
                                                        Model="{Binding DbLogger.MinimapPlotModel}"
                                                        Margin="5,0,20,5"
                                                        Height="80">

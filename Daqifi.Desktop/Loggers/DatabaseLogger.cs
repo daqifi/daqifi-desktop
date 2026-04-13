@@ -18,6 +18,7 @@ using Microsoft.EntityFrameworkCore;
 using EFCore.BulkExtensions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.Windows.Threading;
 using Application = System.Windows.Application;
 using FontWeights = OxyPlot.FontWeights;
 
@@ -99,18 +100,21 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     }
 }
 
-public partial class DatabaseLogger : ObservableObject, ILogger
+public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 {
     #region Constants
     private const int MINIMAP_BUCKET_COUNT = 800;
+    private const int MAIN_PLOT_BUCKET_COUNT = 2000;
+    private const int INITIAL_LOAD_POINTS = 100_000;
+    private const int SAMPLED_POINTS_PER_CHANNEL = 3000;
     #endregion
 
     #region Private Data
     public ObservableCollection<LoggedSeriesLegendItem> LegendItems { get; } = new();
     public ObservableCollection<DeviceLegendGroup> DeviceLegendGroups { get; } = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
+    private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _downsampledCache = new();
     private readonly BlockingCollection<DataSample> _buffer = new();
-    private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _sessionPoints = new();
     private readonly Dictionary<(string deviceSerial, string channelName), LineSeries> _minimapSeries = new();
 
     private DateTime? _firstTime;
@@ -121,6 +125,14 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private RectangleAnnotation _minimapDimLeft;
     private RectangleAnnotation _minimapDimRight;
     private MinimapInteractionController _minimapInteraction;
+    internal bool IsSyncingFromMinimap;
+    private double _lastViewportMin = double.NaN;
+    private double _lastViewportMax = double.NaN;
+    private bool _viewportDirty;
+    private DispatcherTimer _viewportThrottleTimer;
+    private DispatcherTimer _settleTimer;
+    private int? _currentSessionId;
+    private CancellationTokenSource _fetchCts;
 
     [ObservableProperty]
     private PlotModel _plotModel;
@@ -143,6 +155,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     /// </summary>
     [ObservableProperty]
     private bool _hasSessionData;
+
+    /// <summary>
+    /// True while fetching high-fidelity data from the database in the background.
+    /// Bound to a subtle progress indicator in the UI.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isRefiningData;
     #endregion
 
     #region Legend
@@ -224,6 +243,22 @@ public partial class DatabaseLogger : ObservableObject, ILogger
 
         // Subscribe to main time axis changes for minimap sync
         timeAxis.AxisChanged += OnMainTimeAxisChanged;
+
+        // Throttle viewport updates from main plot interaction to 60fps
+        _viewportThrottleTimer = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromMilliseconds(16)
+        };
+        _viewportThrottleTimer.Tick += OnViewportThrottleTick;
+        _viewportThrottleTimer.Start();
+
+        // Settle timer: triggers high-fidelity DB fetch 200ms after the last
+        // viewport change (covers both main plot pan/zoom and minimap drag)
+        _settleTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(200)
+        };
+        _settleTimer.Tick += OnSettleTick;
 
         // Initialize minimap PlotModel
         InitializeMinimapPlotModel();
@@ -325,7 +360,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             MinimapPlotModel,
             _minimapSelectionRect,
             _minimapDimLeft,
-            _minimapDimRight);
+            _minimapDimRight,
+            this);
     }
     #endregion
 
@@ -397,14 +433,29 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         Application.Current.Dispatcher.Invoke(() =>
         {
             _firstTime = null;
-            _sessionPoints.Clear();
+            _currentSessionId = null;
+            _lastViewportMin = double.NaN;
+            _lastViewportMax = double.NaN;
+            _fetchCts?.Cancel();
+            _fetchCts?.Dispose();
+            _fetchCts = null;
+            IsRefiningData = false;
+            _settleTimer.Stop();
             _allSessionPoints.Clear();
+            _downsampledCache.Clear();
             _minimapSeries.Clear();
             PlotModel.Series.Clear();
             LegendItems.Clear();
             DeviceLegendGroups.Clear();
             PlotModel.Title = string.Empty;
             PlotModel.Subtitle = string.Empty;
+
+            // Reset all axes so the new session starts at full extent
+            foreach (var axis in PlotModel.Axes)
+            {
+                axis.Reset();
+            }
+
             PlotModel.InvalidatePlot(true);
 
             MinimapPlotModel.Series.Clear();
@@ -420,35 +471,47 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         {
             // ClearPlot is already dispatcher-wrapped
             ClearPlot();
+            _currentSessionId = session.ID;
 
-            // Data fetching and processing (can be on background thread)
             var sessionName = session.Name;
             var subtitle = string.Empty;
-
             var tempSeriesList = new List<LineSeries>();
             var tempLegendItemsList = new List<LoggedSeriesLegendItem>();
+            int totalSamplesCount;
 
+            // ── Phase 1: Fast initial load (<1s) ──────────────────────────
+            // Get channel metadata from first timestamp (6ms via index)
+            // and load a small initial batch for immediate display
             using (var context = _loggingContext.CreateDbContext())
             {
                 context.ChangeTracker.AutoDetectChangesEnabled = false;
 
-                var dbSamples = context.Samples.AsNoTracking()
-                    .Where(s => s.LoggingSessionID == session.ID)
+                var baseQuery = context.Samples.AsNoTracking()
+                    .Where(s => s.LoggingSessionID == session.ID);
+
+                // Get the first timestamp to extract channel info (instant via composite index)
+                var firstSample = baseQuery
                     .OrderBy(s => s.TimestampTicks)
-                    .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color, s.TimestampTicks, s.Value })
-                    .ToList(); // Bring data into memory
+                    .Select(s => new { s.TimestampTicks })
+                    .FirstOrDefault();
 
-                var samplesCount = dbSamples.Count;
-                const int dataPointsToShow = 1000000;
-
-                if (samplesCount > dataPointsToShow)
+                if (firstSample == null)
                 {
-                    subtitle = $"\nOnly showing {dataPointsToShow:n0} out of {samplesCount:n0} data points";
+                    // Empty session
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        PlotModel.Title = sessionName;
+                        HasSessionData = false;
+                        PlotModel.InvalidatePlot(true);
+                    });
+                    return;
                 }
 
-                var channelInfoList = dbSamples
+                // Get all channels from the first timestamp (32 rows, instant)
+                var channelInfoList = baseQuery
+                    .Where(s => s.TimestampTicks == firstSample.TimestampTicks)
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color })
-                    .Distinct()
+                    .ToList()
                     .NaturalOrderBy(s => s.ChannelName)
                     .ToList();
 
@@ -459,10 +522,12 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     tempLegendItemsList.Add(legendItem);
                 }
 
-                // This part still needs to be careful about _allSessionPoints access if it's used by UI directly
-                // For now, _allSessionPoints is used to populate series ItemsSource later on UI thread
-                var dataSampleCount = 0;
-                foreach (var sample in dbSamples)
+                // Load initial batch for fast display (100K rows, ~16ms via index)
+                foreach (var sample in baseQuery
+                    .OrderBy(s => s.TimestampTicks)
+                    .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.TimestampTicks, s.Value })
+                    .Take(INITIAL_LOAD_POINTS)
+                    .AsEnumerable())
                 {
                     var key = (sample.DeviceSerialNo, sample.ChannelName);
                     if (_firstTime == null) { _firstTime = new DateTime(sample.TimestampTicks); }
@@ -472,111 +537,316 @@ public partial class DatabaseLogger : ObservableObject, ILogger
                     {
                         points.Add(new DataPoint(deltaTime, sample.Value));
                     }
-
-                    dataSampleCount++;
-                    if (dataSampleCount >= dataPointsToShow)
-                    {
-                        break;
-                    }
                 }
+
+                totalSamplesCount = baseQuery.Count();
             }
 
-            // Prepare downsampled minimap data on the background thread
-            var minimapSeriesData = new List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)>();
-            foreach (var kvp in _allSessionPoints)
-            {
-                if (kvp.Value.Count > 0)
-                {
-                    var downsampled = MinMaxDownsampler.Downsample(kvp.Value, MINIMAP_BUCKET_COUNT);
-                    var matchingSeries = tempSeriesList.FirstOrDefault(s =>
-                    {
-                        var parts = s.Title.Split([" : ("], StringSplitOptions.None);
-                        return parts.Length == 2 && parts[0] == kvp.Key.channelName && parts[1].TrimEnd(')') == kvp.Key.deviceSerial;
-                    });
-                    minimapSeriesData.Add((kvp.Key.channelName, kvp.Key.deviceSerial, matchingSeries?.Color ?? OxyColors.Gray, downsampled));
-                }
-            }
-
-            // Update UI-bound collections and properties on the UI thread
+            // Show the initial data immediately
+            var initialMinimapData = PrepareMinimapData(tempSeriesList);
             Application.Current.Dispatcher.Invoke(() =>
             {
                 PlotModel.Title = sessionName;
-                PlotModel.Subtitle = subtitle;
+                PlotModel.Subtitle = totalSamplesCount > INITIAL_LOAD_POINTS
+                    ? "\nLoading full dataset..."
+                    : string.Empty;
 
-                foreach (var legendItem in tempLegendItemsList)
-                {
-                    LegendItems.Add(legendItem);
-                }
-
-                // Build grouped legend by device
-                DeviceLegendGroups.Clear();
-                var groupDict = new Dictionary<string, DeviceLegendGroup>();
-                foreach (var legendItem in tempLegendItemsList)
-                {
-                    if (!groupDict.TryGetValue(legendItem.DeviceSerialNo, out var group))
-                    {
-                        group = new DeviceLegendGroup(legendItem.DeviceSerialNo);
-                        groupDict[legendItem.DeviceSerialNo] = group;
-                        DeviceLegendGroups.Add(group);
-                    }
-                    group.Channels.Add(legendItem);
-                }
-
-                foreach (var series in tempSeriesList)
-                {
-                    PlotModel.Series.Add(series);
-                    // Assign data to series (ItemsSource)
-                    // The key for _allSessionPoints must match how it was populated
-                    var key = (series.Title.Split([" : ("], StringSplitOptions.None)[1].TrimEnd(')'), series.Title.Split([" : ("], StringSplitOptions.None)[0]);
-                    if (_allSessionPoints.TryGetValue(key, out var points))
-                    {
-                        series.ItemsSource = points;
-                    }
-                }
-
-                // Populate minimap with downsampled series
-                MinimapPlotModel.Series.Clear();
-                _minimapSeries.Clear();
-                foreach (var (channelName, deviceSerial, color, downsampled) in minimapSeriesData)
-                {
-                    var minimapLine = new LineSeries
-                    {
-                        Color = color,
-                        StrokeThickness = 1,
-                        ItemsSource = downsampled,
-                        XAxisKey = "MinimapTime",
-                        YAxisKey = "MinimapY"
-                    };
-                    MinimapPlotModel.Series.Add(minimapLine);
-                    _minimapSeries[(deviceSerial, channelName)] = minimapLine;
-                }
-
-                MinimapPlotModel.ResetAllAxes();
-
-                // Initialize selection rectangle to full data range
-                // Use data bounds directly since ActualMinimum/Maximum aren't set until render
-                if (minimapSeriesData.Count > 0)
-                {
-                    var dataMinX = minimapSeriesData.Where(d => d.downsampled.Count > 0).Min(d => d.downsampled[0].X);
-                    var dataMaxX = minimapSeriesData.Where(d => d.downsampled.Count > 0).Max(d => d.downsampled[^1].X);
-                    _minimapSelectionRect.MinimumX = dataMinX;
-                    _minimapSelectionRect.MaximumX = dataMaxX;
-                    _minimapDimLeft.MaximumX = dataMinX;
-                    _minimapDimRight.MinimumX = dataMaxX;
-                }
-
-                MinimapPlotModel.InvalidatePlot(true);
-
+                SetupUiCollections(tempSeriesList, tempLegendItemsList);
+                SetupMinimapSeries(initialMinimapData);
                 HasSessionData = tempSeriesList.Count > 0;
-
-                OnPropertyChanged("SessionPoints"); // If SessionPoints is still relevant
                 PlotModel.InvalidatePlot(true);
             });
+
+            // ── Phase 2: Load sampled data covering full time range (~1-3s) ──
+            // Instead of streaming all 10M+ rows (30s), do N targeted index
+            // seeks spread across the time range. Each seek reads one batch
+            // of interleaved channel data at that timestamp position.
+            // Result: ~96K rows covering the full range in ~1-3 seconds.
+            if (totalSamplesCount > INITIAL_LOAD_POINTS)
+            {
+                // Clear phase 1 data and reload with sampled data
+                foreach (var kvp in _allSessionPoints)
+                {
+                    kvp.Value.Clear();
+                }
+                _firstTime = null;
+
+                LoadSampledData(session.ID, tempSeriesList.Count);
+
+                // Refresh UI with sampled full-range data
+                var fullMinimapData = PrepareMinimapData(tempSeriesList);
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    PlotModel.Subtitle = string.Empty;
+
+                    // Update main plot series with full downsampled data
+                    foreach (var series in PlotModel.Series.OfType<LineSeries>())
+                    {
+                        if (series.Tag is (string deviceSerial, string channelName)
+                            && _allSessionPoints.TryGetValue((deviceSerial, channelName), out var points))
+                        {
+                            var key = (deviceSerial, channelName);
+                            if (!_downsampledCache.TryGetValue(key, out var cached))
+                            {
+                                cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
+                                _downsampledCache[key] = cached;
+                            }
+
+                            cached.Clear();
+                            if (points.Count > MAIN_PLOT_BUCKET_COUNT * 2)
+                            {
+                                cached.AddRange(MinMaxDownsampler.Downsample(points, MAIN_PLOT_BUCKET_COUNT));
+                            }
+                            else
+                            {
+                                cached.AddRange(points);
+                            }
+
+                            series.ItemsSource = cached;
+                        }
+                    }
+
+                    // Refresh minimap with full-range data
+                    SetupMinimapSeries(fullMinimapData);
+                    _lastViewportMin = double.NaN;
+                    _lastViewportMax = double.NaN;
+                    PlotModel.InvalidatePlot(true);
+                });
+            }
         }
         catch (Exception ex)
         {
             _appLogger.Error(ex, "Failed in DisplayLoggingSession");
         }
+    }
+
+    /// <summary>
+    /// Prepares downsampled minimap series data from _allSessionPoints on the background thread.
+    /// </summary>
+    private List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)>
+        PrepareMinimapData(List<LineSeries> seriesList)
+    {
+        var result = new List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)>();
+        foreach (var kvp in _allSessionPoints)
+        {
+            if (kvp.Value.Count > 0)
+            {
+                var downsampled = MinMaxDownsampler.Downsample(kvp.Value, MINIMAP_BUCKET_COUNT);
+                var matchingSeries = seriesList.FirstOrDefault(s =>
+                    s.Tag is (string ds, string cn) && ds == kvp.Key.deviceSerial && cn == kvp.Key.channelName);
+                result.Add((kvp.Key.channelName, kvp.Key.deviceSerial, matchingSeries?.Color ?? OxyColors.Gray, downsampled));
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Loads a uniformly sampled subset of data covering the full time range
+    /// using targeted index seeks. Instead of reading all N million rows,
+    /// divides the time range into SAMPLED_POINTS_PER_CHANNEL segments and
+    /// seeks to each segment boundary via the composite index. Each seek
+    /// reads one batch of interleaved channel data (~channelCount rows).
+    /// Result: ~3000 points per channel in ~1-3 seconds regardless of total dataset size.
+    /// </summary>
+    private void LoadSampledData(int sessionId, int channelCount)
+    {
+        using var context = _loggingContext.CreateDbContext();
+        var connection = context.Database.GetDbConnection();
+        connection.Open();
+
+        // Get time bounds via index (instant)
+        long minTicks, maxTicks;
+        using (var boundsCmd = connection.CreateCommand())
+        {
+            boundsCmd.CommandText = @"
+                SELECT MIN(TimestampTicks), MAX(TimestampTicks)
+                FROM Samples
+                WHERE LoggingSessionID = @id";
+            var idParam = boundsCmd.CreateParameter();
+            idParam.ParameterName = "@id";
+            idParam.Value = sessionId;
+            boundsCmd.Parameters.Add(idParam);
+
+            using var reader = boundsCmd.ExecuteReader();
+            if (!reader.Read() || reader.IsDBNull(0))
+            {
+                return;
+            }
+
+            minTicks = reader.GetInt64(0);
+            maxTicks = reader.GetInt64(1);
+        }
+
+        if (minTicks >= maxTicks)
+        {
+            return;
+        }
+
+        _firstTime = new DateTime(minTicks);
+        var tickStep = Math.Max(1, (maxTicks - minTicks) / SAMPLED_POINTS_PER_CHANNEL);
+        // Read at least channelCount rows per seek to get one sample per channel
+        var batchSize = Math.Max(channelCount * 2, 100);
+
+        // Prepared statement for repeated seeks
+        using var seekCmd = connection.CreateCommand();
+        seekCmd.CommandText = @"
+            SELECT ChannelName, DeviceSerialNo, TimestampTicks, Value
+            FROM Samples
+            WHERE LoggingSessionID = @id AND TimestampTicks >= @t
+            ORDER BY TimestampTicks
+            LIMIT @limit";
+
+        var seekIdParam = seekCmd.CreateParameter();
+        seekIdParam.ParameterName = "@id";
+        seekIdParam.Value = sessionId;
+        seekCmd.Parameters.Add(seekIdParam);
+
+        var seekTParam = seekCmd.CreateParameter();
+        seekTParam.ParameterName = "@t";
+        seekTParam.Value = minTicks;
+        seekCmd.Parameters.Add(seekTParam);
+
+        var seekLimitParam = seekCmd.CreateParameter();
+        seekLimitParam.ParameterName = "@limit";
+        seekLimitParam.Value = batchSize;
+        seekCmd.Parameters.Add(seekLimitParam);
+
+        seekCmd.Prepare();
+
+        // Track which timestamps we've already added to avoid duplicates
+        // from overlapping batches
+        var lastAddedTimestamp = new Dictionary<(string, string), long>();
+
+        // Use <= so the final iteration (i == SAMPLED_POINTS_PER_CHANNEL)
+        // seeks at maxTicks, ensuring the session tail is always included
+        for (var i = 0; i <= SAMPLED_POINTS_PER_CHANNEL; i++)
+        {
+            var seekTimestamp = i < SAMPLED_POINTS_PER_CHANNEL
+                ? minTicks + i * tickStep
+                : maxTicks;
+            seekTParam.Value = seekTimestamp;
+
+            using var reader = seekCmd.ExecuteReader();
+            while (reader.Read())
+            {
+                var channelName = reader.GetString(0);
+                var deviceSerialNo = reader.GetString(1);
+                var timestampTicks = reader.GetInt64(2);
+                var value = reader.GetDouble(3);
+
+                var key = (deviceSerialNo, channelName);
+
+                // Skip duplicate timestamps from overlapping batches
+                if (lastAddedTimestamp.TryGetValue(key, out var lastT) && timestampTicks <= lastT)
+                {
+                    continue;
+                }
+
+                lastAddedTimestamp[key] = timestampTicks;
+
+                var deltaTime = (timestampTicks - _firstTime.Value.Ticks) / 10000.0;
+                if (_allSessionPoints.TryGetValue(key, out var points))
+                {
+                    points.Add(new DataPoint(deltaTime, value));
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sets up UI collections (legend items, device groups, series) on the UI thread.
+    /// </summary>
+    private void SetupUiCollections(List<LineSeries> seriesList, List<LoggedSeriesLegendItem> legendItems)
+    {
+        foreach (var legendItem in legendItems)
+        {
+            LegendItems.Add(legendItem);
+        }
+
+        DeviceLegendGroups.Clear();
+        var groupDict = new Dictionary<string, DeviceLegendGroup>();
+        foreach (var legendItem in legendItems)
+        {
+            if (!groupDict.TryGetValue(legendItem.DeviceSerialNo, out var group))
+            {
+                group = new DeviceLegendGroup(legendItem.DeviceSerialNo);
+                groupDict[legendItem.DeviceSerialNo] = group;
+                DeviceLegendGroups.Add(group);
+            }
+            group.Channels.Add(legendItem);
+        }
+
+        foreach (var series in seriesList)
+        {
+            PlotModel.Series.Add(series);
+            if (series.Tag is (string deviceSerial, string channelName)
+                && _allSessionPoints.TryGetValue((deviceSerial, channelName), out var points))
+            {
+                var key = (deviceSerial, channelName);
+                if (!_downsampledCache.TryGetValue(key, out var cached))
+                {
+                    cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
+                    _downsampledCache[key] = cached;
+                }
+
+                cached.Clear();
+                if (points.Count > MAIN_PLOT_BUCKET_COUNT * 2)
+                {
+                    cached.AddRange(MinMaxDownsampler.Downsample(points, MAIN_PLOT_BUCKET_COUNT));
+                }
+                else
+                {
+                    cached.AddRange(points);
+                }
+
+                series.ItemsSource = cached;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Populates minimap series and sets up the selection rectangle on the UI thread.
+    /// </summary>
+    private void SetupMinimapSeries(
+        List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)> minimapData)
+    {
+        MinimapPlotModel.Series.Clear();
+        _minimapSeries.Clear();
+        foreach (var (channelName, deviceSerial, color, downsampled) in minimapData)
+        {
+            var minimapLine = new LineSeries
+            {
+                Color = color,
+                StrokeThickness = 1,
+                ItemsSource = downsampled,
+                XAxisKey = "MinimapTime",
+                YAxisKey = "MinimapY"
+            };
+            MinimapPlotModel.Series.Add(minimapLine);
+            _minimapSeries[(deviceSerial, channelName)] = minimapLine;
+        }
+
+        // Set minimap axes from source data bounds (not auto-range, which
+        // reads downsampled ItemsSource and may have shifted boundaries)
+        var nonEmpty = minimapData.Where(d => d.downsampled.Count > 0).ToList();
+        if (nonEmpty.Count > 0)
+        {
+            var dataMinX = nonEmpty.Min(d => d.downsampled[0].X);
+            var dataMaxX = nonEmpty.Max(d => d.downsampled[^1].X);
+
+            var minimapTimeAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == "MinimapTime");
+            minimapTimeAxis?.Zoom(dataMinX, dataMaxX);
+
+            var minimapYAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == "MinimapY");
+            minimapYAxis?.Reset();
+
+            _minimapSelectionRect.MinimumX = dataMinX;
+            _minimapSelectionRect.MaximumX = dataMaxX;
+            _minimapDimLeft.MaximumX = dataMinX;
+            _minimapDimRight.MinimumX = dataMaxX;
+        }
+
+        MinimapPlotModel.InvalidatePlot(true);
     }
 
     public void DeleteLoggingSession(LoggingSession session)
@@ -657,15 +927,14 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(string channelName, string deviceSerialNo, ChannelType type, string color)
     {
         var key = (DeviceSerialNo: deviceSerialNo, channelName);
-        _sessionPoints.Add(key, []);
         _allSessionPoints.Add(key, []);
 
         var newLineSeries = new LineSeries
         {
             Title = $"{channelName} : ({deviceSerialNo})",
-            ItemsSource = _sessionPoints.Last().Value, // This will be empty initially, data is added later
+            Tag = (deviceSerialNo, channelName),
             Color = OxyColor.Parse(color),
-            IsVisible = true // Default to visible
+            IsVisible = true
         };
 
         var legendItem = new LoggedSeriesLegendItem(
@@ -677,7 +946,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             newLineSeries,
             PlotModel,
             this);
-        // LegendItems.Add(legendItem); // Removed: To be added in DisplayLoggingSession on UI thread
 
         newLineSeries.YAxisKey = type switch
         {
@@ -686,14 +954,20 @@ public partial class DatabaseLogger : ObservableObject, ILogger
             _ => newLineSeries.YAxisKey
         };
 
-        // PlotModel.Series.Add(newLineSeries); // Removed: To be added in DisplayLoggingSession on UI thread
-        // OnPropertyChanged("PlotModel"); // Removed: To be called in DisplayLoggingSession on UI thread
         return (newLineSeries, legendItem);
     }
 
     #region Minimap Synchronization
     private void OnMainTimeAxisChanged(object? sender, AxisChangedEventArgs e)
     {
+        if (IsSyncingFromMinimap)
+        {
+            return;
+        }
+
+        // Mark viewport dirty — the throttle timer will handle the actual update at 60fps
+        _viewportDirty = true;
+
         var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
         if (timeAxis == null)
         {
@@ -705,6 +979,380 @@ public partial class DatabaseLogger : ObservableObject, ILogger
         _minimapDimLeft.MaximumX = timeAxis.ActualMinimum;
         _minimapDimRight.MinimumX = timeAxis.ActualMaximum;
         MinimapPlotModel.InvalidatePlot(false);
+    }
+
+    /// <summary>
+    /// Throttled viewport update tick — processes dirty flag at 60fps to avoid
+    /// re-downsampling on every mouse move during main plot pan/zoom.
+    /// </summary>
+    private void OnViewportThrottleTick(object? sender, EventArgs e)
+    {
+        if (!_viewportDirty)
+        {
+            return;
+        }
+
+        _viewportDirty = false;
+        UpdateMainPlotViewport(highFidelity: false);
+        PlotModel.InvalidatePlot(true);
+
+        // Restart the settle timer — it will fire 200ms after the last change
+        _settleTimer.Stop();
+        _settleTimer.Start();
+    }
+
+    /// <summary>
+    /// Fires 200ms after the last viewport change. Triggers a high-fidelity
+    /// DB fetch so zoomed-in views show full-resolution data once interaction settles.
+    /// </summary>
+    private void OnSettleTick(object? sender, EventArgs e)
+    {
+        _settleTimer.Stop();
+        _lastViewportMin = double.NaN;
+        _lastViewportMax = double.NaN;
+        UpdateMainPlotViewport(highFidelity: true);
+        PlotModel.InvalidatePlot(true);
+    }
+
+    /// <summary>
+    /// Re-downsamples each main plot series for the currently visible time range.
+    /// When zoomed in far enough that the sampled in-memory data is too sparse,
+    /// fetches full-resolution data from the database for the visible window.
+    /// Skips the update if the viewport hasn't changed since the last call.
+    /// </summary>
+    private void UpdateMainPlotViewport(bool highFidelity = true)
+    {
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        if (timeAxis == null)
+        {
+            return;
+        }
+
+        var visibleMin = timeAxis.ActualMinimum;
+        var visibleMax = timeAxis.ActualMaximum;
+
+        // Skip if viewport hasn't changed
+        if (visibleMin == _lastViewportMin && visibleMax == _lastViewportMax)
+        {
+            return;
+        }
+
+        _lastViewportMin = visibleMin;
+        _lastViewportMax = visibleMax;
+
+        // Cancel any in-flight DB fetch — the viewport has changed, so its
+        // results would be stale and could overwrite the current view
+        if (_fetchCts != null)
+        {
+            _fetchCts.Cancel();
+            _fetchCts.Dispose();
+            _fetchCts = null;
+            IsRefiningData = false;
+        }
+
+        // During drag (highFidelity=false), always use fast in-memory data to
+        // maintain smooth 60fps. DB fetches only happen on settle (mouse up,
+        // zoom buttons) when highFidelity=true.
+        if (!highFidelity)
+        {
+            UpdateSeriesFromMemory(visibleMin, visibleMax);
+            return;
+        }
+
+        // Check if ANY channel's sampled in-memory data is too sparse for
+        // this zoom level. If so, fetch full-resolution data from the DB.
+        var needsDbFetch = false;
+        if (_currentSessionId.HasValue && _firstTime.HasValue)
+        {
+            foreach (var kvp in _allSessionPoints)
+            {
+                if (kvp.Value.Count == 0)
+                {
+                    continue;
+                }
+
+                // Only check channels that are actually sampled (not full datasets)
+                if (kvp.Value.Count < SAMPLED_POINTS_PER_CHANNEL / 2)
+                {
+                    continue;
+                }
+
+                var (si, ei) = MinMaxDownsampler.FindVisibleRange(kvp.Value, visibleMin, visibleMax);
+                var sampledVisible = ei - si;
+                if (sampledVisible < MAIN_PLOT_BUCKET_COUNT)
+                {
+                    needsDbFetch = true;
+                    break;
+                }
+            }
+        }
+
+        if (needsDbFetch)
+        {
+            FetchViewportDataFromDb(visibleMin, visibleMax);
+        }
+        else
+        {
+            UpdateSeriesFromMemory(visibleMin, visibleMax);
+        }
+    }
+
+    /// <summary>
+    /// Updates series ItemsSource from the in-memory sampled data.
+    /// Used when the sampled data has sufficient density for the current viewport.
+    /// </summary>
+    private void UpdateSeriesFromMemory(double visibleMin, double visibleMax)
+    {
+        foreach (var series in PlotModel.Series.OfType<LineSeries>())
+        {
+            if (series.Tag is not (string deviceSerial, string channelName))
+            {
+                continue;
+            }
+
+            var key = (deviceSerial, channelName);
+            if (!_allSessionPoints.TryGetValue(key, out var allPoints) || allPoints.Count == 0)
+            {
+                continue;
+            }
+
+            var (startIdx, endIdx) = MinMaxDownsampler.FindVisibleRange(allPoints, visibleMin, visibleMax);
+            var visibleCount = endIdx - startIdx;
+
+            if (!_downsampledCache.TryGetValue(key, out var cached))
+            {
+                cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
+                _downsampledCache[key] = cached;
+            }
+
+            if (visibleCount <= MAIN_PLOT_BUCKET_COUNT * 2)
+            {
+                cached.Clear();
+                for (var i = startIdx; i < endIdx; i++)
+                {
+                    cached.Add(allPoints[i]);
+                }
+            }
+            else
+            {
+                var downsampled = MinMaxDownsampler.Downsample(allPoints, startIdx, endIdx, MAIN_PLOT_BUCKET_COUNT);
+                cached.Clear();
+                cached.AddRange(downsampled);
+            }
+
+            if (series.ItemsSource != cached)
+            {
+                series.ItemsSource = cached;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fetches high-resolution data from the database for the visible time window
+    /// using sampled index seeks (same technique as LoadSampledData). Runs on a
+    /// background thread to keep the UI responsive. Cancels any in-flight fetch
+    /// when a new one starts. Results are marshaled back to the UI thread.
+    /// </summary>
+    private void FetchViewportDataFromDb(double visibleMin, double visibleMax)
+    {
+        if (!_currentSessionId.HasValue || !_firstTime.HasValue)
+        {
+            return;
+        }
+
+        // Cancel any in-flight fetch
+        _fetchCts?.Cancel();
+        _fetchCts?.Dispose();
+        _fetchCts = new CancellationTokenSource();
+        var ct = _fetchCts.Token;
+
+        var sessionId = _currentSessionId.Value;
+        var firstTimeTicks = _firstTime.Value.Ticks;
+        var channelKeys = _allSessionPoints.Keys.ToList();
+
+        // Convert plot X (ms) back to DB ticks with padding
+        var minTicks = firstTimeTicks + (long)(visibleMin * 10000.0);
+        var maxTicks = firstTimeTicks + (long)(visibleMax * 10000.0);
+        var tickRange = maxTicks - minTicks;
+        var padding = Math.Max(tickRange / 100, 10000);
+        minTicks -= padding;
+        maxTicks += padding;
+
+        IsRefiningData = true;
+
+        Task.Run(() =>
+        {
+            var dbPoints = new Dictionary<(string, string), List<DataPoint>>();
+            foreach (var key in channelKeys)
+            {
+                dbPoints[key] = new List<DataPoint>();
+            }
+
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+
+                using var context = _loggingContext.CreateDbContext();
+                var connection = context.Database.GetDbConnection();
+                connection.Open();
+
+                // Use sampled seeks: divide the visible window into
+                // MAIN_PLOT_BUCKET_COUNT segments and read a small batch
+                // at each position. This reads ~4000 * channelCount rows
+                // instead of potentially millions.
+                var seekCount = MAIN_PLOT_BUCKET_COUNT;
+                var seekTickStep = (maxTicks - minTicks) / seekCount;
+                var batchSize = Math.Max(channelKeys.Count * 2, 100);
+
+                using var seekCmd = connection.CreateCommand();
+                seekCmd.CommandText = @"
+                    SELECT ChannelName, DeviceSerialNo, TimestampTicks, Value
+                    FROM Samples
+                    WHERE LoggingSessionID = @id
+                      AND TimestampTicks >= @t
+                      AND TimestampTicks <= @maxT
+                    ORDER BY TimestampTicks
+                    LIMIT @limit";
+
+                var idParam = seekCmd.CreateParameter();
+                idParam.ParameterName = "@id";
+                idParam.Value = sessionId;
+                seekCmd.Parameters.Add(idParam);
+
+                var tParam = seekCmd.CreateParameter();
+                tParam.ParameterName = "@t";
+                tParam.Value = minTicks;
+                seekCmd.Parameters.Add(tParam);
+
+                var maxTParam = seekCmd.CreateParameter();
+                maxTParam.ParameterName = "@maxT";
+                maxTParam.Value = maxTicks;
+                seekCmd.Parameters.Add(maxTParam);
+
+                var limitParam = seekCmd.CreateParameter();
+                limitParam.ParameterName = "@limit";
+                limitParam.Value = batchSize;
+                seekCmd.Parameters.Add(limitParam);
+
+                seekCmd.Prepare();
+
+                var lastAddedTimestamp = new Dictionary<(string, string), long>();
+
+                for (var i = 0; i < seekCount; i++)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    tParam.Value = minTicks + i * seekTickStep;
+
+                    using var reader = seekCmd.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        var channelName = reader.GetString(0);
+                        var deviceSerialNo = reader.GetString(1);
+                        var timestampTicks = reader.GetInt64(2);
+                        var value = reader.GetDouble(3);
+
+                        var key = (deviceSerialNo, channelName);
+
+                        if (lastAddedTimestamp.TryGetValue(key, out var lastT) && timestampTicks <= lastT)
+                        {
+                            continue;
+                        }
+
+                        lastAddedTimestamp[key] = timestampTicks;
+                        var deltaTime = (timestampTicks - firstTimeTicks) / 10000.0;
+
+                        if (dbPoints.TryGetValue(key, out var points))
+                        {
+                            points.Add(new DataPoint(deltaTime, value));
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Error(ex, "Failed to fetch viewport data from DB");
+                Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    IsRefiningData = false;
+                    UpdateSeriesFromMemory(visibleMin, visibleMax);
+                    PlotModel.InvalidatePlot(true);
+                });
+                return;
+            }
+
+            // Marshal results back to UI thread
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                if (ct.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                foreach (var series in PlotModel.Series.OfType<LineSeries>())
+                {
+                    if (series.Tag is not (string deviceSerial, string channelName))
+                    {
+                        continue;
+                    }
+
+                    var key = (deviceSerial, channelName);
+                    if (!dbPoints.TryGetValue(key, out var fetchedPoints) || fetchedPoints.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    if (!_downsampledCache.TryGetValue(key, out var cached))
+                    {
+                        cached = new List<DataPoint>(MAIN_PLOT_BUCKET_COUNT * 2);
+                        _downsampledCache[key] = cached;
+                    }
+
+                    cached.Clear();
+                    if (fetchedPoints.Count <= MAIN_PLOT_BUCKET_COUNT * 2)
+                    {
+                        cached.AddRange(fetchedPoints);
+                    }
+                    else
+                    {
+                        cached.AddRange(MinMaxDownsampler.Downsample(fetchedPoints, MAIN_PLOT_BUCKET_COUNT));
+                    }
+
+                    if (series.ItemsSource != cached)
+                    {
+                        series.ItemsSource = cached;
+                    }
+                }
+
+                IsRefiningData = false;
+                PlotModel.InvalidatePlot(true);
+            });
+        }, ct);
+    }
+
+    /// <summary>
+    /// Called by the minimap interaction controller during drag to update the
+    /// main plot. Uses in-memory sampled data only (no DB queries) for smooth 60fps.
+    /// </summary>
+    public void OnMinimapViewportChanged()
+    {
+        UpdateMainPlotViewport(highFidelity: false);
+    }
+
+    /// <summary>
+    /// Called when minimap interaction ends (mouse up). Fetches full-resolution
+    /// data from the database if the zoom level warrants it.
+    /// </summary>
+    public void OnMinimapInteractionEnded()
+    {
+        _settleTimer.Stop();
+        _lastViewportMin = double.NaN;
+        _lastViewportMax = double.NaN;
+        UpdateMainPlotViewport(highFidelity: true);
     }
 
     /// <summary>
@@ -742,36 +1390,99 @@ public partial class DatabaseLogger : ObservableObject, ILogger
     [RelayCommand]
     private void ResetZoom()
     {
-        PlotModel.ResetAllAxes();
+        // Reset Y axes to auto-range for amplitude
+        foreach (var axis in PlotModel.Axes)
+        {
+            if (axis.Key != "Time")
+            {
+                axis.Reset();
+            }
+        }
+
+        // Compute the full data range from source data (not downsampled) and
+        // explicitly set the time axis rather than relying on auto-range, which
+        // would use the current ItemsSource extent (potentially narrowed by
+        // viewport downsampling).
+        var fullMin = double.MaxValue;
+        var fullMax = double.MinValue;
+        foreach (var kvp in _allSessionPoints)
+        {
+            if (kvp.Value.Count > 0)
+            {
+                fullMin = Math.Min(fullMin, kvp.Value[0].X);
+                fullMax = Math.Max(fullMax, kvp.Value[^1].X);
+            }
+        }
+
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        if (timeAxis != null && fullMin < fullMax)
+        {
+            timeAxis.Zoom(fullMin, fullMax);
+        }
+
+        _lastViewportMin = double.NaN;
+        _lastViewportMax = double.NaN;
+        UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
     }
 
     [RelayCommand]
     private void ZoomOutX()
     {
-        PlotModel.Axes[2].ZoomAtCenter(0.8);
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        timeAxis?.ZoomAtCenter(0.8);
+        UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
     }
 
     [RelayCommand]
     private void ZoomInX()
     {
-        PlotModel.Axes[2].ZoomAtCenter(1.25);
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        timeAxis?.ZoomAtCenter(1.25);
+        UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
     }
 
     [RelayCommand]
     private void ZoomOutY()
     {
-        PlotModel.Axes[0].ZoomAtCenter(0.8);
+        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Analog");
+        analogAxis?.ZoomAtCenter(0.8);
         PlotModel.InvalidatePlot(true);
     }
 
     [RelayCommand]
     private void ZoomInY()
     {
-        PlotModel.Axes[0].ZoomAtCenter(1.25);
+        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Analog");
+        analogAxis?.ZoomAtCenter(1.25);
         PlotModel.InvalidatePlot(true);
+    }
+    #endregion
+
+    #region IDisposable
+    /// <summary>
+    /// Stops timers and unsubscribes event handlers to prevent leaks.
+    /// </summary>
+    public void Dispose()
+    {
+        _viewportThrottleTimer.Stop();
+        _viewportThrottleTimer.Tick -= OnViewportThrottleTick;
+        _settleTimer.Stop();
+        _settleTimer.Tick -= OnSettleTick;
+        _fetchCts?.Cancel();
+        _fetchCts?.Dispose();
+
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        if (timeAxis != null)
+        {
+            timeAxis.AxisChanged -= OnMainTimeAxisChanged;
+        }
+
+        _minimapInteraction?.Dispose();
+        _buffer.Dispose();
+        _consumerGate.Dispose();
     }
     #endregion
 }
