@@ -112,7 +112,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     #region Private Data
     public ObservableCollection<LoggedSeriesLegendItem> LegendItems { get; } = new();
     public ObservableCollection<DeviceLegendGroup> DeviceLegendGroups { get; } = new();
-    private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
+    private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _downsampledCache = new();
     private readonly BlockingCollection<DataSample> _buffer = new();
     private readonly Dictionary<(string deviceSerial, string channelName), LineSeries> _minimapSeries = new();
@@ -496,6 +496,12 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             var tempLegendItemsList = new List<LoggedSeriesLegendItem>();
             int totalSamplesCount;
 
+            // Build all point data in a local dictionary on this background
+            // thread, then swap the reference on the UI thread atomically.
+            // This eliminates shared mutable state between threads.
+            var localPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
+            DateTime? localFirstTime = null;
+
             // ── Phase 1: Fast initial load (<1s) ──────────────────────────
             // Get channel metadata from first timestamp (6ms via index)
             // and load a small initial batch for immediate display
@@ -534,7 +540,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
                 foreach (var chInfo in channelInfoList)
                 {
-                    var (series, legendItem) = AddChannelSeries(chInfo.ChannelName, chInfo.DeviceSerialNo, chInfo.Type, chInfo.Color);
+                    var (series, legendItem) = AddChannelSeries(chInfo.ChannelName, chInfo.DeviceSerialNo, chInfo.Type, chInfo.Color, localPoints);
                     tempSeriesList.Add(series);
                     tempLegendItemsList.Add(legendItem);
                 }
@@ -547,10 +553,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                     .AsEnumerable())
                 {
                     var key = (sample.DeviceSerialNo, sample.ChannelName);
-                    if (_firstTime == null) { _firstTime = new DateTime(sample.TimestampTicks); }
-                    var deltaTime = (sample.TimestampTicks - _firstTime.Value.Ticks) / 10000.0;
+                    if (localFirstTime == null) { localFirstTime = new DateTime(sample.TimestampTicks); }
+                    var deltaTime = (sample.TimestampTicks - localFirstTime.Value.Ticks) / 10000.0;
 
-                    if (_allSessionPoints.TryGetValue(key, out var points))
+                    if (localPoints.TryGetValue(key, out var points))
                     {
                         points.Add(new DataPoint(deltaTime, sample.Value));
                     }
@@ -559,10 +565,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 totalSamplesCount = baseQuery.Count();
             }
 
-            // Show the initial data immediately
-            var initialMinimapData = PrepareMinimapData(tempSeriesList);
+            // Show the initial data immediately — swap local data to shared state on UI thread
+            var initialMinimapData = PrepareMinimapData(tempSeriesList, localPoints);
             Application.Current.Dispatcher.Invoke(() =>
             {
+                _allSessionPoints = localPoints;
+                _firstTime = localFirstTime;
+
                 PlotModel.Title = sessionName;
                 PlotModel.Subtitle = totalSamplesCount > INITIAL_LOAD_POINTS
                     ? "\nLoading full dataset..."
@@ -581,19 +590,22 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             // Result: ~96K rows covering the full range in ~1-3 seconds.
             if (totalSamplesCount > INITIAL_LOAD_POINTS)
             {
-                // Clear phase 1 data and reload with sampled data
-                foreach (var kvp in _allSessionPoints)
+                // Build Phase 2 data in a fresh local dictionary
+                var phase2Points = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
+                foreach (var key in localPoints.Keys)
                 {
-                    kvp.Value.Clear();
+                    phase2Points.Add(key, []);
                 }
-                _firstTime = null;
 
-                LoadSampledData(session.ID, tempSeriesList.Count);
+                var phase2FirstTime = LoadSampledData(session.ID, tempSeriesList.Count, phase2Points);
 
-                // Refresh UI with sampled full-range data
-                var fullMinimapData = PrepareMinimapData(tempSeriesList);
+                // Refresh UI with sampled full-range data — swap on UI thread
+                var fullMinimapData = PrepareMinimapData(tempSeriesList, phase2Points);
                 Application.Current.Dispatcher.Invoke(() =>
                 {
+                    _allSessionPoints = phase2Points;
+                    _firstTime = phase2FirstTime;
+
                     PlotModel.Subtitle = string.Empty;
 
                     // Update main plot series with full downsampled data
@@ -638,13 +650,15 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     }
 
     /// <summary>
-    /// Prepares downsampled minimap series data from _allSessionPoints on the background thread.
+    /// Prepares downsampled minimap series data from the given point dictionary on the background thread.
     /// </summary>
     private List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)>
-        PrepareMinimapData(List<LineSeries> seriesList)
+        PrepareMinimapData(
+            List<LineSeries> seriesList,
+            Dictionary<(string deviceSerial, string channelName), List<DataPoint>> pointData)
     {
         var result = new List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)>();
-        foreach (var kvp in _allSessionPoints)
+        foreach (var kvp in pointData)
         {
             if (kvp.Value.Count > 0)
             {
@@ -665,7 +679,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// reads one batch of interleaved channel data (~channelCount rows).
     /// Result: ~3000 points per channel in ~1-3 seconds regardless of total dataset size.
     /// </summary>
-    private void LoadSampledData(int sessionId, int channelCount)
+    private DateTime? LoadSampledData(
+        int sessionId,
+        int channelCount,
+        Dictionary<(string deviceSerial, string channelName), List<DataPoint>> localPoints)
     {
         using var context = _loggingContext.CreateDbContext();
         var connection = context.Database.GetDbConnection();
@@ -687,7 +704,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             using var reader = boundsCmd.ExecuteReader();
             if (!reader.Read() || reader.IsDBNull(0))
             {
-                return;
+                return null;
             }
 
             minTicks = reader.GetInt64(0);
@@ -696,10 +713,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
         if (minTicks >= maxTicks)
         {
-            return;
+            return null;
         }
 
-        _firstTime = new DateTime(minTicks);
+        var localFirstTime = new DateTime(minTicks);
         var tickStep = Math.Max(1, (maxTicks - minTicks) / SAMPLED_POINTS_PER_CHANNEL);
         // Read at least channelCount rows per seek to get one sample per channel
         var batchSize = Math.Max(channelCount * 2, 100);
@@ -761,13 +778,15 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
                 lastAddedTimestamp[key] = timestampTicks;
 
-                var deltaTime = (timestampTicks - _firstTime.Value.Ticks) / 10000.0;
-                if (_allSessionPoints.TryGetValue(key, out var points))
+                var deltaTime = (timestampTicks - localFirstTime.Ticks) / 10000.0;
+                if (localPoints.TryGetValue(key, out var points))
                 {
                     points.Add(new DataPoint(deltaTime, value));
                 }
             }
         }
+
+        return localFirstTime;
     }
 
     /// <summary>
@@ -941,10 +960,15 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         _consumerGate.Set();
     }
 
-    private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(string channelName, string deviceSerialNo, ChannelType type, string color)
+    private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(
+        string channelName,
+        string deviceSerialNo,
+        ChannelType type,
+        string color,
+        Dictionary<(string deviceSerial, string channelName), List<DataPoint>> localPoints)
     {
-        var key = (DeviceSerialNo: deviceSerialNo, channelName);
-        _allSessionPoints.Add(key, []);
+        var key = (deviceSerial: deviceSerialNo, channelName);
+        localPoints.Add(key, []);
 
         var newLineSeries = new LineSeries
         {
