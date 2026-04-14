@@ -1,6 +1,7 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
+using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 
 namespace Daqifi.Desktop.Test.Exporter;
@@ -105,41 +106,148 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
 
     [TestMethod]
     [TestCategory("Production")]
-    public void OptimizedExporter_Issue18Shape_16Ch10Hz_CompletesWithoutStalling()
+    [Timeout(120_000)] // Hard-cap: if a regression causes a true hang, fail fast instead of blocking the suite.
+    public void OptimizedExporter_Issue18Shape_LargeExport_CompletesWithoutStalling()
     {
         // Regression guard for daqifi/daqifi-desktop#18 ("Large Data Export Fails").
         // Original report: 48hr × 16ch @ 10Hz export appeared to stall after ~60s.
-        // We exercise the same shape (16 channels, 10Hz cadence) at ~1/55th the duration
-        // to keep the test CI-friendly while still catching regressions in the streaming
-        // export path (buckets-per-timestamp, buffered writer, no materialization).
-        const int channelCount = 16;
-        const int timestampCount = 31_250; // ~52 min @ 10Hz -> 500,000 total samples
-        const int expectedSamples = channelCount * timestampCount;
+        // We exercise the production path — OptimizedLoggingSessionExporter backed by a real
+        // SQLite LoggingContext (ExportFromDatabase → StreamDataToFile), which is the code
+        // path ExportDialogViewModel hits. Sample count is scaled down to keep CI cost low
+        // while still being large enough to meaningfully stress the streaming writer and the
+        // per-timestamp bucketing loop.
+        const int CHANNEL_COUNT = 16;
+        const int TIMESTAMP_COUNT = 6_250; // 16 × 6,250 = 100,000 samples
+        const int EXPECTED_SAMPLES = CHANNEL_COUNT * TIMESTAMP_COUNT;
 
-        var samples = GenerateTestDataset(channelCount, timestampCount);
-        Assert.AreEqual(expectedSamples, samples.Count);
+        using var factory = new TempSqliteLoggingContextFactory();
+        const int SESSION_ID = 1;
+        SeedSessionWithSamples(factory, SESSION_ID, CHANNEL_COUNT, TIMESTAMP_COUNT);
 
-        var results = MeasureExportPerformance(samples, "issue18");
-        var samplesPerSecond = results.ElapsedMs > 0 ? expectedSamples / (results.ElapsedMs / 1000.0) : double.PositiveInfinity;
+        var exportFilePath = Path.Combine(TestDirectoryPath, "issue18_db_export.csv");
+        var exporter = new OptimizedLoggingSessionExporter(factory);
+        var progress = new Progress<int>();
 
-        Console.WriteLine($"Issue #18 shape ({expectedSamples:N0} samples, 16ch @ 10Hz): {results.ElapsedMs}ms, {results.MemoryMB}MB");
-        Console.WriteLine($"Samples per second: {samplesPerSecond:F0}");
+        // Cancel after 90s so a true hang inside the streaming loop trips cancellation
+        // before the MSTest [Timeout] kills the whole run.
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
 
-        // Must complete well under a minute — the original failure was the export
-        // appearing to give up after ~60s. 30s gives plenty of headroom on slow CI.
-        Assert.IsLessThan(30_000, results.ElapsedMs,
-            $"Export took {results.ElapsedMs}ms — regression in streaming export path (issue #18).");
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        var initialMemory = GC.GetTotalMemory(false);
+        var stopwatch = Stopwatch.StartNew();
 
-        // Streaming export should keep memory flat regardless of sample count.
-        Assert.IsLessThan(200, results.MemoryMB,
-            $"Export used {results.MemoryMB}MB — streaming path may be materializing data (issue #18).");
+        exporter.ExportLoggingSession(
+            new LoggingSession { ID = SESSION_ID, Name = "issue18" },
+            exportFilePath,
+            exportRelativeTime: false,
+            progress,
+            cts.Token,
+            sessionIndex: 0,
+            totalSessions: 1);
+
+        stopwatch.Stop();
+        var memoryUsedMb = Math.Max(0, GC.GetTotalMemory(false) - initialMemory) / 1024 / 1024;
+        var samplesPerSecond = stopwatch.ElapsedMilliseconds > 0
+            ? EXPECTED_SAMPLES / (stopwatch.ElapsedMilliseconds / 1000.0)
+            : double.PositiveInfinity;
+
+        Console.WriteLine(FormattableString.Invariant($"Issue #18 DB-path shape ({EXPECTED_SAMPLES:N0} samples, {CHANNEL_COUNT}ch): {stopwatch.ElapsedMilliseconds}ms, {memoryUsedMb}MB, {samplesPerSecond:F0} samples/sec"));
+
+        Assert.IsFalse(cts.IsCancellationRequested,
+            "Export was cancelled by the 90s watchdog — indicates a stall regression (issue #18).");
+
+        // Must complete well under a minute — the original failure was the export appearing
+        // to give up after ~60s. 30s gives plenty of headroom on slow CI.
+        Assert.IsLessThan(30_000, stopwatch.ElapsedMilliseconds,
+            $"Export took {stopwatch.ElapsedMilliseconds}ms — regression in streaming export path (issue #18).");
+
+        // Streaming export should keep memory roughly flat regardless of sample count.
+        Assert.IsLessThan(200, memoryUsedMb,
+            $"Export used {memoryUsedMb}MB — streaming path may be materializing data (issue #18).");
 
         // Verify the file actually contains all timestamps (header + one row per timestamp).
-        var exportFilePath = Path.Combine(TestDirectoryPath, "issue18_export.csv");
         Assert.IsTrue(File.Exists(exportFilePath), "Export file should exist");
         var lineCount = File.ReadLines(exportFilePath).Count();
-        Assert.AreEqual(timestampCount + 1, lineCount,
-            $"Expected {timestampCount + 1} lines (header + {timestampCount} timestamp rows), got {lineCount}.");
+        Assert.AreEqual(TIMESTAMP_COUNT + 1, lineCount,
+            $"Expected {TIMESTAMP_COUNT + 1} lines (header + {TIMESTAMP_COUNT} timestamp rows), got {lineCount}.");
+    }
+
+    private static void SeedSessionWithSamples(TempSqliteLoggingContextFactory factory, int sessionId, int channelCount, int timestampCount)
+    {
+        using var context = factory.CreateDbContext();
+        context.Sessions.Add(new LoggingSession
+        {
+            ID = sessionId,
+            Name = "issue18",
+            SessionStart = new DateTime(2018, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+        });
+        context.SaveChanges();
+
+        // EF.AddRange is too slow for 100K rows; drop to raw ADO.NET in a single transaction.
+        var connection = context.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open) connection.Open();
+        using var tx = connection.BeginTransaction();
+        using var cmd = connection.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText =
+            "INSERT INTO Samples (LoggingSessionID, DeviceName, DeviceSerialNo, ChannelName, TimestampTicks, Value, Color, Type) " +
+            "VALUES ($sid, $dn, $sn, $cn, $ts, $v, '', 0)";
+        var pSid = cmd.CreateParameter(); pSid.ParameterName = "$sid"; cmd.Parameters.Add(pSid);
+        var pDn = cmd.CreateParameter(); pDn.ParameterName = "$dn"; cmd.Parameters.Add(pDn);
+        var pSn = cmd.CreateParameter(); pSn.ParameterName = "$sn"; cmd.Parameters.Add(pSn);
+        var pCn = cmd.CreateParameter(); pCn.ParameterName = "$cn"; cmd.Parameters.Add(pCn);
+        var pTs = cmd.CreateParameter(); pTs.ParameterName = "$ts"; cmd.Parameters.Add(pTs);
+        var pV = cmd.CreateParameter(); pV.ParameterName = "$v"; cmd.Parameters.Add(pV);
+
+        var baseTime = new DateTime(2018, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        for (var t = 0; t < timestampCount; t++)
+        {
+            var ticks = baseTime.AddMilliseconds(t * 10).Ticks;
+            for (var c = 1; c <= channelCount; c++)
+            {
+                pSid.Value = sessionId;
+                pDn.Value = "PerfTestDevice";
+                pSn.Value = "PERF001";
+                pCn.Value = $"Channel {c}";
+                pTs.Value = ticks;
+                pV.Value = Math.Sin(t * 0.01 * c) * c;
+                cmd.ExecuteNonQuery();
+            }
+        }
+        tx.Commit();
+    }
+
+    private sealed class TempSqliteLoggingContextFactory : IDbContextFactory<LoggingContext>, IDisposable
+    {
+        private readonly string _dbPath;
+        private readonly DbContextOptions<LoggingContext> _options;
+
+        public TempSqliteLoggingContextFactory()
+        {
+            _dbPath = Path.Combine(Path.GetTempPath(), $"daqifi_issue18_{Guid.NewGuid():N}.db");
+            _options = new DbContextOptionsBuilder<LoggingContext>()
+                .UseSqlite($"Data Source={_dbPath}")
+                .Options;
+            using var ctx = new LoggingContext(_options);
+            ctx.Database.EnsureCreated();
+        }
+
+        public LoggingContext CreateDbContext() => new(_options);
+
+        public void Dispose()
+        {
+            try
+            {
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+                if (File.Exists(_dbPath)) File.Delete(_dbPath);
+            }
+            catch
+            {
+                // Best-effort cleanup.
+            }
+        }
     }
 
     [TestMethod]
