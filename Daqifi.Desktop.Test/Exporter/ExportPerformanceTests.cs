@@ -105,6 +105,45 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
 
     [TestMethod]
     [TestCategory("Production")]
+    public void OptimizedExporter_Issue18Shape_16Ch10Hz_CompletesWithoutStalling()
+    {
+        // Regression guard for daqifi/daqifi-desktop#18 ("Large Data Export Fails").
+        // Original report: 48hr × 16ch @ 10Hz export appeared to stall after ~60s.
+        // We exercise the same shape (16 channels, 10Hz cadence) at ~1/55th the duration
+        // to keep the test CI-friendly while still catching regressions in the streaming
+        // export path (buckets-per-timestamp, buffered writer, no materialization).
+        const int channelCount = 16;
+        const int timestampCount = 31_250; // ~52 min @ 10Hz -> 500,000 total samples
+        const int expectedSamples = channelCount * timestampCount;
+
+        var samples = GenerateTestDataset(channelCount, timestampCount);
+        Assert.AreEqual(expectedSamples, samples.Count);
+
+        var results = MeasureExportPerformance(samples, "issue18");
+        var samplesPerSecond = results.ElapsedMs > 0 ? expectedSamples / (results.ElapsedMs / 1000.0) : double.PositiveInfinity;
+
+        Console.WriteLine($"Issue #18 shape ({expectedSamples:N0} samples, 16ch @ 10Hz): {results.ElapsedMs}ms, {results.MemoryMB}MB");
+        Console.WriteLine($"Samples per second: {samplesPerSecond:F0}");
+
+        // Must complete well under a minute — the original failure was the export
+        // appearing to give up after ~60s. 30s gives plenty of headroom on slow CI.
+        Assert.IsLessThan(30_000, results.ElapsedMs,
+            $"Export took {results.ElapsedMs}ms — regression in streaming export path (issue #18).");
+
+        // Streaming export should keep memory flat regardless of sample count.
+        Assert.IsLessThan(200, results.MemoryMB,
+            $"Export used {results.MemoryMB}MB — streaming path may be materializing data (issue #18).");
+
+        // Verify the file actually contains all timestamps (header + one row per timestamp).
+        var exportFilePath = Path.Combine(TestDirectoryPath, "issue18_export.csv");
+        Assert.IsTrue(File.Exists(exportFilePath), "Export file should exist");
+        var lineCount = File.ReadLines(exportFilePath).Count();
+        Assert.AreEqual(timestampCount + 1, lineCount,
+            $"Expected {timestampCount + 1} lines (header + {timestampCount} timestamp rows), got {lineCount}.");
+    }
+
+    [TestMethod]
+    [TestCategory("Production")]
     public void OptimizedExporter_LargeDataset_MeetsPerformanceTargets()
     {
         // Test the optimized exporter that is now used in production
