@@ -817,16 +817,32 @@
                                                                 <DockPanel >
                                                                     <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
                                                                         <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
-                                                                        <StackPanel Orientation="Horizontal" Margin="0,1,0,0"
-                                                                                    Visibility="{Binding HasFrequencyDisplay, Converter={StaticResource BoolToVis}}">
-                                                                            <TextBlock Text="SAMPLE RATE  "
-                                                                                       FontSize="8"
-                                                                                       Opacity="0.5"
-                                                                                       VerticalAlignment="Center"/>
-                                                                            <TextBlock Text="{Binding FrequencyDisplay}"
-                                                                                       FontSize="10"
-                                                                                       Opacity="0.85"
-                                                                                       VerticalAlignment="Center"/>
+                                                                        <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
+                                                                            <!-- Sample rate -->
+                                                                            <StackPanel Orientation="Horizontal"
+                                                                                        Visibility="{Binding HasFrequencyDisplay, Converter={StaticResource BoolToVis}}">
+                                                                                <TextBlock Text="SAMPLE RATE  "
+                                                                                           FontSize="8"
+                                                                                           Opacity="0.5"
+                                                                                           VerticalAlignment="Center"/>
+                                                                                <TextBlock Text="{Binding FrequencyDisplay}"
+                                                                                           FontSize="10"
+                                                                                           Opacity="0.85"
+                                                                                           VerticalAlignment="Center"/>
+                                                                            </StackPanel>
+                                                                            <!-- Samples -->
+                                                                            <StackPanel Orientation="Horizontal"
+                                                                                        Margin="8,0,0,0"
+                                                                                        Visibility="{Binding HasSampleCount, Converter={StaticResource BoolToVis}}">
+                                                                                <TextBlock Text="SAMPLES  "
+                                                                                           FontSize="8"
+                                                                                           Opacity="0.5"
+                                                                                           VerticalAlignment="Center"/>
+                                                                                <TextBlock Text="{Binding SampleCountDisplay}"
+                                                                                           FontSize="10"
+                                                                                           Opacity="0.85"
+                                                                                           VerticalAlignment="Center"/>
+                                                                            </StackPanel>
                                                                         </StackPanel>
                                                                     </StackPanel>
 

@@ -51,6 +51,11 @@ public partial class LoggingManager : ObservableObject
             {
                 if (_hasActiveApplicationSamples)
                 {
+                    // Finalize the session by recording its sample count so the
+                    // list view never has to count rows. One COUNT(*) per
+                    // session, run at most once when the session ends.
+                    PersistSessionSampleCount(Session);
+
                     if (!LoggingSessions.Any(s => s.ID == Session.ID))
                     {
                         LoggingSessions.Add(Session);
@@ -563,6 +568,11 @@ public partial class LoggingManager : ObservableObject
             context.SaveChanges();
         }
 
+        // One-time backfill: any session created before the SampleCount column
+        // existed (or whose count was lost mid-run) gets counted in a single
+        // GROUP BY query, then UPDATEd. Subsequent loads pay no cost.
+        BackfillMissingSampleCounts(context);
+
         return new ObservableCollection<LoggingSession>(
             context.Sessions
                 .AsNoTracking()
@@ -570,6 +580,74 @@ public partial class LoggingManager : ObservableObject
                 .Where(session => context.Samples.Any(sample => sample.LoggingSessionID == session.ID))
                 .OrderBy(session => session.ID)
                 .ToList());
+    }
+
+    /// <summary>
+    /// Persists <see cref="LoggingSession.SampleCount"/> for the given session
+    /// by running a single COUNT against the Samples table. Called when a
+    /// session ends so the list view can surface the count without a query.
+    /// </summary>
+    private void PersistSessionSampleCount(LoggingSession session)
+    {
+        try
+        {
+            using var context = _loggingContext.CreateDbContext();
+            var count = context.Samples.LongCount(s => s.LoggingSessionID == session.ID);
+
+            var tracked = context.Sessions.FirstOrDefault(s => s.ID == session.ID);
+            if (tracked != null)
+            {
+                tracked.SampleCount = count;
+                context.SaveChanges();
+            }
+            // Also surface immediately on the in-memory entity bound by the UI.
+            session.SampleCount = count;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to persist sample count for session {session?.ID}");
+        }
+    }
+
+    /// <summary>
+    /// Lazily backfills <see cref="LoggingSession.SampleCount"/> for any
+    /// session whose count is null. Uses a single GROUP BY query covering all
+    /// missing sessions at once, then issues UPDATEs in one transaction. Runs
+    /// at most once per session over the lifetime of the database.
+    /// </summary>
+    private void BackfillMissingSampleCounts(LoggingContext context)
+    {
+        try
+        {
+            var sessionsMissingCount = context.Sessions
+                .Where(s => s.SampleCount == null)
+                .Select(s => s.ID)
+                .ToList();
+
+            if (sessionsMissingCount.Count == 0) { return; }
+
+            var counts = context.Samples
+                .Where(sample => sessionsMissingCount.Contains(sample.LoggingSessionID))
+                .GroupBy(sample => sample.LoggingSessionID)
+                .Select(g => new { SessionId = g.Key, Count = g.LongCount() })
+                .ToList();
+
+            var trackedSessions = context.Sessions
+                .Where(s => sessionsMissingCount.Contains(s.ID))
+                .ToList();
+
+            foreach (var tracked in trackedSessions)
+            {
+                var match = counts.FirstOrDefault(c => c.SessionId == tracked.ID);
+                tracked.SampleCount = match?.Count ?? 0;
+            }
+
+            context.SaveChanges();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Failed to backfill SampleCount for legacy sessions");
+        }
     }
 
     /// <summary>

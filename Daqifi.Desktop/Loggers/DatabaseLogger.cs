@@ -617,7 +617,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 PlotModel.Subtitle = totalSamplesCount > INITIAL_LOAD_POINTS
                     ? "\nLoading full dataset..."
                     : string.Empty;
-                CurrentSessionSampleCount = totalSamplesCount;
+                // Prefer the persisted SampleCount when available; fall back to
+                // the live count computed during this load for sessions that
+                // haven't been finalized yet.
+                CurrentSessionSampleCount = session.SampleCount ?? totalSamplesCount;
 
                 SetupUiCollections(tempSeriesList, tempLegendItemsList);
                 SetupMinimapSeries(initialMinimapData);

@@ -14,6 +14,13 @@ public class LoggingSession : ObservableObject
     [DatabaseGenerated(DatabaseGeneratedOption.None)]
     public int ID { get; set; }
     public DateTime SessionStart { get; set; }
+
+    /// <summary>
+    /// Total number of samples persisted for this session, populated when the
+    /// session ends and lazy-backfilled on first list load for legacy sessions.
+    /// Null only for sessions that have not been counted yet.
+    /// </summary>
+    public long? SampleCount { get; set; }
     public virtual ICollection<Channel.Channel> Channels { get; set; } = new List<Channel.Channel>();
     public virtual ICollection<DataSample> DataSamples { get; set; } = new List<DataSample>();
     public virtual ICollection<SessionDeviceMetadata> DeviceMetadata { get; set; } = new List<SessionDeviceMetadata>();
@@ -73,6 +80,19 @@ public class LoggingSession : ObservableObject
     /// <summary>True when more than one device participated in the session.</summary>
     [NotMapped]
     public bool HasMultipleDevices => DeviceCount > 1;
+
+    /// <summary>
+    /// Sample count formatted with thousands separators (e.g. "16,000"),
+    /// or empty string when the count has not been recorded yet.
+    /// </summary>
+    [NotMapped]
+    public string SampleCountDisplay => SampleCount.HasValue
+        ? SampleCount.Value.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)
+        : string.Empty;
+
+    /// <summary>True when <see cref="SampleCount"/> is available.</summary>
+    [NotMapped]
+    public bool HasSampleCount => SampleCount.HasValue;
     #endregion
 
     #region Constructors
