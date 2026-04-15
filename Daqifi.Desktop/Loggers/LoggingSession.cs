@@ -31,6 +31,7 @@ public class LoggingSession : ObservableObject
             if (SetProperty(ref _sampleCount, value))
             {
                 OnPropertyChanged(nameof(SampleCountDisplay));
+                OnPropertyChanged(nameof(SampleCountTooltip));
                 OnPropertyChanged(nameof(HasSampleCount));
             }
         }
@@ -96,13 +97,33 @@ public class LoggingSession : ObservableObject
     public bool HasMultipleDevices => DeviceCount > 1;
 
     /// <summary>
-    /// Sample count formatted with thousands separators (e.g. "16,000"),
-    /// or empty string when the count has not been recorded yet.
+    /// Sample count rendered in compact magnitude notation (e.g. <c>1.23M</c>,
+    /// <c>16K</c>, <c>2.4B</c>). Empty when no count has been recorded yet.
+    /// The full count with thousands separators is exposed via
+    /// <see cref="SampleCountTooltip"/> for hover details.
     /// </summary>
     [NotMapped]
     public string SampleCountDisplay => SampleCount.HasValue
-        ? SampleCount.Value.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)
+        ? FormatAbbreviated(SampleCount.Value)
         : string.Empty;
+
+    /// <summary>
+    /// Full sample count formatted with thousands separators, intended for
+    /// tooltips so the abbreviated display can be expanded on demand.
+    /// </summary>
+    [NotMapped]
+    public string SampleCountTooltip => SampleCount.HasValue
+        ? SampleCount.Value.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) + " samples"
+        : string.Empty;
+
+    public static string FormatAbbreviated(long value)
+    {
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        if (value < 1_000) { return value.ToString(culture); }
+        if (value < 1_000_000) { return (value / 1_000d).ToString(value < 10_000 ? "0.0" : "0", culture) + "K"; }
+        if (value < 1_000_000_000) { return (value / 1_000_000d).ToString(value < 10_000_000 ? "0.00" : "0.0", culture) + "M"; }
+        return (value / 1_000_000_000d).ToString(value < 10_000_000_000L ? "0.00" : "0.0", culture) + "B";
+    }
 
     /// <summary>True when <see cref="SampleCount"/> is available.</summary>
     [NotMapped]

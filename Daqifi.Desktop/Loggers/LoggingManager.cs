@@ -595,6 +595,13 @@ public partial class LoggingManager : ObservableObject
     {
         try
         {
+            // Wait for any buffered samples in DatabaseLogger to be flushed to
+            // disk before counting. Without this, the COUNT can race the
+            // background consumer and persist a permanent undercount, since
+            // BackfillMissingSampleCounts only repairs null values.
+            var dbLogger = Loggers?.OfType<DatabaseLogger>().FirstOrDefault();
+            dbLogger?.WaitForIdle(TimeSpan.FromSeconds(10));
+
             using var context = _loggingContext.CreateDbContext();
             var count = context.Samples.LongCount(s => s.LoggingSessionID == session.ID);
 
@@ -604,8 +611,19 @@ public partial class LoggingManager : ObservableObject
                 tracked.SampleCount = count;
                 context.SaveChanges();
             }
-            // Also surface immediately on the in-memory entity bound by the UI.
-            session.SampleCount = count;
+
+            // Marshal the in-memory mutation onto the UI thread so the
+            // PropertyChanged notification fires on the dispatcher and WPF
+            // bindings update safely.
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.Invoke(() => session.SampleCount = count);
+            }
+            else
+            {
+                session.SampleCount = count;
+            }
         }
         catch (Exception ex)
         {

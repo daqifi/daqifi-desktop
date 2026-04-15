@@ -289,7 +289,19 @@ public class SdCardSessionImporter
                 tracked.SampleCount = samplesProcessed;
                 ctx.SaveChanges();
             }
-            session.SampleCount = samplesProcessed;
+
+            // Marshal the in-memory mutation onto the UI thread: this importer
+            // is invoked from background tasks, and SampleCount raises
+            // PropertyChanged for WPF bindings.
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.Invoke(() => session.SampleCount = samplesProcessed);
+            }
+            else
+            {
+                session.SampleCount = samplesProcessed;
+            }
         }
         catch (Exception ex)
         {

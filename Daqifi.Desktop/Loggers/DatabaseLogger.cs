@@ -137,6 +137,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private readonly CancellationTokenSource _consumerCts = new();
     private Thread _consumerThread;
     private volatile bool _disposed;
+    private volatile bool _consumerBusy;
 
     [ObservableProperty]
     private PlotModel _plotModel;
@@ -167,6 +168,24 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// </summary>
     [ObservableProperty]
     private long _currentSessionSampleCount;
+
+    /// <summary>
+    /// Compact magnitude rendering of <see cref="CurrentSessionSampleCount"/>
+    /// (e.g. <c>1.23M</c>) for the chart header. Reuses the same formatter as
+    /// <see cref="LoggingSession.SampleCountDisplay"/> so the header and the
+    /// session list rows stay visually consistent.
+    /// </summary>
+    public string CurrentSessionSampleCountDisplay =>
+        LoggingSession.FormatAbbreviated(CurrentSessionSampleCount);
+
+    public string CurrentSessionSampleCountTooltip =>
+        CurrentSessionSampleCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) + " samples";
+
+    partial void OnCurrentSessionSampleCountChanged(long value)
+    {
+        OnPropertyChanged(nameof(CurrentSessionSampleCountDisplay));
+        OnPropertyChanged(nameof(CurrentSessionSampleCountTooltip));
+    }
 
     /// <summary>
     /// Indicates whether a session with data is currently loaded.
@@ -429,6 +448,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 // Wait if the consumer is suspended (e.g. during delete-all)
                 _consumerGate.Wait(_consumerCts.Token);
 
+                _consumerBusy = true;
+
                 // Remove the samples from the collection
                 for (var i = 0; i < bufferCount; i++)
                 {
@@ -447,13 +468,16 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                     transaction.Commit();
                 }
                 samples.Clear();
+                _consumerBusy = false;
             }
             catch (OperationCanceledException)
             {
+                _consumerBusy = false;
                 break;
             }
             catch (Exception ex)
             {
+                _consumerBusy = false;
                 if (_consumerCts.IsCancellationRequested) { break; }
                 _appLogger.Error(ex, "Failed in Consumer Thread");
             }
@@ -1033,6 +1057,29 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     {
         while (_buffer.TryTake(out _))
         {
+        }
+    }
+
+    /// <summary>
+    /// Blocks until the buffered samples have been flushed to the database, or
+    /// the timeout elapses. Used by <c>LoggingManager</c> when finalizing a
+    /// session so the persisted <c>SampleCount</c> reflects every row that was
+    /// actually written, not just the rows the consumer happened to have
+    /// drained at the moment Active flipped to false.
+    /// </summary>
+    public void WaitForIdle(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (_buffer.Count == 0 && !_consumerBusy)
+            {
+                // Sleep one consumer poll interval to ensure no in-flight item
+                // slipped between TryTake and the busy flag being set.
+                Thread.Sleep(120);
+                if (_buffer.Count == 0 && !_consumerBusy) { return; }
+            }
+            Thread.Sleep(50);
         }
     }
 
