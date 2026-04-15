@@ -15,7 +15,21 @@ public class LoggingContext : DbContext
         {
             entity.ToTable("Sessions");
             entity.HasMany(c => c.DataSamples).WithOne(p => p.LoggingSession).IsRequired().OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(c => c.DeviceMetadata)
+                .WithOne(m => m.LoggingSession)
+                .HasForeignKey(m => m.LoggingSessionID)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
             entity.Property(ls => ls.Name).IsRequired();
+        });
+
+        modelBuilder.Entity<SessionDeviceMetadata>(entity =>
+        {
+            entity.ToTable("SessionDeviceMetadata");
+            entity.HasKey(m => new { m.LoggingSessionID, m.DeviceSerialNo });
+            entity.Property(m => m.DeviceSerialNo).IsRequired();
+            entity.Property(m => m.DeviceName).IsRequired();
+            entity.Property(m => m.SamplingFrequencyHz);
         });
 
         modelBuilder.Entity<DataSample>(entity =>
@@ -36,4 +50,5 @@ public class LoggingContext : DbContext
 
     public DbSet<LoggingSession> Sessions { get; set; }
     public DbSet<DataSample> Samples { get; set; }
+    public DbSet<SessionDeviceMetadata> SessionDeviceMetadata { get; set; }
 }

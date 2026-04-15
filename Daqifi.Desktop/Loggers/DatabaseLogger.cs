@@ -112,6 +112,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     #region Private Data
     public ObservableCollection<LoggedSeriesLegendItem> LegendItems { get; } = new();
     public ObservableCollection<DeviceLegendGroup> DeviceLegendGroups { get; } = new();
+    private Dictionary<string, int> _sessionDeviceFrequencyHz = new();
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _downsampledCache = new();
     private readonly BlockingCollection<DataSample> _buffer = new();
@@ -136,6 +137,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private readonly CancellationTokenSource _consumerCts = new();
     private Thread _consumerThread;
     private volatile bool _disposed;
+    private volatile bool _consumerBusy;
 
     [ObservableProperty]
     private PlotModel _plotModel;
@@ -151,6 +153,39 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// </summary>
     [ObservableProperty]
     private bool _isLegendPanelVisible = true;
+
+    /// <summary>
+    /// The session currently displayed in the plot. Bound by the session info
+    /// header to surface session-level metadata (frequency, etc.) above the
+    /// chart. Null when no session is loaded.
+    /// </summary>
+    [ObservableProperty]
+    private LoggingSession _currentSession;
+
+    /// <summary>
+    /// Total number of samples in the currently displayed session. Surfaced
+    /// in the session info header. Zero while no session is loaded.
+    /// </summary>
+    [ObservableProperty]
+    private long _currentSessionSampleCount;
+
+    /// <summary>
+    /// Compact magnitude rendering of <see cref="CurrentSessionSampleCount"/>
+    /// (e.g. <c>1.23M</c>) for the chart header. Reuses the same formatter as
+    /// <see cref="LoggingSession.SampleCountDisplay"/> so the header and the
+    /// session list rows stay visually consistent.
+    /// </summary>
+    public string CurrentSessionSampleCountDisplay =>
+        LoggingSession.FormatAbbreviated(CurrentSessionSampleCount);
+
+    public string CurrentSessionSampleCountTooltip =>
+        CurrentSessionSampleCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) + " samples";
+
+    partial void OnCurrentSessionSampleCountChanged(long value)
+    {
+        OnPropertyChanged(nameof(CurrentSessionSampleCountDisplay));
+        OnPropertyChanged(nameof(CurrentSessionSampleCountTooltip));
+    }
 
     /// <summary>
     /// Indicates whether a session with data is currently loaded.
@@ -413,6 +448,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 // Wait if the consumer is suspended (e.g. during delete-all)
                 _consumerGate.Wait(_consumerCts.Token);
 
+                _consumerBusy = true;
+
                 // Remove the samples from the collection
                 for (var i = 0; i < bufferCount; i++)
                 {
@@ -431,13 +468,16 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                     transaction.Commit();
                 }
                 samples.Clear();
+                _consumerBusy = false;
             }
             catch (OperationCanceledException)
             {
+                _consumerBusy = false;
                 break;
             }
             catch (Exception ex)
             {
+                _consumerBusy = false;
                 if (_consumerCts.IsCancellationRequested) { break; }
                 _appLogger.Error(ex, "Failed in Consumer Thread");
             }
@@ -461,6 +501,9 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             _allSessionPoints.Clear();
             _downsampledCache.Clear();
             _minimapSeries.Clear();
+            _sessionDeviceFrequencyHz = new Dictionary<string, int>();
+            CurrentSession = null;
+            CurrentSessionSampleCount = 0;
             PlotModel.Series.Clear();
             LegendItems.Clear();
             DeviceLegendGroups.Clear();
@@ -496,6 +539,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             // ClearPlot is already dispatcher-wrapped
             ClearPlot();
             _currentSessionId = session.ID;
+            Application.Current.Dispatcher.Invoke(() => CurrentSession = session);
 
             var sessionName = session.Name;
             var subtitle = string.Empty;
@@ -508,6 +552,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             // This eliminates shared mutable state between threads.
             var localPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
             DateTime? localFirstTime = null;
+
+            // Load per-device sampling frequency from session metadata.
+            // Built on this background thread; swapped to shared state on the UI thread.
+            var localDeviceFrequency = LoadSessionDeviceFrequency(session.ID);
 
             // ── Phase 1: Fast initial load (<1s) ──────────────────────────
             // Get channel metadata from first timestamp (6ms via index)
@@ -530,7 +578,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                     // Empty session
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        PlotModel.Title = sessionName;
+                        _sessionDeviceFrequencyHz = localDeviceFrequency;
+                        // Title is rendered in the WPF header strip, not by OxyPlot
+                        PlotModel.Title = string.Empty;
+                        CurrentSessionSampleCount = 0;
                         HasSessionData = false;
                         PlotModel.InvalidatePlot(true);
                     });
@@ -582,11 +633,18 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             {
                 _allSessionPoints = localPoints;
                 _firstTime = localFirstTime;
+                _sessionDeviceFrequencyHz = localDeviceFrequency;
 
-                PlotModel.Title = sessionName;
+                // Session name is rendered in the WPF header strip; keep the
+                // OxyPlot title clear so we don't double up on it.
+                PlotModel.Title = string.Empty;
                 PlotModel.Subtitle = totalSamplesCount > INITIAL_LOAD_POINTS
                     ? "\nLoading full dataset..."
                     : string.Empty;
+                // Prefer the persisted SampleCount when available; fall back to
+                // the live count computed during this load for sessions that
+                // haven't been finalized yet.
+                CurrentSessionSampleCount = session.SampleCount ?? totalSamplesCount;
 
                 SetupUiCollections(tempSeriesList, tempLegendItemsList);
                 SetupMinimapSeries(initialMinimapData);
@@ -802,6 +860,40 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     }
 
     /// <summary>
+    /// Loads per-device sampling frequency for a session from <c>SessionDeviceMetadata</c>.
+    /// Returns an empty dictionary for legacy sessions logged before metadata was persisted —
+    /// the legend will simply omit the frequency line for those.
+    /// </summary>
+    /// <param name="sessionId">The session whose device metadata to load.</param>
+    /// <returns>Map of device serial number to configured sampling frequency in Hz.</returns>
+    private Dictionary<string, int> LoadSessionDeviceFrequency(int sessionId)
+    {
+        var result = new Dictionary<string, int>();
+        try
+        {
+            using var context = _loggingContext.CreateDbContext();
+            var metadata = context.SessionDeviceMetadata.AsNoTracking()
+                .Where(m => m.LoggingSessionID == sessionId)
+                .Select(m => new { m.DeviceSerialNo, m.SamplingFrequencyHz })
+                .ToList();
+
+            foreach (var entry in metadata)
+            {
+                if (!string.IsNullOrEmpty(entry.DeviceSerialNo))
+                {
+                    result[entry.DeviceSerialNo] = entry.SamplingFrequencyHz;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, "Failed to load SessionDeviceMetadata");
+        }
+        return result;
+    }
+
+
+    /// <summary>
     /// Sets up UI collections (legend items, device groups, series) on the UI thread.
     /// </summary>
     private void SetupUiCollections(List<LineSeries> seriesList, List<LoggedSeriesLegendItem> legendItems)
@@ -818,6 +910,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             if (!groupDict.TryGetValue(legendItem.DeviceSerialNo, out var group))
             {
                 group = new DeviceLegendGroup(legendItem.DeviceSerialNo);
+                if (_sessionDeviceFrequencyHz.TryGetValue(legendItem.DeviceSerialNo, out var freqHz) && freqHz > 0)
+                {
+                    group.SamplingFrequencyHz = freqHz;
+                }
                 groupDict[legendItem.DeviceSerialNo] = group;
                 DeviceLegendGroups.Add(group);
             }
@@ -922,6 +1018,17 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             using (var cmd = connection.CreateCommand())
             {
                 cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM SessionDeviceMetadata WHERE LoggingSessionID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = session.ID;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
                 cmd.CommandText = "DELETE FROM Sessions WHERE ID = @id";
                 var param = cmd.CreateParameter();
                 param.ParameterName = "@id";
@@ -950,6 +1057,29 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     {
         while (_buffer.TryTake(out _))
         {
+        }
+    }
+
+    /// <summary>
+    /// Blocks until the buffered samples have been flushed to the database, or
+    /// the timeout elapses. Used by <c>LoggingManager</c> when finalizing a
+    /// session so the persisted <c>SampleCount</c> reflects every row that was
+    /// actually written, not just the rows the consumer happened to have
+    /// drained at the moment Active flipped to false.
+    /// </summary>
+    public void WaitForIdle(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (_buffer.Count == 0 && !_consumerBusy)
+            {
+                // Sleep one consumer poll interval to ensure no in-flight item
+                // slipped between TryTake and the busy flag being set.
+                Thread.Sleep(120);
+                if (_buffer.Count == 0 && !_consumerBusy) { return; }
+            }
+            Thread.Sleep(50);
         }
     }
 

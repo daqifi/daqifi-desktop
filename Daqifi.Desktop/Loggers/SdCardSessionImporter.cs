@@ -276,6 +276,38 @@ public class SdCardSessionImporter
         }
 
         _logger.Information($"Imported {samplesProcessed} samples for session '{session.Name}' (ID={session.ID})");
+
+        // Record the sample count on the session so the list view can show it
+        // without falling back to the lazy backfill on the next reload. We
+        // already have the exact count locally, so no extra query is needed.
+        try
+        {
+            using var ctx = _loggingContext.CreateDbContext();
+            var tracked = ctx.Sessions.FirstOrDefault(s => s.ID == session.ID);
+            if (tracked != null)
+            {
+                tracked.SampleCount = samplesProcessed;
+                ctx.SaveChanges();
+            }
+
+            // Marshal the in-memory mutation onto the UI thread: this importer
+            // is invoked from background tasks, and SampleCount raises
+            // PropertyChanged for WPF bindings.
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.Invoke(() => session.SampleCount = samplesProcessed);
+            }
+            else
+            {
+                session.SampleCount = samplesProcessed;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, $"Failed to persist SampleCount for imported session {session.ID}");
+        }
+
         return session;
     }
 

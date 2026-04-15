@@ -9,6 +9,7 @@ using Daqifi.Desktop.UpdateVersion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Desktop;
 
 namespace Daqifi.Desktop.Logger;
 
@@ -54,6 +55,15 @@ public partial class LoggingManager : ObservableObject
                     {
                         LoggingSessions.Add(Session);
                     }
+
+                    // Finalize the session by recording its sample count so the
+                    // list view never has to count rows. Runs on a background
+                    // thread because COUNT(*) on a multi-million-row session
+                    // would otherwise block the UI thread that toggled Active.
+                    // The list row updates automatically when SampleCount is
+                    // set, since LoggingSession is INotifyPropertyChanged.
+                    var sessionToFinalize = Session;
+                    _ = Task.Run(() => PersistSessionSampleCount(sessionToFinalize));
                 }
                 else
                 {
@@ -98,6 +108,29 @@ public partial class LoggingManager : ObservableObject
                 var name = $"Session_{newId}";
                 Session = new LoggingSession(newId, name);
                 context.Sessions.Add(Session);
+
+                // Capture per-device metadata (sampling frequency, name) for the
+                // devices that own the subscribed channels, so the session UI can
+                // display configuration without re-deriving it from sample data.
+                // Failures here must not block session creation — the session is
+                // still usable without metadata; the legend just won't show
+                // sampling frequency.
+                try
+                {
+                    foreach (var metadata in BuildDeviceMetadataForSession(newId))
+                    {
+                        context.SessionDeviceMetadata.Add(metadata);
+                        // Also attach to the in-memory session so the list view
+                        // and any header binding picks up FrequencyDisplay
+                        // immediately without waiting for a reload.
+                        Session.DeviceMetadata.Add(metadata);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Error(ex, $"Failed to capture device metadata for session {newId}; continuing without it.");
+                }
+
                 context.SaveChanges();
             }
 
@@ -404,6 +437,77 @@ public partial class LoggingManager : ObservableObject
     }
     #endregion
 
+    /// <summary>
+    /// Builds <see cref="SessionDeviceMetadata"/> rows for every device that has
+    /// at least one subscribed channel at the start of a logging session.
+    /// </summary>
+    /// <param name="sessionId">The id of the session being created.</param>
+    /// <returns>One materialized metadata entry per distinct device serial number.</returns>
+    /// <remarks>
+    /// Snapshots <see cref="SubscribedChannels"/> and
+    /// <see cref="ConnectionManager.ConnectedDevices"/> up front so the result is
+    /// computed against stable copies — these collections can otherwise mutate
+    /// concurrently (e.g., from device-connection background threads) and throw
+    /// during enumeration. Returns a fully materialized list rather than yielding
+    /// lazily so the caller is never iterating against the live collections.
+    /// Uses <see cref="StringComparer.Ordinal"/> for serial-number deduplication
+    /// because device serials are opaque identifiers, not culture-sensitive text.
+    /// </remarks>
+    private List<SessionDeviceMetadata> BuildDeviceMetadataForSession(int sessionId)
+    {
+        var result = new List<SessionDeviceMetadata>();
+
+        // Snapshot inputs before iterating to avoid concurrent-modification
+        // exceptions on the underlying mutable lists.
+        var subscribedChannelsSnapshot = SubscribedChannels?.ToList() ?? new List<IChannel>();
+        var connectedDevicesSnapshot = ConnectionManager.Instance.ConnectedDevices?.ToList()
+            ?? new List<IStreamingDevice>();
+
+        var subscribedSerials = subscribedChannelsSnapshot
+            .Select(c => c.DeviceSerialNo)
+            .Where(s => !string.IsNullOrEmpty(s))
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (subscribedSerials.Count == 0)
+        {
+            return result;
+        }
+
+        var emittedSerials = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var device in connectedDevicesSnapshot)
+        {
+            if (device == null || string.IsNullOrEmpty(device.DeviceSerialNo))
+            {
+                continue;
+            }
+
+            if (!subscribedSerials.Contains(device.DeviceSerialNo))
+            {
+                continue;
+            }
+
+            // Defensive: ConnectedDevices can briefly contain two entries with the
+            // same serial (e.g., during USB re-enumeration). The composite primary
+            // key on (LoggingSessionID, DeviceSerialNo) would otherwise reject the
+            // second row and abort the session start.
+            if (!emittedSerials.Add(device.DeviceSerialNo))
+            {
+                continue;
+            }
+
+            result.Add(new SessionDeviceMetadata
+            {
+                LoggingSessionID = sessionId,
+                DeviceSerialNo = device.DeviceSerialNo,
+                DeviceName = device.Name ?? string.Empty,
+                SamplingFrequencyHz = device.StreamingFrequency
+            });
+        }
+
+        return result;
+    }
+
     public void HandleDeviceMessage(object sender, DeviceMessage sample)
     {
         if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession)
@@ -468,12 +572,103 @@ public partial class LoggingManager : ObservableObject
             context.SaveChanges();
         }
 
+        // One-time backfill: any session created before the SampleCount column
+        // existed (or whose count was lost mid-run) gets counted in a single
+        // GROUP BY query, then UPDATEd. Subsequent loads pay no cost.
+        BackfillMissingSampleCounts(context);
+
         return new ObservableCollection<LoggingSession>(
             context.Sessions
                 .AsNoTracking()
+                .Include(session => session.DeviceMetadata)
                 .Where(session => context.Samples.Any(sample => sample.LoggingSessionID == session.ID))
                 .OrderBy(session => session.ID)
                 .ToList());
+    }
+
+    /// <summary>
+    /// Persists <see cref="LoggingSession.SampleCount"/> for the given session
+    /// by running a single COUNT against the Samples table. Called when a
+    /// session ends so the list view can surface the count without a query.
+    /// </summary>
+    private void PersistSessionSampleCount(LoggingSession session)
+    {
+        try
+        {
+            // Wait for any buffered samples in DatabaseLogger to be flushed to
+            // disk before counting. Without this, the COUNT can race the
+            // background consumer and persist a permanent undercount, since
+            // BackfillMissingSampleCounts only repairs null values.
+            var dbLogger = Loggers?.OfType<DatabaseLogger>().FirstOrDefault();
+            dbLogger?.WaitForIdle(TimeSpan.FromSeconds(10));
+
+            using var context = _loggingContext.CreateDbContext();
+            var count = context.Samples.LongCount(s => s.LoggingSessionID == session.ID);
+
+            var tracked = context.Sessions.FirstOrDefault(s => s.ID == session.ID);
+            if (tracked != null)
+            {
+                tracked.SampleCount = count;
+                context.SaveChanges();
+            }
+
+            // Marshal the in-memory mutation onto the UI thread so the
+            // PropertyChanged notification fires on the dispatcher and WPF
+            // bindings update safely.
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.Invoke(() => session.SampleCount = count);
+            }
+            else
+            {
+                session.SampleCount = count;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to persist sample count for session {session?.ID}");
+        }
+    }
+
+    /// <summary>
+    /// Lazily backfills <see cref="LoggingSession.SampleCount"/> for any
+    /// session whose count is null. Uses a single GROUP BY query covering all
+    /// missing sessions at once, then issues UPDATEs in one transaction. Runs
+    /// at most once per session over the lifetime of the database.
+    /// </summary>
+    private void BackfillMissingSampleCounts(LoggingContext context)
+    {
+        try
+        {
+            var sessionsMissingCount = context.Sessions
+                .Where(s => s.SampleCount == null)
+                .Select(s => s.ID)
+                .ToList();
+
+            if (sessionsMissingCount.Count == 0) { return; }
+
+            var countsBySession = context.Samples
+                .Where(sample => sessionsMissingCount.Contains(sample.LoggingSessionID))
+                .GroupBy(sample => sample.LoggingSessionID)
+                .Select(g => new { SessionId = g.Key, Count = g.LongCount() })
+                .ToDictionary(g => g.SessionId, g => g.Count);
+
+            var trackedSessions = context.Sessions
+                .Where(s => sessionsMissingCount.Contains(s.ID))
+                .ToList();
+
+            foreach (var tracked in trackedSessions)
+            {
+                tracked.SampleCount = countsBySession.TryGetValue(tracked.ID, out var c) ? c : 0;
+            }
+
+            context.SaveChanges();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Failed to backfill SampleCount for legacy sessions");
+        }
     }
 
     /// <summary>
@@ -510,6 +705,17 @@ public partial class LoggingManager : ObservableObject
             {
                 cmd.Transaction = transaction;
                 cmd.CommandText = "DELETE FROM Samples WHERE LoggingSessionID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = sessionId;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM SessionDeviceMetadata WHERE LoggingSessionID = @id";
                 var param = cmd.CreateParameter();
                 param.ParameterName = "@id";
                 param.Value = sessionId;
