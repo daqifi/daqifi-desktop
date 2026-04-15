@@ -23,6 +23,56 @@ public class LoggingSession : ObservableObject
         get => string.IsNullOrWhiteSpace(_name) ? "Session " + ID : _name;
         set => SetProperty(ref _name, value);
     }
+
+    /// <summary>
+    /// A compact, human-readable summary of each device's sampling frequency
+    /// for this session. Empty for legacy sessions that lack metadata.
+    /// Single device: "10 Hz". Multi device: "...4106: 10 Hz · ...5678: 1 kHz".
+    /// </summary>
+    [NotMapped]
+    public string FrequencyDisplay
+    {
+        get
+        {
+            if (DeviceMetadata == null || DeviceMetadata.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            if (DeviceMetadata.Count == 1)
+            {
+                var only = DeviceMetadata.First();
+                return DeviceLegendGroup.FormatFrequency(only.SamplingFrequencyHz);
+            }
+
+            var parts = new List<string>(DeviceMetadata.Count);
+            foreach (var entry in DeviceMetadata.OrderBy(m => m.DeviceSerialNo, StringComparer.Ordinal))
+            {
+                var formatted = DeviceLegendGroup.FormatFrequency(entry.SamplingFrequencyHz);
+                if (string.IsNullOrEmpty(formatted)) { continue; }
+                var serialTail = !string.IsNullOrEmpty(entry.DeviceSerialNo) && entry.DeviceSerialNo.Length > 4
+                    ? "..." + entry.DeviceSerialNo[^4..]
+                    : entry.DeviceSerialNo ?? string.Empty;
+                parts.Add($"{serialTail}: {formatted}");
+            }
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>
+    /// Number of distinct devices participating in this session, derived from
+    /// device metadata. Zero for legacy sessions without metadata.
+    /// </summary>
+    [NotMapped]
+    public int DeviceCount => DeviceMetadata?.Count ?? 0;
+
+    /// <summary>True when <see cref="FrequencyDisplay"/> has content to show.</summary>
+    [NotMapped]
+    public bool HasFrequencyDisplay => !string.IsNullOrEmpty(FrequencyDisplay);
+
+    /// <summary>True when more than one device participated in the session.</summary>
+    [NotMapped]
+    public bool HasMultipleDevices => DeviceCount > 1;
     #endregion
 
     #region Constructors

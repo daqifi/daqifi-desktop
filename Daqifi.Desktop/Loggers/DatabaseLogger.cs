@@ -154,6 +154,14 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private bool _isLegendPanelVisible = true;
 
     /// <summary>
+    /// The session currently displayed in the plot. Bound by the session info
+    /// footer to surface session-level metadata (frequency, etc.) under the
+    /// chart. Null when no session is loaded.
+    /// </summary>
+    [ObservableProperty]
+    private LoggingSession _currentSession;
+
+    /// <summary>
     /// Indicates whether a session with data is currently loaded.
     /// Controls visibility of the minimap, legend, and empty state placeholder.
     /// </summary>
@@ -463,6 +471,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             _downsampledCache.Clear();
             _minimapSeries.Clear();
             _sessionDeviceFrequencyHz = new Dictionary<string, int>();
+            CurrentSession = null;
             PlotModel.Series.Clear();
             LegendItems.Clear();
             DeviceLegendGroups.Clear();
@@ -498,6 +507,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             // ClearPlot is already dispatcher-wrapped
             ClearPlot();
             _currentSessionId = session.ID;
+            Application.Current.Dispatcher.Invoke(() => CurrentSession = session);
 
             var sessionName = session.Name;
             var subtitle = string.Empty;
@@ -536,6 +546,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                     // Empty session
                     Application.Current.Dispatcher.Invoke(() =>
                     {
+                        _sessionDeviceFrequencyHz = localDeviceFrequency;
                         PlotModel.Title = sessionName;
                         HasSessionData = false;
                         PlotModel.InvalidatePlot(true);
@@ -840,6 +851,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         }
         return result;
     }
+
 
     /// <summary>
     /// Sets up UI collections (legend items, device groups, series) on the UI thread.

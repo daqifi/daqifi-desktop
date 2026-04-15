@@ -111,6 +111,10 @@ public partial class LoggingManager : ObservableObject
                     foreach (var metadata in BuildDeviceMetadataForSession(newId))
                     {
                         context.SessionDeviceMetadata.Add(metadata);
+                        // Also attach to the in-memory session so the list view
+                        // and any header binding picks up FrequencyDisplay
+                        // immediately without waiting for a reload.
+                        Session.DeviceMetadata.Add(metadata);
                     }
                 }
                 catch (Exception ex)
@@ -562,6 +566,7 @@ public partial class LoggingManager : ObservableObject
         return new ObservableCollection<LoggingSession>(
             context.Sessions
                 .AsNoTracking()
+                .Include(session => session.DeviceMetadata)
                 .Where(session => context.Samples.Any(sample => sample.LoggingSessionID == session.ID))
                 .OrderBy(session => session.ID)
                 .ToList());

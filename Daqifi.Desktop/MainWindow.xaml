@@ -471,6 +471,7 @@
                                             <RowDefinition Height="*"/>
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
 
                                         <oxy:PlotView Grid.Row="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0">
@@ -602,6 +603,70 @@
                                                 </Style>
                                             </oxy:PlotView.Style>
                                         </oxy:PlotView>
+
+                                        <!-- Session Info Footer (compact metadata strip; hidden when no data) -->
+                                        <Border Grid.Row="3"
+                                                Margin="5,2,20,5"
+                                                Padding="8,4"
+                                                Background="#0FFFFFFF"
+                                                BorderBrush="#1FFFFFFF"
+                                                BorderThickness="0,1,0,0">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <!-- Session name -->
+                                                <TextBlock Text="{Binding DbLogger.CurrentSession.Name}"
+                                                           FontSize="11" FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- Separator + Started -->
+                                                <TextBlock Text="  ·  " FontSize="11" Opacity="0.4" VerticalAlignment="Center"/>
+                                                <TextBlock FontSize="9"
+                                                           Opacity="0.55"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,1,3,0"
+                                                           Text="STARTED"/>
+                                                <TextBlock Text="{Binding DbLogger.CurrentSession.SessionStart, StringFormat='{}{0:M/d h:mm tt}'}"
+                                                           FontSize="11"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- Separator + Sample rate (only when present) -->
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                            Visibility="{Binding DbLogger.CurrentSession.HasFrequencyDisplay, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="  ·  " FontSize="11" Opacity="0.4" VerticalAlignment="Center"/>
+                                                    <TextBlock FontSize="9"
+                                                               Opacity="0.55"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,1,3,0"
+                                                               Text="SAMPLE RATE"/>
+                                                    <TextBlock Text="{Binding DbLogger.CurrentSession.FrequencyDisplay}"
+                                                               FontSize="11" FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"/>
+                                                </StackPanel>
+
+                                                <!-- Separator + Devices (only when multi-device) -->
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                            Visibility="{Binding DbLogger.CurrentSession.HasMultipleDevices, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="  ·  " FontSize="11" Opacity="0.4" VerticalAlignment="Center"/>
+                                                    <TextBlock FontSize="9"
+                                                               Opacity="0.55"
+                                                               VerticalAlignment="Center"
+                                                               Margin="0,1,3,0"
+                                                               Text="DEVICES"/>
+                                                    <TextBlock Text="{Binding DbLogger.CurrentSession.DeviceCount}"
+                                                               FontSize="11" FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
                                     </Grid>
 
                                     <!-- Legend Panel with Collapse Toggle (hidden when no data) -->
@@ -655,41 +720,11 @@
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate DataType="{x:Type logger:DeviceLegendGroup}">
                                                         <StackPanel Margin="0,4,0,8">
-                                                            <!-- Device header strip: serial on the left, sampling frequency on the right -->
-                                                            <Grid Margin="0,0,0,3">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="Auto"/>
-                                                                </Grid.ColumnDefinitions>
-                                                                <TextBlock Grid.Column="0"
-                                                                           FontSize="10" Opacity="0.7"
-                                                                           VerticalAlignment="Center"
-                                                                           ToolTip="{Binding DeviceSerialNo}">
-                                                                    <Run Text="Device: "/><Run Text="{Binding TruncatedSerialNo, Mode=OneWay}"/>
-                                                                </TextBlock>
-                                                                <Border Grid.Column="1"
-                                                                        Background="#1F1976D2"
-                                                                        BorderBrush="#401976D2"
-                                                                        BorderThickness="1"
-                                                                        CornerRadius="3"
-                                                                        Padding="5,1"
-                                                                        VerticalAlignment="Center"
-                                                                        ToolTip="Configured sampling frequency"
-                                                                        Visibility="{Binding HasSamplingFrequency, Converter={StaticResource BoolToVis}}">
-                                                                    <StackPanel Orientation="Horizontal">
-                                                                        <TextBlock Text="&#xE916;"
-                                                                                   FontFamily="Segoe MDL2 Assets"
-                                                                                   FontSize="9"
-                                                                                   Opacity="0.85"
-                                                                                   VerticalAlignment="Center"
-                                                                                   Margin="0,0,3,0"/>
-                                                                        <TextBlock Text="{Binding SamplingFrequencyDisplay, Mode=OneWay}"
-                                                                                   FontSize="10"
-                                                                                   FontWeight="SemiBold"
-                                                                                   VerticalAlignment="Center"/>
-                                                                    </StackPanel>
-                                                                </Border>
-                                                            </Grid>
+                                                            <!-- Device Header (sampling frequency now lives in the chart subtitle) -->
+                                                            <TextBlock FontSize="10" Opacity="0.7" Margin="0,0,0,3"
+                                                                       ToolTip="{Binding DeviceSerialNo}">
+                                                                <Run Text="Device: "/><Run Text="{Binding TruncatedSerialNo, Mode=OneWay}"/>
+                                                            </TextBlock>
 
                                                             <!-- Channel Grid (2 columns) -->
                                                             <ItemsControl ItemsSource="{Binding Channels}">
@@ -782,7 +817,20 @@
                                                         <DataTemplate>
                                                             <Border>
                                                                 <DockPanel >
-                                                                    <TextBlock Text="{Binding Name}" DockPanel.Dock="Left" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                                    <StackPanel DockPanel.Dock="Left" VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
+                                                                        <StackPanel Orientation="Horizontal" Margin="0,1,0,0"
+                                                                                    Visibility="{Binding HasFrequencyDisplay, Converter={StaticResource BoolToVis}}">
+                                                                            <TextBlock Text="SAMPLE RATE  "
+                                                                                       FontSize="8"
+                                                                                       Opacity="0.5"
+                                                                                       VerticalAlignment="Center"/>
+                                                                            <TextBlock Text="{Binding FrequencyDisplay}"
+                                                                                       FontSize="10"
+                                                                                       Opacity="0.85"
+                                                                                       VerticalAlignment="Center"/>
+                                                                        </StackPanel>
+                                                                    </StackPanel>
 
                                                                     <!-- Delete Logging Session -->
                                                                     <Button DockPanel.Dock="Right" Command="{Binding ElementName=LoggingSessionList, Path=DataContext.DeleteLoggingSessionCommand}" CommandParameter="{Binding}" Background="#88FFFFFF" ToolTip="Delete" Padding="5">
