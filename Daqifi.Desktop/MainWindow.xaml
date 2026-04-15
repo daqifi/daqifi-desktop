@@ -1157,7 +1157,7 @@
                     <ContentPresenter.ContentTemplate>
                         <DataTemplate>
                             <Grid>
-                                <ListView Name="ActiveProfileList" ItemsSource="{Binding Profiles}" Background="Transparent" BorderThickness="0" SelectedItem="{Binding SelectedProfile, Mode=OneWayToSource}">
+                                <ListView Name="ActiveProfileList" ItemsSource="{Binding Profiles}" SelectionMode="Single" Background="Transparent" BorderThickness="0" SelectedItem="{Binding SelectedProfile, Mode=OneWayToSource}">
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <Border Height="50">
