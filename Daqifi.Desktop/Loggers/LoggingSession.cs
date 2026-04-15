@@ -8,6 +8,7 @@ public class LoggingSession : ObservableObject
 {
     #region Private Data
     private string _name;
+    private long? _sampleCount;
     #endregion
 
     #region Properties
@@ -18,9 +19,22 @@ public class LoggingSession : ObservableObject
     /// <summary>
     /// Total number of samples persisted for this session, populated when the
     /// session ends and lazy-backfilled on first list load for legacy sessions.
-    /// Null only for sessions that have not been counted yet.
+    /// Null only for sessions that have not been counted yet. Setter notifies
+    /// dependent computed properties so the list view refreshes if the count
+    /// is updated after the entity is already bound.
     /// </summary>
-    public long? SampleCount { get; set; }
+    public long? SampleCount
+    {
+        get => _sampleCount;
+        set
+        {
+            if (SetProperty(ref _sampleCount, value))
+            {
+                OnPropertyChanged(nameof(SampleCountDisplay));
+                OnPropertyChanged(nameof(HasSampleCount));
+            }
+        }
+    }
     public virtual ICollection<Channel.Channel> Channels { get; set; } = new List<Channel.Channel>();
     public virtual ICollection<DataSample> DataSamples { get; set; } = new List<DataSample>();
     public virtual ICollection<SessionDeviceMetadata> DeviceMetadata { get; set; } = new List<SessionDeviceMetadata>();

@@ -626,11 +626,11 @@ public partial class LoggingManager : ObservableObject
 
             if (sessionsMissingCount.Count == 0) { return; }
 
-            var counts = context.Samples
+            var countsBySession = context.Samples
                 .Where(sample => sessionsMissingCount.Contains(sample.LoggingSessionID))
                 .GroupBy(sample => sample.LoggingSessionID)
                 .Select(g => new { SessionId = g.Key, Count = g.LongCount() })
-                .ToList();
+                .ToDictionary(g => g.SessionId, g => g.Count);
 
             var trackedSessions = context.Sessions
                 .Where(s => sessionsMissingCount.Contains(s.ID))
@@ -638,8 +638,7 @@ public partial class LoggingManager : ObservableObject
 
             foreach (var tracked in trackedSessions)
             {
-                var match = counts.FirstOrDefault(c => c.SessionId == tracked.ID);
-                tracked.SampleCount = match?.Count ?? 0;
+                tracked.SampleCount = countsBySession.TryGetValue(tracked.ID, out var c) ? c : 0;
             }
 
             context.SaveChanges();
