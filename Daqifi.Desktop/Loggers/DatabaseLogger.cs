@@ -155,11 +155,18 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
     /// <summary>
     /// The session currently displayed in the plot. Bound by the session info
-    /// footer to surface session-level metadata (frequency, etc.) under the
+    /// header to surface session-level metadata (frequency, etc.) above the
     /// chart. Null when no session is loaded.
     /// </summary>
     [ObservableProperty]
     private LoggingSession _currentSession;
+
+    /// <summary>
+    /// Total number of samples in the currently displayed session. Surfaced
+    /// in the session info header. Zero while no session is loaded.
+    /// </summary>
+    [ObservableProperty]
+    private long _currentSessionSampleCount;
 
     /// <summary>
     /// Indicates whether a session with data is currently loaded.
@@ -472,6 +479,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             _minimapSeries.Clear();
             _sessionDeviceFrequencyHz = new Dictionary<string, int>();
             CurrentSession = null;
+            CurrentSessionSampleCount = 0;
             PlotModel.Series.Clear();
             LegendItems.Clear();
             DeviceLegendGroups.Clear();
@@ -547,7 +555,9 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                     Application.Current.Dispatcher.Invoke(() =>
                     {
                         _sessionDeviceFrequencyHz = localDeviceFrequency;
-                        PlotModel.Title = sessionName;
+                        // Title is rendered in the WPF header strip, not by OxyPlot
+                        PlotModel.Title = string.Empty;
+                        CurrentSessionSampleCount = 0;
                         HasSessionData = false;
                         PlotModel.InvalidatePlot(true);
                     });
@@ -601,10 +611,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 _firstTime = localFirstTime;
                 _sessionDeviceFrequencyHz = localDeviceFrequency;
 
-                PlotModel.Title = sessionName;
+                // Session name is rendered in the WPF header strip; keep the
+                // OxyPlot title clear so we don't double up on it.
+                PlotModel.Title = string.Empty;
                 PlotModel.Subtitle = totalSamplesCount > INITIAL_LOAD_POINTS
                     ? "\nLoading full dataset..."
                     : string.Empty;
+                CurrentSessionSampleCount = totalSamplesCount;
 
                 SetupUiCollections(tempSeriesList, tempLegendItemsList);
                 SetupMinimapSeries(initialMinimapData);

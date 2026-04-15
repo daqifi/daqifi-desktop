@@ -468,13 +468,75 @@
 
                                     <Grid Grid.Column="0">
                                         <Grid.RowDefinitions>
-                                            <RowDefinition Height="*"/>
                                             <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
                                             <RowDefinition Height="Auto"/>
                                             <RowDefinition Height="Auto"/>
                                         </Grid.RowDefinitions>
 
-                                        <oxy:PlotView Grid.Row="0" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0">
+                                        <!-- Session Header: title + centered metadata strip (hidden when no data) -->
+                                        <StackPanel Grid.Row="0"
+                                                    HorizontalAlignment="Center"
+                                                    Margin="5,8,20,4">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+
+                                            <!-- Session name -->
+                                            <TextBlock Text="{Binding DbLogger.CurrentSession.Name}"
+                                                       FontSize="16" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"/>
+
+                                            <!-- Centered metadata strip -->
+                                            <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Center"
+                                                        Margin="0,2,0,0">
+                                                <!-- Started -->
+                                                <TextBlock FontSize="9" Opacity="0.55" VerticalAlignment="Center"
+                                                           Margin="0,1,3,0" Text="STARTED"/>
+                                                <TextBlock Text="{Binding DbLogger.CurrentSession.SessionStart, StringFormat='{}{0:M/d h:mm tt}'}"
+                                                           FontSize="11" VerticalAlignment="Center"/>
+
+                                                <!-- Sample rate (only when present) -->
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                            Visibility="{Binding DbLogger.CurrentSession.HasFrequencyDisplay, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="  ·  " FontSize="11" Opacity="0.4" VerticalAlignment="Center"/>
+                                                    <TextBlock FontSize="9" Opacity="0.55" VerticalAlignment="Center"
+                                                               Margin="0,1,3,0" Text="SAMPLE RATE"/>
+                                                    <TextBlock Text="{Binding DbLogger.CurrentSession.FrequencyDisplay}"
+                                                               FontSize="11" FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"/>
+                                                </StackPanel>
+
+                                                <!-- Sample count -->
+                                                <TextBlock Text="  ·  " FontSize="11" Opacity="0.4" VerticalAlignment="Center"/>
+                                                <TextBlock FontSize="9" Opacity="0.55" VerticalAlignment="Center"
+                                                           Margin="0,1,3,0" Text="SAMPLES"/>
+                                                <TextBlock Text="{Binding DbLogger.CurrentSessionSampleCount, StringFormat='{}{0:N0}'}"
+                                                           FontSize="11" FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- Devices (only when multi-device) -->
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                            Visibility="{Binding DbLogger.CurrentSession.HasMultipleDevices, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="  ·  " FontSize="11" Opacity="0.4" VerticalAlignment="Center"/>
+                                                    <TextBlock FontSize="9" Opacity="0.55" VerticalAlignment="Center"
+                                                               Margin="0,1,3,0" Text="DEVICES"/>
+                                                    <TextBlock Text="{Binding DbLogger.CurrentSession.DeviceCount}"
+                                                               FontSize="11" FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <oxy:PlotView Grid.Row="1" Model="{Binding DbLogger.PlotModel}" Margin="5,5,20,5" TabIndex="0">
                                             <oxy:PlotView.Style>
                                                 <Style TargetType="oxy:PlotView">
                                                     <Setter Property="Visibility" Value="Visible"/>
@@ -488,7 +550,7 @@
                                         </oxy:PlotView>
 
                                         <!-- Empty State Placeholder -->
-                                        <StackPanel Grid.Row="0"
+                                        <StackPanel Grid.Row="1"
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Center">
                                             <StackPanel.Style>
@@ -512,7 +574,7 @@
                                         </StackPanel>
 
                                         <!-- Save/Zoom button overlays on the main plot -->
-                                        <DockPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                        <DockPanel Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Top">
                                             <DockPanel.Style>
                                                 <Style TargetType="DockPanel">
                                                     <Setter Property="Visibility" Value="Visible"/>
@@ -527,7 +589,7 @@
                                                 <iconPacks:PackIconMaterial Kind="ImageOutline" HorizontalAlignment="Center" Height="15" Width="15"/>
                                             </Button>
                                         </DockPanel>
-                                        <DockPanel Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                        <DockPanel Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Bottom">
                                             <DockPanel.Style>
                                                 <Style TargetType="DockPanel">
                                                     <Setter Property="Visibility" Value="Visible"/>
@@ -568,7 +630,7 @@
                                         </DockPanel>
 
                                         <!-- Refining data indicator — thin bar between plot and minimap -->
-                                        <ProgressBar Grid.Row="1"
+                                        <ProgressBar Grid.Row="2"
                                                      IsIndeterminate="{Binding DbLogger.IsRefiningData}"
                                                      Height="2"
                                                      Margin="5,0,20,0"
@@ -588,7 +650,7 @@
                                         </ProgressBar>
 
                                         <!-- Overview Minimap (hidden when no data) -->
-                                        <oxy:PlotView Grid.Row="2"
+                                        <oxy:PlotView Grid.Row="3"
                                                        Model="{Binding DbLogger.MinimapPlotModel}"
                                                        Margin="5,0,20,5"
                                                        Height="80">
@@ -603,70 +665,6 @@
                                                 </Style>
                                             </oxy:PlotView.Style>
                                         </oxy:PlotView>
-
-                                        <!-- Session Info Footer (compact metadata strip; hidden when no data) -->
-                                        <Border Grid.Row="3"
-                                                Margin="5,2,20,5"
-                                                Padding="8,4"
-                                                Background="#0FFFFFFF"
-                                                BorderBrush="#1FFFFFFF"
-                                                BorderThickness="0,1,0,0">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <!-- Session name -->
-                                                <TextBlock Text="{Binding DbLogger.CurrentSession.Name}"
-                                                           FontSize="11" FontWeight="SemiBold"
-                                                           VerticalAlignment="Center"/>
-
-                                                <!-- Separator + Started -->
-                                                <TextBlock Text="  ·  " FontSize="11" Opacity="0.4" VerticalAlignment="Center"/>
-                                                <TextBlock FontSize="9"
-                                                           Opacity="0.55"
-                                                           VerticalAlignment="Center"
-                                                           Margin="0,1,3,0"
-                                                           Text="STARTED"/>
-                                                <TextBlock Text="{Binding DbLogger.CurrentSession.SessionStart, StringFormat='{}{0:M/d h:mm tt}'}"
-                                                           FontSize="11"
-                                                           VerticalAlignment="Center"/>
-
-                                                <!-- Separator + Sample rate (only when present) -->
-                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                                                            Visibility="{Binding DbLogger.CurrentSession.HasFrequencyDisplay, Converter={StaticResource BoolToVis}}">
-                                                    <TextBlock Text="  ·  " FontSize="11" Opacity="0.4" VerticalAlignment="Center"/>
-                                                    <TextBlock FontSize="9"
-                                                               Opacity="0.55"
-                                                               VerticalAlignment="Center"
-                                                               Margin="0,1,3,0"
-                                                               Text="SAMPLE RATE"/>
-                                                    <TextBlock Text="{Binding DbLogger.CurrentSession.FrequencyDisplay}"
-                                                               FontSize="11" FontWeight="SemiBold"
-                                                               VerticalAlignment="Center"/>
-                                                </StackPanel>
-
-                                                <!-- Separator + Devices (only when multi-device) -->
-                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
-                                                            Visibility="{Binding DbLogger.CurrentSession.HasMultipleDevices, Converter={StaticResource BoolToVis}}">
-                                                    <TextBlock Text="  ·  " FontSize="11" Opacity="0.4" VerticalAlignment="Center"/>
-                                                    <TextBlock FontSize="9"
-                                                               Opacity="0.55"
-                                                               VerticalAlignment="Center"
-                                                               Margin="0,1,3,0"
-                                                               Text="DEVICES"/>
-                                                    <TextBlock Text="{Binding DbLogger.CurrentSession.DeviceCount}"
-                                                               FontSize="11" FontWeight="SemiBold"
-                                                               VerticalAlignment="Center"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </Border>
                                     </Grid>
 
                                     <!-- Legend Panel with Collapse Toggle (hidden when no data) -->
