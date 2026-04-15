@@ -654,18 +654,42 @@
                                             <ItemsControl ItemsSource="{Binding DbLogger.DeviceLegendGroups}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate DataType="{x:Type logger:DeviceLegendGroup}">
-                                                        <StackPanel Margin="0,2,0,4">
-                                                            <!-- Sampling Frequency (hidden for legacy sessions without metadata) -->
-                                                            <TextBlock FontSize="11" FontWeight="SemiBold" Margin="0,0,0,1"
-                                                                       Text="{Binding SamplingFrequencyDisplay, Mode=OneWay}"
-                                                                       ToolTip="Configured sampling frequency"
-                                                                       Visibility="{Binding HasSamplingFrequency, Converter={StaticResource BoolToVis}}"/>
-
-                                                            <!-- Device Header -->
-                                                            <TextBlock FontSize="9" Opacity="0.6" Margin="0,0,0,2"
-                                                                       ToolTip="{Binding DeviceSerialNo}">
-                                                                <Run Text="Device: "/><Run Text="{Binding TruncatedSerialNo, Mode=OneWay}"/>
-                                                            </TextBlock>
+                                                        <StackPanel Margin="0,4,0,8">
+                                                            <!-- Device header strip: serial on the left, sampling frequency on the right -->
+                                                            <Grid Margin="0,0,0,3">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Grid.Column="0"
+                                                                           FontSize="10" Opacity="0.7"
+                                                                           VerticalAlignment="Center"
+                                                                           ToolTip="{Binding DeviceSerialNo}">
+                                                                    <Run Text="Device: "/><Run Text="{Binding TruncatedSerialNo, Mode=OneWay}"/>
+                                                                </TextBlock>
+                                                                <Border Grid.Column="1"
+                                                                        Background="#1F1976D2"
+                                                                        BorderBrush="#401976D2"
+                                                                        BorderThickness="1"
+                                                                        CornerRadius="3"
+                                                                        Padding="5,1"
+                                                                        VerticalAlignment="Center"
+                                                                        ToolTip="Configured sampling frequency"
+                                                                        Visibility="{Binding HasSamplingFrequency, Converter={StaticResource BoolToVis}}">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="&#xE916;"
+                                                                                   FontFamily="Segoe MDL2 Assets"
+                                                                                   FontSize="9"
+                                                                                   Opacity="0.85"
+                                                                                   VerticalAlignment="Center"
+                                                                                   Margin="0,0,3,0"/>
+                                                                        <TextBlock Text="{Binding SamplingFrequencyDisplay, Mode=OneWay}"
+                                                                                   FontSize="10"
+                                                                                   FontWeight="SemiBold"
+                                                                                   VerticalAlignment="Center"/>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </Grid>
 
                                                             <!-- Channel Grid (2 columns) -->
                                                             <ItemsControl ItemsSource="{Binding Channels}">
@@ -679,6 +703,7 @@
                                                                         <Button Command="{Binding DataContext.ToggleLoggedSeriesVisibilityCommand, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"
                                                                                 CommandParameter="{Binding}"
                                                                                 Padding="3,3"
+                                                                                Margin="0,2,4,2"
                                                                                 ToolTip="Click to show/hide channel">
                                                                             <Button.Style>
                                                                                 <Style TargetType="Button" BasedOn="{StaticResource TransparentButtonStyle}">
