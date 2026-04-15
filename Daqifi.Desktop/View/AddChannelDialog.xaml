@@ -35,7 +35,7 @@
                 
                 <!-- Channel List -->
                 <Grid>
-                    <ListView Name="ChannelList" ItemsSource="{Binding AvailableChannels}" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
+                    <ListView Name="ChannelList" ItemsSource="{Binding AvailableChannels}" SelectionMode="Extended" Margin="5" Background="Transparent" BorderThickness="0">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Border >
