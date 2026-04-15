@@ -9,6 +9,7 @@ using Daqifi.Desktop.UpdateVersion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Daqifi.Desktop;
 
 namespace Daqifi.Desktop.Logger;
 
@@ -98,6 +99,15 @@ public partial class LoggingManager : ObservableObject
                 var name = $"Session_{newId}";
                 Session = new LoggingSession(newId, name);
                 context.Sessions.Add(Session);
+
+                // Capture per-device metadata (sampling frequency, name) for the
+                // devices that own the subscribed channels, so the session UI can
+                // display configuration without re-deriving it from sample data.
+                foreach (var metadata in BuildDeviceMetadataForSession(newId))
+                {
+                    context.SessionDeviceMetadata.Add(metadata);
+                }
+
                 context.SaveChanges();
             }
 
@@ -404,6 +414,59 @@ public partial class LoggingManager : ObservableObject
     }
     #endregion
 
+    /// <summary>
+    /// Builds <see cref="SessionDeviceMetadata"/> rows for every device that has
+    /// at least one subscribed channel at the start of a logging session.
+    /// </summary>
+    /// <param name="sessionId">The id of the session being created.</param>
+    /// <returns>One metadata entry per distinct device serial number.</returns>
+    private IEnumerable<SessionDeviceMetadata> BuildDeviceMetadataForSession(int sessionId)
+    {
+        var subscribedSerials = SubscribedChannels
+            .Select(c => c.DeviceSerialNo)
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Distinct()
+            .ToHashSet();
+
+        if (subscribedSerials.Count == 0)
+        {
+            yield break;
+        }
+
+        var connectedDevices = ConnectionManager.Instance.ConnectedDevices ?? new List<IStreamingDevice>();
+        var emittedSerials = new HashSet<string>();
+
+        foreach (var device in connectedDevices)
+        {
+            if (device == null || string.IsNullOrEmpty(device.DeviceSerialNo))
+            {
+                continue;
+            }
+
+            if (!subscribedSerials.Contains(device.DeviceSerialNo))
+            {
+                continue;
+            }
+
+            // Defensive: ConnectedDevices can briefly contain two entries with the
+            // same serial (e.g., during USB re-enumeration). The composite primary
+            // key on (LoggingSessionID, DeviceSerialNo) would otherwise reject the
+            // second row and abort the session start.
+            if (!emittedSerials.Add(device.DeviceSerialNo))
+            {
+                continue;
+            }
+
+            yield return new SessionDeviceMetadata
+            {
+                LoggingSessionID = sessionId,
+                DeviceSerialNo = device.DeviceSerialNo,
+                DeviceName = device.Name ?? string.Empty,
+                SamplingFrequencyHz = device.StreamingFrequency
+            };
+        }
+    }
+
     public void HandleDeviceMessage(object sender, DeviceMessage sample)
     {
         if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession)
@@ -510,6 +573,17 @@ public partial class LoggingManager : ObservableObject
             {
                 cmd.Transaction = transaction;
                 cmd.CommandText = "DELETE FROM Samples WHERE LoggingSessionID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = sessionId;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM SessionDeviceMetadata WHERE LoggingSessionID = @id";
                 var param = cmd.CreateParameter();
                 param.ParameterName = "@id";
                 param.Value = sessionId;

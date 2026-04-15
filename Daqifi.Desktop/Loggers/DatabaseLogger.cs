@@ -112,6 +112,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     #region Private Data
     public ObservableCollection<LoggedSeriesLegendItem> LegendItems { get; } = new();
     public ObservableCollection<DeviceLegendGroup> DeviceLegendGroups { get; } = new();
+    private Dictionary<string, int> _sessionDeviceFrequencyHz = new();
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _downsampledCache = new();
     private readonly BlockingCollection<DataSample> _buffer = new();
@@ -461,6 +462,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             _allSessionPoints.Clear();
             _downsampledCache.Clear();
             _minimapSeries.Clear();
+            _sessionDeviceFrequencyHz = new Dictionary<string, int>();
             PlotModel.Series.Clear();
             LegendItems.Clear();
             DeviceLegendGroups.Clear();
@@ -508,6 +510,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             // This eliminates shared mutable state between threads.
             var localPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
             DateTime? localFirstTime = null;
+
+            // Load per-device sampling frequency from session metadata.
+            // Built on this background thread; swapped to shared state on the UI thread.
+            var localDeviceFrequency = LoadSessionDeviceFrequency(session.ID);
 
             // ── Phase 1: Fast initial load (<1s) ──────────────────────────
             // Get channel metadata from first timestamp (6ms via index)
@@ -582,6 +588,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             {
                 _allSessionPoints = localPoints;
                 _firstTime = localFirstTime;
+                _sessionDeviceFrequencyHz = localDeviceFrequency;
 
                 PlotModel.Title = sessionName;
                 PlotModel.Subtitle = totalSamplesCount > INITIAL_LOAD_POINTS
@@ -802,6 +809,39 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     }
 
     /// <summary>
+    /// Loads per-device sampling frequency for a session from <c>SessionDeviceMetadata</c>.
+    /// Returns an empty dictionary for legacy sessions logged before metadata was persisted —
+    /// the legend will simply omit the frequency line for those.
+    /// </summary>
+    /// <param name="sessionId">The session whose device metadata to load.</param>
+    /// <returns>Map of device serial number to configured sampling frequency in Hz.</returns>
+    private Dictionary<string, int> LoadSessionDeviceFrequency(int sessionId)
+    {
+        var result = new Dictionary<string, int>();
+        try
+        {
+            using var context = _loggingContext.CreateDbContext();
+            var metadata = context.SessionDeviceMetadata.AsNoTracking()
+                .Where(m => m.LoggingSessionID == sessionId)
+                .Select(m => new { m.DeviceSerialNo, m.SamplingFrequencyHz })
+                .ToList();
+
+            foreach (var entry in metadata)
+            {
+                if (!string.IsNullOrEmpty(entry.DeviceSerialNo))
+                {
+                    result[entry.DeviceSerialNo] = entry.SamplingFrequencyHz;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, "Failed to load SessionDeviceMetadata");
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Sets up UI collections (legend items, device groups, series) on the UI thread.
     /// </summary>
     private void SetupUiCollections(List<LineSeries> seriesList, List<LoggedSeriesLegendItem> legendItems)
@@ -818,6 +858,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             if (!groupDict.TryGetValue(legendItem.DeviceSerialNo, out var group))
             {
                 group = new DeviceLegendGroup(legendItem.DeviceSerialNo);
+                if (_sessionDeviceFrequencyHz.TryGetValue(legendItem.DeviceSerialNo, out var freqHz) && freqHz > 0)
+                {
+                    group.SamplingFrequencyHz = freqHz;
+                }
                 groupDict[legendItem.DeviceSerialNo] = group;
                 DeviceLegendGroups.Add(group);
             }
@@ -912,6 +956,17 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             {
                 cmd.Transaction = transaction;
                 cmd.CommandText = "DELETE FROM Samples WHERE LoggingSessionID = @id";
+                var param = cmd.CreateParameter();
+                param.ParameterName = "@id";
+                param.Value = session.ID;
+                cmd.Parameters.Add(param);
+                cmd.ExecuteNonQuery();
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM SessionDeviceMetadata WHERE LoggingSessionID = @id";
                 var param = cmd.CreateParameter();
                 param.ParameterName = "@id";
                 param.Value = session.ID;
