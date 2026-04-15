@@ -15,7 +15,11 @@ public class LoggingContext : DbContext
         {
             entity.ToTable("Sessions");
             entity.HasMany(c => c.DataSamples).WithOne(p => p.LoggingSession).IsRequired().OnDelete(DeleteBehavior.Cascade);
-            entity.HasMany(c => c.DeviceMetadata).WithOne(m => m.LoggingSession).HasForeignKey(m => m.LoggingSessionID).IsRequired().OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(c => c.DeviceMetadata)
+                .WithOne(m => m.LoggingSession)
+                .HasForeignKey(m => m.LoggingSessionID)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
             entity.Property(ls => ls.Name).IsRequired();
         });
 

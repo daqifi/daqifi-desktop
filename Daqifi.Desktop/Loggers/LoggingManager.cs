@@ -103,9 +103,19 @@ public partial class LoggingManager : ObservableObject
                 // Capture per-device metadata (sampling frequency, name) for the
                 // devices that own the subscribed channels, so the session UI can
                 // display configuration without re-deriving it from sample data.
-                foreach (var metadata in BuildDeviceMetadataForSession(newId))
+                // Failures here must not block session creation — the session is
+                // still usable without metadata; the legend just won't show
+                // sampling frequency.
+                try
                 {
-                    context.SessionDeviceMetadata.Add(metadata);
+                    foreach (var metadata in BuildDeviceMetadataForSession(newId))
+                    {
+                        context.SessionDeviceMetadata.Add(metadata);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Error(ex, $"Failed to capture device metadata for session {newId}; continuing without it.");
                 }
 
                 context.SaveChanges();
@@ -419,24 +429,40 @@ public partial class LoggingManager : ObservableObject
     /// at least one subscribed channel at the start of a logging session.
     /// </summary>
     /// <param name="sessionId">The id of the session being created.</param>
-    /// <returns>One metadata entry per distinct device serial number.</returns>
-    private IEnumerable<SessionDeviceMetadata> BuildDeviceMetadataForSession(int sessionId)
+    /// <returns>One materialized metadata entry per distinct device serial number.</returns>
+    /// <remarks>
+    /// Snapshots <see cref="SubscribedChannels"/> and
+    /// <see cref="ConnectionManager.ConnectedDevices"/> up front so the result is
+    /// computed against stable copies — these collections can otherwise mutate
+    /// concurrently (e.g., from device-connection background threads) and throw
+    /// during enumeration. Returns a fully materialized list rather than yielding
+    /// lazily so the caller is never iterating against the live collections.
+    /// Uses <see cref="StringComparer.Ordinal"/> for serial-number deduplication
+    /// because device serials are opaque identifiers, not culture-sensitive text.
+    /// </remarks>
+    private List<SessionDeviceMetadata> BuildDeviceMetadataForSession(int sessionId)
     {
-        var subscribedSerials = SubscribedChannels
+        var result = new List<SessionDeviceMetadata>();
+
+        // Snapshot inputs before iterating to avoid concurrent-modification
+        // exceptions on the underlying mutable lists.
+        var subscribedChannelsSnapshot = SubscribedChannels?.ToList() ?? new List<IChannel>();
+        var connectedDevicesSnapshot = ConnectionManager.Instance.ConnectedDevices?.ToList()
+            ?? new List<IStreamingDevice>();
+
+        var subscribedSerials = subscribedChannelsSnapshot
             .Select(c => c.DeviceSerialNo)
             .Where(s => !string.IsNullOrEmpty(s))
-            .Distinct()
-            .ToHashSet();
+            .ToHashSet(StringComparer.Ordinal);
 
         if (subscribedSerials.Count == 0)
         {
-            yield break;
+            return result;
         }
 
-        var connectedDevices = ConnectionManager.Instance.ConnectedDevices ?? new List<IStreamingDevice>();
-        var emittedSerials = new HashSet<string>();
+        var emittedSerials = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var device in connectedDevices)
+        foreach (var device in connectedDevicesSnapshot)
         {
             if (device == null || string.IsNullOrEmpty(device.DeviceSerialNo))
             {
@@ -457,14 +483,16 @@ public partial class LoggingManager : ObservableObject
                 continue;
             }
 
-            yield return new SessionDeviceMetadata
+            result.Add(new SessionDeviceMetadata
             {
                 LoggingSessionID = sessionId,
                 DeviceSerialNo = device.DeviceSerialNo,
                 DeviceName = device.Name ?? string.Empty,
                 SamplingFrequencyHz = device.StreamingFrequency
-            };
+            });
         }
+
+        return result;
     }
 
     public void HandleDeviceMessage(object sender, DeviceMessage sample)
