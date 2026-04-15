@@ -806,7 +806,7 @@
                                                     <RowDefinition Height="Auto"/>
                                                 </Grid.RowDefinitions>
 
-                                                <ListView Name="LoggingSessionList"  Grid.Row="0" ItemsSource="{Binding LoggingSessions}" Background="Transparent" BorderThickness="0">
+                                                <ListView Name="LoggingSessionList"  Grid.Row="0" ItemsSource="{Binding LoggingSessions}" SelectionMode="Single" Background="Transparent" BorderThickness="0">
                                                     <i:Interaction.Triggers>
                                                         <i:EventTrigger EventName="SelectionChanged">
                                                             <i:InvokeCommandAction Command="{Binding DisplayLoggingSessionCommand}" CommandParameter="{Binding SelectedItem, ElementName=LoggingSessionList}"/>
@@ -960,7 +960,7 @@
                     <ContentPresenter.ContentTemplate>
                         <DataTemplate>
                             <Grid>
-                                <ListView Name="ActiveChannelList" ItemsSource="{Binding ActiveChannels}" Background="Transparent" BorderThickness="0" SelectedItem="{Binding SelectedChannel, Mode=OneWayToSource}">
+                                <ListView Name="ActiveChannelList" ItemsSource="{Binding ActiveChannels}" SelectionMode="Single" Background="Transparent" BorderThickness="0" SelectedItem="{Binding SelectedChannel, Mode=OneWayToSource}">
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <Border Height="50">
@@ -1044,7 +1044,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <ListView Name="ConnectedDeviceList" ItemsSource="{Binding ConnectedDevices}" Background="Transparent" BorderThickness="0" Grid.Column="0" SelectedItem="{Binding SelectedDevice, Mode=TwoWay}">
+                                <ListView Name="ConnectedDeviceList" ItemsSource="{Binding ConnectedDevices}" SelectionMode="Single" Background="Transparent" BorderThickness="0" Grid.Column="0" SelectedItem="{Binding SelectedDevice, Mode=TwoWay}">
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <Border >
