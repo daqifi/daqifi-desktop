@@ -51,15 +51,19 @@ public partial class LoggingManager : ObservableObject
             {
                 if (_hasActiveApplicationSamples)
                 {
-                    // Finalize the session by recording its sample count so the
-                    // list view never has to count rows. One COUNT(*) per
-                    // session, run at most once when the session ends.
-                    PersistSessionSampleCount(Session);
-
                     if (!LoggingSessions.Any(s => s.ID == Session.ID))
                     {
                         LoggingSessions.Add(Session);
                     }
+
+                    // Finalize the session by recording its sample count so the
+                    // list view never has to count rows. Runs on a background
+                    // thread because COUNT(*) on a multi-million-row session
+                    // would otherwise block the UI thread that toggled Active.
+                    // The list row updates automatically when SampleCount is
+                    // set, since LoggingSession is INotifyPropertyChanged.
+                    var sessionToFinalize = Session;
+                    _ = Task.Run(() => PersistSessionSampleCount(sessionToFinalize));
                 }
                 else
                 {

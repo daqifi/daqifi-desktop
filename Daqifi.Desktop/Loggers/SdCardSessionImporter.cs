@@ -276,6 +276,26 @@ public class SdCardSessionImporter
         }
 
         _logger.Information($"Imported {samplesProcessed} samples for session '{session.Name}' (ID={session.ID})");
+
+        // Record the sample count on the session so the list view can show it
+        // without falling back to the lazy backfill on the next reload. We
+        // already have the exact count locally, so no extra query is needed.
+        try
+        {
+            using var ctx = _loggingContext.CreateDbContext();
+            var tracked = ctx.Sessions.FirstOrDefault(s => s.ID == session.ID);
+            if (tracked != null)
+            {
+                tracked.SampleCount = samplesProcessed;
+                ctx.SaveChanges();
+            }
+            session.SampleCount = samplesProcessed;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, $"Failed to persist SampleCount for imported session {session.ID}");
+        }
+
         return session;
     }
 
