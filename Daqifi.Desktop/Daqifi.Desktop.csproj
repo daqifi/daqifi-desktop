@@ -8,6 +8,7 @@
 		<UseWPF>true</UseWPF>
 		<UseWindowsForms>true</UseWindowsForms>
 		<Version>3.1.0</Version>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<InternalsVisibleTo>Daqifi.Desktop.Test</InternalsVisibleTo>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<NoWarn>CA1416</NoWarn>
