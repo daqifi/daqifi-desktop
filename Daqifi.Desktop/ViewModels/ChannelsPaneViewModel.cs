@@ -7,6 +7,10 @@ using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
+using Brush = System.Windows.Media.Brush;
+using Color = System.Windows.Media.Color;
+using ColorConverter = System.Windows.Media.ColorConverter;
+using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 
 namespace Daqifi.Desktop.ViewModels;
@@ -30,15 +34,43 @@ public partial class ChannelsPaneViewModel : ObservableObject
     [ObservableProperty] private int _totalDigitalOutCount;
     [ObservableProperty] private int _totalActive;
 
+    [ObservableProperty] private IChannel? _selectedChannel;
+    [ObservableProperty] private bool _isSettingsOpen;
+
+    public static Brush[] ColorPalette { get; } = BuildPalette(
+    [
+        "#4A9EFF", "#4ADE80", "#F59E0B", "#F43F5E",
+        "#A855F7", "#06B6D4", "#EC4899", "#FACC15",
+    ]);
+
+    private static Brush[] BuildPalette(string[] hexes)
+    {
+        var result = new Brush[hexes.Length];
+        for (var i = 0; i < hexes.Length; i++)
+        {
+            var color = (Color)ColorConverter.ConvertFromString(hexes[i])!;
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            result[i] = brush;
+        }
+        return result;
+    }
+
     public IRelayCommand<ChannelTileViewModel> ToggleChannelCommand { get; }
     public IRelayCommand<string> SelectAllCommand { get; }
     public IRelayCommand ClearAllCommand { get; }
+    public IRelayCommand<ChannelTileViewModel> OpenSettingsCommand { get; }
+    public IRelayCommand CloseSettingsCommand { get; }
+    public IRelayCommand<Brush> SetColorCommand { get; }
 
     public ChannelsPaneViewModel()
     {
         ToggleChannelCommand = new RelayCommand<ChannelTileViewModel>(ToggleChannel);
         SelectAllCommand = new RelayCommand<string>(SelectAll);
         ClearAllCommand = new RelayCommand(ClearAll);
+        OpenSettingsCommand = new RelayCommand<ChannelTileViewModel>(OpenSettings);
+        CloseSettingsCommand = new RelayCommand(CloseSettings);
+        SetColorCommand = new RelayCommand<Brush>(SetColor);
 
         _valueRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _valueRefreshTimer.Tick += (_, _) => ValueRefresh?.Invoke(this, EventArgs.Empty);
@@ -156,5 +188,24 @@ public partial class ChannelsPaneViewModel : ObservableObject
             .Where(t => t.IsActive)
             .ToList();
         foreach (var tile in active) ToggleChannel(tile);
+    }
+
+    private void OpenSettings(ChannelTileViewModel? tile)
+    {
+        if (tile == null) return;
+        SelectedChannel = tile.Channel;
+        IsSettingsOpen = true;
+    }
+
+    private void CloseSettings()
+    {
+        IsSettingsOpen = false;
+        SelectedChannel = null;
+    }
+
+    private void SetColor(Brush? brush)
+    {
+        if (SelectedChannel == null || brush == null) return;
+        SelectedChannel.ChannelColorBrush = brush;
     }
 }

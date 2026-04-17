@@ -150,6 +150,36 @@
                                        VerticalAlignment="Center"
                                        Margin="0,-2,0,0"/>
                         </Border>
+                        <Button HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Width="22" Height="22"
+                                Padding="0"
+                                Margin="0,0,-2,-2"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                ToolTip="Channel settings"
+                                Command="{Binding DataContext.OpenSettingsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bg"
+                                            Background="Transparent"
+                                            CornerRadius="11">
+                                        <iconPacks:PackIconMaterial Kind="Cog"
+                                                                    Width="11" Height="11"
+                                                                    Foreground="{StaticResource TextTertiary}"
+                                                                    HorizontalAlignment="Center"
+                                                                    VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bg" Property="Background" Value="#33000000"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
                     </Grid>
                 </Grid>
             </Border>
@@ -158,6 +188,34 @@
         <ItemsPanelTemplate x:Key="TileWrap">
             <WrapPanel/>
         </ItemsPanelTemplate>
+
+        <Style x:Key="SegmentedToggle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bg"
+                                Background="Transparent"
+                                CornerRadius="2"
+                                Padding="10,7">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource SurfaceActive}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
     </UserControl.Resources>
 
@@ -203,30 +261,6 @@
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Background="{StaticResource SurfaceRaised}"
-                            BorderBrush="{StaticResource BorderDim}"
-                            BorderThickness="1"
-                            CornerRadius="3"
-                            Padding="10,6"
-                            Margin="0,0,16,0">
-                        <StackPanel Orientation="Horizontal">
-                            <iconPacks:PackIconMaterial Kind="Magnify"
-                                                        Width="12" Height="12"
-                                                        Foreground="{StaticResource TextTertiary}"
-                                                        VerticalAlignment="Center"
-                                                        Margin="0,0,8,0"/>
-                            <TextBlock Text="Filter channels"
-                                       Foreground="{StaticResource TextTertiary}"
-                                       FontSize="12"
-                                       Width="150"
-                                       VerticalAlignment="Center"/>
-                            <TextBlock Text="&#x2318;F"
-                                       Foreground="{StaticResource TextTertiary}"
-                                       FontSize="10"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-
                     <Border Style="{StaticResource PillButtonActive}">
                         <TextBlock Text="{Binding DeviceName}"
                                    Foreground="{StaticResource TextPrimary}"
@@ -359,6 +393,251 @@
                                 Content="CLEAR ALL"
                                 Command="{Binding ClearAllCommand}"/>
                     </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ========== SETTINGS DRAWER ========== -->
+        <Grid Visibility="{Binding IsSettingsOpen, Converter={StaticResource BoolToVis}}"
+              Panel.ZIndex="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="380"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Scrim -->
+            <Rectangle Grid.Column="0" Fill="#A0000000">
+                <Rectangle.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding CloseSettingsCommand}"/>
+                </Rectangle.InputBindings>
+            </Rectangle>
+
+            <!-- Drawer -->
+            <Border Grid.Column="1"
+                    Background="{StaticResource SurfaceRaised}"
+                    BorderBrush="{StaticResource BorderDim}"
+                    BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Margin="22,22,16,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Grid.Column="0"
+                                   Width="3" Height="32"
+                                   Fill="{Binding SelectedChannel.ChannelColorBrush}"
+                                   Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="CHANNEL"
+                                       FontSize="9"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource TextTertiary}"/>
+                            <TextBlock Text="{Binding SelectedChannel.Name}"
+                                       FontFamily="Consolas"
+                                       FontSize="20"
+                                       FontWeight="Medium"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                        </StackPanel>
+                        <Button Grid.Column="2"
+                                Width="28" Height="28"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Foreground="{StaticResource TextSecondary}"
+                                FontSize="16"
+                                Cursor="Hand"
+                                Content="&#xD7;"
+                                Command="{Binding CloseSettingsCommand}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bg" Background="Transparent" CornerRadius="14">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bg" Property="Background" Value="#1FFFFFFF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="22,0,22,22">
+                        <StackPanel>
+
+                            <!-- NAME -->
+                            <TextBlock Text="NAME"
+                                       Style="{StaticResource SectionLabel}"
+                                       Margin="0,8,0,8"/>
+                            <Border Background="{StaticResource Surface}"
+                                    BorderBrush="{StaticResource BorderDim}"
+                                    BorderThickness="1"
+                                    CornerRadius="3"
+                                    Padding="10,0">
+                                <TextBox Text="{Binding SelectedChannel.Name, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Foreground="{StaticResource TextPrimary}"
+                                         FontFamily="Consolas"
+                                         FontSize="14"
+                                         Height="32"
+                                         VerticalContentAlignment="Center"
+                                         CaretBrush="{StaticResource TextPrimary}"/>
+                            </Border>
+
+                            <!-- COLOR -->
+                            <TextBlock Text="COLOR"
+                                       Style="{StaticResource SectionLabel}"
+                                       Margin="0,22,0,8"/>
+                            <ItemsControl ItemsSource="{Binding ColorPalette}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Width="32" Height="32"
+                                                Margin="0,0,8,8"
+                                                Cursor="Hand"
+                                                Command="{Binding DataContext.SetColorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="Bg"
+                                                            Background="{Binding}"
+                                                            BorderBrush="{StaticResource BorderDim}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="3"/>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bg" Property="BorderBrush" Value="{StaticResource TextPrimary}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- DIRECTION (bidirectional only) -->
+                            <StackPanel Visibility="{Binding SelectedChannel.IsBidirectional, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="DIRECTION"
+                                           Style="{StaticResource SectionLabel}"
+                                           Margin="0,22,0,8"/>
+                                <Border Background="{StaticResource Surface}"
+                                        BorderBrush="{StaticResource BorderDim}"
+                                        BorderThickness="1"
+                                        CornerRadius="3"
+                                        Padding="3">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <RadioButton Grid.Column="0"
+                                                     Content="INPUT"
+                                                     IsChecked="{Binding SelectedChannel.IsOutput, Converter={StaticResource BooleanToInverse}}"
+                                                     Style="{StaticResource SegmentedToggle}"/>
+                                        <RadioButton Grid.Column="1"
+                                                     Content="OUTPUT"
+                                                     IsChecked="{Binding SelectedChannel.IsOutput}"
+                                                     Style="{StaticResource SegmentedToggle}"/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- DIGITAL OUTPUT STATE -->
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding SelectedChannel.IsDigital}" Value="True"/>
+                                                    <Condition Binding="{Binding SelectedChannel.IsOutput}" Value="True"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="OUTPUT STATE"
+                                           Style="{StaticResource SectionLabel}"
+                                           Margin="0,22,0,8"/>
+                                <Border Background="{StaticResource Surface}"
+                                        BorderBrush="{StaticResource BorderDim}"
+                                        BorderThickness="1"
+                                        CornerRadius="3"
+                                        Padding="3">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <RadioButton Grid.Column="0"
+                                                     Content="LOW"
+                                                     IsChecked="{Binding SelectedChannel.IsDigitalOn, Converter={StaticResource BooleanToInverse}}"
+                                                     Style="{StaticResource SegmentedToggle}"/>
+                                        <RadioButton Grid.Column="1"
+                                                     Content="HIGH"
+                                                     IsChecked="{Binding SelectedChannel.IsDigitalOn}"
+                                                     Style="{StaticResource SegmentedToggle}"/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- SCALING (analog only) -->
+                            <StackPanel Visibility="{Binding SelectedChannel.IsAnalog, Converter={StaticResource BoolToVis}}">
+                                <Grid Margin="0,22,0,8">
+                                    <TextBlock Text="SCALING"
+                                               Style="{StaticResource SectionLabel}"
+                                               VerticalAlignment="Center"/>
+                                    <CheckBox IsChecked="{Binding SelectedChannel.IsScalingActive}"
+                                              Content=""
+                                              HorizontalAlignment="Right"
+                                              VerticalAlignment="Center"
+                                              Foreground="{StaticResource TextSecondary}"/>
+                                </Grid>
+                                <Border Background="{StaticResource Surface}"
+                                        BorderBrush="{StaticResource BorderDim}"
+                                        BorderThickness="1"
+                                        CornerRadius="3"
+                                        Padding="10,0"
+                                        IsEnabled="{Binding SelectedChannel.IsScalingActive}">
+                                    <TextBox Text="{Binding SelectedChannel.ScaleExpression, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                                             Background="Transparent"
+                                             BorderThickness="0"
+                                             Foreground="{StaticResource TextPrimary}"
+                                             FontFamily="Consolas"
+                                             FontSize="13"
+                                             Height="32"
+                                             VerticalContentAlignment="Center"
+                                             CaretBrush="{StaticResource TextPrimary}"/>
+                                </Border>
+                                <TextBlock Text="e.g. x * 2 + 1   (x = raw value)"
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextTertiary}"
+                                           Margin="0,6,0,0"/>
+                                <TextBlock Text="INVALID EXPRESSION"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F43F5E"
+                                           Margin="0,6,0,0"
+                                           Visibility="{Binding SelectedChannel.HasValidExpression, Converter={StaticResource InvertedBoolToVis}}"/>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
             </Border>
         </Grid>
