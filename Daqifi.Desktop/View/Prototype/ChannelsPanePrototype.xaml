@@ -121,7 +121,7 @@
                                        FontSize="20"
                                        FontWeight="Medium"/>
                             <TextBlock Text="{Binding Value}"
-                                       Foreground="{Binding StripeBrush}"
+                                       Foreground="{Binding Channel.ChannelColorBrush}"
                                        FontFamily="Consolas"
                                        FontSize="14"
                                        Margin="0,2,0,0"
