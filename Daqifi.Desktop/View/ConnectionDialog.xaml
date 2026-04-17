@@ -21,7 +21,7 @@
                             <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}" Command="{Binding ConnectCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right"  Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                             <!-- Device List -->
-                            <ListView Name="DeviceList" ItemsSource="{Binding AvailableWiFiDevices}" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
+                            <ListView Name="DeviceList" ItemsSource="{Binding AvailableWiFiDevices}" SelectionMode="Extended" Margin="5" Background="Transparent" BorderThickness="0">
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
                                         <Border >
@@ -74,7 +74,7 @@
                             <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}" Command="{Binding ConnectSerialCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                             <!-- Device List -->
-                            <ListView Name="SerialList" ItemsSource="{Binding AvailableSerialDevices}" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
+                            <ListView Name="SerialList" ItemsSource="{Binding AvailableSerialDevices}" SelectionMode="Extended" Margin="5" Background="Transparent" BorderThickness="0">
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
                                         <Border >

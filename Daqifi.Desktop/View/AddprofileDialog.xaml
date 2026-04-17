@@ -35,7 +35,7 @@
                 <!-- Device Selector -->
                 <DockPanel DockPanel.Dock="Top" Margin="5" LastChildFill="True">
                     <Label Content="Devices:" DockPanel.Dock="Left"/>
-                    <ListView Name="SelectedDevice" SelectedIndex="-1" SelectionMode="Multiple" SelectionChanged="SelectedDevice_SelectionChanged" Loaded="SelectedDevice_Loaded" ItemsSource="{Binding AvailableDevices}">
+                    <ListView Name="SelectedDevice" SelectedIndex="-1" SelectionMode="Extended" SelectionChanged="SelectedDevice_SelectionChanged" Loaded="SelectedDevice_Loaded" ItemsSource="{Binding AvailableDevices}">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Border >
@@ -58,7 +58,7 @@
 
                 <!-- Channel List -->
                 <Grid Margin="5">
-                    <ListView Name="ChannelList" ItemsSource="{Binding AvailableChannels}" SelectionChanged="ChannelList_SelectionChanged" SelectionMode="Multiple" Margin="5" Background="Transparent" BorderThickness="0">
+                    <ListView Name="ChannelList" ItemsSource="{Binding AvailableChannels}" SelectionChanged="ChannelList_SelectionChanged" SelectionMode="Extended" Margin="5" Background="Transparent" BorderThickness="0">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Border >
