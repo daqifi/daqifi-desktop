@@ -34,26 +34,6 @@
             <Setter Property="FontWeight" Value="Normal"/>
         </Style>
 
-        <Style x:Key="PillButtonBorder" TargetType="Border">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderDim}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="14"/>
-            <Setter Property="Padding" Value="12,4"/>
-            <Setter Property="Margin" Value="0,0,6,0"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="{StaticResource BorderBright}"/>
-                    <Setter Property="Background" Value="#141821"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="PillButtonActive" TargetType="Border" BasedOn="{StaticResource PillButtonBorder}">
-            <Setter Property="Background" Value="{StaticResource SurfaceActive}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
-        </Style>
-
         <Style x:Key="PillButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderDim}"/>
@@ -264,45 +244,29 @@
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <Grid Grid.Row="0" Margin="28,22,28,14">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="CHANNELS"
+            <StackPanel Grid.Row="0" Margin="28,22,28,14">
+                <TextBlock Text="CHANNELS"
+                           FontSize="10"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextTertiary}"
+                           Margin="0,0,0,2"/>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding DeviceName}"
+                               FontSize="24"
+                               FontWeight="Light"
+                               Foreground="{StaticResource TextPrimary}"/>
+                    <Ellipse Width="6" Height="6"
+                             Fill="{StaticResource StatusGreen}"
+                             VerticalAlignment="Center"
+                             Margin="12,2,8,0"/>
+                    <TextBlock Text="CONNECTED"
                                FontSize="10"
-                               FontWeight="Bold"
-                               Foreground="{StaticResource TextTertiary}"
-                               Margin="0,0,0,2"/>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{Binding DeviceName}"
-                                   FontSize="24"
-                                   FontWeight="Light"
-                                   Foreground="{StaticResource TextPrimary}"/>
-                        <Ellipse Width="6" Height="6"
-                                 Fill="{StaticResource StatusGreen}"
-                                 VerticalAlignment="Center"
-                                 Margin="12,2,8,0"/>
-                        <TextBlock Text="CONNECTED"
-                                   FontSize="10"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource StatusGreen}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,2,0,0"/>
-                    </StackPanel>
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource StatusGreen}"
+                               VerticalAlignment="Center"
+                               Margin="0,2,0,0"/>
                 </StackPanel>
-
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Style="{StaticResource PillButtonActive}">
-                        <TextBlock Text="{Binding DeviceName}"
-                                   Foreground="{StaticResource TextPrimary}"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"/>
-                    </Border>
-                </StackPanel>
-            </Grid>
+            </StackPanel>
 
             <!-- Sections -->
             <ScrollViewer Grid.Row="1"
