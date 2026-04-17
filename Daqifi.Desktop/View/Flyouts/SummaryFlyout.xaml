@@ -138,7 +138,7 @@
                     </Grid>
                 </GroupBox>
                 <GroupBox Header="Channels" Grid.Row="1">
-                    <ListView ItemsSource="{Binding SummaryLogger.Channels}">
+                    <ListView ItemsSource="{Binding SummaryLogger.Channels}" SelectionMode="Single">
                         <ListView.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="5">

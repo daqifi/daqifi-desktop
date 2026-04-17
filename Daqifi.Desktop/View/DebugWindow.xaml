@@ -139,10 +139,11 @@
                         <TextBlock Text="Debug History (Last 100 packets)" FontWeight="Bold" FontSize="14"/>
                     </Border>
 
-                    <DataGrid Grid.Row="1" 
+                    <DataGrid Grid.Row="1"
                             ItemsSource="{Binding DebugData.Entries}"
                             AutoGenerateColumns="False"
                             IsReadOnly="True"
+                            SelectionMode="Single"
                             GridLinesVisibility="Horizontal"
                             HeadersVisibility="Column"
                             CanUserReorderColumns="False"

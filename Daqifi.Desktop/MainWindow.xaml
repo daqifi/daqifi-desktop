@@ -316,6 +316,7 @@
 
                     <ListView Grid.Row="1" Grid.Column="1" Name="ActiveChannelList"
                                 ItemsSource="{Binding ActiveInputChannels}"
+                                SelectionMode="Single"
                                 Background="Transparent"
                                 BorderThickness="0"
                                 HorizontalContentAlignment="Stretch"

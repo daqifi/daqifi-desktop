@@ -89,8 +89,9 @@
         <StackPanel Grid.Column="1">
             <GroupBox Header="Selected Profile Channels">
                 <Grid>
-                    <ListView Name="UpdatedProfileChannelList" Height="500" 
-                      ItemsSource="{Binding SelectedProfile.Devices}" 
+                    <ListView Name="UpdatedProfileChannelList" Height="500"
+                      ItemsSource="{Binding SelectedProfile.Devices}"
+                      SelectionMode="Single"
                       Margin="5" Background="Transparent" BorderThickness="0"
                               ScrollViewer.VerticalScrollBarVisibility="Auto">
                         <ListView.ItemTemplate>
