@@ -57,11 +57,30 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Name of the device this channel belongs to. Only surfaced on the tile
+    /// when the pane is showing more than one connected device.
+    /// </summary>
+    public string DeviceName { get; }
+
+    /// <summary>
+    /// Whether the tile should render its device label. True only when the
+    /// parent pane has more than one connected device, so single-device
+    /// sessions stay uncluttered.
+    /// </summary>
+    public bool ShowDeviceLabel { get; }
+
     /// <summary>Creates a tile bound to the given channel and parent pane.</summary>
-    public ChannelTileViewModel(IChannel channel, ChannelsPaneViewModel parent)
+    public ChannelTileViewModel(
+        IChannel channel,
+        ChannelsPaneViewModel parent,
+        string deviceName,
+        bool showDeviceLabel)
     {
         Channel = channel;
         _parent = parent;
+        DeviceName = deviceName;
+        ShowDeviceLabel = showDeviceLabel;
 
         _channelNotifier = channel as INotifyPropertyChanged;
         if (_channelNotifier != null)

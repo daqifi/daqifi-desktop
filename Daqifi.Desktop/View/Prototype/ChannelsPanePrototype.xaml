@@ -108,12 +108,20 @@
                                        Margin="0,2,0,0"
                                        Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
-                        <TextBlock Text="{Binding TypeLabel}"
-                                   Foreground="{StaticResource TextTertiary}"
-                                   FontSize="9"
-                                   FontWeight="SemiBold"
-                                   HorizontalAlignment="Left"
-                                   VerticalAlignment="Bottom"/>
+                        <StackPanel HorizontalAlignment="Left"
+                                    VerticalAlignment="Bottom">
+                            <TextBlock Text="{Binding TypeLabel}"
+                                       Foreground="{StaticResource TextTertiary}"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding DeviceName}"
+                                       Foreground="{StaticResource TextTertiary}"
+                                       FontSize="9"
+                                       Opacity="0.7"
+                                       Margin="0,2,0,0"
+                                       Visibility="{Binding ShowDeviceLabel,
+                                                            Converter={StaticResource BoolToVis}}"/>
+                        </StackPanel>
                         <Border HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
                                 Width="18" Height="18"
@@ -251,7 +259,11 @@
                            FontWeight="Bold"
                            Foreground="{StaticResource TextTertiary}"
                            Margin="0,0,0,2"/>
-                <StackPanel Orientation="Horizontal">
+
+                <!-- Single-device header -->
+                <StackPanel Orientation="Horizontal"
+                            Visibility="{Binding HasMultipleDevices,
+                                                 Converter={StaticResource InvertedBoolToVis}}">
                     <TextBlock Text="{Binding DeviceName}"
                                FontSize="24"
                                FontWeight="Light"
@@ -266,6 +278,46 @@
                                Foreground="{StaticResource StatusGreen}"
                                VerticalAlignment="Center"
                                Margin="0,2,0,0"/>
+                </StackPanel>
+
+                <!-- Multi-device chip row -->
+                <StackPanel Visibility="{Binding HasMultipleDevices,
+                                                 Converter={StaticResource BoolToVis}}">
+                    <TextBlock FontSize="24"
+                               FontWeight="Light"
+                               Foreground="{StaticResource TextPrimary}">
+                        <Run Text="{Binding ConnectedDeviceNames.Count, Mode=OneWay}"/>
+                        <Run Text=" DEVICES"/>
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{Binding ConnectedDeviceNames}" Margin="0,8,0,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource SurfaceRaised}"
+                                        BorderBrush="{StaticResource BorderDim}"
+                                        BorderThickness="1"
+                                        CornerRadius="3"
+                                        Padding="10,5"
+                                        Margin="0,0,6,6">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="6" Height="6"
+                                                 Fill="{StaticResource StatusGreen}"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0"/>
+                                        <TextBlock Text="{Binding}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextSecondary}"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </StackPanel>
 

@@ -16,9 +16,9 @@ using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 namespace Daqifi.Desktop.ViewModels;
 
 /// <summary>
-/// Backs the unified Channels pane. Groups the connected device's channels
-/// into AI/DI/DO sections, drives the 10 Hz live-value refresh, and owns
-/// the inline settings drawer state.
+/// Backs the unified Channels pane. Aggregates channels across every
+/// connected device into AI/DI/DO sections, drives the 10 Hz live-value
+/// refresh, and owns the inline settings drawer state.
 /// </summary>
 public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
 {
@@ -31,16 +31,24 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     /// </summary>
     public event EventHandler? ValueRefresh;
 
-    /// <summary>Analog input tiles for the current device.</summary>
+    /// <summary>Analog input tiles aggregated across every connected device.</summary>
     public ObservableCollection<ChannelTileViewModel> AnalogInputs { get; } = [];
 
-    /// <summary>Digital input tiles for the current device.</summary>
+    /// <summary>Digital input tiles aggregated across every connected device.</summary>
     public ObservableCollection<ChannelTileViewModel> DigitalInputs { get; } = [];
 
-    /// <summary>Digital output tiles for the current device.</summary>
+    /// <summary>Digital output tiles aggregated across every connected device.</summary>
     public ObservableCollection<ChannelTileViewModel> DigitalOutputs { get; } = [];
 
+    /// <summary>
+    /// Display names of every connected device, shown as chips in the header
+    /// when more than one device is connected. Populated in the order
+    /// returned by <see cref="ConnectionManager.ConnectedDevices"/>.
+    /// </summary>
+    public ObservableCollection<string> ConnectedDeviceNames { get; } = [];
+
     [ObservableProperty] private bool _hasConnectedDevice;
+    [ObservableProperty] private bool _hasMultipleDevices;
     [ObservableProperty] private string _deviceName = "";
     [ObservableProperty] private int _activeAnalogCount;
     [ObservableProperty] private int _totalAnalogCount;
@@ -143,35 +151,45 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         DisposeTiles(AnalogInputs);
         DisposeTiles(DigitalInputs);
         DisposeTiles(DigitalOutputs);
+        ConnectedDeviceNames.Clear();
 
-        var device = ConnectionManager.Instance.ConnectedDevices.FirstOrDefault();
-        HasConnectedDevice = device != null;
-        DeviceName = device?.Name ?? "";
+        var devices = ConnectionManager.Instance.ConnectedDevices.ToList();
+        HasConnectedDevice = devices.Count > 0;
+        HasMultipleDevices = devices.Count > 1;
+        DeviceName = devices.FirstOrDefault()?.Name ?? "";
 
-        if (device == null)
+        foreach (var device in devices)
+        {
+            ConnectedDeviceNames.Add(device.Name);
+        }
+
+        if (devices.Count == 0)
         {
             RecomputeCounts();
             return;
         }
 
-        foreach (var channel in device.DataChannels.NaturalOrderBy(c => c.Name))
+        foreach (var device in devices)
         {
-            var tile = new ChannelTileViewModel(channel, this);
-            if (channel.IsAnalog && channel.Direction == ChannelDirection.Input)
+            foreach (var channel in device.DataChannels.NaturalOrderBy(c => c.Name))
             {
-                AnalogInputs.Add(tile);
-            }
-            else if (channel.IsDigital && channel.Direction == ChannelDirection.Output)
-            {
-                DigitalOutputs.Add(tile);
-            }
-            else if (channel.IsDigital)
-            {
-                DigitalInputs.Add(tile);
-            }
-            else
-            {
-                tile.Dispose();
+                var tile = new ChannelTileViewModel(channel, this, device.Name, HasMultipleDevices);
+                if (channel.IsAnalog && channel.Direction == ChannelDirection.Input)
+                {
+                    AnalogInputs.Add(tile);
+                }
+                else if (channel.IsDigital && channel.Direction == ChannelDirection.Output)
+                {
+                    DigitalOutputs.Add(tile);
+                }
+                else if (channel.IsDigital)
+                {
+                    DigitalInputs.Add(tile);
+                }
+                else
+                {
+                    tile.Dispose();
+                }
             }
         }
         RecomputeCounts();
