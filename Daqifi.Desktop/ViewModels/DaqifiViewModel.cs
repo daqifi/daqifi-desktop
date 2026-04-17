@@ -85,8 +85,6 @@ public partial class DaqifiViewModel : ObservableObject
     private VersionNotification? _versionNotification;
     private IStreamingDevice _updateProfileSelectedDevice;
     [ObservableProperty]
-    private IChannel _selectedChannel;
-    [ObservableProperty]
     private Profile _selectedProfile;
     [ObservableProperty]
     private LoggingSession _selectedLoggingSession;
