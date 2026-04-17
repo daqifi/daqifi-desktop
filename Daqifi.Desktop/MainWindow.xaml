@@ -11,6 +11,7 @@
         xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         xmlns:local="clr-namespace:Daqifi.Desktop.View"
+        xmlns:prototype="clr-namespace:Daqifi.Desktop.View.Prototype"
         xmlns:converters="clr-namespace:Daqifi.Desktop.Converters"
         xmlns:logger="clr-namespace:Daqifi.Desktop.Logger"
         mc:Ignorable="d"
@@ -959,66 +960,7 @@
                 <ContentPresenter Content="{Binding}">
                     <ContentPresenter.ContentTemplate>
                         <DataTemplate>
-                            <Grid>
-                                <ListView Name="ActiveChannelList" ItemsSource="{Binding ActiveChannels}" SelectionMode="Single" Background="Transparent" BorderThickness="0" SelectedItem="{Binding SelectedChannel, Mode=OneWayToSource}">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Height="50">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <Rectangle Grid.Column="0" Width="25" Height="25" VerticalAlignment="Center" Fill="{Binding ChannelColorBrush}"/>
-                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                        <Label Content="{Binding Name}" FontSize="16" Padding="5,0,0,0"/>
-                                                        <Label Content="{Binding TypeString, Mode=OneWay}" Padding="5,0,0,0"/>
-                                                        <Label Content="{Binding DeviceSerialNo}" FontSize="12" Padding="5,0,0,0"/>
-                                                    </StackPanel>
-
-                                                    <Button Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveChannelList, Path=DataContext.OpenChannelSettingsCommand}" CommandParameter="{Binding}" ToolTip="Channel Settings">
-                                                        <Button.Content>
-                                                            <iconPacks:PackIconMaterial Kind="Cog" HorizontalAlignment="Center" Height="20" Width="20"/>
-                                                        </Button.Content>
-                                                    </Button>
-                                                    <Button Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center" Command="{Binding ElementName=ActiveChannelList, Path=DataContext.RemoveChannelCommand}" CommandParameter="{Binding}" ToolTip="Delete Channel">
-                                                        <Button.Content>
-                                                            <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
-                                                        </Button.Content>
-                                                    </Button>
-                                                </Grid>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
-                                <Border Name="EmptyActiveChannelListLabel" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                                    <Label HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalAlignment="Stretch" VerticalContentAlignment="Center">
-                                        <Label.Content>
-                                            <StackPanel Orientation="Vertical" Width="150" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <Label Content="No Active Channels" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
-                                            </StackPanel>
-                                        </Label.Content>
-                                    </Label>
-                                </Border>
-
-                                <!-- Add Channel Button -->
-                                <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="50" Height="50" Command="{Binding ShowAddChannelDialogCommand}" Style="{DynamicResource MetroCircleButtonStyle}" Margin="10" Background="#CC119EDA" >
-                                    <Button.Content>
-                                        <iconPacks:PackIconMaterial Kind="Plus" HorizontalAlignment="Center" Height="20" Width="20" Foreground="White"/>
-                                    </Button.Content>
-                                    <Button.BitmapEffect>
-                                        <DropShadowBitmapEffect Color="Black" Direction="270" Softness="1" ShadowDepth="15" Opacity="0.25" />
-                                    </Button.BitmapEffect>
-                                </Button>
-                            </Grid>
-                            <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding ActiveChannels.Count}" Value="0">
-                                    <Setter TargetName="ActiveChannelList" Property="Visibility" Value="Collapsed"/>
-                                    <Setter TargetName="EmptyActiveChannelListLabel" Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </DataTemplate.Triggers>
+                            <prototype:ChannelsPanePrototype/>
                         </DataTemplate>
                     </ContentPresenter.ContentTemplate>
                 </ContentPresenter>
