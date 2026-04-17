@@ -4,7 +4,9 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+             xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
              mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ChannelsPaneViewModel}"
              d:DesignHeight="800" d:DesignWidth="1200">
     <UserControl.Resources>
 
@@ -17,10 +19,7 @@
         <SolidColorBrush x:Key="TextSecondary" Color="#8E9199"/>
         <SolidColorBrush x:Key="TextTertiary" Color="#5A5E66"/>
         <SolidColorBrush x:Key="Accent" Color="#119EDA"/>
-        <SolidColorBrush x:Key="AccentBright" Color="#1BB6F5"/>
         <SolidColorBrush x:Key="StatusGreen" Color="#4ADE80"/>
-
-        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
         <Style x:Key="SectionLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -35,7 +34,7 @@
             <Setter Property="FontWeight" Value="Normal"/>
         </Style>
 
-        <Style x:Key="PillButton" TargetType="Border">
+        <Style x:Key="PillButtonBorder" TargetType="Border">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="{StaticResource BorderDim}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -50,18 +49,55 @@
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="PillButtonActive" TargetType="Border" BasedOn="{StaticResource PillButton}">
+        <Style x:Key="PillButtonActive" TargetType="Border" BasedOn="{StaticResource PillButtonBorder}">
             <Setter Property="Background" Value="{StaticResource SurfaceActive}"/>
             <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
         </Style>
 
-        <DataTemplate x:Key="ChannelTileTemplate">
+        <Style x:Key="PillButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderDim}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="Padding" Value="12,4"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="14"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource BorderBright}"/>
+                    <Setter Property="Background" Value="#141821"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <DataTemplate x:Key="ChannelTileTemplate" DataType="{x:Type vm:ChannelTileViewModel}">
             <Border Width="148" Height="88" Margin="0,0,10,10"
                     Background="{Binding TileBackground}"
                     BorderBrush="{Binding TileBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="4"
                     Cursor="Hand">
+                <Border.InputBindings>
+                    <MouseBinding MouseAction="LeftClick"
+                                  Command="{Binding DataContext.ToggleChannelCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  CommandParameter="{Binding}"/>
+                </Border.InputBindings>
                 <Border.Style>
                     <Style TargetType="Border">
                         <Style.Triggers>
@@ -104,7 +140,8 @@
                                 CornerRadius="9"
                                 Margin="0,-2,-2,0"
                                 Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}"
-                                ToolTip="Deactivate">
+                                ToolTip="Click tile to deactivate"
+                                IsHitTestVisible="False">
                             <TextBlock Text="&#xD7;"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontSize="12"
@@ -125,220 +162,245 @@
     </UserControl.Resources>
 
     <Grid Background="{StaticResource Surface}">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <Grid Grid.Row="0" Margin="28,22,28,14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
+        <!-- ========== CONNECTED STATE ========== -->
+        <Grid Visibility="{Binding HasConnectedDevice, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-            <StackPanel Grid.Column="0">
-                <TextBlock Text="CHANNELS"
-                           FontSize="10"
-                           FontWeight="Bold"
-                           Foreground="{StaticResource TextTertiary}"
-                           Margin="0,0,0,2"/>
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Nq1"
-                               FontSize="24"
-                               FontWeight="Light"
-                               Foreground="{StaticResource TextPrimary}"/>
-                    <Ellipse Width="6" Height="6"
-                             Fill="{StaticResource StatusGreen}"
-                             VerticalAlignment="Center"
-                             Margin="12,2,8,0"/>
-                    <TextBlock Text="CONNECTED"
-                               FontSize="10"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource StatusGreen}"
-                               VerticalAlignment="Center"
-                               Margin="0,2,0,0"/>
-                </StackPanel>
-            </StackPanel>
-
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Background="{StaticResource SurfaceRaised}"
-                        BorderBrush="{StaticResource BorderDim}"
-                        BorderThickness="1"
-                        CornerRadius="3"
-                        Padding="10,6"
-                        Margin="0,0,16,0">
-                    <StackPanel Orientation="Horizontal">
-                        <iconPacks:PackIconMaterial Kind="Magnify"
-                                                    Width="12" Height="12"
-                                                    Foreground="{StaticResource TextTertiary}"
-                                                    VerticalAlignment="Center"
-                                                    Margin="0,0,8,0"/>
-                        <TextBlock Text="Filter channels"
-                                   Foreground="{StaticResource TextTertiary}"
-                                   FontSize="12"
-                                   Width="150"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock Text="&#x2318;F"
-                                   Foreground="{StaticResource TextTertiary}"
-                                   FontSize="10"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-
-                <Border Style="{StaticResource PillButtonActive}">
-                    <TextBlock Text="Nq1"
-                               Foreground="{StaticResource TextPrimary}"
-                               FontSize="11"
-                               FontWeight="SemiBold"/>
-                </Border>
-                <Border Style="{StaticResource PillButton}">
-                    <StackPanel Orientation="Horizontal">
-                        <iconPacks:PackIconMaterial Kind="Plus"
-                                                    Width="10" Height="10"
-                                                    Foreground="{StaticResource TextSecondary}"
-                                                    VerticalAlignment="Center"
-                                                    Margin="0,0,4,0"/>
-                        <TextBlock Text="Device"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   FontSize="11"/>
-                    </StackPanel>
-                </Border>
-            </StackPanel>
-        </Grid>
-
-        <!-- Sections -->
-        <ScrollViewer Grid.Row="1"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      Padding="28,0,28,0">
-            <StackPanel>
-
-                <!-- ANALOG IN -->
-                <Grid Margin="0,8,0,10">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="ANALOG IN" Style="{StaticResource SectionLabel}"/>
-                        <TextBlock Style="{StaticResource SectionCount}">
-                            <Run Text="· "/>
-                            <Run Text="{Binding ActiveAnalogCount, Mode=OneWay}"/>
-                            <Run Text=" / "/>
-                            <Run Text="{Binding TotalAnalogCount, Mode=OneWay}"/>
-                            <Run Text=" ACTIVE"/>
-                        </TextBlock>
-                    </StackPanel>
-                    <Border Style="{StaticResource PillButton}" HorizontalAlignment="Right">
-                        <TextBlock Text="SELECT ALL"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   FontSize="10"
-                                   FontWeight="SemiBold"/>
-                    </Border>
-                </Grid>
-                <Rectangle Height="1" Fill="{StaticResource BorderDim}" Margin="0,0,0,14"/>
-                <ItemsControl ItemsSource="{Binding AnalogInputs}"
-                              ItemTemplate="{StaticResource ChannelTileTemplate}"
-                              ItemsPanel="{StaticResource TileWrap}"
-                              Margin="0,0,0,24"/>
-
-                <!-- DIGITAL IN -->
-                <Grid Margin="0,8,0,10">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="DIGITAL IN" Style="{StaticResource SectionLabel}"/>
-                        <TextBlock Style="{StaticResource SectionCount}">
-                            <Run Text="· "/>
-                            <Run Text="{Binding ActiveDigitalInCount, Mode=OneWay}"/>
-                            <Run Text=" / "/>
-                            <Run Text="{Binding TotalDigitalInCount, Mode=OneWay}"/>
-                            <Run Text=" ACTIVE"/>
-                        </TextBlock>
-                    </StackPanel>
-                    <Border Style="{StaticResource PillButton}" HorizontalAlignment="Right">
-                        <TextBlock Text="SELECT ALL"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   FontSize="10"
-                                   FontWeight="SemiBold"/>
-                    </Border>
-                </Grid>
-                <Rectangle Height="1" Fill="{StaticResource BorderDim}" Margin="0,0,0,14"/>
-                <ItemsControl ItemsSource="{Binding DigitalInputs}"
-                              ItemTemplate="{StaticResource ChannelTileTemplate}"
-                              ItemsPanel="{StaticResource TileWrap}"
-                              Margin="0,0,0,24"/>
-
-                <!-- DIGITAL OUT -->
-                <Grid Margin="0,8,0,10">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="DIGITAL OUT" Style="{StaticResource SectionLabel}"/>
-                        <TextBlock Style="{StaticResource SectionCount}">
-                            <Run Text="· "/>
-                            <Run Text="{Binding ActiveDigitalOutCount, Mode=OneWay}"/>
-                            <Run Text=" / "/>
-                            <Run Text="{Binding TotalDigitalOutCount, Mode=OneWay}"/>
-                            <Run Text=" ACTIVE"/>
-                        </TextBlock>
-                    </StackPanel>
-                    <Border Style="{StaticResource PillButton}" HorizontalAlignment="Right">
-                        <TextBlock Text="SELECT ALL"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   FontSize="10"
-                                   FontWeight="SemiBold"/>
-                    </Border>
-                </Grid>
-                <Rectangle Height="1" Fill="{StaticResource BorderDim}" Margin="0,0,0,14"/>
-                <ItemsControl ItemsSource="{Binding DigitalOutputs}"
-                              ItemTemplate="{StaticResource ChannelTileTemplate}"
-                              ItemsPanel="{StaticResource TileWrap}"
-                              Margin="0,0,0,32"/>
-
-            </StackPanel>
-        </ScrollViewer>
-
-        <!-- Status bar -->
-        <Border Grid.Row="2"
-                Background="#0A0C10"
-                BorderBrush="{StaticResource BorderDim}"
-                BorderThickness="0,1,0,0"
-                Padding="28,12">
-            <Grid>
+            <!-- Header -->
+            <Grid Grid.Row="0" Margin="28,22,28,14">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse Width="7" Height="7"
-                             Fill="{StaticResource StatusGreen}"
-                             Margin="0,0,10,0"/>
-                    <TextBlock FontSize="10"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource TextSecondary}"
-                               VerticalAlignment="Center">
-                        <Run Text="{Binding TotalActive, Mode=OneWay}"/>
-                        <Run Text=" CHANNELS ACTIVE"/>
-                        <Run Text="  ·  "/>
-                        <Run Text="Nq1 STREAMING"/>
-                        <Run Text="  ·  "/>
-                        <Run Text="1 kHz"/>
-                    </TextBlock>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="CHANNELS"
+                               FontSize="10"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource TextTertiary}"
+                               Margin="0,0,0,2"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding DeviceName}"
+                                   FontSize="24"
+                                   FontWeight="Light"
+                                   Foreground="{StaticResource TextPrimary}"/>
+                        <Ellipse Width="6" Height="6"
+                                 Fill="{StaticResource StatusGreen}"
+                                 VerticalAlignment="Center"
+                                 Margin="12,2,8,0"/>
+                        <TextBlock Text="CONNECTED"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource StatusGreen}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,2,0,0"/>
+                    </StackPanel>
                 </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Style="{StaticResource PillButton}">
-                        <TextBlock Text="CLEAR ALL"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   FontSize="10"
-                                   FontWeight="SemiBold"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="{StaticResource SurfaceRaised}"
+                            BorderBrush="{StaticResource BorderDim}"
+                            BorderThickness="1"
+                            CornerRadius="3"
+                            Padding="10,6"
+                            Margin="0,0,16,0">
+                        <StackPanel Orientation="Horizontal">
+                            <iconPacks:PackIconMaterial Kind="Magnify"
+                                                        Width="12" Height="12"
+                                                        Foreground="{StaticResource TextTertiary}"
+                                                        VerticalAlignment="Center"
+                                                        Margin="0,0,8,0"/>
+                            <TextBlock Text="Filter channels"
+                                       Foreground="{StaticResource TextTertiary}"
+                                       FontSize="12"
+                                       Width="150"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="&#x2318;F"
+                                       Foreground="{StaticResource TextTertiary}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
                     </Border>
-                    <Border Background="{StaticResource Accent}"
-                            CornerRadius="14"
-                            Padding="14,5"
-                            Cursor="Hand">
-                        <TextBlock Text="START SESSION"
+
+                    <Border Style="{StaticResource PillButtonActive}">
+                        <TextBlock Text="{Binding DeviceName}"
                                    Foreground="{StaticResource TextPrimary}"
-                                   FontSize="10"
-                                   FontWeight="Bold"/>
+                                   FontSize="11"
+                                   FontWeight="SemiBold"/>
                     </Border>
                 </StackPanel>
             </Grid>
-        </Border>
+
+            <!-- Sections -->
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="28,0,28,0">
+                <StackPanel>
+
+                    <!-- ANALOG IN -->
+                    <Grid Margin="0,8,0,10"
+                          Visibility="{Binding TotalAnalogCount, Converter={StaticResource IntToVisibility}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="ANALOG IN" Style="{StaticResource SectionLabel}"/>
+                            <TextBlock Style="{StaticResource SectionCount}">
+                                <Run Text="· "/>
+                                <Run Text="{Binding ActiveAnalogCount, Mode=OneWay}"/>
+                                <Run Text=" / "/>
+                                <Run Text="{Binding TotalAnalogCount, Mode=OneWay}"/>
+                                <Run Text=" ACTIVE"/>
+                            </TextBlock>
+                        </StackPanel>
+                        <Button Style="{StaticResource PillButton}"
+                                HorizontalAlignment="Right"
+                                Content="SELECT ALL"
+                                Command="{Binding SelectAllCommand}"
+                                CommandParameter="AI"/>
+                    </Grid>
+                    <Rectangle Height="1"
+                               Fill="{StaticResource BorderDim}"
+                               Margin="0,0,0,14"
+                               Visibility="{Binding TotalAnalogCount, Converter={StaticResource IntToVisibility}}"/>
+                    <ItemsControl ItemsSource="{Binding AnalogInputs}"
+                                  ItemTemplate="{StaticResource ChannelTileTemplate}"
+                                  ItemsPanel="{StaticResource TileWrap}"
+                                  Margin="0,0,0,24"/>
+
+                    <!-- DIGITAL IN -->
+                    <Grid Margin="0,8,0,10"
+                          Visibility="{Binding TotalDigitalInCount, Converter={StaticResource IntToVisibility}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="DIGITAL IN" Style="{StaticResource SectionLabel}"/>
+                            <TextBlock Style="{StaticResource SectionCount}">
+                                <Run Text="· "/>
+                                <Run Text="{Binding ActiveDigitalInCount, Mode=OneWay}"/>
+                                <Run Text=" / "/>
+                                <Run Text="{Binding TotalDigitalInCount, Mode=OneWay}"/>
+                                <Run Text=" ACTIVE"/>
+                            </TextBlock>
+                        </StackPanel>
+                        <Button Style="{StaticResource PillButton}"
+                                HorizontalAlignment="Right"
+                                Content="SELECT ALL"
+                                Command="{Binding SelectAllCommand}"
+                                CommandParameter="DI"/>
+                    </Grid>
+                    <Rectangle Height="1"
+                               Fill="{StaticResource BorderDim}"
+                               Margin="0,0,0,14"
+                               Visibility="{Binding TotalDigitalInCount, Converter={StaticResource IntToVisibility}}"/>
+                    <ItemsControl ItemsSource="{Binding DigitalInputs}"
+                                  ItemTemplate="{StaticResource ChannelTileTemplate}"
+                                  ItemsPanel="{StaticResource TileWrap}"
+                                  Margin="0,0,0,24"/>
+
+                    <!-- DIGITAL OUT -->
+                    <Grid Margin="0,8,0,10"
+                          Visibility="{Binding TotalDigitalOutCount, Converter={StaticResource IntToVisibility}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="DIGITAL OUT" Style="{StaticResource SectionLabel}"/>
+                            <TextBlock Style="{StaticResource SectionCount}">
+                                <Run Text="· "/>
+                                <Run Text="{Binding ActiveDigitalOutCount, Mode=OneWay}"/>
+                                <Run Text=" / "/>
+                                <Run Text="{Binding TotalDigitalOutCount, Mode=OneWay}"/>
+                                <Run Text=" ACTIVE"/>
+                            </TextBlock>
+                        </StackPanel>
+                        <Button Style="{StaticResource PillButton}"
+                                HorizontalAlignment="Right"
+                                Content="SELECT ALL"
+                                Command="{Binding SelectAllCommand}"
+                                CommandParameter="DO"/>
+                    </Grid>
+                    <Rectangle Height="1"
+                               Fill="{StaticResource BorderDim}"
+                               Margin="0,0,0,14"
+                               Visibility="{Binding TotalDigitalOutCount, Converter={StaticResource IntToVisibility}}"/>
+                    <ItemsControl ItemsSource="{Binding DigitalOutputs}"
+                                  ItemTemplate="{StaticResource ChannelTileTemplate}"
+                                  ItemsPanel="{StaticResource TileWrap}"
+                                  Margin="0,0,0,32"/>
+
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Status bar -->
+            <Border Grid.Row="2"
+                    Background="#0A0C10"
+                    BorderBrush="{StaticResource BorderDim}"
+                    BorderThickness="0,1,0,0"
+                    Padding="28,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse Width="7" Height="7"
+                                 Fill="{StaticResource StatusGreen}"
+                                 Margin="0,0,10,0"/>
+                        <TextBlock FontSize="10"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center">
+                            <Run Text="{Binding TotalActive, Mode=OneWay}"/>
+                            <Run Text=" CHANNELS ACTIVE"/>
+                        </TextBlock>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{StaticResource PillButton}"
+                                Content="CLEAR ALL"
+                                Command="{Binding ClearAllCommand}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ========== EMPTY STATE ========== -->
+        <Grid Visibility="{Binding HasConnectedDevice, Converter={StaticResource InvertedBoolToVis}}">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MaxWidth="420">
+                <Border Width="96" Height="96"
+                        CornerRadius="48"
+                        Background="{StaticResource SurfaceRaised}"
+                        BorderBrush="{StaticResource BorderDim}"
+                        BorderThickness="1"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,28">
+                    <iconPacks:PackIconMaterial Kind="Chip"
+                                                Width="40" Height="40"
+                                                Foreground="{StaticResource TextTertiary}"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="NO DEVICE CONNECTED"
+                           FontSize="11"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextTertiary}"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,10"/>
+                <TextBlock Text="Connect a DAQiFi device to view and activate channels."
+                           FontSize="15"
+                           FontWeight="Light"
+                           Foreground="{StaticResource TextPrimary}"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,20"/>
+                <TextBlock Text="Open the Devices tab to get started"
+                           FontSize="11"
+                           Foreground="{StaticResource TextSecondary}"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+
     </Grid>
 </UserControl>
