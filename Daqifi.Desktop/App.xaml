@@ -44,6 +44,7 @@
             <converters:BoolToActiveStatusConverter x:Key="BoolToActiveStatus"/>
             <converters:BoolToStatusColorConverter x:Key="BoolToStatusColor"/>
             <converters:ListToStringConverter x:Key="ListToStringConverter"/>
+            <converters:BrushColorMatchConverter x:Key="BrushColorMatch"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
