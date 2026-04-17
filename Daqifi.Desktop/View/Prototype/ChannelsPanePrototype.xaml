@@ -1,4 +1,5 @@
 <UserControl x:Class="Daqifi.Desktop.View.Prototype.ChannelsPanePrototype"
+             x:Name="Root"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -75,7 +76,7 @@
                     Cursor="Hand">
                 <Border.InputBindings>
                     <MouseBinding MouseAction="LeftClick"
-                                  Command="{Binding DataContext.ToggleChannelCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                  Command="{Binding DataContext.ToggleChannelCommand, ElementName=Root}"
                                   CommandParameter="{Binding}"/>
                 </Border.InputBindings>
                 <Border.Style>
@@ -139,7 +140,7 @@
                                 BorderThickness="0"
                                 Cursor="Hand"
                                 ToolTip="Channel settings"
-                                Command="{Binding DataContext.OpenSettingsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                Command="{Binding DataContext.OpenSettingsCommand, ElementName=Root}"
                                 CommandParameter="{Binding}">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
@@ -494,7 +495,7 @@
                             <TextBlock Text="COLOR"
                                        Style="{StaticResource SectionLabel}"
                                        Margin="0,22,0,8"/>
-                            <ItemsControl ItemsSource="{Binding ColorPalette}">
+                            <ItemsControl ItemsSource="{Binding Palette}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <WrapPanel/>
@@ -507,27 +508,18 @@
                                             <Border CornerRadius="5"
                                                     BorderBrush="{StaticResource TextPrimary}"
                                                     BorderThickness="2">
-                                                <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Value="True">
-                                                                <DataTrigger.Binding>
-                                                                    <MultiBinding Converter="{StaticResource BrushColorMatch}">
-                                                                        <Binding/>
-                                                                        <Binding Path="DataContext.SelectedChannel.ChannelColorBrush" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
-                                                                    </MultiBinding>
-                                                                </DataTrigger.Binding>
-                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Border.Style>
+                                                <Border.Visibility>
+                                                    <MultiBinding Converter="{StaticResource BrushColorMatch}">
+                                                        <Binding/>
+                                                        <Binding ElementName="Root"
+                                                                 Path="DataContext.SelectedChannel.ChannelColorBrush"/>
+                                                    </MultiBinding>
+                                                </Border.Visibility>
                                             </Border>
                                             <!-- Swatch -->
                                             <Button Width="28" Height="28"
                                                     Cursor="Hand"
-                                                    Command="{Binding DataContext.SetColorCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    Command="{Binding DataContext.SetColorCommand, ElementName=Root}"
                                                     CommandParameter="{Binding}">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
@@ -538,7 +530,9 @@
                                                                 CornerRadius="3"/>
                                                         <ControlTemplate.Triggers>
                                                             <Trigger Property="IsMouseOver" Value="True">
-                                                                <Setter TargetName="Bg" Property="BorderBrush" Value="{StaticResource TextSecondary}"/>
+                                                                <Setter TargetName="Bg"
+                                                                        Property="BorderBrush"
+                                                                        Value="{StaticResource TextSecondary}"/>
                                                             </Trigger>
                                                         </ControlTemplate.Triggers>
                                                     </ControlTemplate>
@@ -550,7 +544,8 @@
                             </ItemsControl>
 
                             <!-- DIRECTION (bidirectional only) -->
-                            <StackPanel Visibility="{Binding SelectedChannel.IsBidirectional, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Visibility="{Binding SelectedChannel.IsBidirectional,
+                                                             Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="DIRECTION"
                                            Style="{StaticResource SectionLabel}"
                                            Margin="0,22,0,8"/>
@@ -566,7 +561,8 @@
                                         </Grid.ColumnDefinitions>
                                         <RadioButton Grid.Column="0"
                                                      Content="INPUT"
-                                                     IsChecked="{Binding SelectedChannel.IsOutput, Converter={StaticResource BooleanToInverse}}"
+                                                     IsChecked="{Binding SelectedChannel.IsOutput,
+                                                                         Converter={StaticResource BooleanToInverse}}"
                                                      Style="{StaticResource SegmentedToggle}"/>
                                         <RadioButton Grid.Column="1"
                                                      Content="OUTPUT"
@@ -584,8 +580,10 @@
                                         <Style.Triggers>
                                             <MultiDataTrigger>
                                                 <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding SelectedChannel.IsDigital}" Value="True"/>
-                                                    <Condition Binding="{Binding SelectedChannel.IsOutput}" Value="True"/>
+                                                    <Condition Binding="{Binding SelectedChannel.IsDigital}"
+                                                               Value="True"/>
+                                                    <Condition Binding="{Binding SelectedChannel.IsOutput}"
+                                                               Value="True"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </MultiDataTrigger>
@@ -607,7 +605,8 @@
                                         </Grid.ColumnDefinitions>
                                         <RadioButton Grid.Column="0"
                                                      Content="LOW"
-                                                     IsChecked="{Binding SelectedChannel.IsDigitalOn, Converter={StaticResource BooleanToInverse}}"
+                                                     IsChecked="{Binding SelectedChannel.IsDigitalOn,
+                                                                         Converter={StaticResource BooleanToInverse}}"
                                                      Style="{StaticResource SegmentedToggle}"/>
                                         <RadioButton Grid.Column="1"
                                                      Content="HIGH"
@@ -618,7 +617,8 @@
                             </StackPanel>
 
                             <!-- SCALING (analog only) -->
-                            <StackPanel Visibility="{Binding SelectedChannel.IsAnalog, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Visibility="{Binding SelectedChannel.IsAnalog,
+                                                             Converter={StaticResource BoolToVis}}">
                                 <Grid Margin="0,22,0,8">
                                     <TextBlock Text="SCALING"
                                                Style="{StaticResource SectionLabel}"
@@ -634,7 +634,9 @@
                                         CornerRadius="3"
                                         Padding="10,0"
                                         IsEnabled="{Binding SelectedChannel.IsScalingActive}">
-                                    <TextBox Text="{Binding SelectedChannel.ScaleExpression, UpdateSourceTrigger=PropertyChanged, Delay=300}"
+                                    <TextBox Text="{Binding SelectedChannel.ScaleExpression,
+                                                                    UpdateSourceTrigger=PropertyChanged,
+                                                                    Delay=300}"
                                              Background="Transparent"
                                              BorderThickness="0"
                                              Foreground="{StaticResource TextPrimary}"
@@ -659,8 +661,11 @@
                                             <Style.Triggers>
                                                 <MultiDataTrigger>
                                                     <MultiDataTrigger.Conditions>
-                                                        <Condition Binding="{Binding SelectedChannel.IsScalingActive}" Value="True"/>
-                                                        <Condition Binding="{Binding SelectedChannel.HasValidExpression}" Value="False"/>
+                                                        <Condition Binding="{Binding SelectedChannel.IsScalingActive}"
+                                                                   Value="True"/>
+                                                        <Condition
+                                                            Binding="{Binding SelectedChannel.HasValidExpression}"
+                                                            Value="False"/>
                                                     </MultiDataTrigger.Conditions>
                                                     <Setter Property="Visibility" Value="Visible"/>
                                                 </MultiDataTrigger>

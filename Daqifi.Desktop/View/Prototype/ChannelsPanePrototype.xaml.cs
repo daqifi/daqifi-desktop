@@ -9,5 +9,14 @@ public partial class ChannelsPanePrototype : UserControl
     {
         InitializeComponent();
         DataContext = new ChannelsPaneViewModel();
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnUnloaded(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (DataContext is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
     }
 }

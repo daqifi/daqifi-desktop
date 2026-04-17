@@ -9,21 +9,42 @@ using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 
 namespace Daqifi.Desktop.ViewModels;
 
+/// <summary>
+/// View-model for a single channel tile. All type-specific presentation
+/// (stripe, label) is computed from the channel's current state so a
+/// bidirectional channel flipping direction updates its tile in place.
+/// </summary>
 public sealed class ChannelTileViewModel : ObservableObject, IDisposable
 {
     private readonly ChannelsPaneViewModel _parent;
-    private readonly Brush _stripeBrush;
-    private readonly string _typeLabel;
     private readonly INotifyPropertyChanged? _channelNotifier;
 
+    /// <summary>The underlying domain channel this tile represents.</summary>
     public IChannel Channel { get; }
-    public string Name => Channel.Name;
-    public string TypeLabel => _typeLabel;
-    public bool IsActive => Channel.IsActive;
-    public Brush StripeBrush => _stripeBrush;
-    public Brush TileBackground => IsActive ? SurfaceActive : SurfaceRaised;
-    public Brush TileBorderBrush => IsActive ? _stripeBrush : BorderDim;
 
+    /// <summary>Display name of the channel.</summary>
+    public string Name => Channel.Name;
+
+    /// <summary>Human-readable type label ("ANALOG IN", "DIGITAL IN", "DIGITAL OUT").</summary>
+    public string TypeLabel => Channel.IsAnalog
+        ? "ANALOG IN"
+        : Channel.Direction == ChannelDirection.Output ? "DIGITAL OUT" : "DIGITAL IN";
+
+    /// <summary>Whether the channel is currently streaming samples.</summary>
+    public bool IsActive => Channel.IsActive;
+
+    /// <summary>Type-coded stripe color — analog, digital in, or digital out.</summary>
+    public Brush StripeBrush => Channel.IsAnalog
+        ? AnalogAccent
+        : Channel.Direction == ChannelDirection.Output ? DigitalOutAccent : DigitalInAccent;
+
+    /// <summary>Background color for the tile, depending on active state.</summary>
+    public Brush TileBackground => IsActive ? SurfaceActive : SurfaceRaised;
+
+    /// <summary>Border color for the tile — stripe color when active, dim otherwise.</summary>
+    public Brush TileBorderBrush => IsActive ? StripeBrush : BorderDim;
+
+    /// <summary>Formatted live value, or null when the channel is inactive.</summary>
     public string? Value
     {
         get
@@ -36,26 +57,11 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Creates a tile bound to the given channel and parent pane.</summary>
     public ChannelTileViewModel(IChannel channel, ChannelsPaneViewModel parent)
     {
         Channel = channel;
         _parent = parent;
-
-        if (channel.IsAnalog)
-        {
-            _stripeBrush = AnalogAccent;
-            _typeLabel = "ANALOG IN";
-        }
-        else if (channel.Direction == ChannelDirection.Output)
-        {
-            _stripeBrush = DigitalOutAccent;
-            _typeLabel = "DIGITAL OUT";
-        }
-        else
-        {
-            _stripeBrush = DigitalInAccent;
-            _typeLabel = "DIGITAL IN";
-        }
 
         _channelNotifier = channel as INotifyPropertyChanged;
         if (_channelNotifier != null)
@@ -80,6 +86,14 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
         {
             OnPropertyChanged(nameof(Name));
         }
+        else if (e.PropertyName == nameof(IChannel.Direction) ||
+                 e.PropertyName == nameof(IChannel.IsOutput))
+        {
+            OnPropertyChanged(nameof(TypeLabel));
+            OnPropertyChanged(nameof(StripeBrush));
+            OnPropertyChanged(nameof(TileBorderBrush));
+            _parent.RequestSectionReshuffle();
+        }
     }
 
     private void OnValueRefresh(object? sender, EventArgs e)
@@ -87,6 +101,7 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
         if (IsActive) OnPropertyChanged(nameof(Value));
     }
 
+    /// <summary>Detaches channel and parent-pane subscriptions.</summary>
     public void Dispose()
     {
         if (_channelNotifier != null)

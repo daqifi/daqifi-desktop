@@ -15,13 +15,29 @@ using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public partial class ChannelsPaneViewModel : ObservableObject
+/// <summary>
+/// Backs the unified Channels pane. Groups the connected device's channels
+/// into AI/DI/DO sections, drives the 10 Hz live-value refresh, and owns
+/// the inline settings drawer state.
+/// </summary>
+public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
 {
     private readonly DispatcherTimer _valueRefreshTimer;
+    private bool _disposed;
+
+    /// <summary>
+    /// Fires at the refresh cadence so tiles can re-read their live value
+    /// without each tile owning its own timer.
+    /// </summary>
     public event EventHandler? ValueRefresh;
 
+    /// <summary>Analog input tiles for the current device.</summary>
     public ObservableCollection<ChannelTileViewModel> AnalogInputs { get; } = [];
+
+    /// <summary>Digital input tiles for the current device.</summary>
     public ObservableCollection<ChannelTileViewModel> DigitalInputs { get; } = [];
+
+    /// <summary>Digital output tiles for the current device.</summary>
     public ObservableCollection<ChannelTileViewModel> DigitalOutputs { get; } = [];
 
     [ObservableProperty] private bool _hasConnectedDevice;
@@ -37,11 +53,17 @@ public partial class ChannelsPaneViewModel : ObservableObject
     [ObservableProperty] private IChannel? _selectedChannel;
     [ObservableProperty] private bool _isSettingsOpen;
 
-    public static Brush[] ColorPalette { get; } = BuildPalette(
+    private static readonly Brush[] ColorPaletteBrushes = BuildPalette(
     [
         "#4A9EFF", "#4ADE80", "#F59E0B", "#F43F5E",
         "#A855F7", "#06B6D4", "#EC4899", "#FACC15",
     ]);
+
+    /// <summary>
+    /// The palette shown in the settings drawer. Exposed as an instance
+    /// property so WPF's Binding engine can resolve it via the DataContext.
+    /// </summary>
+    public Brush[] Palette => ColorPaletteBrushes;
 
     private static Brush[] BuildPalette(string[] hexes)
     {
@@ -56,13 +78,25 @@ public partial class ChannelsPaneViewModel : ObservableObject
         return result;
     }
 
+    /// <summary>Toggles the clicked channel between active and inactive.</summary>
     public IRelayCommand<ChannelTileViewModel> ToggleChannelCommand { get; }
+
+    /// <summary>Activates every channel in a section ("AI", "DI", or "DO").</summary>
     public IRelayCommand<string> SelectAllCommand { get; }
+
+    /// <summary>Deactivates every channel across all sections.</summary>
     public IRelayCommand ClearAllCommand { get; }
+
+    /// <summary>Opens the inline settings drawer for a channel.</summary>
     public IRelayCommand<ChannelTileViewModel> OpenSettingsCommand { get; }
+
+    /// <summary>Closes the inline settings drawer.</summary>
     public IRelayCommand CloseSettingsCommand { get; }
+
+    /// <summary>Sets the selected channel's plot color.</summary>
     public IRelayCommand<Brush> SetColorCommand { get; }
 
+    /// <summary>Creates the view-model and begins watching for connected devices.</summary>
     public ChannelsPaneViewModel()
     {
         ToggleChannelCommand = new RelayCommand<ChannelTileViewModel>(ToggleChannel);
@@ -73,12 +107,15 @@ public partial class ChannelsPaneViewModel : ObservableObject
         SetColorCommand = new RelayCommand<Brush>(SetColor);
 
         _valueRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-        _valueRefreshTimer.Tick += (_, _) => ValueRefresh?.Invoke(this, EventArgs.Empty);
+        _valueRefreshTimer.Tick += OnValueRefreshTick;
         _valueRefreshTimer.Start();
 
         ConnectionManager.Instance.PropertyChanged += OnConnectionManagerPropertyChanged;
         Rebuild();
     }
+
+    private void OnValueRefreshTick(object? sender, EventArgs e) =>
+        ValueRefresh?.Invoke(this, EventArgs.Empty);
 
     private void OnConnectionManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -88,8 +125,21 @@ public partial class ChannelsPaneViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Called by a tile when its channel's direction/output flips, so the
+    /// tile can be re-shelved into the right section and its stripe/label
+    /// updated. Deferred to the dispatcher to avoid mutating collections
+    /// during the channel's own PropertyChanged notification.
+    /// </summary>
+    internal void RequestSectionReshuffle()
+    {
+        _valueRefreshTimer.Dispatcher.BeginInvoke((Action)Rebuild, DispatcherPriority.Background);
+    }
+
     private void Rebuild()
     {
+        if (_disposed) return;
+
         DisposeTiles(AnalogInputs);
         DisposeTiles(DigitalInputs);
         DisposeTiles(DigitalOutputs);
@@ -207,5 +257,25 @@ public partial class ChannelsPaneViewModel : ObservableObject
     {
         if (SelectedChannel == null || brush == null) return;
         SelectedChannel.ChannelColorBrush = brush;
+    }
+
+    /// <summary>
+    /// Stops the refresh timer, detaches the singleton subscription, and
+    /// disposes every tile. Safe to call more than once.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        _valueRefreshTimer.Stop();
+        _valueRefreshTimer.Tick -= OnValueRefreshTick;
+        ConnectionManager.Instance.PropertyChanged -= OnConnectionManagerPropertyChanged;
+
+        DisposeTiles(AnalogInputs);
+        DisposeTiles(DigitalInputs);
+        DisposeTiles(DigitalOutputs);
+
+        GC.SuppressFinalize(this);
     }
 }
