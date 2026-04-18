@@ -69,6 +69,11 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNetworkSettingsError))]
     private string? _networkSettingsError;
+
+    /// <summary>
+    /// True when <see cref="NetworkSettingsError"/> has a message to display.
+    /// Used to toggle visibility of the inline error row in the Devices drawer.
+    /// </summary>
     public bool HasNetworkSettingsError => !string.IsNullOrEmpty(NetworkSettingsError);
     [ObservableProperty]
     private bool _isAppSettingsOpen;
@@ -1111,25 +1116,25 @@ public partial class DaqifiViewModel : ObservableObject
         try
         {
             await device.UpdateNetworkConfiguration();
-            ShowNetworkSettingsAppliedStatus();
+            _ = ShowNetworkSettingsAppliedStatusAsync();
         }
         catch (Exception ex)
         {
             _appLogger.Error(ex, "Failed to update network configuration");
-            NetworkSettingsError = $"Failed to apply WiFi settings: {ex.Message}";
+            NetworkSettingsError = "Failed to apply WiFi settings. See the application log for details.";
         }
     }
 
     private void ResetNetworkSettingsStatus()
     {
-        _networkSettingsAppliedCts?.Cancel();
+        CancelAndDisposeNetworkSettingsCts();
         NetworkSettingsApplied = false;
         NetworkSettingsError = null;
     }
 
-    private async void ShowNetworkSettingsAppliedStatus()
+    private async Task ShowNetworkSettingsAppliedStatusAsync()
     {
-        _networkSettingsAppliedCts?.Cancel();
+        CancelAndDisposeNetworkSettingsCts();
         _networkSettingsAppliedCts = new CancellationTokenSource();
         var token = _networkSettingsAppliedCts.Token;
 
@@ -1140,6 +1145,24 @@ public partial class DaqifiViewModel : ObservableObject
             NetworkSettingsApplied = false;
         }
         catch (TaskCanceledException) { }
+    }
+
+    private void CancelAndDisposeNetworkSettingsCts()
+    {
+        var cts = _networkSettingsAppliedCts;
+        if (cts == null)
+        {
+            return;
+        }
+        _networkSettingsAppliedCts = null;
+        try
+        {
+            cts.Cancel();
+        }
+        finally
+        {
+            cts.Dispose();
+        }
     }
 
     [RelayCommand]
