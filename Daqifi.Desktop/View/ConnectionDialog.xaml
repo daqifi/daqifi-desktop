@@ -18,7 +18,7 @@
                     <Border>
                         <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
                             <!-- Connect Button -->
-                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}" Command="{Binding ConnectCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right"  Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}" Command="{Binding ConnectCommand}" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right"  Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                             <!-- Device List -->
                             <ListView Name="DeviceList" ItemsSource="{Binding AvailableWiFiDevices}" SelectionMode="Extended" Margin="5" Background="Transparent" BorderThickness="0">
@@ -54,7 +54,7 @@
                     <Border>
                         <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
                             <!-- Connect Button -->
-                            <Button DockPanel.Dock="Bottom" Command="{Binding ConnectManualWifiCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                            <Button DockPanel.Dock="Bottom" Command="{Binding ConnectManualWifiCommand}" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                             <!-- Manual IP Address -->
                             <StackPanel>
@@ -71,7 +71,7 @@
                     <Border>
                         <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
                             <!-- Connect Button -->
-                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}" Command="{Binding ConnectSerialCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}" Command="{Binding ConnectSerialCommand}" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                             <!-- Device List -->
                             <ListView Name="SerialList" ItemsSource="{Binding AvailableSerialDevices}" SelectionMode="Extended" Margin="5" Background="Transparent" BorderThickness="0">
@@ -107,7 +107,7 @@
                     <Border>
                         <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
                             <!-- Connect Button -->
-                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}" Command="{Binding ConnectManualSerialCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}" Command="{Binding ConnectManualSerialCommand}" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
                             <!-- Manual COM Port -->
                             <StackPanel>
