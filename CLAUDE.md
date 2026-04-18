@@ -236,7 +236,7 @@ public void InitializeFirewallRules()
 
 When working on:
 - **Device connectivity**: Check `/Device/` directory and ensure network configuration
-- **UI changes**: Update both View and ViewModel following MVVM
+- **UI changes**: Update both View and ViewModel following MVVM. For new or redesigned surfaces, read [docs/design-philosophy.md](docs/design-philosophy.md) first — the Channels pane is the current exemplar
 - **Data persistence**: Use Entity Framework patterns
 - **Protocol changes**: Update `.proto` files and regenerate
 - **Firewall/Network**: Ensure admin privileges handled properly, verify ports match

@@ -118,6 +118,69 @@ public class SessionDeviceMetadataTests
     }
 
     [TestMethod]
+    public void AddingMetadataToDbSet_PopulatesNavigationCollection_ExactlyOnce()
+    {
+        // Regression: LoggingManager previously added each metadata row to both
+        // context.SessionDeviceMetadata AND Session.DeviceMetadata. EF Core's
+        // relationship fix-up already populates the nav collection when the FK
+        // on the added entity matches a tracked principal, so the second Add
+        // inserted the same CLR reference into the list a second time — making
+        // FrequencyDisplay render duplicate entries ("...4104 · ...4104") until
+        // the next reload dropped the in-memory duplicate.
+        using var ctx = new LoggingContext(_options);
+        var session = new LoggingSession { ID = 100, Name = "Fixup Session" };
+        ctx.Sessions.Add(session);
+
+        ctx.SessionDeviceMetadata.Add(new SessionDeviceMetadata
+        {
+            LoggingSessionID = 100,
+            DeviceSerialNo = "DAQ-FIX",
+            DeviceName = "Nyquist",
+            SamplingFrequencyHz = 100
+        });
+
+        Assert.AreEqual(
+            1,
+            session.DeviceMetadata.Count,
+            "EF fix-up should add the metadata to the session's nav collection exactly once.");
+    }
+
+    [TestMethod]
+    public void OldBrokenPattern_AddsToDbSetAndNav_OnlyInsertsOneRow()
+    {
+        // Pins EF Core's behavior: even if we add the same instance to both the
+        // DbSet AND the principal's nav collection, SaveChanges should only
+        // insert one row (identity-tracked by CLR reference). If this ever
+        // regresses and inserts two rows, the user-visible bug returns as a
+        // persisted duplicate that survives reloads.
+        var metadata = new SessionDeviceMetadata
+        {
+            LoggingSessionID = 200,
+            DeviceSerialNo = "DAQ-OLD",
+            DeviceName = "Nyquist",
+            SamplingFrequencyHz = 126
+        };
+
+        using (var ctx = new LoggingContext(_options))
+        {
+            var session = new LoggingSession { ID = 200, Name = "Old Pattern" };
+            ctx.Sessions.Add(session);
+            ctx.SessionDeviceMetadata.Add(metadata);
+            session.DeviceMetadata.Add(metadata);
+            ctx.SaveChanges();
+        }
+
+        using (var ctx = new LoggingContext(_options))
+        {
+            var rows = ctx.SessionDeviceMetadata
+                .Where(m => m.LoggingSessionID == 200)
+                .ToList();
+            Assert.AreEqual(1, rows.Count,
+                "EF tracks by CLR reference, so double-adding the same instance should yield one row.");
+        }
+    }
+
+    [TestMethod]
     public void SessionDeviceMetadata_CompositeKey_PreventsDuplicates()
     {
         using (var ctx = new LoggingContext(_options))

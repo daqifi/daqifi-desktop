@@ -63,8 +63,6 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLogSummaryOpen;
     [ObservableProperty]
-    private bool _isChannelSettingsOpen;
-    [ObservableProperty]
     private bool _isLoggingSessionSettingsOpen;
     [ObservableProperty]
     private bool _isLiveGraphSettingsOpen;
@@ -86,8 +84,6 @@ public partial class DaqifiViewModel : ObservableObject
 
     private VersionNotification? _versionNotification;
     private IStreamingDevice _updateProfileSelectedDevice;
-    [ObservableProperty]
-    private IChannel _selectedChannel;
     [ObservableProperty]
     private Profile _selectedProfile;
     [ObservableProperty]
@@ -1029,26 +1025,6 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ShowAddChannelDialog()
-    {
-        var addChannelDialogViewModel = new AddChannelDialogViewModel();
-        _dialogService.ShowDialog<AddChannelDialog>(this, addChannelDialogViewModel);
-    }
-
-    [RelayCommand]
-    private void ShowSelectColorDialog()
-    {
-        IColorable? item = SelectedChannel;
-        if (item == null)
-        {
-            return;
-        }
-
-        var selectColorDialogViewModel = new SelectColorDialogViewModel(item);
-        _dialogService.ShowDialog<SelectColorDialog>(this, selectColorDialogViewModel);
-    }
-
-    [RelayCommand]
     private void ShowDAQiFiSettingsDialog()
     {
         var settingsViewModel = new SettingsViewModel();
@@ -1155,19 +1131,6 @@ public partial class DaqifiViewModel : ObservableObject
         CloseFlyouts();
         SelectedDevice = device;
         IsFirmwareUpdatationFlyoutOpen = true;
-    }
-
-    [RelayCommand]
-    private void OpenChannelSettings(IChannel? channel)
-    {
-        if (channel == null)
-        {
-            return;
-        }
-
-        SelectedChannel = channel;
-        CloseFlyouts();
-        IsChannelSettingsOpen = true;
     }
 
     [RelayCommand]
@@ -2242,7 +2205,6 @@ public partial class DaqifiViewModel : ObservableObject
     {
         IsProfileSettingsOpen = false;
         IsDeviceSettingsOpen = false;
-        IsChannelSettingsOpen = false;
         IsLoggingSessionSettingsOpen = false;
         IsLiveGraphSettingsOpen = false;
         IsLogSummaryOpen = false;
