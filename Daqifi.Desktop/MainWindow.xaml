@@ -22,14 +22,14 @@
 
     <controls:MetroWindow.RightWindowCommands>
         <controls:WindowCommands>
-            <Button Command="{Binding ShowDAQiFiSettingsDialogCommand}">
-                <Button.Content>
+            <ToggleButton IsChecked="{Binding IsAppSettingsOpen}" ToolTip="Settings">
+                <ToggleButton.Content>
                     <StackPanel Orientation="Horizontal">
                         <iconPacks:PackIconMaterial Kind="Cog" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" />
                         <TextBlock Margin="4 0 0 0" VerticalAlignment="Center" Text="settings" />
                     </StackPanel>
-                </Button.Content>
-            </Button>
+                </ToggleButton.Content>
+            </ToggleButton>
             <ToggleButton IsChecked="{Binding IsDebugModeEnabled}" ToolTip="Toggle Debug Mode">
                 <ToggleButton.Content>
                     <StackPanel Orientation="Horizontal">
@@ -1154,6 +1154,186 @@
         </TabControl>
         <Grid Background="Black" Opacity="0.5" Visibility="{Binding IsBusy, FallbackValue=Hidden, Converter={StaticResource BoolToVis}}">
             <controls:ProgressRing IsActive="{Binding IsBusy, Mode=OneWay}"/>
+        </Grid>
+
+        <!-- ========== APP SETTINGS DRAWER ========== -->
+        <Grid Visibility="{Binding IsAppSettingsOpen, Converter={StaticResource BoolToVis}}"
+              Panel.ZIndex="20">
+            <Grid.Resources>
+                <SolidColorBrush x:Key="AppSettings.Surface" Color="#0D0F12"/>
+                <SolidColorBrush x:Key="AppSettings.SurfaceRaised" Color="#171A20"/>
+                <SolidColorBrush x:Key="AppSettings.SurfaceActive" Color="#1E2530"/>
+                <SolidColorBrush x:Key="AppSettings.BorderDim" Color="#2A2F38"/>
+                <SolidColorBrush x:Key="AppSettings.BorderBright" Color="#3A4252"/>
+                <SolidColorBrush x:Key="AppSettings.TextPrimary" Color="#F5F5F7"/>
+                <SolidColorBrush x:Key="AppSettings.TextSecondary" Color="#8E9199"/>
+                <SolidColorBrush x:Key="AppSettings.TextTertiary" Color="#5A5E66"/>
+
+                <Style x:Key="AppSettings.SectionLabel" TargetType="TextBlock">
+                    <Setter Property="FontSize" Value="11"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="Foreground" Value="{StaticResource AppSettings.TextSecondary}"/>
+                    <Setter Property="VerticalAlignment" Value="Center"/>
+                </Style>
+
+                <Style x:Key="AppSettings.RowLabel" TargetType="TextBlock">
+                    <Setter Property="FontSize" Value="11"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="Foreground" Value="{StaticResource AppSettings.TextSecondary}"/>
+                </Style>
+
+                <Style x:Key="AppSettings.HelpText" TargetType="TextBlock">
+                    <Setter Property="FontSize" Value="11"/>
+                    <Setter Property="Foreground" Value="{StaticResource AppSettings.TextTertiary}"/>
+                    <Setter Property="TextWrapping" Value="Wrap"/>
+                    <Setter Property="Margin" Value="0,4,0,0"/>
+                </Style>
+
+                <Style x:Key="AppSettings.SegmentedToggle" TargetType="RadioButton">
+                    <Setter Property="Foreground" Value="{StaticResource AppSettings.TextSecondary}"/>
+                    <Setter Property="FontSize" Value="10"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="Cursor" Value="Hand"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="RadioButton">
+                                <Border x:Name="Bg"
+                                        Background="Transparent"
+                                        CornerRadius="2"
+                                        Padding="12,7">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="Bg" Property="Background" Value="{StaticResource AppSettings.SurfaceActive}"/>
+                                        <Setter Property="Foreground" Value="{StaticResource AppSettings.TextPrimary}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource AppSettings.TextPrimary}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Grid.Resources>
+
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="380"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Scrim -->
+            <Rectangle Grid.Column="0" Fill="#A0000000">
+                <Rectangle.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding CloseAppSettingsCommand}"/>
+                </Rectangle.InputBindings>
+            </Rectangle>
+
+            <!-- Drawer -->
+            <Border Grid.Column="1"
+                    Background="{StaticResource AppSettings.SurfaceRaised}"
+                    BorderBrush="{StaticResource AppSettings.BorderDim}"
+                    BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Margin="24,22,16,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="PREFERENCES"
+                                       FontSize="9"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource AppSettings.TextTertiary}"/>
+                            <TextBlock Text="Settings"
+                                       FontSize="22"
+                                       FontWeight="Light"
+                                       Foreground="{StaticResource AppSettings.TextPrimary}"
+                                       Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Width="28" Height="28"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Foreground="{StaticResource AppSettings.TextSecondary}"
+                                FontSize="16"
+                                Cursor="Hand"
+                                Content="&#xD7;"
+                                Command="{Binding CloseAppSettingsCommand}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bg" Background="Transparent" CornerRadius="14">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bg" Property="Background" Value="#1FFFFFFF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
+
+                    <!-- Body -->
+                    <ScrollViewer Grid.Row="1"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="24,0,24,24">
+                        <StackPanel>
+
+                            <!-- EXPORT section -->
+                            <TextBlock Text="EXPORT"
+                                       Style="{StaticResource AppSettings.SectionLabel}"
+                                       Margin="0,4,0,10"/>
+                            <Rectangle Height="1"
+                                       Fill="{StaticResource AppSettings.BorderDim}"
+                                       Margin="0,0,0,18"/>
+
+                            <StackPanel Margin="0,0,0,12">
+                                <TextBlock Text="CSV DELIMITER"
+                                           Style="{StaticResource AppSettings.RowLabel}"/>
+                                <TextBlock Text="Separates columns when exporting logged sessions to CSV."
+                                           Style="{StaticResource AppSettings.HelpText}"/>
+                                <Border Background="{StaticResource AppSettings.Surface}"
+                                        BorderBrush="{StaticResource AppSettings.BorderDim}"
+                                        BorderThickness="1"
+                                        CornerRadius="3"
+                                        Padding="3"
+                                        HorizontalAlignment="Left"
+                                        Margin="0,10,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <RadioButton Grid.Column="0"
+                                                     GroupName="CsvDelimiter"
+                                                     Content="COMMA  ,"
+                                                     IsChecked="{Binding AppSettings.IsCommaDelimiter, Mode=TwoWay}"
+                                                     Style="{StaticResource AppSettings.SegmentedToggle}"
+                                                     ToolTip="Standard CSV — compatible with most spreadsheets."/>
+                                        <RadioButton Grid.Column="1"
+                                                     GroupName="CsvDelimiter"
+                                                     Content="SEMICOLON  ;"
+                                                     IsChecked="{Binding AppSettings.IsSemicolonDelimiter, Mode=TwoWay}"
+                                                     Style="{StaticResource AppSettings.SegmentedToggle}"
+                                                     ToolTip="Use when locale treats comma as decimal separator."/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </controls:MetroWindow>
