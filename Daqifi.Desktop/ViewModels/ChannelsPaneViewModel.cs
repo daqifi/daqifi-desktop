@@ -61,6 +61,14 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     [ObservableProperty] private IChannel? _selectedChannel;
     [ObservableProperty] private bool _isSettingsOpen;
 
+    /// <summary>
+    /// Mirrors <see cref="LoggingManager.Active"/>. While true, channel
+    /// activation, select-all, and clear-all are disabled — adding or
+    /// removing subscribed channels mid-session would corrupt the
+    /// per-session device metadata captured at session start.
+    /// </summary>
+    [ObservableProperty] private bool _isLoggingActive;
+
     private static readonly Brush[] ColorPaletteBrushes = BuildPalette(
     [
         "#4A9EFF", "#4ADE80", "#F59E0B", "#F43F5E",
@@ -107,9 +115,9 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     /// <summary>Creates the view-model and begins watching for connected devices.</summary>
     public ChannelsPaneViewModel()
     {
-        ToggleChannelCommand = new RelayCommand<ChannelTileViewModel>(ToggleChannel);
-        SelectAllCommand = new RelayCommand<string>(SelectAll);
-        ClearAllCommand = new RelayCommand(ClearAll);
+        ToggleChannelCommand = new RelayCommand<ChannelTileViewModel>(ToggleChannel, _ => !IsLoggingActive);
+        SelectAllCommand = new RelayCommand<string>(SelectAll, _ => !IsLoggingActive);
+        ClearAllCommand = new RelayCommand(ClearAll, () => !IsLoggingActive);
         OpenSettingsCommand = new RelayCommand<ChannelTileViewModel>(OpenSettings);
         CloseSettingsCommand = new RelayCommand(CloseSettings);
         SetColorCommand = new RelayCommand<Brush>(SetColor);
@@ -119,7 +127,34 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         _valueRefreshTimer.Start();
 
         ConnectionManager.Instance.PropertyChanged += OnConnectionManagerPropertyChanged;
+        LoggingManager.Instance.PropertyChanged += OnLoggingManagerPropertyChanged;
+        IsLoggingActive = LoggingManager.Instance.Active;
         Rebuild();
+    }
+
+    partial void OnIsLoggingActiveChanged(bool value)
+    {
+        ToggleChannelCommand.NotifyCanExecuteChanged();
+        SelectAllCommand.NotifyCanExecuteChanged();
+        ClearAllCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnLoggingManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(LoggingManager.Active))
+        {
+            // Marshal to the UI thread — Active can be toggled from background
+            // threads (e.g., disk-space monitor stopping a session).
+            var dispatcher = _valueRefreshTimer.Dispatcher;
+            if (dispatcher.CheckAccess())
+            {
+                IsLoggingActive = LoggingManager.Instance.Active;
+            }
+            else
+            {
+                dispatcher.BeginInvoke(() => IsLoggingActive = LoggingManager.Instance.Active);
+            }
+        }
     }
 
     private void OnValueRefreshTick(object? sender, EventArgs e) =>
@@ -289,6 +324,7 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         _valueRefreshTimer.Stop();
         _valueRefreshTimer.Tick -= OnValueRefreshTick;
         ConnectionManager.Instance.PropertyChanged -= OnConnectionManagerPropertyChanged;
+        LoggingManager.Instance.PropertyChanged -= OnLoggingManagerPropertyChanged;
 
         DisposeTiles(AnalogInputs);
         DisposeTiles(DigitalInputs);

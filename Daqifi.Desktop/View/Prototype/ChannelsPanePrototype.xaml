@@ -72,8 +72,7 @@
                     Background="{Binding TileBackground}"
                     BorderBrush="{Binding TileBorderBrush}"
                     BorderThickness="1"
-                    CornerRadius="4"
-                    Cursor="Hand">
+                    CornerRadius="4">
                 <Border.InputBindings>
                     <MouseBinding MouseAction="LeftClick"
                                   Command="{Binding DataContext.ToggleChannelCommand, ElementName=Root}"
@@ -81,10 +80,18 @@
                 </Border.InputBindings>
                 <Border.Style>
                     <Style TargetType="Border">
+                        <Setter Property="Cursor" Value="Hand"/>
                         <Style.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Opacity" Value="0.92"/>
                             </Trigger>
+                            <DataTrigger Binding="{Binding DataContext.IsLoggingActive, ElementName=Root}"
+                                         Value="True">
+                                <Setter Property="Opacity" Value="0.55"/>
+                                <Setter Property="Cursor" Value="No"/>
+                                <Setter Property="ToolTip"
+                                        Value="Channel selection is locked while logging is active."/>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
@@ -438,6 +445,20 @@
                             <Run Text="{Binding TotalActive, Mode=OneWay}"/>
                             <Run Text=" CHANNELS ACTIVE"/>
                         </TextBlock>
+                        <Border Background="#2A1A0A"
+                                BorderBrush="#F59E0B"
+                                BorderThickness="1"
+                                CornerRadius="3"
+                                Padding="8,3"
+                                Margin="16,0,0,0"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding IsLoggingActive,
+                                                     Converter={StaticResource BoolToVis}}">
+                            <TextBlock FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="#F59E0B"
+                                       Text="LOGGING · SELECTION LOCKED"/>
+                        </Border>
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource PillButton}"
