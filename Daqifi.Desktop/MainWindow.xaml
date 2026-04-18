@@ -1255,7 +1255,7 @@
                                                      Content="SEMICOLON  ;"
                                                      IsChecked="{Binding AppSettings.IsSemicolonDelimiter, Mode=TwoWay}"
                                                      Style="{StaticResource AppSettings.SegmentedToggle}"
-                                                     ToolTip="Use when your locale treats comma as the decimal separator."/>
+                                                     ToolTip="Use when locale treats comma as decimal separator."/>
                                     </Grid>
                                 </Border>
                             </StackPanel>

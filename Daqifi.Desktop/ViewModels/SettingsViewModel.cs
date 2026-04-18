@@ -23,12 +23,18 @@ public partial class SettingsViewModel : ObservableObject
     public bool IsCommaDelimiter
     {
         get => CsvDelimiter == ",";
-        set { if (value) CsvDelimiter = ","; }
+        set
+        {
+            if (value) CsvDelimiter = ",";
+        }
     }
 
     public bool IsSemicolonDelimiter
     {
         get => CsvDelimiter == ";";
-        set { if (value) CsvDelimiter = ";"; }
+        set
+        {
+            if (value) CsvDelimiter = ";";
+        }
     }
 }

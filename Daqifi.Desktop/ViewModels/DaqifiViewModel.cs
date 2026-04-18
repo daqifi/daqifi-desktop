@@ -67,7 +67,14 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     private bool _isAppSettingsOpen;
 
-    public SettingsViewModel AppSettings { get; } = new();
+    private SettingsViewModel? _appSettings;
+
+    /// <summary>
+    /// Lazily-constructed view model backing the app settings drawer. Deferring
+    /// construction avoids touching <see cref="DaqifiSettings.Instance"/> (which
+    /// performs filesystem IO in its constructor) until the drawer is opened.
+    /// </summary>
+    public SettingsViewModel AppSettings => _appSettings ??= new SettingsViewModel();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlyoutWidth))]
