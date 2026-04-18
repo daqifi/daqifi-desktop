@@ -64,6 +64,17 @@ public partial class DaqifiViewModel : ObservableObject
     private bool _isLoggingSessionSettingsOpen;
     [ObservableProperty]
     private bool _isLiveGraphSettingsOpen;
+    [ObservableProperty]
+    private bool _isAppSettingsOpen;
+
+    private SettingsViewModel? _appSettings;
+
+    /// <summary>
+    /// Lazily-constructed view model backing the app settings drawer. Deferring
+    /// construction avoids touching <see cref="DaqifiSettings.Instance"/> (which
+    /// performs filesystem IO in its constructor) until the drawer is opened.
+    /// </summary>
+    public SettingsViewModel AppSettings => _appSettings ??= new SettingsViewModel();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlyoutWidth))]
@@ -1005,11 +1016,7 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ShowDAQiFiSettingsDialog()
-    {
-        var settingsViewModel = new SettingsViewModel();
-        _dialogService.ShowDialog<SettingsDialog>(this, settingsViewModel);
-    }
+    private void CloseAppSettings() => IsAppSettingsOpen = false;
 
     [RelayCommand]
     private void RemoveChannel(IChannel channelToRemove)
@@ -1059,8 +1066,34 @@ public partial class DaqifiViewModel : ObservableObject
     [RelayCommand]
     public async Task UpdateNetworkConfiguration()
     {
-        await SelectedDevice.UpdateNetworkConfiguration();
-        _dialogService.ShowDialog<SuccessDialog>(this, new SuccessDialogViewModel("WiFi settings updated."));
+        // Guard the happy-path below: a device can disappear while the drawer
+        // is open (disconnect, tab switch, etc.), and the underlying
+        // UpdateNetworkConfiguration() throws when the connection is gone.
+        var device = SelectedDevice;
+        if (device == null)
+        {
+            _dialogService.ShowDialog<ErrorDialog>(this,
+                new ErrorDialogViewModel("Select a device before applying WiFi settings."));
+            return;
+        }
+        if (!device.IsConnected)
+        {
+            _dialogService.ShowDialog<ErrorDialog>(this,
+                new ErrorDialogViewModel("Cannot apply WiFi settings — the device is not connected."));
+            return;
+        }
+
+        try
+        {
+            await device.UpdateNetworkConfiguration();
+            _dialogService.ShowDialog<SuccessDialog>(this, new SuccessDialogViewModel("WiFi settings updated."));
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, "Failed to update network configuration");
+            _dialogService.ShowDialog<ErrorDialog>(this,
+                new ErrorDialogViewModel($"Failed to apply WiFi settings: {ex.Message}"));
+        }
     }
 
     [RelayCommand]
@@ -1081,21 +1114,6 @@ public partial class DaqifiViewModel : ObservableObject
     {
         CloseFlyouts();
         IsLiveGraphSettingsOpen = true;
-    }
-
-    [RelayCommand]
-    private void OpenDeviceSettings(IStreamingDevice? device)
-    {
-        if (device == null)
-        {
-            return;
-        }
-
-        SelectedDeviceSupportsFirmwareUpdate = device.ConnectionType == Device.ConnectionType.Usb;
-
-        CloseFlyouts();
-        SelectedDevice = device;
-        IsDeviceSettingsOpen = true;
     }
 
     [RelayCommand]
