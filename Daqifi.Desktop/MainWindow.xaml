@@ -80,32 +80,119 @@
     </controls:MetroWindow.RightWindowCommands>
 
     <Window.Resources>
-        <Style TargetType="{x:Type TabItem}">
+
+        <!-- Dark navigation rail — matches design philosophy tokens used in Channels/Devices panes -->
+        <SolidColorBrush x:Key="NavSurface" Color="#0D0F12"/>
+        <SolidColorBrush x:Key="NavSurfaceHover" Color="#13161C"/>
+        <SolidColorBrush x:Key="NavSurfaceActive" Color="#171A20"/>
+        <SolidColorBrush x:Key="NavBorder" Color="#2A2F38"/>
+        <SolidColorBrush x:Key="NavTextPrimary" Color="#F5F5F7"/>
+        <SolidColorBrush x:Key="NavTextSecondary" Color="#8E9199"/>
+        <SolidColorBrush x:Key="NavAccent" Color="#119EDA"/>
+
+        <Style x:Key="NavTabItemFocusVisual">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Rectangle Margin="2"
+                                   SnapsToDevicePixels="True"
+                                   Stroke="{StaticResource NavBorder}"
+                                   StrokeThickness="1"
+                                   StrokeDashArray="1 2"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="NavTabItem" TargetType="{x:Type TabItem}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource NavTextSecondary}"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource NavTabItemFocusVisual}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type TabItem}">
-                        <Border Name="Border" Margin="0,0,-4,0" BorderBrush="White" BorderThickness="1,1,1,1">
-                            <Grid>
-                                <Grid Name="Rectangle" Width="5" HorizontalAlignment="Left" VerticalAlignment="Stretch" Background="#CC119EDA"/>
-                                <ContentPresenter x:Name="ContentSite" VerticalAlignment="Center" HorizontalAlignment="Center" ContentSource="Header" RecognizesAccessKey="True"/>
-                            </Grid>
-                        </Border>
+                        <Grid Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="3"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Rectangle x:Name="AccentStripe"
+                                       Grid.Column="0"
+                                       Fill="{StaticResource NavAccent}"
+                                       Opacity="0"/>
+                            <ContentPresenter Grid.Column="1"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Center"
+                                              ContentSource="Header"
+                                              RecognizesAccessKey="True"/>
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Panel.ZIndex" Value="100" />
+                                <Setter Property="Background" Value="{StaticResource NavSurfaceActive}"/>
+                                <Setter Property="Foreground" Value="{StaticResource NavTextPrimary}"/>
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="AccentStripe"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="1" Duration="0:0:0.12"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="AccentStripe"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0" Duration="0:0:0.12"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
                             </Trigger>
-                            <Trigger Property="IsSelected" Value="False">
-                                <Setter Property="Panel.ZIndex" Value="100" />
-                                <Setter TargetName="Rectangle" Property="Visibility" Value="Collapsed"/>
-                            </Trigger>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="true" />
-                                    <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="false"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter TargetName="Rectangle" Property="Visibility" Value="Visible"/>
-                            </MultiDataTrigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsSelected" Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter Property="Background" Value="{StaticResource NavSurfaceHover}"/>
+                                <Setter Property="Foreground" Value="{StaticResource NavTextPrimary}"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                            </MultiTrigger>
                         </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="NavTabHeaderLabel" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+
+        <Style x:Key="NavTabControl" TargetType="{x:Type TabControl}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TabControl}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0"
+                                    Background="{StaticResource NavSurface}"
+                                    BorderBrush="{StaticResource NavBorder}"
+                                    BorderThickness="0,0,1,0">
+                                <TabPanel IsItemsHost="True"/>
+                            </Border>
+                            <ContentPresenter Grid.Column="1"
+                                              ContentSource="SelectedContent"/>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -155,19 +242,18 @@
     </controls:MetroWindow.Flyouts>
 
     <Grid>
-        <TabControl TabStripPlacement="Left" SelectedIndex="{Binding SelectedIndex}">
+        <TabControl TabStripPlacement="Left"
+                    SelectedIndex="{Binding SelectedIndex}"
+                    Style="{StaticResource NavTabControl}"
+                    ItemContainerStyle="{StaticResource NavTabItem}">
 
             <!-- Live Graph -->
             <TabItem>
                 <TabItem.Header>
-                    <Label>
-                        <Label.Content>
-                            <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="ChartTimelineVariant" HorizontalAlignment="Center" Height="30" Width="30"/>
-                                <TextBlock TextWrapping="WrapWithOverflow" Text="Live Graph" TextAlignment="Center" IsEnabled="False"/>
-                            </StackPanel>
-                        </Label.Content>
-                    </Label>
+                    <StackPanel Width="76" Margin="0,14,0,14">
+                        <iconPacks:PackIconMaterial Kind="ChartTimelineVariant" HorizontalAlignment="Center" Height="24" Width="24"/>
+                        <TextBlock Text="Live Graph" Style="{StaticResource NavTabHeaderLabel}"/>
+                    </StackPanel>
                 </TabItem.Header>
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -424,14 +510,10 @@
             <!-- Logged Data -->
             <TabItem>
                 <TabItem.Header>
-                    <Label>
-                        <Label.Content>
-                            <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="DatabaseOutline" HorizontalAlignment="Center" Height="30" Width="30"/>
-                                <TextBlock TextWrapping="Wrap" Text="Logged Data" TextAlignment="Center" IsEnabled="False"/>
-                            </StackPanel>
-                        </Label.Content>
-                    </Label>
+                    <StackPanel Width="76" Margin="0,14,0,14">
+                        <iconPacks:PackIconMaterial Kind="DatabaseOutline" HorizontalAlignment="Center" Height="24" Width="24"/>
+                        <TextBlock Text="Logged Data" Style="{StaticResource NavTabHeaderLabel}"/>
+                    </StackPanel>
                 </TabItem.Header>
                 <Grid>
                     <Grid.RowDefinitions>
@@ -942,14 +1024,10 @@
             <!-- Channels -->
             <TabItem>
                 <TabItem.Header>
-                    <Label>
-                        <Label.Content>
-                            <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="HubOutline" HorizontalAlignment="Center" Height="30" Width="30"/>
-                                <TextBlock TextWrapping="WrapWithOverflow" Text="Channels" TextAlignment="Center" IsEnabled="False"/>
-                            </StackPanel>
-                        </Label.Content>
-                    </Label>
+                    <StackPanel Width="76" Margin="0,14,0,14">
+                        <iconPacks:PackIconMaterial Kind="HubOutline" HorizontalAlignment="Center" Height="24" Width="24"/>
+                        <TextBlock Text="Channels" Style="{StaticResource NavTabHeaderLabel}"/>
+                    </StackPanel>
                 </TabItem.Header>
                 <ContentPresenter Content="{Binding}">
                     <ContentPresenter.ContentTemplate>
@@ -963,14 +1041,10 @@
             <!-- Devices -->
             <TabItem>
                 <TabItem.Header>
-                    <Label>
-                        <Label.Content>
-                            <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="Chip" HorizontalAlignment="Center" Height="30" Width="30"/>
-                                <TextBlock TextWrapping="WrapWithOverflow" Text="Devices" TextAlignment="Center" IsEnabled="False"/>
-                            </StackPanel>
-                        </Label.Content>
-                    </Label>
+                    <StackPanel Width="76" Margin="0,14,0,14">
+                        <iconPacks:PackIconMaterial Kind="Chip" HorizontalAlignment="Center" Height="24" Width="24"/>
+                        <TextBlock Text="Devices" Style="{StaticResource NavTabHeaderLabel}"/>
+                    </StackPanel>
                 </TabItem.Header>
                 <ContentPresenter Content="{Binding}">
                     <ContentPresenter.ContentTemplate>
@@ -984,14 +1058,10 @@
             <!--profile-->
             <TabItem>
                 <TabItem.Header>
-                    <Label>
-                        <Label.Content>
-                            <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="TuneVariant" HorizontalAlignment="Center" Height="30" Width="30"/>
-                                <TextBlock TextWrapping="WrapWithOverflow" Text="Profiles" TextAlignment="Center" IsEnabled="False"/>
-                            </StackPanel>
-                        </Label.Content>
-                    </Label>
+                    <StackPanel Width="76" Margin="0,14,0,14">
+                        <iconPacks:PackIconMaterial Kind="TuneVariant" HorizontalAlignment="Center" Height="24" Width="24"/>
+                        <TextBlock Text="Profiles" Style="{StaticResource NavTabHeaderLabel}"/>
+                    </StackPanel>
                 </TabItem.Header>
                 <ContentPresenter Content="{Binding}">
                     <ContentPresenter.ContentTemplate>
