@@ -1027,9 +1027,6 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ToggleAppSettings() => IsAppSettingsOpen = !IsAppSettingsOpen;
-
-    [RelayCommand]
     private void CloseAppSettings() => IsAppSettingsOpen = false;
 
     [RelayCommand]
