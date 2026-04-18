@@ -280,7 +280,6 @@
                                 Style="{StaticResource AccentPillButton}"
                                 CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}"
                                 Command="{Binding ConnectCommand}"
-                                Click="btnConnect_Click"
                                 Content="Connect"/>
                     </Border>
                 </Grid>
@@ -311,7 +310,6 @@
                         <Button HorizontalAlignment="Right"
                                 Style="{StaticResource AccentPillButton}"
                                 Command="{Binding ConnectManualWifiCommand}"
-                                Click="btnConnect_Click"
                                 Content="Connect"/>
                     </Border>
                 </Grid>
@@ -391,7 +389,6 @@
                                 Style="{StaticResource AccentPillButton}"
                                 CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}"
                                 Command="{Binding ConnectSerialCommand}"
-                                Click="btnConnect_Click"
                                 Content="Connect"/>
                     </Border>
                 </Grid>
@@ -422,7 +419,6 @@
                         <Button HorizontalAlignment="Right"
                                 Style="{StaticResource AccentPillButton}"
                                 Command="{Binding ConnectManualSerialCommand}"
-                                Click="btnConnect_Click"
                                 Content="Connect"/>
                     </Border>
                 </Grid>
