@@ -1,24 +1,34 @@
-﻿using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Daqifi.Desktop.Models;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class SettingsViewModel
+public partial class SettingsViewModel : ObservableObject
 {
-    #region Private Data
     private readonly DaqifiSettings _settings = DaqifiSettings.Instance;
-    #endregion
-
-    #region Properties
-    public ObservableCollection<string> CsvDelimiterOptions
-    {
-        get => _settings.CsvDelimiterOptions;
-    }
 
     public string CsvDelimiter
     {
         get => _settings.CsvDelimiter;
-        set => _settings.CsvDelimiter = value;
+        set
+        {
+            if (_settings.CsvDelimiter == value) return;
+            _settings.CsvDelimiter = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(IsCommaDelimiter));
+            OnPropertyChanged(nameof(IsSemicolonDelimiter));
+        }
     }
-    #endregion
+
+    public bool IsCommaDelimiter
+    {
+        get => CsvDelimiter == ",";
+        set { if (value) CsvDelimiter = ","; }
+    }
+
+    public bool IsSemicolonDelimiter
+    {
+        get => CsvDelimiter == ";";
+        set { if (value) CsvDelimiter = ";"; }
+    }
 }

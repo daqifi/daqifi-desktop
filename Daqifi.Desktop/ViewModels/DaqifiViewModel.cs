@@ -64,6 +64,10 @@ public partial class DaqifiViewModel : ObservableObject
     private bool _isLoggingSessionSettingsOpen;
     [ObservableProperty]
     private bool _isLiveGraphSettingsOpen;
+    [ObservableProperty]
+    private bool _isAppSettingsOpen;
+
+    public SettingsViewModel AppSettings { get; } = new();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlyoutWidth))]
@@ -1023,11 +1027,10 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ShowDAQiFiSettingsDialog()
-    {
-        var settingsViewModel = new SettingsViewModel();
-        _dialogService.ShowDialog<SettingsDialog>(this, settingsViewModel);
-    }
+    private void ToggleAppSettings() => IsAppSettingsOpen = !IsAppSettingsOpen;
+
+    [RelayCommand]
+    private void CloseAppSettings() => IsAppSettingsOpen = false;
 
     [RelayCommand]
     private void RemoveChannel(IChannel channelToRemove)
