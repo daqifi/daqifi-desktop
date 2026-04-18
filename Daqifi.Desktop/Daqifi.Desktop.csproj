@@ -47,7 +47,6 @@
 		<None Remove="Images\Icon_Large.png" />
 		<None Remove="Images\Icon_Medium.png" />
 		<None Remove="Images\Icon_Small.png" />
-		<None Remove="Images\Nq.png" />
 		<None Remove="Images\WiFi.png" />
 		<None Remove="Images\WiFiDAQ.ico" />
 	</ItemGroup>
@@ -101,7 +100,6 @@
 		<Resource Include="Images\Icon_Large.png" />
 		<Resource Include="Images\Icon_Medium.png" />
 		<Resource Include="Images\Icon_Small.png" />
-		<Resource Include="Images\Nq.png" />
 		<Resource Include="Images\WiFiDAQ.ico" />
 	</ItemGroup>
 
