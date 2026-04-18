@@ -53,8 +53,6 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLoggedDataBusy;
     [ObservableProperty]
-    private bool _isDeviceSettingsOpen;
-    [ObservableProperty]
     private bool _isProfileSettingsOpen;
     [ObservableProperty]
     private bool _isNotificationsOpen;
@@ -1101,21 +1099,6 @@ public partial class DaqifiViewModel : ObservableObject
     {
         CloseFlyouts();
         IsLiveGraphSettingsOpen = true;
-    }
-
-    [RelayCommand]
-    private void OpenDeviceSettings(IStreamingDevice? device)
-    {
-        if (device == null)
-        {
-            return;
-        }
-
-        SelectedDeviceSupportsFirmwareUpdate = device.ConnectionType == Device.ConnectionType.Usb;
-
-        CloseFlyouts();
-        SelectedDevice = device;
-        IsDeviceSettingsOpen = true;
     }
 
     [RelayCommand]
@@ -2204,7 +2187,6 @@ public partial class DaqifiViewModel : ObservableObject
     public void CloseFlyouts()
     {
         IsProfileSettingsOpen = false;
-        IsDeviceSettingsOpen = false;
         IsLoggingSessionSettingsOpen = false;
         IsLiveGraphSettingsOpen = false;
         IsLogSummaryOpen = false;

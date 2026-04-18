@@ -139,9 +139,6 @@
             <!-- Live Graph Flyout -->
             <flyouts:LiveGraphFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
-            <!-- Devices Flyout-->
-            <flyouts:DevicesFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
-
             <!-- Update Profile Flyout -->
             <flyouts:UpdateProfileFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
@@ -978,103 +975,7 @@
                 <ContentPresenter Content="{Binding}">
                     <ContentPresenter.ContentTemplate>
                         <DataTemplate>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <ListView Name="ConnectedDeviceList" ItemsSource="{Binding ConnectedDevices}" SelectionMode="Single" Background="Transparent" BorderThickness="0" Grid.Column="0" SelectedItem="{Binding SelectedDevice, Mode=TwoWay}">
-                                    <ListView.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border >
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <Image Grid.Column="0" Source="../Images/1Nq.png" Width="50" Height="50"/>
-                                                    <Grid Grid.Column="1">
-                                                        <Grid.RowDefinitions>
-                                                            <RowDefinition Height="Auto"/>
-                                                            <RowDefinition Height="Auto"/>
-                                                            <RowDefinition Height="Auto"/>
-                                                        </Grid.RowDefinitions>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="Auto"/>
-
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel   Grid.Column="0" Grid.Row="0" Margin="5"  Orientation="Vertical">
-                                                            <Label Content="{Binding Name}"  Padding="0"/>
-                                                            <Label Content="{Binding DisplayIdentifier}" FontSize="10" Padding="0"/>
-                                                            <Label Content="{Binding DeviceSerialNo}" FontSize="10"  Padding="0"/>
-                                                            <TextBlock FontSize="10" Padding="0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Label}}">
-                                                                    <Run Text="Firmware version :" />
-                                                                    <Run Text="{Binding DeviceVersion}" />
-                                                            </TextBlock>
-
-                                                        </StackPanel>
-                                                        <Button Grid.RowSpan="3" Grid.Column="1"
-                                                                HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                                                Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.OpenFirmwareUpdateSettingsCommand}"
-                                                                CommandParameter="{Binding}"
-                                                                ToolTip="Update Firmware"
-                                                                Visibility="{Binding IsFirmwareOutdated, Converter={StaticResource BoolToVis}}">
-                                                            <Button.Content>
-                                                                <iconPacks:PackIconMaterial Kind="Update" HorizontalAlignment="Center" Height="20" Width="20"/>
-                                                            </Button.Content>
-                                                        </Button>
-
-                                                        <Button Grid.RowSpan="3" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.OpenDeviceSettingsCommand}" CommandParameter="{Binding}" ToolTip="Device Settings">
-                                                            <Button.Content>
-                                                                <iconPacks:PackIconMaterial Kind="Cog" HorizontalAlignment="Center" Height="20" Width="20"/>
-                                                            </Button.Content>
-                                                        </Button>
-                                                        <Button Grid.RowSpan="3" Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.DisconnectDeviceCommand}" CommandParameter="{Binding}" ToolTip="Disconnect From Device">
-                                                            <Button.Content>
-                                                                <iconPacks:PackIconMaterial Kind="TrashCanOutline" HorizontalAlignment="Center" Height="20" Width="20"/>
-                                                            </Button.Content>
-                                                        </Button>
-                                                        <Button Grid.RowSpan="3" Grid.Column="4" HorizontalAlignment="Right" VerticalAlignment="Bottom" Command="{Binding ElementName=ConnectedDeviceList, Path=DataContext.RebootDeviceCommand}" CommandParameter="{Binding}" ToolTip="Reboot Device">
-                                                            <Button.Content>
-                                                                <iconPacks:PackIconMaterial Kind="Power" HorizontalAlignment="Center" Height="20" Width="20"/>
-                                                            </Button.Content>
-                                                        </Button>
-                                                    </Grid>
-                                                </Grid>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
-                                <Border Name="EmptyDeviceListLabel" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Grid.Column="0" Visibility="Collapsed">
-                                    <Label HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalAlignment="Stretch" VerticalContentAlignment="Center" >
-                                        <Label.Content>
-                                            <StackPanel>
-                                                <Label Content="No Devices Connected" VerticalContentAlignment="Center" HorizontalContentAlignment="Center"/>
-                                            </StackPanel>
-                                        </Label.Content>
-                                    </Label>
-                                </Border>
-
-                                <!-- Add Device Button -->
-                                <Button HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="50" Height="50" Command="{Binding ShowConnectionDialogCommand}" Style="{DynamicResource MetroCircleButtonStyle}" Margin="10" Background="#CC119EDA" >
-                                    <Button.Content>
-                                        <iconPacks:PackIconMaterial Kind="Plus" HorizontalAlignment="Center" Height="20" Width="20 " Foreground="White"/>
-                                    </Button.Content>
-                                    <Button.BitmapEffect>
-                                        <DropShadowBitmapEffect Color="Black" Direction="270" Softness="1" ShadowDepth="15" Opacity="0.25" />
-                                    </Button.BitmapEffect>
-                                </Button>
-                            </Grid>
-                            <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding ConnectedDevices.Count}" Value="0">
-                                    <Setter TargetName="ConnectedDeviceList" Property="Visibility" Value="Collapsed"/>
-                                    <Setter TargetName="EmptyDeviceListLabel" Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </DataTemplate.Triggers>
+                            <prototype:DevicesPanePrototype/>
                         </DataTemplate>
                     </ContentPresenter.ContentTemplate>
                 </ContentPresenter>
