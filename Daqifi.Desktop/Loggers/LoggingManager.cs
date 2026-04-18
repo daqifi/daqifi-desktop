@@ -352,13 +352,16 @@ public partial class LoggingManager : ObservableObject
                         MacAddress = (string)d.Element("MACAddress"),
                         DeviceSerialNo = (string)d.Element("DeviceSerialNo"),
                         SamplingFrequency = (int)d.Element("SamplingFrequency"),
+                        // The writer omits <Channels> when the device has no active channels
+                        // (see UpdateProfileInXml / AddAndRemoveProfileXml). Default to an empty
+                        // list so downstream code can call .Where/.Select without a null check.
                         Channels = d.Element("Channels")?.Elements("Channel").Select(c => new ProfileChannel
                         {
                             Name = (string)c.Element("Name"),
                             Type = (string)c.Element("Type"),
                             IsChannelActive = (bool)c.Element("IsActive"),
                             SerialNo = (string)d.Element("DeviceSerialNo")
-                        }).ToList()
+                        }).ToList() ?? []
                     }).ToList())
                 }).ToList();
 
