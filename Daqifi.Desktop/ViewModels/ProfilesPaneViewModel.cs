@@ -1,8 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using Application = System.Windows.Application;
-using MahApps.Metro.Controls;
-using MahApps.Metro.Controls.Dialogs;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Daqifi.Desktop.Channel;
@@ -56,6 +53,13 @@ public partial class ProfilesPaneViewModel : ObservableObject
     [ObservableProperty] private bool _hasDrawerError;
     [ObservableProperty] private string? _activeProfileName;
 
+    // In-pane confirm dialog state (used by ShowConfirm for profile switch, etc.).
+    [ObservableProperty] private bool _isConfirmOpen;
+    [ObservableProperty] private string _confirmTitle = string.Empty;
+    [ObservableProperty] private string _confirmMessage = string.Empty;
+    [ObservableProperty] private string _confirmAffirmativeLabel = "OK";
+    private TaskCompletionSource<bool>? _confirmTcs;
+
     // New-profile form fields (active only when IsNewProfile = true)
     [ObservableProperty] private string _newProfileName = string.Empty;
     [ObservableProperty] private int _newProfileFrequency = 1000;
@@ -68,6 +72,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
     public IRelayCommand<Profile> DeleteProfileCommand { get; }
     public IRelayCommand SaveNewProfileCommand { get; }
     public IRelayCommand SaveCurrentSettingsCommand { get; }
+    public IRelayCommand ConfirmAffirmativeCommand { get; }
+    public IRelayCommand ConfirmNegativeCommand { get; }
 
     public ProfilesPaneViewModel()
     {
@@ -78,6 +84,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
         DeleteProfileCommand = new RelayCommand<Profile>(DeleteProfile);
         SaveNewProfileCommand = new RelayCommand(SaveNewProfile, CanSaveNewProfile);
         SaveCurrentSettingsCommand = new RelayCommand(SaveCurrentSettings);
+        ConfirmAffirmativeCommand = new RelayCommand(() => CompleteConfirm(true));
+        ConfirmNegativeCommand = new RelayCommand(() => CompleteConfirm(false));
 
         LoggingManager.Instance.PropertyChanged += OnLoggingManagerPropertyChanged;
         IsLoggingActive = LoggingManager.Instance.Active;
@@ -231,10 +239,11 @@ public partial class ProfilesPaneViewModel : ObservableObject
         // Case 2: a different profile is active — ask the user to switch.
         if (anyActive != null)
         {
-            var confirm = await ShowConfirm(
+            var confirmed = await ShowConfirm(
                 "Switch profile?",
-                $"'{anyActive.Name}' is currently active. Switch to '{profile.Name}'?");
-            if (confirm != MessageDialogResult.Affirmative) return;
+                $"'{anyActive.Name}' is currently active. Switch to '{profile.Name}'?",
+                affirmativeLabel: "SWITCH");
+            if (!confirmed) return;
 
             var oldMatches = MatchProfileToConnected(anyActive);
             ApplyProfileToDevices(anyActive, oldMatches, activate: false);
@@ -316,13 +325,34 @@ public partial class ProfilesPaneViewModel : ObservableObject
             $"Profile {(activate ? "activated" : "deactivated")}: {profile.Name}");
     }
 
-    private static async Task<MessageDialogResult> ShowConfirm(string title, string message)
+    /// <summary>
+    /// Displays the in-pane dark confirm overlay and returns true if the user
+    /// chose the affirmative button. The overlay is bound to
+    /// <see cref="IsConfirmOpen"/>, <see cref="ConfirmTitle"/>,
+    /// <see cref="ConfirmMessage"/>, and <see cref="ConfirmAffirmativeLabel"/>;
+    /// the two button commands complete the underlying
+    /// <see cref="TaskCompletionSource{TResult}"/>.
+    /// </summary>
+    private Task<bool> ShowConfirm(string title, string message, string affirmativeLabel = "OK")
     {
-        if (Application.Current.MainWindow is not MetroWindow window)
-        {
-            return MessageDialogResult.Negative;
-        }
-        return await window.ShowMessageAsync(title, message, MessageDialogStyle.AffirmativeAndNegative);
+        // Defensive: if a prior confirm is somehow still pending, cancel it
+        // with a negative so the previous awaiter unwinds cleanly.
+        _confirmTcs?.TrySetResult(false);
+
+        _confirmTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ConfirmTitle = title;
+        ConfirmMessage = message;
+        ConfirmAffirmativeLabel = affirmativeLabel;
+        IsConfirmOpen = true;
+        return _confirmTcs.Task;
+    }
+
+    private void CompleteConfirm(bool result)
+    {
+        IsConfirmOpen = false;
+        var tcs = _confirmTcs;
+        _confirmTcs = null;
+        tcs?.TrySetResult(result);
     }
 
     private void ShowError(Profile profile, string message)
@@ -453,5 +483,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
         foreach (var p in Profiles) p.PropertyChanged -= OnProfilePropertyChanged;
         foreach (var item in NewDeviceItems)
             item.PropertyChanged -= OnNewDeviceItemPropertyChanged;
+        // Release any awaiter on an unresolved confirm dialog.
+        _confirmTcs?.TrySetResult(false);
+        _confirmTcs = null;
     }
 }
