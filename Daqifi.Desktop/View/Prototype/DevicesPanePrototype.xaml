@@ -745,6 +745,36 @@
                                     Margin="0,14,0,0"
                                     Command="{Binding Shell.UpdateNetworkConfigurationCommand}"/>
 
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,10,0,0"
+                                        Visibility="{Binding Shell.NetworkSettingsApplied, Converter={StaticResource BoolToVis}}">
+                                <iconPacks:PackIconMaterial Kind="CheckCircleOutline"
+                                                            Width="12" Height="12"
+                                                            Foreground="{StaticResource StatusGreen}"
+                                                            VerticalAlignment="Center"
+                                                            Margin="0,0,6,0"/>
+                                <TextBlock Text="Settings applied"
+                                           Foreground="{StaticResource StatusGreen}"
+                                           FontSize="11"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,10,0,0"
+                                        Visibility="{Binding Shell.HasNetworkSettingsError, Converter={StaticResource BoolToVis}}">
+                                <iconPacks:PackIconMaterial Kind="AlertCircleOutline"
+                                                            Width="12" Height="12"
+                                                            Foreground="{StaticResource StatusRed}"
+                                                            VerticalAlignment="Top"
+                                                            Margin="0,2,6,0"/>
+                                <TextBlock Text="{Binding Shell.NetworkSettingsError}"
+                                           Foreground="{StaticResource StatusRed}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           MaxWidth="320"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+
                             <!-- FIRMWARE -->
                             <TextBlock Text="FIRMWARE" Style="{StaticResource DrawerSectionLabel}"/>
 
