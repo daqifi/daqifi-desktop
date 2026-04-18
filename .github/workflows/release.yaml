@@ -31,7 +31,7 @@ jobs:
         dotnet build -c Release
 
     - name: Upload Release Asset
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         files: Daqifi.Desktop.Setup/DAQifiDesktopSetup/bin/x86/Release/DAQifiDesktop_Setup.msi
       env:
