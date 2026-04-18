@@ -653,16 +653,16 @@
                                                  IsChecked="{Binding Shell.IsLogToDeviceMode,
                                                              Converter={StaticResource BooleanToInverse}, Mode=OneWay}"
                                                  Style="{StaticResource SegmentedToggle}"
-                                                 Tag="Stream to App"
-                                                 Click="LoggingMode_Click"/>
+                                                 Command="{Binding SetLoggingModeCommand}"
+                                                 CommandParameter="Stream to App"/>
                                     <RadioButton Grid.Column="1"
                                                  Content="LOG TO DEVICE"
                                                  GroupName="LoggingMode"
                                                  IsEnabled="{Binding SelectedTile.IsUsb}"
                                                  IsChecked="{Binding Shell.IsLogToDeviceMode, Mode=OneWay}"
                                                  Style="{StaticResource SegmentedToggle}"
-                                                 Tag="Log to Device"
-                                                 Click="LoggingMode_Click"
+                                                 Command="{Binding SetLoggingModeCommand}"
+                                                 CommandParameter="Log to Device"
                                                  ToolTip="SD card logging requires USB. WiFi devices do not support SD card logging."/>
                                 </Grid>
                             </Border>
@@ -689,7 +689,7 @@
                                         TickFrequency="1"
                                         IsSnapToTickEnabled="True"
                                         VerticalAlignment="Center"
-                                        Value="{Binding SelectedDevice.StreamingFrequency,
+                                        Value="{Binding FrequencyHz,
                                                 Delay=500, UpdateSourceTrigger=PropertyChanged}"/>
                             </Grid>
 

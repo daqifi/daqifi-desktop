@@ -30,7 +30,13 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
     public DaqifiViewModel? Shell => _shell;
 
     [ObservableProperty] private bool _hasConnectedDevice;
-    [ObservableProperty] private DeviceTileViewModel? _selectedTile;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectedDevice))]
+    [NotifyPropertyChangedFor(nameof(SelectedDeviceSupportsFirmwareUpdate))]
+    [NotifyPropertyChangedFor(nameof(FrequencyHz))]
+    private DeviceTileViewModel? _selectedTile;
+
     [ObservableProperty] private bool _isSettingsOpen;
 
     /// <summary>The underlying device of the tile shown in the settings drawer.</summary>
@@ -39,6 +45,24 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
     /// <summary>True when the selected device is USB-connected (firmware update path).</summary>
     public bool SelectedDeviceSupportsFirmwareUpdate =>
         SelectedDevice?.ConnectionType == ConnectionType.Usb;
+
+    /// <summary>
+    /// Sampling frequency shown on the drawer's FREQUENCY slider.
+    /// Reads straight off the device so the slider reflects the real value,
+    /// but writes go through the shell's guarded <c>SelectedStreamingFrequency</c>
+    /// setter — which blocks changes and shows an error dialog while a
+    /// logging session is active.
+    /// </summary>
+    public int FrequencyHz
+    {
+        get => SelectedDevice?.StreamingFrequency ?? 0;
+        set
+        {
+            if (_shell == null || SelectedDevice == null) return;
+            _shell.SelectedStreamingFrequency = value;
+            OnPropertyChanged();
+        }
+    }
 
     /// <summary>Opens the inline settings drawer for a device tile.</summary>
     public IRelayCommand<DeviceTileViewModel> OpenSettingsCommand { get; }
@@ -55,6 +79,13 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
     /// <summary>Reboots the currently selected device.</summary>
     public IRelayCommand RebootSelectedCommand { get; }
 
+    /// <summary>
+    /// Writes the chosen logging-mode label ("Stream to App" or "Log to
+    /// Device") to the shell. Parameterized so the XAML can wire both
+    /// segmented-toggle RadioButtons to the same command.
+    /// </summary>
+    public IRelayCommand<string> SetLoggingModeCommand { get; }
+
     /// <summary>Creates the view-model bound to the shell view-model.</summary>
     public DevicesPaneViewModel(DaqifiViewModel? shell)
     {
@@ -66,6 +97,7 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
         AddDeviceCommand = new RelayCommand(AddDevice);
         DisconnectSelectedCommand = new RelayCommand(DisconnectSelected, () => SelectedDevice != null);
         RebootSelectedCommand = new RelayCommand(RebootSelected, () => SelectedDevice != null);
+        SetLoggingModeCommand = new RelayCommand<string>(SetLoggingMode);
 
         ConnectionManager.Instance.PropertyChanged += OnConnectionManagerPropertyChanged;
         Rebuild();
@@ -73,8 +105,9 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
 
     partial void OnSelectedTileChanged(DeviceTileViewModel? value)
     {
-        OnPropertyChanged(nameof(SelectedDevice));
-        OnPropertyChanged(nameof(SelectedDeviceSupportsFirmwareUpdate));
+        // Derived-property change notifications are declared via
+        // [NotifyPropertyChangedFor] attributes above; the partial is only
+        // for imperative work the source generator can't do.
         DisconnectSelectedCommand.NotifyCanExecuteChanged();
         RebootSelectedCommand.NotifyCanExecuteChanged();
     }
@@ -164,6 +197,14 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
             _shell.DisconnectDeviceCommand.Execute(device);
         }
         CloseSettings();
+    }
+
+    private void SetLoggingMode(string? mode)
+    {
+        // The shell setter takes the label, drives device SwitchMode, and
+        // refuses changes mid-session — we just forward the click.
+        if (string.IsNullOrEmpty(mode) || _shell == null) return;
+        _shell.SelectedLoggingMode = mode;
     }
 
     private void RebootSelected()

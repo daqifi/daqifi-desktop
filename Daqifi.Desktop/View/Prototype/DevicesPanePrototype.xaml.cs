@@ -1,12 +1,19 @@
 using System.Windows;
 using Daqifi.Desktop.ViewModels;
-using RadioButton = System.Windows.Controls.RadioButton;
 using UserControl = System.Windows.Controls.UserControl;
 
 namespace Daqifi.Desktop.View.Prototype;
 
+/// <summary>
+/// Host UserControl for the unified Devices pane. Owns the
+/// <see cref="DevicesPaneViewModel"/> lifecycle — recreates the VM on
+/// Loaded (since TabControl switches trigger Unloaded → Loaded) so a
+/// returning tab picks up devices connected while it was detached, and
+/// disposes the VM on Unloaded to detach the singleton subscription.
+/// </summary>
 public partial class DevicesPanePrototype : UserControl
 {
+    /// <summary>Creates the pane and wires the Loaded/Unloaded VM lifecycle.</summary>
     public DevicesPanePrototype()
     {
         InitializeComponent();
@@ -33,18 +40,6 @@ public partial class DevicesPanePrototype : UserControl
         {
             disposable.Dispose();
             DataContext = null;
-        }
-    }
-
-    private void LoggingMode_Click(object sender, RoutedEventArgs e)
-    {
-        // The logging-mode setter on DaqifiViewModel takes the string label and
-        // drives device SwitchMode + manager state; we surface it as a
-        // segmented toggle and write the label back on click.
-        if (sender is RadioButton { Tag: string mode } &&
-            Window.GetWindow(this)?.DataContext is DaqifiViewModel shell)
-        {
-            shell.SelectedLoggingMode = mode;
         }
     }
 }

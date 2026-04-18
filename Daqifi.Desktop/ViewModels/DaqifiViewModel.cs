@@ -1077,8 +1077,34 @@ public partial class DaqifiViewModel : ObservableObject
     [RelayCommand]
     public async Task UpdateNetworkConfiguration()
     {
-        await SelectedDevice.UpdateNetworkConfiguration();
-        _dialogService.ShowDialog<SuccessDialog>(this, new SuccessDialogViewModel("WiFi settings updated."));
+        // Guard the happy-path below: a device can disappear while the drawer
+        // is open (disconnect, tab switch, etc.), and the underlying
+        // UpdateNetworkConfiguration() throws when the connection is gone.
+        var device = SelectedDevice;
+        if (device == null)
+        {
+            _dialogService.ShowDialog<ErrorDialog>(this,
+                new ErrorDialogViewModel("Select a device before applying WiFi settings."));
+            return;
+        }
+        if (!device.IsConnected)
+        {
+            _dialogService.ShowDialog<ErrorDialog>(this,
+                new ErrorDialogViewModel("Cannot apply WiFi settings — the device is not connected."));
+            return;
+        }
+
+        try
+        {
+            await device.UpdateNetworkConfiguration();
+            _dialogService.ShowDialog<SuccessDialog>(this, new SuccessDialogViewModel("WiFi settings updated."));
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Error(ex, "Failed to update network configuration");
+            _dialogService.ShowDialog<ErrorDialog>(this,
+                new ErrorDialogViewModel($"Failed to apply WiFi settings: {ex.Message}"));
+        }
     }
 
     [RelayCommand]
