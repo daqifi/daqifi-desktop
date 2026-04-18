@@ -81,14 +81,10 @@
 
     <Window.Resources>
 
-        <!-- Dark navigation rail — matches design philosophy tokens used in Channels/Devices panes -->
-        <SolidColorBrush x:Key="NavSurface" Color="#0D0F12"/>
-        <SolidColorBrush x:Key="NavSurfaceHover" Color="#13161C"/>
-        <SolidColorBrush x:Key="NavSurfaceActive" Color="#171A20"/>
-        <SolidColorBrush x:Key="NavBorder" Color="#2A2F38"/>
-        <SolidColorBrush x:Key="NavTextPrimary" Color="#F5F5F7"/>
-        <SolidColorBrush x:Key="NavTextSecondary" Color="#8E9199"/>
-        <SolidColorBrush x:Key="NavAccent" Color="#119EDA"/>
+        <!--
+            Navigation rail — uses canonical design tokens from /Resources/DesignTokens.xaml.
+            See docs/design-philosophy.md.
+        -->
 
         <Style x:Key="NavTabItemFocusVisual">
             <Setter Property="Control.Template">
@@ -96,7 +92,7 @@
                     <ControlTemplate>
                         <Rectangle Margin="2"
                                    SnapsToDevicePixels="True"
-                                   Stroke="{StaticResource NavBorder}"
+                                   Stroke="{StaticResource BorderDim}"
                                    StrokeThickness="1"
                                    StrokeDashArray="1 2"/>
                     </ControlTemplate>
@@ -106,7 +102,7 @@
 
         <Style x:Key="NavTabItem" TargetType="{x:Type TabItem}">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource NavTextSecondary}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="0"/>
             <Setter Property="FocusVisualStyle" Value="{StaticResource NavTabItemFocusVisual}"/>
@@ -120,7 +116,7 @@
                             </Grid.ColumnDefinitions>
                             <Rectangle x:Name="AccentStripe"
                                        Grid.Column="0"
-                                       Fill="{StaticResource NavAccent}"
+                                       Fill="{StaticResource Accent}"
                                        Opacity="0"/>
                             <ContentPresenter Grid.Column="1"
                                               VerticalAlignment="Center"
@@ -130,8 +126,8 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Background" Value="{StaticResource NavSurfaceActive}"/>
-                                <Setter Property="Foreground" Value="{StaticResource NavTextPrimary}"/>
+                                <Setter Property="Background" Value="{StaticResource SurfaceRaised}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
                                 <Trigger.EnterActions>
                                     <BeginStoryboard>
                                         <Storyboard>
@@ -156,8 +152,8 @@
                                     <Condition Property="IsMouseOver" Value="True"/>
                                     <Condition Property="IsSelected" Value="False"/>
                                 </MultiTrigger.Conditions>
-                                <Setter Property="Background" Value="{StaticResource NavSurfaceHover}"/>
-                                <Setter Property="Foreground" Value="{StaticResource NavTextPrimary}"/>
+                                <Setter Property="Background" Value="{StaticResource SurfaceHover}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
                                 <Setter Property="Cursor" Value="Hand"/>
                             </MultiTrigger>
                         </ControlTemplate.Triggers>
@@ -185,14 +181,50 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Grid.Column="0"
-                                    Background="{StaticResource NavSurface}"
-                                    BorderBrush="{StaticResource NavBorder}"
+                                    Background="{StaticResource Surface}"
+                                    BorderBrush="{StaticResource BorderDim}"
                                     BorderThickness="0,0,1,0">
                                 <TabPanel IsItemsHost="True"/>
                             </Border>
                             <ContentPresenter Grid.Column="1"
                                               ContentSource="SelectedContent"/>
                         </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            Pre-PR TabItem template, keyed and pinned to the nested Logged Data TabControl
+            (Application Logs / Device Logs) so that change is contained to the left rail.
+            Remove when those nested tabs get redesigned.
+        -->
+        <Style x:Key="LegacyRailTabItem" TargetType="{x:Type TabItem}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TabItem}">
+                        <Border Name="Border" Margin="0,0,-4,0" BorderBrush="White" BorderThickness="1,1,1,1">
+                            <Grid>
+                                <Grid Name="Rectangle" Width="5" HorizontalAlignment="Left" VerticalAlignment="Stretch" Background="#CC119EDA"/>
+                                <ContentPresenter x:Name="ContentSite" VerticalAlignment="Center" HorizontalAlignment="Center" ContentSource="Header" RecognizesAccessKey="True"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Panel.ZIndex" Value="100" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="False">
+                                <Setter Property="Panel.ZIndex" Value="100" />
+                                <Setter TargetName="Rectangle" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="true" />
+                                    <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource Self}}" Value="false"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="Rectangle" Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -522,7 +554,8 @@
                     </Grid.RowDefinitions>
 
                     <!-- Tabs for Application and Device Logs -->
-                    <TabControl Grid.Row="0" Grid.RowSpan="2" Margin="5">
+                    <TabControl Grid.Row="0" Grid.RowSpan="2" Margin="5"
+                                ItemContainerStyle="{StaticResource LegacyRailTabItem}">
                         <!-- Application Logs Tab -->
                         <TabItem>
                             <TabItem.Header>
@@ -1160,37 +1193,31 @@
         <Grid Visibility="{Binding IsAppSettingsOpen, Converter={StaticResource BoolToVis}}"
               Panel.ZIndex="20">
             <Grid.Resources>
-                <SolidColorBrush x:Key="AppSettings.Surface" Color="#0D0F12"/>
-                <SolidColorBrush x:Key="AppSettings.SurfaceRaised" Color="#171A20"/>
-                <SolidColorBrush x:Key="AppSettings.SurfaceActive" Color="#1E2530"/>
-                <SolidColorBrush x:Key="AppSettings.BorderDim" Color="#2A2F38"/>
-                <SolidColorBrush x:Key="AppSettings.BorderBright" Color="#3A4252"/>
-                <SolidColorBrush x:Key="AppSettings.TextPrimary" Color="#F5F5F7"/>
-                <SolidColorBrush x:Key="AppSettings.TextSecondary" Color="#8E9199"/>
-                <SolidColorBrush x:Key="AppSettings.TextTertiary" Color="#5A5E66"/>
+                <!-- Brushes (Surface, SurfaceRaised, …) come from /Resources/DesignTokens.xaml. -->
+
 
                 <Style x:Key="AppSettings.SectionLabel" TargetType="TextBlock">
                     <Setter Property="FontSize" Value="11"/>
                     <Setter Property="FontWeight" Value="SemiBold"/>
-                    <Setter Property="Foreground" Value="{StaticResource AppSettings.TextSecondary}"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
                     <Setter Property="VerticalAlignment" Value="Center"/>
                 </Style>
 
                 <Style x:Key="AppSettings.RowLabel" TargetType="TextBlock">
                     <Setter Property="FontSize" Value="11"/>
                     <Setter Property="FontWeight" Value="SemiBold"/>
-                    <Setter Property="Foreground" Value="{StaticResource AppSettings.TextSecondary}"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
                 </Style>
 
                 <Style x:Key="AppSettings.HelpText" TargetType="TextBlock">
                     <Setter Property="FontSize" Value="11"/>
-                    <Setter Property="Foreground" Value="{StaticResource AppSettings.TextTertiary}"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextTertiary}"/>
                     <Setter Property="TextWrapping" Value="Wrap"/>
                     <Setter Property="Margin" Value="0,4,0,0"/>
                 </Style>
 
                 <Style x:Key="AppSettings.SegmentedToggle" TargetType="RadioButton">
-                    <Setter Property="Foreground" Value="{StaticResource AppSettings.TextSecondary}"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
                     <Setter Property="FontSize" Value="10"/>
                     <Setter Property="FontWeight" Value="SemiBold"/>
                     <Setter Property="Cursor" Value="Hand"/>
@@ -1205,11 +1232,11 @@
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsChecked" Value="True">
-                                        <Setter TargetName="Bg" Property="Background" Value="{StaticResource AppSettings.SurfaceActive}"/>
-                                        <Setter Property="Foreground" Value="{StaticResource AppSettings.TextPrimary}"/>
+                                        <Setter TargetName="Bg" Property="Background" Value="{StaticResource SurfaceActive}"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
                                     </Trigger>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter Property="Foreground" Value="{StaticResource AppSettings.TextPrimary}"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
                                     </Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
@@ -1232,8 +1259,8 @@
 
             <!-- Drawer -->
             <Border Grid.Column="1"
-                    Background="{StaticResource AppSettings.SurfaceRaised}"
-                    BorderBrush="{StaticResource AppSettings.BorderDim}"
+                    Background="{StaticResource SurfaceRaised}"
+                    BorderBrush="{StaticResource BorderDim}"
                     BorderThickness="1,0,0,0">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -1251,18 +1278,18 @@
                             <TextBlock Text="PREFERENCES"
                                        FontSize="9"
                                        FontWeight="Bold"
-                                       Foreground="{StaticResource AppSettings.TextTertiary}"/>
+                                       Foreground="{StaticResource TextTertiary}"/>
                             <TextBlock Text="Settings"
                                        FontSize="22"
                                        FontWeight="Light"
-                                       Foreground="{StaticResource AppSettings.TextPrimary}"
+                                       Foreground="{StaticResource TextPrimary}"
                                        Margin="0,2,0,0"/>
                         </StackPanel>
                         <Button Grid.Column="1"
                                 Width="28" Height="28"
                                 Background="Transparent"
                                 BorderThickness="0"
-                                Foreground="{StaticResource AppSettings.TextSecondary}"
+                                Foreground="{StaticResource TextSecondary}"
                                 FontSize="16"
                                 Cursor="Hand"
                                 Content="&#xD7;"
@@ -1294,7 +1321,7 @@
                                        Style="{StaticResource AppSettings.SectionLabel}"
                                        Margin="0,4,0,10"/>
                             <Rectangle Height="1"
-                                       Fill="{StaticResource AppSettings.BorderDim}"
+                                       Fill="{StaticResource BorderDim}"
                                        Margin="0,0,0,18"/>
 
                             <StackPanel Margin="0,0,0,12">
@@ -1302,8 +1329,8 @@
                                            Style="{StaticResource AppSettings.RowLabel}"/>
                                 <TextBlock Text="Separates columns when exporting logged sessions to CSV."
                                            Style="{StaticResource AppSettings.HelpText}"/>
-                                <Border Background="{StaticResource AppSettings.Surface}"
-                                        BorderBrush="{StaticResource AppSettings.BorderDim}"
+                                <Border Background="{StaticResource Surface}"
+                                        BorderBrush="{StaticResource BorderDim}"
                                         BorderThickness="1"
                                         CornerRadius="3"
                                         Padding="3"
