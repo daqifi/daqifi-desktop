@@ -22,14 +22,14 @@
 
     <controls:MetroWindow.RightWindowCommands>
         <controls:WindowCommands>
-            <Button Command="{Binding ShowDAQiFiSettingsDialogCommand}">
-                <Button.Content>
+            <ToggleButton IsChecked="{Binding IsAppSettingsOpen}" ToolTip="Settings">
+                <ToggleButton.Content>
                     <StackPanel Orientation="Horizontal">
                         <iconPacks:PackIconMaterial Kind="Cog" Width="20" Height="20" VerticalAlignment="Center" HorizontalAlignment="Center" />
                         <TextBlock Margin="4 0 0 0" VerticalAlignment="Center" Text="settings" />
                     </StackPanel>
-                </Button.Content>
-            </Button>
+                </ToggleButton.Content>
+            </ToggleButton>
             <ToggleButton IsChecked="{Binding IsDebugModeEnabled}" ToolTip="Toggle Debug Mode">
                 <ToggleButton.Content>
                     <StackPanel Orientation="Horizontal">
@@ -80,7 +80,126 @@
     </controls:MetroWindow.RightWindowCommands>
 
     <Window.Resources>
-        <Style TargetType="{x:Type TabItem}">
+
+        <!--
+            Navigation rail — uses canonical design tokens from /Resources/DesignTokens.xaml.
+            See docs/design-philosophy.md.
+        -->
+
+        <Style x:Key="NavTabItemFocusVisual">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Rectangle Margin="2"
+                                   SnapsToDevicePixels="True"
+                                   Stroke="{StaticResource BorderDim}"
+                                   StrokeThickness="1"
+                                   StrokeDashArray="1 2"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="NavTabItem" TargetType="{x:Type TabItem}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource NavTabItemFocusVisual}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TabItem}">
+                        <Grid Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="3"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Rectangle x:Name="AccentStripe"
+                                       Grid.Column="0"
+                                       Fill="{StaticResource Accent}"
+                                       Opacity="0"/>
+                            <ContentPresenter Grid.Column="1"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Center"
+                                              ContentSource="Header"
+                                              RecognizesAccessKey="True"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{StaticResource SurfaceRaised}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="AccentStripe"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="1" Duration="0:0:0.12"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="AccentStripe"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0" Duration="0:0:0.12"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsSelected" Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter Property="Background" Value="{StaticResource SurfaceHover}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="NavTabHeaderLabel" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+
+        <Style x:Key="NavTabControl" TargetType="{x:Type TabControl}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TabControl}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0"
+                                    Background="{StaticResource Surface}"
+                                    BorderBrush="{StaticResource BorderDim}"
+                                    BorderThickness="0,0,1,0">
+                                <TabPanel IsItemsHost="True"/>
+                            </Border>
+                            <ContentPresenter Grid.Column="1"
+                                              ContentSource="SelectedContent"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            Pre-PR TabItem template, keyed and pinned to the nested Logged Data TabControl
+            (Application Logs / Device Logs) so that change is contained to the left rail.
+            Remove when those nested tabs get redesigned.
+        -->
+        <Style x:Key="LegacyRailTabItem" TargetType="{x:Type TabItem}">
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type TabItem}">
@@ -155,19 +274,18 @@
     </controls:MetroWindow.Flyouts>
 
     <Grid>
-        <TabControl TabStripPlacement="Left" SelectedIndex="{Binding SelectedIndex}">
+        <TabControl TabStripPlacement="Left"
+                    SelectedIndex="{Binding SelectedIndex}"
+                    Style="{StaticResource NavTabControl}"
+                    ItemContainerStyle="{StaticResource NavTabItem}">
 
             <!-- Live Graph -->
             <TabItem>
                 <TabItem.Header>
-                    <Label>
-                        <Label.Content>
-                            <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="ChartTimelineVariant" HorizontalAlignment="Center" Height="30" Width="30"/>
-                                <TextBlock TextWrapping="WrapWithOverflow" Text="Live Graph" TextAlignment="Center" IsEnabled="False"/>
-                            </StackPanel>
-                        </Label.Content>
-                    </Label>
+                    <StackPanel Width="76" Margin="0,14,0,14">
+                        <iconPacks:PackIconMaterial Kind="ChartTimelineVariant" HorizontalAlignment="Center" Height="24" Width="24"/>
+                        <TextBlock Text="Live Graph" Style="{StaticResource NavTabHeaderLabel}"/>
+                    </StackPanel>
                 </TabItem.Header>
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -424,14 +542,10 @@
             <!-- Logged Data -->
             <TabItem>
                 <TabItem.Header>
-                    <Label>
-                        <Label.Content>
-                            <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="DatabaseOutline" HorizontalAlignment="Center" Height="30" Width="30"/>
-                                <TextBlock TextWrapping="Wrap" Text="Logged Data" TextAlignment="Center" IsEnabled="False"/>
-                            </StackPanel>
-                        </Label.Content>
-                    </Label>
+                    <StackPanel Width="76" Margin="0,14,0,14">
+                        <iconPacks:PackIconMaterial Kind="DatabaseOutline" HorizontalAlignment="Center" Height="24" Width="24"/>
+                        <TextBlock Text="Logged Data" Style="{StaticResource NavTabHeaderLabel}"/>
+                    </StackPanel>
                 </TabItem.Header>
                 <Grid>
                     <Grid.RowDefinitions>
@@ -440,7 +554,8 @@
                     </Grid.RowDefinitions>
 
                     <!-- Tabs for Application and Device Logs -->
-                    <TabControl Grid.Row="0" Grid.RowSpan="2" Margin="5">
+                    <TabControl Grid.Row="0" Grid.RowSpan="2" Margin="5"
+                                ItemContainerStyle="{StaticResource LegacyRailTabItem}">
                         <!-- Application Logs Tab -->
                         <TabItem>
                             <TabItem.Header>
@@ -942,14 +1057,10 @@
             <!-- Channels -->
             <TabItem>
                 <TabItem.Header>
-                    <Label>
-                        <Label.Content>
-                            <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="HubOutline" HorizontalAlignment="Center" Height="30" Width="30"/>
-                                <TextBlock TextWrapping="WrapWithOverflow" Text="Channels" TextAlignment="Center" IsEnabled="False"/>
-                            </StackPanel>
-                        </Label.Content>
-                    </Label>
+                    <StackPanel Width="76" Margin="0,14,0,14">
+                        <iconPacks:PackIconMaterial Kind="HubOutline" HorizontalAlignment="Center" Height="24" Width="24"/>
+                        <TextBlock Text="Channels" Style="{StaticResource NavTabHeaderLabel}"/>
+                    </StackPanel>
                 </TabItem.Header>
                 <ContentPresenter Content="{Binding}">
                     <ContentPresenter.ContentTemplate>
@@ -963,14 +1074,10 @@
             <!-- Devices -->
             <TabItem>
                 <TabItem.Header>
-                    <Label>
-                        <Label.Content>
-                            <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="Chip" HorizontalAlignment="Center" Height="30" Width="30"/>
-                                <TextBlock TextWrapping="WrapWithOverflow" Text="Devices" TextAlignment="Center" IsEnabled="False"/>
-                            </StackPanel>
-                        </Label.Content>
-                    </Label>
+                    <StackPanel Width="76" Margin="0,14,0,14">
+                        <iconPacks:PackIconMaterial Kind="Chip" HorizontalAlignment="Center" Height="24" Width="24"/>
+                        <TextBlock Text="Devices" Style="{StaticResource NavTabHeaderLabel}"/>
+                    </StackPanel>
                 </TabItem.Header>
                 <ContentPresenter Content="{Binding}">
                     <ContentPresenter.ContentTemplate>
@@ -984,14 +1091,10 @@
             <!--profile-->
             <TabItem>
                 <TabItem.Header>
-                    <Label>
-                        <Label.Content>
-                            <StackPanel Width="75" Margin="0,10,0,10">
-                                <iconPacks:PackIconMaterial Kind="TuneVariant" HorizontalAlignment="Center" Height="30" Width="30"/>
-                                <TextBlock TextWrapping="WrapWithOverflow" Text="Profiles" TextAlignment="Center" IsEnabled="False"/>
-                            </StackPanel>
-                        </Label.Content>
-                    </Label>
+                    <StackPanel Width="76" Margin="0,14,0,14">
+                        <iconPacks:PackIconMaterial Kind="TuneVariant" HorizontalAlignment="Center" Height="24" Width="24"/>
+                        <TextBlock Text="Profiles" Style="{StaticResource NavTabHeaderLabel}"/>
+                    </StackPanel>
                 </TabItem.Header>
                 <ContentPresenter Content="{Binding}">
                     <ContentPresenter.ContentTemplate>
@@ -1084,6 +1187,180 @@
         </TabControl>
         <Grid Background="Black" Opacity="0.5" Visibility="{Binding IsBusy, FallbackValue=Hidden, Converter={StaticResource BoolToVis}}">
             <controls:ProgressRing IsActive="{Binding IsBusy, Mode=OneWay}"/>
+        </Grid>
+
+        <!-- ========== APP SETTINGS DRAWER ========== -->
+        <Grid Visibility="{Binding IsAppSettingsOpen, Converter={StaticResource BoolToVis}}"
+              Panel.ZIndex="20">
+            <Grid.Resources>
+                <!-- Brushes (Surface, SurfaceRaised, …) come from /Resources/DesignTokens.xaml. -->
+
+
+                <Style x:Key="AppSettings.SectionLabel" TargetType="TextBlock">
+                    <Setter Property="FontSize" Value="11"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+                    <Setter Property="VerticalAlignment" Value="Center"/>
+                </Style>
+
+                <Style x:Key="AppSettings.RowLabel" TargetType="TextBlock">
+                    <Setter Property="FontSize" Value="11"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+                </Style>
+
+                <Style x:Key="AppSettings.HelpText" TargetType="TextBlock">
+                    <Setter Property="FontSize" Value="11"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextTertiary}"/>
+                    <Setter Property="TextWrapping" Value="Wrap"/>
+                    <Setter Property="Margin" Value="0,4,0,0"/>
+                </Style>
+
+                <Style x:Key="AppSettings.SegmentedToggle" TargetType="RadioButton">
+                    <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+                    <Setter Property="FontSize" Value="10"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="Cursor" Value="Hand"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="RadioButton">
+                                <Border x:Name="Bg"
+                                        Background="Transparent"
+                                        CornerRadius="2"
+                                        Padding="12,7">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="Bg" Property="Background" Value="{StaticResource SurfaceActive}"/>
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Grid.Resources>
+
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="380"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Scrim -->
+            <Rectangle Grid.Column="0" Fill="#A0000000">
+                <Rectangle.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding CloseAppSettingsCommand}"/>
+                </Rectangle.InputBindings>
+            </Rectangle>
+
+            <!-- Drawer -->
+            <Border Grid.Column="1"
+                    Background="{StaticResource SurfaceRaised}"
+                    BorderBrush="{StaticResource BorderDim}"
+                    BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Margin="24,22,16,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="PREFERENCES"
+                                       FontSize="9"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource TextTertiary}"/>
+                            <TextBlock Text="Settings"
+                                       FontSize="22"
+                                       FontWeight="Light"
+                                       Foreground="{StaticResource TextPrimary}"
+                                       Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Width="28" Height="28"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Foreground="{StaticResource TextSecondary}"
+                                FontSize="16"
+                                Cursor="Hand"
+                                Content="&#xD7;"
+                                Command="{Binding CloseAppSettingsCommand}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bg" Background="Transparent" CornerRadius="14">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bg" Property="Background" Value="#1FFFFFFF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
+
+                    <!-- Body -->
+                    <ScrollViewer Grid.Row="1"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="24,0,24,24">
+                        <StackPanel>
+
+                            <!-- EXPORT section -->
+                            <TextBlock Text="EXPORT"
+                                       Style="{StaticResource AppSettings.SectionLabel}"
+                                       Margin="0,4,0,10"/>
+                            <Rectangle Height="1"
+                                       Fill="{StaticResource BorderDim}"
+                                       Margin="0,0,0,18"/>
+
+                            <StackPanel Margin="0,0,0,12">
+                                <TextBlock Text="CSV DELIMITER"
+                                           Style="{StaticResource AppSettings.RowLabel}"/>
+                                <TextBlock Text="Separates columns when exporting logged sessions to CSV."
+                                           Style="{StaticResource AppSettings.HelpText}"/>
+                                <Border Background="{StaticResource Surface}"
+                                        BorderBrush="{StaticResource BorderDim}"
+                                        BorderThickness="1"
+                                        CornerRadius="3"
+                                        Padding="3"
+                                        HorizontalAlignment="Left"
+                                        Margin="0,10,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <RadioButton Grid.Column="0"
+                                                     GroupName="CsvDelimiter"
+                                                     Content="COMMA  ,"
+                                                     IsChecked="{Binding AppSettings.IsCommaDelimiter, Mode=TwoWay}"
+                                                     Style="{StaticResource AppSettings.SegmentedToggle}"
+                                                     ToolTip="Standard CSV — compatible with most spreadsheets."/>
+                                        <RadioButton Grid.Column="1"
+                                                     GroupName="CsvDelimiter"
+                                                     Content="SEMICOLON  ;"
+                                                     IsChecked="{Binding AppSettings.IsSemicolonDelimiter, Mode=TwoWay}"
+                                                     Style="{StaticResource AppSettings.SegmentedToggle}"
+                                                     ToolTip="Use when locale treats comma as decimal separator."/>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </controls:MetroWindow>

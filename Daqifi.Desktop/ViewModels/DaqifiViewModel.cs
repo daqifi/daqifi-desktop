@@ -70,6 +70,17 @@ public partial class DaqifiViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasNetworkSettingsError))]
     private string? _networkSettingsError;
     public bool HasNetworkSettingsError => !string.IsNullOrEmpty(NetworkSettingsError);
+    [ObservableProperty]
+    private bool _isAppSettingsOpen;
+
+    private SettingsViewModel? _appSettings;
+
+    /// <summary>
+    /// Lazily-constructed view model backing the app settings drawer. Deferring
+    /// construction avoids touching <see cref="DaqifiSettings.Instance"/> (which
+    /// performs filesystem IO in its constructor) until the drawer is opened.
+    /// </summary>
+    public SettingsViewModel AppSettings => _appSettings ??= new SettingsViewModel();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FlyoutWidth))]
@@ -1030,11 +1041,7 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ShowDAQiFiSettingsDialog()
-    {
-        var settingsViewModel = new SettingsViewModel();
-        _dialogService.ShowDialog<SettingsDialog>(this, settingsViewModel);
-    }
+    private void CloseAppSettings() => IsAppSettingsOpen = false;
 
     [RelayCommand]
     private void RemoveChannel(IChannel channelToRemove)

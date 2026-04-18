@@ -14,18 +14,8 @@
              d:DesignHeight="800" d:DesignWidth="1200">
     <UserControl.Resources>
 
-        <SolidColorBrush x:Key="Surface" Color="#0D0F12"/>
-        <SolidColorBrush x:Key="SurfaceRaised" Color="#171A20"/>
-        <SolidColorBrush x:Key="SurfaceActive" Color="#1E2530"/>
-        <SolidColorBrush x:Key="BorderDim" Color="#2A2F38"/>
-        <SolidColorBrush x:Key="BorderBright" Color="#3A4252"/>
-        <SolidColorBrush x:Key="TextPrimary" Color="#F5F5F7"/>
-        <SolidColorBrush x:Key="TextSecondary" Color="#8E9199"/>
-        <SolidColorBrush x:Key="TextTertiary" Color="#5A5E66"/>
-        <SolidColorBrush x:Key="Accent" Color="#119EDA"/>
-        <SolidColorBrush x:Key="StatusGreen" Color="#4ADE80"/>
-        <SolidColorBrush x:Key="StatusAmber" Color="#F59E0B"/>
-        <SolidColorBrush x:Key="StatusRed" Color="#F43F5E"/>
+        <!-- Brushes (Surface, BorderDim, TextPrimary, Accent, StatusAmber, …) come from /Resources/DesignTokens.xaml via App.xaml. -->
+
 
         <ObjectDataProvider MethodName="GetValues" ObjectType="{x:Type sys:Enum}" x:Key="SdCardLogFormats">
             <ObjectDataProvider.MethodParameters>

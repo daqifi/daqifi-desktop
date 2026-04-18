@@ -1,0 +1,32 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Canonical design tokens for the dark visual system.
+        Referenced from MainWindow.xaml, ChannelsPanePrototype.xaml, DevicesPanePrototype.xaml,
+        and (eventually) ViewModels via Application.Current.Resources.
+        See docs/design-philosophy.md for usage rules.
+    -->
+
+    <!-- Surfaces -->
+    <SolidColorBrush x:Key="Surface"        Color="#0D0F12"/>
+    <SolidColorBrush x:Key="SurfaceHover"   Color="#13161C"/>
+    <SolidColorBrush x:Key="SurfaceRaised"  Color="#171A20"/>
+    <SolidColorBrush x:Key="SurfaceActive"  Color="#1E2530"/>
+
+    <!-- Borders -->
+    <SolidColorBrush x:Key="BorderDim"      Color="#2A2F38"/>
+    <SolidColorBrush x:Key="BorderBright"   Color="#3A4252"/>
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="TextPrimary"    Color="#F5F5F7"/>
+    <SolidColorBrush x:Key="TextSecondary"  Color="#8E9199"/>
+    <SolidColorBrush x:Key="TextTertiary"   Color="#5A5E66"/>
+
+    <!-- Interaction / status -->
+    <SolidColorBrush x:Key="Accent"         Color="#119EDA"/>
+    <SolidColorBrush x:Key="StatusGreen"    Color="#4ADE80"/>
+    <SolidColorBrush x:Key="StatusAmber"    Color="#F59E0B"/>
+    <SolidColorBrush x:Key="StatusRed"      Color="#F43F5E"/>
+
+</ResourceDictionary>
