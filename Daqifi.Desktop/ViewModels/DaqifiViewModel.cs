@@ -65,6 +65,17 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLiveGraphSettingsOpen;
     [ObservableProperty]
+    private bool _networkSettingsApplied;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNetworkSettingsError))]
+    private string? _networkSettingsError;
+
+    /// <summary>
+    /// True when <see cref="NetworkSettingsError"/> has a message to display.
+    /// Used to toggle visibility of the inline error row in the Devices drawer.
+    /// </summary>
+    public bool HasNetworkSettingsError => !string.IsNullOrEmpty(NetworkSettingsError);
+    [ObservableProperty]
     private bool _isAppSettingsOpen;
 
     private SettingsViewModel? _appSettings;
@@ -133,6 +144,7 @@ public partial class DaqifiViewModel : ObservableObject
     private IStreamingDevice? _deviceBeingUpdated;
     private IDiskSpaceMonitor? _diskSpaceMonitor;
     private ObservableCollection<LoggingSession>? _observedLoggingSessions;
+    private CancellationTokenSource? _networkSettingsAppliedCts;
     #endregion
 
     #region Properties
@@ -1066,33 +1078,72 @@ public partial class DaqifiViewModel : ObservableObject
     [RelayCommand]
     public async Task UpdateNetworkConfiguration()
     {
+        ResetNetworkSettingsStatus();
+
         // Guard the happy-path below: a device can disappear while the drawer
         // is open (disconnect, tab switch, etc.), and the underlying
         // UpdateNetworkConfiguration() throws when the connection is gone.
         var device = SelectedDevice;
         if (device == null)
         {
-            _dialogService.ShowDialog<ErrorDialog>(this,
-                new ErrorDialogViewModel("Select a device before applying WiFi settings."));
+            NetworkSettingsError = "Select a device before applying WiFi settings.";
             return;
         }
         if (!device.IsConnected)
         {
-            _dialogService.ShowDialog<ErrorDialog>(this,
-                new ErrorDialogViewModel("Cannot apply WiFi settings — the device is not connected."));
+            NetworkSettingsError = "Cannot apply WiFi settings — the device is not connected.";
             return;
         }
 
         try
         {
             await device.UpdateNetworkConfiguration();
-            _dialogService.ShowDialog<SuccessDialog>(this, new SuccessDialogViewModel("WiFi settings updated."));
+            _ = ShowNetworkSettingsAppliedStatusAsync();
         }
         catch (Exception ex)
         {
             _appLogger.Error(ex, "Failed to update network configuration");
-            _dialogService.ShowDialog<ErrorDialog>(this,
-                new ErrorDialogViewModel($"Failed to apply WiFi settings: {ex.Message}"));
+            NetworkSettingsError = "Failed to apply WiFi settings. See the application log for details.";
+        }
+    }
+
+    private void ResetNetworkSettingsStatus()
+    {
+        CancelAndDisposeNetworkSettingsCts();
+        NetworkSettingsApplied = false;
+        NetworkSettingsError = null;
+    }
+
+    private async Task ShowNetworkSettingsAppliedStatusAsync()
+    {
+        CancelAndDisposeNetworkSettingsCts();
+        _networkSettingsAppliedCts = new CancellationTokenSource();
+        var token = _networkSettingsAppliedCts.Token;
+
+        NetworkSettingsApplied = true;
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3), token);
+            NetworkSettingsApplied = false;
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private void CancelAndDisposeNetworkSettingsCts()
+    {
+        var cts = _networkSettingsAppliedCts;
+        if (cts == null)
+        {
+            return;
+        }
+        _networkSettingsAppliedCts = null;
+        try
+        {
+            cts.Cancel();
+        }
+        finally
+        {
+            cts.Dispose();
         }
     }
 
