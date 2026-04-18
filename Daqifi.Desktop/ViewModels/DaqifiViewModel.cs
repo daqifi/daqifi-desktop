@@ -162,6 +162,7 @@ public partial class DaqifiViewModel : ObservableObject
     public ObservableCollection<IChannel> ActiveChannels { get; } = [];
     public ObservableCollection<IChannel> ActiveInputChannels { get; } = [];
     public ObservableCollection<LoggingSession> LoggingSessions => TryGetLoggingManager()?.LoggingSessions ?? _fallbackLoggingSessions;
+    public bool HasLoggingSessions => LoggingSessions.Count > 0;
 
     public PlotLogger Plotter { get; private set; }
     public DatabaseLogger DbLogger { get; private set; }
@@ -1208,6 +1209,12 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void CloseLoggedSessionSettings()
+    {
+        IsLoggingSessionSettingsOpen = false;
+    }
+
+    [RelayCommand]
     private void OpenLoggingSessionSettings(LoggingSession? session)
     {
         if (session == null)
@@ -1518,6 +1525,7 @@ public partial class DaqifiViewModel : ObservableObject
     private void NotifyLoggingSessionsChanged()
     {
         OnPropertyChanged(nameof(LoggingSessions));
+        OnPropertyChanged(nameof(HasLoggingSessions));
         DeleteAllLoggingSessionCommand?.NotifyCanExecuteChanged();
         ExportAllLoggingSessionCommand.NotifyCanExecuteChanged();
     }
