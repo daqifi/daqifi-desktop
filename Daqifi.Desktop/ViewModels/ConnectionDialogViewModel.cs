@@ -38,6 +38,16 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _hasNoHidDevices = true;
+
+    private bool _closed;
+    #endregion
+
+    #region Events
+    /// <summary>
+    /// Raised when a connect command has completed successfully and the dialog should close.
+    /// The view subscribes and closes itself. Not raised on empty input or failed connect.
+    /// </summary>
+    public event EventHandler? CloseRequested;
     #endregion
 
     #region Properties
@@ -173,27 +183,34 @@ public partial class ConnectionDialogViewModel : ObservableObject
     public IAsyncRelayCommand ConnectManualSerialCommand { get; }
     public IAsyncRelayCommand ConnectManualWifiCommand { get; }
 
-    private async Task ConnectAsync(object selectedItems)
+    private async Task ConnectAsync(object? selectedItems)
     {
+        var selectedDevices = ToStreamingDevices(selectedItems);
+        if (selectedDevices.Count == 0) { return; }
+
         StopWiFiDiscovery();
 
-        var selectedDevices = ((IEnumerable)selectedItems).Cast<IStreamingDevice>();
-
         foreach (var device in selectedDevices)
         {
             await ConnectionManager.Instance.Connect(device);
         }
+
+        RaiseCloseRequested();
     }
 
-    private async Task ConnectSerialAsync(object selectedItems)
+    private async Task ConnectSerialAsync(object? selectedItems)
     {
+        var selectedDevices = ToStreamingDevices(selectedItems);
+        if (selectedDevices.Count == 0) { return; }
+
         await StopSerialDiscoveryAsync();
 
-        var selectedDevices = ((IEnumerable)selectedItems).Cast<IStreamingDevice>();
         foreach (var device in selectedDevices)
         {
             await ConnectionManager.Instance.Connect(device);
         }
+
+        RaiseCloseRequested();
     }
 
     private async Task ConnectManualSerialAsync()
@@ -202,6 +219,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         ManualSerialDevice = new SerialStreamingDevice(ManualPortName);
         await ConnectionManager.Instance.Connect(ManualSerialDevice);
+
+        RaiseCloseRequested();
     }
 
     private async Task ConnectManualWifiAsync()
@@ -253,6 +272,19 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         var device = new DaqifiStreamingDevice(deviceInfo);
         await ConnectionManager.Instance.Connect(device);
+
+        RaiseCloseRequested();
+    }
+
+    private static List<IStreamingDevice> ToStreamingDevices(object? selectedItems)
+    {
+        if (selectedItems is not IEnumerable enumerable) { return []; }
+        return enumerable.Cast<IStreamingDevice>().ToList();
+    }
+
+    private void RaiseCloseRequested()
+    {
+        CloseRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private static async Task<IPAddress?> ResolveManualWifiEndpointAsync(string endpointInput)
@@ -423,6 +455,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     public void Close()
     {
+        // Guards against concurrent/double dispose when the window closes while
+        // a connect command is still in flight (either path may call this).
+        if (_closed) { return; }
+        _closed = true;
+
         StopWiFiDiscovery();
         // Fire-and-forget: cancel discovery and clean up without waiting for task completion
         _ = StopSerialDiscoveryAsync();

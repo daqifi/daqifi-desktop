@@ -1,4 +1,4 @@
-﻿<controls:MetroWindow x:Class="Daqifi.Desktop.View.ConnectionDialog"
+<controls:MetroWindow x:Class="Daqifi.Desktop.View.ConnectionDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -9,146 +9,495 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=viewModels:ConnectionDialogViewModel}"
         dialogService:DialogService.IsRegisteredView="True"
-        Title="Connect Device" ResizeMode="NoResize" Height="300" Width="450" Closing="MetroWindow_Closing" GlowBrush="{DynamicResource AccentColorBrush}" >
-    <Grid>
-        <TabControl>
-            <TabItem Header="WiFi" controls:HeaderedControlHelper.HeaderFontSize="18">
-                <Grid>
-                    <controls:ProgressRing IsActive="{Binding HasNoWiFiDevices}" />
-                    <Border>
-                        <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
-                            <!-- Connect Button -->
-                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}" Command="{Binding ConnectCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right"  Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+        Title="CONNECT DEVICE" ResizeMode="NoResize" Height="500" Width="560"
+        Closing="MetroWindow_Closing"
+        GlowBrush="{DynamicResource AccentColorBrush}">
 
-                            <!-- Device List -->
-                            <ListView Name="DeviceList" ItemsSource="{Binding AvailableWiFiDevices}" SelectionMode="Extended" Margin="5" Background="Transparent" BorderThickness="0">
-                                <ListView.ItemTemplate>
+    <Window.Resources>
+
+        <!-- Surface/Border/Text/Accent/Status brushes come from /Resources/DesignTokens.xaml via App.xaml. -->
+
+        <!-- Connection-type stripe colors (view-specific: type channel per design philosophy §3). -->
+        <SolidColorBrush x:Key="StripeWifi"     Color="#A855F7"/>
+        <SolidColorBrush x:Key="StripeUsb"      Color="#06B6D4"/>
+
+        <!-- ── Segment tab style ───────────────────────────────────────── -->
+        <Style x:Key="SegmentTab" TargetType="TabItem">
+            <Setter Property="Foreground"  Value="{StaticResource TextSecondary}"/>
+            <Setter Property="FontSize"    Value="10"/>
+            <Setter Property="FontWeight"  Value="SemiBold"/>
+            <Setter Property="Cursor"      Value="Hand"/>
+            <Setter Property="Padding"     Value="14,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Bg"
+                                Background="Transparent"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}"
+                                Margin="2,0">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource SurfaceActive}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsSelected"  Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── TabControl: dark body + segmented strip ────────────────── -->
+        <Style x:Key="DarkTabControl" TargetType="TabControl">
+            <Setter Property="Background"       Value="{StaticResource Surface}"/>
+            <Setter Property="BorderThickness"  Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Segment strip -->
+                            <Border Grid.Row="0"
+                                    Background="{StaticResource SurfaceRaised}"
+                                    BorderBrush="{StaticResource BorderDim}"
+                                    BorderThickness="0,0,0,1"
+                                    Padding="12,8">
+                                <TabPanel IsItemsHost="True"
+                                          Background="Transparent"
+                                          HorizontalAlignment="Left"/>
+                            </Border>
+
+                            <!-- Selected content -->
+                            <Border Grid.Row="1" Background="{StaticResource Surface}">
+                                <ContentPresenter ContentSource="SelectedContent"/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Device tile list ───────────────────────────────────────── -->
+        <Style x:Key="TileListBox" TargetType="ListBox">
+            <Setter Property="Background"                          Value="Transparent"/>
+            <Setter Property="BorderThickness"                     Value="0"/>
+            <Setter Property="Padding"                             Value="0"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="FocusVisualStyle"                    Value="{x:Null}"/>
+        </Style>
+
+        <Style x:Key="TileListBoxItem" TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding"                    Value="0"/>
+            <Setter Property="Margin"                     Value="0,0,0,8"/>
+            <Setter Property="Cursor"                     Value="Hand"/>
+            <Setter Property="FocusVisualStyle"           Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="TileBorder"
+                                Background="{StaticResource SurfaceRaised}"
+                                BorderBrush="{StaticResource BorderDim}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                ClipToBounds="True">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TileBorder" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                <Setter TargetName="TileBorder" Property="Background"  Value="{StaticResource SurfaceActive}"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsSelected"  Value="False"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="TileBorder" Property="Background" Value="#141821"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Accent pill button ─────────────────────────────────────── -->
+        <Style x:Key="AccentPillButton" TargetType="Button">
+            <Setter Property="Background"       Value="{StaticResource Accent}"/>
+            <Setter Property="BorderBrush"      Value="{StaticResource Accent}"/>
+            <Setter Property="BorderThickness"  Value="1"/>
+            <Setter Property="Foreground"       Value="White"/>
+            <Setter Property="Padding"          Value="24,8"/>
+            <Setter Property="FontSize"         Value="11"/>
+            <Setter Property="FontWeight"       Value="SemiBold"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="14"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background"  Value="#1EB3F0"/>
+                    <Setter Property="BorderBrush" Value="#1EB3F0"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.4"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- ── Field label ────────────────────────────────────────────── -->
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize"     Value="10"/>
+            <Setter Property="FontWeight"   Value="SemiBold"/>
+            <Setter Property="Foreground"   Value="{StaticResource TextTertiary}"/>
+            <Setter Property="Margin"       Value="0,0,0,6"/>
+        </Style>
+
+        <!-- ── Dark text field ────────────────────────────────────────── -->
+        <Style x:Key="DarkTextField" TargetType="Border">
+            <Setter Property="Background"       Value="{StaticResource Surface}"/>
+            <Setter Property="BorderBrush"      Value="{StaticResource BorderDim}"/>
+            <Setter Property="BorderThickness"  Value="1"/>
+            <Setter Property="CornerRadius"     Value="3"/>
+            <Setter Property="Padding"          Value="10,0"/>
+        </Style>
+
+        <Style x:Key="DarkTextBox" TargetType="TextBox">
+            <Setter Property="Background"               Value="Transparent"/>
+            <Setter Property="BorderThickness"          Value="0"/>
+            <Setter Property="Foreground"               Value="{StaticResource TextPrimary}"/>
+            <Setter Property="FontFamily"               Value="Consolas"/>
+            <Setter Property="FontSize"                 Value="13"/>
+            <Setter Property="Height"                   Value="34"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="CaretBrush"               Value="{StaticResource TextPrimary}"/>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid Background="{StaticResource Surface}">
+        <TabControl Style="{StaticResource DarkTabControl}">
+
+            <!-- ──────────────────────────────────────────────────── WiFi -->
+            <TabItem Header="WiFi" Style="{StaticResource SegmentTab}">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Tile list + scanning overlay -->
+                    <Grid Grid.Row="0">
+                        <ListBox x:Name="DeviceList"
+                                 ItemsSource="{Binding AvailableWiFiDevices}"
+                                 SelectionMode="Extended"
+                                 Style="{StaticResource TileListBox}"
+                                 ItemContainerStyle="{StaticResource TileListBoxItem}">
+                                <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <Border >
-                                            <Grid>
+                                        <Grid Height="74">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="3"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Rectangle Grid.Column="0" Fill="{StaticResource StripeWifi}"/>
+                                            <Grid Grid.Column="1" Margin="14,10,14,10">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel  Grid.Column="1" Margin="5"  Orientation="Vertical">
-                                                    <Label Content="{Binding Name}"  Padding="0"/>
-                                                    <Label Content="{Binding IpAddress}" FontSize="10" Padding="0"/>
-                                                    <Label Content="{Binding DeviceSerialNo}" FontSize="10"  Padding="0"/>
-                                                    <TextBlock FontSize="10" Padding="0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Label}}">
-                                                        <Run Text="Firmware version :" />
-                                                        <Run Text="{Binding DeviceVersion}" />
-                                                    </TextBlock>
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontFamily="Consolas" FontSize="15" FontWeight="Medium"
+                                                               Foreground="{StaticResource TextPrimary}"/>
+                                                    <TextBlock Text="{Binding IpAddress}"
+                                                               FontSize="10" Foreground="{StaticResource TextSecondary}"
+                                                               Margin="0,3,0,0"/>
+                                                    <TextBlock Text="{Binding DeviceSerialNo}"
+                                                               FontSize="10" Foreground="{StaticResource TextTertiary}"/>
                                                 </StackPanel>
-                                                <Image Grid.Column="0" Source="../Images/Nq.png" Width="50" Height="50"/>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                                    <Border Background="#141821"
+                                                            BorderBrush="{StaticResource StripeWifi}"
+                                                            BorderThickness="1" CornerRadius="3"
+                                                            Padding="6,2" Margin="0,0,0,4">
+                                                        <TextBlock Text="WIFI" FontSize="9" FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource StripeWifi}"/>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding DeviceVersion}"
+                                                               FontSize="9" Foreground="{StaticResource TextTertiary}"
+                                                               HorizontalAlignment="Right"/>
+                                                </StackPanel>
                                             </Grid>
-                                        </Border>
+                                        </Grid>
                                     </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
-                        </DockPanel>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Scanning overlay -->
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                    Visibility="{Binding HasNoWiFiDevices, Converter={StaticResource BoolToVis}}">
+                            <controls:ProgressRing IsActive="True" Width="36" Height="36"
+                                                   Foreground="{StaticResource Accent}"/>
+                            <TextBlock Text="Scanning for WiFi devices…"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontSize="11" Margin="0,10,0,0"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Action bar -->
+                    <Border Grid.Row="1"
+                            BorderBrush="{StaticResource BorderDim}" BorderThickness="0,1,0,0"
+                            Padding="0,12,0,0" Margin="0,12,0,0">
+                        <Button HorizontalAlignment="Right"
+                                Style="{StaticResource AccentPillButton}"
+                                CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}"
+                                Command="{Binding ConnectCommand}"
+                                Content="Connect"/>
                     </Border>
                 </Grid>
             </TabItem>
-            <TabItem Header="Manual WiFi"  controls:HeaderedControlHelper.HeaderFontSize="18">
-                <Grid>
-                    <Border>
-                        <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
-                            <!-- Connect Button -->
-                            <Button DockPanel.Dock="Bottom" Command="{Binding ConnectManualWifiCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
-                            <!-- Manual IP Address -->
-                            <StackPanel>
-                                <Label Content="IP Address"/>
-                                <TextBox Text="{Binding ManualIpAddress}"/>
-                            </StackPanel>
-                        </DockPanel>
+            <!-- ───────────────────────────────────────────── Manual WiFi -->
+            <TabItem Header="Manual WiFi" Style="{StaticResource SegmentTab}">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" VerticalAlignment="Top">
+                        <TextBlock Text="IP ADDRESS" Style="{StaticResource FieldLabel}"/>
+                        <Border Style="{StaticResource DarkTextField}">
+                            <TextBox Text="{Binding ManualIpAddress, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource DarkTextBox}"/>
+                        </Border>
+                        <TextBlock Text="Enter the IP address or hostname of the DAQiFi device."
+                                   FontSize="10" Foreground="{StaticResource TextTertiary}"
+                                   Margin="0,6,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            BorderBrush="{StaticResource BorderDim}" BorderThickness="0,1,0,0"
+                            Padding="0,12,0,0" Margin="0,12,0,0">
+                        <Button HorizontalAlignment="Right"
+                                Style="{StaticResource AccentPillButton}"
+                                Command="{Binding ConnectManualWifiCommand}"
+                                Content="Connect"/>
                     </Border>
                 </Grid>
             </TabItem>
-            <TabItem Header="USB"  controls:HeaderedControlHelper.HeaderFontSize="18">
-                <Grid>
-                    <controls:ProgressRing IsActive="{Binding HasNoSerialDevices}" />
-                    <Border>
-                        <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
-                            <!-- Connect Button -->
-                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}" Command="{Binding ConnectSerialCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
-                            <!-- Device List -->
-                            <ListView Name="SerialList" ItemsSource="{Binding AvailableSerialDevices}" SelectionMode="Extended" Margin="5" Background="Transparent" BorderThickness="0">
-                                <ListView.ItemTemplate>
+            <!-- ──────────────────────────────────────────────────── USB -->
+            <TabItem Header="USB" Style="{StaticResource SegmentTab}">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <ListBox x:Name="SerialList"
+                                 ItemsSource="{Binding AvailableSerialDevices}"
+                                 SelectionMode="Extended"
+                                 Style="{StaticResource TileListBox}"
+                                 ItemContainerStyle="{StaticResource TileListBoxItem}">
+                                <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <Border >
-                                            <Grid>
+                                        <Grid Height="74">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="3"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Rectangle Grid.Column="0" Fill="{StaticResource StripeUsb}"/>
+                                            <Grid Grid.Column="1" Margin="14,10,14,10">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="1" Margin="5" Orientation="Vertical">
-                                                    <Label Content="{Binding Name}" Padding="0"/>
-                                                    <Label Content="{Binding Port.PortName}" FontSize="10" Padding="0"/>
-                                                    <Label Content="{Binding DeviceSerialNo}" FontSize="10" Padding="0"/>
-                                                    <TextBlock FontSize="10" Padding="0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Label}}">
-                                                        <Run Text="Firmware version :" />
-                                                        <Run Text="{Binding DeviceVersion}" />
-                                                    </TextBlock>
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontFamily="Consolas" FontSize="15" FontWeight="Medium"
+                                                               Foreground="{StaticResource TextPrimary}"/>
+                                                    <TextBlock Text="{Binding Port.PortName}"
+                                                               FontSize="10" Foreground="{StaticResource TextSecondary}"
+                                                               Margin="0,3,0,0"/>
+                                                    <TextBlock Text="{Binding DeviceSerialNo}"
+                                                               FontSize="10" Foreground="{StaticResource TextTertiary}"/>
                                                 </StackPanel>
-                                                <Image Grid.Column="0" Source="../Images/Nq.png" Width="50" Height="50"/>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                                    <Border Background="#141821"
+                                                            BorderBrush="{StaticResource StripeUsb}"
+                                                            BorderThickness="1" CornerRadius="3"
+                                                            Padding="6,2" Margin="0,0,0,4">
+                                                        <TextBlock Text="USB" FontSize="9" FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource StripeUsb}"/>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding DeviceVersion}"
+                                                               FontSize="9" Foreground="{StaticResource TextTertiary}"
+                                                               HorizontalAlignment="Right"/>
+                                                </StackPanel>
                                             </Grid>
-                                        </Border>
+                                        </Grid>
                                     </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
-                        </DockPanel>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Scanning overlay -->
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                    Visibility="{Binding HasNoSerialDevices, Converter={StaticResource BoolToVis}}">
+                            <controls:ProgressRing IsActive="True" Width="36" Height="36"
+                                                   Foreground="{StaticResource Accent}"/>
+                            <TextBlock Text="Scanning for USB devices…"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontSize="11" Margin="0,10,0,0"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Row="1"
+                            BorderBrush="{StaticResource BorderDim}" BorderThickness="0,1,0,0"
+                            Padding="0,12,0,0" Margin="0,12,0,0">
+                        <Button HorizontalAlignment="Right"
+                                Style="{StaticResource AccentPillButton}"
+                                CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}"
+                                Command="{Binding ConnectSerialCommand}"
+                                Content="Connect"/>
                     </Border>
                 </Grid>
             </TabItem>
-            <TabItem Header="Manual USB" controls:HeaderedControlHelper.HeaderFontSize="18">
-                <Grid>
-                    <Border>
-                        <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
-                            <!-- Connect Button -->
-                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}" Command="{Binding ConnectManualSerialCommand}" Click="btnConnect_Click" Content="Connect" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
-                            <!-- Manual COM Port -->
-                            <StackPanel>
-                                <Label Content="COM Port"/>
-                                <TextBox Text="{Binding ManualPortName}"/>
-                            </StackPanel>
-                        </DockPanel>
+            <!-- ─────────────────────────────────────────── Manual USB -->
+            <TabItem Header="Manual USB" Style="{StaticResource SegmentTab}">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" VerticalAlignment="Top">
+                        <TextBlock Text="COM PORT" Style="{StaticResource FieldLabel}"/>
+                        <Border Style="{StaticResource DarkTextField}">
+                            <TextBox Text="{Binding ManualPortName, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource DarkTextBox}"/>
+                        </Border>
+                        <TextBlock Text="Enter the COM port name of the DAQiFi device (e.g. COM3)."
+                                   FontSize="10" Foreground="{StaticResource TextTertiary}"
+                                   Margin="0,6,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            BorderBrush="{StaticResource BorderDim}" BorderThickness="0,1,0,0"
+                            Padding="0,12,0,0" Margin="0,12,0,0">
+                        <Button HorizontalAlignment="Right"
+                                Style="{StaticResource AccentPillButton}"
+                                Command="{Binding ConnectManualSerialCommand}"
+                                Content="Connect"/>
                     </Border>
                 </Grid>
             </TabItem>
-            <TabItem Header="Firmware" controls:HeaderedControlHelper.HeaderFontSize="18">
-                <Grid>
-                    <controls:ProgressRing IsActive="{Binding HasNoHidDevices}" />
-                    <Border>
-                        <DockPanel HorizontalAlignment="Stretch" VerticalAlignment="Stretch" LastChildFill="True" Margin="5" >
-                            <!-- Open Firmware Button -->
-                            <Button DockPanel.Dock="Bottom" CommandParameter="{Binding ElementName=HidList, Path=SelectedItems}" Command="{Binding ConnectHidCommand}" Content="Open Firmware" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
 
-                            <!-- Device List -->
-                            <ListView Name="HidList" ItemsSource="{Binding AvailableHidDevices}" SelectionMode="Single" Margin="5" Background="Transparent" BorderThickness="0">
-                                <ListView.ItemTemplate>
+            <!-- ─────────────────────────────────────────── Firmware -->
+            <TabItem Header="Firmware" Style="{StaticResource SegmentTab}">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <ListBox x:Name="HidList"
+                                 ItemsSource="{Binding AvailableHidDevices}"
+                                 SelectionMode="Single"
+                                 Style="{StaticResource TileListBox}"
+                                 ItemContainerStyle="{StaticResource TileListBoxItem}">
+                                <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <Border >
-                                            <Grid>
+                                        <Grid Height="74">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="3"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Rectangle Grid.Column="0" Fill="{StaticResource StatusAmber}"/>
+                                            <Grid Grid.Column="1" Margin="14,10,14,10">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="1" Orientation="Vertical">
-                                                    <Label Content="DAQifi Device (Firmware Mode)"/>
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <TextBlock Text="DAQiFi Device"
+                                                               FontFamily="Consolas" FontSize="15" FontWeight="Medium"
+                                                               Foreground="{StaticResource TextPrimary}"/>
+                                                    <TextBlock Text="Firmware mode"
+                                                               FontSize="10" Foreground="{StaticResource TextSecondary}"
+                                                               Margin="0,3,0,0"/>
                                                 </StackPanel>
-                                                <Image Grid.Column="0" Source="../Images/Nq.png" Width="50" Height="50"/>
+                                                <Border Grid.Column="1"
+                                                        Background="#141821"
+                                                        BorderBrush="{StaticResource StatusAmber}"
+                                                        BorderThickness="1" CornerRadius="3"
+                                                        Padding="6,2"
+                                                        VerticalAlignment="Center">
+                                                    <TextBlock Text="HID" FontSize="9" FontWeight="SemiBold"
+                                                               Foreground="{StaticResource StatusAmber}"/>
+                                                </Border>
                                             </Grid>
-                                        </Border>
+                                        </Grid>
                                     </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
-                        </DockPanel>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Scanning overlay -->
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                    Visibility="{Binding HasNoHidDevices, Converter={StaticResource BoolToVis}}">
+                            <controls:ProgressRing IsActive="True" Width="36" Height="36"
+                                                   Foreground="{StaticResource Accent}"/>
+                            <TextBlock Text="Scanning for devices in firmware mode…"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontSize="11" Margin="0,10,0,0"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Row="1"
+                            BorderBrush="{StaticResource BorderDim}" BorderThickness="0,1,0,0"
+                            Padding="0,12,0,0" Margin="0,12,0,0">
+                        <Button HorizontalAlignment="Right"
+                                Style="{StaticResource AccentPillButton}"
+                                CommandParameter="{Binding ElementName=HidList, Path=SelectedItems}"
+                                Command="{Binding ConnectHidCommand}"
+                                Content="Open Firmware"/>
                     </Border>
                 </Grid>
             </TabItem>
+
         </TabControl>
     </Grid>
 </controls:MetroWindow>
