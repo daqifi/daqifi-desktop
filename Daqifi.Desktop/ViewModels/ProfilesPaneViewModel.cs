@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using Application = System.Windows.Application;
+using MahApps.Metro.Controls;
+using MahApps.Metro.Controls.Dialogs;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Daqifi.Desktop.Channel;
@@ -61,7 +64,7 @@ public partial class ProfilesPaneViewModel : ObservableObject
     public IRelayCommand<Profile> OpenEditDrawerCommand { get; }
     public IRelayCommand OpenNewDrawerCommand { get; }
     public IRelayCommand CloseDrawerCommand { get; }
-    public IRelayCommand<Profile> ActivateProfileCommand { get; }
+    public IAsyncRelayCommand<Profile> ActivateProfileCommand { get; }
     public IRelayCommand<Profile> DeleteProfileCommand { get; }
     public IRelayCommand SaveNewProfileCommand { get; }
     public IRelayCommand SaveCurrentSettingsCommand { get; }
@@ -71,7 +74,7 @@ public partial class ProfilesPaneViewModel : ObservableObject
         OpenEditDrawerCommand = new RelayCommand<Profile>(OpenEditDrawer);
         OpenNewDrawerCommand = new RelayCommand(OpenNewDrawer);
         CloseDrawerCommand = new RelayCommand(CloseDrawer);
-        ActivateProfileCommand = new RelayCommand<Profile>(ActivateProfile);
+        ActivateProfileCommand = new AsyncRelayCommand<Profile>(ActivateProfile);
         DeleteProfileCommand = new RelayCommand<Profile>(DeleteProfile);
         SaveNewProfileCommand = new RelayCommand(SaveNewProfile, CanSaveNewProfile);
         SaveCurrentSettingsCommand = new RelayCommand(SaveCurrentSettings);
@@ -193,7 +196,7 @@ public partial class ProfilesPaneViewModel : ObservableObject
         SelectedProfile = null;
     }
 
-    private void ActivateProfile(Profile? profile)
+    private async Task ActivateProfile(Profile? profile)
     {
         if (profile == null) return;
 
@@ -207,15 +210,50 @@ public partial class ProfilesPaneViewModel : ObservableObject
         }
 
         var anyActive = Profiles.FirstOrDefault(p => p.IsProfileActive);
-        if (anyActive != null && anyActive.ProfileId != profile.ProfileId)
+
+        // Case 1: same tile clicked — toggle off. (If no matched devices remain,
+        // ApplyProfileToDevices still flips IsProfileActive so the UI stays consistent.)
+        if (anyActive != null && anyActive.ProfileId == profile.ProfileId)
         {
-            ShowError(profile, "Deactivate the current active profile first.");
+            ApplyProfileToDevices(profile, MatchProfileToConnected(profile), activate: false);
             return;
         }
 
-        // Two-pass device matching: prefer exact serial, fall back to model
-        var claimedDevices = new HashSet<IStreamingDevice>();
-        var profileToDevice = new Dictionary<ProfileDevice, IStreamingDevice>();
+        // Case 2 & 3 share this validation: the new profile must match at least
+        // one connected device before we touch anything.
+        var newMatches = MatchProfileToConnected(profile);
+        if (newMatches.Count == 0)
+        {
+            ShowError(profile, "No connected devices match this profile.");
+            return;
+        }
+
+        // Case 2: a different profile is active — ask the user to switch.
+        if (anyActive != null)
+        {
+            var confirm = await ShowConfirm(
+                "Switch profile?",
+                $"'{anyActive.Name}' is currently active. Switch to '{profile.Name}'?");
+            if (confirm != MessageDialogResult.Affirmative) return;
+
+            var oldMatches = MatchProfileToConnected(anyActive);
+            ApplyProfileToDevices(anyActive, oldMatches, activate: false);
+        }
+
+        // Case 2 (post-confirm) and Case 3 (no profile active): activate the new one.
+        DrawerError = string.Empty;
+        ApplyProfileToDevices(profile, newMatches, activate: true);
+    }
+
+    /// <summary>
+    /// Two-pass match: prefer exact serial-number match, fall back to model
+    /// (part-number) match for each <see cref="ProfileDevice"/> in the profile.
+    /// Each connected device is claimed at most once.
+    /// </summary>
+    private static Dictionary<ProfileDevice, IStreamingDevice> MatchProfileToConnected(Profile profile)
+    {
+        var claimed = new HashSet<IStreamingDevice>();
+        var result = new Dictionary<ProfileDevice, IStreamingDevice>();
         var connected = ConnectionManager.Instance.ConnectedDevices.ToList();
 
         foreach (var pd in profile.Devices)
@@ -223,31 +261,36 @@ public partial class ProfilesPaneViewModel : ObservableObject
             var exact = connected.FirstOrDefault(cd =>
                 !string.IsNullOrEmpty(pd.DeviceSerialNo) &&
                 string.Equals(cd.DeviceSerialNo, pd.DeviceSerialNo, StringComparison.OrdinalIgnoreCase) &&
-                !claimedDevices.Contains(cd));
-            if (exact != null) { profileToDevice[pd] = exact; claimedDevices.Add(exact); }
+                !claimed.Contains(cd));
+            if (exact != null) { result[pd] = exact; claimed.Add(exact); }
         }
 
         foreach (var pd in profile.Devices)
         {
-            if (profileToDevice.ContainsKey(pd)) continue;
+            if (result.ContainsKey(pd)) continue;
             var modelMatch = connected.FirstOrDefault(cd =>
-                cd.DevicePartNumber == pd.DevicePartName && !claimedDevices.Contains(cd));
-            if (modelMatch != null) { profileToDevice[pd] = modelMatch; claimedDevices.Add(modelMatch); }
+                cd.DevicePartNumber == pd.DevicePartName && !claimed.Contains(cd));
+            if (modelMatch != null) { result[pd] = modelMatch; claimed.Add(modelMatch); }
         }
 
-        if (profileToDevice.Count == 0)
+        return result;
+    }
+
+    /// <summary>
+    /// Apply the channel + frequency intent of a profile to its matched devices.
+    /// When <paramref name="activate"/> is true, sets the streaming frequency,
+    /// adds the profile's active channels, and subscribes them. When false,
+    /// removes all channels from the matched devices and unsubscribes the
+    /// profile's channels. Flips <see cref="Profile.IsProfileActive"/> last.
+    /// </summary>
+    private void ApplyProfileToDevices(
+        Profile profile,
+        Dictionary<ProfileDevice, IStreamingDevice> matches,
+        bool activate)
+    {
+        foreach (var (pd, device) in matches)
         {
-            ShowError(profile, "No connected devices match this profile.");
-            return;
-        }
-
-        DrawerError = string.Empty;
-
-        foreach (var (pd, device) in profileToDevice)
-        {
-            device.StreamingFrequency = pd.SamplingFrequency;
-
-            var toActivate = pd.Channels
+            var channels = pd.Channels
                 .Where(c => c.IsChannelActive)
                 .Select(c => device.DataChannels.FirstOrDefault(x =>
                     x.Name == c.Name.Trim() && x.TypeString == c.Type.Trim()))
@@ -255,21 +298,31 @@ public partial class ProfilesPaneViewModel : ObservableObject
                 .Cast<IChannel>()
                 .ToList();
 
-            if (profile.IsProfileActive)
+            if (activate)
             {
-                device.RemoveAllChannels();
-                foreach (var ch in toActivate) LoggingManager.Instance.Unsubscribe(ch);
+                device.StreamingFrequency = pd.SamplingFrequency;
+                device.AddChannels(channels);
+                foreach (var ch in channels) LoggingManager.Instance.Subscribe(ch);
             }
             else
             {
-                device.AddChannels(toActivate);
-                foreach (var ch in toActivate) LoggingManager.Instance.Subscribe(ch);
+                device.RemoveAllChannels();
+                foreach (var ch in channels) LoggingManager.Instance.Unsubscribe(ch);
             }
         }
 
-        profile.IsProfileActive = !profile.IsProfileActive;
+        profile.IsProfileActive = activate;
         _logger.AddBreadcrumb("profile",
-            $"Profile {(profile.IsProfileActive ? "activated" : "deactivated")}: {profile.Name}");
+            $"Profile {(activate ? "activated" : "deactivated")}: {profile.Name}");
+    }
+
+    private static async Task<MessageDialogResult> ShowConfirm(string title, string message)
+    {
+        if (Application.Current.MainWindow is not MetroWindow window)
+        {
+            return MessageDialogResult.Negative;
+        }
+        return await window.ShowMessageAsync(title, message, MessageDialogStyle.AffirmativeAndNegative);
     }
 
     private void ShowError(Profile profile, string message)

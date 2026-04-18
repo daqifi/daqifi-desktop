@@ -685,7 +685,7 @@
                                                                    Margin="0,0,10,0"/>
                                                         <Slider Grid.Column="1"
                                                                 Style="{StaticResource DarkSlider}"
-                                                                Minimum="1" Maximum="10000"
+                                                                Minimum="1" Maximum="1000"
                                                                 IsSnapToTickEnabled="True"
                                                                 TickFrequency="1"
                                                                 Value="{Binding SamplingFrequency, Delay=200, UpdateSourceTrigger=PropertyChanged}"/>
@@ -878,7 +878,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Slider Grid.Column="0"
                                             Style="{StaticResource DarkSlider}"
-                                            Minimum="1" Maximum="10000"
+                                            Minimum="1" Maximum="1000"
                                             IsSnapToTickEnabled="True"
                                             TickFrequency="1"
                                             Value="{Binding NewProfileFrequency, Delay=100, UpdateSourceTrigger=PropertyChanged}"/>
