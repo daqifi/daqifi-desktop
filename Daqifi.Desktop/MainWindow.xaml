@@ -142,9 +142,6 @@
             <!-- Devices Flyout-->
             <flyouts:DevicesFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
-            <!-- Update Profile Flyout -->
-            <flyouts:UpdateProfileFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
-
             <!-- Logging Session Settings Flyout-->
             <flyouts:LoggedSessionFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 

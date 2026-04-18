@@ -240,11 +240,12 @@
                             <Border Margin="0,0,0,8"
                                     BorderBrush="{StaticResource BorderDim}"
                                     BorderThickness="1"
-                                    CornerRadius="4"
-                                    Cursor="Hand">
+                                    CornerRadius="4">
                                 <Border.Style>
                                     <Style TargetType="Border">
                                         <Setter Property="Background" Value="{StaticResource SurfaceRaised}"/>
+                                        <Setter Property="Cursor"     Value="Hand"/>
+                                        <Setter Property="Opacity"    Value="1"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsProfileActive}" Value="True">
                                                 <Setter Property="Background" Value="{StaticResource SurfaceActive}"/>
@@ -252,6 +253,11 @@
                                             <Trigger Property="IsMouseOver" Value="True">
                                                 <Setter Property="Opacity" Value="0.9"/>
                                             </Trigger>
+                                            <!-- Logging-lock trigger is last so it wins over IsMouseOver -->
+                                            <DataTrigger Binding="{Binding DataContext.IsLoggingActive, ElementName=Root}" Value="True">
+                                                <Setter Property="Opacity" Value="0.45"/>
+                                                <Setter Property="Cursor"  Value="No"/>
+                                            </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>
@@ -373,13 +379,47 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextTertiary}"
-                               VerticalAlignment="Center"
-                               Text="CLICK TILE TO ACTIVATE  ·  GEAR TO EDIT"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextTertiary}"
+                                   VerticalAlignment="Center">
+                            <Run Text="{Binding Profiles.Count, Mode=OneWay}"/>
+                            <Run Text=" SAVED"/>
+                        </TextBlock>
+                        <TextBlock FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{StaticResource StatusGreen}"
+                                   VerticalAlignment="Center"
+                                   Margin="12,0,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ActiveProfileName}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                            <Run Text="·  "/>
+                            <Run Text="{Binding ActiveProfileName, Mode=OneWay}"/>
+                            <Run Text=" ACTIVE"/>
+                        </TextBlock>
+                        <Border Margin="12,0,0,0"
+                                Padding="8,3"
+                                CornerRadius="3"
+                                Background="#3D2A0A"
+                                BorderBrush="#F59E0B"
+                                BorderThickness="1"
+                                Visibility="{Binding IsLoggingActive, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="LOGGING · LOCKED"
+                                       FontSize="9" FontWeight="Bold"
+                                       Foreground="#F59E0B"/>
+                        </Border>
+                    </StackPanel>
                     <Button Grid.Column="1"
                             Style="{StaticResource PillButton}"
                             Content="+ ADD PROFILE"
+                            IsEnabled="{Binding IsLoggingActive, Converter={StaticResource BooleanToInverse}}"
                             Command="{Binding OpenNewDrawerCommand}"/>
                 </Grid>
             </Border>
@@ -424,6 +464,7 @@
                 <Button Content="+ ADD PROFILE"
                         Style="{StaticResource AccentPillButton}"
                         HorizontalAlignment="Center"
+                        IsEnabled="{Binding IsLoggingActive, Converter={StaticResource BooleanToInverse}}"
                         Command="{Binding OpenNewDrawerCommand}"/>
             </StackPanel>
 
@@ -438,13 +479,27 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="0 PROFILES"
-                               FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextTertiary}"
-                               VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="0 PROFILES"
+                                   FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextTertiary}"
+                                   VerticalAlignment="Center"/>
+                        <Border Margin="12,0,0,0"
+                                Padding="8,3"
+                                CornerRadius="3"
+                                Background="#3D2A0A"
+                                BorderBrush="#F59E0B"
+                                BorderThickness="1"
+                                Visibility="{Binding IsLoggingActive, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="LOGGING · LOCKED"
+                                       FontSize="9" FontWeight="Bold"
+                                       Foreground="#F59E0B"/>
+                        </Border>
+                    </StackPanel>
                     <Button Grid.Column="1"
                             Style="{StaticResource PillButton}"
                             Content="+ ADD PROFILE"
+                            IsEnabled="{Binding IsLoggingActive, Converter={StaticResource BooleanToInverse}}"
                             Command="{Binding OpenNewDrawerCommand}"/>
                 </Grid>
             </Border>
@@ -455,7 +510,7 @@
               Panel.ZIndex="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="400"/>
+                <ColumnDefinition Width="380"/>
             </Grid.ColumnDefinitions>
 
             <!-- Scrim -->

@@ -32,7 +32,6 @@ public partial class NewProfileChannelItem : ObservableObject
     [ObservableProperty] private bool _isSelected;
     public required IChannel Channel { get; init; }
     public string Name => Channel.Name;
-    public string TypeLabel => Channel.TypeString;
 }
 
 /// <summary>
@@ -52,6 +51,7 @@ public partial class ProfilesPaneViewModel : ObservableObject
     [ObservableProperty] private bool _isLoggingActive;
     [ObservableProperty] private string _drawerError = string.Empty;
     [ObservableProperty] private bool _hasDrawerError;
+    [ObservableProperty] private string? _activeProfileName;
 
     // New-profile form fields (active only when IsNewProfile = true)
     [ObservableProperty] private string _newProfileName = string.Empty;
@@ -79,8 +79,30 @@ public partial class ProfilesPaneViewModel : ObservableObject
         LoggingManager.Instance.PropertyChanged += OnLoggingManagerPropertyChanged;
         IsLoggingActive = LoggingManager.Instance.Active;
         HasProfiles = Profiles.Count > 0;
-        Profiles.CollectionChanged += (_, _) => HasProfiles = Profiles.Count > 0;
+        foreach (var p in Profiles) p.PropertyChanged += OnProfilePropertyChanged;
+        Profiles.CollectionChanged += OnProfilesCollectionChanged;
+        RefreshActiveProfileName();
     }
+
+    private void OnProfilesCollectionChanged(object? sender,
+        System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        HasProfiles = Profiles.Count > 0;
+        if (e.OldItems != null)
+            foreach (Profile p in e.OldItems) p.PropertyChanged -= OnProfilePropertyChanged;
+        if (e.NewItems != null)
+            foreach (Profile p in e.NewItems) p.PropertyChanged += OnProfilePropertyChanged;
+        RefreshActiveProfileName();
+    }
+
+    private void OnProfilePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Profile.IsProfileActive))
+            RefreshActiveProfileName();
+    }
+
+    private void RefreshActiveProfileName() =>
+        ActiveProfileName = Profiles.FirstOrDefault(p => p.IsProfileActive)?.Name;
 
     partial void OnDrawerErrorChanged(string value) => HasDrawerError = !string.IsNullOrEmpty(value);
 
@@ -101,6 +123,11 @@ public partial class ProfilesPaneViewModel : ObservableObject
     private void OpenEditDrawer(Profile? profile)
     {
         if (profile == null) return;
+        if (LoggingManager.Instance.Active)
+        {
+            _logger.AddBreadcrumb("profile", "Blocked opening profile drawer while logging active");
+            return;
+        }
         DrawerError = string.Empty;
         SelectedProfile = profile;
         IsNewProfile = false;
@@ -109,6 +136,11 @@ public partial class ProfilesPaneViewModel : ObservableObject
 
     private void OpenNewDrawer()
     {
+        if (LoggingManager.Instance.Active)
+        {
+            _logger.AddBreadcrumb("profile", "Blocked opening new-profile drawer while logging active");
+            return;
+        }
         DrawerError = string.Empty;
         SelectedProfile = null;
         IsNewProfile = true;
@@ -150,8 +182,11 @@ public partial class ProfilesPaneViewModel : ObservableObject
 
     private void CloseDrawer()
     {
-        if (!IsNewProfile && SelectedProfile != null)
+        if (!IsNewProfile && SelectedProfile != null &&
+            !string.IsNullOrWhiteSpace(SelectedProfile.Name))
+        {
             LoggingManager.Instance.UpdateProfileInXml(SelectedProfile);
+        }
 
         IsDrawerOpen = false;
         DrawerError = string.Empty;
@@ -164,7 +199,10 @@ public partial class ProfilesPaneViewModel : ObservableObject
 
         if (LoggingManager.Instance.Active)
         {
-            ShowError(profile, "Cannot change a profile while logging is active.");
+            // Silent no-op: the status bar shows LOGGING · LOCKED; tiles are
+            // dimmed with a "no" cursor. Opening the drawer to show this error
+            // would contradict the gear button, which is silently blocked.
+            _logger.AddBreadcrumb("profile", "Blocked activate while logging active");
             return;
         }
 
@@ -236,7 +274,9 @@ public partial class ProfilesPaneViewModel : ObservableObject
 
     private void ShowError(Profile profile, string message)
     {
-        OpenEditDrawer(profile);
+        SelectedProfile = profile;
+        IsNewProfile = false;
+        IsDrawerOpen = true;
         DrawerError = message;
     }
 
@@ -314,9 +354,12 @@ public partial class ProfilesPaneViewModel : ObservableObject
         }
 
         var now = DateTime.Now;
+        var name = string.IsNullOrWhiteSpace(NewProfileName)
+            ? $"DAQiFi Profile {now:M/d/yyyy h:mm tt}"
+            : NewProfileName.Trim();
         var profile = new Profile
         {
-            Name = $"DAQiFi Profile {now:M/d/yyyy h:mm tt}",
+            Name = name,
             ProfileId = Guid.NewGuid(),
             CreatedOn = now,
             Devices = [],
@@ -353,6 +396,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
     public void Cleanup()
     {
         LoggingManager.Instance.PropertyChanged -= OnLoggingManagerPropertyChanged;
+        Profiles.CollectionChanged -= OnProfilesCollectionChanged;
+        foreach (var p in Profiles) p.PropertyChanged -= OnProfilePropertyChanged;
         foreach (var item in NewDeviceItems)
             item.PropertyChanged -= OnNewDeviceItemPropertyChanged;
     }
