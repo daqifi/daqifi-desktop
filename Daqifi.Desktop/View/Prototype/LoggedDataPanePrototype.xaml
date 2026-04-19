@@ -277,7 +277,12 @@
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>
-                            <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
                                 <TextBlock Text="{Binding DbLogger.CurrentSession.Name}"
                                            FontFamily="Consolas"
                                            FontSize="16"
@@ -349,7 +354,55 @@
                                                    VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </StackPanel>
-                            </StackPanel>
+                                </StackPanel>
+
+                                <!-- Plot toolbar: zoom + save image -->
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center">
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.ZoomOutXCommand}"
+                                            ToolTip="Zoom out (time)">
+                                        <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.ZoomInXCommand}"
+                                            ToolTip="Zoom in (time)">
+                                        <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.ZoomOutYCommand}"
+                                            ToolTip="Zoom out (analog)">
+                                        <iconPacks:PackIconMaterial Kind="ArrowExpandVertical" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.ZoomInYCommand}"
+                                            ToolTip="Zoom in (analog)">
+                                        <iconPacks:PackIconMaterial Kind="ArrowCollapseVertical" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                    <Rectangle Width="1" Height="16" Margin="4,0"
+                                               Fill="{StaticResource BorderDim}"
+                                               VerticalAlignment="Center"/>
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.ResetZoomCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="Reset zoom">
+                                        <iconPacks:PackIconMaterial Kind="Crosshairs" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.SaveGraphCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="Save as image">
+                                        <iconPacks:PackIconMaterial Kind="ImageOutline" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
                         </Border>
 
                         <!-- Main plot -->
@@ -367,82 +420,6 @@
                                 </Style>
                             </oxy:PlotView.Style>
                         </oxy:PlotView>
-
-                        <!-- Plot toolbar overlay (top-right, save image) -->
-                        <StackPanel Grid.Row="1"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Top"
-                                    Orientation="Horizontal"
-                                    Margin="0,8,20,0">
-                            <StackPanel.Style>
-                                <Style TargetType="StackPanel">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </StackPanel.Style>
-                            <Button Style="{StaticResource PlotIconButton}"
-                                    Command="{Binding DbLogger.SaveGraphCommand}"
-                                    CommandParameter="{Binding}"
-                                    ToolTip="Save as image">
-                                <iconPacks:PackIconMaterial Kind="ImageOutline" Width="14" Height="14"
-                                                            Foreground="{StaticResource TextSecondary}"/>
-                            </Button>
-                        </StackPanel>
-
-                        <!-- Plot toolbar overlay (bottom-right, zoom controls) -->
-                        <StackPanel Grid.Row="1"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Bottom"
-                                    Orientation="Horizontal"
-                                    Margin="0,0,20,4">
-                            <StackPanel.Style>
-                                <Style TargetType="StackPanel">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </StackPanel.Style>
-                            <Button Style="{StaticResource PlotIconButton}"
-                                    Command="{Binding DbLogger.ZoomOutXCommand}"
-                                    ToolTip="Zoom out (time)">
-                                <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" Width="14" Height="14"
-                                                            Foreground="{StaticResource TextSecondary}"/>
-                            </Button>
-                            <Button Style="{StaticResource PlotIconButton}"
-                                    Command="{Binding DbLogger.ZoomInXCommand}"
-                                    ToolTip="Zoom in (time)">
-                                <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" Width="14" Height="14"
-                                                            Foreground="{StaticResource TextSecondary}"/>
-                            </Button>
-                            <Button Style="{StaticResource PlotIconButton}"
-                                    Command="{Binding DbLogger.ResetZoomCommand}"
-                                    CommandParameter="{Binding}"
-                                    ToolTip="Reset zoom">
-                                <iconPacks:PackIconMaterial Kind="Crosshairs" Width="14" Height="14"
-                                                            Foreground="{StaticResource TextSecondary}"/>
-                            </Button>
-                            <StackPanel>
-                                <Button Style="{StaticResource PlotIconButton}"
-                                        Command="{Binding DbLogger.ZoomInYCommand}"
-                                        ToolTip="Zoom in (analog)">
-                                    <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" Width="14" Height="14"
-                                                                Foreground="{StaticResource TextSecondary}"/>
-                                </Button>
-                                <Button Style="{StaticResource PlotIconButton}"
-                                        Command="{Binding DbLogger.ZoomOutYCommand}"
-                                        ToolTip="Zoom out (analog)">
-                                    <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" Width="14" Height="14"
-                                                                Foreground="{StaticResource TextSecondary}"/>
-                                </Button>
-                            </StackPanel>
-                        </StackPanel>
 
                         <!-- Empty state (no session selected) - only when sessions exist but none picked -->
                         <StackPanel Grid.Row="1"
