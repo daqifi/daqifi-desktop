@@ -274,6 +274,11 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         //     LegendItemMode = LegendItemMode.ToggleVisibility // Attempt to set direct interactivity
         // };
 
+        OxyPlotDarkTheme.ApplyTo(PlotModel);
+        OxyPlotDarkTheme.ApplyTo(analogAxis);
+        OxyPlotDarkTheme.ApplyTo(digitalAxis);
+        OxyPlotDarkTheme.ApplyTo(timeAxis);
+
         PlotModel.Axes.Add(analogAxis);
         PlotModel.Axes.Add(digitalAxis);
         PlotModel.Axes.Add(timeAxis);
@@ -315,6 +320,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             PlotMargins = new OxyThickness(4, 2, 4, 2),
             Padding = new OxyThickness(0)
         };
+        OxyPlotDarkTheme.ApplyTo(MinimapPlotModel);
 
         var minimapTimeAxis = new LinearAxis
         {
@@ -350,7 +356,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         // Dim overlays for areas outside the selected range
         _minimapDimLeft = new RectangleAnnotation
         {
-            Fill = OxyColor.FromArgb(150, 200, 200, 200),
+            Fill = OxyPlotDarkTheme.MinimapDim,
             Stroke = OxyColors.Transparent,
             StrokeThickness = 0,
             MinimumX = -1e18,
@@ -364,7 +370,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
         _minimapDimRight = new RectangleAnnotation
         {
-            Fill = OxyColor.FromArgb(150, 200, 200, 200),
+            Fill = OxyPlotDarkTheme.MinimapDim,
             Stroke = OxyColors.Transparent,
             StrokeThickness = 0,
             MinimumX = 0,
@@ -380,8 +386,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         _minimapSelectionRect = new RectangleAnnotation
         {
             Fill = OxyColors.Transparent,
-            Stroke = OxyColor.FromRgb(0, 90, 180),
-            StrokeThickness = 3,
+            Stroke = OxyPlotDarkTheme.Accent,
+            StrokeThickness = 2,
             MinimumY = -1e18,
             MaximumY = 1e18,
             Layer = AnnotationLayer.AboveSeries,
