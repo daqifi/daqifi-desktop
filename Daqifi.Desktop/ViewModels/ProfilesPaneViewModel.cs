@@ -12,69 +12,113 @@ using Daqifi.Desktop.Models;
 namespace Daqifi.Desktop.ViewModels;
 
 /// <summary>
-/// Wraps a connected device for the new-profile creation form so each item
-/// carries its own IsSelected state and a nested channel list.
-/// </summary>
-public partial class NewProfileDeviceItem : ObservableObject
-{
-    [ObservableProperty] private bool _isSelected;
-    public required IStreamingDevice Device { get; init; }
-    public string Name => Device.Name;
-    public string SerialNo => Device.DeviceSerialNo ?? string.Empty;
-    public ObservableCollection<NewProfileChannelItem> ChannelItems { get; } = [];
-}
-
-/// <summary>
-/// Wraps a channel for the new-profile creation form.
-/// </summary>
-public partial class NewProfileChannelItem : ObservableObject
-{
-    [ObservableProperty] private bool _isSelected;
-    public required IChannel Channel { get; init; }
-    public string Name => Channel.Name;
-}
-
-/// <summary>
 /// Backs the unified Profiles pane. Owns drawer state, profile activation,
 /// creation, and deletion without going through DaqifiViewModel.
 /// </summary>
 public partial class ProfilesPaneViewModel : ObservableObject
 {
+    #region Private Fields
     private readonly AppLogger _logger = AppLogger.Instance;
+    private TaskCompletionSource<bool>? _confirmTcs;
+    #endregion
 
-    public ObservableCollection<Profile> Profiles => LoggingManager.Instance.SubscribedProfiles;
-
+    #region Observable Properties
+    /// <summary>True when there is at least one saved profile to display.</summary>
     [ObservableProperty] private bool _hasProfiles;
+
+    /// <summary>True when the edit/new-profile drawer is visible.</summary>
     [ObservableProperty] private bool _isDrawerOpen;
+
+    /// <summary>True when the drawer is showing the "new profile" form rather than editing an existing profile.</summary>
     [ObservableProperty] private bool _isNewProfile;
+
+    /// <summary>The profile currently being edited in the drawer, if any.</summary>
     [ObservableProperty] private Profile? _selectedProfile;
+
+    /// <summary>Mirrors <see cref="LoggingManager.Active"/> to drive the locked-out UI state.</summary>
     [ObservableProperty] private bool _isLoggingActive;
-    [ObservableProperty] private string _drawerError = string.Empty;
-    [ObservableProperty] private bool _hasDrawerError;
+
+    /// <summary>User-facing error message surfaced inside the drawer. <see cref="HasDrawerError"/> recomputes from this.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDrawerError))]
+    private string _drawerError = string.Empty;
+
+    /// <summary>Name of the currently active profile (null when none is active).</summary>
     [ObservableProperty] private string? _activeProfileName;
 
     // In-pane confirm dialog state (used by ShowConfirm for profile switch, etc.).
+
+    /// <summary>True while the in-pane confirm overlay is being displayed.</summary>
     [ObservableProperty] private bool _isConfirmOpen;
+
+    /// <summary>Title shown on the confirm overlay.</summary>
     [ObservableProperty] private string _confirmTitle = string.Empty;
+
+    /// <summary>Body message shown on the confirm overlay.</summary>
     [ObservableProperty] private string _confirmMessage = string.Empty;
+
+    /// <summary>Text displayed on the affirmative (primary) button of the confirm overlay.</summary>
     [ObservableProperty] private string _confirmAffirmativeLabel = "OK";
-    private TaskCompletionSource<bool>? _confirmTcs;
 
     // New-profile form fields (active only when IsNewProfile = true)
+
+    /// <summary>Name bound to the new-profile form.</summary>
     [ObservableProperty] private string _newProfileName = string.Empty;
+
+    /// <summary>Sampling frequency (Hz) bound to the new-profile form. Capped at 1000Hz in the UI.</summary>
     [ObservableProperty] private int _newProfileFrequency = 1000;
+    #endregion
+
+    #region Public Properties
+    /// <summary>
+    /// Computed flag mirroring <see cref="DrawerError"/> being non-empty.
+    /// Raised automatically via <see cref="NotifyPropertyChangedForAttribute"/>
+    /// when <see cref="DrawerError"/> changes.
+    /// </summary>
+    public bool HasDrawerError => !string.IsNullOrEmpty(DrawerError);
+
+    /// <summary>Live view of the saved profiles backed by <see cref="LoggingManager"/>.</summary>
+    public ObservableCollection<Profile> Profiles => LoggingManager.Instance.SubscribedProfiles;
+
+    /// <summary>Devices available to include when building a new profile.</summary>
     public ObservableCollection<NewProfileDeviceItem> NewDeviceItems { get; } = [];
+    #endregion
 
+    #region Commands
+    /// <summary>Opens the drawer to edit the supplied profile.</summary>
     public IRelayCommand<Profile> OpenEditDrawerCommand { get; }
-    public IRelayCommand OpenNewDrawerCommand { get; }
-    public IRelayCommand CloseDrawerCommand { get; }
-    public IAsyncRelayCommand<Profile> ActivateProfileCommand { get; }
-    public IRelayCommand<Profile> DeleteProfileCommand { get; }
-    public IRelayCommand SaveNewProfileCommand { get; }
-    public IRelayCommand SaveCurrentSettingsCommand { get; }
-    public IRelayCommand ConfirmAffirmativeCommand { get; }
-    public IRelayCommand ConfirmNegativeCommand { get; }
 
+    /// <summary>Opens the drawer in new-profile mode with the device list pre-populated.</summary>
+    public IRelayCommand OpenNewDrawerCommand { get; }
+
+    /// <summary>Closes the drawer, persisting edits to the selected profile.</summary>
+    public IRelayCommand CloseDrawerCommand { get; }
+
+    /// <summary>Toggles the supplied profile on/off with a user confirmation when switching.</summary>
+    public IAsyncRelayCommand<Profile> ActivateProfileCommand { get; }
+
+    /// <summary>Deletes the supplied profile when it is not currently active.</summary>
+    public IRelayCommand<Profile> DeleteProfileCommand { get; }
+
+    /// <summary>Saves the new-profile form as a new <see cref="Profile"/>.</summary>
+    public IRelayCommand SaveNewProfileCommand { get; }
+
+    /// <summary>Snapshots the current device configuration into a new profile.</summary>
+    public IRelayCommand SaveCurrentSettingsCommand { get; }
+
+    /// <summary>Affirmative response for the in-pane confirm overlay.</summary>
+    public IRelayCommand ConfirmAffirmativeCommand { get; }
+
+    /// <summary>Negative response for the in-pane confirm overlay.</summary>
+    public IRelayCommand ConfirmNegativeCommand { get; }
+    #endregion
+
+    #region Constructor
+    /// <summary>
+    /// Wires up commands, subscribes to <see cref="LoggingManager"/> and profile
+    /// collection events, and seeds the initial <see cref="HasProfiles"/> /
+    /// <see cref="ActiveProfileName"/> state.
+    /// </summary>
     public ProfilesPaneViewModel()
     {
         OpenEditDrawerCommand = new RelayCommand<Profile>(OpenEditDrawer);
@@ -94,7 +138,9 @@ public partial class ProfilesPaneViewModel : ObservableObject
         Profiles.CollectionChanged += OnProfilesCollectionChanged;
         RefreshActiveProfileName();
     }
+    #endregion
 
+    #region Event Handlers
     private void OnProfilesCollectionChanged(object? sender,
         System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
@@ -112,25 +158,36 @@ public partial class ProfilesPaneViewModel : ObservableObject
             RefreshActiveProfileName();
     }
 
-    private void RefreshActiveProfileName() =>
-        ActiveProfileName = Profiles.FirstOrDefault(p => p.IsProfileActive)?.Name;
-
-    partial void OnDrawerErrorChanged(string value) => HasDrawerError = !string.IsNullOrEmpty(value);
-
-    partial void OnNewProfileNameChanged(string value) =>
-        SaveNewProfileCommand.NotifyCanExecuteChanged();
-
-    private bool CanSaveNewProfile() =>
-        !string.IsNullOrWhiteSpace(NewProfileName) &&
-        NewDeviceItems.Any(d => d.IsSelected) &&
-        NewProfileFrequency > 0;
-
     private void OnLoggingManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(LoggingManager.Active))
             IsLoggingActive = LoggingManager.Instance.Active;
     }
 
+    partial void OnNewProfileNameChanged(string value) =>
+        SaveNewProfileCommand.NotifyCanExecuteChanged();
+
+    private void OnNewDeviceItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not NewProfileDeviceItem deviceItem ||
+            e.PropertyName != nameof(NewProfileDeviceItem.IsSelected))
+            return;
+
+        if (deviceItem.IsSelected)
+        {
+            foreach (var ch in deviceItem.Device.DataChannels.NaturalOrderBy(c => c.Name))
+                deviceItem.ChannelItems.Add(new NewProfileChannelItem { Channel = ch });
+        }
+        else
+        {
+            deviceItem.ChannelItems.Clear();
+        }
+
+        SaveNewProfileCommand.NotifyCanExecuteChanged();
+    }
+    #endregion
+
+    #region Drawer Lifecycle
     private void OpenEditDrawer(Profile? profile)
     {
         if (profile == null) return;
@@ -172,25 +229,6 @@ public partial class ProfilesPaneViewModel : ObservableObject
         IsDrawerOpen = true;
     }
 
-    private void OnNewDeviceItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (sender is not NewProfileDeviceItem deviceItem ||
-            e.PropertyName != nameof(NewProfileDeviceItem.IsSelected))
-            return;
-
-        if (deviceItem.IsSelected)
-        {
-            foreach (var ch in deviceItem.Device.DataChannels.NaturalOrderBy(c => c.Name))
-                deviceItem.ChannelItems.Add(new NewProfileChannelItem { Channel = ch });
-        }
-        else
-        {
-            deviceItem.ChannelItems.Clear();
-        }
-
-        SaveNewProfileCommand.NotifyCanExecuteChanged();
-    }
-
     private void CloseDrawer()
     {
         if (!IsNewProfile && SelectedProfile != null &&
@@ -203,7 +241,9 @@ public partial class ProfilesPaneViewModel : ObservableObject
         DrawerError = string.Empty;
         SelectedProfile = null;
     }
+    #endregion
 
+    #region Activation
     private async Task ActivateProfile(Profile? profile)
     {
         if (profile == null) return;
@@ -271,7 +311,11 @@ public partial class ProfilesPaneViewModel : ObservableObject
                 !string.IsNullOrEmpty(pd.DeviceSerialNo) &&
                 string.Equals(cd.DeviceSerialNo, pd.DeviceSerialNo, StringComparison.OrdinalIgnoreCase) &&
                 !claimed.Contains(cd));
-            if (exact != null) { result[pd] = exact; claimed.Add(exact); }
+            if (exact != null)
+            {
+                result[pd] = exact;
+                claimed.Add(exact);
+            }
         }
 
         foreach (var pd in profile.Devices)
@@ -279,7 +323,11 @@ public partial class ProfilesPaneViewModel : ObservableObject
             if (result.ContainsKey(pd)) continue;
             var modelMatch = connected.FirstOrDefault(cd =>
                 cd.DevicePartNumber == pd.DevicePartName && !claimed.Contains(cd));
-            if (modelMatch != null) { result[pd] = modelMatch; claimed.Add(modelMatch); }
+            if (modelMatch != null)
+            {
+                result[pd] = modelMatch;
+                claimed.Add(modelMatch);
+            }
         }
 
         return result;
@@ -289,9 +337,16 @@ public partial class ProfilesPaneViewModel : ObservableObject
     /// Apply the channel + frequency intent of a profile to its matched devices.
     /// When <paramref name="activate"/> is true, sets the streaming frequency,
     /// adds the profile's active channels, and subscribes them. When false,
-    /// removes all channels from the matched devices and unsubscribes the
-    /// profile's channels. Flips <see cref="Profile.IsProfileActive"/> last.
+    /// unsubscribes the profile's channels first, then removes all channels
+    /// from the matched devices. Flips <see cref="Profile.IsProfileActive"/> last.
     /// </summary>
+    /// <remarks>
+    /// Order matters on deactivate: <see cref="AbstractStreamingDevice.RemoveAllChannels"/>
+    /// clears <c>IChannel.IsActive</c> on every channel, and
+    /// <see cref="LoggingManager.Unsubscribe"/> only removes channels whose
+    /// <c>IsActive</c> is still true. Calling Unsubscribe after RemoveAllChannels
+    /// would leave stale subscriptions behind.
+    /// </remarks>
     private void ApplyProfileToDevices(
         Profile profile,
         Dictionary<ProfileDevice, IStreamingDevice> matches,
@@ -315,8 +370,11 @@ public partial class ProfilesPaneViewModel : ObservableObject
             }
             else
             {
-                device.RemoveAllChannels();
+                // Unsubscribe BEFORE RemoveAllChannels — Unsubscribe's lookup
+                // filters by IsActive, and RemoveAllChannels sets IsActive=false
+                // on every channel, which would make Unsubscribe a silent no-op.
                 foreach (var ch in channels) LoggingManager.Instance.Unsubscribe(ch);
+                device.RemoveAllChannels();
             }
         }
 
@@ -324,7 +382,9 @@ public partial class ProfilesPaneViewModel : ObservableObject
         _logger.AddBreadcrumb("profile",
             $"Profile {(activate ? "activated" : "deactivated")}: {profile.Name}");
     }
+    #endregion
 
+    #region Confirm Overlay
     /// <summary>
     /// Displays the in-pane dark confirm overlay and returns true if the user
     /// chose the affirmative button. The overlay is bound to
@@ -354,7 +414,9 @@ public partial class ProfilesPaneViewModel : ObservableObject
         _confirmTcs = null;
         tcs?.TrySetResult(result);
     }
+    #endregion
 
+    #region Profile CRUD
     private void ShowError(Profile profile, string message)
     {
         SelectedProfile = profile;
@@ -475,7 +537,23 @@ public partial class ProfilesPaneViewModel : ObservableObject
         LoggingManager.Instance.SubscribeProfile(profile);
         CloseDrawer();
     }
+    #endregion
 
+    #region Helpers
+    private void RefreshActiveProfileName() =>
+        ActiveProfileName = Profiles.FirstOrDefault(p => p.IsProfileActive)?.Name;
+
+    private bool CanSaveNewProfile() =>
+        !string.IsNullOrWhiteSpace(NewProfileName) &&
+        NewDeviceItems.Any(d => d.IsSelected) &&
+        NewProfileFrequency > 0;
+    #endregion
+
+    #region Cleanup
+    /// <summary>
+    /// Detaches every event handler the view model subscribed to and releases
+    /// any pending confirm-dialog awaiter. Call when the hosting view unloads.
+    /// </summary>
     public void Cleanup()
     {
         LoggingManager.Instance.PropertyChanged -= OnLoggingManagerPropertyChanged;
@@ -487,4 +565,5 @@ public partial class ProfilesPaneViewModel : ObservableObject
         _confirmTcs?.TrySetResult(false);
         _confirmTcs = null;
     }
+    #endregion
 }
