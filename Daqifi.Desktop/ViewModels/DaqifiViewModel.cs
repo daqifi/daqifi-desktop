@@ -53,7 +53,7 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     private bool _isLoggedDataBusy;
     [ObservableProperty]
-    private bool _isProfileSettingsOpen;
+    private bool _isDeviceSettingsOpen;
     [ObservableProperty]
     private bool _isNotificationsOpen;
     [ObservableProperty]
@@ -103,9 +103,6 @@ public partial class DaqifiViewModel : ObservableObject
     private IStreamingDevice? _selectedDevice;
 
     private VersionNotification? _versionNotification;
-    private IStreamingDevice _updateProfileSelectedDevice;
-    [ObservableProperty]
-    private Profile _selectedProfile;
     [ObservableProperty]
     private LoggingSession _selectedLoggingSession;
     private bool _isLogging;
@@ -167,19 +164,6 @@ public partial class DaqifiViewModel : ObservableObject
     public PlotLogger Plotter { get; private set; }
     public DatabaseLogger DbLogger { get; private set; }
     public SummaryLogger SummaryLogger { get; private set; }
-    public ObservableCollection<IStreamingDevice> AvailableDevices { get; } = [];
-    public ObservableCollection<IChannel> AvailableChannels { get; } = [];
-
-    public IStreamingDevice UpdateProfileSelectedDevice
-    {
-        get => _updateProfileSelectedDevice;
-        set
-        {
-            _updateProfileSelectedDevice = value;
-            GetAvailableChannels(_updateProfileSelectedDevice);
-            OnPropertyChanged();
-        }
-    }
 
     public bool IsLogging
     {
@@ -501,8 +485,6 @@ public partial class DaqifiViewModel : ObservableObject
                     // Notifications
                     _versionNotification = new VersionNotification();
                     _ = LoggingManager.Instance.CheckApplicationVersion(_versionNotification);
-
-                    GetUpdateProfileAvailableDevice();
 
                     // Summary Logger
                     SummaryLogger = new SummaryLogger();
@@ -1587,49 +1569,7 @@ public partial class DaqifiViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
-    public void ShowAddProfileDialog()
-    {
-        try
-        {
-            if (!EnsureAnyDeviceConnected()) return;
-
-            var addProfileDialogViewModel = new AddProfileDialogViewModel();
-            _dialogService.ShowDialog<AddprofileDialog>(this, addProfileDialogViewModel);
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex, "Error opening add profile dialog");
-        }
-    }
-
-    [RelayCommand]
-    private void ShowAddProfileConfirmation()
-    {
-        try
-        {
-            if (!EnsureAnyDeviceConnected()) return;
-
-            LoggingManager.Instance.AddAndRemoveProfileXml(null, false);
-            var addProfileConfirmationDialogViewModel = new AddProfileConfirmationDialogViewModel();
-            _dialogService.ShowDialog<AddProfileConfirmationDialog>(this, addProfileConfirmationDialogViewModel);
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex, "Error opening confirmation dialog");
-        }
-    }
-
-    [RelayCommand]
-    public void GetUpdateProfileAvailableDevice()
-    {
-        foreach (var device in ConnectionManager.Instance.ConnectedDevices)
-        {
-            AvailableDevices.Add(device);
-        }
-    }
-
-    #region Firmware version checking methods 
+    #region Firmware version checking methods
 
     private string _latestFirmwareVersion;
     public string LatestFirmwareVersionText => _latestFirmwareVersion;
@@ -1734,386 +1674,9 @@ public partial class DaqifiViewModel : ObservableObject
     #endregion
 
     [RelayCommand]
-    private void RemoveProfile(Profile? profile)
-    {
-        if (profile == null)
-        {
-            return;
-        }
-        if (LoggingManager.Instance.Active)
-        {
-            var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while logging");
-            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-            return;
-        }
-        if (profile.IsProfileActive)
-        {
-            var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while profile is active");
-            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-            return;
-        }
-        if (Profiles.Any(x => x.IsProfileActive))
-        {
-            var errorDialogViewModel = new ErrorDialogViewModel("Cannot remove profile while profile is active");
-            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-            return;
-        }
-        LoggingManager.Instance.UnsubscribeProfile(profile);
-        ActiveChannels.Clear();
-        ActiveInputChannels.Clear();
-        Profiles.Remove(profile);
-    }
-
-    [RelayCommand]
     private void OpenNotifications()
     {
         IsNotificationsOpen = true;
-    }
-
-    [RelayCommand]
-    private void OpenProfileSettings()
-    {
-        if (SelectedProfile == null)
-        {
-            _appLogger.Error("Error opening channel settings");
-            return;
-        }
-        CloseFlyouts();
-        if (LoggingManager.Instance.Active)
-        {
-            var errorDialogViewModel = new ErrorDialogViewModel("Cannot edit profile while logging");
-            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-            return;
-        }
-        if (SelectedProfile.IsProfileActive)
-        {
-            var errorDialogViewModel = new ErrorDialogViewModel("Cannot edit profile while profile is active");
-            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-            return;
-        }
-
-        LoggingManager.Instance.SelectedProfile = SelectedProfile;
-        LoggingManager.Instance.Flag = false;
-        LoggingManager.Instance.SelectedProfileChannels.Clear();
-        LoggingManager.Instance.SelectedProfileDevices.Clear();
-
-        // Build profile-to-device mapping using two-pass strategy
-        var claimedDevices = new HashSet<IStreamingDevice>();
-        var profileToDevice = new Dictionary<ProfileDevice, IStreamingDevice>();
-
-        // Pass 1: Prefer exact serial number match
-        foreach (var profileDev in SelectedProfile.Devices)
-        {
-            var exactMatch = ConnectionManager.Instance.ConnectedDevices.FirstOrDefault(cd =>
-                !string.IsNullOrEmpty(profileDev.DeviceSerialNo) &&
-                string.Equals(cd.DeviceSerialNo, profileDev.DeviceSerialNo, StringComparison.OrdinalIgnoreCase) &&
-                !claimedDevices.Contains(cd));
-
-            if (exactMatch != null)
-            {
-                profileToDevice[profileDev] = exactMatch;
-                claimedDevices.Add(exactMatch);
-            }
-        }
-
-        // Pass 2: Fall back to model match for unmatched profile devices
-        foreach (var profileDev in SelectedProfile.Devices)
-        {
-            if (profileToDevice.ContainsKey(profileDev))
-            {
-                continue;
-            }
-
-            var modelMatch = ConnectionManager.Instance.ConnectedDevices.FirstOrDefault(cd =>
-                cd.DevicePartNumber == profileDev.DevicePartName &&
-                !claimedDevices.Contains(cd));
-
-            if (modelMatch != null)
-            {
-                profileToDevice[profileDev] = modelMatch;
-                claimedDevices.Add(modelMatch);
-            }
-        }
-
-        foreach (var selectedDevice in SelectedProfile.Devices)
-        {
-            LoggingManager.Instance.SelectedProfileDevices.Add(selectedDevice);
-            if (selectedDevice.Channels != null && selectedDevice.Channels.Count > 0)
-            {
-                foreach (var selectedchannel in selectedDevice.Channels)
-                {
-                    if (selectedchannel.IsChannelActive)
-                    {
-                        selectedchannel.SerialNo = selectedDevice.DeviceSerialNo;
-                        LoggingManager.Instance.SelectedProfileChannels.Add(selectedchannel);
-                    }
-                }
-            }
-
-            // Use the matched connected device from two-pass mapping
-            if (profileToDevice.TryGetValue(selectedDevice, out var device))
-            {
-                foreach (var channels in device.DataChannels)
-                {
-                    // Check if the channel is already in the selected profile channels
-                    var profileChannel = LoggingManager.Instance.SelectedProfileChannels
-                        .FirstOrDefault(x => x.Name == channels.Name && x.SerialNo == selectedDevice.DeviceSerialNo);
-
-                    if (profileChannel == null)
-                    {
-                        profileChannel = new ProfileChannel
-                        {
-                            Name = channels.Name,
-                            SerialNo = selectedDevice.DeviceSerialNo,
-                            Type = channels.TypeString,
-                            IsChannelActive = false,
-                        };
-                        LoggingManager.Instance.SelectedProfileChannels.Add(profileChannel);
-                    }
-                }
-            }
-
-            var deviceSelected = LoggingManager.Instance.SelectedProfileDevices.FirstOrDefault(x => x.DeviceSerialNo == selectedDevice.DeviceSerialNo);
-            if (deviceSelected?.Channels is { Count: > 0 })
-            {
-                deviceSelected.Channels.Clear();
-                deviceSelected.Channels = LoggingManager.Instance.SelectedProfileChannels.Where(x => x.SerialNo == selectedDevice.DeviceSerialNo).ToList();
-            }
-        }
-        LoggingManager.Instance.callPropertyChange();
-        IsProfileSettingsOpen = true;
-    }
-
-    [RelayCommand]
-    public void GetAvailableChannels(IStreamingDevice device)
-    {
-        AvailableChannels.Clear();
-
-        // Sort channels naturally by name before adding to collection
-        var sortedChannels = device.DataChannels.NaturalOrderBy(channel => channel.Name);
-
-        foreach (var channel in sortedChannels)
-        {
-            AvailableChannels.Add(channel);
-        }
-    }
-
-    [RelayCommand]
-    public void SaveExistingSetting()
-    {
-        try
-        {
-            if (!EnsureAnyDeviceConnected()) return;
-
-            if (ConnectionManager.Instance.ConnectedDevices.Count > 2)
-            {
-                var errorDialogViewModel = new ErrorDialogViewModel("Cannot add profile with  connected devices more than two");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                return;
-            }
-            var addProfileModel = new AddProfileModel
-            {
-                ProfileList = []
-            };
-
-            var createdDate = DateTime.Now;
-            var newProfile = new Profile
-            {
-
-                Name = "DAQiFi Profile " + createdDate,
-                ProfileId = Guid.NewGuid(),
-                CreatedOn = createdDate,
-                Devices = []
-            };
-
-            foreach (var selectedDevice in ConnectedDevices)
-            {
-                if (selectedDevice?.DataChannels?.Count > 0)
-                {
-                    var device = new ProfileDevice
-                    {
-                        MacAddress = selectedDevice.MacAddress,
-                        DeviceName = selectedDevice.Name,
-                        DevicePartName = selectedDevice.DevicePartNumber,
-                        DeviceSerialNo = selectedDevice.DeviceSerialNo,
-                        SamplingFrequency = selectedDevice.StreamingFrequency,
-                        Channels = new List<ProfileChannel>()
-                    };
-
-                    foreach (var dataChannel in selectedDevice.DataChannels)
-                    {
-                        if (dataChannel.IsActive)
-                        {
-                            var profileChannel = new ProfileChannel
-                            {
-                                Name = dataChannel.Name,
-                                Type = dataChannel.TypeString,
-                                IsChannelActive = true,
-                                SerialNo = dataChannel.DeviceSerialNo
-                            };
-                            // Add the active channel to the current device
-                            device.Channels.Add(profileChannel);
-                        }
-                    }
-                    // Add the device to the profile
-                    newProfile.Devices.Add(device);
-                }
-            }
-            addProfileModel.ProfileList.Add(newProfile);
-            LoggingManager.Instance.SubscribeProfile(newProfile);
-            _appLogger.AddBreadcrumb("profile", $"Profile saved: {newProfile.Name}");
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex, "Error saving existing settings");
-        }
-    }
-
-    [RelayCommand]
-    private void ActivateProfile(Profile? profile)
-    {
-        try
-        {
-            if (profile == null)
-            {
-                return;
-            }
-
-            SelectedProfile = profile;
-
-            // Check for multiple active profiles
-            var anyActiveProfile = Profiles.FirstOrDefault(x => x.IsProfileActive);
-            if (anyActiveProfile != null && anyActiveProfile.ProfileId != SelectedProfile.ProfileId)
-            {
-                var errorDialogViewModel = new ErrorDialogViewModel("Multiple Profiles Cannot be Active.");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                _appLogger.Error("Multiple Profiles Cannot be Active.");
-                return;
-            }
-
-            // Build profile-to-device mapping using two-pass strategy:
-            // Pass 1: exact serial number match
-            // Pass 2: fall back to model match for unmatched profile devices
-            var claimedDevices = new HashSet<IStreamingDevice>();
-            var profileToDevice = new Dictionary<ProfileDevice, IStreamingDevice>();
-
-            // Pass 1: Prefer exact serial number match
-            foreach (var profileDevice in SelectedProfile.Devices)
-            {
-                var exactMatch = ConnectedDevices.FirstOrDefault(cd =>
-                    !string.IsNullOrEmpty(profileDevice.DeviceSerialNo) &&
-                    string.Equals(cd.DeviceSerialNo, profileDevice.DeviceSerialNo, StringComparison.OrdinalIgnoreCase) &&
-                    !claimedDevices.Contains(cd));
-
-                if (exactMatch != null)
-                {
-                    profileToDevice[profileDevice] = exactMatch;
-                    claimedDevices.Add(exactMatch);
-                }
-            }
-
-            // Pass 2: Fall back to model match for unmatched profile devices
-            foreach (var profileDevice in SelectedProfile.Devices)
-            {
-                if (profileToDevice.ContainsKey(profileDevice))
-                {
-                    continue;
-                }
-
-                var modelMatch = ConnectedDevices.FirstOrDefault(cd =>
-                    cd.DevicePartNumber == profileDevice.DevicePartName &&
-                    !claimedDevices.Contains(cd));
-
-                if (modelMatch != null)
-                {
-                    profileToDevice[profileDevice] = modelMatch;
-                    claimedDevices.Add(modelMatch);
-                }
-            }
-
-            // Block only if no devices were matched
-            if (profileToDevice.Count == 0)
-            {
-                var errorDialogViewModel = new ErrorDialogViewModel("Profile cannot be active. No connected devices with matching device model.");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                return;
-            }
-
-            // Warn if some profile devices could not be matched (count-aware)
-            var unmatchedProfileDevices = SelectedProfile.Devices
-                .Where(pd => !profileToDevice.ContainsKey(pd))
-                .ToList();
-            if (unmatchedProfileDevices.Count > 0)
-            {
-                var warningMsg = $"Warning: The following devices from the profile are not currently connected: {string.Join(", ", unmatchedProfileDevices.Select(d => $"{d.DeviceName} (S/N: {d.DeviceSerialNo})"))}. Profile will be loaded with available devices.";
-                var warningDialogViewModel = new ErrorDialogViewModel(warningMsg);
-                _dialogService.ShowDialog<ErrorDialog>(this, warningDialogViewModel);
-            }
-
-            // Check if logging is active
-            if (LoggingManager.Instance.Active)
-            {
-                var errorDialogViewModel = new ErrorDialogViewModel("Profile cannot be active while logging.");
-                _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
-                return;
-            }
-
-            // Iterate through matched profile-device pairs
-            foreach (var (profileDevice, connectedDevice) in profileToDevice)
-            {
-                SelectedDevice = connectedDevice;
-                UpdateProfileSelectedDevice = SelectedDevice;
-
-                // Update device frequencies
-                SelectedStreamingFrequency = profileDevice.SamplingFrequency;
-                connectedDevice.StreamingFrequency = profileDevice.SamplingFrequency;
-
-                // Collect matching channels for this specific profile device
-                var channelsToActivate = new List<IChannel>();
-                foreach (var channel in profileDevice.Channels)
-                {
-                    if (!channel.IsChannelActive)
-                    {
-                        continue;
-                    }
-
-                    // Match channel by name, type, and the connected device's model
-                    var matchedChannel = AvailableChannels
-                        .FirstOrDefault(x => x.Name == channel.Name.Trim() &&
-                                             x.TypeString == channel.Type.Trim() &&
-                                             x.DeviceName == connectedDevice.DevicePartNumber);
-
-                    if (matchedChannel != null)
-                    {
-                        channelsToActivate.Add(matchedChannel);
-                    }
-                }
-
-                if (SelectedProfile.IsProfileActive)
-                {
-                    connectedDevice.RemoveAllChannels();
-                    foreach (var ch in channelsToActivate)
-                    {
-                        LoggingManager.Instance.Unsubscribe(ch);
-                    }
-                }
-                else
-                {
-                    connectedDevice.AddChannels(channelsToActivate);
-                    foreach (var ch in channelsToActivate)
-                    {
-                        LoggingManager.Instance.Subscribe(ch);
-                    }
-                }
-            }
-            // Toggle profile's active state
-            SelectedProfile.IsProfileActive = !SelectedProfile.IsProfileActive;
-            _appLogger.AddBreadcrumb("profile", $"Profile {(SelectedProfile.IsProfileActive ? "activated" : "deactivated")}: {SelectedProfile.Name}");
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error("Error activating Profile: " + ex.Message);
-        }
     }
 
     private void ShowUploadSuccessMessage()
@@ -2214,8 +1777,6 @@ public partial class DaqifiViewModel : ObservableObject
                 {
                     LoggingManager.Instance.Unsubscribe(orphan);
                 }
-
-                GetUpdateProfileAvailableDevice();
                 break;
             case "SubscribedChannels":
                 ActiveChannels.Clear();
@@ -2278,7 +1839,7 @@ public partial class DaqifiViewModel : ObservableObject
     }
     public void CloseFlyouts()
     {
-        IsProfileSettingsOpen = false;
+        IsDeviceSettingsOpen = false;
         IsLoggingSessionSettingsOpen = false;
         IsLiveGraphSettingsOpen = false;
         IsLogSummaryOpen = false;
