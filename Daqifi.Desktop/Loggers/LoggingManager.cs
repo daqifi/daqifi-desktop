@@ -103,8 +103,20 @@ public partial class LoggingManager : ObservableObject
 
             using (var context = _loggingContext.CreateDbContext())
             {
-                var ids = context.Sessions.AsNoTracking().Select(s => s.ID).ToList();
-                var newId = ids.Count > 0 ? ids.Max() + 1 : 0;
+                // Pick an ID that cannot collide with any existing row in any
+                // related table. Sessions.ID is manually assigned (not IDENTITY),
+                // so reusing the max+1 across only the Sessions table can hand
+                // out an ID that is still referenced by orphan rows in
+                // SessionDeviceMetadata or Samples (e.g., from a prior crash, or
+                // a delete that ran without SQLite foreign keys enabled). The
+                // composite PK on SessionDeviceMetadata then rejects the insert
+                // with UNIQUE constraint failed and the toggle appears to do
+                // nothing on the second attempt.
+                var sessionsMax = context.Sessions.AsNoTracking().Select(s => (int?)s.ID).Max();
+                var metadataMax = context.SessionDeviceMetadata.AsNoTracking().Select(m => (int?)m.LoggingSessionID).Max();
+                var samplesMax = context.Samples.AsNoTracking().Select(s => (int?)s.LoggingSessionID).Max();
+                var maxKnownId = Math.Max(sessionsMax ?? -1, Math.Max(metadataMax ?? -1, samplesMax ?? -1));
+                var newId = maxKnownId + 1;
                 var name = $"Session_{newId}";
                 Session = new LoggingSession(newId, name);
                 context.Sessions.Add(Session);
@@ -575,6 +587,23 @@ public partial class LoggingManager : ObservableObject
         {
             context.Sessions.RemoveRange(emptySessions);
             context.SaveChanges();
+        }
+
+        // Sweep orphan SessionDeviceMetadata rows whose Sessions row is gone.
+        // SQLite cascade delete only fires when PRAGMA foreign_keys=ON for the
+        // active connection; if any prior delete ran without it, metadata for
+        // long-gone sessions can linger and collide with future session IDs
+        // (the composite PK rejects the new insert with UNIQUE constraint
+        // failed on SessionDeviceMetadata). Clearing them at startup makes
+        // the database self-heal on the next launch.
+        try
+        {
+            context.Database.ExecuteSqlRaw(
+                "DELETE FROM SessionDeviceMetadata WHERE LoggingSessionID NOT IN (SELECT ID FROM Sessions)");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, "Failed to clean orphan SessionDeviceMetadata rows on startup.");
         }
 
         // One-time backfill: any session created before the SampleCount column
