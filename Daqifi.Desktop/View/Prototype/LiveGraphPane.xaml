@@ -270,10 +270,49 @@
             </Grid.ColumnDefinitions>
 
             <!-- Plot area -->
-            <oxy:PlotView x:Name="DataLog"
-                          Grid.Column="0"
-                          Model="{Binding Plotter.PlotModel}"
-                          TabIndex="0"/>
+            <Grid Grid.Column="0">
+                <oxy:PlotView x:Name="DataLog"
+                              Model="{Binding Plotter.PlotModel}"
+                              TabIndex="0"/>
+
+                <!-- Empty-state overlay: shown when no channels are streaming -->
+                <Border IsHitTestVisible="False"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Padding="24,16"
+                        Background="{StaticResource SurfaceRaised}"
+                        BorderBrush="{StaticResource BorderDim}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ActiveInputChannels.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel HorizontalAlignment="Center">
+                        <iconPacks:PackIconMaterial Kind="ChartLineVariant"
+                                                    Width="28" Height="28"
+                                                    Foreground="{StaticResource TextTertiary}"
+                                                    HorizontalAlignment="Center"
+                                                    Margin="0,0,0,10"/>
+                        <TextBlock Text="No channels streaming"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="Enable channels in the Channels tab to see live data."
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextTertiary}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <!-- ── Channel legend sidebar ── -->
             <Border Grid.Column="1"
@@ -298,6 +337,26 @@
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource TextTertiary}"/>
                     </Border>
+
+                    <!-- Sidebar empty state — visible when no active channels -->
+                    <TextBlock Grid.Row="1"
+                               Text="No channels active yet."
+                               FontSize="11"
+                               Foreground="{StaticResource TextTertiary}"
+                               TextWrapping="Wrap"
+                               Margin="14,12,14,0"
+                               VerticalAlignment="Top">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ActiveInputChannels.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
                     <!-- Channel list -->
                     <ListView Grid.Row="1"

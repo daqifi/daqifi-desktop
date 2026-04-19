@@ -17,7 +17,10 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:DaqifiViewModel}"
         service:DialogService.IsRegisteredView="True"
-        Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black">
+        Height="{Binding Height, Mode=TwoWay}" Width="{Binding Width, Mode=TwoWay}" WindowState="{Binding ViewWindowState, Mode=OneWayToSource}" BorderThickness="0" GlowBrush="Black"
+        WindowTitleBrush="{StaticResource Surface}"
+        NonActiveWindowTitleBrush="{StaticResource Surface}"
+        TitleForeground="{StaticResource TextPrimary}">
 
 
     <controls:MetroWindow.RightWindowCommands>
@@ -58,12 +61,12 @@
                 <Button.Content>
                     <Grid>
                         <iconPacks:PackIconMaterial Kind="BellOutline" VerticalAlignment="Center" HorizontalAlignment="Center" Height="20" Width="20"/>
-                        <Border Background="Red" 
-                       HorizontalAlignment="Right" 
-                       VerticalAlignment="Top" 
-                       Width="10" 
-                       Height="10" 
-                       CornerRadius="7.5" 
+                        <Border Background="{StaticResource StatusRed}"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Top"
+                       Width="10"
+                       Height="10"
+                       CornerRadius="7.5"
                        Margin="5 0 0 0"
                        Visibility="{Binding NotificationCount, Converter={StaticResource IntToVisibility}}">
                             <TextBlock Text="{Binding NotificationCount}" 
