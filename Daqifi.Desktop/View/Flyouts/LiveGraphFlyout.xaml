@@ -13,8 +13,8 @@
              IsOpen="{Binding IsLiveGraphSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
              Position="Right"
              Header="Plot Settings"
-             Background="#171A20"
-             Foreground="#F5F5F7">
+             Background="{DynamicResource SurfaceRaised}"
+             Foreground="{DynamicResource TextPrimary}">
 
     <controls:Flyout.Resources>
 
@@ -23,27 +23,27 @@
         <Style x:Key="DrawerSectionLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#5A5E66"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextTertiary}"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
         </Style>
 
         <Style x:Key="DrawerRowLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Foreground" Value="#8E9199"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
         <!-- Dark toggle switch inside the flyout -->
         <Style x:Key="FlyoutToggle" TargetType="controls:ToggleSwitch"
                BasedOn="{StaticResource MahApps.Styles.ToggleSwitch}">
-            <Setter Property="Foreground" Value="#F5F5F7"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
             <Setter Property="OffContent" Value="Off"/>
             <Setter Property="OnContent" Value="On"/>
         </Style>
 
     </controls:Flyout.Resources>
 
-    <Grid Background="#171A20" Margin="0,8,0,0">
+    <Grid Background="{DynamicResource SurfaceRaised}" Margin="0,8,0,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -52,7 +52,7 @@
 
         <!-- ── Grid visibility ── -->
         <Border Grid.Row="0"
-                BorderBrush="#2A2F38"
+                BorderBrush="{DynamicResource BorderDim}"
                 BorderThickness="0,0,0,1"
                 Padding="20,16,20,16">
             <StackPanel>
@@ -126,7 +126,7 @@
                                Text="{Binding Plotter.Precision, UpdateSourceTrigger=PropertyChanged}"
                                FontFamily="Consolas"
                                FontSize="16"
-                               Foreground="#F5F5F7"
+                               Foreground="{DynamicResource TextPrimary}"
                                VerticalAlignment="Center"
                                MinWidth="20"
                                TextAlignment="Center"/>
