@@ -46,6 +46,7 @@
             <converters:BoolToStatusColorConverter x:Key="BoolToStatusColor"/>
             <converters:ListToStringConverter x:Key="ListToStringConverter"/>
             <converters:BrushColorMatchConverter x:Key="BrushColorMatch"/>
+            <converters:OxyColorToBrushConverter x:Key="OxyColorToBrushConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

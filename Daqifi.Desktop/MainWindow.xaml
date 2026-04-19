@@ -194,7 +194,6 @@
             </Setter>
         </Style>
 
-        <converters:OxyColorToBrushConverter x:Key="OxyColorToBrushConverter"/>
         <converters:StringRightConverter x:Key="StringRightConverter"/>
 
         <Style x:Key="TransparentButtonStyle" TargetType="Button">
