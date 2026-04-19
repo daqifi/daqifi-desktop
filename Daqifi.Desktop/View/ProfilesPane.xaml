@@ -1,0 +1,956 @@
+<UserControl x:Class="Daqifi.Desktop.View.ProfilesPane"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+             xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:ProfilesPaneViewModel}"
+             d:DesignHeight="800" d:DesignWidth="900">
+
+    <UserControl.Resources>
+
+        <!--
+            Color tokens (Surface, SurfaceRaised, BorderDim, TextPrimary, Accent,
+            StatusGreen, StatusAmber, StatusRed, etc.) are defined in
+            /Resources/DesignTokens.xaml and merged in via App.xaml.
+            See docs/design-philosophy.md.
+        -->
+
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize"          Value="11"/>
+            <Setter Property="FontWeight"        Value="SemiBold"/>
+            <Setter Property="Foreground"        Value="{StaticResource TextSecondary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="PillButton" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="BorderBrush"     Value="{StaticResource BorderDim}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground"      Value="{StaticResource TextSecondary}"/>
+            <Setter Property="Padding"         Value="14,5"/>
+            <Setter Property="FontSize"        Value="10"/>
+            <Setter Property="FontWeight"      Value="SemiBold"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="14"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource BorderBright}"/>
+                    <Setter Property="Background"  Value="#141821"/>
+                    <Setter Property="Foreground"  Value="{StaticResource TextPrimary}"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.35"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AccentPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
+            <Setter Property="Background"  Value="{StaticResource Accent}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+            <Setter Property="Foreground"  Value="White"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background"  Value="#0D8CC4"/>
+                    <Setter Property="BorderBrush" Value="#0D8CC4"/>
+                    <Setter Property="Foreground"  Value="White"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DangerPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
+            <Setter Property="BorderBrush" Value="{StaticResource StatusRed}"/>
+            <Setter Property="Foreground"  Value="{StaticResource StatusRed}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background"  Value="#1A0A0D"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource StatusRed}"/>
+                    <Setter Property="Foreground"  Value="{StaticResource StatusRed}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DrawerTextBox" TargetType="TextBox">
+            <Setter Property="Background"               Value="{StaticResource Surface}"/>
+            <Setter Property="BorderBrush"              Value="{StaticResource BorderDim}"/>
+            <Setter Property="BorderThickness"          Value="1"/>
+            <Setter Property="Foreground"               Value="{StaticResource TextPrimary}"/>
+            <Setter Property="CaretBrush"               Value="{StaticResource TextPrimary}"/>
+            <Setter Property="FontFamily"               Value="Consolas"/>
+            <Setter Property="FontSize"                 Value="14"/>
+            <Setter Property="Height"                   Value="34"/>
+            <Setter Property="Padding"                  Value="10,0"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkCheckBox" TargetType="CheckBox">
+            <Setter Property="Foreground"               Value="{StaticResource TextSecondary}"/>
+            <Setter Property="FontSize"                 Value="11"/>
+            <Setter Property="Cursor"                   Value="Hand"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <StackPanel Orientation="Horizontal">
+                            <Border x:Name="Box"
+                                    Width="14" Height="14"
+                                    CornerRadius="2"
+                                    Background="Transparent"
+                                    BorderBrush="{StaticResource BorderBright}"
+                                    BorderThickness="1"
+                                    Margin="0,0,8,0">
+                                <Path x:Name="Check"
+                                      Data="M 2 6 L 5 9 L 11 3"
+                                      Stroke="White"
+                                      StrokeThickness="1.5"
+                                      Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box"   Property="Background"  Value="{StaticResource Accent}"/>
+                                <Setter TargetName="Box"   Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                <Setter TargetName="Check" Property="Visibility"  Value="Visible"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkSlider" TargetType="Slider">
+            <Setter Property="Height"            Value="20"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid>
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton>
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="2" Background="{StaticResource Accent}" CornerRadius="1"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton>
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="2" Background="{StaticResource BorderBright}" CornerRadius="1"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="14" Height="14">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Fill="White" Width="12" Height="12"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource Surface}">
+
+        <!-- ========== HAS PROFILES STATE ========== -->
+        <Grid Visibility="{Binding HasProfiles, Converter={StaticResource BoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <StackPanel Grid.Row="0" Margin="28,22,28,14">
+                <TextBlock Text="PROFILES"
+                           FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource TextTertiary}"
+                           Margin="0,0,0,2"/>
+                <TextBlock FontSize="24" FontWeight="Light"
+                           Foreground="{StaticResource TextPrimary}">
+                    <Run Text="{Binding Profiles.Count, Mode=OneWay}"/>
+                    <Run Text=" SAVED"/>
+                </TextBlock>
+            </StackPanel>
+
+            <!-- Profile tile list -->
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="28,0,28,0">
+                <ItemsControl ItemsSource="{Binding Profiles}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Margin="0,0,0,8"
+                                    BorderBrush="{StaticResource BorderDim}"
+                                    BorderThickness="1"
+                                    CornerRadius="4">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource SurfaceRaised}"/>
+                                        <Setter Property="Cursor"     Value="Hand"/>
+                                        <Setter Property="Opacity"    Value="1"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsProfileActive}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource SurfaceActive}"/>
+                                            </DataTrigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Opacity" Value="0.9"/>
+                                            </Trigger>
+                                            <!-- Logging-lock trigger is last so it wins over IsMouseOver -->
+                                            <DataTrigger Binding="{Binding DataContext.IsLoggingActive, ElementName=Root}" Value="True">
+                                                <Setter Property="Opacity" Value="0.45"/>
+                                                <Setter Property="Cursor"  Value="No"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <Border.InputBindings>
+                                    <MouseBinding MouseAction="LeftClick"
+                                                  Command="{Binding DataContext.ActivateProfileCommand, ElementName=Root}"
+                                                  CommandParameter="{Binding}"/>
+                                </Border.InputBindings>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="3"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Active stripe -->
+                                    <Rectangle Grid.Column="0">
+                                        <Rectangle.Style>
+                                            <Style TargetType="Rectangle">
+                                                <Setter Property="Fill" Value="{StaticResource TextTertiary}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsProfileActive}" Value="True">
+                                                        <Setter Property="Fill" Value="{StaticResource StatusGreen}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Rectangle.Style>
+                                    </Rectangle>
+
+                                    <!-- Content area -->
+                                    <Grid Grid.Column="1" Margin="16,14,14,14">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <!-- Status dot + name -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                <Ellipse Width="6" Height="6"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,8,0">
+                                                    <Ellipse.Style>
+                                                        <Style TargetType="Ellipse">
+                                                            <Setter Property="Fill" Value="{StaticResource TextTertiary}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsProfileActive}" Value="True">
+                                                                    <Setter Property="Fill" Value="{StaticResource StatusGreen}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Ellipse.Style>
+                                                </Ellipse>
+                                                <TextBlock Text="{Binding Name}"
+                                                           Foreground="{StaticResource TextPrimary}"
+                                                           FontFamily="Consolas"
+                                                           FontSize="16" FontWeight="Medium"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <!-- Date -->
+                                            <TextBlock Text="{Binding CreatedOn}"
+                                                       Foreground="{StaticResource TextSecondary}"
+                                                       FontSize="11"
+                                                       Margin="14,0,0,3"/>
+
+                                            <!-- Device summary -->
+                                            <TextBlock Foreground="{StaticResource TextTertiary}"
+                                                       FontSize="9" FontWeight="SemiBold"
+                                                       Margin="14,0,0,0">
+                                                <Run Text="{Binding Devices.Count, Mode=OneWay}"/>
+                                                <Run Text=" DEVICE(S)"/>
+                                            </TextBlock>
+                                        </StackPanel>
+
+                                        <!-- Gear button (opens drawer in edit mode) -->
+                                        <Button Grid.Column="1"
+                                                Width="28" Height="28"
+                                                Padding="0"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Cursor="Hand"
+                                                ToolTip="Profile settings"
+                                                VerticalAlignment="Center"
+                                                Command="{Binding DataContext.OpenEditDrawerCommand, ElementName=Root}"
+                                                CommandParameter="{Binding}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="Bg" Background="Transparent" CornerRadius="14">
+                                                        <iconPacks:PackIconMaterial Kind="Cog"
+                                                                                    Width="14" Height="14"
+                                                                                    Foreground="{StaticResource TextTertiary}"
+                                                                                    HorizontalAlignment="Center"
+                                                                                    VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="Bg" Property="Background" Value="#1FFFFFFF"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <!-- Status bar -->
+            <Border Grid.Row="2"
+                    Background="#0A0C10"
+                    BorderBrush="{StaticResource BorderDim}"
+                    BorderThickness="0,1,0,0"
+                    Padding="28,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextTertiary}"
+                                   VerticalAlignment="Center">
+                            <Run Text="{Binding Profiles.Count, Mode=OneWay}"/>
+                            <Run Text=" SAVED"/>
+                        </TextBlock>
+                        <TextBlock FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{StaticResource StatusGreen}"
+                                   VerticalAlignment="Center"
+                                   Margin="12,0,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ActiveProfileName}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                            <Run Text="·  "/>
+                            <Run Text="{Binding ActiveProfileName, Mode=OneWay}"/>
+                            <Run Text=" ACTIVE"/>
+                        </TextBlock>
+                        <Border Margin="12,0,0,0"
+                                Padding="8,3"
+                                CornerRadius="3"
+                                Background="#3D2A0A"
+                                BorderBrush="{StaticResource StatusAmber}"
+                                BorderThickness="1"
+                                Visibility="{Binding IsLoggingActive, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="LOGGING · LOCKED"
+                                       FontSize="9" FontWeight="Bold"
+                                       Foreground="{StaticResource StatusAmber}"/>
+                        </Border>
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Style="{StaticResource PillButton}"
+                            Content="+ ADD PROFILE"
+                            IsEnabled="{Binding IsLoggingActive, Converter={StaticResource BooleanToInverse}}"
+                            Command="{Binding OpenNewDrawerCommand}"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ========== EMPTY STATE ========== -->
+        <Grid Visibility="{Binding HasProfiles, Converter={StaticResource InvertedBoolToVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MaxWidth="420">
+                <Border Width="96" Height="96"
+                        CornerRadius="48"
+                        Background="{StaticResource SurfaceRaised}"
+                        BorderBrush="{StaticResource BorderDim}"
+                        BorderThickness="1"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,28">
+                    <iconPacks:PackIconMaterial Kind="TuneVariant"
+                                                Width="40" Height="40"
+                                                Foreground="{StaticResource TextTertiary}"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="NO PROFILES SAVED"
+                           FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource TextTertiary}"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,10"/>
+                <TextBlock Text="Profiles capture your device and channel configuration so you can restore it later."
+                           FontSize="15" FontWeight="Light"
+                           Foreground="{StaticResource TextPrimary}"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,28"/>
+                <Button Content="+ ADD PROFILE"
+                        Style="{StaticResource AccentPillButton}"
+                        HorizontalAlignment="Center"
+                        IsEnabled="{Binding IsLoggingActive, Converter={StaticResource BooleanToInverse}}"
+                        Command="{Binding OpenNewDrawerCommand}"/>
+            </StackPanel>
+
+            <!-- Status bar (empty) -->
+            <Border Grid.Row="1"
+                    Background="#0A0C10"
+                    BorderBrush="{StaticResource BorderDim}"
+                    BorderThickness="0,1,0,0"
+                    Padding="28,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="0 PROFILES"
+                                   FontSize="10" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextTertiary}"
+                                   VerticalAlignment="Center"/>
+                        <Border Margin="12,0,0,0"
+                                Padding="8,3"
+                                CornerRadius="3"
+                                Background="#3D2A0A"
+                                BorderBrush="{StaticResource StatusAmber}"
+                                BorderThickness="1"
+                                Visibility="{Binding IsLoggingActive, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="LOGGING · LOCKED"
+                                       FontSize="9" FontWeight="Bold"
+                                       Foreground="{StaticResource StatusAmber}"/>
+                        </Border>
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Style="{StaticResource PillButton}"
+                            Content="+ ADD PROFILE"
+                            IsEnabled="{Binding IsLoggingActive, Converter={StaticResource BooleanToInverse}}"
+                            Command="{Binding OpenNewDrawerCommand}"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ========== SETTINGS DRAWER (over both states) ========== -->
+        <Grid Visibility="{Binding IsDrawerOpen, Converter={StaticResource BoolToVis}}"
+              Panel.ZIndex="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="380"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Scrim -->
+            <Rectangle Grid.Column="0" Fill="#A0000000">
+                <Rectangle.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding CloseDrawerCommand}"/>
+                </Rectangle.InputBindings>
+            </Rectangle>
+
+            <!-- Drawer panel -->
+            <Border Grid.Column="1"
+                    Background="{StaticResource SurfaceRaised}"
+                    BorderBrush="{StaticResource BorderDim}"
+                    BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Drawer header -->
+                    <Grid Grid.Row="0" Margin="22,22,16,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Rectangle Grid.Column="0" Width="3" Height="32" Margin="0,0,12,0">
+                            <Rectangle.Style>
+                                <Style TargetType="Rectangle">
+                                    <Setter Property="Fill" Value="{StaticResource Accent}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedProfile.IsProfileActive}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource StatusGreen}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Rectangle.Style>
+                        </Rectangle>
+
+                        <StackPanel Grid.Column="1">
+                            <TextBlock FontSize="9" FontWeight="Bold"
+                                       Foreground="{StaticResource TextTertiary}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="PROFILE"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsNewProfile}" Value="True">
+                                                <Setter Property="Text" Value="NEW PROFILE"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock FontFamily="Consolas"
+                                       FontSize="18" FontWeight="Medium"
+                                       Foreground="{StaticResource TextPrimary}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="{Binding SelectedProfile.Name}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsNewProfile}" Value="True">
+                                                <Setter Property="Text" Value="Configure &amp; Save"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <Button Grid.Column="2"
+                                Width="28" Height="28"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                FontSize="16"
+                                Cursor="Hand"
+                                Content="&#xD7;"
+                                Command="{Binding CloseDrawerCommand}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bg" Background="Transparent" CornerRadius="14">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          TextElement.Foreground="{StaticResource TextSecondary}"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bg" Property="Background" Value="#1FFFFFFF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
+
+                    <!-- Drawer body (scrollable) -->
+                    <ScrollViewer Grid.Row="1"
+                                  VerticalScrollBarVisibility="Auto"
+                                  Padding="22,0,22,24">
+                        <StackPanel>
+
+                            <!-- Inline error -->
+                            <Border Background="#1A0A0D"
+                                    BorderBrush="{StaticResource StatusRed}"
+                                    BorderThickness="1"
+                                    CornerRadius="3"
+                                    Padding="12,8"
+                                    Margin="0,0,0,16"
+                                    Visibility="{Binding HasDrawerError, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding DrawerError}"
+                                           Foreground="{StaticResource StatusRed}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"/>
+                            </Border>
+
+                            <!-- ═══════════════════════════════════════ -->
+                            <!--  EDIT DRAWER                           -->
+                            <!-- ═══════════════════════════════════════ -->
+                            <StackPanel Visibility="{Binding IsNewProfile, Converter={StaticResource InvertedBoolToVis}}">
+
+                                <!-- NAME -->
+                                <TextBlock Text="NAME"
+                                           Style="{StaticResource SectionLabel}"
+                                           Margin="0,8,0,8"/>
+                                <TextBox Style="{StaticResource DrawerTextBox}"
+                                         Text="{Binding SelectedProfile.Name, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                <!-- DEVICES -->
+                                <TextBlock Text="DEVICES"
+                                           Style="{StaticResource SectionLabel}"
+                                           Margin="0,22,0,10"/>
+                                <Rectangle Height="1"
+                                           Fill="{StaticResource BorderDim}"
+                                           Margin="0,0,0,12"/>
+
+                                <ItemsControl ItemsSource="{Binding SelectedProfile.Devices}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{StaticResource Surface}"
+                                                    BorderBrush="{StaticResource BorderDim}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="3"
+                                                    Padding="14,12"
+                                                    Margin="0,0,0,10">
+                                                <StackPanel>
+
+                                                    <!-- Device header -->
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                                        <Border Background="{StaticResource SurfaceActive}"
+                                                                BorderBrush="{StaticResource BorderBright}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="3"
+                                                                Padding="8,4">
+                                                            <TextBlock Text="{Binding DeviceName}"
+                                                                       Foreground="{StaticResource TextPrimary}"
+                                                                       FontSize="11" FontWeight="SemiBold"/>
+                                                        </Border>
+                                                        <TextBlock Text="{Binding DeviceSerialNo}"
+                                                                   Foreground="{StaticResource TextTertiary}"
+                                                                   FontSize="10"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="10,0,0,0"/>
+                                                    </StackPanel>
+
+                                                    <!-- Frequency -->
+                                                    <Grid Margin="0,0,0,12">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0"
+                                                                   Text="FREQ"
+                                                                   Style="{StaticResource SectionLabel}"
+                                                                   FontSize="9"
+                                                                   Margin="0,0,10,0"/>
+                                                        <Slider Grid.Column="1"
+                                                                Style="{StaticResource DarkSlider}"
+                                                                Minimum="1" Maximum="1000"
+                                                                IsSnapToTickEnabled="True"
+                                                                TickFrequency="1"
+                                                                Value="{Binding SamplingFrequency, Delay=200, UpdateSourceTrigger=PropertyChanged}"/>
+                                                        <TextBlock Grid.Column="2"
+                                                                   Foreground="{StaticResource TextPrimary}"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="12"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="10,0,0,0">
+                                                            <Run Text="{Binding SamplingFrequency, Mode=OneWay}"/>
+                                                            <Run Text=" Hz" Foreground="{StaticResource TextTertiary}"/>
+                                                        </TextBlock>
+                                                    </Grid>
+
+                                                    <!-- Channels -->
+                                                    <TextBlock Text="CHANNELS"
+                                                               FontSize="9" FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextTertiary}"
+                                                               Margin="0,0,0,8"/>
+                                                    <ItemsControl ItemsSource="{Binding Channels}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel/>
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <CheckBox Style="{StaticResource DarkCheckBox}"
+                                                                          IsChecked="{Binding IsChannelActive, UpdateSourceTrigger=PropertyChanged}"
+                                                                          Margin="0,0,14,6">
+                                                                    <TextBlock Text="{Binding Name}"
+                                                                               Foreground="{StaticResource TextSecondary}"
+                                                                               FontFamily="Consolas"
+                                                                               FontSize="11"/>
+                                                                </CheckBox>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- ACTIONS -->
+                                <Rectangle Height="1"
+                                           Fill="{StaticResource BorderDim}"
+                                           Margin="0,8,0,16"/>
+
+                                <Button Margin="0,0,0,8"
+                                        Command="{Binding ActivateProfileCommand}"
+                                        CommandParameter="{Binding SelectedProfile}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource AccentPillButton}">
+                                            <Setter Property="Content" Value="ACTIVATE PROFILE"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedProfile.IsProfileActive}" Value="True">
+                                                    <Setter Property="Content" Value="DEACTIVATE PROFILE"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+
+                                <Button Content="DELETE PROFILE"
+                                        Style="{StaticResource DangerPillButton}"
+                                        Command="{Binding DeleteProfileCommand}"
+                                        CommandParameter="{Binding SelectedProfile}"/>
+
+                            </StackPanel>
+
+                            <!-- ═══════════════════════════════════════ -->
+                            <!--  NEW PROFILE DRAWER                    -->
+                            <!-- ═══════════════════════════════════════ -->
+                            <StackPanel Visibility="{Binding IsNewProfile, Converter={StaticResource BoolToVis}}">
+
+                                <!-- NAME -->
+                                <TextBlock Text="NAME"
+                                           Style="{StaticResource SectionLabel}"
+                                           Margin="0,8,0,8"/>
+                                <TextBox Style="{StaticResource DrawerTextBox}"
+                                         Text="{Binding NewProfileName, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                <!-- CAPTURE shortcut -->
+                                <Button Content="CAPTURE FROM CURRENT SETTINGS"
+                                        Style="{StaticResource PillButton}"
+                                        HorizontalAlignment="Left"
+                                        Margin="0,14,0,0"
+                                        ToolTip="Snapshot currently active channels and device settings"
+                                        Command="{Binding SaveCurrentSettingsCommand}"/>
+
+                                <!-- DEVICES -->
+                                <TextBlock Text="DEVICES"
+                                           Style="{StaticResource SectionLabel}"
+                                           Margin="0,22,0,10"/>
+                                <Rectangle Height="1"
+                                           Fill="{StaticResource BorderDim}"
+                                           Margin="0,0,0,12"/>
+
+                                <TextBlock Text="Select devices to include in this profile."
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextTertiary}"
+                                           Margin="0,0,0,12"/>
+
+                                <!-- No devices message -->
+                                <TextBlock Text="No devices currently connected."
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextTertiary}"
+                                           Margin="0,0,0,12">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding NewDeviceItems.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <ItemsControl ItemsSource="{Binding NewDeviceItems}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:NewProfileDeviceItem}">
+                                            <Border Background="{StaticResource Surface}"
+                                                    BorderBrush="{StaticResource BorderDim}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="3"
+                                                    Padding="14,12"
+                                                    Margin="0,0,0,8">
+                                                <StackPanel>
+
+                                                    <!-- Device checkbox -->
+                                                    <CheckBox Style="{StaticResource DarkCheckBox}"
+                                                              IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       Foreground="{StaticResource TextPrimary}"
+                                                                       FontSize="13" FontWeight="SemiBold"/>
+                                                            <TextBlock Text="{Binding SerialNo}"
+                                                                       Foreground="{StaticResource TextTertiary}"
+                                                                       FontSize="10"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="10,0,0,0"/>
+                                                        </StackPanel>
+                                                    </CheckBox>
+
+                                                    <!-- Channels (shown when device is checked) -->
+                                                    <StackPanel Margin="22,10,0,0"
+                                                                Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}">
+                                                        <TextBlock Text="CHANNELS"
+                                                                   FontSize="9" FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextTertiary}"
+                                                                   Margin="0,0,0,8"/>
+                                                        <ItemsControl ItemsSource="{Binding ChannelItems}">
+                                                            <ItemsControl.ItemsPanel>
+                                                                <ItemsPanelTemplate>
+                                                                    <WrapPanel/>
+                                                                </ItemsPanelTemplate>
+                                                            </ItemsControl.ItemsPanel>
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate DataType="{x:Type vm:NewProfileChannelItem}">
+                                                                    <CheckBox Style="{StaticResource DarkCheckBox}"
+                                                                              IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                                                              Margin="0,0,14,6">
+                                                                        <TextBlock Text="{Binding Name}"
+                                                                                   Foreground="{StaticResource TextSecondary}"
+                                                                                   FontFamily="Consolas"
+                                                                                   FontSize="11"/>
+                                                                    </CheckBox>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- FREQUENCY -->
+                                <TextBlock Text="SAMPLING FREQUENCY"
+                                           Style="{StaticResource SectionLabel}"
+                                           Margin="0,16,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0"
+                                            Style="{StaticResource DarkSlider}"
+                                            Minimum="1" Maximum="1000"
+                                            IsSnapToTickEnabled="True"
+                                            TickFrequency="1"
+                                            Value="{Binding NewProfileFrequency, Delay=100, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock Grid.Column="1"
+                                               Foreground="{StaticResource TextPrimary}"
+                                               FontFamily="Consolas"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               Margin="12,0,0,0">
+                                        <Run Text="{Binding NewProfileFrequency, Mode=OneWay}"/>
+                                        <Run Text=" Hz" Foreground="{StaticResource TextTertiary}"/>
+                                    </TextBlock>
+                                </Grid>
+
+                                <!-- SAVE -->
+                                <Rectangle Height="1"
+                                           Fill="{StaticResource BorderDim}"
+                                           Margin="0,20,0,16"/>
+                                <Button Content="SAVE PROFILE"
+                                        Style="{StaticResource AccentPillButton}"
+                                        Command="{Binding SaveNewProfileCommand}"/>
+
+                            </StackPanel>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ========== CONFIRM DIALOG (over everything) ========== -->
+        <Grid Visibility="{Binding IsConfirmOpen, Converter={StaticResource BoolToVis}}"
+              Panel.ZIndex="20">
+            <!-- Scrim. Click = cancel (same pattern as the drawer). -->
+            <Rectangle Fill="#A0000000">
+                <Rectangle.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding ConfirmNegativeCommand}"/>
+                </Rectangle.InputBindings>
+            </Rectangle>
+
+            <!-- Card -->
+            <Border Width="420"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource SurfaceRaised}"
+                    BorderBrush="{StaticResource BorderDim}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="24">
+                <StackPanel>
+                    <TextBlock Text="{Binding ConfirmTitle}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimary}"/>
+                    <TextBlock Text="{Binding ConfirmMessage}"
+                               FontSize="13"
+                               Foreground="{StaticResource TextSecondary}"
+                               TextWrapping="Wrap"
+                               Margin="0,10,0,20"/>
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right">
+                        <Button Content="CANCEL"
+                                Style="{StaticResource PillButton}"
+                                Command="{Binding ConfirmNegativeCommand}"/>
+                        <Button Content="{Binding ConfirmAffirmativeLabel}"
+                                Style="{StaticResource AccentPillButton}"
+                                Margin="10,0,0,0"
+                                Command="{Binding ConfirmAffirmativeCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+    </Grid>
+</UserControl>
