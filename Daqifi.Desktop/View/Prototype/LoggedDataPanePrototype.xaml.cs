@@ -1,21 +1,21 @@
-﻿using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Daqifi.Desktop.View.Flyouts;
+namespace Daqifi.Desktop.View.Prototype;
 
 /// <summary>
-/// Interaction logic for LoggedSessionFlyout.xaml
+/// Interaction logic for LoggedDataPanePrototype.xaml
 /// </summary>
-public partial class LoggedSessionFlyout
+public partial class LoggedDataPanePrototype
 {
     private readonly AppLogger _logger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     private CancellationTokenSource? _renameSessionCts;
 
-    public LoggedSessionFlyout()
+    public LoggedDataPanePrototype()
     {
         InitializeComponent();
         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
@@ -27,7 +27,7 @@ public partial class LoggedSessionFlyout
         };
     }
 
-    private async void UpdateSessionName(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    private async void OnSessionNameChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
         if ((DataContext as DaqifiViewModel)?.SelectedLoggingSession is not LoggingSession session ||
             sender is not System.Windows.Controls.TextBox textBox)
@@ -35,7 +35,10 @@ public partial class LoggedSessionFlyout
             return;
         }
 
-        var newName = textBox.Text;
+        // Treat blank input as "reset to default" so the DB and the Name getter
+        // (which renders whitespace as "Session {ID}") stay consistent on reload.
+        var trimmed = textBox.Text?.Trim();
+        var newName = string.IsNullOrEmpty(trimmed) ? null : trimmed;
         session.Name = newName;
 
         _renameSessionCts?.Cancel();

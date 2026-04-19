@@ -2,6 +2,7 @@
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Helpers;
 using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
@@ -165,6 +166,11 @@ public partial class PlotLogger : ObservableObject, ILogger
             Title = "Time (ms)",
 
         };
+
+        OxyPlotDarkTheme.ApplyTo(PlotModel);
+        OxyPlotDarkTheme.ApplyTo(analogAxis);
+        OxyPlotDarkTheme.ApplyTo(digitalAxis);
+        OxyPlotDarkTheme.ApplyTo(timeAxis);
 
         PlotModel.Axes.Add(analogAxis);
         PlotModel.Axes.Add(digitalAxis);

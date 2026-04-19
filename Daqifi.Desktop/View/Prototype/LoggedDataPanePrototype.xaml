@@ -1,0 +1,1008 @@
+<UserControl x:Class="Daqifi.Desktop.View.Prototype.LoggedDataPanePrototype"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:oxy="http://oxyplot.org/wpf"
+             xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+             xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
+             xmlns:local="clr-namespace:Daqifi.Desktop.View"
+             xmlns:logger="clr-namespace:Daqifi.Desktop.Logger"
+             xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:DaqifiViewModel}"
+             d:DesignHeight="800" d:DesignWidth="1200">
+    <UserControl.Resources>
+
+        <!-- Brushes come from /Resources/DesignTokens.xaml via App.xaml -->
+
+        <Style x:Key="SectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="InfoLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextTertiary}"/>
+            <Setter Property="Margin" Value="0,0,0,3"/>
+        </Style>
+
+        <Style x:Key="InfoValue" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        </Style>
+
+        <Style x:Key="PillButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderDim}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="Padding" Value="12,4"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="14"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource BorderBright}"/>
+                    <Setter Property="Background" Value="#141821"/>
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.35"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DangerPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
+            <Setter Property="BorderBrush" Value="#4A1F28"/>
+            <Setter Property="Foreground" Value="{StaticResource StatusRed}"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#2A0F14"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource StatusRed}"/>
+                    <Setter Property="Foreground" Value="{StaticResource StatusRed}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AccentPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
+            <Setter Property="Background" Value="{StaticResource Accent}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="16,6"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1EB3F0"/>
+                    <Setter Property="BorderBrush" Value="#1EB3F0"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SegmentedToggle" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bg"
+                                Background="Transparent"
+                                CornerRadius="2"
+                                Padding="14,7">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource SurfaceActive}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dark plot toolbar button (replaces light FadeButton for plot controls) -->
+        <Style x:Key="PlotIconButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#1FFFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DrawerTextField" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Surface}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderDim}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Padding" Value="10,0"/>
+        </Style>
+
+        <Style x:Key="DrawerTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="CaretBrush" Value="{StaticResource TextPrimary}"/>
+        </Style>
+
+        <!-- Session tile icon button (gear / export / delete inside each row) -->
+        <Style x:Key="TileIconButton" TargetType="Button">
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="Transparent" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#1FFFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource Surface}">
+
+        <!-- ========== MAIN CONTENT ========== -->
+        <Grid>
+            <Grid.RowDefinitions>
+                <!-- Tab strip: APP LOGS / DEVICE LOGS -->
+                <RowDefinition Height="Auto"/>
+                <!-- Content area -->
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Tab strip -->
+            <Border Grid.Row="0"
+                    Background="{StaticResource Surface}"
+                    BorderBrush="{StaticResource BorderDim}"
+                    BorderThickness="0,0,0,1"
+                    Padding="20,0">
+                <StackPanel Orientation="Horizontal">
+                    <Border Background="{StaticResource SurfaceRaised}"
+                            BorderBrush="{StaticResource BorderDim}"
+                            BorderThickness="1"
+                            CornerRadius="3"
+                            Padding="3"
+                            Margin="0,8,0,8">
+                        <StackPanel Orientation="Horizontal">
+                            <RadioButton x:Name="AppLogsTab"
+                                         GroupName="LoggedDataTab"
+                                         IsChecked="True"
+                                         Content="APP LOGS"
+                                         Style="{StaticResource SegmentedToggle}"/>
+                            <RadioButton x:Name="DeviceLogsTab"
+                                         GroupName="LoggedDataTab"
+                                         Content="DEVICE LOGS"
+                                         Style="{StaticResource SegmentedToggle}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- APP LOGS content -->
+            <Grid Grid.Row="1"
+                  Visibility="{Binding IsChecked, ElementName=AppLogsTab, Converter={StaticResource BoolToVis}}">
+                <Grid.RowDefinitions>
+                    <!-- Plot area (main data view) -->
+                    <RowDefinition Height="2*"/>
+                    <!-- Separator -->
+                    <RowDefinition Height="1"/>
+                    <!-- Session list -->
+                    <RowDefinition Height="*" MinHeight="120"/>
+                    <!-- Status bar -->
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- ── Plot area ── -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Session header strip (hidden when no data) -->
+                        <Border Grid.Row="0"
+                                Padding="20,10,20,8"
+                                BorderBrush="{StaticResource BorderDim}"
+                                BorderThickness="0,0,0,1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                <TextBlock Text="{Binding DbLogger.CurrentSession.Name}"
+                                           FontFamily="Consolas"
+                                           FontSize="16"
+                                           FontWeight="Medium"
+                                           Foreground="{StaticResource TextPrimary}"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                    <!-- Started -->
+                                    <TextBlock Text="STARTED"
+                                               FontSize="9"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextTertiary}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,1,5,0"/>
+                                    <TextBlock Text="{Binding DbLogger.CurrentSession.SessionStart, StringFormat='{}{0:M/d/yyyy h:mm tt}'}"
+                                               FontFamily="Consolas"
+                                               FontSize="11"
+                                               Foreground="{StaticResource TextSecondary}"
+                                               VerticalAlignment="Center"/>
+
+                                    <!-- Sample rate (only when present) -->
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                Visibility="{Binding DbLogger.CurrentSession.HasFrequencyDisplay, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="  ·  " FontSize="11" Foreground="{StaticResource TextTertiary}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="SAMPLE RATE"
+                                                   FontSize="9"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextTertiary}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,1,5,0"/>
+                                        <TextBlock Text="{Binding DbLogger.CurrentSession.FrequencyDisplay}"
+                                                   FontFamily="Consolas"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextSecondary}"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+
+                                    <!-- Sample count -->
+                                    <TextBlock Text="  ·  " FontSize="11" Foreground="{StaticResource TextTertiary}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="SAMPLES"
+                                               FontSize="9"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextTertiary}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,1,5,0"/>
+                                    <TextBlock Text="{Binding DbLogger.CurrentSessionSampleCountDisplay}"
+                                               ToolTip="{Binding DbLogger.CurrentSessionSampleCountTooltip}"
+                                               FontFamily="Consolas"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextSecondary}"
+                                               VerticalAlignment="Center"/>
+
+                                    <!-- Device count (multi-device only) -->
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                Visibility="{Binding DbLogger.CurrentSession.HasMultipleDevices, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="  ·  " FontSize="11" Foreground="{StaticResource TextTertiary}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="DEVICES"
+                                                   FontSize="9"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextTertiary}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,1,5,0"/>
+                                        <TextBlock Text="{Binding DbLogger.CurrentSession.DeviceCount}"
+                                                   FontFamily="Consolas"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextSecondary}"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </StackPanel>
+                                </StackPanel>
+
+                                <!-- Plot toolbar: zoom + save image -->
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center">
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.ZoomOutXCommand}"
+                                            ToolTip="Zoom out (time)">
+                                        <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.ZoomInXCommand}"
+                                            ToolTip="Zoom in (time)">
+                                        <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.ZoomOutYCommand}"
+                                            ToolTip="Zoom out (analog)">
+                                        <iconPacks:PackIconMaterial Kind="ArrowExpandVertical" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.ZoomInYCommand}"
+                                            ToolTip="Zoom in (analog)">
+                                        <iconPacks:PackIconMaterial Kind="ArrowCollapseVertical" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                    <Rectangle Width="1" Height="16" Margin="4,0"
+                                               Fill="{StaticResource BorderDim}"
+                                               VerticalAlignment="Center"/>
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.ResetZoomCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="Reset zoom">
+                                        <iconPacks:PackIconMaterial Kind="Crosshairs" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                    <Button Style="{StaticResource PlotIconButton}"
+                                            Command="{Binding DbLogger.SaveGraphCommand}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="Save as image">
+                                        <iconPacks:PackIconMaterial Kind="ImageOutline" Width="14" Height="14"
+                                                                    Foreground="{StaticResource TextSecondary}"/>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Main plot -->
+                        <oxy:PlotView Grid.Row="1"
+                                      Model="{Binding DbLogger.PlotModel}"
+                                      Margin="16,8,16,0">
+                            <oxy:PlotView.Style>
+                                <Style TargetType="oxy:PlotView">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                            <Setter Property="Visibility" Value="Hidden"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </oxy:PlotView.Style>
+                        </oxy:PlotView>
+
+                        <!-- Empty state (no session selected) - only when sessions exist but none picked -->
+                        <StackPanel Grid.Row="1"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding DbLogger.HasSessionData}" Value="False"/>
+                                                <Condition Binding="{Binding HasLoggingSessions}" Value="True"/>
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <iconPacks:PackIconMaterial Kind="ChartLine"
+                                                        Width="48" Height="48"
+                                                        HorizontalAlignment="Center"
+                                                        Foreground="{StaticResource TextTertiary}"
+                                                        Opacity="0.5"
+                                                        Margin="0,0,0,16"/>
+                            <TextBlock Text="Select a session to view data"
+                                       FontSize="15"
+                                       FontWeight="Light"
+                                       Foreground="{StaticResource TextPrimary}"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="Choose a session from the list below"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextTertiary}"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,6,0,0"/>
+                        </StackPanel>
+
+                        <!-- Data-refining progress bar (between plot and minimap) -->
+                        <ProgressBar Grid.Row="2"
+                                     IsIndeterminate="{Binding DbLogger.IsRefiningData}"
+                                     Height="2"
+                                     Margin="16,0,16,0"
+                                     Background="Transparent"
+                                     Foreground="{StaticResource Accent}"
+                                     BorderThickness="0">
+                            <ProgressBar.Style>
+                                <Style TargetType="ProgressBar">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DbLogger.IsRefiningData}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ProgressBar.Style>
+                        </ProgressBar>
+
+                        <!-- Overview minimap -->
+                        <oxy:PlotView Grid.Row="3"
+                                      Model="{Binding DbLogger.MinimapPlotModel}"
+                                      Margin="16,0,16,8"
+                                      Height="80">
+                            <oxy:PlotView.Style>
+                                <Style TargetType="oxy:PlotView">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </oxy:PlotView.Style>
+                        </oxy:PlotView>
+                    </Grid>
+
+                    <!-- Legend panel (collapsible, right side) -->
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Stretch">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DbLogger.HasSessionData}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+
+                        <!-- Collapse/expand toggle -->
+                        <Button Style="{StaticResource PlotIconButton}"
+                                VerticalAlignment="Top"
+                                Margin="0,8,0,0"
+                                Command="{Binding DbLogger.ToggleLegendPanelCommand}"
+                                ToolTip="Toggle legend">
+                            <iconPacks:PackIconMaterial Height="12" Width="12"
+                                                        Foreground="{StaticResource TextSecondary}">
+                                <iconPacks:PackIconMaterial.Style>
+                                    <Style TargetType="iconPacks:PackIconMaterial">
+                                        <Setter Property="Kind" Value="ChevronRight"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding DbLogger.IsLegendPanelVisible}" Value="True">
+                                                <Setter Property="Kind" Value="ChevronLeft"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </iconPacks:PackIconMaterial.Style>
+                            </iconPacks:PackIconMaterial>
+                        </Button>
+
+                        <!-- Grouped legend -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      MaxHeight="500"
+                                      Margin="4,8,8,0">
+                            <ScrollViewer.Style>
+                                <Style TargetType="ScrollViewer">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DbLogger.IsLegendPanelVisible}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ScrollViewer.Style>
+                            <ItemsControl ItemsSource="{Binding DbLogger.DeviceLegendGroups}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type logger:DeviceLegendGroup}">
+                                        <StackPanel Margin="0,4,0,8">
+                                            <TextBlock FontSize="9"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextTertiary}"
+                                                       Margin="0,0,0,4"
+                                                       ToolTip="{Binding DeviceSerialNo}">
+                                                <Run Text="{Binding TruncatedSerialNo, Mode=OneWay}"/>
+                                            </TextBlock>
+                                            <ItemsControl ItemsSource="{Binding Channels}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <UniformGrid Columns="2"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type logger:LoggedSeriesLegendItem}">
+                                                        <Button Command="{Binding DataContext.ToggleLoggedSeriesVisibilityCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                Padding="3,3"
+                                                                Margin="0,2,4,2"
+                                                                Style="{StaticResource PlotIconButton}"
+                                                                ToolTip="Click to show/hide channel">
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <Rectangle Width="10" Height="10"
+                                                                           Margin="0,0,5,0"
+                                                                           VerticalAlignment="Center"
+                                                                           Fill="{Binding SeriesColor, Converter={StaticResource OxyColorToBrushConverter}}">
+                                                                    <Rectangle.Style>
+                                                                        <Style TargetType="Rectangle">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                                    <Setter Property="Opacity" Value="0.3"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Rectangle.Style>
+                                                                </Rectangle>
+                                                                <TextBlock Text="{Binding ChannelName}"
+                                                                           FontSize="11"
+                                                                           Foreground="{StaticResource TextSecondary}"
+                                                                           VerticalAlignment="Center">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                                    <Setter Property="Opacity" Value="0.4"/>
+                                                                                    <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </StackPanel>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Separator line between plot and session list -->
+                <Rectangle Grid.Row="1" Fill="{StaticResource BorderDim}"/>
+
+                <!-- ── Session list ── -->
+                <Grid Grid.Row="2">
+                    <!-- Has sessions -->
+                    <ListBox x:Name="SessionList"
+                             ItemsSource="{Binding LoggingSessions}"
+                             SelectedItem="{Binding SelectedLoggingSession, Mode=TwoWay}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             SelectionMode="Single">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="TileBg"
+                                                    Background="Transparent"
+                                                    BorderBrush="{StaticResource BorderDim}"
+                                                    BorderThickness="0,0,0,1"
+                                                    Cursor="Hand">
+                                                <Border.InputBindings>
+                                                    <MouseBinding MouseAction="LeftClick"
+                                                                  Command="{Binding DataContext.DisplayLoggingSessionCommand, ElementName=Root}"
+                                                                  CommandParameter="{Binding}"/>
+                                                </Border.InputBindings>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="3"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Left accent stripe -->
+                                                    <Rectangle x:Name="Stripe"
+                                                               Grid.Column="0"
+                                                               Fill="Transparent"/>
+
+                                                    <!-- Session info -->
+                                                    <StackPanel Grid.Column="1"
+                                                                Margin="14,10,12,10"
+                                                                VerticalAlignment="Center">
+                                                        <TextBlock x:Name="SessionNameText"
+                                                                   Text="{Binding Name}"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="14"
+                                                                   FontWeight="Medium"
+                                                                   Foreground="{StaticResource TextSecondary}"/>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                                            <TextBlock Text="{Binding SessionStart, StringFormat='{}{0:M/d/yyyy h:mm tt}'}"
+                                                                       FontSize="10"
+                                                                       Foreground="{StaticResource TextTertiary}"
+                                                                       VerticalAlignment="Center"/>
+                                                            <!-- Sample count chip -->
+                                                            <Border Background="{StaticResource SurfaceRaised}"
+                                                                    BorderBrush="{StaticResource BorderDim}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="3"
+                                                                    Padding="6,1"
+                                                                    Margin="8,0,0,0"
+                                                                    VerticalAlignment="Center"
+                                                                    ToolTip="{Binding SampleCountTooltip}"
+                                                                    Visibility="{Binding HasSampleCount, Converter={StaticResource BoolToVis}}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="SAMPLES  "
+                                                                               FontSize="8"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="{StaticResource TextTertiary}"
+                                                                               VerticalAlignment="Center"/>
+                                                                    <TextBlock Text="{Binding SampleCountDisplay}"
+                                                                               FontSize="10"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="{StaticResource TextSecondary}"
+                                                                               VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                            </Border>
+                                                            <!-- Sample rate chip -->
+                                                            <Border Background="{StaticResource SurfaceRaised}"
+                                                                    BorderBrush="{StaticResource BorderDim}"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="3"
+                                                                    Padding="6,1"
+                                                                    Margin="6,0,0,0"
+                                                                    VerticalAlignment="Center"
+                                                                    Visibility="{Binding HasFrequencyDisplay, Converter={StaticResource BoolToVis}}">
+                                                                <TextBlock Text="{Binding FrequencyDisplay}"
+                                                                           FontSize="10"
+                                                                           Foreground="{StaticResource TextTertiary}"
+                                                                           VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </StackPanel>
+                                                    </StackPanel>
+
+                                                    <!-- Action buttons -->
+                                                    <StackPanel Grid.Column="2"
+                                                                Orientation="Horizontal"
+                                                                VerticalAlignment="Center"
+                                                                Margin="0,0,12,0">
+                                                        <Button Style="{StaticResource TileIconButton}"
+                                                                ToolTip="Session settings"
+                                                                Command="{Binding DataContext.OpenLoggingSessionSettingsCommand, ElementName=Root}"
+                                                                CommandParameter="{Binding}">
+                                                            <iconPacks:PackIconMaterial Kind="Cog"
+                                                                                        Width="13" Height="13"
+                                                                                        Foreground="{StaticResource TextTertiary}"/>
+                                                        </Button>
+                                                        <Button Style="{StaticResource TileIconButton}"
+                                                                ToolTip="Export session"
+                                                                Command="{Binding DataContext.ExportLoggingSessionCommand, ElementName=Root}"
+                                                                CommandParameter="{Binding}">
+                                                            <iconPacks:PackIconMaterial Kind="DownloadCircleOutline"
+                                                                                        Width="13" Height="13"
+                                                                                        Foreground="{StaticResource TextTertiary}"/>
+                                                        </Button>
+                                                        <Button Style="{StaticResource TileIconButton}"
+                                                                ToolTip="Delete session"
+                                                                Command="{Binding DataContext.DeleteLoggingSessionCommand, ElementName=Root}"
+                                                                CommandParameter="{Binding}">
+                                                            <iconPacks:PackIconMaterial Kind="TrashCanOutline"
+                                                                                        Width="13" Height="13"
+                                                                                        Foreground="{StaticResource TextTertiary}"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="Stripe" Property="Fill" Value="{StaticResource Accent}"/>
+                                                    <Setter TargetName="TileBg" Property="Background" Value="{StaticResource SurfaceRaised}"/>
+                                                    <Setter TargetName="SessionNameText" Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                                                </Trigger>
+                                                <MultiTrigger>
+                                                    <MultiTrigger.Conditions>
+                                                        <Condition Property="IsMouseOver" Value="True"/>
+                                                        <Condition Property="IsSelected" Value="False"/>
+                                                    </MultiTrigger.Conditions>
+                                                    <Setter TargetName="TileBg" Property="Background" Value="{StaticResource SurfaceHover}"/>
+                                                </MultiTrigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                    </ListBox>
+
+                    <!-- Empty state (no sessions) -->
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding LoggingSessions.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="NO SESSIONS"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextTertiary}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock Text="Start logging or import an SD card log to get started."
+                                   FontSize="13"
+                                   FontWeight="Light"
+                                   Foreground="{StaticResource TextPrimary}"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="320"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ── Status bar ── -->
+                <Border Grid.Row="3"
+                        Background="#0A0C10"
+                        BorderBrush="{StaticResource BorderDim}"
+                        BorderThickness="0,1,0,0"
+                        Padding="20,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left: Import SD Log -->
+                        <Button Grid.Column="0"
+                                Style="{StaticResource AccentPillButton}"
+                                Content="↑  IMPORT SD LOG"
+                                Command="{Binding ImportSdCardLogFileCommand}"/>
+
+                        <!-- Right: Export All + Delete All -->
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Style="{StaticResource PillButton}"
+                                    Content="EXPORT ALL"
+                                    Command="{Binding ExportAllLoggingSessionCommand}"
+                                    ToolTip="Export all sessions"/>
+                            <Button Style="{StaticResource DangerPillButton}"
+                                    Content="DELETE ALL"
+                                    Command="{Binding DeleteAllLoggingSessionCommand}"
+                                    ToolTip="Delete all sessions"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+            </Grid>
+
+            <!-- DEVICE LOGS content -->
+            <local:DeviceLogsView Grid.Row="1"
+                                  DataContext="{Binding DeviceLogsViewModel}"
+                                  Visibility="{Binding IsChecked, ElementName=DeviceLogsTab, Converter={StaticResource BoolToVis}}"/>
+
+        </Grid>
+
+        <!-- ========== SESSION SETTINGS DRAWER ========== -->
+        <Grid Visibility="{Binding IsLoggingSessionSettingsOpen, Converter={StaticResource BoolToVis}}"
+              Panel.ZIndex="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="380"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Scrim -->
+            <Rectangle Grid.Column="0" Fill="#A0000000">
+                <Rectangle.InputBindings>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding CloseLoggedSessionSettingsCommand}"/>
+                </Rectangle.InputBindings>
+            </Rectangle>
+
+            <!-- Drawer -->
+            <Border Grid.Column="1"
+                    Background="{StaticResource SurfaceRaised}"
+                    BorderBrush="{StaticResource BorderDim}"
+                    BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Drawer header -->
+                    <Grid Grid.Row="0" Margin="22,22,16,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Rectangle Grid.Column="0"
+                                   Width="3" Height="32"
+                                   Fill="{StaticResource Accent}"
+                                   Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="SESSION"
+                                       FontSize="9"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource TextTertiary}"/>
+                            <TextBlock Text="{Binding SelectedLoggingSession.Name}"
+                                       FontFamily="Consolas"
+                                       FontSize="20"
+                                       FontWeight="Medium"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                        </StackPanel>
+                        <Button Grid.Column="2"
+                                Width="28" Height="28"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Foreground="{StaticResource TextSecondary}"
+                                FontSize="16"
+                                Cursor="Hand"
+                                Content="&#xD7;"
+                                Command="{Binding CloseLoggedSessionSettingsCommand}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bg" Background="Transparent" CornerRadius="14">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bg" Property="Background" Value="#1FFFFFFF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
+
+                    <!-- Drawer body -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="22,0,22,22">
+                        <StackPanel>
+
+                            <!-- NAME -->
+                            <TextBlock Text="NAME"
+                                       Style="{StaticResource SectionLabel}"
+                                       Margin="0,8,0,8"/>
+                            <Border Style="{StaticResource DrawerTextField}">
+                                <TextBox x:Name="SessionNameTextBox"
+                                         Style="{StaticResource DrawerTextBox}"
+                                         Text="{Binding SelectedLoggingSession.Name, Mode=OneWay}"
+                                         TextChanged="OnSessionNameChanged"/>
+                            </Border>
+
+                            <!-- INFORMATION -->
+                            <TextBlock Text="INFORMATION"
+                                       Style="{StaticResource SectionLabel}"
+                                       Margin="0,22,0,10"/>
+                            <Border Background="{StaticResource Surface}"
+                                    BorderBrush="{StaticResource BorderDim}"
+                                    BorderThickness="1"
+                                    CornerRadius="3"
+                                    Padding="14,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,0,10">
+                                        <TextBlock Text="STARTED" Style="{StaticResource InfoLabel}"/>
+                                        <TextBlock Text="{Binding SelectedLoggingSession.SessionStart, StringFormat='{}{0:M/d/yyyy}'}"
+                                                   Style="{StaticResource InfoValue}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,0,10">
+                                        <TextBlock Text="TIME" Style="{StaticResource InfoLabel}"/>
+                                        <TextBlock Text="{Binding SelectedLoggingSession.SessionStart, StringFormat='{}{0:h:mm tt}'}"
+                                                   Style="{StaticResource InfoValue}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="0" Grid.Row="1">
+                                        <TextBlock Text="SAMPLES" Style="{StaticResource InfoLabel}"/>
+                                        <TextBlock Text="{Binding SelectedLoggingSession.SampleCountDisplay}"
+                                                   ToolTip="{Binding SelectedLoggingSession.SampleCountTooltip}"
+                                                   Style="{StaticResource InfoValue}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Grid.Row="1">
+                                        <TextBlock Text="SAMPLE RATE" Style="{StaticResource InfoLabel}"/>
+                                        <TextBlock Text="{Binding SelectedLoggingSession.FrequencyDisplay}"
+                                                   Style="{StaticResource InfoValue}"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- ACTIONS -->
+                            <TextBlock Text="ACTIONS"
+                                       Style="{StaticResource SectionLabel}"
+                                       Margin="0,22,0,10"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Style="{StaticResource PillButton}"
+                                        Content="EXPORT"
+                                        Command="{Binding ExportLoggingSessionCommand}"
+                                        CommandParameter="{Binding SelectedLoggingSession}"/>
+                                <Button Style="{StaticResource DangerPillButton}"
+                                        Content="DELETE"
+                                        Command="{Binding DeleteLoggingSessionCommand}"
+                                        CommandParameter="{Binding SelectedLoggingSession}"/>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ========== LOADING OVERLAY ========== -->
+        <Grid Visibility="{Binding IsLoggedDataBusy, FallbackValue=Hidden, Converter={StaticResource BoolToVis}}"
+              Panel.ZIndex="20">
+            <Rectangle Fill="#CC000000" IsHitTestVisible="True"/>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <controls:ProgressRing IsActive="{Binding IsLoggedDataBusy, Mode=OneWay}"
+                                       Foreground="{StaticResource Accent}"
+                                       Width="48" Height="48"/>
+                <TextBlock Text="{Binding LoggedDataBusyReason}"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimary}"
+                           HorizontalAlignment="Center"
+                           Margin="0,16,0,0"/>
+            </StackPanel>
+        </Grid>
+
+    </Grid>
+</UserControl>
