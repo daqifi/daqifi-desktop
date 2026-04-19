@@ -1,0 +1,419 @@
+<UserControl x:Class="Daqifi.Desktop.View.Prototype.LiveGraphPane"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:oxy="http://oxyplot.org/wpf"
+             xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+             xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
+             xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:DaqifiViewModel}"
+             d:DesignHeight="800" d:DesignWidth="1200">
+
+    <UserControl.Resources>
+
+        <!-- Brushes come from /Resources/DesignTokens.xaml via App.xaml -->
+
+        <!-- Transparent button shell used by the channel legend items -->
+        <Style x:Key="LegendItemButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#15FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Icon buttons for the plot toolbar (zoom, save, settings) -->
+        <Style x:Key="PlotIconButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="3"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#1FFFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.35"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource Surface}">
+        <Grid.RowDefinitions>
+            <!-- Header bar: session status + logging toggle -->
+            <RowDefinition Height="Auto"/>
+            <!-- Main content: plot + channel sidebar -->
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- ── Header bar ── -->
+        <Border Grid.Row="0"
+                Background="{StaticResource Surface}"
+                BorderBrush="{StaticResource BorderDim}"
+                BorderThickness="0,0,0,1"
+                Padding="20,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Session status chips — only visible while logging -->
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Margin="0,10,0,10"
+                            Visibility="{Binding IsLogging, Converter={StaticResource BoolToVis}}">
+
+                    <!-- Live pulse indicator -->
+                    <Ellipse Width="7" Height="7"
+                             Fill="{StaticResource StatusGreen}"
+                             Margin="0,0,6,0"
+                             VerticalAlignment="Center"/>
+                    <TextBlock Text="LIVE"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource StatusGreen}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,20,0"/>
+
+                    <!-- Mode -->
+                    <TextBlock Text="MODE"
+                               FontSize="9"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextTertiary}"
+                               VerticalAlignment="Center"
+                               Margin="0,1,5,0"/>
+                    <TextBlock Text="{Binding SelectedLoggingMode}"
+                               FontFamily="Consolas"
+                               FontSize="11"
+                               Foreground="{StaticResource TextSecondary}"
+                               VerticalAlignment="Center"/>
+
+                    <TextBlock Text="  ·  "
+                               FontSize="11"
+                               Foreground="{StaticResource TextTertiary}"
+                               VerticalAlignment="Center"/>
+
+                    <!-- Duration -->
+                    <TextBlock Text="DURATION"
+                               FontSize="9"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextTertiary}"
+                               VerticalAlignment="Center"
+                               Margin="0,1,5,0"/>
+                    <TextBlock Text="{Binding SessionDuration}"
+                               FontFamily="Consolas"
+                               FontSize="11"
+                               Foreground="{StaticResource TextSecondary}"
+                               VerticalAlignment="Center"/>
+
+                    <TextBlock Text="  ·  "
+                               FontSize="11"
+                               Foreground="{StaticResource TextTertiary}"
+                               VerticalAlignment="Center"/>
+
+                    <!-- Sample rate -->
+                    <TextBlock Text="RATE"
+                               FontSize="9"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextTertiary}"
+                               VerticalAlignment="Center"
+                               Margin="0,1,5,0"/>
+                    <TextBlock FontFamily="Consolas"
+                               FontSize="11"
+                               Foreground="{StaticResource TextSecondary}"
+                               VerticalAlignment="Center">
+                        <Run Text="{Binding SelectedStreamingFrequency}"/><Run Text=" Hz"/>
+                    </TextBlock>
+
+                    <!-- Storage — only in Log-to-Device mode -->
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding IsLogToDeviceMode, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="  ·  "
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextTertiary}"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="STORAGE"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextTertiary}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,1,5,0"/>
+                        <TextBlock Text="{Binding StorageUsage}"
+                                   FontFamily="Consolas"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Logging toggle -->
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Margin="0,8,0,8">
+                    <TextBlock VerticalAlignment="Center"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Margin="0,0,8,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="LOGGING OFF"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextTertiary}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLogging}" Value="True">
+                                        <Setter Property="Text" Value="LOGGING ON"/>
+                                        <Setter Property="Foreground" Value="{StaticResource StatusGreen}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <controls:ToggleSwitch IsOn="{Binding IsLogging, Mode=TwoWay}"
+                                          IsEnabled="{Binding CanToggleLogging, Mode=OneWay}"
+                                          OffContent=""
+                                          OnContent=""
+                                          Margin="0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ── Main content area ── -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Plot area -->
+            <Grid Grid.Column="0">
+                <!-- OxyPlot takes the full plot column -->
+                <oxy:PlotView x:Name="DataLog"
+                              Model="{Binding Plotter.PlotModel}"
+                              TabIndex="0"/>
+
+                <!-- Plot toolbar — floats in the top-right corner of the plot -->
+                <Border HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Background="{StaticResource SurfaceRaised}"
+                        BorderBrush="{StaticResource BorderDim}"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Margin="12"
+                        Padding="2">
+                    <StackPanel Orientation="Horizontal">
+                        <Button Style="{StaticResource PlotIconButton}"
+                                Command="{Binding Plotter.ZoomOutXCommand}"
+                                ToolTip="Zoom out (time)">
+                            <iconPacks:PackIconMaterial Kind="MagnifyMinusOutline"
+                                                        Width="14" Height="14"
+                                                        Foreground="{StaticResource TextSecondary}"/>
+                        </Button>
+                        <Button Style="{StaticResource PlotIconButton}"
+                                Command="{Binding Plotter.ZoomInXCommand}"
+                                ToolTip="Zoom in (time)">
+                            <iconPacks:PackIconMaterial Kind="MagnifyPlusOutline"
+                                                        Width="14" Height="14"
+                                                        Foreground="{StaticResource TextSecondary}"/>
+                        </Button>
+
+                        <Rectangle Width="1" Height="16" Margin="2,0"
+                                   Fill="{StaticResource BorderDim}"
+                                   VerticalAlignment="Center"/>
+
+                        <Button Style="{StaticResource PlotIconButton}"
+                                Command="{Binding Plotter.ZoomOutYCommand}"
+                                ToolTip="Zoom out (analog)">
+                            <iconPacks:PackIconMaterial Kind="ArrowExpandVertical"
+                                                        Width="14" Height="14"
+                                                        Foreground="{StaticResource TextSecondary}"/>
+                        </Button>
+                        <Button Style="{StaticResource PlotIconButton}"
+                                Command="{Binding Plotter.ZoomInYCommand}"
+                                ToolTip="Zoom in (analog)">
+                            <iconPacks:PackIconMaterial Kind="ArrowCollapseVertical"
+                                                        Width="14" Height="14"
+                                                        Foreground="{StaticResource TextSecondary}"/>
+                        </Button>
+
+                        <Rectangle Width="1" Height="16" Margin="2,0"
+                                   Fill="{StaticResource BorderDim}"
+                                   VerticalAlignment="Center"/>
+
+                        <Button Style="{StaticResource PlotIconButton}"
+                                Command="{Binding Plotter.ResetZoomLiveGraphCommand}"
+                                ToolTip="Reset zoom">
+                            <iconPacks:PackIconMaterial Kind="Crosshairs"
+                                                        Width="14" Height="14"
+                                                        Foreground="{StaticResource TextSecondary}"/>
+                        </Button>
+
+                        <Rectangle Width="1" Height="16" Margin="2,0"
+                                   Fill="{StaticResource BorderDim}"
+                                   VerticalAlignment="Center"/>
+
+                        <Button Style="{StaticResource PlotIconButton}"
+                                Command="{Binding Plotter.SaveLiveGraphCommand}"
+                                CommandParameter="{Binding}"
+                                ToolTip="Save as image">
+                            <iconPacks:PackIconMaterial Kind="ImageOutline"
+                                                        Width="14" Height="14"
+                                                        Foreground="{StaticResource TextSecondary}"/>
+                        </Button>
+                        <Button Style="{StaticResource PlotIconButton}"
+                                Command="{Binding OpenLiveGraphSettingsCommand}"
+                                ToolTip="Plot settings">
+                            <iconPacks:PackIconMaterial Kind="Cog"
+                                                        Width="14" Height="14"
+                                                        Foreground="{StaticResource TextSecondary}"/>
+                        </Button>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ── Channel legend sidebar ── -->
+            <Border Grid.Column="1"
+                    Background="{StaticResource SurfaceRaised}"
+                    BorderBrush="{StaticResource BorderDim}"
+                    BorderThickness="1,0,0,0"
+                    MinWidth="180"
+                    MaxWidth="220">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Sidebar header -->
+                    <Border Grid.Row="0"
+                            Padding="14,10"
+                            BorderBrush="{StaticResource BorderDim}"
+                            BorderThickness="0,0,0,1">
+                        <TextBlock Text="CHANNELS"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextTertiary}"/>
+                    </Border>
+
+                    <!-- Channel list -->
+                    <ListView Grid.Row="1"
+                              ItemsSource="{Binding ActiveInputChannels}"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              HorizontalContentAlignment="Stretch"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Focusable" Value="False"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListViewItem">
+                                            <ContentPresenter/>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding DataContext.ToggleChannelVisibilityCommand,
+                                                          RelativeSource={RelativeSource AncestorType=ListView}}"
+                                        CommandParameter="{Binding}"
+                                        Padding="14,9"
+                                        Style="{StaticResource LegendItemButton}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Color stripe -->
+                                        <Border Grid.Column="0"
+                                                Width="3"
+                                                Height="34"
+                                                CornerRadius="1.5"
+                                                Background="{Binding ChannelColorBrush}"
+                                                Margin="0,0,10,0"
+                                                VerticalAlignment="Center">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Opacity" Value="1.0"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                            <Setter Property="Opacity" Value="0.25"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                        </Border>
+
+                                        <!-- Channel name + device serial -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource TextPrimary}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Opacity" Value="1.0"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                                                                <Setter Property="Opacity" Value="0.35"/>
+                                                                <Setter Property="TextDecorations" Value="Strikethrough"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding DeviceSerialNo}"
+                                                       FontSize="9"
+                                                       Foreground="{StaticResource TextTertiary}"
+                                                       Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

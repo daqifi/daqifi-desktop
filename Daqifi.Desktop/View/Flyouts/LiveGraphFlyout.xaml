@@ -1,54 +1,138 @@
-﻿<controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.LiveGraphFlyout"
+<controls:Flyout x:Class="Daqifi.Desktop.View.Flyouts.LiveGraphFlyout"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+             xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
              xmlns:viewModels="clr-namespace:Daqifi.Desktop.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=viewModels:DaqifiViewModel}"
-             d:DesignHeight="600" d:DesignWidth="600"
-                 Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}" IsOpen="{Binding IsLiveGraphSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}" Position="Right" Header="Live Graph Settings">
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+             d:DesignHeight="600" d:DesignWidth="320"
+             Width="{Binding FlyoutWidth}" Height="{Binding FlyoutHeight}"
+             IsOpen="{Binding IsLiveGraphSettingsOpen, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+             Position="Right"
+             Header="Plot Settings"
+             Background="#171A20"
+             Foreground="#F5F5F7">
+
+    <controls:Flyout.Resources>
+
+        <!-- Brushes come from /Resources/DesignTokens.xaml via App.xaml -->
+
+        <Style x:Key="DrawerSectionLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#5A5E66"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="DrawerRowLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#8E9199"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Dark toggle switch inside the flyout -->
+        <Style x:Key="FlyoutToggle" TargetType="controls:ToggleSwitch"
+               BasedOn="{StaticResource MahApps.Styles.ToggleSwitch}">
+            <Setter Property="Foreground" Value="#F5F5F7"/>
+            <Setter Property="OffContent" Value="Off"/>
+            <Setter Property="OnContent" Value="On"/>
+        </Style>
+
+    </controls:Flyout.Resources>
+
+    <Grid Background="#171A20" Margin="0,8,0,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        <GroupBox Grid.Column="1" Grid.Row="0" Header="Grid Settings">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Label Grid.Row="0" Grid.Column="0" Content="Major X-Axis" VerticalAlignment="Center"/>
-                <controls:ToggleSwitch Grid.Row="0" Grid.Column="1" IsOn="{Binding Plotter.ShowingMajorXAxisGrid, Mode=TwoWay}" OffContent="Off" OnContent="On" HorizontalAlignment="Left"/>
-                <Label Grid.Row="1" Grid.Column="0" Content="Minor X-Axis" VerticalAlignment="Center"/>
-                <controls:ToggleSwitch Grid.Row="1" Grid.Column="1" IsOn="{Binding Plotter.ShowingMinorXAxisGrid, Mode=TwoWay}" OffContent="Off" OnContent="On" HorizontalAlignment="Left"/>
-                <Label Grid.Row="2" Grid.Column="0" Content="Major Y-Axis" VerticalAlignment="Center"/>
-                <controls:ToggleSwitch Grid.Row="2" Grid.Column="1" IsOn="{Binding Plotter.ShowingMajorYAxisGrid, Mode=TwoWay}" OffContent="Off" OnContent="On" HorizontalAlignment="Left"/>
-                <Label Grid.Row="3" Grid.Column="0" Content="Minor Y-Axis" VerticalAlignment="Center"/>
-                <controls:ToggleSwitch Grid.Row="3" Grid.Column="1" IsOn="{Binding Plotter.ShowingMinorYAxisGrid, Mode=TwoWay}" OffContent="Off" OnContent="On" HorizontalAlignment="Left"/>
-            </Grid>
-        </GroupBox>
-        <GroupBox Grid.Column="0" Grid.Row="0" Header="Graph Precision">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <Label Grid.Row="0" Content="{Binding Plotter.Precision, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" VerticalAlignment="Center" HorizontalContentAlignment="Center" FontSize="20"/>
-                <Slider Grid.Row="1" HorizontalAlignment="Stretch" Minimum="0" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding Plotter.Precision, UpdateSourceTrigger=PropertyChanged}"/>
-            </Grid>
-        </GroupBox>
+
+        <!-- ── Grid visibility ── -->
+        <Border Grid.Row="0"
+                BorderBrush="#2A2F38"
+                BorderThickness="0,0,0,1"
+                Padding="20,16,20,16">
+            <StackPanel>
+                <TextBlock Text="GRID LINES" Style="{StaticResource DrawerSectionLabel}"/>
+
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Major X-Axis" Style="{StaticResource DrawerRowLabel}"/>
+                    <controls:ToggleSwitch Grid.Column="1"
+                                          IsOn="{Binding Plotter.ShowingMajorXAxisGrid, Mode=TwoWay}"
+                                          Style="{StaticResource FlyoutToggle}"/>
+                </Grid>
+
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Minor X-Axis" Style="{StaticResource DrawerRowLabel}"/>
+                    <controls:ToggleSwitch Grid.Column="1"
+                                          IsOn="{Binding Plotter.ShowingMinorXAxisGrid, Mode=TwoWay}"
+                                          Style="{StaticResource FlyoutToggle}"/>
+                </Grid>
+
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Major Y-Axis" Style="{StaticResource DrawerRowLabel}"/>
+                    <controls:ToggleSwitch Grid.Column="1"
+                                          IsOn="{Binding Plotter.ShowingMajorYAxisGrid, Mode=TwoWay}"
+                                          Style="{StaticResource FlyoutToggle}"/>
+                </Grid>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Minor Y-Axis" Style="{StaticResource DrawerRowLabel}"/>
+                    <controls:ToggleSwitch Grid.Column="1"
+                                          IsOn="{Binding Plotter.ShowingMinorYAxisGrid, Mode=TwoWay}"
+                                          Style="{StaticResource FlyoutToggle}"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- ── Graph precision ── -->
+        <Border Grid.Row="1"
+                Padding="20,16,20,16">
+            <StackPanel>
+                <TextBlock Text="PRECISION" Style="{StaticResource DrawerSectionLabel}"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Slider Grid.Column="0"
+                            VerticalAlignment="Center"
+                            Minimum="0" Maximum="10"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding Plotter.Precision, UpdateSourceTrigger=PropertyChanged}"
+                            Margin="0,0,12,0"/>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Plotter.Precision, UpdateSourceTrigger=PropertyChanged}"
+                               FontFamily="Consolas"
+                               FontSize="16"
+                               Foreground="#F5F5F7"
+                               VerticalAlignment="Center"
+                               MinWidth="20"
+                               TextAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
     </Grid>
 </controls:Flyout>
