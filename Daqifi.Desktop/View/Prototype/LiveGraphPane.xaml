@@ -359,48 +359,6 @@
                                    Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
-
-                <!-- Empty-state overlay: shown when channels are active but logging is off -->
-                <Border IsHitTestVisible="False"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Padding="24,16"
-                        Background="{StaticResource SurfaceRaised}"
-                        BorderBrush="{StaticResource BorderDim}"
-                        BorderThickness="1"
-                        CornerRadius="6">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Style.Triggers>
-                                <MultiDataTrigger>
-                                    <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding IsLogging}" Value="False"/>
-                                        <Condition Binding="{Binding HasActiveInputChannels}" Value="True"/>
-                                    </MultiDataTrigger.Conditions>
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </MultiDataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <StackPanel HorizontalAlignment="Center">
-                        <iconPacks:PackIconMaterial Kind="PlayCircleOutline"
-                                                    Width="28" Height="28"
-                                                    Foreground="{StaticResource StatusGreen}"
-                                                    HorizontalAlignment="Center"
-                                                    Margin="0,0,0,10"/>
-                        <TextBlock Text="Channels ready"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   HorizontalAlignment="Center"/>
-                        <TextBlock Text="Toggle LOGGING ON to start streaming."
-                                   FontSize="11"
-                                   Foreground="{StaticResource TextTertiary}"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,4,0,0"/>
-                    </StackPanel>
-                </Border>
             </Grid>
 
             <!-- ── Channel legend sidebar ── -->

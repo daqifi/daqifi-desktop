@@ -158,7 +158,6 @@ public partial class DaqifiViewModel : ObservableObject
     public ObservableCollection<Notifications> NotificationList { get; } = [];
     public ObservableCollection<IChannel> ActiveChannels { get; } = [];
     public ObservableCollection<IChannel> ActiveInputChannels { get; } = [];
-    public bool HasActiveInputChannels => ActiveInputChannels.Count > 0;
     public ObservableCollection<LoggingSession> LoggingSessions => TryGetLoggingManager()?.LoggingSessions ?? _fallbackLoggingSessions;
     public bool HasLoggingSessions => LoggingSessions.Count > 0;
 
@@ -1795,7 +1794,6 @@ public partial class DaqifiViewModel : ObservableObject
                     }
                     ActiveChannels.Add(channel);
                 }
-                OnPropertyChanged(nameof(HasActiveInputChannels));
                 break;
             case nameof(LoggingManager.LoggingSessions):
                 AttachLoggingSessionsCollection(LoggingManager.Instance.LoggingSessions);
