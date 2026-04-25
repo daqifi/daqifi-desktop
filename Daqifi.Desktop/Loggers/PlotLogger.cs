@@ -1,7 +1,6 @@
 ﻿using Daqifi.Desktop.Channel;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
-using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Helpers;
 using OxyPlot;
@@ -9,7 +8,6 @@ using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Diagnostics;
 using System.IO;
-using System.Threading;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -186,14 +184,8 @@ public partial class PlotLogger : ObservableObject, ILogger
     }
     #endregion
 
-    private int _plotLogCount;
     public void Log(DataSample dataSample)
     {
-        var count = Interlocked.Increment(ref _plotLogCount);
-        if (count == 1 || count == 10 || count % 100 == 0)
-        {
-            AppLogger.Instance.Information($"[STREAM_DIAG] PlotLogger.Log count={count} device={dataSample.DeviceSerialNo} channel={dataSample.ChannelName}");
-        }
         var key = (dataSample.DeviceSerialNo, dataSample.ChannelName);
 
         if (!LoggedChannels.ContainsKey(key))
@@ -313,7 +305,6 @@ public partial class PlotLogger : ObservableObject, ILogger
 
     public void ClearPlot()
     {
-        Interlocked.Exchange(ref _plotLogCount, 0);
         LoggedChannels.Clear();
         LoggedPoints.Clear();
         _gapDetector.Clear();

@@ -1,5 +1,4 @@
 ﻿using System.IO.Ports;
-using System.Threading;
 using Daqifi.Core.Device;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Messages;
@@ -136,14 +135,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     /// to the protocol handler for streaming data processing.
     /// Status messages are handled via <see cref="OnCoreChannelsPopulatedSerial"/>.
     /// </summary>
-    private int _coreMessageReceivedCount;
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
-        var count = Interlocked.Increment(ref _coreMessageReceivedCount);
-        if (count == 1 || count == 10 || count % 100 == 0)
-        {
-            AppLogger.Information($"[STREAM_DIAG] SerialStreamingDevice.OnCoreMessageReceived count={count} msgType={e.Message?.GetType().Name ?? "null"}");
-        }
         var args = new MessageEventArgs<object>(e.Message);
         HandleInboundMessage(args);
     }

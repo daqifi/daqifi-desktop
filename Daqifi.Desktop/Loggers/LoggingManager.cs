@@ -3,7 +3,6 @@ using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Models;
 using Daqifi.Desktop.Common.Loggers;
 using System.IO;
-using System.Threading;
 using System.Xml.Linq;
 using System.Collections.ObjectModel;
 using Daqifi.Desktop.UpdateVersion;
@@ -77,20 +76,6 @@ public partial class LoggingManager : ObservableObject
         }
         else if (newValue && !oldValue) // Was inactive, now starting
         {
-            Interlocked.Exchange(ref _handleChannelUpdateCount, 0);
-            Interlocked.Exchange(ref _handleChannelUpdateGatedCount, 0);
-            Interlocked.Exchange(ref _handleDeviceMessageCount, 0);
-
-            var subscribedBySerial = SubscribedChannels
-                .GroupBy(c => c.DeviceSerialNo ?? "<null>", StringComparer.Ordinal)
-                .Select(g => $"{g.Key}:{g.Count()}")
-                .ToList();
-            var connectedDevices = ConnectionManager.Instance.ConnectedDevices?.ToList() ?? new List<IStreamingDevice>();
-            var connectedSerials = connectedDevices
-                .Select(d => $"{d?.DeviceSerialNo ?? "<null>"}")
-                .ToList();
-            AppLogger.Information($"[STREAM_DIAG] OnActiveChanged(true) CurrentMode={CurrentMode} subscribedChannels={SubscribedChannels.Count} bySerial=[{string.Join(",", subscribedBySerial)}] connectedDevices={connectedDevices.Count} connectedSerials=[{string.Join(",", connectedSerials)}]");
-
             foreach (var channel in SubscribedChannels.ToList())
             {
                 channel.OnChannelUpdated -= HandleChannelUpdate;
@@ -144,17 +129,8 @@ public partial class LoggingManager : ObservableObject
                 // sampling frequency.
                 try
                 {
-                    var metadataList = BuildDeviceMetadataForSession(newId);
-                    AppLogger.Information($"[STREAM_DIAG] BuildDeviceMetadataForSession({newId}) returned {metadataList.Count} rows: [{string.Join(",", metadataList.Select(m => $"(sess={m.LoggingSessionID},sn={m.DeviceSerialNo})"))}]");
-                    var trackedByKey = new HashSet<(int, string)>();
-                    foreach (var metadata in metadataList)
+                    foreach (var metadata in BuildDeviceMetadataForSession(newId))
                     {
-                        var key = (metadata.LoggingSessionID, metadata.DeviceSerialNo ?? string.Empty);
-                        if (!trackedByKey.Add(key))
-                        {
-                            AppLogger.Information($"[STREAM_DIAG] BuildDeviceMetadataForSession returned DUPLICATE key {key} — skipping Add");
-                            continue;
-                        }
                         // EF Core's relationship fix-up automatically attaches
                         // this row to Session.DeviceMetadata because the FK
                         // matches the tracked Session. Adding to the nav
@@ -549,18 +525,8 @@ public partial class LoggingManager : ObservableObject
         return result;
     }
 
-    private int _handleDeviceMessageCount;
-    private int _handleChannelUpdateCount;
-    private int _handleChannelUpdateGatedCount;
-
     public void HandleDeviceMessage(object sender, DeviceMessage sample)
     {
-        var count = Interlocked.Increment(ref _handleDeviceMessageCount);
-        if (count == 1 || count == 10 || count % 100 == 0)
-        {
-            AppLogger.Information($"[STREAM_DIAG] HandleDeviceMessage count={count} Active={Active} Mode={CurrentMode} hasSession={_hasActiveApplicationSession} loggerCount={Loggers.Count}");
-        }
-
         if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession)
         {
             return;
@@ -577,19 +543,8 @@ public partial class LoggingManager : ObservableObject
 
     public void HandleChannelUpdate(object sender, DataSample sample)
     {
-        var count = Interlocked.Increment(ref _handleChannelUpdateCount);
-        if (count == 1 || count == 10 || count % 100 == 0)
-        {
-            AppLogger.Information($"[STREAM_DIAG] HandleChannelUpdate count={count} Active={Active} Mode={CurrentMode} hasSession={_hasActiveApplicationSession} loggerCount={Loggers.Count} sampleNull={sample == null}");
-        }
-
         if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession)
         {
-            var gated = Interlocked.Increment(ref _handleChannelUpdateGatedCount);
-            if (gated == 1 || gated == 10 || gated % 100 == 0)
-            {
-                AppLogger.Information($"[STREAM_DIAG] HandleChannelUpdate GATED count={gated} Active={Active} Mode={CurrentMode} hasSession={_hasActiveApplicationSession}");
-            }
             return;
         }
 

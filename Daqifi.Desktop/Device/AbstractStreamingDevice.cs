@@ -8,7 +8,6 @@ using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Models;
 using System.Globalization;
 using System.IO;
-using System.Threading;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
@@ -234,29 +233,14 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    private int _onStreamReceivedCount;
-    private int _onStreamGatedCount;
-    private int _onStreamProcessedCount;
-
     /// <summary>
     /// Handles streaming messages received from the device.
     /// Called automatically by ProtobufProtocolHandler when a streaming message is detected.
     /// </summary>
     private void OnStreamMessageReceived(DaqifiOutMessage message)
     {
-        var recvCount = Interlocked.Increment(ref _onStreamReceivedCount);
-        if (recvCount == 1 || recvCount == 10 || recvCount % 100 == 0)
-        {
-            AppLogger.Information($"[STREAM_DIAG] OnStreamMessageReceived recv count={recvCount} IsStreaming={IsStreaming} Mode={Mode}");
-        }
-
         if (!IsStreaming || Mode != DeviceMode.StreamToApp)
         {
-            var gated = Interlocked.Increment(ref _onStreamGatedCount);
-            if (gated == 1 || gated == 10 || gated % 100 == 0)
-            {
-                AppLogger.Information($"[STREAM_DIAG] OnStreamMessageReceived GATED count={gated} IsStreaming={IsStreaming} Mode={Mode}");
-            }
             return;
         }
 
@@ -392,19 +376,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             TargetFrequency = (int)message.TimestampFreq,
             Rollover = rollover,
         };
-
-        var procCount = Interlocked.Increment(ref _onStreamProcessedCount);
-        if (procCount == 1)
-        {
-            var activeAnalog = DataChannels.Count(c => c.IsActive && c.Type == ChannelType.Analog);
-            var activeDigitalIn = DataChannels.Count(c => c.IsActive && c.Type == ChannelType.Digital);
-            var analogDataCount = message.AnalogInDataFloat.Count > 0 ? message.AnalogInDataFloat.Count : message.AnalogInData.Count;
-            AppLogger.Information($"[STREAM_DIAG] OnStreamMessageReceived FIRST-PROCESSED hasAnalog={hasAnalogData} hasDigital={hasDigitalData} analogDataCount={analogDataCount} activeAnalog={activeAnalog} activeDigital={activeDigitalIn} deviceSn={deviceId} ts={messageTimestamp.Ticks}");
-        }
-        if (procCount == 10 || procCount % 100 == 0)
-        {
-            AppLogger.Information($"[STREAM_DIAG] OnStreamMessageReceived proc count={procCount}");
-        }
 
         Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
     }
@@ -685,17 +656,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         var coreStreamingDevice = GetCoreDeviceForStreaming();
         coreStreamingDevice.StreamingFrequency = StreamingFrequency;
-
-        Interlocked.Exchange(ref _onStreamReceivedCount, 0);
-        Interlocked.Exchange(ref _onStreamGatedCount, 0);
-        Interlocked.Exchange(ref _onStreamProcessedCount, 0);
-
         coreStreamingDevice.StartStreaming();
         IsStreaming = coreStreamingDevice.IsStreaming;
-
-        var activeAnalog = DataChannels.Count(c => c.IsActive && c.Type == ChannelType.Analog);
-        var activeDigital = DataChannels.Count(c => c.IsActive && c.Type == ChannelType.Digital);
-        AppLogger.Information($"[STREAM_DIAG] InitializeStreaming post-start IsStreaming={IsStreaming} coreIsStreaming={coreStreamingDevice.IsStreaming} Mode={Mode} freq={StreamingFrequency} activeAnalog={activeAnalog} activeDigital={activeDigital} serialNo={DeviceSerialNo}");
         AppLogger.AddBreadcrumb("streaming", $"Streaming started at {StreamingFrequency} Hz");
     }
 
