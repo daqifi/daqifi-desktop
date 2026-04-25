@@ -246,7 +246,8 @@ public partial class PlotLogger : ObservableObject, ILogger
         {
             Title = channelName,
             ItemsSource = newDataPoints,
-            Color = OxyColor.Parse(newColor)
+            Color = OxyColor.Parse(newColor),
+            TrackerFormatString = "{0}\n{1}: {2:0.###}\n{3}: {4:0.######}"
         };
 
         // Synchronize IsVisible with the IChannel
