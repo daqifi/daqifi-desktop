@@ -333,14 +333,14 @@
                         <ControlTemplate>
                             <oxy:TrackerControl Position="{Binding Position}"
                                                 LineExtents="{Binding PlotModel.PlotArea}"
-                                                Background="#1E2530"
-                                                BorderBrush="#3A4252"
+                                                Background="{StaticResource SurfaceActive}"
+                                                BorderBrush="{StaticResource BorderBright}"
                                                 BorderThickness="1"
-                                                LineStroke="#3A4252"
+                                                LineStroke="{StaticResource BorderBright}"
                                                 CornerRadius="4">
                                 <TextBlock Text="{Binding Text}"
-                                           Foreground="#F5F5F7"
-                                           FontFamily="Segoe UI"
+                                           Foreground="{StaticResource TextPrimary}"
+                                           FontFamily="Consolas"
                                            FontSize="11"
                                            LineHeight="18"
                                            Margin="10,7"/>

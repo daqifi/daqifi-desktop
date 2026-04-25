@@ -1118,13 +1118,17 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         var key = (deviceSerial: deviceSerialNo, channelName);
         localPoints.Add(key, []);
 
+        var serialSuffix = deviceSerialNo?.Length > 4
+            ? $"...{deviceSerialNo[^4..]}"
+            : deviceSerialNo;
+
         var newLineSeries = new LineSeries
         {
             Title = channelName,
             Tag = (deviceSerialNo, channelName),
             Color = OxyColor.Parse(color),
             IsVisible = true,
-            TrackerFormatString = "{0}\n{1}: {2:0.###}\n{3}: {4:0.######}"
+            TrackerFormatString = $"{channelName} ({serialSuffix})\n{{1}}: {{2:0.###}}\n{{3}}: {{4:0.######}}"
         };
 
         var legendItem = new LoggedSeriesLegendItem(
