@@ -81,11 +81,26 @@ public partial class DaqifiViewModel : ObservableObject
     // In-pane confirm dialog state (used by ShowConfirm for delete confirmations, etc.).
     // Bound by the LoggedDataPane confirm overlay; replaces the MahApps MessageDialog
     // (white card / blue theme) which clashed with the dark, tile-based design system.
+
+    /// <summary>True while the in-pane confirm overlay is visible.</summary>
     [ObservableProperty] private bool _isConfirmOpen;
+
+    /// <summary>Title shown at the top of the confirm overlay card.</summary>
     [ObservableProperty] private string _confirmTitle = string.Empty;
+
+    /// <summary>Body message shown in the confirm overlay card.</summary>
     [ObservableProperty] private string _confirmMessage = string.Empty;
+
+    /// <summary>Label shown on the affirmative button of the confirm overlay (e.g. "DELETE").</summary>
     [ObservableProperty] private string _confirmAffirmativeLabel = "OK";
+
+    /// <summary>
+    /// When true, the confirm overlay's affirmative button uses the danger style
+    /// (red outline) instead of the accent style (filled blue). Set by destructive
+    /// callers of <see cref="ShowConfirm"/>.
+    /// </summary>
     [ObservableProperty] private bool _confirmAffirmativeIsDestructive;
+
     private TaskCompletionSource<bool>? _confirmTcs;
 
     private SettingsViewModel? _appSettings;
@@ -267,6 +282,10 @@ public partial class DaqifiViewModel : ObservableObject
         {
             _selectedIndex = value;
             CloseFlyouts();
+            // Cancel any pending confirm overlay so its awaiter (e.g. an in-flight
+            // delete) doesn't get stranded when the user navigates away from the
+            // pane that owns the overlay.
+            CompleteConfirm(false);
             OnPropertyChanged();
         }
     }
@@ -423,7 +442,16 @@ public partial class DaqifiViewModel : ObservableObject
     public AsyncRelayCommand DeleteAllLoggingSessionCommand { get; private set; }
     public ICommand ToggleChannelVisibilityCommand { get; private set; }
     public ICommand ToggleLoggedSeriesVisibilityCommand { get; private set; }
+    /// <summary>
+    /// Resolves the confirm overlay's awaitable Task with <c>true</c>.
+    /// Bound to the affirmative button.
+    /// </summary>
     public IRelayCommand ConfirmAffirmativeCommand { get; }
+
+    /// <summary>
+    /// Resolves the confirm overlay's awaitable Task with <c>false</c>.
+    /// Bound to the cancel button and the scrim.
+    /// </summary>
     public IRelayCommand ConfirmNegativeCommand { get; }
     #endregion
 
@@ -1866,7 +1894,11 @@ public partial class DaqifiViewModel : ObservableObject
     /// the two button commands complete the underlying
     /// <see cref="TaskCompletionSource{TResult}"/>.
     /// </summary>
-    private Task<bool> ShowConfirm(string title, string message, string affirmativeLabel = "OK", bool isDestructive = false)
+    private Task<bool> ShowConfirm(
+        string title,
+        string message,
+        string affirmativeLabel = "OK",
+        bool isDestructive = false)
     {
         // Defensive: if a prior confirm is somehow still pending, cancel it
         // with a negative so the previous awaiter unwinds cleanly.

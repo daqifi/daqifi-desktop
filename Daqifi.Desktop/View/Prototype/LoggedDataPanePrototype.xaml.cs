@@ -27,6 +27,22 @@ public partial class LoggedDataPanePrototype
         };
     }
 
+    /// <summary>
+    /// Moves keyboard focus to the Cancel button when the confirm overlay becomes visible,
+    /// so Enter/Space activates the safe option by default. The TabNavigation="Cycle" on
+    /// the overlay grid then traps subsequent Tab navigation inside the dialog.
+    /// </summary>
+    private void OnConfirmOverlayIsVisibleChanged(object sender, System.Windows.DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is true)
+        {
+            // Defer until the visual tree has finished switching states; calling Focus
+            // directly inside the change handler can race the visibility transition.
+            Dispatcher.BeginInvoke(new Action(() => ConfirmCancelButton.Focus()),
+                System.Windows.Threading.DispatcherPriority.Input);
+        }
+    }
+
     private async void OnSessionNameChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
         if ((DataContext as DaqifiViewModel)?.SelectedLoggingSession is not LoggingSession session ||

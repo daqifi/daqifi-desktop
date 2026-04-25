@@ -1023,8 +1023,15 @@
         </Grid>
 
         <!-- ========== CONFIRM DIALOG (over everything) ========== -->
-        <Grid Visibility="{Binding IsConfirmOpen, Converter={StaticResource BoolToVis}}"
-              Panel.ZIndex="30">
+        <!-- Focusable + Cycle traps Tab inside the overlay so keyboard focus can't reach
+             the now-scrim-covered controls behind. Initial focus is moved to the Cancel
+             button by code-behind on IsVisibleChanged so the safe option is the default. -->
+        <Grid x:Name="ConfirmOverlay"
+              Visibility="{Binding IsConfirmOpen, Converter={StaticResource BoolToVis}}"
+              Panel.ZIndex="30"
+              Focusable="True"
+              KeyboardNavigation.TabNavigation="Cycle"
+              IsVisibleChanged="OnConfirmOverlayIsVisibleChanged">
             <!-- Scrim. Click = cancel (same pattern as the drawer). -->
             <Rectangle Fill="#A0000000">
                 <Rectangle.InputBindings>
@@ -1053,7 +1060,8 @@
                                Margin="0,10,0,20"/>
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right">
-                        <Button Content="CANCEL"
+                        <Button x:Name="ConfirmCancelButton"
+                                Content="CANCEL"
                                 Style="{StaticResource PillButton}"
                                 IsCancel="True"
                                 Command="{Binding ConfirmNegativeCommand}"/>
