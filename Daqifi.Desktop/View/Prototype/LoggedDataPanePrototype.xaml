@@ -409,6 +409,24 @@
                         <oxy:PlotView Grid.Row="1"
                                       Model="{Binding DbLogger.PlotModel}"
                                       Margin="16,8,16,0">
+                            <oxy:PlotView.DefaultTrackerTemplate>
+                                <ControlTemplate>
+                                    <oxy:TrackerControl Position="{Binding Position}"
+                                                        LineExtents="{Binding PlotModel.PlotArea}"
+                                                        Background="#1E2530"
+                                                        BorderBrush="#3A4252"
+                                                        BorderThickness="1"
+                                                        LineStroke="#3A4252"
+                                                        CornerRadius="4">
+                                        <TextBlock Text="{Binding Text}"
+                                                   Foreground="#F5F5F7"
+                                                   FontFamily="Segoe UI"
+                                                   FontSize="11"
+                                                   LineHeight="18"
+                                                   Margin="10,7"/>
+                                    </oxy:TrackerControl>
+                                </ControlTemplate>
+                            </oxy:PlotView.DefaultTrackerTemplate>
                             <oxy:PlotView.Style>
                                 <Style TargetType="oxy:PlotView">
                                     <Setter Property="Visibility" Value="Visible"/>
