@@ -78,6 +78,16 @@ public partial class DaqifiViewModel : ObservableObject
     [ObservableProperty]
     private bool _isAppSettingsOpen;
 
+    // In-pane confirm dialog state (used by ShowConfirm for delete confirmations, etc.).
+    // Bound by the LoggedDataPane confirm overlay; replaces the MahApps MessageDialog
+    // (white card / blue theme) which clashed with the dark, tile-based design system.
+    [ObservableProperty] private bool _isConfirmOpen;
+    [ObservableProperty] private string _confirmTitle = string.Empty;
+    [ObservableProperty] private string _confirmMessage = string.Empty;
+    [ObservableProperty] private string _confirmAffirmativeLabel = "OK";
+    [ObservableProperty] private bool _confirmAffirmativeIsDestructive;
+    private TaskCompletionSource<bool>? _confirmTcs;
+
     private SettingsViewModel? _appSettings;
 
     /// <summary>
@@ -413,6 +423,8 @@ public partial class DaqifiViewModel : ObservableObject
     public AsyncRelayCommand DeleteAllLoggingSessionCommand { get; private set; }
     public ICommand ToggleChannelVisibilityCommand { get; private set; }
     public ICommand ToggleLoggedSeriesVisibilityCommand { get; private set; }
+    public IRelayCommand ConfirmAffirmativeCommand { get; }
+    public IRelayCommand ConfirmNegativeCommand { get; }
     #endregion
 
     #region Constructor
@@ -452,6 +464,9 @@ public partial class DaqifiViewModel : ObservableObject
         _firmwareUpdateService = firmwareUpdateService ?? CreateDefaultFirmwareUpdateService(_firmwareDownloadService, resolvedLogger);
         _loggingContextFactory = loggingContextFactory;
         _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
+
+        ConfirmAffirmativeCommand = new RelayCommand(() => CompleteConfirm(true));
+        ConfirmNegativeCommand = new RelayCommand(() => CompleteConfirm(false));
 
         var app = Application.Current as App;
         if (app != null)
@@ -1345,8 +1360,12 @@ public partial class DaqifiViewModel : ObservableObject
 
             SelectedLoggingSession = session;
 
-            var result = await ShowMessage("Delete Confirmation", $"Are you sure you want to delete {SelectedLoggingSession.Name}?", MessageDialogStyle.AffirmativeAndNegative);
-            if (result != MessageDialogResult.Affirmative)
+            var confirmed = await ShowConfirm(
+                "Delete Confirmation",
+                $"Are you sure you want to delete {SelectedLoggingSession.Name}?",
+                affirmativeLabel: "DELETE",
+                isDestructive: true);
+            if (!confirmed)
             {
                 return;
             }
@@ -1410,11 +1429,12 @@ public partial class DaqifiViewModel : ObservableObject
                 return;
             }
 
-            var result = await ShowMessage(
+            var confirmed = await ShowConfirm(
                 "Delete Confirmation",
                 "Are you sure you want to delete all logging sessions? This cannot be undone.",
-                MessageDialogStyle.AffirmativeAndNegative);
-            if (result != MessageDialogResult.Affirmative)
+                affirmativeLabel: "DELETE ALL",
+                isDestructive: true);
+            if (!confirmed)
             {
                 return;
             }
@@ -1836,6 +1856,37 @@ public partial class DaqifiViewModel : ObservableObject
     {
         var metroWindow = Application.Current.MainWindow as MetroWindow;
         return await metroWindow.ShowMessageAsync(title, message, dialogStyle, metroWindow.MetroDialogOptions);
+    }
+
+    /// <summary>
+    /// Displays the in-pane dark confirm overlay and returns true if the user
+    /// chose the affirmative button. Bound by the LoggedDataPane confirm overlay
+    /// via <see cref="IsConfirmOpen"/>, <see cref="ConfirmTitle"/>,
+    /// <see cref="ConfirmMessage"/>, and <see cref="ConfirmAffirmativeLabel"/>;
+    /// the two button commands complete the underlying
+    /// <see cref="TaskCompletionSource{TResult}"/>.
+    /// </summary>
+    private Task<bool> ShowConfirm(string title, string message, string affirmativeLabel = "OK", bool isDestructive = false)
+    {
+        // Defensive: if a prior confirm is somehow still pending, cancel it
+        // with a negative so the previous awaiter unwinds cleanly.
+        _confirmTcs?.TrySetResult(false);
+
+        _confirmTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ConfirmTitle = title;
+        ConfirmMessage = message;
+        ConfirmAffirmativeLabel = affirmativeLabel;
+        ConfirmAffirmativeIsDestructive = isDestructive;
+        IsConfirmOpen = true;
+        return _confirmTcs.Task;
+    }
+
+    private void CompleteConfirm(bool result)
+    {
+        IsConfirmOpen = false;
+        var tcs = _confirmTcs;
+        _confirmTcs = null;
+        tcs?.TrySetResult(result);
     }
     public void CloseFlyouts()
     {
