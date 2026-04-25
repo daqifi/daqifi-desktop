@@ -78,9 +78,17 @@
                                 <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
                                 <Setter TargetName="Thumb" Property="Margin" Value="0,0,2,0"/>
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
+                            <!-- MultiTrigger so the checked-state green border survives hover.
+                                 A bare IsMouseOver=true Trigger setting Track.BorderBrush would
+                                 override the IsChecked=true setter when both conditions hold,
+                                 swapping the "logging on" green outline for TextSecondary. -->
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsChecked" Value="False"/>
+                                </MultiTrigger.Conditions>
                                 <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource TextSecondary}"/>
-                            </Trigger>
+                            </MultiTrigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.4"/>
                             </Trigger>

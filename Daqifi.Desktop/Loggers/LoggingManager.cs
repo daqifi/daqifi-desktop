@@ -112,10 +112,24 @@ public partial class LoggingManager : ObservableObject
                 // composite PK on SessionDeviceMetadata then rejects the insert
                 // with UNIQUE constraint failed and the toggle appears to do
                 // nothing on the second attempt.
-                var sessionsMax = context.Sessions.AsNoTracking().Select(s => (int?)s.ID).Max();
-                var metadataMax = context.SessionDeviceMetadata.AsNoTracking().Select(m => (int?)m.LoggingSessionID).Max();
-                var samplesMax = context.Samples.AsNoTracking().Select(s => (int?)s.LoggingSessionID).Max();
-                var maxKnownId = Math.Max(sessionsMax ?? -1, Math.Max(metadataMax ?? -1, samplesMax ?? -1));
+                //
+                // This runs synchronously on the UI thread (IsLogging is a
+                // UI-bound toggle), so the cost matters as the database grows.
+                // Folding the three MAXes into a single SQL statement keeps the
+                // round-trip count at one. Each inner MAX hits an index — Sessions.ID
+                // is the PK, SessionDeviceMetadata.LoggingSessionID is the leading
+                // column of the composite PK, and Samples has IX_Samples_SessionTime
+                // on (LoggingSessionID, TimestampTicks) — so SQLite resolves each
+                // MAX as an index seek rather than a table scan.
+                const string nextSessionIdSql = @"
+                    SELECT MAX(id) AS Value FROM (
+                        SELECT MAX(ID) AS id FROM Sessions
+                        UNION ALL SELECT MAX(LoggingSessionID) AS id FROM SessionDeviceMetadata
+                        UNION ALL SELECT MAX(LoggingSessionID) AS id FROM Samples
+                    )";
+                var maxKnownId = context.Database.SqlQueryRaw<int?>(nextSessionIdSql)
+                    .AsEnumerable()
+                    .FirstOrDefault() ?? -1;
                 var newId = maxKnownId + 1;
                 var name = $"Session_{newId}";
                 Session = new LoggingSession(newId, name);
