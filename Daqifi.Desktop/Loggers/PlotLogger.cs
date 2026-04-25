@@ -242,11 +242,16 @@ public partial class PlotLogger : ObservableObject, ILogger
         var newDataPoints = new List<DataPoint>();
         LoggedPoints.Add(key, newDataPoints);
 
+        var serialSuffix = DeviceSerialNo?.Length > 4
+            ? $"...{DeviceSerialNo[^4..]}"
+            : DeviceSerialNo;
+
         var newLineSeries = new LineSeries
         {
             Title = channelName,
             ItemsSource = newDataPoints,
-            Color = OxyColor.Parse(newColor)
+            Color = OxyColor.Parse(newColor),
+            TrackerFormatString = $"{channelName} ({serialSuffix})\n{{1}}: {{2:0.###}}\n{{3}}: {{4:0.######}}"
         };
 
         // Synchronize IsVisible with the IChannel
