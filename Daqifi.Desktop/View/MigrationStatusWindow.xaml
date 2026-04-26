@@ -6,7 +6,7 @@
         WindowStyle="None"
         ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
-        Background="Transparent"
+        Background="{StaticResource Surface}"
         Topmost="True"
         AllowsTransparency="True">
     <Border Background="{StaticResource Surface}"
