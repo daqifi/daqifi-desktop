@@ -29,4 +29,7 @@
     <SolidColorBrush x:Key="StatusAmber"    Color="#F59E0B"/>
     <SolidColorBrush x:Key="StatusRed"      Color="#F43F5E"/>
 
+    <!-- Overlays -->
+    <SolidColorBrush x:Key="Scrim"          Color="#CC000000"/>
+
 </ResourceDictionary>

@@ -6,10 +6,14 @@
         WindowStyle="None"
         ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
-        Background="White"
+        Background="Transparent"
         Topmost="True"
         AllowsTransparency="True">
-    <Border BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="4" Padding="32,24">
+    <Border Background="{StaticResource Surface}"
+            BorderBrush="{StaticResource BorderDim}"
+            BorderThickness="1"
+            CornerRadius="4"
+            Padding="32,24">
         <StackPanel HorizontalAlignment="Center">
             <Image Source="/Images/DAQiFi.png"
                    Width="200"
@@ -17,13 +21,13 @@
                    RenderOptions.BitmapScalingMode="HighQuality" />
             <TextBlock Text="Upgrading database, please wait..."
                        FontSize="14"
-                       Foreground="#555555"
+                       Foreground="{StaticResource TextSecondary}"
                        HorizontalAlignment="Center"
                        Margin="0,0,0,12" />
             <ProgressBar IsIndeterminate="True"
                          Height="4"
                          Width="200"
-                         Foreground="#3498db" />
+                         Foreground="{StaticResource Accent}" />
         </StackPanel>
     </Border>
 </Window>
