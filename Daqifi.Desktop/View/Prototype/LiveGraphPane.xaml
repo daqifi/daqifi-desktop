@@ -188,19 +188,40 @@
                                Foreground="{StaticResource TextTertiary}"
                                VerticalAlignment="Center"/>
 
-                    <!-- Sample rate -->
-                    <TextBlock Text="RATE"
-                               FontSize="9"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource TextTertiary}"
-                               VerticalAlignment="Center"
-                               Margin="0,1,5,0"/>
-                    <TextBlock FontFamily="Consolas"
-                               FontSize="11"
-                               Foreground="{StaticResource TextSecondary}"
-                               VerticalAlignment="Center">
-                        <Run Text="{Binding SelectedStreamingFrequency}"/><Run Text=" Hz"/>
-                    </TextBlock>
+                    <!-- Sample rate (stream mode) -->
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding IsSdCardLoggingActive, Converter={StaticResource InvertedBoolToVis}}">
+                        <TextBlock Text="RATE"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextTertiary}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,1,5,0"/>
+                        <TextBlock FontFamily="Consolas"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center">
+                            <Run Text="{Binding SelectedStreamingFrequency}"/><Run Text=" Hz"/>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <!-- Elapsed time (SD-card mode) -->
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding IsSdCardLoggingActive, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="ELAPSED"
+                                   FontSize="9"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextTertiary}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,1,5,0"/>
+                        <TextBlock Text="{Binding SdLoggingElapsed}"
+                                   FontFamily="Consolas"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- Plot toolbar pill -->
@@ -328,7 +349,8 @@
             <Grid Grid.Column="0">
                 <oxy:PlotView x:Name="DataLog"
                               Model="{Binding Plotter.PlotModel}"
-                              TabIndex="0">
+                              TabIndex="0"
+                              Visibility="{Binding IsSdCardLoggingActive, Converter={StaticResource InvertedBoolToVis}}">
                     <oxy:PlotView.DefaultTrackerTemplate>
                         <ControlTemplate>
                             <oxy:TrackerControl Position="{Binding Position}"
@@ -349,7 +371,9 @@
                     </oxy:PlotView.DefaultTrackerTemplate>
                 </oxy:PlotView>
 
-                <!-- Empty-state overlay: shown when no channels are streaming -->
+                <!-- Empty-state overlay: shown when no channels are streaming
+                     AND we're not in SD-card logging mode (otherwise the
+                     "Logging to Device" panel below covers this state). -->
                 <Border IsHitTestVisible="False"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
@@ -362,9 +386,13 @@
                         <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding ActiveInputChannels.Count}" Value="0">
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding ActiveInputChannels.Count}" Value="0"/>
+                                        <Condition Binding="{Binding IsSdCardLoggingActive}" Value="False"/>
+                                    </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
+                                </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
@@ -384,6 +412,72 @@
                                    Foreground="{StaticResource TextTertiary}"
                                    HorizontalAlignment="Center"
                                    Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- SD-card logging overlay: replaces the (necessarily empty)
+                     plot when the device is recording to its own SD card. -->
+                <Border IsHitTestVisible="False"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Padding="32,24"
+                        MinWidth="380"
+                        Background="{StaticResource SurfaceRaised}"
+                        BorderBrush="{StaticResource BorderDim}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Visibility="{Binding IsSdCardLoggingActive, Converter={StaticResource BoolToVis}}">
+                    <StackPanel HorizontalAlignment="Center">
+                        <Grid HorizontalAlignment="Center" Margin="0,0,0,14">
+                            <Ellipse Width="44" Height="44"
+                                     Fill="{StaticResource StatusGreen}"
+                                     Opacity="0.15"/>
+                            <iconPacks:PackIconMaterial Kind="RecordRec"
+                                                        Width="28" Height="28"
+                                                        Foreground="{StaticResource StatusGreen}"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"/>
+                        </Grid>
+
+                        <TextBlock Text="Logging to Device"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimary}"
+                                   HorizontalAlignment="Center"/>
+
+                        <TextBlock Text="{Binding SdLoggingElapsed}"
+                                   FontFamily="Consolas"
+                                   FontSize="22"
+                                   Foreground="{StaticResource StatusGreen}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,10,0,0"/>
+
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,10,0,0">
+                            <TextBlock Text="FORMAT"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextTertiary}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,1,5,0"/>
+                            <TextBlock Text="{Binding SelectedSdCardLogFormat}"
+                                       FontFamily="Consolas"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Live preview is unavailable in this mode."
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,16,0,0"/>
+                        <TextBlock Text="Recorded data will appear in Logged Data after retrieval."
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextTertiary}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,2,0,0"/>
                     </StackPanel>
                 </Border>
             </Grid>
