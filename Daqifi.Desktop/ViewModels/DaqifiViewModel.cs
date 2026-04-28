@@ -27,6 +27,7 @@ using System.IO;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Daqifi.Desktop.Device.SerialDevice;
 using System.IO.Ports;
@@ -170,6 +171,9 @@ public partial class DaqifiViewModel : ObservableObject
     private IDiskSpaceMonitor? _diskSpaceMonitor;
     private ObservableCollection<LoggingSession>? _observedLoggingSessions;
     private CancellationTokenSource? _networkSettingsAppliedCts;
+    private DispatcherTimer? _sdLoggingElapsedTimer;
+    private DateTime? _sdLoggingStartedAt;
+    private string _sdLoggingElapsed = "00:00:00";
     #endregion
 
     #region Properties
@@ -190,9 +194,15 @@ public partial class DaqifiViewModel : ObservableObject
     public DatabaseLogger DbLogger { get; private set; }
     public SummaryLogger SummaryLogger { get; private set; }
 
+    /// <summary>
+    /// True if the user has toggled logging on, OR if any connected device reports
+    /// it is actively streaming/SD-logging. Reading from device state ensures the
+    /// toggle reflects reality even when logging was started in a prior session
+    /// and the device kept logging across a reconnect.
+    /// </summary>
     public bool IsLogging
     {
-        get => _isLogging;
+        get => _isLogging || AnyDeviceActivelyLogging();
         set
         {
             var preSessionWarningShown = false;
@@ -256,8 +266,36 @@ public partial class DaqifiViewModel : ObservableObject
                     }
                 }
             }
+
+            OnPropertyChanged(nameof(IsLogging));
+            OnPropertyChanged(nameof(IsSdCardLoggingActive));
         }
     }
+
+    /// <summary>
+    /// True when at least one connected device reports it is actively logging to its SD card.
+    /// Used by the Live Graph to show a "Logging to Device" status panel in place of the
+    /// (necessarily empty) plot, since SD-mode samples never reach the desktop.
+    /// </summary>
+    public bool IsSdCardLoggingActive => ConnectedDevices.Any(d => d.IsLoggingToSdCard);
+
+    /// <summary>
+    /// Elapsed time since SD-card logging started in this session, formatted as HH:mm:ss.
+    /// Driven by a 1Hz DispatcherTimer that runs only while <see cref="IsSdCardLoggingActive"/>.
+    /// </summary>
+    public string SdLoggingElapsed
+    {
+        get => _sdLoggingElapsed;
+        private set
+        {
+            if (_sdLoggingElapsed == value) { return; }
+            _sdLoggingElapsed = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private bool AnyDeviceActivelyLogging()
+        => ConnectedDevices.Any(d => d.IsLoggingToSdCard);
 
     public bool CanToggleLogging
     {
@@ -495,6 +533,12 @@ public partial class DaqifiViewModel : ObservableObject
 
         ConfirmAffirmativeCommand = new RelayCommand(() => CompleteConfirm(true));
         ConfirmNegativeCommand = new RelayCommand(() => CompleteConfirm(false));
+
+        // Track device-side logging/streaming state so the toggle and the Live Graph
+        // overlay reflect what's *actually* happening, not just what the user clicked.
+        // This catches cases like reconnecting to a device that's still SD-logging from
+        // a previous desktop session, where _isLogging would otherwise stay false.
+        ConnectedDevices.CollectionChanged += OnConnectedDevicesCollectionChanged;
 
         var app = Application.Current as App;
         if (app != null)
@@ -1794,6 +1838,78 @@ public partial class DaqifiViewModel : ObservableObject
         }
 
         return Task.CompletedTask;
+    }
+
+    private readonly HashSet<IStreamingDevice> _loggingStateSubscribedDevices = [];
+
+    private void OnConnectedDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        // ObservableCollection.Clear() raises a Reset with OldItems == null, so we
+        // can't rely on the args alone — diff against our tracked-subscription set
+        // to handle Reset, Replace, and per-item adds/removes uniformly.
+        var current = new HashSet<IStreamingDevice>(ConnectedDevices);
+
+        foreach (var stale in _loggingStateSubscribedDevices.Except(current).ToList())
+        {
+            stale.PropertyChanged -= OnDeviceLoggingStateChanged;
+            _loggingStateSubscribedDevices.Remove(stale);
+        }
+
+        foreach (var added in current.Except(_loggingStateSubscribedDevices).ToList())
+        {
+            added.PropertyChanged += OnDeviceLoggingStateChanged;
+            _loggingStateSubscribedDevices.Add(added);
+        }
+
+        RaiseLoggingStateChanged();
+    }
+
+    private void OnDeviceLoggingStateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IStreamingDevice.IsLoggingToSdCard))
+        {
+            RaiseLoggingStateChanged();
+        }
+    }
+
+    private void RaiseLoggingStateChanged()
+    {
+        OnPropertyChanged(nameof(IsLogging));
+        OnPropertyChanged(nameof(IsSdCardLoggingActive));
+        UpdateSdLoggingTimer();
+    }
+
+    private void UpdateSdLoggingTimer()
+    {
+        var active = IsSdCardLoggingActive;
+        if (active && _sdLoggingElapsedTimer == null)
+        {
+            _sdLoggingStartedAt = DateTime.UtcNow;
+            SdLoggingElapsed = "00:00:00";
+            _sdLoggingElapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _sdLoggingElapsedTimer.Tick += OnSdLoggingTimerTick;
+            _sdLoggingElapsedTimer.Start();
+        }
+        else if (!active && _sdLoggingElapsedTimer != null)
+        {
+            _sdLoggingElapsedTimer.Stop();
+            _sdLoggingElapsedTimer.Tick -= OnSdLoggingTimerTick;
+            _sdLoggingElapsedTimer = null;
+            _sdLoggingStartedAt = null;
+        }
+    }
+
+    private void OnSdLoggingTimerTick(object? sender, EventArgs e)
+    {
+        if (_sdLoggingStartedAt is { } start)
+        {
+            var elapsed = DateTime.UtcNow - start;
+            // TimeSpan's "hh" specifier is the Hours component (0-23), so it wraps
+            // at 24h. SD-card logging sessions can run arbitrarily long; format off
+            // TotalHours instead so multi-day sessions display correctly.
+            var totalHours = (int)elapsed.TotalHours;
+            SdLoggingElapsed = $"{totalHours:D2}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2}";
+        }
     }
 
     public async void UpdateUi(object sender, PropertyChangedEventArgs args)
