@@ -173,6 +173,12 @@ public partial class DaqifiViewModel : ObservableObject
     private CancellationTokenSource? _networkSettingsAppliedCts;
     private DispatcherTimer? _sdLoggingElapsedTimer;
     private DateTime? _sdLoggingStartedAt;
+
+    /// <summary>
+    /// Elapsed time since SD-card logging started in this session, formatted as HH:mm:ss.
+    /// Driven by a 1Hz DispatcherTimer that runs only while <see cref="IsSdCardLoggingActive"/>.
+    /// </summary>
+    [ObservableProperty]
     private string _sdLoggingElapsed = "00:00:00";
     #endregion
 
@@ -196,9 +202,13 @@ public partial class DaqifiViewModel : ObservableObject
 
     /// <summary>
     /// True if the user has toggled logging on, OR if any connected device reports
-    /// it is actively streaming/SD-logging. Reading from device state ensures the
-    /// toggle reflects reality even when logging was started in a prior session
-    /// and the device kept logging across a reconnect.
+    /// it is actively logging to its SD card. Reading from device state ensures the
+    /// toggle reflects reality even when SD-card logging was started in a prior
+    /// session and the device kept logging across a desktop reconnect. Streaming-mode
+    /// state is not tracked here because <c>IsStreaming</c> is not on the
+    /// <see cref="IStreamingDevice"/> interface; the streaming path updates state
+    /// synchronously through the setter via the toggle, so this getter only needs to
+    /// supplement that with the SD-card signal.
     /// </summary>
     public bool IsLogging
     {
@@ -279,21 +289,6 @@ public partial class DaqifiViewModel : ObservableObject
     /// </summary>
     public bool IsSdCardLoggingActive => ConnectedDevices.Any(d => d.IsLoggingToSdCard);
 
-    /// <summary>
-    /// Elapsed time since SD-card logging started in this session, formatted as HH:mm:ss.
-    /// Driven by a 1Hz DispatcherTimer that runs only while <see cref="IsSdCardLoggingActive"/>.
-    /// </summary>
-    public string SdLoggingElapsed
-    {
-        get => _sdLoggingElapsed;
-        private set
-        {
-            if (_sdLoggingElapsed == value) { return; }
-            _sdLoggingElapsed = value;
-            OnPropertyChanged();
-        }
-    }
-
     private bool AnyDeviceActivelyLogging()
         => ConnectedDevices.Any(d => d.IsLoggingToSdCard);
 
@@ -335,7 +330,11 @@ public partial class DaqifiViewModel : ObservableObject
         {
             if (value < 1) { return; }
 
-            if (LoggingManager.Instance.Active)
+            // Use IsLogging (not LoggingManager.Active) so the guard also blocks
+            // changes when a connected device is reporting SD-card logging without
+            // the local toggle ever having been flipped — e.g. on reconnect to a
+            // device that's still logging from a previous desktop session.
+            if (IsLogging)
             {
                 var errorDialogViewModel = new ErrorDialogViewModel("Cannot change sampling frequency while logging.");
                 _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
