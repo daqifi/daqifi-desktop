@@ -1509,8 +1509,12 @@ public partial class DaqifiViewModel : ObservableObject
             DeleteFileIfExists(dbPath + "-wal");
             DeleteFileIfExists(dbPath + "-shm");
 
-            // Recreate the database schema by creating a fresh context.
+            // Recreate the database schema. Constructing a context does not
+            // create tables — only Migrate() (or EnsureCreated) does. Without
+            // this, the next session-start query against Samples/Sessions
+            // throws "no such table: Samples".
             using var context = contextFactory.CreateDbContext();
+            context.Database.Migrate();
         }
         finally
         {
