@@ -4,7 +4,6 @@ using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Daqifi.Desktop.Channel;
-using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using Brush = System.Windows.Media.Brush;

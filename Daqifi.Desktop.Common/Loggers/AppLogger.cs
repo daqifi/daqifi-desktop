@@ -1,7 +1,6 @@
 using NLog;
 using NLog.Config;
 using NLog.Targets;
-using Sentry;
 using System.Configuration;
 using System.Reflection;
 

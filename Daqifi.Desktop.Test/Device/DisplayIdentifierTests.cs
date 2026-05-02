@@ -1,8 +1,6 @@
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Device.WiFiDevice;
-using System.ComponentModel;
-using System.IO.Ports;
 using CoreDeviceInfo = Daqifi.Core.Device.Discovery.DeviceInfo;
 using CoreConnectionType = Daqifi.Core.Device.Discovery.ConnectionType;
 using System.Net;

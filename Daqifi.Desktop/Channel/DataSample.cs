@@ -1,7 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Globalization;
-using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
