@@ -443,14 +443,12 @@ public partial class ConnectionDialogViewModel : ObservableObject
             return;
         }
 
-        if (AvailableWiFiDevices.FirstOrDefault(d => d.MacAddress == wifiDevice.MacAddress) == null)
+        InvokeOnUiThread(() =>
         {
-            InvokeOnUiThread(() =>
-            {
-                AvailableWiFiDevices.Add(wifiDevice);
-                if (HasNoWiFiDevices) { HasNoWiFiDevices = false; }
-            });
-        }
+            if (AvailableWiFiDevices.Any(d => d.MacAddress == wifiDevice.MacAddress)) return;
+            AvailableWiFiDevices.Add(wifiDevice);
+            if (HasNoWiFiDevices) { HasNoWiFiDevices = false; }
+        });
     }
 
     public void Close()
