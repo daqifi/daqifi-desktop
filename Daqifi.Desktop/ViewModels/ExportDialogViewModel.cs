@@ -1,4 +1,3 @@
-using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;

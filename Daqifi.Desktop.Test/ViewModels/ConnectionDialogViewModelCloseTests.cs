@@ -1,4 +1,3 @@
-using Daqifi.Desktop;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.ViewModels;

@@ -9,7 +9,6 @@ using Daqifi.Desktop.UpdateVersion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using CommunityToolkit.Mvvm.ComponentModel;
-using Daqifi.Desktop;
 
 namespace Daqifi.Desktop.Logger;
 
