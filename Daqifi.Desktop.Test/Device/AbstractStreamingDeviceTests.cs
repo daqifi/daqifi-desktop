@@ -5,8 +5,6 @@ using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Producers;
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
 using Daqifi.Desktop.IO.Messages;
-using Moq;
-using System.Threading;
 using System.Windows.Media;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
