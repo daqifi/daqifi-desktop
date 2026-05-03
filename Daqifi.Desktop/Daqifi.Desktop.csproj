@@ -19,10 +19,6 @@
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<EnableWindowsTargeting>true</EnableWindowsTargeting>
 	</PropertyGroup>
-	<PropertyGroup>
-		<AssemblyVersion>3.2.0.0</AssemblyVersion>
-		<FileVersion>3.2.0.0</FileVersion>
-	</PropertyGroup>
 	<PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
 	  <PlatformTarget>x64</PlatformTarget>
 	</PropertyGroup>
@@ -78,7 +74,6 @@
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.2" />
-		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
 		<PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.7" />
 		<PackageReference Include="System.IO.Ports" Version="10.0.7" />
 		<PackageReference Include="System.Management" Version="10.0.7" />

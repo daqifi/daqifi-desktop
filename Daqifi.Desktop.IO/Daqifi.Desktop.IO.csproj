@@ -5,10 +5,6 @@
 		<Nullable>enable</Nullable>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 	</PropertyGroup>
-	<PropertyGroup>
-		<AssemblyVersion>3.0.0.0</AssemblyVersion>
-		<FileVersion>3.0.0.0</FileVersion>
-	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="System.IO.Ports" Version="10.0.7" />
 		<PackageReference Include="Daqifi.Core" Version="0.21.0" />
