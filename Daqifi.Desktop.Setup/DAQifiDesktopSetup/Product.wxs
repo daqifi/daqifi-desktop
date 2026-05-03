@@ -25,17 +25,6 @@
     <MediaTemplate EmbedCab="yes" />
     <Icon Id="Icon.exe" SourceFile="$(var.SourceDir)\$(var.MainExeName)"/>
 
-    <!-- Force upgrade if already installed-->
-    <Property Id="PREVIOUSVERSIONSINSTALLED" Secure="yes" />
-    <Upgrade Id="ACA4F4E1-6DBB-47C0-A829-84AA1536C147">
-      <UpgradeVersion Minimum="0.1.0.0"
-                      Maximum="99.0.0.0"
-                      Property="PREVIOUSVERSIONSINSTALLED"
-                      IncludeMinimum="yes"
-                      IncludeMaximum="no"
-                      OnlyDetect="no"/>
-    </Upgrade>
-
     <Feature Id="ProductFeature" Title="DAQiFiDesktop_Setup" Level="1" Display="expand">
       <ComponentRef Id="MainExecutable"/>
       <ComponentRef Id="UninstallProgramMenuItems"/>
