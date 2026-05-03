@@ -9,9 +9,9 @@ public class VersionNotificationTests
 {
     #region Helpers
 
-    private const string CurrentVersion = "3.2.0.0";
+    private const string CURRENT_VERSION = "3.2.0.0";
 
-    private static VersionNotification CreateSut(HttpStatusCode statusCode, string? body, string currentVersion = CurrentVersion)
+    private static VersionNotification CreateSut(HttpStatusCode statusCode, string? body, string currentVersion = CURRENT_VERSION)
     {
         var handler = new FakeHttpMessageHandler(statusCode, body ?? string.Empty);
         return new VersionNotification(handler, currentVersion);
@@ -163,7 +163,7 @@ public class VersionNotificationTests
     {
         // Arrange
         var handler = new ThrowingHttpMessageHandler();
-        var sut = new VersionNotification(handler, CurrentVersion);
+        var sut = new VersionNotification(handler, CURRENT_VERSION);
 
         // Act — must not throw
         await sut.CheckForUpdatesAsync();
