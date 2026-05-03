@@ -260,7 +260,7 @@
                       Style="{StaticResource DarkComboBox}"
                       ItemsSource="{Binding ConnectedDevices}"
                       SelectedItem="{Binding SelectedDevice}"
-                      DisplayMemberPath="DeviceSerialNo"
+                      DisplayMemberPath="DeviceDisplayName"
                       Margin="0,0,12,0"/>
 
             <Button Grid.Column="2"
@@ -286,7 +286,7 @@
             </Button>
         </Grid>
 
-        <!-- Connection status -->
+        <!-- Connection + SD card status -->
         <Border Grid.Row="1"
                 Margin="20,0,20,8"
                 Padding="10,6"
@@ -305,6 +305,25 @@
                            FontWeight="SemiBold"
                            Foreground="{StaticResource TextSecondary}"
                            VerticalAlignment="Center"/>
+                <!-- SD card status — includes its own " · " prefix; hidden when empty -->
+                <TextBlock Text="{Binding SdCardStatusLine}"
+                           FontSize="11"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SdCardStatusLine}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding HasSdCardError}" Value="True">
+                                    <Setter Property="Foreground" Value="#E05555"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
         </Border>
 
@@ -364,6 +383,100 @@
                            MaxWidth="320"/>
             </StackPanel>
 
+            <!-- Empty state: SD card not installed -->
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Visibility="{Binding HasSdCardNotPresent, Converter={StaticResource BoolToVis}}">
+                <iconPacks:PackIconMaterial Kind="SdStorage"
+                                            Width="40"
+                                            Height="40"
+                                            Foreground="{StaticResource TextTertiary}"
+                                            Opacity="0.5"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,0,0,12"/>
+                <TextBlock Text="NO SD CARD"
+                           FontSize="11"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource TextTertiary}"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,6"/>
+                <TextBlock Text="No SD card installed. Insert a FAT32-formatted card and click Refresh."
+                           FontSize="13"
+                           FontWeight="Light"
+                           Foreground="{StaticResource TextPrimary}"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           MaxWidth="320"
+                           Margin="0,0,0,16"/>
+                <Button Style="{StaticResource PillButton}"
+                        Command="{Binding CopyDiagnosticInfoCommand}"
+                        HorizontalAlignment="Center"
+                        Margin="0">
+                    <StackPanel Orientation="Horizontal">
+                        <iconPacks:PackIconMaterial Kind="ContentCopy" Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="COPY DIAGNOSTICS"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <!-- Empty state: SD card error -->
+            <StackPanel VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        Visibility="{Binding HasSdCardError, Converter={StaticResource BoolToVis}}">
+                <iconPacks:PackIconMaterial Kind="AlertCircleOutline"
+                                            Width="40"
+                                            Height="40"
+                                            Foreground="#E05555"
+                                            Opacity="0.8"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,0,0,12"/>
+                <TextBlock Text="SD CARD ERROR"
+                           FontSize="11"
+                           FontWeight="Bold"
+                           Foreground="#E05555"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,6"/>
+                <TextBlock Text="{Binding SdCardErrorMessage}"
+                           FontSize="12"
+                           FontFamily="Consolas"
+                           Foreground="{StaticResource TextSecondary}"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           MaxWidth="360"
+                           Margin="0,0,0,8">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SdCardErrorMessage}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Text="The card may be corrupt or busy. Try a different card or reformat (FAT32)."
+                           FontSize="13"
+                           FontWeight="Light"
+                           Foreground="{StaticResource TextPrimary}"
+                           HorizontalAlignment="Center"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           MaxWidth="320"
+                           Margin="0,0,0,16"/>
+                <Button Style="{StaticResource PillButton}"
+                        Command="{Binding CopyDiagnosticInfoCommand}"
+                        HorizontalAlignment="Center"
+                        Margin="0">
+                    <StackPanel Orientation="Horizontal">
+                        <iconPacks:PackIconMaterial Kind="ContentCopy" Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="COPY DIAGNOSTICS"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
             <!-- File list (visible only when USB device has at least one file) -->
             <ListView Name="DeviceFilesList"
                       ItemsSource="{Binding DeviceFiles}"
@@ -376,13 +489,9 @@
                     <Style TargetType="ListView">
                         <Setter Property="Visibility" Value="Collapsed"/>
                         <Style.Triggers>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding CanAccessSdCard}" Value="True"/>
-                                    <Condition Binding="{Binding HasNoFiles}" Value="False"/>
-                                </MultiDataTrigger.Conditions>
+                            <DataTrigger Binding="{Binding HasFiles}" Value="True">
                                 <Setter Property="Visibility" Value="Visible"/>
-                            </MultiDataTrigger>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </ListView.Style>

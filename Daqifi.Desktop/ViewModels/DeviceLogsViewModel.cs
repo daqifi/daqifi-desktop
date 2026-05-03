@@ -1,5 +1,8 @@
 using System.Collections.ObjectModel;
+using System.Text;
+using System.Windows;
 using Application = System.Windows.Application;
+using Clipboard = System.Windows.Clipboard;
 using MahApps.Metro.Controls;
 using MahApps.Metro.Controls.Dialogs;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -9,11 +12,19 @@ using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Models;
+using Daqifi.Core.Device.SdCard;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.Windows.Input;
 
 namespace Daqifi.Desktop.ViewModels;
+
+public enum SdCardState
+{
+    Unknown,
+    Ok,
+    NotPresent,
+    Error
+}
 
 public partial class DeviceLogsViewModel : ObservableObject
 {
@@ -30,6 +41,12 @@ public partial class DeviceLogsViewModel : ObservableObject
 
     [ObservableProperty]
     private IStreamingDevice _selectedDevice;
+
+    [ObservableProperty]
+    private SdCardState _sdCardState = SdCardState.Unknown;
+
+    [ObservableProperty]
+    private string _sdCardErrorMessage = string.Empty;
 
     private ObservableCollection<SdCardFile> _deviceFiles;
 
@@ -52,23 +69,35 @@ public partial class DeviceLogsViewModel : ObservableObject
                     _deviceFiles.CollectionChanged += OnDeviceFilesCollectionChanged;
                 }
                 OnPropertyChanged(nameof(HasNoFiles));
+                OnPropertyChanged(nameof(HasFiles));
             }
         }
     }
 
-    [ObservableProperty]
-    private bool _canRefreshFiles;
-
     public bool CanAccessSdCard => SelectedDevice?.ConnectionType == ConnectionType.Usb;
 
-    public bool HasNoFiles => (DeviceFiles?.Any() != true) && CanAccessSdCard;
+    public bool HasNoFiles => (DeviceFiles?.Any() != true) && CanAccessSdCard && SdCardState == SdCardState.Ok;
+
+    public bool HasFiles => CanAccessSdCard && (DeviceFiles?.Any() == true) && SdCardState == SdCardState.Ok;
+
+    public bool HasSdCardNotPresent => CanAccessSdCard && SdCardState == SdCardState.NotPresent;
+
+    public bool HasSdCardError => CanAccessSdCard && SdCardState == SdCardState.Error;
 
     public string ConnectionTypeMessage => SelectedDevice == null ? string.Empty :
         SelectedDevice.ConnectionType == ConnectionType.Usb ?
             "USB Connected - SD Card Access Available" :
             "WiFi Connected - SD Card Access Requires USB Connection";
 
-    public ICommand RefreshFilesCommand { get; }
+    public string SdCardStatusLine => SdCardState switch
+    {
+        SdCardState.Ok => $" · SD card OK · {DeviceFiles?.Count ?? 0} {(DeviceFiles?.Count == 1 ? "file" : "files")}",
+        SdCardState.NotPresent => " · No SD card installed",
+        SdCardState.Error => $" · SD card error{(!string.IsNullOrEmpty(SdCardErrorMessage) ? $": {SdCardErrorMessage}" : string.Empty)}",
+        _ => string.Empty
+    };
+
+    public IAsyncRelayCommand RefreshFilesCommand { get; }
 
     public DeviceLogsViewModel()
     {
@@ -76,10 +105,8 @@ public partial class DeviceLogsViewModel : ObservableObject
         DeviceFiles = new ObservableCollection<SdCardFile>();
         DeviceFiles.CollectionChanged += OnDeviceFilesCollectionChanged;
 
-        // Initialize commands
-        RefreshFilesCommand = new RelayCommand(RefreshFiles, () => CanAccessSdCard);
+        RefreshFilesCommand = new AsyncRelayCommand(RefreshFilesAsync, () => CanAccessSdCard);
 
-        // Subscribe to device connection changes
         ConnectionManager.Instance.PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == "ConnectedDevices")
@@ -88,18 +115,28 @@ public partial class DeviceLogsViewModel : ObservableObject
             }
         };
 
-        // Initial load
         UpdateConnectedDevices();
     }
 
     private void OnDeviceFilesCollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(HasNoFiles));
+        OnPropertyChanged(nameof(HasFiles));
+        OnPropertyChanged(nameof(SdCardStatusLine));
+    }
+
+    partial void OnSdCardStateChanged(SdCardState value)
+    {
+        OnPropertyChanged(nameof(HasNoFiles));
+        OnPropertyChanged(nameof(HasFiles));
+        OnPropertyChanged(nameof(HasSdCardNotPresent));
+        OnPropertyChanged(nameof(HasSdCardError));
+        OnPropertyChanged(nameof(SdCardStatusLine));
     }
 
     private void UpdateConnectedDevices()
     {
-        Application.Current.Dispatcher.Invoke(() =>
+        void Update()
         {
             ConnectedDevices.Clear();
             foreach (var device in ConnectionManager.Instance.ConnectedDevices)
@@ -107,22 +144,33 @@ public partial class DeviceLogsViewModel : ObservableObject
                 ConnectedDevices.Add(device);
             }
 
-            // If we have devices but none selected, select the first one
             if (SelectedDevice == null && ConnectedDevices.Any())
             {
                 SelectedDevice = ConnectedDevices.First();
             }
-        });
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null)
+        {
+            dispatcher.Invoke(Update);
+        }
+        else
+        {
+            Update();
+        }
     }
 
     partial void OnSelectedDeviceChanged(IStreamingDevice value)
     {
+        SdCardState = SdCardState.Unknown;
+        SdCardErrorMessage = string.Empty;
+
         if (value != null)
         {
-            // Only refresh files if we have USB access
             if (CanAccessSdCard)
             {
-                RefreshFiles();
+                _ = RefreshFilesAsync();
             }
             else
             {
@@ -136,11 +184,14 @@ public partial class DeviceLogsViewModel : ObservableObject
 
         OnPropertyChanged(nameof(CanAccessSdCard));
         OnPropertyChanged(nameof(HasNoFiles));
+        OnPropertyChanged(nameof(HasSdCardNotPresent));
+        OnPropertyChanged(nameof(HasSdCardError));
+        OnPropertyChanged(nameof(HasFiles));
         OnPropertyChanged(nameof(ConnectionTypeMessage));
-        (RefreshFilesCommand as RelayCommand)?.NotifyCanExecuteChanged();
+        RefreshFilesCommand.NotifyCanExecuteChanged();
     }
 
-    private async void RefreshFiles()
+    internal async Task RefreshFilesAsync()
     {
         if (SelectedDevice == null || !CanAccessSdCard)
         {
@@ -151,32 +202,65 @@ public partial class DeviceLogsViewModel : ObservableObject
         {
             IsBusy = true;
             BusyMessage = "Refreshing files...";
+            SdCardState = SdCardState.Unknown;
+            SdCardErrorMessage = string.Empty;
 
-            // Clear existing files
             DeviceFiles.Clear();
 
-            // Request file list from device without blocking the UI thread
             await Task.Run(() => SelectedDevice.RefreshSdCardFiles());
 
-            // Update our list with any files found
             foreach (var file in SelectedDevice.SdCardFiles)
             {
                 DeviceFiles.Add(file);
             }
+
+            SdCardState = SdCardState.Ok;
+        }
+        catch (SdCardNotPresentException)
+        {
+            SdCardState = SdCardState.NotPresent;
+            SdCardErrorMessage = string.Empty;
+            _logger.Warning($"SD card not present in device {SelectedDevice?.DeviceSerialNo}");
+        }
+        catch (SdCardFilesystemException ex)
+        {
+            SdCardState = SdCardState.Error;
+            SdCardErrorMessage = ex.DeviceMessage ?? ex.Message;
+            _logger.Error(ex, "SD card filesystem error");
+        }
+        catch (SdCardOperationException ex)
+        {
+            SdCardState = SdCardState.Error;
+            SdCardErrorMessage = ex.LastScpiError ?? ex.Message;
+            _logger.Error(ex, "SD card operation error");
         }
         catch (Exception ex)
         {
+            SdCardState = SdCardState.Error;
+            SdCardErrorMessage = ex.Message;
             _logger.Error(ex, "Failed to refresh SD card files");
-            await Application.Current.Dispatcher.InvokeAsync(async () =>
-            {
-                await ShowMessage("Error", "Failed to refresh files. Please check the device connection and try again.", MessageDialogStyle.Affirmative);
-            });
         }
         finally
         {
             IsBusy = false;
             BusyMessage = string.Empty;
         }
+    }
+
+    [RelayCommand]
+    private void CopyDiagnosticInfo()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"Device Serial: {SelectedDevice?.DeviceSerialNo ?? "N/A"}");
+        sb.AppendLine($"Firmware Version: {SelectedDevice?.DeviceVersion ?? "N/A"}");
+        sb.AppendLine($"Connection Type: {SelectedDevice?.ConnectionType}");
+        sb.AppendLine($"SD Card State: {SdCardState}");
+        if (!string.IsNullOrEmpty(SdCardErrorMessage))
+        {
+            sb.AppendLine($"Error: {SdCardErrorMessage}");
+        }
+
+        Clipboard.SetText(sb.ToString());
     }
 
     [RelayCommand]
