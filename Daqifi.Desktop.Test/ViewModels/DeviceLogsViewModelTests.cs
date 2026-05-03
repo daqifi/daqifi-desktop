@@ -182,7 +182,8 @@ public class DeviceLogsViewModelTests
         _viewModel.DeviceFiles.Add(new SdCardFile { FileName = "LOG001.bin" });
         _viewModel.DeviceFiles.Add(new SdCardFile { FileName = "LOG002.bin" });
 
-        Assert.IsTrue(_viewModel.SdCardStatusLine.Contains("2 files"), $"Expected '2 files' in '{_viewModel.SdCardStatusLine}'");
+        var statusLine = _viewModel.SdCardStatusLine;
+        Assert.IsTrue(statusLine.Contains("2 files"), $"Expected '2 files' in '{statusLine}'");
     }
 
     [TestMethod]

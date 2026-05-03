@@ -18,11 +18,18 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Daqifi.Desktop.ViewModels;
 
+/// <summary>
+/// Represents the current state of the SD card in the connected device.
+/// </summary>
 public enum SdCardState
 {
+    /// <summary>SD card state has not yet been determined.</summary>
     Unknown,
+    /// <summary>SD card is present and accessible.</summary>
     Ok,
+    /// <summary>No SD card is installed in the device.</summary>
     NotPresent,
+    /// <summary>SD card is present but an error occurred accessing it.</summary>
     Error
 }
 
@@ -43,9 +50,16 @@ public partial class DeviceLogsViewModel : ObservableObject
     private IStreamingDevice _selectedDevice;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNoFiles))]
+    [NotifyPropertyChangedFor(nameof(HasFiles))]
+    [NotifyPropertyChangedFor(nameof(HasSdCardNotPresent))]
+    [NotifyPropertyChangedFor(nameof(HasSdCardError))]
+    [NotifyPropertyChangedFor(nameof(SdCardStatusLine))]
     private SdCardState _sdCardState = SdCardState.Unknown;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSdCardError))]
+    [NotifyPropertyChangedFor(nameof(SdCardStatusLine))]
     private string _sdCardErrorMessage = string.Empty;
 
     private ObservableCollection<SdCardFile> _deviceFiles;
@@ -76,12 +90,16 @@ public partial class DeviceLogsViewModel : ObservableObject
 
     public bool CanAccessSdCard => SelectedDevice?.ConnectionType == ConnectionType.Usb;
 
+    /// <summary>True when the USB device has an OK SD card but no log files on it.</summary>
     public bool HasNoFiles => (DeviceFiles?.Any() != true) && CanAccessSdCard && SdCardState == SdCardState.Ok;
 
+    /// <summary>True when the USB device has an OK SD card with at least one log file.</summary>
     public bool HasFiles => CanAccessSdCard && (DeviceFiles?.Any() == true) && SdCardState == SdCardState.Ok;
 
+    /// <summary>True when the USB device reports that no SD card is installed.</summary>
     public bool HasSdCardNotPresent => CanAccessSdCard && SdCardState == SdCardState.NotPresent;
 
+    /// <summary>True when the USB device reports an SD card error.</summary>
     public bool HasSdCardError => CanAccessSdCard && SdCardState == SdCardState.Error;
 
     public string ConnectionTypeMessage => SelectedDevice == null ? string.Empty :
@@ -89,14 +107,21 @@ public partial class DeviceLogsViewModel : ObservableObject
             "USB Connected - SD Card Access Available" :
             "WiFi Connected - SD Card Access Requires USB Connection";
 
+    /// <summary>
+    /// Short status string appended to the connection status bar.
+    /// Returns an empty string when the SD card state is unknown.
+    /// </summary>
     public string SdCardStatusLine => SdCardState switch
     {
-        SdCardState.Ok => $" · SD card OK · {DeviceFiles?.Count ?? 0} {(DeviceFiles?.Count == 1 ? "file" : "files")}",
+        SdCardState.Ok =>
+            $" · SD card OK · {DeviceFiles?.Count ?? 0} {(DeviceFiles?.Count == 1 ? "file" : "files")}",
         SdCardState.NotPresent => " · No SD card installed",
-        SdCardState.Error => $" · SD card error{(!string.IsNullOrEmpty(SdCardErrorMessage) ? $": {SdCardErrorMessage}" : string.Empty)}",
+        SdCardState.Error =>
+            $" · SD card error{(!string.IsNullOrEmpty(SdCardErrorMessage) ? $": {SdCardErrorMessage}" : string.Empty)}",
         _ => string.Empty
     };
 
+    /// <summary>Refreshes the SD card file list from the selected device.</summary>
     public IAsyncRelayCommand RefreshFilesCommand { get; }
 
     public DeviceLogsViewModel()
@@ -122,15 +147,6 @@ public partial class DeviceLogsViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(HasNoFiles));
         OnPropertyChanged(nameof(HasFiles));
-        OnPropertyChanged(nameof(SdCardStatusLine));
-    }
-
-    partial void OnSdCardStateChanged(SdCardState value)
-    {
-        OnPropertyChanged(nameof(HasNoFiles));
-        OnPropertyChanged(nameof(HasFiles));
-        OnPropertyChanged(nameof(HasSdCardNotPresent));
-        OnPropertyChanged(nameof(HasSdCardError));
         OnPropertyChanged(nameof(SdCardStatusLine));
     }
 
@@ -193,7 +209,8 @@ public partial class DeviceLogsViewModel : ObservableObject
 
     internal async Task RefreshFilesAsync()
     {
-        if (SelectedDevice == null || !CanAccessSdCard)
+        var device = SelectedDevice;
+        if (device == null || device.ConnectionType != ConnectionType.Usb)
         {
             return;
         }
@@ -207,20 +224,25 @@ public partial class DeviceLogsViewModel : ObservableObject
 
             DeviceFiles.Clear();
 
-            await Task.Run(() => SelectedDevice.RefreshSdCardFiles());
+            await Task.Run(() => device.RefreshSdCardFiles());
 
-            foreach (var file in SelectedDevice.SdCardFiles)
+            if (SelectedDevice != device)
+            {
+                return;
+            }
+
+            foreach (var file in device.SdCardFiles)
             {
                 DeviceFiles.Add(file);
             }
 
             SdCardState = SdCardState.Ok;
         }
-        catch (SdCardNotPresentException)
+        catch (SdCardNotPresentException ex)
         {
             SdCardState = SdCardState.NotPresent;
             SdCardErrorMessage = string.Empty;
-            _logger.Warning($"SD card not present in device {SelectedDevice?.DeviceSerialNo}");
+            _logger.Warning($"SD card not present in device {device.DeviceSerialNo}: {ex.Message}");
         }
         catch (SdCardFilesystemException ex)
         {
@@ -260,7 +282,14 @@ public partial class DeviceLogsViewModel : ObservableObject
             sb.AppendLine($"Error: {SdCardErrorMessage}");
         }
 
-        Clipboard.SetText(sb.ToString());
+        try
+        {
+            Clipboard.SetText(sb.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"Failed to copy diagnostic info to clipboard: {ex.Message}");
+        }
     }
 
     [RelayCommand]
