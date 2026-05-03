@@ -18,7 +18,7 @@ partial class AddSessionDeviceMetadata
     protected override void BuildTargetModel(ModelBuilder modelBuilder)
     {
 #pragma warning disable 612, 618
-        modelBuilder.HasAnnotation("ProductVersion", "9.0.14");
+        modelBuilder.HasAnnotation("ProductVersion", "10.0.7");
 
         modelBuilder.Entity("Daqifi.Desktop.Channel.Channel", b =>
             {

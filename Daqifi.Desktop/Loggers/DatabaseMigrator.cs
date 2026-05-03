@@ -13,7 +13,7 @@ public static class DatabaseMigrator
 {
     #region Constants
     private const string INITIAL_MIGRATION_ID = "20250812090000_InitialSQLiteMigration";
-    private const string EF_PRODUCT_VERSION = "9.0.14";
+    private const string EF_PRODUCT_VERSION = "10.0.7";
     #endregion
 
     #region Public Methods
