@@ -21,6 +21,13 @@ public class OptimizedLoggingSessionExporter
     private const int BUFFER_SIZE = 1024 * 1024; // 1MB buffer for file writes
     #endregion
 
+    #region Static State
+    // CsvExporter is stateless and ships from a sibling library that isn't registered with our DI
+    // container. Caching one instance avoids re-allocating per export without forcing every caller
+    // to inject it.
+    private static readonly CsvExporter SharedCsvExporter = new();
+    #endregion
+
     #region Private Fields
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly string _delimiter = DaqifiSettings.Instance.CsvDelimiter;
@@ -28,6 +35,10 @@ public class OptimizedLoggingSessionExporter
     #endregion
 
     #region Constructors
+    /// <summary>
+    /// Creates an exporter that resolves its <see cref="LoggingContext"/> factory from
+    /// <see cref="App.ServiceProvider"/>. Used in production where DI is wired up.
+    /// </summary>
     public OptimizedLoggingSessionExporter()
     {
         if (App.ServiceProvider != null)
@@ -36,6 +47,10 @@ public class OptimizedLoggingSessionExporter
         }
     }
 
+    /// <summary>
+    /// Creates an exporter with an explicit <see cref="LoggingContext"/> factory. Used in tests
+    /// that spin up a temp SQLite database.
+    /// </summary>
     public OptimizedLoggingSessionExporter(IDbContextFactory<LoggingContext> loggingContext)
     {
         _loggingContext = loggingContext;
@@ -43,6 +58,17 @@ public class OptimizedLoggingSessionExporter
     #endregion
 
     #region Public Methods
+    /// <summary>
+    /// Exports every sample in <paramref name="loggingSession"/> as one CSV row per timestamp.
+    /// </summary>
+    /// <param name="loggingSession">Session to export. May carry an in-memory <c>DataSamples</c>
+    /// collection (test path) or just an <c>ID</c> the EF context will look up (production path).</param>
+    /// <param name="filepath">Absolute path to the output CSV file.</param>
+    /// <param name="exportRelativeTime">When true, the time column is seconds-since-first-sample; otherwise ISO 8601.</param>
+    /// <param name="progress">Optional progress sink reporting overall percentage across all sessions.</param>
+    /// <param name="cancellationToken">Token that aborts the export.</param>
+    /// <param name="sessionIndex">Zero-based index of this session within a multi-session export.</param>
+    /// <param name="totalSessions">Total number of sessions in this export run.</param>
     public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool exportRelativeTime,
         IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
@@ -69,10 +95,24 @@ public class OptimizedLoggingSessionExporter
         }
         catch (Exception ex)
         {
-            _appLogger.Error(ex, "Exception in OptimizedExportLoggingSession");
+            _appLogger.Error(ex,
+                $"Exception in OptimizedExportLoggingSession (sessionId={loggingSession?.ID}, filepath={filepath}, relativeTime={exportRelativeTime})");
         }
     }
 
+    /// <summary>
+    /// Exports samples grouped into rolling windows of <paramref name="averageQuantity"/> samples,
+    /// writing one averaged row per window. Trailing partial windows are flushed (a behavior change
+    /// vs the legacy implementation, which silently dropped them).
+    /// </summary>
+    /// <param name="session">Session to export.</param>
+    /// <param name="filepath">Absolute path to the output CSV file.</param>
+    /// <param name="averageQuantity">Window size in samples. Must be positive; non-positive values short-circuit with a warning log.</param>
+    /// <param name="exportRelativeTime">When true, the time column is seconds-since-first-sample; otherwise ISO 8601.</param>
+    /// <param name="progress">Optional progress sink reporting overall percentage across all sessions.</param>
+    /// <param name="cancellationToken">Token that aborts the export.</param>
+    /// <param name="sessionIndex">Zero-based index of this session within a multi-session export.</param>
+    /// <param name="totalSessions">Total number of sessions in this export run.</param>
     public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity,
         bool exportRelativeTime, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
@@ -81,7 +121,8 @@ public class OptimizedLoggingSessionExporter
             var window = (int)averageQuantity;
             if (window <= 0)
             {
-                _appLogger.Warning($"Skipping average export: AverageWindow must be positive (was {averageQuantity}).");
+                _appLogger.Warning(
+                    $"Skipping average export: AverageWindow must be positive (was {averageQuantity}, sessionId={session?.ID}, filepath={filepath}).");
                 return;
             }
 
@@ -107,7 +148,8 @@ public class OptimizedLoggingSessionExporter
         }
         catch (Exception ex)
         {
-            _appLogger.Error(ex, "Failed in OptimizedExportAverageSamples");
+            _appLogger.Error(ex,
+                $"Failed in OptimizedExportAverageSamples (sessionId={session?.ID}, filepath={filepath}, averageWindow={averageQuantity}, relativeTime={exportRelativeTime})");
         }
     }
     #endregion
@@ -162,8 +204,7 @@ public class OptimizedLoggingSessionExporter
         }
 
         using var writer = new StreamWriter(filepath, false, Encoding.UTF8, BUFFER_SIZE);
-        var exporter = new CsvExporter();
-        exporter.ExportAsync(source, writer, options, wrappedProgress, cancellationToken)
+        SharedCsvExporter.ExportAsync(source, writer, options, wrappedProgress, cancellationToken)
             .GetAwaiter()
             .GetResult();
     }

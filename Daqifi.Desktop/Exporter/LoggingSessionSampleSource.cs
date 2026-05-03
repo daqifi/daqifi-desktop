@@ -24,12 +24,23 @@ public sealed class LoggingSessionSampleSource : ISampleSource
     #endregion
 
     #region Constructors
+    /// <summary>
+    /// Creates a sample source that reads from the persisted EF Core store.
+    /// </summary>
+    /// <param name="session">The session whose samples should be exported.</param>
+    /// <param name="contextFactory">Factory that produces short-lived <see cref="LoggingContext"/>s.</param>
     public LoggingSessionSampleSource(LoggingSession session, IDbContextFactory<LoggingContext> contextFactory)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
     }
 
+    /// <summary>
+    /// Creates a sample source backed by a pre-populated in-memory sample collection.
+    /// Used by tests that don't have a real database available.
+    /// </summary>
+    /// <param name="session">The session the samples belong to (only <see cref="LoggingSession.ID"/> is read).</param>
+    /// <param name="inMemorySamples">Sample rows to enumerate.</param>
     public LoggingSessionSampleSource(LoggingSession session, ICollection<DataSample> inMemorySamples)
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
@@ -38,6 +49,12 @@ public sealed class LoggingSessionSampleSource : ISampleSource
     #endregion
 
     #region ISampleSource
+    /// <summary>
+    /// Returns the ordered set of channels present in this session. Channels are deduped by
+    /// <c>(DeviceName, DeviceSerialNo, ChannelName)</c>; the <see cref="ChannelDescriptor.ChannelType"/>
+    /// is taken from the first observed sample for that channel. Both the in-memory and DB paths use
+    /// the same dedup logic so the resulting descriptor sets match.
+    /// </summary>
     public IReadOnlyList<ChannelDescriptor> GetChannels()
     {
         if (_channelsCache != null)
@@ -67,8 +84,14 @@ public sealed class LoggingSessionSampleSource : ISampleSource
         _channelsCache = context.Samples
             .AsNoTracking()
             .Where(s => s.LoggingSessionID == _session.ID)
-            .Select(s => new { s.DeviceName, s.DeviceSerialNo, s.ChannelName, s.Type })
-            .Distinct()
+            .GroupBy(s => new { s.DeviceName, s.DeviceSerialNo, s.ChannelName })
+            .Select(g => new
+            {
+                g.Key.DeviceName,
+                g.Key.DeviceSerialNo,
+                g.Key.ChannelName,
+                Type = g.Min(s => s.Type),
+            })
             .OrderBy(s => s.DeviceName)
             .ThenBy(s => s.DeviceSerialNo)
             .ThenBy(s => s.ChannelName)
@@ -78,27 +101,36 @@ public sealed class LoggingSessionSampleSource : ISampleSource
         return _channelsCache;
     }
 
-    public ValueTask<int> GetSampleCountAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Returns the total sample count for this session. Used by core's <see cref="CsvExporter"/>
+    /// to drive progress reporting. Honors <paramref name="cancellationToken"/> on the DB path.
+    /// </summary>
+    public async ValueTask<int> GetSampleCountAsync(CancellationToken cancellationToken = default)
     {
         if (_countCache.HasValue)
         {
-            return new ValueTask<int>(_countCache.Value);
+            return _countCache.Value;
         }
 
         if (_inMemorySamples != null)
         {
             _countCache = _inMemorySamples.Count;
-            return new ValueTask<int>(_countCache.Value);
+            return _countCache.Value;
         }
 
-        using var context = _contextFactory.CreateDbContext();
+        await using var context = _contextFactory.CreateDbContext();
         context.ChangeTracker.AutoDetectChangesEnabled = false;
-        _countCache = context.Samples
+        _countCache = await context.Samples
             .AsNoTracking()
-            .Count(s => s.LoggingSessionID == _session.ID);
-        return new ValueTask<int>(_countCache.Value);
+            .CountAsync(s => s.LoggingSessionID == _session.ID, cancellationToken)
+            .ConfigureAwait(false);
+        return _countCache.Value;
     }
 
+    /// <summary>
+    /// Streams all samples for this session in ascending timestamp order. The EF path uses
+    /// <c>AsAsyncEnumerable</c> so rows are read row-by-row without materializing the whole result set.
+    /// </summary>
     public async IAsyncEnumerable<SampleRow> StreamSamples([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         if (_inMemorySamples != null)
