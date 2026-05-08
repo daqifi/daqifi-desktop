@@ -64,6 +64,12 @@ public interface IStreamingDevice : IDevice
     /// </summary>
     string DisplayIdentifier { get; }
 
+    /// <summary>
+    /// Gets the best available human-readable name for this device.
+    /// Returns the serial number when populated, otherwise falls back to DisplayIdentifier.
+    /// </summary>
+    string DeviceDisplayName { get; }
+
     List<IChannel> DataChannels { get; set; }
 
     void InitializeStreaming();
