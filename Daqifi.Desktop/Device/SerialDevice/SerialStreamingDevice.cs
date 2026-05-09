@@ -1,4 +1,5 @@
-﻿using System.IO.Ports;
+﻿using System.IO;
+using System.IO.Ports;
 using Daqifi.Core.Device;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Messages;
@@ -111,6 +112,24 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
             _coreDevice.InitializeAsync().GetAwaiter().GetResult();
             WaitForInitialStatusMessage();
             return true;
+        }
+        catch (FileNotFoundException ex)
+        {
+            // .NET's SerialPort.Open throws FileNotFoundException when the COM port no
+            // longer exists (device unplugged, never present, or renamed). Treat as a
+            // user/environmental condition, not an app bug — log a warning instead of
+            // capturing to Sentry.
+            AppLogger.Warning($"Cannot connect on {PortName}: port is not available ({ex.Message})");
+            CleanupConnection();
+            return false;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // SerialPort.Open throws UnauthorizedAccessException when another process
+            // already holds the port open. Same classification as above.
+            AppLogger.Warning($"Cannot connect on {PortName}: port is in use by another process ({ex.Message})");
+            CleanupConnection();
+            return false;
         }
         catch (Exception ex)
         {
