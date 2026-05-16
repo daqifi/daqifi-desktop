@@ -5,6 +5,7 @@ using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.View;
 using System.Collections;
 using System.Collections.ObjectModel;
+using System.IO.Ports;
 using System.Net;
 using System.Net.Sockets;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -55,12 +56,30 @@ public partial class ConnectionDialogViewModel : ObservableObject
     public ObservableCollection<SerialStreamingDevice> AvailableSerialDevices { get; } = [];
     public ObservableCollection<CoreDeviceInfo> AvailableHidDevices { get; } = [];
 
-    public string ManualPortName { get; set; }
+    [ObservableProperty]
+    private string? _manualPortName;
+
+    /// <summary>
+    /// User-facing validation message for the Manual USB tab. Non-null when the entered
+    /// COM port failed pre-flight validation (e.g. port not present on the system).
+    /// Cleared automatically when the user edits <see cref="ManualPortName"/>.
+    /// </summary>
+    [ObservableProperty]
+    private string? _manualPortError;
 
     public SerialStreamingDevice ManualSerialDevice { get; set; }
 
     public string ManualIpAddress { get; set; }
     #endregion
+
+    partial void OnManualPortNameChanged(string? value)
+    {
+        // Clear stale validation error as soon as the user starts editing the port name.
+        if (!string.IsNullOrEmpty(ManualPortError))
+        {
+            ManualPortError = null;
+        }
+    }
 
     #region Constructor
     public ConnectionDialogViewModel() : this(ServiceLocator.Resolve<IDialogService>()) { }
@@ -215,12 +234,57 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     private async Task ConnectManualSerialAsync()
     {
+        ManualPortError = null;
+
         if (string.IsNullOrWhiteSpace(ManualPortName)) { return; }
 
-        ManualSerialDevice = new SerialStreamingDevice(ManualPortName);
+        var portName = ManualPortName.Trim();
+
+        if (!IsPortAvailable(portName))
+        {
+            // Avoid the FileNotFoundException round-trip from SerialPort.Open by
+            // pre-checking against the system's enumerated ports. Surface a friendly
+            // message in the dialog instead of silently closing.
+            ManualPortError =
+                $"Port '{portName}' is not available. Plug in the device or check Device Manager for the correct port name.";
+            Common.Loggers.AppLogger.Instance.Warning(
+                $"Manual serial connect rejected: port '{portName}' is not present on the system.");
+            return;
+        }
+
+        ManualSerialDevice = new SerialStreamingDevice(portName);
         await ConnectionManager.Instance.Connect(ManualSerialDevice);
 
+        // Post-connect status check covers failures the pre-flight enumeration cannot
+        // catch — most notably "port exists but is held by another process", which
+        // SerialStreamingDevice.Connect now classifies as a Warning (no Sentry capture).
+        // Without this, the dialog would close silently and the user would have no idea
+        // the connection failed.
+        if (ConnectionManager.Instance.ConnectionStatus == DAQiFiConnectionStatus.Error)
+        {
+            ManualPortError =
+                $"Could not connect to '{portName}'. The port may be in use by another application or the device is not responding.";
+            return;
+        }
+
         RaiseCloseRequested();
+    }
+
+    private static bool IsPortAvailable(string portName)
+    {
+        try
+        {
+            return SerialPort.GetPortNames()
+                .Any(p => string.Equals(p, portName, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex)
+        {
+            // If port enumeration itself fails, fall back to the connect attempt rather
+            // than blocking the user — Connect() will surface its own error path.
+            Common.Loggers.AppLogger.Instance.Warning(
+                $"Failed to enumerate serial ports during manual-connect validation: {ex.Message}");
+            return true;
+        }
     }
 
     private async Task ConnectManualWifiAsync()

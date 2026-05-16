@@ -47,6 +47,7 @@
             <converters:ListToStringConverter x:Key="ListToStringConverter"/>
             <converters:BrushColorMatchConverter x:Key="BrushColorMatch"/>
             <converters:OxyColorToBrushConverter x:Key="OxyColorToBrushConverter"/>
+            <converters:NotNullToVisibilityConverter x:Key="NotNullToVis"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

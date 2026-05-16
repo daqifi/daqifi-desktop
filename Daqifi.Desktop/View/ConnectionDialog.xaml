@@ -411,6 +411,10 @@
                         <TextBlock Text="Enter the COM port name of the DAQiFi device (e.g. COM3)."
                                    FontSize="10" Foreground="{StaticResource TextTertiary}"
                                    Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding ManualPortError}"
+                                   FontSize="11" Foreground="{StaticResource StatusRed}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding ManualPortError, Converter={StaticResource NotNullToVis}}"/>
                     </StackPanel>
 
                     <Border Grid.Row="1"

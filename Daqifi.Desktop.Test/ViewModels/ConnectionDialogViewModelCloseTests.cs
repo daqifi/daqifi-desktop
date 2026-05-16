@@ -8,6 +8,10 @@ namespace Daqifi.Desktop.Test.ViewModels;
 [TestClass]
 public class ConnectionDialogViewModelCloseTests
 {
+    // A name guaranteed to be absent from SerialPort.GetPortNames() on every CI runner —
+    // Windows uses COM1..COMn, macOS/Linux use /dev/tty.* paths.
+    private const string NonexistentPortName = "COM_DOES_NOT_EXIST_524";
+
     private Func<DuplicateDeviceCheckResult, DuplicateDeviceAction>? _originalDuplicateDeviceHandler;
 
     [TestInitialize]
@@ -66,6 +70,37 @@ public class ConnectionDialogViewModelCloseTests
         await viewModel.ConnectManualSerialCommand.ExecuteAsync(null);
 
         Assert.IsFalse(closeRaised(), "CloseRequested should not fire when the manual port is blank.");
+        Assert.IsNull(viewModel.ManualPortError,
+            "Blank input should not surface the missing-port error message.");
+    }
+
+    [TestMethod]
+    public async Task ConnectManualSerialCommand_WithNonexistentPort_SetsManualPortError()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.ManualPortName = NonexistentPortName;
+        var closeRaised = SubscribeToClose(viewModel);
+
+        await viewModel.ConnectManualSerialCommand.ExecuteAsync(null);
+
+        Assert.IsFalse(closeRaised(),
+            "CloseRequested should not fire when the entered port is not present on the system.");
+        Assert.IsNotNull(viewModel.ManualPortError,
+            "ManualPortError should be set when the entered port is not present on the system.");
+        StringAssert.Contains(viewModel.ManualPortError, NonexistentPortName,
+            "Error message should mention the offending port name.");
+    }
+
+    [TestMethod]
+    public void ManualPortError_ClearsWhenManualPortNameChanges()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.ManualPortError = "stale validation message";
+
+        viewModel.ManualPortName = "COM1";
+
+        Assert.IsNull(viewModel.ManualPortError,
+            "Editing the manual port name should clear any prior validation error.");
     }
 
     [TestMethod]
