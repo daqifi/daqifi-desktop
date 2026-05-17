@@ -124,7 +124,7 @@ Please read the [Contributing Guidelines](CONTRIBUTING.md) before opening a pull
 
 ## For maintainers
 
-Releases are created by pushing a GitHub Release tag. The `release.yaml` workflow builds the MSI via WiX Toolset and attaches `DAQifiDesktop_Setup.msi` to the release automatically. The app version is set in `Daqifi.Desktop/Daqifi.Desktop.csproj` (`<Version>`). Follow [semantic versioning](https://semver.org/); breaking changes should use the `feat!:` prefix in the PR title.
+Releases are created by publishing a GitHub Release (via the GitHub web UI or API — the `release.yaml` workflow triggers on the `release: created` event, not on a tag push alone). Once a release is published, the workflow builds the MSI via WiX Toolset and attaches `DAQifiDesktop_Setup.msi` automatically. The app version is set in `Daqifi.Desktop/Daqifi.Desktop.csproj` (`<Version>`). Follow [semantic versioning](https://semver.org/); breaking changes should use the `feat!:` prefix in the PR title.
 
 Unhandled exceptions are captured via Sentry. The DSN is in `Daqifi.Desktop/App.config`.
 
