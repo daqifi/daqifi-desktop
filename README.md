@@ -21,11 +21,12 @@ If you are building automated pipelines or integrating DAQiFi devices into your 
 
 ## Quick install / first run
 
-1. Download the latest `DAQifiDesktop_Setup.msi` from the [Releases page](https://github.com/daqifi/daqifi-desktop/releases).
-2. Run the installer — no prerequisites beyond the included .NET runtime.
-3. Launch **DAQiFi Desktop**.
-4. Click **Connect** and let the app discover your Nyquist device on the local network, or enter its IP address manually.
-5. Enable the channels you want to log and press **Start Logging**.
+1. Install the [.NET 10.0 Desktop Runtime for Windows](https://dotnet.microsoft.com/download/dotnet/10.0) if you don't already have it.
+2. Download the latest `DAQifiDesktop_Setup.msi` from the [Releases page](https://github.com/daqifi/daqifi-desktop/releases).
+3. Run the installer.
+4. Launch **DAQiFi Desktop**.
+5. Click **Connect** and let the app discover your Nyquist device on the local network, or enter its IP address manually.
+6. Enable the channels you want to log and press **Start Logging**.
 
 ## Common applications
 
@@ -55,9 +56,8 @@ If you are building automated pipelines or integrating DAQiFi devices into your 
 | Start / stop logging sessions | Record data to a local SQLite database; sessions are preserved between runs |
 | Per-channel formula scaling | Apply a custom NCalc expression (e.g. `x * 0.001 + 273.15`) to convert raw values before display and logging |
 | CSV export with optional averaging | Export one or more sessions to `.csv`; optionally downsample by averaging N consecutive samples |
-| Named profiles | Save and restore channel and device configurations across sessions |
+| Named profiles | Save and restore device connections, active channels, and sampling rate — switch between setups without reconfiguring |
 | Firmware update via USB HID | Update Nyquist firmware from within the app — no separate tool needed |
-| Error reporting via Sentry | Unhandled exceptions are captured automatically to help the team diagnose issues |
 
 ## Supported devices
 
@@ -125,6 +125,8 @@ Please read the [Contributing Guidelines](CONTRIBUTING.md) before opening a pull
 ## For maintainers
 
 Releases are created by pushing a GitHub Release tag. The `release.yaml` workflow builds the MSI via WiX Toolset and attaches `DAQifiDesktop_Setup.msi` to the release automatically. The app version is set in `Daqifi.Desktop/Daqifi.Desktop.csproj` (`<Version>`). Follow [semantic versioning](https://semver.org/); breaking changes should use the `feat!:` prefix in the PR title.
+
+Unhandled exceptions are captured via Sentry. The DSN is in `Daqifi.Desktop/App.config`.
 
 ---
 
