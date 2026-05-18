@@ -68,22 +68,6 @@ If you are building automated pipelines or integrating DAQiFi devices into your 
 
 Both devices are SCPI-compliant and compatible with LabVIEW.
 
-## How data flows
-
-```mermaid
-sequenceDiagram
-    DAQiFiHardware->>IStreamingDevice: Protobuf message
-    IStreamingDevice->>StreamMessageConsumer: Protobuf message
-    StreamMessageConsumer->>ProtobufMessageParser: Decode
-    StreamMessageConsumer->>IDevice: OnMessageReceived()
-    IDevice->>IChannel: Set active sample
-    IChannel->>IChannel: Apply scale expression
-    IChannel->>LoggingManager: OnChannelUpdated()
-    LoggingManager->>DatabaseLogger: HandleChannelUpdate()
-    DatabaseLogger->>DatabaseLogger: Add to buffer
-    DatabaseLogger->>Database: Bulk insert
-```
-
 ## WiFi connectivity
 
 **Requirements:**
@@ -119,7 +103,7 @@ sequenceDiagram
 
 ## Contributing
 
-Please read the [Contributing Guidelines](CONTRIBUTING.md) before opening a pull request. All PRs require a conventional commit title (`feat:`, `fix:`, `docs:`, `deps:`, `chore:`) and at least one approving review from a DAQiFi core member.
+Please read the [Contributing Guidelines](CONTRIBUTING.md) before opening a pull request. See [docs/architecture.md](docs/architecture.md) for the streaming data pipeline and system overview, and [docs/design-philosophy.md](docs/design-philosophy.md) for UI/UX principles. All PRs require a conventional commit title (`feat:`, `fix:`, `docs:`, `deps:`, `chore:`) and at least one approving review from a DAQiFi core member.
 
 ## For maintainers
 
