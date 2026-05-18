@@ -118,6 +118,15 @@ public class ConnectStreamDisconnectTests
                 "Confirm button on the connection dialog.");
             connect.AsButton().Invoke();
 
+            // Fail-fast if the device-list AutomationId itself is missing or
+            // regressed: otherwise FindListItems would return ListFound=false,
+            // ItemCount=0, the WaitForOrInconclusive predicate (ItemCount > 0)
+            // would never become true, and we'd time out as Inconclusive -
+            // masking a real selector regression as "bench device not
+            // available" (Qodo review pass 7 #1).
+            _ = FindByAutomationId(mainWindow, cf, DEVICE_LIST_ID,
+                "Connected-devices list container.");
+
             // Wait for the connected-devices list to show at least one row.
             // Re-find the list inside the predicate each poll: UI Automation
             // elements can become stale across major tree transitions (e.g.
@@ -130,7 +139,7 @@ public class ConnectStreamDisconnectTests
             // us a device was *expected*, but the connect path can still no-op
             // when the hardware is powered off or the cable is unplugged.
             // Phase 2 must skip-on-unavailable per the #531 compliance bar
-            // (Qodo review #1).
+            // (Qodo review #1, pass 4).
             WaitForOrInconclusive(
                 () => FindListItems(mainWindow, cf, DEVICE_LIST_ID).ItemCount > 0,
                 DEVICE_APPEAR_TIMEOUT,
