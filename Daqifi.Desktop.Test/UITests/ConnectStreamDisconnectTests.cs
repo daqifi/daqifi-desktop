@@ -6,6 +6,7 @@ using System.Threading;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Conditions;
+using FlaUI.Core.Definitions;
 using FlaUI.UIA3;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -69,7 +70,7 @@ public class ConnectStreamDisconnectTests
 
     [TestMethod]
     [TestCategory("UI-Bench")]
-    public void ConnectStreamDisconnect_HappyPath()
+    public void ConnectStreamDisconnectHappyPath()
     {
         if (!IsBenchDeviceAvailable())
         {
@@ -117,16 +118,29 @@ public class ConnectStreamDisconnectTests
             connect.AsButton().Invoke();
 
             // Wait for the connected-devices list to show at least one row.
-            var deviceList = FindByAutomationId(mainWindow, cf, DEVICE_LIST_ID,
-                "Connected-devices list container.");
-            WaitFor(() => deviceList.FindAllChildren().Length > 0, DEVICE_APPEAR_TIMEOUT,
+            // Re-find the list inside the predicate each poll: UI Automation
+            // elements can become stale across major tree transitions (e.g.
+            // when the ConnectionDialog closes), and a cached element that's
+            // gone stale will keep throwing inside WaitFor until timeout.
+            WaitFor(
+                () => FindListChildren(mainWindow, cf, DEVICE_LIST_ID).Length > 0,
+                DEVICE_APPEAR_TIMEOUT,
                 "Device did not appear in the connected list.");
 
             // ----- Enable first channel -----
+            // Set the toggle deterministically to the 'On' state rather than
+            // unconditionally inverting it. If the channel was already enabled
+            // (e.g., from persisted UI state or a prior run on the bench),
+            // a blind Toggle() would disable it and the rest of the flow
+            // (Start streaming, graph proof-of-life, Disconnect) would fail
+            // or observe no data.
             var firstChannel = FindByAutomationId(mainWindow, cf, FIRST_CHANNEL_TOGGLE_ID,
                 "Enable-toggle on the first analog channel.");
-            // Toggle controls in MahApps are typically ToggleButtons; click via Invoke.
-            firstChannel.AsToggleButton().Toggle();
+            var firstChannelToggle = firstChannel.AsToggleButton();
+            if (firstChannelToggle.ToggleState != ToggleState.On)
+            {
+                firstChannelToggle.Toggle();
+            }
 
             // ----- Start streaming, dwell, check graph has data -----
             var start = FindByAutomationId(mainWindow, cf, START_STREAMING_ID,
@@ -173,7 +187,9 @@ public class ConnectStreamDisconnectTests
                 "Disconnect command button.");
             disconnect.AsButton().Invoke();
 
-            WaitFor(() => deviceList.FindAllChildren().Length == 0, DEVICE_APPEAR_TIMEOUT,
+            WaitFor(
+                () => FindListChildren(mainWindow, cf, DEVICE_LIST_ID).Length == 0,
+                DEVICE_APPEAR_TIMEOUT,
                 "Device was not removed from the connected list after disconnect.");
         }
         finally
@@ -204,6 +220,20 @@ public class ConnectStreamDisconnectTests
             $"Could not find AutomationId '{automationId}' ({description}). " +
             "Add AutomationProperties.AutomationId to the XAML and reference issue #531.");
         return element!;
+    }
+
+    /// <summary>
+    /// Re-finds the list element by AutomationId and returns its children.
+    /// Always re-locates the parent on each call so a stale AutomationElement
+    /// from a prior UI-tree refresh can't poison a polling loop. Returns an
+    /// empty array if the list is currently absent (the caller's WaitFor
+    /// predicate keeps polling until it appears).
+    /// </summary>
+    private static AutomationElement[] FindListChildren(
+        AutomationElement scope, ConditionFactory cf, string automationId)
+    {
+        var element = scope.FindFirstDescendant(cf.ByAutomationId(automationId));
+        return element is null ? Array.Empty<AutomationElement>() : element.FindAllChildren();
     }
 
     /// <summary>
@@ -238,10 +268,8 @@ public class ConnectStreamDisconnectTests
             Thread.Sleep(200);
         }
 
-        var detail = lastException is null
-            ? string.Empty
-            : $" Last exception while enumerating top-level windows: {lastException.GetType().Name}: {lastException.Message}";
-        Assert.Fail($"{failureMessage} (waited {timeout.TotalSeconds:F0}s).{detail}");
+        Assert.Fail(BuildTimeoutMessage(failureMessage, timeout,
+            "enumerating top-level windows", lastException));
         throw new InvalidOperationException("unreachable; Assert.Fail throws.");
     }
 
@@ -253,7 +281,10 @@ public class ConnectStreamDisconnectTests
         {
             try
             {
-                if (condition()) return;
+                if (condition())
+                {
+                    return;
+                }
             }
             catch (Exception ex)
             {
@@ -265,9 +296,22 @@ public class ConnectStreamDisconnectTests
             Thread.Sleep(200);
         }
 
-        var detail = lastException is null
+        Assert.Fail(BuildTimeoutMessage(failureMessage, timeout,
+            "polling", lastException));
+    }
+
+    /// <summary>
+    /// Builds a uniform "timed out" failure message that appends the last
+    /// observed exception (if any). Kept under the 120-column limit by
+    /// constructing the exception suffix on its own line.
+    /// </summary>
+    private static string BuildTimeoutMessage(
+        string failureMessage, TimeSpan timeout, string context, Exception? lastException)
+    {
+        var suffix = lastException is null
             ? string.Empty
-            : $" Last exception during polling: {lastException.GetType().Name}: {lastException.Message}";
-        Assert.Fail($"{failureMessage} (waited {timeout.TotalSeconds:F0}s).{detail}");
+            : $" Last exception during {context}: "
+              + $"{lastException.GetType().Name}: {lastException.Message}";
+        return $"{failureMessage} (waited {timeout.TotalSeconds:F0}s).{suffix}";
     }
 }
