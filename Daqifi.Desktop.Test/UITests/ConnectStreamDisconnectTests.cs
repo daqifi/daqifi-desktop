@@ -171,35 +171,38 @@ public class ConnectStreamDisconnectTests
                 "Start-streaming command button.");
             start.AsButton().Invoke();
 
-            // Capture graph geometry BEFORE the dwell so we can detect that data
-            // actually arrived during streaming (the rectangle grows / changes as
-            // points are plotted). UI-Automation can't see OxyPlot/LiveCharts data
-            // directly, so this is the best UIA-only proxy for "non-zero data" we
-            // can do until the XAML grows an automation-visible point-count probe
-            // (tracked under #531).
+            // Capture graph geometry BEFORE streaming so we have a baseline to
+            // diff against. UI Automation can't see OxyPlot / LiveCharts plot
+            // data directly, so the best UIA-only proxy for "data is arriving"
+            // is "the live graph's bounding rectangle changed during the
+            // dwell". Once the XAML grows an automation-visible point-count
+            // probe (tracked under #531) this can become a hard assertion.
             var liveGraph = FindByAutomationId(mainWindow, cf, LIVE_GRAPH_ID,
-                "Live graph control. Should contain non-zero point count after dwell.");
+                "Live graph control. Should visibly update after streaming starts.");
+            Assert.IsTrue(liveGraph.BoundingRectangle.Width > 0,
+                "Pre-stream graph rectangle was empty; the control wasn't laid out before Start.");
             var preStreamRect = liveGraph.BoundingRectangle;
 
-            Thread.Sleep(STREAMING_DWELL_TIME);
-
-            // Re-fetch in case the surface was lazy-bound on Start.
-            liveGraph = FindByAutomationId(mainWindow, cf, LIVE_GRAPH_ID,
-                "Live graph control (post-dwell).");
-
-            Assert.IsFalse(liveGraph.IsOffscreen, "Live graph was offscreen after Start.");
-            Assert.IsTrue(liveGraph.BoundingRectangle.Width > 0
-                          && liveGraph.BoundingRectangle.Height > 0,
-                "Live graph had zero-sized bounding box; streaming likely did not start.");
-
-            // Proxy data-arrival check: enabled-state should remain visible and the
-            // graph's rectangle stayed non-empty across the dwell. A stronger
-            // assertion needs an AutomationProperties.HelpText (or similar) bound
-            // to the live point count - tracked under #531 follow-up.
-            Assert.IsTrue(liveGraph.IsEnabled,
-                "Live graph was disabled after streaming dwell; streaming likely did not start.");
-            Assert.IsTrue(preStreamRect.Width > 0,
-                "Pre-stream graph rectangle was empty; the control wasn't laid out before Start.");
+            // Poll-and-detect rather than fixed-sleep: WaitFor returns as soon
+            // as we observe a visible change to the graph (and skips the
+            // remaining dwell), but if nothing has changed by the deadline we
+            // still spent the same wall-clock budget as the old Thread.Sleep
+            // and get a precise failure message ("did not visibly update").
+            WaitFor(
+                () =>
+                {
+                    var graph = FindByAutomationId(mainWindow, cf, LIVE_GRAPH_ID,
+                        "Live graph control (streaming-update poll).");
+                    var rect = graph.BoundingRectangle;
+                    return !graph.IsOffscreen
+                           && graph.IsEnabled
+                           && rect.Width > 0
+                           && rect.Height > 0
+                           && !rect.Equals(preStreamRect);
+                },
+                STREAMING_DWELL_TIME,
+                "Live graph did not visibly update during the streaming dwell; "
+                + "streaming may not have started or data is not reaching the plot.");
 
             // ----- Stop streaming -----
             var stop = FindByAutomationId(mainWindow, cf, STOP_STREAMING_ID,
@@ -267,11 +270,16 @@ public class ConnectStreamDisconnectTests
     /// <summary>
     /// Re-finds the list element by AutomationId and counts its data rows.
     /// Always re-locates the parent on each call so a stale AutomationElement
-    /// from a prior UI-tree refresh can't poison a polling loop. Counts only
-    /// <c>ListItem</c> / <c>DataItem</c> descendants rather than every visual
-    /// child, because a WPF ItemsControl's child collection includes
-    /// scrollbars, item-container headers, etc., which would otherwise let
-    /// <c>Length &gt; 0</c> succeed even when no data rows exist.
+    /// from a prior UI-tree refresh can't poison a polling loop.
+    ///
+    /// Counts use UI Automation patterns first (Grid.RowCount or
+    /// ListBox.Items.Length) because WPF UI virtualization can leave rows
+    /// unrealized (offscreen list items are not present as descendants in the
+    /// UIA tree until they scroll into view) - so counting realized
+    /// descendants alone would report 0 even when the list has items. The
+    /// realized-descendant fallback (ListItem / DataItem) covers the case
+    /// where the control isn't a ListBox / Grid but still exposes its items
+    /// directly.
     /// </summary>
     private static ListItemSnapshot FindListItems(
         AutomationElement scope, ConditionFactory cf, string automationId)
@@ -282,13 +290,36 @@ public class ConnectStreamDisconnectTests
             return new ListItemSnapshot(ListFound: false, ItemCount: 0);
         }
 
+        // Prefer GridPattern.RowCount when available - it reports the logical
+        // row count regardless of virtualization.
+        var gridPattern = element.Patterns.Grid.PatternOrDefault;
+        if (gridPattern is not null)
+        {
+            return new ListItemSnapshot(ListFound: true, ItemCount: gridPattern.RowCount);
+        }
+
+        // ListBox.Items.Length is similarly virtualization-safe; AsListBox
+        // throws if the element isn't a ListBox, so guard with try/catch
+        // rather than a fragile control-type sniff.
+        try
+        {
+            var listBox = element.AsListBox();
+            return new ListItemSnapshot(ListFound: true, ItemCount: listBox.Items.Length);
+        }
+        catch
+        {
+            // Fall through to the realized-descendant fallback.
+        }
+
+        // Last-resort fallback: count realized ListItem / DataItem descendants.
+        // This loses accuracy under virtualization but works for non-virtualized
+        // ItemsControls and DataGrids.
         var listItems = element.FindAllDescendants(cf.ByControlType(ControlType.ListItem));
         if (listItems.Length > 0)
         {
             return new ListItemSnapshot(ListFound: true, ItemCount: listItems.Length);
         }
 
-        // DataGrid rows typically present as DataItem rather than ListItem.
         var dataItems = element.FindAllDescendants(cf.ByControlType(ControlType.DataItem));
         return new ListItemSnapshot(ListFound: true, ItemCount: dataItems.Length);
     }
