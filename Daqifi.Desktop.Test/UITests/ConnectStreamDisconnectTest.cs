@@ -6,7 +6,6 @@ using System.Threading;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Conditions;
-using FlaUI.Core.Definitions;
 using FlaUI.UIA3;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -132,6 +131,9 @@ public class ConnectStreamDisconnectTest
                 try
                 {
                     app.Close();
+                    // Give the app up to 5s to shut down gracefully before forcing it,
+                    // matching the Phase 1 smoke-test teardown.
+                    app.WaitWhileMainHandleIsMissing(TimeSpan.FromSeconds(5));
                     if (!app.HasExited) app.Kill();
                 }
                 catch { /* best-effort */ }

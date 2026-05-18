@@ -90,12 +90,10 @@ public class MainWindowSmokeTest
                 try
                 {
                     app.Close();
-                    // Close() requests graceful shutdown; give the app a moment to
-                    // exit. If it didn't, kill it so the next test run is clean.
-                    if (!app.WaitWhileMainHandleIsMissing(TimeSpan.FromSeconds(5)))
-                    {
-                        // No-op: handle is missing means it already closed.
-                    }
+                    // Close() requests graceful shutdown; give the app up to 5s
+                    // to exit on its own. If it hasn't, force it so the next
+                    // test run starts from a clean slate.
+                    app.WaitWhileMainHandleIsMissing(TimeSpan.FromSeconds(5));
                     if (!app.HasExited)
                     {
                         app.Kill();
