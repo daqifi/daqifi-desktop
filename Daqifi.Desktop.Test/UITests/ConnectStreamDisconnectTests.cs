@@ -65,6 +65,7 @@ public class ConnectStreamDisconnectTests
     private static readonly TimeSpan MAIN_WINDOW_TIMEOUT = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan DEVICE_APPEAR_TIMEOUT = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan CONNECTION_DIALOG_TIMEOUT = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan TOGGLE_PROPAGATION_TIMEOUT = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan STREAMING_DWELL_TIME = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan SHUTDOWN_GRACE = TimeSpan.FromSeconds(5);
 
@@ -140,6 +141,18 @@ public class ConnectStreamDisconnectTests
             if (firstChannelToggle.ToggleState != ToggleState.On)
             {
                 firstChannelToggle.Toggle();
+
+                // Wait for the toggle state change to propagate through the
+                // WPF data-binding before asserting downstream stream behavior.
+                // Re-find the element each poll so we don't rely on a possibly
+                // stale AutomationElement reference after the UI updates.
+                WaitFor(
+                    () => FindByAutomationId(mainWindow, cf, FIRST_CHANNEL_TOGGLE_ID,
+                            "First-channel toggle (post-toggle).")
+                        .AsToggleButton()
+                        .ToggleState == ToggleState.On,
+                    TOGGLE_PROPAGATION_TIMEOUT,
+                    "First channel did not reach the 'On' state after toggling.");
             }
 
             // ----- Start streaming, dwell, check graph has data -----

@@ -1,5 +1,7 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using FlaUI.Core;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -43,7 +45,17 @@ internal static class UIAppLifecycle
     {
         try
         {
-            return Application.Launch(exePath);
+            // Set WorkingDirectory to the exe's folder so the app's relative
+            // path lookups (config files, resource probing, settings stores)
+            // resolve from a known location instead of inheriting the test
+            // runner's cwd (which can be anything from MSTest's bin/ down to
+            // wherever the IDE was launched from).
+            var startInfo = new ProcessStartInfo(exePath)
+            {
+                WorkingDirectory = Path.GetDirectoryName(exePath)
+                                   ?? Environment.CurrentDirectory,
+            };
+            return Application.Launch(startInfo);
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 740 /* ERROR_ELEVATION_REQUIRED */)
         {
@@ -87,6 +99,13 @@ internal static class UIAppLifecycle
             if (!app.HasExited)
             {
                 app.Kill();
+                // Kill() is asynchronous - the OS posts the termination but the
+                // process can still hold file/socket handles for a moment after.
+                // Block here so callers see a fully-exited process when
+                // Dispose() runs, preventing stray processes between consecutive
+                // test runs. FlaUI's Application doesn't expose the underlying
+                // Process directly, but we can fetch it by ProcessId.
+                WaitForExitByProcessId(app.ProcessId, grace);
             }
         }
         catch
@@ -96,6 +115,25 @@ internal static class UIAppLifecycle
         finally
         {
             app.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Blocks until the OS process with the given PID has exited or the grace
+    /// window expires. Swallows the (expected) <see cref="ArgumentException"/>
+    /// from <see cref="Process.GetProcessById(int)"/> when the process is
+    /// already gone by the time we look it up.
+    /// </summary>
+    private static void WaitForExitByProcessId(int processId, TimeSpan grace)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            process.WaitForExit((int)grace.TotalMilliseconds);
+        }
+        catch (ArgumentException)
+        {
+            // Process already exited - no further wait needed.
         }
     }
 }
