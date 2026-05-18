@@ -4,12 +4,12 @@
 >
 > The official Windows desktop application for DAQiFi hardware — real-time visualization, session logging, and firmware updates, all in one place.
 
-[![Build](https://github.com/daqifi/daqifi-desktop/actions/workflows/build.yaml/badge.svg)](https://github.com/daqifi/daqifi-desktop/actions/workflows/build.yaml)
+[![Build](https://github.com/daqifi/daqifi-desktop/actions/workflows/build.yaml/badge.svg?branch=main)](https://github.com/daqifi/daqifi-desktop/actions/workflows/build.yaml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue?style=flat-square)](https://github.com/daqifi/daqifi-desktop/releases)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple?style=flat-square)](https://dotnet.microsoft.com/)
 
-[daqifi.com](https://daqifi.com) · [daqifi-core SDK](https://github.com/daqifi/daqifi-core) · [Issues](https://github.com/daqifi/daqifi-desktop/issues) · [Discussions](https://github.com/daqifi/daqifi-desktop/discussions)
+[daqifi.com](https://daqifi.com) · [daqifi-core SDK](https://github.com/daqifi/daqifi-core) · [Issues](https://github.com/daqifi/daqifi-desktop/issues)
 
 ---
 
@@ -115,7 +115,6 @@ sequenceDiagram
 ## Community & support
 
 - **Bug reports and feature requests**: [GitHub Issues](https://github.com/daqifi/daqifi-desktop/issues)
-- **Questions and discussion**: [GitHub Discussions](https://github.com/daqifi/daqifi-desktop/discussions)
 - **Commercial inquiries and custom hardware**: [daqifi.com](https://daqifi.com)
 
 ## Contributing
