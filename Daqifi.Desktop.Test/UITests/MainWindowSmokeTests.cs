@@ -47,12 +47,13 @@ public class MainWindowSmokeTests
                 $"Skipped: {DESKTOP_EXE_NAME} was not found. Build the {DESKTOP_PROJECT_NAME} " +
                 "project (Debug or Release, net10.0-windows) before running this UI test. " +
                 "See issue #531 for the full FlaUI scaffold rollout plan.");
+            return; // unreachable; Assert.Inconclusive throws.
         }
 
         Application? app = null;
         try
         {
-            app = UIAppLifecycle.LaunchOrInconclusive(exePath!);
+            app = UIAppLifecycle.LaunchOrInconclusive(exePath);
 
             using var automation = new UIA3Automation();
             var mainWindow = app.GetMainWindow(automation, MAIN_WINDOW_TIMEOUT);

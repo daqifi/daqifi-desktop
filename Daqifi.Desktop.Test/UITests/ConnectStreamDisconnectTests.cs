@@ -95,7 +95,7 @@ public class ConnectStreamDisconnectTests
         Application? app = null;
         try
         {
-            app = UIAppLifecycle.LaunchOrInconclusive(exePath!);
+            app = UIAppLifecycle.LaunchOrInconclusive(exePath);
 
             using var automation = new UIA3Automation();
             var mainWindow = app.GetMainWindow(automation, MAIN_WINDOW_TIMEOUT);
@@ -166,22 +166,28 @@ public class ConnectStreamDisconnectTests
                     "First channel did not reach the 'On' state after toggling.");
             }
 
-            // ----- Start streaming, dwell, check graph has data -----
-            var start = FindByAutomationId(mainWindow, cf, START_STREAMING_ID,
-                "Start-streaming command button.");
-            start.AsButton().Invoke();
-
-            // Capture graph geometry BEFORE streaming so we have a baseline to
-            // diff against. UI Automation can't see OxyPlot / LiveCharts plot
-            // data directly, so the best UIA-only proxy for "data is arriving"
-            // is "the live graph's bounding rectangle changed during the
-            // dwell". Once the XAML grows an automation-visible point-count
-            // probe (tracked under #531) this can become a hard assertion.
+            // ----- Capture graph baseline, start streaming, check for update -----
+            // Capture graph geometry BEFORE invoking Start so we have a
+            // baseline to diff against. UI Automation can't see OxyPlot /
+            // LiveCharts plot data directly, so the best UIA-only proxy for
+            // "data is arriving" is "the live graph's bounding rectangle
+            // changed after streaming started". Once the XAML grows an
+            // automation-visible point-count probe (tracked under #531) this
+            // can become a hard assertion.
+            //
+            // The baseline MUST be captured before invoking Start: otherwise
+            // the WPF data-binding could have already pushed the first sample
+            // by the time we read the rectangle, and the post-stream diff
+            // would compare against an already-updated baseline (false-fail).
             var liveGraph = FindByAutomationId(mainWindow, cf, LIVE_GRAPH_ID,
                 "Live graph control. Should visibly update after streaming starts.");
             Assert.IsTrue(liveGraph.BoundingRectangle.Width > 0,
                 "Pre-stream graph rectangle was empty; the control wasn't laid out before Start.");
             var preStreamRect = liveGraph.BoundingRectangle;
+
+            var start = FindByAutomationId(mainWindow, cf, START_STREAMING_ID,
+                "Start-streaming command button.");
+            start.AsButton().Invoke();
 
             // Poll-and-detect rather than fixed-sleep: WaitFor returns as soon
             // as we observe a visible change to the graph (and skips the
@@ -291,11 +297,23 @@ public class ConnectStreamDisconnectTests
         }
 
         // Prefer GridPattern.RowCount when available - it reports the logical
-        // row count regardless of virtualization.
+        // row count regardless of virtualization. WPF DataGrids commonly count
+        // their header band as a row in GridPattern; if a Header descendant
+        // exists, subtract one so an empty grid can reach ItemCount=0
+        // (otherwise the disconnect predicate would never see 0 and would
+        // time out).
         var gridPattern = element.Patterns.Grid.PatternOrDefault;
         if (gridPattern is not null)
         {
-            return new ListItemSnapshot(ListFound: true, ItemCount: gridPattern.RowCount);
+            // GridPattern.RowCount is AutomationProperty<int>; .Value reads
+            // the actual count via UIA.
+            var rowCount = gridPattern.RowCount.Value;
+            var header = element.FindFirstDescendant(cf.ByControlType(ControlType.Header));
+            if (header is not null && rowCount > 0)
+            {
+                rowCount--;
+            }
+            return new ListItemSnapshot(ListFound: true, ItemCount: Math.Max(0, rowCount));
         }
 
         // ListBox.Items.Length is similarly virtualization-safe; AsListBox
