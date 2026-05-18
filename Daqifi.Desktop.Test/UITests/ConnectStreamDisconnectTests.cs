@@ -123,10 +123,21 @@ public class ConnectStreamDisconnectTests
             // elements can become stale across major tree transitions (e.g.
             // when the ConnectionDialog closes), and a cached element that's
             // gone stale will keep throwing inside WaitFor until timeout.
-            WaitFor(
-                () => FindListChildren(mainWindow, cf, DEVICE_LIST_ID).Length > 0,
+            //
+            // If the device never appears within the timeout, treat it as
+            // "bench device not actually discoverable" and skip
+            // (Assert.Inconclusive) rather than fail - the env-var gate told
+            // us a device was *expected*, but the connect path can still no-op
+            // when the hardware is powered off or the cable is unplugged.
+            // Phase 2 must skip-on-unavailable per the #531 compliance bar
+            // (Qodo review #1).
+            WaitForOrInconclusive(
+                () => FindListItems(mainWindow, cf, DEVICE_LIST_ID).ItemCount > 0,
                 DEVICE_APPEAR_TIMEOUT,
-                "Device did not appear in the connected list.");
+                "Device did not appear in the connected list within "
+                + $"{DEVICE_APPEAR_TIMEOUT.TotalSeconds:F0}s. The "
+                + $"{BENCH_AVAILABLE_ENV_VAR} env var is set but no device was "
+                + "discovered - check the USB connection / power state.");
 
             // ----- Enable first channel -----
             // Set the toggle deterministically to the 'On' state rather than
@@ -200,8 +211,17 @@ public class ConnectStreamDisconnectTests
                 "Disconnect command button.");
             disconnect.AsButton().Invoke();
 
+            // Require BOTH that the list element still exists AND that its
+            // data-item count is zero. Without the ListFound guard, an
+            // AutomationId regression (or a transient UIA-tree drop) would
+            // make `ItemCount == 0` pass for the wrong reason: "the list is
+            // gone" looks identical to "the list is empty" (Qodo review #8).
             WaitFor(
-                () => FindListChildren(mainWindow, cf, DEVICE_LIST_ID).Length == 0,
+                () =>
+                {
+                    var snap = FindListItems(mainWindow, cf, DEVICE_LIST_ID);
+                    return snap.ListFound && snap.ItemCount == 0;
+                },
                 DEVICE_APPEAR_TIMEOUT,
                 "Device was not removed from the connected list after disconnect.");
         }
@@ -236,17 +256,41 @@ public class ConnectStreamDisconnectTests
     }
 
     /// <summary>
-    /// Re-finds the list element by AutomationId and returns its children.
-    /// Always re-locates the parent on each call so a stale AutomationElement
-    /// from a prior UI-tree refresh can't poison a polling loop. Returns an
-    /// empty array if the list is currently absent (the caller's WaitFor
-    /// predicate keeps polling until it appears).
+    /// Result of looking up a list container by AutomationId and counting its
+    /// data rows. <see cref="ListFound"/> distinguishes "list element missing"
+    /// from "list found and empty" - a disconnect predicate that just checked
+    /// for "0 children" would otherwise produce a false-positive pass when
+    /// the AutomationId regressed (Qodo review #8).
     /// </summary>
-    private static AutomationElement[] FindListChildren(
+    private readonly record struct ListItemSnapshot(bool ListFound, int ItemCount);
+
+    /// <summary>
+    /// Re-finds the list element by AutomationId and counts its data rows.
+    /// Always re-locates the parent on each call so a stale AutomationElement
+    /// from a prior UI-tree refresh can't poison a polling loop. Counts only
+    /// <c>ListItem</c> / <c>DataItem</c> descendants rather than every visual
+    /// child, because a WPF ItemsControl's child collection includes
+    /// scrollbars, item-container headers, etc., which would otherwise let
+    /// <c>Length &gt; 0</c> succeed even when no data rows exist.
+    /// </summary>
+    private static ListItemSnapshot FindListItems(
         AutomationElement scope, ConditionFactory cf, string automationId)
     {
         var element = scope.FindFirstDescendant(cf.ByAutomationId(automationId));
-        return element is null ? Array.Empty<AutomationElement>() : element.FindAllChildren();
+        if (element is null)
+        {
+            return new ListItemSnapshot(ListFound: false, ItemCount: 0);
+        }
+
+        var listItems = element.FindAllDescendants(cf.ByControlType(ControlType.ListItem));
+        if (listItems.Length > 0)
+        {
+            return new ListItemSnapshot(ListFound: true, ItemCount: listItems.Length);
+        }
+
+        // DataGrid rows typically present as DataItem rather than ListItem.
+        var dataItems = element.FindAllDescendants(cf.ByControlType(ControlType.DataItem));
+        return new ListItemSnapshot(ListFound: true, ItemCount: dataItems.Length);
     }
 
     /// <summary>
@@ -288,15 +332,56 @@ public class ConnectStreamDisconnectTests
 
     private static void WaitFor(Func<bool> condition, TimeSpan timeout, string failureMessage)
     {
+        if (TryPoll(condition, timeout, out var lastException))
+        {
+            return;
+        }
+
+        Assert.Fail(BuildTimeoutMessage(failureMessage, timeout,
+            "polling", lastException));
+    }
+
+    /// <summary>
+    /// Same poll-then-give-up shape as <see cref="WaitFor"/>, but reports
+    /// timeout via <see cref="Assert.Inconclusive(string)"/> rather than
+    /// <see cref="Assert.Fail(string)"/>. Used when "condition didn't become
+    /// true" means "the bench device isn't actually available" (the env-var
+    /// gate says we should run, but the hardware turned out to be absent /
+    /// powered off / unplugged) - which the #531 compliance bar requires to
+    /// be a skip, not a failure.
+    /// </summary>
+    private static void WaitForOrInconclusive(
+        Func<bool> condition, TimeSpan timeout, string failureMessage)
+    {
+        if (TryPoll(condition, timeout, out var lastException))
+        {
+            return;
+        }
+
+        Assert.Inconclusive(BuildTimeoutMessage(failureMessage, timeout,
+            "polling", lastException));
+    }
+
+    /// <summary>
+    /// Shared poll loop for <see cref="WaitFor"/> and
+    /// <see cref="WaitForOrInconclusive"/>. Returns <c>true</c> when
+    /// <paramref name="condition"/> evaluated to true before the deadline;
+    /// returns <c>false</c> on timeout, with the last observed exception (if
+    /// any) emitted via <paramref name="lastException"/> so the caller can
+    /// surface it.
+    /// </summary>
+    private static bool TryPoll(
+        Func<bool> condition, TimeSpan timeout, out Exception? lastException)
+    {
+        lastException = null;
         var deadline = DateTime.UtcNow + timeout;
-        Exception? lastException = null;
         while (DateTime.UtcNow < deadline)
         {
             try
             {
                 if (condition())
                 {
-                    return;
+                    return true;
                 }
             }
             catch (Exception ex)
@@ -309,8 +394,7 @@ public class ConnectStreamDisconnectTests
             Thread.Sleep(200);
         }
 
-        Assert.Fail(BuildTimeoutMessage(failureMessage, timeout,
-            "polling", lastException));
+        return false;
     }
 
     /// <summary>
