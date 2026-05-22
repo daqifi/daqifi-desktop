@@ -10,20 +10,21 @@ How DAQiFi Desktop relates to the world outside it.
 C4Context
     title System Context — DAQiFi Desktop
 
-    Person(user, "Operator", "Engineer, researcher, or educator collecting data")
+    Person(user, "Operator", "Engineer, researcher,\nor educator")
 
-    System(desktop, "DAQiFi Desktop", "WPF app: discovery, live visualization, session logging, firmware updates")
+    System(desktop, "DAQiFi Desktop", "WPF app: discovery,\nvisualization, logging,\nfirmware updates")
 
-    System_Ext(nyquist, "Nyquist Device", "DAQiFi hardware (Nyquist 1 or 3) over WiFi and/or USB")
-    System_Ext(github, "GitHub Releases API", "Source of update notifications")
-    System_Ext(sentry, "Sentry", "Unhandled-exception telemetry")
-    System_Ext(firewall, "Windows Firewall", "Host firewall — UDP 30303 rule for device discovery")
+    System_Ext(nyquist, "Nyquist Device", "DAQiFi hardware\n(Nyquist 1 or 3)")
+    System_Ext(github, "GitHub Releases", "Update check source")
+    System_Ext(sentry, "Sentry", "Exception telemetry")
+    System_Ext(firewall, "Windows Firewall", "Host firewall —\nUDP 30303 rule")
 
-    Rel(user, desktop, "Connects devices, configures channels, starts logging")
-    Rel(desktop, nyquist, "UDP discovery (30303), TCP streaming, USB-Serial, USB HID for firmware")
+    Rel(user, desktop, "Connects devices,\nlogs data")
+    Rel(desktop, nyquist, "Discovery & streaming\n(WiFi UDP/TCP, USB Serial)")
+    Rel(desktop, nyquist, "Firmware updates\n(USB HID)")
     Rel(desktop, github, "Checks latest release", "HTTPS")
-    Rel(desktop, sentry, "Reports unhandled exceptions", "HTTPS")
-    Rel(desktop, firewall, "Creates inbound UDP 30303 rule on first run (requires admin)")
+    Rel(desktop, sentry, "Reports exceptions", "HTTPS")
+    Rel(desktop, firewall, "Adds UDP 30303 rule\n(first run, admin)")
 ```
 
 ## Containers
@@ -38,20 +39,20 @@ C4Container
     System_Ext(nyquist, "Nyquist Device")
 
     Container_Boundary(app, "DAQiFi Desktop (WPF process)") {
-        Container(ui, "WPF UI", "XAML + ViewModels (CommunityToolkit.Mvvm)", "Channels pane, plot, profiles, dialogs")
-        Container(domain, "Device & Logging Domain", "C# (.NET 10)", "AbstractStreamingDevice, Channel, LoggingManager, DatabaseLogger")
-        Container(core, "Daqifi.Core", "NuGet package", "Transport (TCP/Serial/HID), ProtobufProtocolHandler, discovery, SCPI")
+        Container(ui, "WPF UI", "XAML + MVVM", "Channels pane,\nplot, profiles,\ndialogs")
+        Container(domain, "Device & Logging\nDomain", "C# (.NET 10)", "AbstractStreamingDevice,\nChannel,\nLoggingManager,\nDatabaseLogger")
+        Container(core, "Daqifi.Core", "NuGet package", "Transport,\nProtobufProtocolHandler,\ndiscovery, SCPI")
     }
 
-    ContainerDb(sqlite, "SQLite", "Local file (EF Core)", "Sessions, samples, device metadata")
-    Container_Ext(config, "App.config + Profiles XML", "Files in CommonApplicationData", "Settings, named profiles")
+    ContainerDb(sqlite, "SQLite", "Local file\n(EF Core)", "Sessions, samples,\ndevice metadata")
+    Container_Ext(config, "App.config +\nProfiles XML", "CommonApplicationData", "Settings,\nnamed profiles")
 
     Rel(user, ui, "Uses")
-    Rel(ui, domain, "Commands and observable state")
-    Rel(domain, core, "Sends SCPI, subscribes to MessageReceived")
+    Rel(ui, domain, "Commands &\nobservable state")
+    Rel(domain, core, "Sends SCPI,\nreads messages")
     Rel(core, nyquist, "Wire protocol")
-    Rel(domain, sqlite, "Bulk inserts via EF Core")
-    Rel(ui, config, "Reads/writes")
+    Rel(domain, sqlite, "Bulk inserts\n(EF Core)")
+    Rel(ui, config, "Reads / writes")
 ```
 
 ## Streaming data flow
