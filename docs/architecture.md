@@ -7,24 +7,29 @@ This document is for contributors. It explains how DAQiFi Desktop is structured 
 How DAQiFi Desktop relates to the world outside it.
 
 ```mermaid
-C4Context
-    title System Context — DAQiFi Desktop
+flowchart TB
+    user(["<b>Operator</b><br/><i>Person</i><br/>Engineer, researcher,<br/>or educator"])
 
-    Person(user, "Operator", "Engineer, researcher,\nor educator")
+    desktop["<b>DAQiFi Desktop</b><br/><i>System</i><br/>WPF app: discovery,<br/>visualization, logging,<br/>firmware updates"]
 
-    System(desktop, "DAQiFi Desktop", "WPF app: discovery,\nvisualization, logging,\nfirmware updates")
+    nyquist["<b>Nyquist Device</b><br/><i>External</i><br/>DAQiFi hardware<br/>(Nyquist 1 or 3)"]
+    github["<b>GitHub Releases</b><br/><i>External</i><br/>Update check"]
+    sentry["<b>Sentry</b><br/><i>External</i><br/>Exception telemetry"]
+    firewall["<b>Windows Firewall</b><br/><i>External</i><br/>UDP 30303 rule"]
 
-    System_Ext(nyquist, "Nyquist Device", "DAQiFi hardware\n(Nyquist 1 or 3)")
-    System_Ext(github, "GitHub Releases", "Update check source")
-    System_Ext(sentry, "Sentry", "Exception telemetry")
-    System_Ext(firewall, "Windows Firewall", "Host firewall —\nUDP 30303 rule")
+    user -- "Connects devices,<br/>logs data" --> desktop
+    desktop -- "Streaming<br/>(WiFi UDP/TCP,<br/>USB Serial)" --> nyquist
+    desktop -- "Firmware<br/>(USB HID)" --> nyquist
+    desktop -- "Latest release<br/>(HTTPS)" --> github
+    desktop -- "Exceptions<br/>(HTTPS)" --> sentry
+    desktop -- "Adds rule<br/>(first run, admin)" --> firewall
 
-    Rel(user, desktop, "Connects devices,\nlogs data")
-    Rel(desktop, nyquist, "Discovery & streaming\n(WiFi UDP/TCP, USB Serial)")
-    Rel(desktop, nyquist, "Firmware updates\n(USB HID)")
-    Rel(desktop, github, "Checks latest release", "HTTPS")
-    Rel(desktop, sentry, "Reports exceptions", "HTTPS")
-    Rel(desktop, firewall, "Adds UDP 30303 rule\n(first run, admin)")
+    classDef person fill:#08427b,stroke:#073b6f,color:#fff
+    classDef system fill:#1168bd,stroke:#0b4884,color:#fff
+    classDef external fill:#999,stroke:#6b6b6b,color:#fff
+    class user person
+    class desktop system
+    class nyquist,github,sentry,firewall external
 ```
 
 ## Containers
@@ -32,27 +37,35 @@ C4Context
 What lives inside the DAQiFi Desktop process and on the user's machine.
 
 ```mermaid
-C4Container
-    title Container View — DAQiFi Desktop
+flowchart TB
+    user(["<b>Operator</b>"])
+    nyquist["<b>Nyquist Device</b><br/><i>External</i>"]
 
-    Person(user, "Operator")
-    System_Ext(nyquist, "Nyquist Device")
+    subgraph app["DAQiFi Desktop (WPF process)"]
+        direction TB
+        ui["<b>WPF UI</b><br/><i>XAML + MVVM</i><br/>Channels pane,<br/>plot, profiles,<br/>dialogs"]
+        domain["<b>Device &amp; Logging Domain</b><br/><i>C# (.NET 10)</i><br/>AbstractStreamingDevice,<br/>Channel, LoggingManager,<br/>DatabaseLogger"]
+        core["<b>Daqifi.Core</b><br/><i>NuGet package</i><br/>Transport,<br/>ProtobufProtocolHandler,<br/>discovery, SCPI"]
+    end
 
-    Container_Boundary(app, "DAQiFi Desktop (WPF process)") {
-        Container(ui, "WPF UI", "XAML + MVVM", "Channels pane,\nplot, profiles,\ndialogs")
-        Container(domain, "Device & Logging\nDomain", "C# (.NET 10)", "AbstractStreamingDevice,\nChannel,\nLoggingManager,\nDatabaseLogger")
-        Container(core, "Daqifi.Core", "NuGet package", "Transport,\nProtobufProtocolHandler,\ndiscovery, SCPI")
-    }
+    sqlite[("<b>SQLite</b><br/><i>EF Core, local file</i><br/>Sessions, samples,<br/>device metadata")]
+    config["<b>App.config +<br/>Profiles XML</b><br/><i>CommonApplicationData</i><br/>Settings,<br/>named profiles"]
 
-    ContainerDb(sqlite, "SQLite", "Local file\n(EF Core)", "Sessions, samples,\ndevice metadata")
-    Container_Ext(config, "App.config +\nProfiles XML", "CommonApplicationData", "Settings,\nnamed profiles")
+    user -- "Uses" --> ui
+    ui -- "Commands &amp;<br/>observable state" --> domain
+    domain -- "SCPI out,<br/>MessageReceived in" --> core
+    core -- "Wire protocol" --> nyquist
+    domain -- "Bulk inserts" --> sqlite
+    ui -- "Reads / writes" --> config
 
-    Rel(user, ui, "Uses")
-    Rel(ui, domain, "Commands &\nobservable state")
-    Rel(domain, core, "Sends SCPI,\nreads messages")
-    Rel(core, nyquist, "Wire protocol")
-    Rel(domain, sqlite, "Bulk inserts\n(EF Core)")
-    Rel(ui, config, "Reads / writes")
+    classDef person fill:#08427b,stroke:#073b6f,color:#fff
+    classDef container fill:#438dd5,stroke:#2e6295,color:#fff
+    classDef external fill:#999,stroke:#6b6b6b,color:#fff
+    class user person
+    class ui,domain,core container
+    class sqlite container
+    class nyquist,config external
+    style app stroke:#888,stroke-dasharray:5 5,fill:transparent
 ```
 
 ## Streaming data flow
