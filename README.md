@@ -4,7 +4,7 @@
 >
 > The official Windows desktop application for DAQiFi hardware — real-time visualization, session logging, and firmware updates, all in one place.
 
-[![Build](https://github.com/daqifi/daqifi-desktop/actions/workflows/build.yaml/badge.svg?branch=main)](https://github.com/daqifi/daqifi-desktop/actions/workflows/build.yaml)
+[![Latest release](https://img.shields.io/github/v/release/daqifi/daqifi-desktop?style=flat-square&label=release&color=brightgreen)](https://github.com/daqifi/daqifi-desktop/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue?style=flat-square)](https://github.com/daqifi/daqifi-desktop/releases)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple?style=flat-square)](https://dotnet.microsoft.com/)
@@ -93,7 +93,7 @@ Both devices are SCPI-compliant and compatible with LabVIEW.
 ## Requirements
 
 - **OS**: Windows 10 or later (x64)
-- **Runtime**: .NET 10.0 for Windows (bundled in the MSI installer)
+- **Runtime**: [.NET 10.0 Desktop Runtime for Windows](https://dotnet.microsoft.com/download/dotnet/10.0) (install separately before running the MSI)
 - **Privileges**: Administrator rights recommended for automatic firewall configuration during initial setup
 
 ## Community & support
