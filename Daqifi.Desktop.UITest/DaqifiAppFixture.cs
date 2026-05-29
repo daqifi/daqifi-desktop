@@ -4,6 +4,7 @@ using System.Linq;
 using System.Diagnostics;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
+using FlaUI.Core.Definitions;
 using FlaUI.Core.Tools;
 using FlaUI.UIA3;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -20,8 +21,23 @@ public abstract class DaqifiAppFixture
 {
     #region Constants
     private const string TEST_MODE_ENV_VAR = "DAQIFI_TEST_MODE";
+    private const string TRANSPORT_ENV_VAR = "DAQIFI_TEST_TRANSPORT";
     private const string APP_EXE_NAME = "DAQiFi.exe";
     private const string LOG_FILE_NAME = "DAQifiAppLog.log";
+
+    // AutomationIds (set in Step 2) for the navigation + connection controls.
+    private const string ADD_DEVICE_BUTTON_ID = "AddDeviceButton";
+    private const string ADD_DEVICE_BUTTON_EMPTY_ID = "AddDeviceButtonEmpty";
+    private const string CONNECTED_DEVICE_LIST_ID = "ConnectedDeviceList";
+    private const string CONN_TAB_WIFI_ID = "ConnTab_Wifi";
+    private const string CONN_TAB_SERIAL_ID = "ConnTab_Serial";
+    private const string DISCOVERED_DEVICE_LIST_ID = "DiscoveredDeviceList";
+    private const string SERIAL_PORT_LIST_ID = "SerialPortList";
+    private const string CONNECT_BUTTON_WIFI_ID = "ConnectButton_Wifi";
+    private const string CONNECT_BUTTON_SERIAL_ID = "ConnectButton_Serial";
+
+    private const string CONNECTION_DIALOG_TITLE = "CONNECT DEVICE";
+    private const string DEVICES_TAB_TEXT = "Devices";
     #endregion
 
     #region Protected Fields
@@ -159,6 +175,206 @@ public abstract class DaqifiAppFixture
             interval: TimeSpan.FromMilliseconds(300),
             throwOnTimeout: true,
             timeoutMessage: $"Element with AutomationId '{automationId}' not found within {timeoutSeconds}s.").Result!;
+    }
+    #endregion
+
+    #region Navigation Helpers
+    /// <summary>
+    /// Selects a top-level navigation tab in the main window by its header text
+    /// (e.g. "Devices", "Channels", "Live Graph", "Profiles"). The nav TabItems
+    /// carry no AutomationId, so they are located by the header TextBlock text.
+    /// </summary>
+    protected void NavigateToTab(string headerText, int timeoutSeconds = 30)
+    {
+        var tabItem = Retry.WhileNull(
+            () => FindNavTabItem(headerText),
+            timeout: TimeSpan.FromSeconds(timeoutSeconds),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage: $"Navigation tab '{headerText}' not found within {timeoutSeconds}s.").Result!;
+
+        tabItem.Select();
+
+        Retry.WhileFalse(
+            () => tabItem.IsSelected,
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: $"Navigation tab '{headerText}' did not become selected.");
+    }
+
+    private TabItem? FindNavTabItem(string headerText)
+    {
+        var tabItems = MainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.TabItem));
+        foreach (var element in tabItems)
+        {
+            var match = element.FindFirstDescendant(cf => cf.ByText(headerText));
+            if (match != null)
+            {
+                return element.AsTabItem();
+            }
+        }
+
+        return null;
+    }
+    #endregion
+
+    #region Connect Helper
+    /// <summary>
+    /// Resolves the device transport for the run from the
+    /// <c>DAQIFI_TEST_TRANSPORT</c> environment variable ("Wifi" or "Serial").
+    /// Defaults to <see cref="DeviceTransport.Serial"/> when unset/unrecognized,
+    /// since a USB-attached device is the most common bench configuration.
+    /// </summary>
+    protected static DeviceTransport ResolveTransport()
+    {
+        var raw = Environment.GetEnvironmentVariable(TRANSPORT_ENV_VAR);
+        if (!string.IsNullOrWhiteSpace(raw)
+            && Enum.TryParse<DeviceTransport>(raw.Trim(), ignoreCase: true, out var parsed))
+        {
+            return parsed;
+        }
+
+        return DeviceTransport.Serial;
+    }
+
+    /// <summary>
+    /// Drives the full add-device workflow out-of-process: navigates to the Devices
+    /// tab, opens the connection dialog, selects the transport tab, waits for real
+    /// discovery to populate, selects the first discovered device, and connects.
+    /// Returns once the dialog has closed and at least one device tile is present.
+    /// Reusable by later scenarios that need a connected device as a precondition.
+    /// </summary>
+    /// <param name="transport">WiFi or Serial transport to use.</param>
+    /// <param name="discoveryTimeoutSeconds">How long to wait for a device to appear.</param>
+    protected void ConnectFirstDevice(DeviceTransport transport, int discoveryTimeoutSeconds = 60)
+    {
+        NavigateToTab(DEVICES_TAB_TEXT);
+
+        OpenConnectionDialog();
+        var dialog = WaitForConnectionDialog();
+
+        var (tabId, listId, connectButtonId) = transport switch
+        {
+            DeviceTransport.Wifi =>
+                (CONN_TAB_WIFI_ID, DISCOVERED_DEVICE_LIST_ID, CONNECT_BUTTON_WIFI_ID),
+            _ =>
+                (CONN_TAB_SERIAL_ID, SERIAL_PORT_LIST_ID, CONNECT_BUTTON_SERIAL_ID)
+        };
+
+        // Select the transport tab inside the dialog.
+        var transportTab = Retry.WhileNull(
+            () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(tabId)),
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage: $"Transport tab '{tabId}' not found in connection dialog.").Result!;
+        transportTab.AsTabItem().Select();
+
+        // Wait for real discovery latency: the list must gain at least one item.
+        var list = Retry.WhileNull(
+            () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(listId)),
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage: $"Device list '{listId}' not found in connection dialog.").Result!;
+
+        var listBox = list.AsListBox();
+        Retry.WhileEmpty(
+            () => listBox.Items,
+            timeout: TimeSpan.FromSeconds(discoveryTimeoutSeconds),
+            interval: TimeSpan.FromMilliseconds(500),
+            throwOnTimeout: true,
+            timeoutMessage:
+                $"No device discovered on {transport} within {discoveryTimeoutSeconds}s. " +
+                "Ensure a DAQiFi device is physically attached and reachable.");
+
+        // Select the first discovered device.
+        var firstItem = listBox.Items[0];
+        firstItem.Select();
+        Retry.WhileFalse(
+            () => firstItem.IsSelected,
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: "First discovered device did not become selected.");
+
+        // Connect.
+        var connectButton = Retry.WhileNull(
+            () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(connectButtonId)),
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage: $"Connect button '{connectButtonId}' not found in connection dialog.").Result!;
+        var connectBtn = connectButton.AsButton();
+        connectBtn.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        connectBtn.Invoke();
+
+        // Dialog closes once the connection completes.
+        Retry.WhileTrue(
+            () => dialog.IsAvailable,
+            timeout: TimeSpan.FromSeconds(60),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage: "Connection dialog did not close after Connect was invoked.");
+
+        // A device tile must appear in the connected-devices container.
+        WaitForConnectedDeviceCount(1, TimeSpan.FromSeconds(30));
+    }
+
+    /// <summary>Opens the connection dialog via the Add Device button (status bar or empty-state).</summary>
+    private void OpenConnectionDialog()
+    {
+        var addButton = Retry.WhileNull(
+            () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(ADD_DEVICE_BUTTON_ID))
+                  ?? MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(ADD_DEVICE_BUTTON_EMPTY_ID)),
+            timeout: TimeSpan.FromSeconds(30),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage: "Add Device button not found on the Devices pane.").Result!;
+
+        var button = addButton.AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+    }
+
+    /// <summary>Waits for the modal connection dialog window to appear.</summary>
+    protected Window WaitForConnectionDialog(int timeoutSeconds = 30)
+    {
+        return Retry.WhileNull(
+            () => App.GetAllTopLevelWindows(Automation)
+                     .FirstOrDefault(w => string.Equals(
+                         w.Title, CONNECTION_DIALOG_TITLE, StringComparison.OrdinalIgnoreCase)),
+            timeout: TimeSpan.FromSeconds(timeoutSeconds),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage: $"Connection dialog ('{CONNECTION_DIALOG_TITLE}') did not open.").Result!;
+    }
+
+    /// <summary>Reads the number of device tiles currently in the connected-devices container.</summary>
+    protected int GetConnectedDeviceCount()
+    {
+        var container = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(CONNECTED_DEVICE_LIST_ID));
+        if (container == null)
+        {
+            return 0;
+        }
+
+        // ConnectedDeviceList is an ItemsControl; its generated item containers are
+        // its direct children. Count children that look like data items.
+        return container.FindAllChildren().Length;
+    }
+
+    /// <summary>Waits until the connected-devices container holds at least <paramref name="minimum"/> tiles.</summary>
+    protected void WaitForConnectedDeviceCount(int minimum, TimeSpan timeout)
+    {
+        Retry.WhileFalse(
+            () => GetConnectedDeviceCount() >= minimum,
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage:
+                $"Expected at least {minimum} connected device tile(s) but found fewer within {timeout.TotalSeconds}s.");
     }
     #endregion
 
