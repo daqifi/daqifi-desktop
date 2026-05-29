@@ -40,10 +40,21 @@ public abstract class DaqifiAppFixture
     private const string SAMPLING_FREQUENCY_INPUT_ID = "SamplingFrequencyInput";
     private const string CHANNEL_LIST_ID = "ChannelList";
 
+    // AutomationIds for the logging-session controls (StartLoggingToggle/LoggingStatusText
+    // from Step 2; LoggedSessionList added in Step 5 on the Logged Data pane).
+    private const string START_LOGGING_TOGGLE_ID = "StartLoggingToggle";
+    private const string LOGGING_STATUS_TEXT_ID = "LoggingStatusText";
+    private const string LOGGED_SESSION_LIST_ID = "LoggedSessionList";
+
+    private const string LOGGING_ON_TEXT = "LOGGING ON";
+    private const string LOGGING_OFF_TEXT = "LOGGING OFF";
+
     private const string CONNECTION_DIALOG_TITLE = "CONNECT DEVICE";
     private const string DEVICES_TAB_TEXT = "Devices";
     private const string CHANNELS_TAB_TEXT = "Channels";
     private const string PROFILES_TAB_TEXT = "Profiles";
+    private const string LIVE_GRAPH_TAB_TEXT = "Live Graph";
+    private const string LOGGED_DATA_TAB_TEXT = "Logged Data";
     #endregion
 
     #region Protected Fields
@@ -531,6 +542,121 @@ public abstract class DaqifiAppFixture
         }
 
         return true;
+    }
+    #endregion
+
+    #region Logging-Session Helper
+    /// <summary>
+    /// Navigates to the Live Graph pane and returns the logging toggle button.
+    /// Waits until the toggle is enabled (gated by <c>CanToggleLogging</c>).
+    /// </summary>
+    protected Button GetLoggingToggle(int enabledTimeoutSeconds = 30)
+    {
+        NavigateToTab(LIVE_GRAPH_TAB_TEXT);
+        var toggle = FindByAutomationId(START_LOGGING_TOGGLE_ID);
+        toggle.WaitUntilEnabled(TimeSpan.FromSeconds(enabledTimeoutSeconds));
+        return toggle.AsButton();
+    }
+
+    /// <summary>
+    /// Starts a logging session by toggling <c>StartLoggingToggle</c> on via the
+    /// TogglePattern, then waits (polling) until the toggle reports On and the
+    /// status text reads "LOGGING ON".
+    /// </summary>
+    protected void StartLogging()
+    {
+        var toggle = GetLoggingToggle();
+        if (toggle.Patterns.Toggle.Pattern.ToggleState.Value != ToggleState.On)
+        {
+            toggle.Patterns.Toggle.Pattern.Toggle();
+        }
+
+        Retry.WhileFalse(
+            () => toggle.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.On,
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: "Logging toggle did not switch On after Toggle().");
+
+        WaitForLoggingStatus(LOGGING_ON_TEXT, TimeSpan.FromSeconds(15));
+    }
+
+    /// <summary>
+    /// Stops the active logging session by toggling <c>StartLoggingToggle</c> off via
+    /// the TogglePattern, then waits (polling) until the toggle reports Off and the
+    /// status text reads "LOGGING OFF".
+    /// </summary>
+    protected void StopLogging()
+    {
+        var toggle = FindByAutomationId(START_LOGGING_TOGGLE_ID).AsButton();
+        if (toggle.Patterns.Toggle.Pattern.ToggleState.Value != ToggleState.Off)
+        {
+            toggle.Patterns.Toggle.Pattern.Toggle();
+        }
+
+        Retry.WhileFalse(
+            () => toggle.Patterns.Toggle.Pattern.ToggleState.Value == ToggleState.Off,
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: "Logging toggle did not switch Off after Toggle().");
+
+        WaitForLoggingStatus(LOGGING_OFF_TEXT, TimeSpan.FromSeconds(15));
+    }
+
+    /// <summary>
+    /// Waits (polling) until the <c>LoggingStatusText</c> UIA Name equals the expected
+    /// text. The TextBlock swaps its Text via a DataTrigger on IsLogging, so its UIA
+    /// Name reflects the live logging state.
+    /// </summary>
+    protected void WaitForLoggingStatus(string expectedText, TimeSpan timeout)
+    {
+        Retry.WhileFalse(
+            () =>
+            {
+                var status = MainWindow.FindFirstDescendant(
+                    cf => cf.ByAutomationId(LOGGING_STATUS_TEXT_ID));
+                return status != null
+                    && string.Equals(status.Name, expectedText, StringComparison.Ordinal);
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: $"Logging status text did not become '{expectedText}' within {timeout.TotalSeconds}s.");
+    }
+
+    /// <summary>
+    /// Reads the number of logged-session rows currently shown on the Logged Data pane.
+    /// Empty sessions (no samples) are deleted by the app on stop, so a row appearing
+    /// here is an out-of-process signal that data actually accrued during the run.
+    /// Navigates to the Logged Data tab first.
+    /// </summary>
+    protected int GetLoggedSessionCount()
+    {
+        NavigateToTab(LOGGED_DATA_TAB_TEXT);
+        var list = Retry.WhileNull(
+            () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(LOGGED_SESSION_LIST_ID)),
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage: "Logged-session list not found on the Logged Data pane.").Result!;
+
+        return list.AsListBox().Items.Length;
+    }
+
+    /// <summary>
+    /// Waits (polling) until the Logged Data pane holds at least
+    /// <paramref name="minimum"/> session rows.
+    /// </summary>
+    protected void WaitForLoggedSessionCount(int minimum, TimeSpan timeout)
+    {
+        Retry.WhileFalse(
+            () => GetLoggedSessionCount() >= minimum,
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(400),
+            throwOnTimeout: true,
+            timeoutMessage:
+                $"Expected at least {minimum} logged-session row(s) but found fewer within {timeout.TotalSeconds}s.");
     }
     #endregion
 
