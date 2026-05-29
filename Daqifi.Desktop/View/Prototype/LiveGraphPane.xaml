@@ -293,6 +293,7 @@
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
                     <TextBlock VerticalAlignment="Center"
+                               AutomationProperties.AutomationId="LoggingStatusText"
                                FontSize="11"
                                FontWeight="SemiBold"
                                Margin="0,0,8,0">
@@ -310,6 +311,7 @@
                         </TextBlock.Style>
                     </TextBlock>
                     <ToggleButton IsChecked="{Binding IsLogging, Mode=TwoWay}"
+                                  AutomationProperties.AutomationId="StartLoggingToggle"
                                   IsEnabled="{Binding CanToggleLogging, Mode=OneWay}"
                                   Style="{StaticResource LoggingToggle}"
                                   ToolTip="Toggle logging"/>

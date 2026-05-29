@@ -205,7 +205,8 @@
         <TabControl Style="{StaticResource DarkTabControl}">
 
             <!-- ──────────────────────────────────────────────────── WiFi -->
-            <TabItem Header="WiFi" Style="{StaticResource SegmentTab}">
+            <TabItem Header="WiFi" Style="{StaticResource SegmentTab}"
+                     AutomationProperties.AutomationId="ConnTab_Wifi">
                 <Grid Margin="16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
@@ -215,13 +216,14 @@
                     <!-- Tile list + scanning overlay -->
                     <Grid Grid.Row="0">
                         <ListBox x:Name="DeviceList"
+                                 AutomationProperties.AutomationId="DiscoveredDeviceList"
                                  ItemsSource="{Binding AvailableWiFiDevices}"
                                  SelectionMode="Extended"
                                  Style="{StaticResource TileListBox}"
                                  ItemContainerStyle="{StaticResource TileListBoxItem}">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Height="74">
+                                        <Grid Height="74" AutomationProperties.AutomationId="{Binding Name}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="3"/>
                                                 <ColumnDefinition Width="*"/>
@@ -277,6 +279,7 @@
                             BorderBrush="{StaticResource BorderDim}" BorderThickness="0,1,0,0"
                             Padding="0,12,0,0" Margin="0,12,0,0">
                         <Button HorizontalAlignment="Right"
+                                AutomationProperties.AutomationId="ConnectButton_Wifi"
                                 Style="{StaticResource AccentPillButton}"
                                 CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}"
                                 Command="{Binding ConnectCommand}"
@@ -286,7 +289,8 @@
             </TabItem>
 
             <!-- ───────────────────────────────────────────── Manual WiFi -->
-            <TabItem Header="Manual WiFi" Style="{StaticResource SegmentTab}">
+            <TabItem Header="Manual WiFi" Style="{StaticResource SegmentTab}"
+                     AutomationProperties.AutomationId="ConnTab_Manual">
                 <Grid Margin="16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
@@ -308,6 +312,7 @@
                             BorderBrush="{StaticResource BorderDim}" BorderThickness="0,1,0,0"
                             Padding="0,12,0,0" Margin="0,12,0,0">
                         <Button HorizontalAlignment="Right"
+                                AutomationProperties.AutomationId="ConnectButton_Manual"
                                 Style="{StaticResource AccentPillButton}"
                                 Command="{Binding ConnectManualWifiCommand}"
                                 Content="Connect"/>
@@ -316,7 +321,8 @@
             </TabItem>
 
             <!-- ──────────────────────────────────────────────────── USB -->
-            <TabItem Header="USB" Style="{StaticResource SegmentTab}">
+            <TabItem Header="USB" Style="{StaticResource SegmentTab}"
+                     AutomationProperties.AutomationId="ConnTab_Serial">
                 <Grid Margin="16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
@@ -325,13 +331,14 @@
 
                     <Grid Grid.Row="0">
                         <ListBox x:Name="SerialList"
+                                 AutomationProperties.AutomationId="SerialPortList"
                                  ItemsSource="{Binding AvailableSerialDevices}"
                                  SelectionMode="Extended"
                                  Style="{StaticResource TileListBox}"
                                  ItemContainerStyle="{StaticResource TileListBoxItem}">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Height="74">
+                                        <Grid Height="74" AutomationProperties.AutomationId="{Binding Name}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="3"/>
                                                 <ColumnDefinition Width="*"/>
@@ -386,6 +393,7 @@
                             BorderBrush="{StaticResource BorderDim}" BorderThickness="0,1,0,0"
                             Padding="0,12,0,0" Margin="0,12,0,0">
                         <Button HorizontalAlignment="Right"
+                                AutomationProperties.AutomationId="ConnectButton_Serial"
                                 Style="{StaticResource AccentPillButton}"
                                 CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}"
                                 Command="{Binding ConnectSerialCommand}"

@@ -471,6 +471,7 @@
                           HorizontalScrollBarVisibility="Disabled"
                           Padding="28,0,28,0">
                 <ItemsControl ItemsSource="{Binding Devices}"
+                              AutomationProperties.AutomationId="ConnectedDeviceList"
                               ItemTemplate="{StaticResource DeviceTileTemplate}"
                               ItemsPanel="{StaticResource TileWrap}"
                               Margin="0,0,0,24"/>
@@ -502,6 +503,7 @@
                     </StackPanel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource AccentPillButton}"
+                                AutomationProperties.AutomationId="AddDeviceButton"
                                 Content="+ ADD DEVICE"
                                 Command="{Binding AddDeviceCommand}"/>
                     </StackPanel>
@@ -873,6 +875,7 @@
                            HorizontalAlignment="Center"
                            Margin="0,0,0,20"/>
                 <Button Style="{StaticResource AccentPillButton}"
+                        AutomationProperties.AutomationId="AddDeviceButtonEmpty"
                         Content="+ ADD DEVICE"
                         HorizontalAlignment="Center"
                         Command="{Binding AddDeviceCommand}"/>
