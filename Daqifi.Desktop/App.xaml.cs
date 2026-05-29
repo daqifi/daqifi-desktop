@@ -1,7 +1,9 @@
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.DialogService;
+using Daqifi.Desktop.Services;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.View;
 using Daqifi.Desktop.WindowViewModelMapping;
@@ -34,6 +36,14 @@ public partial class App
     public bool IsWindowInit { get; set; }
 
     /// <summary>
+    /// Indicates the application was launched in unattended/test mode (environment variable
+    /// <c>DAQIFI_TEST_MODE=1</c>). In this mode modal dialogs are suppressed and firewall
+    /// configuration is skipped so UI automation can drive the app without prompts.
+    /// Defaults to <c>false</c> for normal (production) launches.
+    /// </summary>
+    public static bool IsTestMode { get; private set; }
+
+    /// <summary>
     /// Initializes the application and wires global exception handlers for Sentry reporting.
     /// </summary>
     public App()
@@ -46,6 +56,14 @@ public partial class App
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        IsTestMode = string.Equals(
+            Environment.GetEnvironmentVariable("DAQIFI_TEST_MODE"), "1", StringComparison.Ordinal);
+        if (IsTestMode)
+        {
+            // Suppress any modal message boxes so UI automation is never blocked.
+            FirewallConfiguration.SetMessageBoxService(new NoOpMessageBoxService());
+        }
 
         ShowSplashScreen();
 

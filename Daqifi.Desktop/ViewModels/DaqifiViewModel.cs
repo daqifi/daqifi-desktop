@@ -547,7 +547,10 @@ public partial class DaqifiViewModel : ObservableObject
                     Plotter.ShowingMinorXAxisGrid = false;
                     Plotter.ShowingMinorYAxisGrid = false;
 
-                    FirewallConfiguration.InitializeFirewallRules();
+                    if (!App.IsTestMode)
+                    {
+                        FirewallConfiguration.InitializeFirewallRules();
+                    }
                 }
                 catch (Exception ex)
                 {
