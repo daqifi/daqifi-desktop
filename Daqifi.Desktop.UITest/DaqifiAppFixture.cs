@@ -36,8 +36,14 @@ public abstract class DaqifiAppFixture
     private const string CONNECT_BUTTON_WIFI_ID = "ConnectButton_Wifi";
     private const string CONNECT_BUTTON_SERIAL_ID = "ConnectButton_Serial";
 
+    // AutomationIds (set in Step 2) for the logging-configuration controls.
+    private const string SAMPLING_FREQUENCY_INPUT_ID = "SamplingFrequencyInput";
+    private const string CHANNEL_LIST_ID = "ChannelList";
+
     private const string CONNECTION_DIALOG_TITLE = "CONNECT DEVICE";
     private const string DEVICES_TAB_TEXT = "Devices";
+    private const string CHANNELS_TAB_TEXT = "Channels";
+    private const string PROFILES_TAB_TEXT = "Profiles";
     #endregion
 
     #region Protected Fields
@@ -375,6 +381,156 @@ public abstract class DaqifiAppFixture
             throwOnTimeout: true,
             timeoutMessage:
                 $"Expected at least {minimum} connected device tile(s) but found fewer within {timeout.TotalSeconds}s.");
+    }
+    #endregion
+
+    #region Configure-Logging Helper
+    /// <summary>
+    /// Sets the sampling frequency on the Profiles edit drawer to
+    /// <paramref name="targetHz"/> via the RangeValuePattern, then waits until the
+    /// slider reads the value back. Navigates to the Profiles tab first. Assumes the
+    /// edit drawer is already visible (the default Profiles layout shows it).
+    /// </summary>
+    /// <param name="targetHz">Desired sampling frequency in Hz (1..1000).</param>
+    /// <returns>The frequency value read back from the slider after setting it.</returns>
+    protected double SetSamplingFrequency(double targetHz)
+    {
+        NavigateToTab(PROFILES_TAB_TEXT);
+
+        var slider = FindByAutomationId(SAMPLING_FREQUENCY_INPUT_ID);
+        slider.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+
+        var rangeValue = slider.Patterns.RangeValue.Pattern;
+        rangeValue.SetValue(targetHz);
+
+        // The binding uses Delay=200ms; wait for the slider to settle on the value.
+        Retry.WhileFalse(
+            () => Math.Abs(slider.Patterns.RangeValue.Pattern.Value.Value - targetHz) < 0.5,
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage:
+                $"Sampling frequency did not reach {targetHz} Hz (last read " +
+                $"{slider.Patterns.RangeValue.Pattern.Value.Value}).");
+
+        return slider.Patterns.RangeValue.Pattern.Value.Value;
+    }
+
+    /// <summary>
+    /// Reads the sampling frequency currently shown on the Profiles slider.
+    /// Navigates to the Profiles tab first.
+    /// </summary>
+    protected double GetSamplingFrequency()
+    {
+        NavigateToTab(PROFILES_TAB_TEXT);
+        var slider = FindByAutomationId(SAMPLING_FREQUENCY_INPUT_ID);
+        return slider.Patterns.RangeValue.Pattern.Value.Value;
+    }
+
+    /// <summary>
+    /// Enables the first <paramref name="count"/> analog channel tiles on the
+    /// Channels pane by clicking each tile (channel tiles are Borders driven by a
+    /// LeftClick MouseBinding, so a physical click toggles them). Skips tiles that
+    /// are already active. Navigates to the Channels tab first.
+    /// </summary>
+    /// <param name="count">Number of leading analog channels to enable.</param>
+    /// <returns>The AutomationIds (channel names) of the tiles that were enabled.</returns>
+    protected System.Collections.Generic.IReadOnlyList<string> EnableFirstAnalogChannels(int count)
+    {
+        NavigateToTab(CHANNELS_TAB_TEXT);
+
+        var channelList = FindByAutomationId(CHANNEL_LIST_ID);
+
+        // Wait for the channel tiles to materialize (device pushes its channel set).
+        var tiles = Retry.WhileEmpty(
+            () => channelList.FindAllChildren(),
+            timeout: TimeSpan.FromSeconds(30),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage:
+                "No analog channel tiles appeared on the Channels pane. " +
+                "Ensure a DAQiFi device is connected and reporting channels.").Result!;
+
+        Assert.IsTrue(
+            tiles.Length >= count,
+            $"Expected at least {count} analog channel tile(s) but found {tiles.Length}.");
+
+        var enabled = new System.Collections.Generic.List<string>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var tile = tiles[i];
+            var name = tile.AutomationId;
+
+            if (!IsChannelTileActive(tile))
+            {
+                tile.Click();
+                Retry.WhileFalse(
+                    () => IsChannelTileActive(GetChannelTileById(channelList, name)),
+                    timeout: TimeSpan.FromSeconds(10),
+                    interval: TimeSpan.FromMilliseconds(200),
+                    throwOnTimeout: true,
+                    timeoutMessage: $"Channel tile '{name}' did not become active after clicking.");
+            }
+
+            enabled.Add(name);
+        }
+
+        return enabled;
+    }
+
+    /// <summary>
+    /// Determines whether an analog channel tile is active by reading back the UI:
+    /// an active tile shows its live value TextBlock (visibility bound to IsActive
+    /// via BoolToVis), so the second TextBlock becomes on-screen.
+    /// </summary>
+    protected static bool IsChannelTileActive(AutomationElement tile)
+    {
+        if (tile == null)
+        {
+            return false;
+        }
+
+        // The value TextBlock is the second text element in the tile and is only
+        // visible (not offscreen) when the channel IsActive.
+        var texts = tile.FindAllDescendants(cf => cf.ByControlType(ControlType.Text));
+        if (texts.Length < 2)
+        {
+            return false;
+        }
+
+        return !texts[1].IsOffscreen;
+    }
+
+    /// <summary>Re-resolves a channel tile by its AutomationId (channel name) under the list.</summary>
+    protected AutomationElement GetChannelTileById(AutomationElement channelList, string name)
+    {
+        return Retry.WhileNull(
+            () => channelList.FindFirstChild(cf => cf.ByAutomationId(name)),
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: $"Channel tile '{name}' not found under the channel list.").Result!;
+    }
+
+    /// <summary>
+    /// Verifies (by reading the UI back) that the named channel tiles are all active.
+    /// Navigates to the Channels tab first.
+    /// </summary>
+    protected bool AreChannelsActive(System.Collections.Generic.IEnumerable<string> names)
+    {
+        NavigateToTab(CHANNELS_TAB_TEXT);
+        var channelList = FindByAutomationId(CHANNEL_LIST_ID);
+
+        foreach (var name in names)
+        {
+            var tile = GetChannelTileById(channelList, name);
+            if (!IsChannelTileActive(tile))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
     #endregion
 
