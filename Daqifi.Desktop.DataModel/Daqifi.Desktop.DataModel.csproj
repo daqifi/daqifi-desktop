@@ -8,8 +8,8 @@
 	</PropertyGroup>
 	<ItemGroup>
 	  <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-	  <PackageReference Include="Daqifi.Core" Version="0.21.0" />
-	  <PackageReference Include="Google.Protobuf" Version="3.34.1" />
+	  <PackageReference Include="Daqifi.Core" Version="0.22.0" />
+	  <PackageReference Include="Google.Protobuf" Version="3.35.0" />
 	  <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
 		<PrivateAssets>all</PrivateAssets>
 		<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
