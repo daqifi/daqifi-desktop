@@ -401,6 +401,7 @@
                                     BorderThickness="0"
                                     Cursor="Hand"
                                     ToolTip="Device settings"
+                                    AutomationProperties.AutomationId="DeviceSettingsButton"
                                     Command="{Binding DataContext.OpenSettingsCommand, ElementName=Root}"
                                     CommandParameter="{Binding}">
                                 <Button.Template>
@@ -677,6 +678,7 @@
                                 </Border>
                                 <Slider Grid.Column="1"
                                         x:Name="FrequencySlider"
+                                        AutomationProperties.AutomationId="SamplingFrequencyInput"
                                         Minimum="1" Maximum="1000"
                                         TickFrequency="1"
                                         IsSnapToTickEnabled="True"

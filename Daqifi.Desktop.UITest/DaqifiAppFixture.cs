@@ -37,7 +37,10 @@ public abstract class DaqifiAppFixture
     private const string CONNECT_BUTTON_WIFI_ID = "ConnectButton_Wifi";
     private const string CONNECT_BUTTON_SERIAL_ID = "ConnectButton_Serial";
 
-    // AutomationIds (set in Step 2) for the logging-configuration controls.
+    // AutomationIds for the logging-configuration controls. Sampling frequency is set
+    // in the per-device settings flyout (opened by the gear icon on the device tile),
+    // not on the Profiles pane; channels are toggled on the Channels pane.
+    private const string DEVICE_SETTINGS_BUTTON_ID = "DeviceSettingsButton";
     private const string SAMPLING_FREQUENCY_INPUT_ID = "SamplingFrequencyInput";
     private const string CHANNEL_LIST_ID = "ChannelList";
 
@@ -222,21 +225,31 @@ public abstract class DaqifiAppFixture
     /// </summary>
     protected void NavigateToTab(string headerText, int timeoutSeconds = 30)
     {
-        var tabItem = Retry.WhileNull(
-            () => FindNavTabItem(headerText),
+        // Re-resolve and re-select until the tab reports selected. While a logging
+        // session is streaming, the UI is busy and a single Select() COM call can
+        // transiently fail (ElementNotAvailable / 0x80040201); retrying rides it out.
+        Retry.WhileFalse(
+            () =>
+            {
+                var tabItem = FindNavTabItem(headerText);
+                if (tabItem == null)
+                {
+                    return false;
+                }
+
+                if (tabItem.Patterns.SelectionItem.Pattern.IsSelected.Value)
+                {
+                    return true;
+                }
+
+                tabItem.Select();
+                return tabItem.Patterns.SelectionItem.Pattern.IsSelected.Value;
+            },
             timeout: TimeSpan.FromSeconds(timeoutSeconds),
             interval: TimeSpan.FromMilliseconds(300),
             throwOnTimeout: true,
-            timeoutMessage: $"Navigation tab '{headerText}' not found within {timeoutSeconds}s.").Result!;
-
-        tabItem.Select();
-
-        Retry.WhileFalse(
-            () => tabItem.IsSelected,
-            timeout: TimeSpan.FromSeconds(10),
-            interval: TimeSpan.FromMilliseconds(200),
-            throwOnTimeout: true,
-            timeoutMessage: $"Navigation tab '{headerText}' did not become selected.");
+            ignoreException: true,
+            timeoutMessage: $"Navigation tab '{headerText}' could not be selected within {timeoutSeconds}s.");
     }
 
     private TabItem? FindNavTabItem(string headerText)
@@ -438,15 +451,16 @@ public abstract class DaqifiAppFixture
     /// <returns>The frequency value read back from the slider after setting it.</returns>
     protected double SetSamplingFrequency(double targetHz)
     {
-        NavigateToTab(PROFILES_TAB_TEXT);
-
-        var slider = FindByAutomationId(SAMPLING_FREQUENCY_INPUT_ID);
+        var slider = OpenDeviceSettingsFrequencySlider();
         slider.WaitUntilEnabled(TimeSpan.FromSeconds(10));
 
         var rangeValue = slider.Patterns.RangeValue.Pattern;
         rangeValue.SetValue(targetHz);
 
-        // The binding uses Delay=200ms; wait for the slider to settle on the value.
+        // The slider settles on the value immediately, but its binding to the
+        // device frequency uses Delay=500ms. Wait for the slider to read the target,
+        // then allow the delayed binding to commit to the device before the caller
+        // navigates away (navigating closes the flyout and cancels a pending commit).
         Retry.WhileFalse(
             () => Math.Abs(slider.Patterns.RangeValue.Pattern.Value.Value - targetHz) < 0.5,
             timeout: TimeSpan.FromSeconds(10),
@@ -456,18 +470,50 @@ public abstract class DaqifiAppFixture
                 $"Sampling frequency did not reach {targetHz} Hz (last read " +
                 $"{slider.Patterns.RangeValue.Pattern.Value.Value}).");
 
+        // Allow the Delay=500ms two-way binding to push the value to the device.
+        System.Threading.Thread.Sleep(900);
+
         return slider.Patterns.RangeValue.Pattern.Value.Value;
     }
 
     /// <summary>
-    /// Reads the sampling frequency currently shown on the Profiles slider.
-    /// Navigates to the Profiles tab first.
+    /// Reads the sampling frequency from the per-device settings flyout.
     /// </summary>
     protected double GetSamplingFrequency()
     {
-        NavigateToTab(PROFILES_TAB_TEXT);
-        var slider = FindByAutomationId(SAMPLING_FREQUENCY_INPUT_ID);
+        var slider = OpenDeviceSettingsFrequencySlider();
         return slider.Patterns.RangeValue.Pattern.Value.Value;
+    }
+
+    /// <summary>
+    /// Navigates to the Devices pane and ensures the per-device settings flyout is
+    /// open (clicking the gear icon on the connected device tile if needed), then
+    /// returns the frequency slider inside it.
+    /// </summary>
+    private AutomationElement OpenDeviceSettingsFrequencySlider()
+    {
+        NavigateToTab(DEVICES_TAB_TEXT);
+
+        // If the flyout is not already open, the slider is absent/offscreen; open it.
+        var slider = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(SAMPLING_FREQUENCY_INPUT_ID));
+        if (slider == null || slider.IsOffscreen)
+        {
+            var gear = FindByAutomationId(DEVICE_SETTINGS_BUTTON_ID);
+            gear.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+            gear.AsButton().Invoke();
+        }
+
+        return Retry.WhileNull(
+            () =>
+            {
+                var s = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(SAMPLING_FREQUENCY_INPUT_ID));
+                return s != null && !s.IsOffscreen ? s : null;
+            },
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "Sampling frequency slider did not appear in the device settings flyout.").Result!;
     }
 
     /// <summary>
