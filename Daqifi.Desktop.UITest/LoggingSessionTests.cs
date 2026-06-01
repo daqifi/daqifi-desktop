@@ -19,7 +19,10 @@ namespace Daqifi.Desktop.UITest;
 public class LoggingSessionTests : DaqifiAppFixture
 {
     #region Constants
-    private const double TARGET_FREQUENCY_HZ = 1000d;
+    // A gentle frequency keeps the UI responsive enough for out-of-process automation
+    // while a session streams (the Logged Data pane queries the same DB the logger is
+    // writing and renders a live minimap). Scenario 2 covers the 1000 Hz case.
+    private const double TARGET_FREQUENCY_HZ = 100d;
     private const int CHANNELS_TO_ENABLE = 1;
 
     // How long to let the session run while polling for an accrual signal. This is
@@ -33,21 +36,23 @@ public class LoggingSessionTests : DaqifiAppFixture
     [TestCategory("RequiresDevice")]
     public void StartLoggingSession_RunsAndStops()
     {
-        // Arrange — connect to the attached device and configure logging.
+        // Arrange — connect to the attached device.
         var transport = ResolveTransport();
         ConnectFirstDevice(transport);
 
+        // Record how many logged sessions exist before this run, while the UI is still
+        // quiet (before channels stream), so we can prove a new one was created later
+        // (empty sessions are discarded by the app, so a new row is an out-of-process
+        // signal that samples actually accrued).
+        var sessionsBefore = GetLoggedSessionCount();
+
+        // Configure logging.
         SetSamplingFrequency(TARGET_FREQUENCY_HZ);
         IReadOnlyList<string> enabledChannels = EnableFirstAnalogChannels(CHANNELS_TO_ENABLE);
         Assert.AreEqual(
             CHANNELS_TO_ENABLE,
             enabledChannels.Count,
             "Pre-condition failed: did not enable the expected number of analog channels.");
-
-        // Record how many logged sessions exist before this run, so we can prove a
-        // new one was created (empty sessions are discarded by the app, so a new row
-        // is an out-of-process signal that samples actually accrued).
-        var sessionsBefore = GetLoggedSessionCount();
 
         // Act — start the logging session.
         StartLogging();
