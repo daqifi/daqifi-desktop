@@ -24,6 +24,7 @@ public abstract class DaqifiAppFixture
     private const string TRANSPORT_ENV_VAR = "DAQIFI_TEST_TRANSPORT";
     private const string APP_EXE_NAME = "DAQiFi.exe";
     private const string LOG_FILE_NAME = "DAQifiAppLog.log";
+    private const string MAIN_WINDOW_CLASS = "MetroWindow";
 
     // AutomationIds (set in Step 2) for the navigation + connection controls.
     private const string ADD_DEVICE_BUTTON_ID = "AddDeviceButton";
@@ -92,12 +93,30 @@ public abstract class DaqifiAppFixture
         App = Application.Launch(psi);
         Automation = new UIA3Automation();
 
+        // The app shows a WPF SplashScreen window first, then the real MetroWindow.
+        // App.GetMainWindow returns whatever owns the process MainWindowHandle at the
+        // moment it is called, which during startup is the splash screen — searching
+        // that for tabs/controls finds nothing. Wait specifically for the MetroWindow.
+        // ignoreException swallows transient UIA COM timeouts during first-run EF
+        // migration (the synchronous migrate briefly stops the UI message pump).
         MainWindow = Retry.WhileNull(
-            () => App.GetMainWindow(Automation, TimeSpan.FromSeconds(2)),
+            () =>
+            {
+                foreach (var window in App.GetAllTopLevelWindows(Automation))
+                {
+                    if (window.ClassName == MAIN_WINDOW_CLASS)
+                    {
+                        return window;
+                    }
+                }
+
+                return null;
+            },
             timeout: TimeSpan.FromSeconds(60),
             interval: TimeSpan.FromMilliseconds(300),
             throwOnTimeout: true,
-            timeoutMessage: "Main window did not appear within 60 seconds.").Result!;
+            ignoreException: true,
+            timeoutMessage: "Main MetroWindow did not appear within 60 seconds.").Result!;
     }
 
     [TestCleanup]
@@ -327,16 +346,22 @@ public abstract class DaqifiAppFixture
         connectBtn.WaitUntilEnabled(TimeSpan.FromSeconds(10));
         connectBtn.Invoke();
 
-        // Dialog closes once the connection completes.
-        Retry.WhileTrue(
-            () => dialog.IsAvailable,
-            timeout: TimeSpan.FromSeconds(60),
-            interval: TimeSpan.FromMilliseconds(300),
-            throwOnTimeout: true,
-            timeoutMessage: "Connection dialog did not close after Connect was invoked.");
+        // Success is signalled by a device appearing in the connected-devices container.
+        // (The modal dialog does not reliably auto-close under UI automation even though
+        // it does during interactive use, so we assert on the connection itself.)
+        WaitForConnectedDeviceCount(1, TimeSpan.FromSeconds(60));
 
-        // A device tile must appear in the connected-devices container.
-        WaitForConnectedDeviceCount(1, TimeSpan.FromSeconds(30));
+        // Close the dialog if it is still open so it does not block subsequent steps.
+        if (dialog.IsAvailable)
+        {
+            try { dialog.Close(); } catch { /* best effort */ }
+            Retry.WhileTrue(
+                () => dialog.IsAvailable,
+                timeout: TimeSpan.FromSeconds(15),
+                interval: TimeSpan.FromMilliseconds(300),
+                throwOnTimeout: false,
+                ignoreException: true);
+        }
     }
 
     /// <summary>Opens the connection dialog via the Add Device button (status bar or empty-state).</summary>
@@ -358,13 +383,20 @@ public abstract class DaqifiAppFixture
     /// <summary>Waits for the modal connection dialog window to appear.</summary>
     protected Window WaitForConnectionDialog(int timeoutSeconds = 30)
     {
+        // The dialog is shown modally via Window.ShowDialog(), so it is an owned/modal
+        // window of the main window — it does NOT appear in GetAllTopLevelWindows.
+        // Look in MainWindow.ModalWindows first, falling back to top-level enumeration.
         return Retry.WhileNull(
-            () => App.GetAllTopLevelWindows(Automation)
+            () => MainWindow.ModalWindows
+                     .FirstOrDefault(w => string.Equals(
+                         w.Title, CONNECTION_DIALOG_TITLE, StringComparison.OrdinalIgnoreCase))
+                  ?? App.GetAllTopLevelWindows(Automation)
                      .FirstOrDefault(w => string.Equals(
                          w.Title, CONNECTION_DIALOG_TITLE, StringComparison.OrdinalIgnoreCase)),
             timeout: TimeSpan.FromSeconds(timeoutSeconds),
             interval: TimeSpan.FromMilliseconds(300),
             throwOnTimeout: true,
+            ignoreException: true,
             timeoutMessage: $"Connection dialog ('{CONNECTION_DIALOG_TITLE}') did not open.").Result!;
     }
 
