@@ -26,7 +26,16 @@ public partial class App
     /// Root directory for DAQiFi application data (logs, database).
     /// </summary>
     public static string DaqifiDataDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DAQiFi");
+        Environment.GetFolderPath(
+            // In unattended test mode the app runs un-elevated (asInvoker), so the shared
+            // CommonApplicationData location may hold an admin-owned database that a standard
+            // token cannot write. Use a per-user-writable location instead so startup never
+            // fails with a read-only database. Read the env var directly because this static
+            // initializer runs before OnStartup sets IsTestMode.
+            string.Equals(Environment.GetEnvironmentVariable("DAQIFI_TEST_MODE"), "1", StringComparison.Ordinal)
+                ? Environment.SpecialFolder.LocalApplicationData
+                : Environment.SpecialFolder.CommonApplicationData),
+        "DAQiFi");
 
     /// <summary>
     /// Full path to the SQLite database file.
@@ -41,7 +50,8 @@ public partial class App
     /// configuration is skipped so UI automation can drive the app without prompts.
     /// Defaults to <c>false</c> for normal (production) launches.
     /// </summary>
-    public static bool IsTestMode { get; private set; }
+    public static bool IsTestMode { get; } =
+        string.Equals(Environment.GetEnvironmentVariable("DAQIFI_TEST_MODE"), "1", StringComparison.Ordinal);
 
     /// <summary>
     /// Initializes the application and wires global exception handlers for Sentry reporting.
@@ -57,8 +67,6 @@ public partial class App
     {
         base.OnStartup(e);
 
-        IsTestMode = string.Equals(
-            Environment.GetEnvironmentVariable("DAQIFI_TEST_MODE"), "1", StringComparison.Ordinal);
         if (IsTestMode)
         {
             // Suppress any modal message boxes so UI automation is never blocked.

@@ -189,7 +189,8 @@
                                     BorderThickness="0,0,1,0">
                                 <TabPanel IsItemsHost="True"/>
                             </Border>
-                            <ContentPresenter Grid.Column="1"
+                            <ContentPresenter x:Name="PART_SelectedContentHost"
+                                              Grid.Column="1"
                                               ContentSource="SelectedContent"/>
                         </Grid>
                     </ControlTemplate>
