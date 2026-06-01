@@ -300,10 +300,16 @@
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Text" Value="LOGGING OFF"/>
+                                <!-- Keep the UIA Name in sync with the displayed Text so the
+                                     logging state is exposed to automation and screen readers.
+                                     (A TextBlock's Name does not track Text changes made by a
+                                     Style trigger, so set Name explicitly alongside Text.) -->
+                                <Setter Property="AutomationProperties.Name" Value="LOGGING OFF"/>
                                 <Setter Property="Foreground" Value="{StaticResource TextTertiary}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsLogging}" Value="True">
                                         <Setter Property="Text" Value="LOGGING ON"/>
+                                        <Setter Property="AutomationProperties.Name" Value="LOGGING ON"/>
                                         <Setter Property="Foreground" Value="{StaticResource StatusGreen}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
