@@ -653,10 +653,10 @@ public abstract class DaqifiAppFixture
 
     /// <summary>
     /// Waits (polling) until the visible logging state matches the expected status.
-    /// The <c>LoggingStatusText</c> TextBlock swaps its Text via a Style DataTrigger,
-    /// which WPF does not surface as a UIA Name change (the label's Name stays at its
-    /// initial value), so read the state from the logging toggle — the control whose
-    /// On/Off state the label mirrors — which is reliably exposed via the TogglePattern.
+    /// Reads the <c>LoggingStatusText</c> label (its UIA Name mirrors its Text via the
+    /// AutomationProperties.Name binding in the view) as the primary signal, falling
+    /// back to the logging toggle's TogglePattern state — the control the label
+    /// mirrors — so the wait stays reliable even if the label is momentarily stale.
     /// </summary>
     protected void WaitForLoggingStatus(string expectedText, TimeSpan timeout)
     {
@@ -667,6 +667,12 @@ public abstract class DaqifiAppFixture
         Retry.WhileFalse(
             () =>
             {
+                var status = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(LOGGING_STATUS_TEXT_ID));
+                if (status != null && string.Equals(status.Name, expectedText, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+
                 var toggle = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(START_LOGGING_TOGGLE_ID));
                 return toggle != null
                     && toggle.Patterns.Toggle.Pattern.ToggleState.Value == expectedState;
@@ -675,7 +681,7 @@ public abstract class DaqifiAppFixture
             interval: TimeSpan.FromMilliseconds(200),
             throwOnTimeout: true,
             ignoreException: true,
-            timeoutMessage: $"Logging state did not become '{expectedText}' (toggle {expectedState}) within {timeout.TotalSeconds}s.");
+            timeoutMessage: $"Logging state did not become '{expectedText}' within {timeout.TotalSeconds}s.");
     }
 
     /// <summary>
