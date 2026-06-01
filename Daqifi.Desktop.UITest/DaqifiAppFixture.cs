@@ -43,6 +43,7 @@ public abstract class DaqifiAppFixture
     private const string DEVICE_SETTINGS_BUTTON_ID = "DeviceSettingsButton";
     private const string SAMPLING_FREQUENCY_INPUT_ID = "SamplingFrequencyInput";
     private const string CHANNEL_LIST_ID = "ChannelList";
+    private const string SELECT_ALL_ANALOG_ID = "SelectAllAnalogChannels";
 
     // AutomationIds for the logging-session controls (StartLoggingToggle/LoggingStatusText
     // from Step 2; LoggedSessionList added in Step 5 on the Logged Data pane).
@@ -517,109 +518,74 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>
-    /// Enables the first <paramref name="count"/> analog channel tiles on the
-    /// Channels pane by clicking each tile (channel tiles are Borders driven by a
-    /// LeftClick MouseBinding, so a physical click toggles them). Skips tiles that
-    /// are already active. Navigates to the Channels tab first.
+    /// Enables the analog channels on the Channels pane via the "SELECT ALL" button.
+    /// Individual channel tiles toggle only through a LeftClick MouseBinding (a real
+    /// foreground mouse click), which does not land reliably from a background test
+    /// host; the SELECT ALL button exposes the InvokePattern and works regardless of
+    /// foreground. Navigates to the Channels tab first and waits for the device to
+    /// report its channel set, then confirms via the pane's "n / N ACTIVE" indicator.
     /// </summary>
-    /// <param name="count">Number of leading analog channels to enable.</param>
-    /// <returns>The AutomationIds (channel names) of the tiles that were enabled.</returns>
-    protected System.Collections.Generic.IReadOnlyList<string> EnableFirstAnalogChannels(int count)
+    /// <returns>The number of analog channels reported active after selecting all.</returns>
+    protected int EnableAllAnalogChannels()
     {
         NavigateToTab(CHANNELS_TAB_TEXT);
 
-        var channelList = FindByAutomationId(CHANNEL_LIST_ID);
-
         // Wait for the channel tiles to materialize (device pushes its channel set).
-        var tiles = Retry.WhileEmpty(
+        var channelList = FindByAutomationId(CHANNEL_LIST_ID);
+        Retry.WhileEmpty(
             () => channelList.FindAllChildren(),
             timeout: TimeSpan.FromSeconds(30),
             interval: TimeSpan.FromMilliseconds(300),
             throwOnTimeout: true,
             timeoutMessage:
                 "No analog channel tiles appeared on the Channels pane. " +
-                "Ensure a DAQiFi device is connected and reporting channels.").Result!;
+                "Ensure a DAQiFi device is connected and reporting channels.");
 
-        Assert.IsTrue(
-            tiles.Length >= count,
-            $"Expected at least {count} analog channel tile(s) but found {tiles.Length}.");
+        var selectAll = FindByAutomationId(SELECT_ALL_ANALOG_ID);
+        selectAll.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        selectAll.AsButton().Invoke();
 
-        var enabled = new System.Collections.Generic.List<string>(count);
-        for (var i = 0; i < count; i++)
-        {
-            var tile = tiles[i];
-            var name = tile.AutomationId;
-
-            if (!IsChannelTileActive(tile))
-            {
-                tile.Click();
-                Retry.WhileFalse(
-                    () => IsChannelTileActive(GetChannelTileById(channelList, name)),
-                    timeout: TimeSpan.FromSeconds(10),
-                    interval: TimeSpan.FromMilliseconds(200),
-                    throwOnTimeout: true,
-                    timeoutMessage: $"Channel tile '{name}' did not become active after clicking.");
-            }
-
-            enabled.Add(name);
-        }
-
-        return enabled;
-    }
-
-    /// <summary>
-    /// Determines whether an analog channel tile is active by reading back the UI:
-    /// an active tile shows its live value TextBlock (visibility bound to IsActive
-    /// via BoolToVis), so the second TextBlock becomes on-screen.
-    /// </summary>
-    protected static bool IsChannelTileActive(AutomationElement tile)
-    {
-        if (tile == null)
-        {
-            return false;
-        }
-
-        // The value TextBlock is the second text element in the tile and is only
-        // visible (not offscreen) when the channel IsActive.
-        var texts = tile.FindAllDescendants(cf => cf.ByControlType(ControlType.Text));
-        if (texts.Length < 2)
-        {
-            return false;
-        }
-
-        return !texts[1].IsOffscreen;
-    }
-
-    /// <summary>Re-resolves a channel tile by its AutomationId (channel name) under the list.</summary>
-    protected AutomationElement GetChannelTileById(AutomationElement channelList, string name)
-    {
-        return Retry.WhileNull(
-            () => channelList.FindFirstChild(cf => cf.ByAutomationId(name)),
-            timeout: TimeSpan.FromSeconds(10),
-            interval: TimeSpan.FromMilliseconds(200),
+        // Confirm activation via the ground-truth "n / N ACTIVE" indicator.
+        var count = Retry.WhileFalse(
+            () => ReadActiveAnalogCount() > 0,
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
             throwOnTimeout: true,
-            timeoutMessage: $"Channel tile '{name}' not found under the channel list.").Result!;
+            timeoutMessage: "No analog channels became active after invoking SELECT ALL.");
+
+        return ReadActiveAnalogCount();
     }
 
     /// <summary>
-    /// Verifies (by reading the UI back) that the named channel tiles are all active.
-    /// Navigates to the Channels tab first.
+    /// Reads the number of active analog channels from the pane's "n / N ACTIVE"
+    /// indicator. Navigates to the Channels tab first.
     /// </summary>
-    protected bool AreChannelsActive(System.Collections.Generic.IEnumerable<string> names)
+    protected int GetActiveAnalogChannelCount()
     {
         NavigateToTab(CHANNELS_TAB_TEXT);
-        var channelList = FindByAutomationId(CHANNEL_LIST_ID);
+        return ReadActiveAnalogCount();
+    }
 
-        foreach (var name in names)
+    /// <summary>Reads the "n / N ACTIVE" count on the current (Channels) view, or -1.</summary>
+    private int ReadActiveAnalogCount()
+    {
+        foreach (var text in MainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)))
         {
-            var tile = GetChannelTileById(channelList, name);
-            if (!IsChannelTileActive(tile))
+            var name = text.Name;
+            if (string.IsNullOrEmpty(name) || !name.Contains("ACTIVE", StringComparison.OrdinalIgnoreCase))
             {
-                return false;
+                continue;
+            }
+
+            // e.g. "·  2  /  16  ACTIVE" -> capture the first number (active count).
+            var match = System.Text.RegularExpressions.Regex.Match(name, @"(\d+)\s*/\s*\d+");
+            if (match.Success)
+            {
+                return int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
             }
         }
 
-        return true;
+        return -1;
     }
     #endregion
 
@@ -666,6 +632,9 @@ public abstract class DaqifiAppFixture
     /// </summary>
     protected void StopLogging()
     {
+        // Navigate back to the Live Graph pane: the accrual check may have left another
+        // tab selected, and the toggle only exists in the realized (selected) pane.
+        NavigateToTab(LIVE_GRAPH_TAB_TEXT);
         var toggle = FindByAutomationId(START_LOGGING_TOGGLE_ID).AsButton();
         if (toggle.Patterns.Toggle.Pattern.ToggleState.Value != ToggleState.Off)
         {
@@ -683,24 +652,30 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>
-    /// Waits (polling) until the <c>LoggingStatusText</c> UIA Name equals the expected
-    /// text. The TextBlock swaps its Text via a DataTrigger on IsLogging, so its UIA
-    /// Name reflects the live logging state.
+    /// Waits (polling) until the visible logging state matches the expected status.
+    /// The <c>LoggingStatusText</c> TextBlock swaps its Text via a Style DataTrigger,
+    /// which WPF does not surface as a UIA Name change (the label's Name stays at its
+    /// initial value), so read the state from the logging toggle — the control whose
+    /// On/Off state the label mirrors — which is reliably exposed via the TogglePattern.
     /// </summary>
     protected void WaitForLoggingStatus(string expectedText, TimeSpan timeout)
     {
+        var expectedState = string.Equals(expectedText, LOGGING_ON_TEXT, StringComparison.Ordinal)
+            ? ToggleState.On
+            : ToggleState.Off;
+
         Retry.WhileFalse(
             () =>
             {
-                var status = MainWindow.FindFirstDescendant(
-                    cf => cf.ByAutomationId(LOGGING_STATUS_TEXT_ID));
-                return status != null
-                    && string.Equals(status.Name, expectedText, StringComparison.Ordinal);
+                var toggle = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(START_LOGGING_TOGGLE_ID));
+                return toggle != null
+                    && toggle.Patterns.Toggle.Pattern.ToggleState.Value == expectedState;
             },
             timeout: timeout,
             interval: TimeSpan.FromMilliseconds(200),
             throwOnTimeout: true,
-            timeoutMessage: $"Logging status text did not become '{expectedText}' within {timeout.TotalSeconds}s.");
+            ignoreException: true,
+            timeoutMessage: $"Logging state did not become '{expectedText}' (toggle {expectedState}) within {timeout.TotalSeconds}s.");
     }
 
     /// <summary>

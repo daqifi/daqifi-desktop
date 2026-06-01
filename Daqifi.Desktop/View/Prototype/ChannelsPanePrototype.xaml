@@ -343,6 +343,7 @@
                         </StackPanel>
                         <Button Style="{StaticResource PillButton}"
                                 HorizontalAlignment="Right"
+                                AutomationProperties.AutomationId="SelectAllAnalogChannels"
                                 Content="SELECT ALL"
                                 Command="{Binding SelectAllCommand}"
                                 CommandParameter="AI"/>

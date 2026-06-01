@@ -23,7 +23,6 @@ public class LoggingSessionTests : DaqifiAppFixture
     // while a session streams (the Logged Data pane queries the same DB the logger is
     // writing and renders a live minimap). Scenario 2 covers the 1000 Hz case.
     private const double TARGET_FREQUENCY_HZ = 100d;
-    private const int CHANNELS_TO_ENABLE = 1;
 
     // How long to let the session run while polling for an accrual signal. This is
     // an upper bound for a POLLING wait (Retry), not a fixed sleep — it returns as
@@ -46,13 +45,12 @@ public class LoggingSessionTests : DaqifiAppFixture
         // signal that samples actually accrued).
         var sessionsBefore = GetLoggedSessionCount();
 
-        // Configure logging.
+        // Configure logging: set frequency and enable the analog channels (SELECT ALL).
         SetSamplingFrequency(TARGET_FREQUENCY_HZ);
-        IReadOnlyList<string> enabledChannels = EnableFirstAnalogChannels(CHANNELS_TO_ENABLE);
-        Assert.AreEqual(
-            CHANNELS_TO_ENABLE,
-            enabledChannels.Count,
-            "Pre-condition failed: did not enable the expected number of analog channels.");
+        var activeChannels = EnableAllAnalogChannels();
+        Assert.IsTrue(
+            activeChannels > 0,
+            "Pre-condition failed: no analog channels became active.");
 
         // Act — start the logging session.
         StartLogging();
