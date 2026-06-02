@@ -1,7 +1,6 @@
 using System;
 using System.Globalization;
 using System.IO;
-using FlaUI.Core.Tools;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Daqifi.Desktop.UITest;
@@ -29,6 +28,12 @@ public class SdCardLoggingTests : DaqifiAppFixture
     private static readonly TimeSpan SdRunDuration = TimeSpan.FromSeconds(5);
     #endregion
 
+    /// <summary>
+    /// End-to-end SD card logging scenario: connect over USB, switch to "Log to Device"
+    /// mode, enable channels, run a brief logging session, stop, and assert the device
+    /// logged to its SD card (Enabled/Disabled SD card logging log lines plus an increased
+    /// SD file count) rather than to an in-app stream session.
+    /// </summary>
     [TestMethod]
     [TestCategory("Ui")]
     [TestCategory("RequiresDevice")]
@@ -77,22 +82,13 @@ public class SdCardLoggingTests : DaqifiAppFixture
             "log line appeared.");
 
         // Assert (out-of-process) — a new file exists on the SD card. The device writes a
-        // log file to its SD card per session, so an increased file count is positive
-        // proof the run logged to the SD card, not to an in-app stream session. Poll
-        // (re-refreshing) to ride out any brief device-side finalize lag after stop.
-        var filesAfter = filesBefore;
-        var sdFileAppeared = Retry.WhileFalse(
-            () =>
-            {
-                filesAfter = GetSdCardFileCount();
-                return filesAfter > filesBefore;
-            },
-            timeout: TimeSpan.FromSeconds(30),
-            interval: TimeSpan.FromSeconds(2),
-            throwOnTimeout: false).Result;
-
+        // log file to its SD card per session, so an increased file count is positive proof
+        // the run logged to the SD card, not to an in-app stream session. The helper polls
+        // (re-refreshing) under a single overall timeout to ride out brief device-side
+        // finalize lag after stop.
+        var filesAfter = WaitForSdCardFileCountAbove(filesBefore, TimeSpan.FromSeconds(30));
         Assert.IsTrue(
-            sdFileAppeared,
+            filesAfter > filesBefore,
             $"Expected the SD card file count to increase after an SD logging run " +
             $"(before={filesBefore}, after={filesAfter}). No new SD file means the device did " +
             "not log to its SD card.");

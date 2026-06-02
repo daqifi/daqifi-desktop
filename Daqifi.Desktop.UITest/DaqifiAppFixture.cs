@@ -821,17 +821,56 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>
-    /// Navigates to the Logged Data pane's DEVICE LOGS sub-tab, refreshes the SD card
-    /// file list from the connected USB device, and returns the file count parsed from
-    /// the SD status line ("· SD card OK · N files"). Marks the test inconclusive when
-    /// no SD card is installed and fails on an SD card error. Counting from the status
-    /// line works at zero files (the file list itself is hidden when empty), so it gives
-    /// a stable before/after baseline.
+    /// Navigates to the Logged Data pane's DEVICE LOGS sub-tab and returns the current SD
+    /// card file count (refresh + parse of the "· SD card OK · N files" status line). Marks
+    /// the test inconclusive when no SD card is installed and fails on an SD card error.
+    /// Counting from the status line works at zero files (the file list itself is hidden
+    /// when empty), so it gives a stable baseline before a logging run.
     /// </summary>
     protected int GetSdCardFileCount(int timeoutSeconds = 45)
     {
         NavigateToTab(LOGGED_DATA_TAB_TEXT);
         SelectDeviceLogsSubTab();
+        return ReadSdCardFileCountAfterRefresh(timeoutSeconds);
+    }
+
+    /// <summary>
+    /// Polls (re-refreshing the SD file list) until the SD card file count exceeds
+    /// <paramref name="baseline"/> or <paramref name="timeout"/> elapses, returning the last
+    /// count read. Uses a SINGLE overall timeout: it selects the DEVICE LOGS sub-tab once,
+    /// then each attempt refreshes with a short, bounded status-settle wait — so, unlike
+    /// nesting <see cref="GetSdCardFileCount"/> in an outer retry, one slow attempt cannot
+    /// blow past the overall budget. Use after stopping an SD logging run to ride out any
+    /// brief device-side finalize lag before the new file appears.
+    /// </summary>
+    protected int WaitForSdCardFileCountAbove(int baseline, TimeSpan timeout)
+    {
+        NavigateToTab(LOGGED_DATA_TAB_TEXT);
+        SelectDeviceLogsSubTab();
+
+        var latest = baseline;
+        Retry.WhileFalse(
+            () =>
+            {
+                // Short per-attempt settle keeps a single attempt well under the overall timeout.
+                latest = ReadSdCardFileCountAfterRefresh(settleTimeoutSeconds: 10);
+                return latest > baseline;
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromSeconds(1),
+            throwOnTimeout: false);
+
+        return latest;
+    }
+
+    /// <summary>
+    /// Refreshes the SD card file list (assumes the DEVICE LOGS sub-tab is already selected),
+    /// waits up to <paramref name="settleTimeoutSeconds"/> for the SD status line to reach a
+    /// definitive state, and returns the file count parsed from it. Marks the test
+    /// inconclusive when no SD card is installed and fails on an SD card error.
+    /// </summary>
+    private int ReadSdCardFileCountAfterRefresh(int settleTimeoutSeconds)
+    {
         InvokeRefreshSdCardFiles();
 
         // Wait until the refresh settles into a definitive SD state, capturing the line.
@@ -856,7 +895,7 @@ public abstract class DaqifiAppFixture
 
                 return false;
             },
-            timeout: TimeSpan.FromSeconds(timeoutSeconds),
+            timeout: TimeSpan.FromSeconds(settleTimeoutSeconds),
             interval: TimeSpan.FromMilliseconds(400),
             throwOnTimeout: true,
             ignoreException: true,
