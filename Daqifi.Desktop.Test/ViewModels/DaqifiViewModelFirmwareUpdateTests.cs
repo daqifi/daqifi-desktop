@@ -208,7 +208,7 @@ public class DaqifiViewModelFirmwareUpdateTests
             wifiPackageDirectory,
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
             It.IsAny<CancellationToken>(),
-            It.IsAny<bool>()), Times.Once);
+            true), Times.Once);
     }
 
     private static SerialStreamingDevice CreateSerialDeviceWithCoreDevice(string portName, TestCoreStreamingDevice coreDevice)
