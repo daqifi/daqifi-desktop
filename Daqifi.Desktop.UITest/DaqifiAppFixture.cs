@@ -823,13 +823,27 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>
-    /// Resolves the NLog log file path. Matches AppLogger.cs exactly:
-    /// %CommonApplicationData%\DAQifi\Logs\DAQifiAppLog.log
+    /// Resolves the NLog log file path. The app under test runs in test mode, which writes
+    /// its data and logs to the per-user LocalApplicationData location (see AppDataPaths);
+    /// prefer that, but fall back to the machine-wide location for robustness.
     /// </summary>
     private static string ResolveLogFilePath()
     {
-        var commonAppData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-        return Path.Combine(commonAppData, "DAQifi", "Logs", LOG_FILE_NAME);
+        var local = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "DAQiFi", "Logs", LOG_FILE_NAME);
+        var common = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "DAQiFi", "Logs", LOG_FILE_NAME);
+
+        // If a machine-wide log already exists and the per-user one does not, use it;
+        // otherwise default to the per-user (test-mode) location the app writes to.
+        if (!File.Exists(local) && File.Exists(common))
+        {
+            return common;
+        }
+
+        return local;
     }
     #endregion
 }

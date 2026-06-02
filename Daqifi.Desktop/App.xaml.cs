@@ -1,5 +1,6 @@
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Firmware;
+using Daqifi.Desktop.Common;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.DialogService;
@@ -23,19 +24,11 @@ public partial class App
     public static IServiceProvider ServiceProvider { get; private set; }
 
     /// <summary>
-    /// Root directory for DAQiFi application data (logs, database).
+    /// Root directory for DAQiFi application data (logs, database). Resolved by
+    /// <see cref="AppDataPaths"/>: machine-wide for elevated (production) runs, per-user for
+    /// any un-elevated run (the UI-test harness or a normal non-admin Debug launch).
     /// </summary>
-    public static string DaqifiDataDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(
-            // In unattended test mode the app runs un-elevated (asInvoker), so the shared
-            // CommonApplicationData location may hold an admin-owned database that a standard
-            // token cannot write. Use a per-user-writable location instead so startup never
-            // fails with a read-only database. Read the env var directly because this static
-            // initializer runs before OnStartup sets IsTestMode.
-            string.Equals(Environment.GetEnvironmentVariable("DAQIFI_TEST_MODE"), "1", StringComparison.Ordinal)
-                ? Environment.SpecialFolder.LocalApplicationData
-                : Environment.SpecialFolder.CommonApplicationData),
-        "DAQiFi");
+    public static string DaqifiDataDirectory => AppDataPaths.DataDirectory;
 
     /// <summary>
     /// Full path to the SQLite database file.
@@ -46,12 +39,18 @@ public partial class App
 
     /// <summary>
     /// Indicates the application was launched in unattended/test mode (environment variable
-    /// <c>DAQIFI_TEST_MODE=1</c>). In this mode modal dialogs are suppressed and firewall
-    /// configuration is skipped so UI automation can drive the app without prompts.
-    /// Defaults to <c>false</c> for normal (production) launches.
+    /// <c>DAQIFI_TEST_MODE=1</c>). In this mode modal dialogs are suppressed so UI automation
+    /// can drive the app without prompts. Defaults to <c>false</c> for normal launches.
     /// </summary>
-    public static bool IsTestMode { get; } =
-        string.Equals(Environment.GetEnvironmentVariable("DAQIFI_TEST_MODE"), "1", StringComparison.Ordinal);
+    public static bool IsTestMode => AppDataPaths.IsTestMode;
+
+    /// <summary>
+    /// <c>true</c> when the process is running elevated (administrator). Firewall
+    /// configuration (which requires admin) only runs when elevated; un-elevated runs use a
+    /// per-user data directory and skip it, so a non-admin Debug launch never crashes on an
+    /// admin-owned database or shows a "configure firewall manually" prompt.
+    /// </summary>
+    public static bool IsElevated => AppDataPaths.IsElevated;
 
     /// <summary>
     /// Initializes the application and wires global exception handlers for Sentry reporting.

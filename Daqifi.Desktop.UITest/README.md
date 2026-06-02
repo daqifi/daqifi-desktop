@@ -91,13 +91,16 @@ harness launches the Debug exe with the environment variable **`DAQIFI_TEST_MODE
 - A Debug-only **`asInvoker` manifest** (`app.Debug.manifest`, selected by an MSBuild
   `Condition`) so there is **no UAC prompt**. Release keeps `requireAdministrator`.
 - **No-op message box** (`NoOpMessageBoxService` via `FirewallConfiguration.SetMessageBoxService`)
-  so nothing modal can appear, and `InitializeFirewallRules()` is skipped.
-- The **data directory resolves to `%LOCALAPPDATA%\DAQiFi`** instead of the shared
-  `%ProgramData%` location (which an un-elevated process cannot write — it would crash at
-  startup with “attempt to write a readonly database”).
+  so nothing modal can appear in test mode.
+- The **data directory and logs resolve to `%LOCALAPPDATA%\DAQiFi`** (database + `Logs\`)
+  instead of the shared `%ProgramData%` location (which an un-elevated process cannot write —
+  it would crash at startup with “attempt to write a readonly database”).
+- **Firewall init is skipped** (it requires admin).
 
-Production behavior is unchanged: the flag/env defaults off and the Release manifest /
-`%ProgramData%` paths are untouched.
+This is governed by `AppDataPaths` (in `Daqifi.Desktop.Common`), the single source of truth:
+**elevated** runs use machine-wide `%ProgramData%`; **any un-elevated run** — the harness
+*or* a normal non-admin Debug launch — uses per-user `%LOCALAPPDATA%` and skips firewall
+init. Production (Release) is always elevated, so its `%ProgramData%` paths are unchanged.
 
 ---
 
@@ -110,8 +113,9 @@ Production behavior is unchanged: the flag/env defaults off and the Release mani
   `LaunchSmokeTests`. Each is independent; setup connects/configures fresh, teardown closes
   the app.
 - **Assertions are black-box**: visible UI state (via UI Automation) plus the NLog log file
-  at `%ProgramData%\DAQiFi\Logs\DAQifiAppLog.log`. **Do not** reference app internals for
-  assertions.
+  (`...\DAQiFi\Logs\DAQifiAppLog.log` — under `%LOCALAPPDATA%` in test mode, `%ProgramData%`
+  for elevated production runs; the fixture probes both). **Do not** reference app internals
+  for assertions.
 - **Readiness waits** use FlaUI `Retry`/`WaitUntil*` — never fixed `Thread.Sleep` for
   readiness. (A couple of *deliberate, documented* sleeps exist for known binding delays,
   e.g. the frequency slider’s `Delay=500`.)
