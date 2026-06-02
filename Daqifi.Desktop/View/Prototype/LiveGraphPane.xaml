@@ -293,16 +293,23 @@
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
                     <TextBlock VerticalAlignment="Center"
+                               AutomationProperties.AutomationId="LoggingStatusText"
                                FontSize="11"
                                FontWeight="SemiBold"
                                Margin="0,0,8,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Text" Value="LOGGING OFF"/>
+                                <!-- Keep the UIA Name in sync with the displayed Text so the
+                                     logging state is exposed to automation and screen readers.
+                                     (A TextBlock's Name does not track Text changes made by a
+                                     Style trigger, so set Name explicitly alongside Text.) -->
+                                <Setter Property="AutomationProperties.Name" Value="LOGGING OFF"/>
                                 <Setter Property="Foreground" Value="{StaticResource TextTertiary}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsLogging}" Value="True">
                                         <Setter Property="Text" Value="LOGGING ON"/>
+                                        <Setter Property="AutomationProperties.Name" Value="LOGGING ON"/>
                                         <Setter Property="Foreground" Value="{StaticResource StatusGreen}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -310,6 +317,7 @@
                         </TextBlock.Style>
                     </TextBlock>
                     <ToggleButton IsChecked="{Binding IsLogging, Mode=TwoWay}"
+                                  AutomationProperties.AutomationId="StartLoggingToggle"
                                   IsEnabled="{Binding CanToggleLogging, Mode=OneWay}"
                                   Style="{StaticResource LoggingToggle}"
                                   ToolTip="Toggle logging"/>

@@ -190,6 +190,14 @@ public partial class DaqifiViewModel : ObservableObject
     public DatabaseLogger DbLogger { get; private set; }
     public SummaryLogger SummaryLogger { get; private set; }
 
+    /// <summary>
+    /// Gets or sets whether a logging session is active. The setter is the single
+    /// entry point for starting/stopping logging: it gates startup on available disk
+    /// space, starts or stops disk-space monitoring, and starts or stops streaming
+    /// (or SD-card logging) on every connected device. It also raises a change
+    /// notification so all bindings — the logging toggle, the "LOGGING ON/OFF" status
+    /// label, and the LIVE/MODE/RATE header chips — reflect the current session state.
+    /// </summary>
     public bool IsLogging
     {
         get => _isLogging;
@@ -223,6 +231,12 @@ public partial class DaqifiViewModel : ObservableObject
             }
 
             _isLogging = value;
+            // Notify bindings on the normal start/stop path. The toggle is the binding
+            // source so it flips on its own, but the "LOGGING ON/OFF" status label and
+            // the LIVE/MODE/RATE header chips are consumers that only refresh on this
+            // change notification — without it the label goes stale (toggle reads On
+            // while the label still says "LOGGING OFF").
+            OnPropertyChanged(nameof(IsLogging));
             LoggingManager.Instance.Active = value;
             if (_isLogging)
             {
@@ -547,7 +561,15 @@ public partial class DaqifiViewModel : ObservableObject
                     Plotter.ShowingMinorXAxisGrid = false;
                     Plotter.ShowingMinorYAxisGrid = false;
 
-                    FirewallConfiguration.InitializeFirewallRules();
+                    // Firewall configuration requires administrator rights. Only attempt it
+                    // on an elevated, non-test launch (production). Un-elevated runs (the UI
+                    // test harness or a normal non-admin Debug launch) cannot change firewall
+                    // rules and would otherwise just surface a modal "configure manually"
+                    // prompt, so skip it entirely.
+                    if (App.IsElevated && !App.IsTestMode)
+                    {
+                        FirewallConfiguration.InitializeFirewallRules();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1027,8 +1049,7 @@ public partial class DaqifiViewModel : ObservableObject
     private static string GetFirmwareDownloadDirectory()
     {
         var firmwareDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "DAQiFi",
+            App.DaqifiDataDirectory,
             "Firmware",
             "PIC32");
         Directory.CreateDirectory(firmwareDirectory);
@@ -1038,8 +1059,7 @@ public partial class DaqifiViewModel : ObservableObject
     private static string GetWifiDownloadDirectory()
     {
         var wifiDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "DAQiFi",
+            App.DaqifiDataDirectory,
             "Firmware",
             "WiFi");
         Directory.CreateDirectory(wifiDirectory);
@@ -2041,7 +2061,6 @@ public partial class DaqifiViewModel : ObservableObject
         {
             _appLogger.Warning($"Disk space critical ({e.AvailableMegabytes} MB) — automatically stopping logging");
             IsLogging = false;
-            OnPropertyChanged(nameof(IsLogging));
 
             _ = ShowDiskSpaceMessage(
                 "Logging Stopped — Disk Space Critical",

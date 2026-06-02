@@ -2,6 +2,7 @@ using NLog;
 using NLog.Config;
 using NLog.Targets;
 using System.Configuration;
+using System.IO;
 using System.Reflection;
 
 namespace Daqifi.Desktop.Common.Loggers;
@@ -52,12 +53,16 @@ public class AppLogger : IAppLogger
 
         // Step 3. Set target properties
         fileTarget.CreateDirs = true;
-        fileTarget.FileName = @"${specialfolder:folder=CommonApplicationData}\DAQifi\Logs\DAQifiAppLog.log";
+        // Write logs alongside the rest of the app data (see AppDataPaths): machine-wide for
+        // elevated production runs, per-user for un-elevated runs (test harness / non-admin
+        // Debug). Keeping logs and the database in the same root avoids dropping logs when
+        // the machine-wide store is admin-owned and the process is not elevated.
+        fileTarget.FileName = Path.Combine(AppDataPaths.LogDirectory, "DAQifiAppLog.log");
         fileTarget.Layout = "${longdate} LEVEL=${level:upperCase=true}: ${message}${newline} (${stacktrace}) ${exception:format=tostring} ${newline}";
         fileTarget.KeepFileOpen = false;
 
         // Setup Archiving
-        fileTarget.ArchiveFileName = @"${specialfolder:folder=CommonApplicationData}\DAQifi\Logs\DAQifiAppLog.{#}.log";
+        fileTarget.ArchiveFileName = Path.Combine(AppDataPaths.LogDirectory, "DAQifiAppLog.{#}.log");
 
         // Archive the log if it gets above 10MB
         fileTarget.ArchiveAboveSize = 10000000;

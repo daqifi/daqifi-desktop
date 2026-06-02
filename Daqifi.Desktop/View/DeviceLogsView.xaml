@@ -387,7 +387,7 @@
             <StackPanel VerticalAlignment="Center"
                         HorizontalAlignment="Center"
                         Visibility="{Binding HasSdCardNotPresent, Converter={StaticResource BoolToVis}}">
-                <iconPacks:PackIconMaterial Kind="SdStorage"
+                <iconPacks:PackIconMaterial Kind="Sd"
                                             Width="40"
                                             Height="40"
                                             Foreground="{StaticResource TextTertiary}"
