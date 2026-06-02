@@ -639,6 +639,7 @@
                 <Grid Grid.Row="2">
                     <!-- Has sessions -->
                     <ListBox x:Name="SessionList"
+                             AutomationProperties.AutomationId="LoggedSessionList"
                              ItemsSource="{Binding LoggingSessions}"
                              SelectedItem="{Binding SelectedLoggingSession, Mode=TwoWay}"
                              Background="Transparent"

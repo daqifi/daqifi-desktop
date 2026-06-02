@@ -1,7 +1,10 @@
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Firmware;
+using Daqifi.Desktop.Common;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.DialogService;
+using Daqifi.Desktop.Services;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.View;
 using Daqifi.Desktop.WindowViewModelMapping;
@@ -21,10 +24,11 @@ public partial class App
     public static IServiceProvider ServiceProvider { get; private set; }
 
     /// <summary>
-    /// Root directory for DAQiFi application data (logs, database).
+    /// Root directory for DAQiFi application data (logs, database). Resolved by
+    /// <see cref="AppDataPaths"/>: machine-wide for elevated (production) runs, per-user for
+    /// any un-elevated run (the UI-test harness or a normal non-admin Debug launch).
     /// </summary>
-    public static string DaqifiDataDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DAQiFi");
+    public static string DaqifiDataDirectory => AppDataPaths.DataDirectory;
 
     /// <summary>
     /// Full path to the SQLite database file.
@@ -32,6 +36,21 @@ public partial class App
     public static string DatabasePath { get; } = Path.Combine(DaqifiDataDirectory, "DAQiFiDatabase.db");
 
     public bool IsWindowInit { get; set; }
+
+    /// <summary>
+    /// Indicates the application was launched in unattended/test mode (environment variable
+    /// <c>DAQIFI_TEST_MODE=1</c>). In this mode modal dialogs are suppressed so UI automation
+    /// can drive the app without prompts. Defaults to <c>false</c> for normal launches.
+    /// </summary>
+    public static bool IsTestMode => AppDataPaths.IsTestMode;
+
+    /// <summary>
+    /// <c>true</c> when the process is running elevated (administrator). Firewall
+    /// configuration (which requires admin) only runs when elevated; un-elevated runs use a
+    /// per-user data directory and skip it, so a non-admin Debug launch never crashes on an
+    /// admin-owned database or shows a "configure firewall manually" prompt.
+    /// </summary>
+    public static bool IsElevated => AppDataPaths.IsElevated;
 
     /// <summary>
     /// Initializes the application and wires global exception handlers for Sentry reporting.
@@ -46,6 +65,12 @@ public partial class App
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        if (IsTestMode)
+        {
+            // Suppress any modal message boxes so UI automation is never blocked.
+            FirewallConfiguration.SetMessageBoxService(new NoOpMessageBoxService());
+        }
 
         ShowSplashScreen();
 

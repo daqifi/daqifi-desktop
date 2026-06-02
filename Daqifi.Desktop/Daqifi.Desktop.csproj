@@ -16,7 +16,8 @@
 	<PropertyGroup>
 		<ApplicationIcon>Images\WiFiDAQ.ico</ApplicationIcon>
 		<AssemblyName>DAQiFi</AssemblyName>
-		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<ApplicationManifest Condition="'$(Configuration)'=='Debug'">app.Debug.manifest</ApplicationManifest>
+		<ApplicationManifest Condition="'$(Configuration)'!='Debug'">app.manifest</ApplicationManifest>
 		<EnableWindowsTargeting>true</EnableWindowsTargeting>
 	</PropertyGroup>
 	<PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

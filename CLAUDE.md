@@ -88,6 +88,22 @@ dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 dotnet test Daqifi.Desktop.Tests/Daqifi.Desktop.Tests.csproj
 ```
 
+### Two-gate test loop
+- **Fast inner gate (every edit, no hardware):** unit tests with Moq.
+  ```bash
+  dotnet test --filter "TestCategory!=Ui&FullyQualifiedName!~WindowsFirewallWrapperTests"
+  ```
+- **Integration gate (device attached, on demand):** the FlaUI UI-automation harness drives
+  the real GUI against a physically connected device. Used when asked to validate a PR
+  against hardware or to extend the UI scenarios.
+  ```bash
+  dotnet test Daqifi.Desktop.UITest
+  ```
+  **How it works, how to run it for a PR, the AutomationId map, and the critical
+  out-of-process automation gotchas live in
+  [Daqifi.Desktop.UITest/README.md](Daqifi.Desktop.UITest/README.md) — read it before
+  running or extending the harness.**
+
 ### Code Quality
 ```bash
 # Format code
@@ -244,6 +260,7 @@ When working on:
 - **Manual IP Connections**: Ensure TCP port matches what device discovery reports
 - **Plot/Minimap changes**: Read the "Plot Rendering (OxyPlot)" section below — there are non-obvious gotchas with `InvalidatePlot`, auto-range, and feedback loops. Key files: `DatabaseLogger.cs`, `MinimapInteractionController.cs`, `MinMaxDownsampler.cs`
 - **New features**: Add unit tests with 80% coverage minimum
+- **UI automation / running the harness against a PR with a device, or extending the UI scenarios**: Read [Daqifi.Desktop.UITest/README.md](Daqifi.Desktop.UITest/README.md) first. It is the FlaUI integration gate (drives the real GUI out-of-process against attached hardware) and documents the unattended `DAQIFI_TEST_MODE` launch, the AutomationId map, and load-bearing gotchas (e.g. `PART_SelectedContentHost` exposes tab content to UI Automation — do not remove it)
 
 ## Performance Considerations
 

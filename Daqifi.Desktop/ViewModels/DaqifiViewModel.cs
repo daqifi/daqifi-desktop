@@ -547,7 +547,15 @@ public partial class DaqifiViewModel : ObservableObject
                     Plotter.ShowingMinorXAxisGrid = false;
                     Plotter.ShowingMinorYAxisGrid = false;
 
-                    FirewallConfiguration.InitializeFirewallRules();
+                    // Firewall configuration requires administrator rights. Only attempt it
+                    // on an elevated, non-test launch (production). Un-elevated runs (the UI
+                    // test harness or a normal non-admin Debug launch) cannot change firewall
+                    // rules and would otherwise just surface a modal "configure manually"
+                    // prompt, so skip it entirely.
+                    if (App.IsElevated && !App.IsTestMode)
+                    {
+                        FirewallConfiguration.InitializeFirewallRules();
+                    }
                 }
                 catch (Exception ex)
                 {
