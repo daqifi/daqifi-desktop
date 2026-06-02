@@ -55,8 +55,13 @@ public class LoggingSessionTests : DaqifiAppFixture
         // Act — start the logging session.
         StartLogging();
 
-        // Assert — the UI reports the session is running.
-        WaitForLoggingStatus("LOGGING ON", TimeSpan.FromSeconds(15));
+        // Assert — the user-visible status LABEL (not just the toggle) reads "LOGGING
+        // ON". Regression guard: the toggle is the binding source so it always flips,
+        // but the "LOGGING ON/OFF" label and the LIVE/MODE/RATE chips only refresh when
+        // the IsLogging setter raises PropertyChanged. A bug where it didn't left the
+        // toggle On while the label still read "LOGGING OFF". This reads only the label
+        // (no toggle-state fallback), so it fails if the label goes stale.
+        WaitForLoggingStatusLabel("LOGGING ON", TimeSpan.FromSeconds(15));
 
         // Run — poll (not sleep) for an accrual signal. The session-finalize path only
         // keeps the session if samples were recorded, so a new logged-session row
@@ -72,8 +77,8 @@ public class LoggingSessionTests : DaqifiAppFixture
         // Stop — toggle logging off.
         StopLogging();
 
-        // Assert — the UI reports the session has stopped.
-        WaitForLoggingStatus("LOGGING OFF", TimeSpan.FromSeconds(15));
+        // Assert — the user-visible label (not just the toggle) reads "LOGGING OFF".
+        WaitForLoggingStatusLabel("LOGGING OFF", TimeSpan.FromSeconds(15));
 
         // Assert (out-of-process) — a new logged session exists, proving the session
         // ran and accrued data. If the row had not yet rendered during the run window,

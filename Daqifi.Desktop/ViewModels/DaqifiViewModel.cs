@@ -223,6 +223,12 @@ public partial class DaqifiViewModel : ObservableObject
             }
 
             _isLogging = value;
+            // Notify bindings on the normal start/stop path. The toggle is the binding
+            // source so it flips on its own, but the "LOGGING ON/OFF" status label and
+            // the LIVE/MODE/RATE header chips are consumers that only refresh on this
+            // change notification — without it the label goes stale (toggle reads On
+            // while the label still says "LOGGING OFF").
+            OnPropertyChanged(nameof(IsLogging));
             LoggingManager.Instance.Active = value;
             if (_isLogging)
             {
@@ -2047,7 +2053,6 @@ public partial class DaqifiViewModel : ObservableObject
         {
             _appLogger.Warning($"Disk space critical ({e.AvailableMegabytes} MB) — automatically stopping logging");
             IsLogging = false;
-            OnPropertyChanged(nameof(IsLogging));
 
             _ = ShowDiskSpaceMessage(
                 "Logging Stopped — Disk Space Critical",

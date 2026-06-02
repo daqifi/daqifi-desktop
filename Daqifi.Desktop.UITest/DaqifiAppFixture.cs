@@ -685,6 +685,33 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>
+    /// Strictly waits (polling) until the user-visible <c>LoggingStatusText</c> label
+    /// reads <paramref name="expectedText"/> — reading ONLY the label's UIA Name, with
+    /// <b>no</b> fallback to the toggle's state. Use this for assertions where the label
+    /// itself is the thing under test: the toggle is the binding source so it always
+    /// flips, but the label only updates when <c>IsLogging</c> raises a change
+    /// notification. This catches the "toggle is On but the label still says LOGGING
+    /// OFF" regression that <see cref="WaitForLoggingStatus"/>'s toggle fallback hides.
+    /// </summary>
+    protected void WaitForLoggingStatusLabel(string expectedText, TimeSpan timeout)
+    {
+        Retry.WhileFalse(
+            () =>
+            {
+                var status = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(LOGGING_STATUS_TEXT_ID));
+                return status != null && string.Equals(status.Name, expectedText, StringComparison.Ordinal);
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"The logging status label never read '{expectedText}'. If the toggle " +
+                "flipped but the label stayed stale, the IsLogging setter is not raising " +
+                "PropertyChanged on the start/stop path, so bindings to IsLogging never refresh.");
+    }
+
+    /// <summary>
     /// Reads the number of logged-session rows currently shown on the Logged Data pane.
     /// Empty sessions (no samples) are deleted by the app on stop, so a row appearing
     /// here is an out-of-process signal that data actually accrued during the run.
