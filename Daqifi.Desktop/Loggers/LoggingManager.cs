@@ -16,7 +16,10 @@ public partial class LoggingManager : ObservableObject
 {
     #region Private Variables
     private readonly AppLogger AppLogger = AppLogger.Instance;
-    private static string ProfileAppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
+    // Use the shared, elevation-aware data directory (AppDataPaths) so the profiles XML is
+    // written to a location the process can actually write (per-user when un-elevated),
+    // instead of failing on the admin-owned %ProgramData% file.
+    private static string ProfileAppDirectory = Daqifi.Desktop.Common.AppDataPaths.DataDirectory;
     private static readonly string ProfileSettingsXmlPath = ProfileAppDirectory + "\\DAQifiProfilesConfiguration.xml";
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     private bool _hasActiveApplicationSession;

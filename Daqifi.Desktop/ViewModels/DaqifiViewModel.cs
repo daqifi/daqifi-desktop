@@ -1035,8 +1035,7 @@ public partial class DaqifiViewModel : ObservableObject
     private static string GetFirmwareDownloadDirectory()
     {
         var firmwareDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "DAQiFi",
+            App.DaqifiDataDirectory,
             "Firmware",
             "PIC32");
         Directory.CreateDirectory(firmwareDirectory);
@@ -1046,8 +1045,7 @@ public partial class DaqifiViewModel : ObservableObject
     private static string GetWifiDownloadDirectory()
     {
         var wifiDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "DAQiFi",
+            App.DaqifiDataDirectory,
             "Firmware",
             "WiFi");
         Directory.CreateDirectory(wifiDirectory);
