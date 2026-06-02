@@ -225,6 +225,7 @@
                                          Content="APP LOGS"
                                          Style="{StaticResource SegmentedToggle}"/>
                             <RadioButton x:Name="DeviceLogsTab"
+                                         AutomationProperties.AutomationId="DeviceLogsTab"
                                          GroupName="LoggedDataTab"
                                          Content="DEVICE LOGS"
                                          Style="{StaticResource SegmentedToggle}"/>

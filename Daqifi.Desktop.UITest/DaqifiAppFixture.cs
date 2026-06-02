@@ -51,6 +51,19 @@ public abstract class DaqifiAppFixture
     private const string LOGGING_STATUS_TEXT_ID = "LoggingStatusText";
     private const string LOGGED_SESSION_LIST_ID = "LoggedSessionList";
 
+    // AutomationIds for SD-card logging mode. The logging-mode selector lives in the
+    // per-device settings drawer (gear icon); the SD-card DATA FORMAT selector is
+    // rendered there only while in "Log to Device" mode, so its presence is an
+    // independent confirmation that the mode switch took effect. The SD file list and
+    // status line live on the Logged Data pane's DEVICE LOGS sub-tab.
+    private const string LOGGING_MODE_STREAM_ID = "LoggingModeStreamToApp";
+    private const string LOGGING_MODE_SDCARD_ID = "LoggingModeLogToDevice";
+    private const string SDCARD_FORMAT_SELECTOR_ID = "SdCardFormatSelector";
+    private const string DEVICE_LOGS_TAB_ID = "DeviceLogsTab";
+    private const string REFRESH_SDCARD_FILES_BUTTON_ID = "RefreshSdCardFilesButton";
+    private const string SDCARD_STATUS_TEXT_ID = "SdCardStatusText";
+    private const string SDCARD_FILE_LIST_ID = "SdCardFileList";
+
     private const string LOGGING_ON_TEXT = "LOGGING ON";
     private const string LOGGING_OFF_TEXT = "LOGGING OFF";
 
@@ -743,6 +756,200 @@ public abstract class DaqifiAppFixture
             throwOnTimeout: true,
             timeoutMessage:
                 $"Expected at least {minimum} logged-session row(s) but found fewer within {timeout.TotalSeconds}s.");
+    }
+    #endregion
+
+    #region SD-Card Logging Helpers
+    /// <summary>
+    /// Switches the connected device's logging mode via the segmented selector in the
+    /// per-device settings drawer. <paramref name="logToDevice"/> true selects
+    /// "Log to Device" (SD card); false selects "Stream to App". Confirms the switch by
+    /// an INDEPENDENT signal — the SD-card DATA FORMAT selector is rendered only while
+    /// <c>Shell.IsLogToDeviceMode</c> is true — rather than the radio's own checked
+    /// state, which the UIA SelectionItem pattern sets directly regardless of whether
+    /// the bound switch command actually ran.
+    /// </summary>
+    /// <param name="logToDevice">True for SD card logging; false for stream-to-app.</param>
+    protected void SetLoggingMode(bool logToDevice)
+    {
+        EnsureDeviceSettingsDrawerOpen();
+
+        var radioId = logToDevice ? LOGGING_MODE_SDCARD_ID : LOGGING_MODE_STREAM_ID;
+        var radio = FindByAutomationId(radioId).AsRadioButton();
+
+        // "Log to Device" is gated on a USB connection (SD card logging requires USB);
+        // WaitUntilEnabled surfaces a clear failure if the device is not USB-connected.
+        radio.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        if (!radio.IsChecked)
+        {
+            // Select() raises Checked, which the view's EventTrigger forwards to the
+            // SetLoggingMode command (a RadioButton's bound Command would not fire from
+            // a background automation host — see the harness gotchas).
+            radio.IsChecked = true;
+        }
+
+        // The DATA FORMAT section's Visibility binds through BooleanToVisibilityConverter
+        // (false -> Collapsed), and a Collapsed subtree is absent from the UIA tree. So
+        // *presence* of the selector is the signal that Shell.IsLogToDeviceMode is true —
+        // independent of scroll position (an on-screen check would falsely time out if the
+        // drawer ever needs scrolling to reveal it).
+        if (logToDevice)
+        {
+            Retry.WhileNull(
+                () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(SDCARD_FORMAT_SELECTOR_ID)),
+                timeout: TimeSpan.FromSeconds(15),
+                interval: TimeSpan.FromMilliseconds(300),
+                throwOnTimeout: true,
+                ignoreException: true,
+                timeoutMessage:
+                    "Switching to 'Log to Device' did not take effect: the SD card DATA FORMAT " +
+                    "selector never appeared, so Shell.IsLogToDeviceMode stayed false (the mode " +
+                    "switch command did not run).");
+        }
+        else
+        {
+            Retry.WhileFalse(
+                () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(SDCARD_FORMAT_SELECTOR_ID)) == null,
+                timeout: TimeSpan.FromSeconds(15),
+                interval: TimeSpan.FromMilliseconds(300),
+                throwOnTimeout: true,
+                ignoreException: true,
+                timeoutMessage:
+                    "Switching to 'Stream to App' did not take effect: the SD card DATA FORMAT " +
+                    "selector remained visible (Shell.IsLogToDeviceMode stayed true).");
+        }
+    }
+
+    /// <summary>
+    /// Navigates to the Logged Data pane's DEVICE LOGS sub-tab, refreshes the SD card
+    /// file list from the connected USB device, and returns the file count parsed from
+    /// the SD status line ("· SD card OK · N files"). Marks the test inconclusive when
+    /// no SD card is installed and fails on an SD card error. Counting from the status
+    /// line works at zero files (the file list itself is hidden when empty), so it gives
+    /// a stable before/after baseline.
+    /// </summary>
+    protected int GetSdCardFileCount(int timeoutSeconds = 45)
+    {
+        NavigateToTab(LOGGED_DATA_TAB_TEXT);
+        SelectDeviceLogsSubTab();
+        InvokeRefreshSdCardFiles();
+
+        // Wait until the refresh settles into a definitive SD state, capturing the line.
+        var statusText = string.Empty;
+        Retry.WhileFalse(
+            () =>
+            {
+                var status = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(SDCARD_STATUS_TEXT_ID));
+                if (status == null || status.IsOffscreen)
+                {
+                    return false;
+                }
+
+                var name = status.Name ?? string.Empty;
+                if (name.Contains("SD card OK", StringComparison.OrdinalIgnoreCase)
+                    || name.Contains("No SD card", StringComparison.OrdinalIgnoreCase)
+                    || name.Contains("SD card error", StringComparison.OrdinalIgnoreCase))
+                {
+                    statusText = name;
+                    return true;
+                }
+
+                return false;
+            },
+            timeout: TimeSpan.FromSeconds(timeoutSeconds),
+            interval: TimeSpan.FromMilliseconds(400),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                "SD card status did not reach a definitive state after refresh. Ensure the " +
+                "device is USB-connected and reporting its SD card.");
+
+        if (statusText.Contains("No SD card", StringComparison.OrdinalIgnoreCase))
+        {
+            Assert.Inconclusive(
+                "The attached device reports no SD card installed; SD card logging cannot be " +
+                "exercised. Insert a FAT32-formatted SD card and re-run.");
+        }
+
+        if (statusText.Contains("SD card error", StringComparison.OrdinalIgnoreCase))
+        {
+            Assert.Fail($"The device reported an SD card error during refresh: '{statusText}'.");
+        }
+
+        // e.g. "· SD card OK · 3 files" / "· SD card OK · 1 file" -> capture the count.
+        var match = System.Text.RegularExpressions.Regex.Match(
+            statusText, @"(\d+)\s*files?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        Assert.IsTrue(
+            match.Success,
+            $"Could not parse the SD card file count from the status line '{statusText}'.");
+
+        return int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Ensures the per-device settings drawer is open (clicking the gear on the device
+    /// tile if needed) and the logging-mode selector inside it is realized.
+    /// </summary>
+    private void EnsureDeviceSettingsDrawerOpen()
+    {
+        NavigateToTab(DEVICES_TAB_TEXT);
+
+        var probe = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(LOGGING_MODE_SDCARD_ID));
+        if (probe == null || probe.IsOffscreen)
+        {
+            var gear = FindByAutomationId(DEVICE_SETTINGS_BUTTON_ID);
+            gear.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+            gear.AsButton().Invoke();
+        }
+
+        Retry.WhileNull(
+            () =>
+            {
+                var el = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(LOGGING_MODE_SDCARD_ID));
+                return el != null && !el.IsOffscreen ? el : null;
+            },
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "Device settings drawer did not open (logging-mode selector not visible).");
+    }
+
+    /// <summary>
+    /// Selects the DEVICE LOGS sub-tab on the Logged Data pane and waits for its content
+    /// (the SD card file view) to realize. The sub-tab is a RadioButton whose checked
+    /// state drives the view's visibility directly (ElementName binding, no command), so
+    /// the UIA SelectionItem pattern switches it reliably.
+    /// </summary>
+    private void SelectDeviceLogsSubTab()
+    {
+        var tab = FindByAutomationId(DEVICE_LOGS_TAB_ID).AsRadioButton();
+        Retry.WhileFalse(
+            () =>
+            {
+                if (!tab.IsChecked)
+                {
+                    tab.IsChecked = true;
+                }
+
+                return tab.IsChecked;
+            },
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "DEVICE LOGS sub-tab could not be selected on the Logged Data pane.");
+
+        // The refresh button only exists once the DeviceLogsView is realized/visible.
+        FindByAutomationId(REFRESH_SDCARD_FILES_BUTTON_ID);
+    }
+
+    /// <summary>Invokes the REFRESH button on the DEVICE LOGS sub-tab to re-read the SD file list.</summary>
+    private void InvokeRefreshSdCardFiles()
+    {
+        var refresh = FindByAutomationId(REFRESH_SDCARD_FILES_BUTTON_ID).AsButton();
+        refresh.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        refresh.Invoke();
     }
     #endregion
 

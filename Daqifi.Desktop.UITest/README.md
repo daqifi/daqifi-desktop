@@ -5,7 +5,7 @@ Windows UI Automation tree) against a **physically attached device** (USB serial
 WiFi). It is the **integration gate** of the development loop — separate from the fast
 unit gate (`dotnet test` on the MSTest+Moq suites), which needs no hardware.
 
-It covers three end-to-end workflows plus a launch smoke test:
+It covers four end-to-end workflows plus a launch smoke test:
 
 | Test | What it verifies |
 |---|---|
@@ -13,6 +13,7 @@ It covers three end-to-end workflows plus a launch smoke test:
 | `AddDeviceTests.AddDevice_ConnectsToAttachedDevice` | Open connection dialog → discover → connect; device shows in connected list |
 | `ConfigureLoggingTests.ConfigureLogging_SetsFrequencyAndChannels` | Set sample frequency (device flyout) + enable analog channels; read both back |
 | `LoggingSessionTests.StartLoggingSession_RunsAndStops` | Start logging → data accrues (new session row) → stop |
+| `SdCardLoggingTests.SdCardLogging_LogsToSdCard_NotStream` | Switch to **Log to Device** (SD card) mode → run a session → a new file appears on the SD card (file count increased), confirming SD-card logging, not a stream session. **USB only; needs an SD card.** |
 
 Every UI test is tagged `[TestCategory("Ui")]` and `[TestCategory("RequiresDevice")]`
 so it never runs as part of the unit gate.
@@ -137,6 +138,10 @@ IDs are added only on the controls the scenarios touch. The panes are the
 | Channel list + “SELECT ALL” (analog) | `ChannelList` / `SelectAllAnalogChannels` | `View/Prototype/ChannelsPanePrototype.xaml` |
 | Logging toggle + status label | `StartLoggingToggle` / `LoggingStatusText` | `View/Prototype/LiveGraphPane.xaml` |
 | Logged-session list | `LoggedSessionList` | `View/Prototype/LoggedDataPanePrototype.xaml` |
+| Logging-mode selector (device drawer) | `LoggingModeStreamToApp` / `LoggingModeLogToDevice` | `View/Prototype/DevicesPanePrototype.xaml` |
+| SD-card data-format selector (visible only in Log-to-Device mode) | `SdCardFormatSelector` | `View/Prototype/DevicesPanePrototype.xaml` |
+| Logged Data → DEVICE LOGS sub-tab | `DeviceLogsTab` | `View/Prototype/LoggedDataPanePrototype.xaml` |
+| SD refresh button / status line / file list | `RefreshSdCardFilesButton` / `SdCardStatusText` / `SdCardFileList` | `View/DeviceLogsView.xaml` |
 
 ---
 
@@ -200,6 +205,24 @@ why.
 11. **Invalid `PackIconMaterial` Kinds crash panes at load.** Icon `Kind` is parsed at runtime,
     so a bad value (e.g. the former `SdStorage`) throws `XamlParseException` and destabilises
     the app when that pane loads. Use valid Material icon names.
+
+12. **A `RadioButton`/`ToggleButton` bound `Command` does NOT fire from automation — drive it
+    through `IsChecked` instead.** A `ButtonBase.Command` executes only on a real `Click`
+    (mouse/keyboard/access-key). The UIA patterns a background host can raise on a check control —
+    `SelectionItem.Select()` (RadioButton) and `Toggle.Toggle()` (ToggleButton) — set `IsChecked`
+    but never call `OnClick`, so a bound `Command` silently never runs and the action doesn’t
+    happen. Controls whose *effect* is driven by `IsChecked` itself work fine via these patterns:
+    the `StartLoggingToggle` (`IsChecked` TwoWay → `IsLogging` setter) and the Logged-Data
+    `DeviceLogsTab` (its `IsChecked` drives the view’s visibility via an `ElementName` binding)
+    are both automatable as-is. The **logging-mode segmented selector** was the exception — it
+    used `Command="{Binding SetLoggingModeCommand}"`, so `Select()` checked the button visually
+    but the device never switched mode. Fix: the two RadioButtons now forward their `Checked`
+    event to the command via a `Microsoft.Xaml.Behaviors` `EventTrigger`/`InvokeCommandAction`
+    (the `SetLoggingMode` setter is idempotent, so the redundant `Checked` raised when the OneWay
+    `IsChecked` binding refreshes is a harmless no-op). Confirm a mode switch by an **independent**
+    signal — `SetLoggingMode` waits for the `SdCardFormatSelector` (rendered only while
+    `Shell.IsLogToDeviceMode` is true), not the radio’s own checked state, which `Select()` sets
+    directly regardless of whether the command ran.
 
 ---
 
