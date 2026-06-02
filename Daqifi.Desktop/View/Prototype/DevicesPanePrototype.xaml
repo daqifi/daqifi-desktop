@@ -9,6 +9,7 @@
              xmlns:vm="clr-namespace:Daqifi.Desktop.ViewModels"
              xmlns:networkDataModel="clr-namespace:Daqifi.Core.Device.Network;assembly=Daqifi.Core"
              xmlns:sdCard="clr-namespace:Daqifi.Core.Device.SdCard;assembly=Daqifi.Core"
+             xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=vm:DevicesPaneViewModel}"
              d:DesignHeight="800" d:DesignWidth="1200">
@@ -640,23 +641,42 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
+                                    <!-- Drive the mode switch off Checked rather than Command: a RadioButton's
+                                         bound Command fires only on a real Click, which a background UI-automation
+                                         host cannot raise. Checking the button through the UIA SelectionItem/Toggle
+                                         pattern raises Checked (not Click), so an EventTrigger on Checked keeps the
+                                         control drivable both interactively and from the FlaUI harness. The
+                                         SelectedLoggingMode setter is idempotent, so the extra Checked that fires
+                                         when the OneWay binding refreshes after a switch is a harmless no-op. -->
                                     <RadioButton Grid.Column="0"
                                                  Content="STREAM TO APP"
+                                                 AutomationProperties.AutomationId="LoggingModeStreamToApp"
                                                  GroupName="LoggingMode"
                                                  IsChecked="{Binding Shell.IsLogToDeviceMode,
                                                              Converter={StaticResource BooleanToInverse}, Mode=OneWay}"
-                                                 Style="{StaticResource SegmentedToggle}"
-                                                 Command="{Binding SetLoggingModeCommand}"
-                                                 CommandParameter="Stream to App"/>
+                                                 Style="{StaticResource SegmentedToggle}">
+                                        <i:Interaction.Triggers>
+                                            <i:EventTrigger EventName="Checked">
+                                                <i:InvokeCommandAction Command="{Binding SetLoggingModeCommand}"
+                                                                       CommandParameter="Stream to App"/>
+                                            </i:EventTrigger>
+                                        </i:Interaction.Triggers>
+                                    </RadioButton>
                                     <RadioButton Grid.Column="1"
                                                  Content="LOG TO DEVICE"
+                                                 AutomationProperties.AutomationId="LoggingModeLogToDevice"
                                                  GroupName="LoggingMode"
                                                  IsEnabled="{Binding SelectedTile.IsUsb}"
                                                  IsChecked="{Binding Shell.IsLogToDeviceMode, Mode=OneWay}"
                                                  Style="{StaticResource SegmentedToggle}"
-                                                 Command="{Binding SetLoggingModeCommand}"
-                                                 CommandParameter="Log to Device"
-                                                 ToolTip="SD card logging requires USB. WiFi devices do not support SD card logging."/>
+                                                 ToolTip="SD card logging requires USB. WiFi devices do not support SD card logging.">
+                                        <i:Interaction.Triggers>
+                                            <i:EventTrigger EventName="Checked">
+                                                <i:InvokeCommandAction Command="{Binding SetLoggingModeCommand}"
+                                                                       CommandParameter="Log to Device"/>
+                                            </i:EventTrigger>
+                                        </i:Interaction.Triggers>
+                                    </RadioButton>
                                 </Grid>
                             </Border>
 
@@ -692,6 +712,7 @@
                                                      Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="DATA FORMAT" Style="{StaticResource InfoLabel}" Margin="0,16,0,6"/>
                                 <ComboBox Style="{StaticResource DrawerComboBox}"
+                                          AutomationProperties.AutomationId="SdCardFormatSelector"
                                           ItemsSource="{Binding Source={StaticResource SdCardLogFormats}}"
                                           SelectedItem="{Binding Shell.SelectedSdCardLogFormat, Mode=TwoWay}"/>
                             </StackPanel>
