@@ -764,6 +764,7 @@
                                                                                         Foreground="{StaticResource TextTertiary}"/>
                                                         </Button>
                                                         <Button Style="{StaticResource TileIconButton}"
+                                                                AutomationProperties.AutomationId="DeleteSessionButton"
                                                                 ToolTip="Delete session"
                                                                 Command="{Binding DataContext.DeleteLoggingSessionCommand, ElementName=Root}"
                                                                 CommandParameter="{Binding}">
@@ -1081,11 +1082,13 @@
                         <!-- Affirmative is one of two styles depending on whether the
                              confirmed action is destructive; only one is visible at a time. -->
                         <Button Content="{Binding ConfirmAffirmativeLabel}"
+                                AutomationProperties.AutomationId="ConfirmAffirmativeButton"
                                 Style="{StaticResource AccentPillButton}"
                                 Margin="10,0,0,0"
                                 Command="{Binding ConfirmAffirmativeCommand}"
                                 Visibility="{Binding ConfirmAffirmativeIsDestructive, Converter={StaticResource InvertedBoolToVis}}"/>
                         <Button Content="{Binding ConfirmAffirmativeLabel}"
+                                AutomationProperties.AutomationId="ConfirmAffirmativeButton"
                                 Style="{StaticResource DangerPillButton}"
                                 Margin="10,0,0,0"
                                 Command="{Binding ConfirmAffirmativeCommand}"
