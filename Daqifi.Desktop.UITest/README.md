@@ -5,7 +5,7 @@ Windows UI Automation tree) against a **physically attached device** (USB serial
 WiFi). It is the **integration gate** of the development loop — separate from the fast
 unit gate (`dotnet test` on the MSTest+Moq suites), which needs no hardware.
 
-It covers five end-to-end workflows plus a launch smoke test:
+It covers four end-to-end workflows plus a launch smoke test:
 
 | Test | What it verifies |
 |---|---|
@@ -13,8 +13,7 @@ It covers five end-to-end workflows plus a launch smoke test:
 | `AddDeviceTests.AddDevice_ConnectsToAttachedDevice` | Open connection dialog → discover → connect; device shows in connected list |
 | `ConfigureLoggingTests.ConfigureLogging_SetsFrequencyAndChannels` | Set sample frequency (device flyout) + enable analog channels; read both back |
 | `LoggingSessionTests.StartLoggingSession_RunsAndStops` | Start logging → data accrues (new session row) → stop |
-| `SdCardLoggingTests.SdCardLogging_LogsToSdCard_NotStream` | Switch to **Log to Device** (SD card) mode → run a session → a new file appears on the SD card (file count increased), confirming SD-card logging, not a stream session. **USB only; needs an SD card.** |
-| `SdCardImportTests.ImportSdCardFile_CreatesNonEmptyLoggingSession` | Open **Device Logs** → refresh SD files → import one (prefers an `error`-prefixed file when staged, guarding daqifi-core #195) → a new, non-empty `LoggingSession` appears in `LoggedSessionList`. Triangulated from the "Import Complete" dialog, the importer's `Imported N samples` log line (N&gt;0), and a +1 session delta. **USB only; needs an SD card with at least one log file.** |
+| `SdCardLoggingTests.SdCardLogging_LogsToSdCard_ThenImportsToSession` | Full SD lifecycle in one pass: switch to **Log to Device** (SD card) mode → run a session → a new file appears on the SD card (file count increased), confirming SD-card logging not a stream session → then **import that just-written file** (identified by diffing the file list) and assert a new, non-empty `LoggingSession` appears in `LoggedSessionList`. The import is triangulated from the "Import Complete" dialog, the importer's `Imported N samples` log line (N&gt;0), and a +1 session delta. **USB only; needs an SD card.** |
 
 Every UI test is tagged `[TestCategory("Ui")]` and `[TestCategory("RequiresDevice")]`
 so it never runs as part of the unit gate.
@@ -112,8 +111,8 @@ init. Production (Release) is always elevated, so its `%ProgramData%` paths are 
   exe in test mode, waits for the main window, exposes reusable helpers, and on failure
   captures a screenshot + the NLog log into the test output. All scenario classes inherit it.
 - **Scenario classes** — `AddDeviceTests`, `ConfigureLoggingTests`, `LoggingSessionTests`,
-  `SdCardLoggingTests`, `SdCardImportTests`, `LaunchSmokeTests`. Each is independent; setup
-  connects/configures fresh, teardown closes the app.
+  `SdCardLoggingTests`, `LaunchSmokeTests`. Each is independent; setup connects/configures
+  fresh, teardown closes the app.
 - **Assertions are black-box**: visible UI state (via UI Automation) plus the NLog log file
   (`...\DAQiFi\Logs\DAQifiAppLog.log` — under `%LOCALAPPDATA%` in test mode, `%ProgramData%`
   for elevated production runs; the fixture probes both). **Do not** reference app internals

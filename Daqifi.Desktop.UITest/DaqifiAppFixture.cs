@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
@@ -1047,19 +1048,19 @@ public abstract class DaqifiAppFixture
     /// <summary>
     /// Imports a single SD card log file through the DEVICE LOGS sub-tab and returns the
     /// imported file's name (as read from its row). Selects the DEVICE LOGS sub-tab, waits
-    /// for the file rows to realize, picks a target row — preferring one whose name starts
-    /// with <paramref name="preferNamePrefix"/> (so a staged "error"-prefixed fixture file
-    /// is chosen when present, guarding the daqifi-core #195 regression), otherwise the
-    /// first file — selects it, invokes its per-row IMPORT button, then waits for and
-    /// dismisses the completion dialog. Fails the test if the app reports an import failure.
+    /// for the file rows to realize, picks a target row — the file named
+    /// <paramref name="targetFileName"/> when given (e.g. the file a logging run just
+    /// wrote), otherwise the first file — selects it, invokes its per-row IMPORT button,
+    /// then waits for and dismisses the completion dialog. Fails the test if the app reports
+    /// an import failure.
     /// </summary>
-    /// <param name="preferNamePrefix">
-    /// Filename prefix to prefer when choosing which file to import; pass null/empty to
-    /// always import the first file. Defaults to "error".
+    /// <param name="targetFileName">
+    /// Exact name of the file to import; pass null/empty to import the first file. When the
+    /// named file is not present in the list, falls back to the first file.
     /// </param>
     /// <param name="importTimeout">How long to allow the download/parse to complete.</param>
     /// <returns>The name of the file that was imported (empty if it could not be read).</returns>
-    protected string ImportSdCardFile(string? preferNamePrefix = "error", TimeSpan? importTimeout = null)
+    protected string ImportSdCardFile(string? targetFileName = null, TimeSpan? importTimeout = null)
     {
         NavigateToTab(LOGGED_DATA_TAB_TEXT);
         SelectDeviceLogsSubTab();
@@ -1080,15 +1081,15 @@ public abstract class DaqifiAppFixture
 
         var rows = listBox.Items;
 
-        // Default to the first file; prefer a name-prefix match when requested.
+        // Default to the first file; when a target name is given, import that exact file.
         var target = rows[0];
         var targetName = ReadSdCardFileRowName(rows[0]);
-        if (!string.IsNullOrEmpty(preferNamePrefix))
+        if (!string.IsNullOrEmpty(targetFileName))
         {
             foreach (var row in rows)
             {
                 var name = ReadSdCardFileRowName(row);
-                if (name.StartsWith(preferNamePrefix, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(name, targetFileName, StringComparison.OrdinalIgnoreCase))
                 {
                     target = row;
                     targetName = name;
@@ -1140,6 +1141,34 @@ public abstract class DaqifiAppFixture
         }
 
         return string.Empty;
+    }
+
+    /// <summary>
+    /// Reads the file names currently shown in the SD card file list, or an empty list when
+    /// no files are present (the list is collapsed and absent from the UIA tree then).
+    /// Assumes the DEVICE LOGS sub-tab is selected and a refresh has already settled — call
+    /// it right after <see cref="GetSdCardFileCount"/> / <see cref="WaitForSdCardFileCountAbove"/>.
+    /// Used to identify the file a logging run just wrote (the name in "after" but not "before").
+    /// </summary>
+    protected IReadOnlyList<string> ReadSdCardFileNames()
+    {
+        var list = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(SDCARD_FILE_LIST_ID));
+        if (list == null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var names = new List<string>();
+        foreach (var row in list.AsListBox().Items)
+        {
+            var name = ReadSdCardFileRowName(row);
+            if (!string.IsNullOrEmpty(name))
+            {
+                names.Add(name);
+            }
+        }
+
+        return names;
     }
 
     /// <summary>
