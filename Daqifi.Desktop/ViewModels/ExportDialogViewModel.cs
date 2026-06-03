@@ -158,7 +158,7 @@ public partial class ExportDialogViewModel : ObservableObject
                     var sessionName = LoggingManager.Instance.LoggingSessions
                         .FirstOrDefault(s => s.ID == sessionId)?.Name ?? $"Session_{sessionId}";
                     var filepath = _forceDirectoryLayout || totalSessions > 1
-                        ? Path.Combine(ExportFilePath, $"{sessionName}.csv")
+                        ? Path.Combine(ExportFilePath, $"{MakeSafeFileName(sessionName)}.csv")
                         : ExportFilePath;
 
                     if (ExportAllSelected)
@@ -202,6 +202,20 @@ public partial class ExportDialogViewModel : ObservableObject
     {
         var loggingSessionExporter = new OptimizedLoggingSessionExporter();
         loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
+    }
+
+    /// <summary>
+    /// Replaces characters that are invalid in a file name (a session can be renamed to arbitrary
+    /// text) with '_', so per-session export to <c>{name}.csv</c> never throws on a bad path.
+    /// </summary>
+    private static string MakeSafeFileName(string name)
+    {
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            name = name.Replace(invalid, '_');
+        }
+
+        return name;
     }
 
     private async Task<LoggingSession> GetLoggingSessionFromId(int sessionId)
