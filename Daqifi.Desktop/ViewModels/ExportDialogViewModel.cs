@@ -17,6 +17,13 @@ public partial class ExportDialogViewModel : ObservableObject
     private string _exportFilePath;
     private CancellationTokenSource _cts;
 
+    // When true, every session is written as a separate "{session}.csv" file inside the
+    // directory named by <see cref="ExportFilePath"/>, regardless of how many sessions are
+    // being exported. Set only by the UI-test export hook (<see cref="ExportToDirectoryAsync"/>)
+    // so a single-session export through the hook still lands in a directory the harness owns;
+    // the interactive dialog leaves this false and keeps the file/directory-per-count behaviour.
+    private bool _forceDirectoryLayout;
+
     [ObservableProperty]
     private bool _exportAllSelected = true;
     [ObservableProperty]
@@ -139,7 +146,7 @@ public partial class ExportDialogViewModel : ObservableObject
                     var sessionId = _sessionsIds[i];
                     var loggingSession = await GetLoggingSessionFromId(sessionId);
                     var sessionName = LoggingManager.Instance.LoggingSessions.FirstOrDefault(s => s.ID == sessionId).Name;
-                    var filepath = totalSessions > 1
+                    var filepath = _forceDirectoryLayout || totalSessions > 1
                         ? Path.Combine(ExportFilePath, $"{sessionName}.csv")
                         : ExportFilePath;
 
@@ -197,6 +204,25 @@ public partial class ExportDialogViewModel : ObservableObject
                 ID = s.ID
             }).FirstOrDefaultAsync();
         return loggingSession;
+    }
+    #endregion
+
+    #region Test Hook
+    /// <summary>
+    /// UI-test entry point: exports the configured session(s) straight into
+    /// <paramref name="directory"/> — one <c>{session}.csv</c> per session — using the same
+    /// exporter and the dialog's default options (all samples, absolute time), with no
+    /// <c>SaveFileDialog</c>/<c>FolderBrowserDialog</c>. Wired only through the
+    /// <see cref="Daqifi.Desktop.Common.AppDataPaths.TestExportPath"/> hook, so production
+    /// export behaviour is unchanged. Awaitable so the harness can know when the file is on disk.
+    /// </summary>
+    /// <param name="directory">Destination directory (created if missing) the harness owns.</param>
+    internal Task ExportToDirectoryAsync(string directory)
+    {
+        Directory.CreateDirectory(directory);
+        _forceDirectoryLayout = true;
+        ExportFilePath = directory;
+        return ExportLoggingSessionsCommand.ExecuteAsync(null);
     }
     #endregion
 }

@@ -23,6 +23,10 @@ public abstract class DaqifiAppFixture
     #region Constants
     private const string TEST_MODE_ENV_VAR = "DAQIFI_TEST_MODE";
     private const string TRANSPORT_ENV_VAR = "DAQIFI_TEST_TRANSPORT";
+    // When ExportHookDirectory is set, the child app is launched with this env var pointing at
+    // a harness-owned directory, so the export commands write straight there with no dialog
+    // (see Daqifi.Desktop.Common.AppDataPaths.TestExportPath).
+    private const string TEST_EXPORT_PATH_ENV_VAR = "DAQIFI_TEST_EXPORT_PATH";
     private const string APP_EXE_NAME = "DAQiFi.exe";
     private const string LOG_FILE_NAME = "DAQifiAppLog.log";
     private const string MAIN_WINDOW_CLASS = "MetroWindow";
@@ -51,6 +55,16 @@ public abstract class DaqifiAppFixture
     private const string START_LOGGING_TOGGLE_ID = "StartLoggingToggle";
     private const string LOGGING_STATUS_TEXT_ID = "LoggingStatusText";
     private const string LOGGED_SESSION_LIST_ID = "LoggedSessionList";
+
+    // CSV-export controls on the Logged Data pane's APP LOGS sub-tab. The per-row export button
+    // and the EXPORT ALL button drive the two dialog-free export paths through the
+    // DAQIFI_TEST_EXPORT_PATH hook. Every session row carries the same per-row id (it is in the
+    // item template), so a row-scoped search targets that one row's button. The row template's
+    // name/date TextBlocks are not surfaced to UI Automation (only the action buttons are), so the
+    // newest session is targeted by position — it is the last row (the list renders in insertion
+    // order, no sort) — and the exported file name confirms which session it was.
+    private const string EXPORT_SESSION_BUTTON_ID = "ExportSessionButton";
+    private const string EXPORT_ALL_SESSIONS_BUTTON_ID = "ExportAllSessionsButton";
 
     // The Logged Data pane hosts two mutually-exclusive sub-tabs: APP LOGS (default,
     // showing the logged-session list) and DEVICE LOGS (showing the SD card browser).
@@ -103,6 +117,15 @@ public abstract class DaqifiAppFixture
     protected Application App = null!;
     protected UIA3Automation Automation = null!;
     protected Window MainWindow = null!;
+
+    /// <summary>
+    /// When non-null, the child app is launched with <c>DAQIFI_TEST_EXPORT_PATH</c> set to this
+    /// directory, so the logging-session export commands write straight into it with zero
+    /// SaveFileDialog interaction (see <c>AppDataPaths.TestExportPath</c>). Scenarios that
+    /// exercise CSV export override this with a temp directory; the default <c>null</c> leaves
+    /// the production dialog behaviour untouched for every other scenario.
+    /// </summary>
+    protected virtual string? ExportHookDirectory => null;
     #endregion
 
     #region Private Fields
@@ -130,6 +153,12 @@ public abstract class DaqifiAppFixture
             WorkingDirectory = Path.GetDirectoryName(exePath)!
         };
         psi.Environment[TEST_MODE_ENV_VAR] = "1";
+
+        // Opt-in per scenario: route exports to a harness-owned directory with no dialog.
+        if (!string.IsNullOrEmpty(ExportHookDirectory))
+        {
+            psi.Environment[TEST_EXPORT_PATH_ENV_VAR] = ExportHookDirectory;
+        }
 
         App = Application.Launch(psi);
         Automation = new UIA3Automation();
@@ -814,6 +843,99 @@ public abstract class DaqifiAppFixture
             timeoutMessage:
                 $"Expected at least {minimum} logged-session row(s) but found fewer within {timeout.TotalSeconds}s.");
     }
+    #endregion
+
+    #region CSV-Export Helpers
+    /// <summary>
+    /// Polls the app log for the session-finalize line the app emits when a logging session ends
+    /// (<c>"Persisted sample count N for session S"</c>) and returns the most recent
+    /// <c>(sessionId, sampleCount)</c> pair, or <c>(-1, -1)</c> if none appeared in time. The
+    /// count is authoritative — the app logs it only after every buffered sample is flushed and
+    /// COUNT-ed — so it is the oracle the export test cross-checks an exported CSV against.
+    /// </summary>
+    protected (int sessionId, long sampleCount) WaitForPersistedSampleCount(TimeSpan timeout)
+    {
+        var sessionId = -1;
+        var sampleCount = -1L;
+        Retry.WhileFalse(
+            () =>
+            {
+                var matches = System.Text.RegularExpressions.Regex.Matches(
+                    ReadNewLogText(), @"Persisted sample count (\d+) for session (\d+)");
+                if (matches.Count == 0)
+                {
+                    return false;
+                }
+
+                var last = matches[^1];
+                sampleCount = long.Parse(last.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+                sessionId = int.Parse(last.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
+                return true;
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: false);
+
+        return (sessionId, sampleCount);
+    }
+
+    /// <summary>
+    /// Exports the most-recently-created logged session via its per-row EXPORT button on the
+    /// Logged Data pane's APP LOGS sub-tab. The list renders in insertion order with no sort, so a
+    /// just-finalized session is the LAST row; this invokes that row's <c>ExportSessionButton</c>.
+    /// (The row template's name/date TextBlocks are not surfaced to UI Automation — only the
+    /// action buttons are — so the target row is identified by position, and the exported file's
+    /// name confirms which session it was.) The button is a plain <c>Button</c>, so InvokePattern
+    /// raises a real click and its bound <c>ExportLoggingSessionCommand</c> runs (cf. gotcha #12,
+    /// which only bites bound <c>Command</c>s on check controls); its <c>CommandParameter</c>
+    /// targets its own row. With the <c>DAQIFI_TEST_EXPORT_PATH</c> hook active the export writes
+    /// <c>{session}.csv</c> into <see cref="ExportHookDirectory"/> with no dialog.
+    /// </summary>
+    protected void ExportNewestLoggedSession()
+    {
+        NavigateToTab(LOGGED_DATA_TAB_TEXT);
+        SelectAppLogsSubTab();
+
+        var exportButton = Retry.WhileNull(
+            () =>
+            {
+                var items = MainWindow
+                    .FindFirstDescendant(cf => cf.ByAutomationId(LOGGED_SESSION_LIST_ID))?.AsListBox()?.Items;
+                if (items == null || items.Length == 0)
+                {
+                    return null;
+                }
+
+                // Last row = newest session. Scope the button search to that row.
+                return items[^1].FindFirstDescendant(cf => cf.ByAutomationId(EXPORT_SESSION_BUTTON_ID));
+            },
+            timeout: TimeSpan.FromSeconds(30),
+            interval: TimeSpan.FromMilliseconds(500),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                "The per-row EXPORT button on the newest logged-session row was not found. The " +
+                "finalized session row may not have rendered yet.").Result!;
+
+        var button = exportButton.AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+    }
+
+    /// <summary>
+    /// Exports every logged session at once via the EXPORT ALL button on the Logged Data pane's
+    /// APP LOGS sub-tab. With the <c>DAQIFI_TEST_EXPORT_PATH</c> hook active the app writes one
+    /// <c>{session}.csv</c> per session into <see cref="ExportHookDirectory"/> with no dialog.
+    /// </summary>
+    protected void ExportAllLoggedSessions()
+    {
+        NavigateToTab(LOGGED_DATA_TAB_TEXT);
+        SelectAppLogsSubTab();
+        var button = FindByAutomationId(EXPORT_ALL_SESSIONS_BUTTON_ID).AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+    }
+
     #endregion
 
     #region SD-Card Logging Helpers

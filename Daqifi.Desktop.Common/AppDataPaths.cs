@@ -24,6 +24,18 @@ public static class AppDataPaths
     public static bool IsTestMode { get; } =
         string.Equals(Environment.GetEnvironmentVariable("DAQIFI_TEST_MODE"), "1", StringComparison.Ordinal);
 
+    /// <summary>
+    /// Optional UI-test export target directory. When the environment variable
+    /// <c>DAQIFI_TEST_EXPORT_PATH</c> is set, the logging-session export commands write
+    /// straight into this directory (one <c>{session}.csv</c> per session) and skip the
+    /// interactive <c>SaveFileDialog</c>/<c>FolderBrowserDialog</c> entirely, so the FlaUI
+    /// harness can export to a known location with zero modal interaction. <c>null</c> in
+    /// normal and production runs, where the dialog behaviour is unchanged. Mirrors
+    /// <see cref="IsTestMode"/> — a one-liner the harness sets on the child process,
+    /// impossible to trigger accidentally in production (the variable is never set there).
+    /// </summary>
+    public static string? TestExportPath { get; } = ResolveTestExportPath();
+
     /// <summary><c>true</c> when the current process is running with administrator rights.</summary>
     public static bool IsElevated { get; } = ComputeIsElevated();
 
@@ -39,6 +51,12 @@ public static class AppDataPaths
 
     /// <summary>Directory where application logs are written.</summary>
     public static string LogDirectory { get; } = Path.Combine(DataDirectory, "Logs");
+
+    private static string? ResolveTestExportPath()
+    {
+        var raw = Environment.GetEnvironmentVariable("DAQIFI_TEST_EXPORT_PATH");
+        return string.IsNullOrWhiteSpace(raw) ? null : raw.Trim();
+    }
 
     private static bool ComputeIsElevated()
     {

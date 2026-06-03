@@ -33,6 +33,7 @@ public class LoggingSession : ObservableObject
                 OnPropertyChanged(nameof(SampleCountDisplay));
                 OnPropertyChanged(nameof(SampleCountTooltip));
                 OnPropertyChanged(nameof(HasSampleCount));
+                OnPropertyChanged(nameof(AccessibilitySummary));
             }
         }
     }
@@ -128,6 +129,30 @@ public class LoggingSession : ObservableObject
     /// <summary>True when <see cref="SampleCount"/> is available.</summary>
     [NotMapped]
     public bool HasSampleCount => SampleCount.HasValue;
+
+    /// <summary>
+    /// A spoken-friendly one-line summary of the session, used as the accessible name of each
+    /// row in the logged-session list (bound to <c>AutomationProperties.Name</c> on the row
+    /// container). The row template renders the name/date/sample chips as plain <c>TextBlock</c>s
+    /// that WPF does not surface to UI Automation, so without this a screen reader would announce
+    /// only the row's unlabeled action buttons. Combines the session name, start time, and — once
+    /// known — the sample count and sampling rate.
+    /// </summary>
+    [NotMapped]
+    public string AccessibilitySummary
+    {
+        get
+        {
+            var parts = new List<string>(4)
+            {
+                Name,
+                SessionStart.ToString("g", System.Globalization.CultureInfo.CurrentCulture)
+            };
+            if (HasSampleCount) { parts.Add(SampleCountTooltip); }
+            if (HasFrequencyDisplay) { parts.Add(FrequencyDisplay); }
+            return string.Join(", ", parts);
+        }
+    }
     #endregion
 
     #region Constructors

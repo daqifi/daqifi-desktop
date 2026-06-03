@@ -640,12 +640,18 @@
                 <!-- ── Session list ── -->
                 <Grid Grid.Row="2">
                     <!-- Has sessions -->
+                    <!-- IsVirtualizing=False: the session list is bounded (one row per logging run).
+                         UI virtualization leaves off-screen rows out of the UIA tree, so the
+                         automation harness can't reach a row's per-session action buttons (e.g. the
+                         EXPORT button) unless that row happens to be scrolled into view. Realizing
+                         every row keeps all per-row controls reachable for automation. -->
                     <ListBox x:Name="SessionList"
                              AutomationProperties.AutomationId="LoggedSessionList"
                              ItemsSource="{Binding LoggingSessions}"
                              SelectedItem="{Binding SelectedLoggingSession, Mode=TwoWay}"
                              Background="Transparent"
                              BorderThickness="0"
+                             VirtualizingStackPanel.IsVirtualizing="False"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              SelectionMode="Single">
                         <ListBox.ItemContainerStyle>
@@ -653,6 +659,10 @@
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                 <Setter Property="Padding" Value="0"/>
                                 <Setter Property="Margin" Value="0"/>
+                                <!-- Accessible name for the row: the templated name/date/sample
+                                     TextBlocks are not surfaced to UI Automation, so give the
+                                     container itself a spoken summary for screen readers. -->
+                                <Setter Property="AutomationProperties.Name" Value="{Binding AccessibilitySummary}"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
@@ -747,6 +757,7 @@
                                                                                         Foreground="{StaticResource TextTertiary}"/>
                                                         </Button>
                                                         <Button Style="{StaticResource TileIconButton}"
+                                                                AutomationProperties.AutomationId="ExportSessionButton"
                                                                 ToolTip="Export session"
                                                                 Command="{Binding DataContext.ExportLoggingSessionCommand, ElementName=Root}"
                                                                 CommandParameter="{Binding}">
@@ -838,6 +849,7 @@
                         <!-- Right: Export All + Delete All -->
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                             <Button Style="{StaticResource PillButton}"
+                                    AutomationProperties.AutomationId="ExportAllSessionsButton"
                                     Content="EXPORT ALL"
                                     Command="{Binding ExportAllLoggingSessionCommand}"
                                     ToolTip="Export all sessions"/>
