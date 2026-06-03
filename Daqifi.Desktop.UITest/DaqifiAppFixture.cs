@@ -1065,8 +1065,14 @@ public abstract class DaqifiAppFixture
     {
         NavigateToTab(LIVE_GRAPH_TAB_TEXT);
 
-        var summary = string.Empty;
-        Retry.WhileFalse(
+        var stats = default(PlotStats);
+        var lastRaw = string.Empty;
+
+        // Read AND parse inside the retry: while a device streams, a single UIA Name read can
+        // transiently fail or (rarely) return a partial value, so retrying the parse — not just
+        // the read — keeps every caller's first read robust (e.g. the baseline in
+        // WaitForPlotPointGrowth, which is otherwise unguarded). TryParse keeps it non-throwing.
+        var read = Retry.WhileFalse(
             () =>
             {
                 var name = MainWindow
@@ -1076,63 +1082,96 @@ public abstract class DaqifiAppFixture
                     return false;
                 }
 
-                summary = name;
-                return true;
+                lastRaw = name;
+                return TryParsePlotStats(name, out stats);
             },
             timeout: TimeSpan.FromSeconds(15),
             interval: TimeSpan.FromMilliseconds(300),
-            throwOnTimeout: true,
-            ignoreException: true,
-            timeoutMessage:
-                "The live-plot stats indicator (PlotStatsText) was not readable on the Live Graph " +
-                "pane. Ensure the plot-stats UIA hook in LiveGraphPane.xaml is present.");
+            throwOnTimeout: false,
+            ignoreException: true).Result;
 
-        return ParsePlotStats(summary);
+        // Assert (not throwOnTimeout) so the failure message can include the last raw value read,
+        // which the eagerly-built timeoutMessage could not capture.
+        Assert.IsTrue(
+            read,
+            "The live-plot stats indicator (PlotStatsText) was not readable/parseable on the Live " +
+            $"Graph pane (last raw value: '{lastRaw}'). Ensure the plot-stats UIA hook in " +
+            "LiveGraphPane.xaml is present and emits the expected 'series=..;points=..;..' format.");
+
+        return stats;
     }
 
     /// <summary>
-    /// Parses the <c>"series=N;points=M;nonfinite=K;last=V;min=A;max=B"</c> summary string
+    /// Tries to parse the <c>"series=N;points=M;nonfinite=K;last=V;min=A;max=B"</c> summary string
     /// (invariant culture; <c>last/min/max</c> may be <c>"NaN"</c>) into a <see cref="PlotStats"/>.
+    /// Returns false (so the caller retries) on any malformed or partially-read value, and requires
+    /// every field to be present so a truncated read is not silently accepted.
     /// </summary>
-    private static PlotStats ParsePlotStats(string summary)
+    private static bool TryParsePlotStats(string summary, out PlotStats stats)
     {
-        var series = 0;
-        long points = 0;
-        long nonFinite = 0;
-        var last = double.NaN;
-        var min = double.NaN;
-        var max = double.NaN;
+        stats = default;
 
+        var fields = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var field in summary.Split(';', StringSplitOptions.RemoveEmptyEntries))
         {
             var pair = field.Split('=', 2);
             if (pair.Length != 2)
             {
-                continue;
+                return false;
             }
 
-            var key = pair[0].Trim();
-            var value = pair[1].Trim();
-            switch (key)
-            {
-                case "series": series = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
-                case "points": points = long.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
-                case "nonfinite": nonFinite = long.Parse(value, System.Globalization.CultureInfo.InvariantCulture); break;
-                case "last": last = ParseStatDouble(value); break;
-                case "min": min = ParseStatDouble(value); break;
-                case "max": max = ParseStatDouble(value); break;
-            }
+            fields[pair[0].Trim()] = pair[1].Trim();
         }
 
-        return new PlotStats(series, points, nonFinite, last, min, max);
+        if (!TryParseLong(fields, "points", out var points)
+            || !TryParseLong(fields, "nonfinite", out var nonFinite)
+            || !TryParseStat(fields, "last", out var last)
+            || !TryParseStat(fields, "min", out var min)
+            || !TryParseStat(fields, "max", out var max))
+        {
+            return false;
+        }
+
+        if (!fields.TryGetValue("series", out var seriesText)
+            || !int.TryParse(
+                seriesText,
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var series))
+        {
+            return false;
+        }
+
+        stats = new PlotStats(series, points, nonFinite, last, min, max);
+        return true;
     }
 
-    /// <summary>Parses an invariant-culture double, tolerating the "NaN" sentinel.</summary>
-    private static double ParseStatDouble(string value) =>
-        double.Parse(
-            value,
-            System.Globalization.NumberStyles.Float,
-            System.Globalization.CultureInfo.InvariantCulture);
+    /// <summary>Parses a required invariant-culture integer field; false if missing or malformed.</summary>
+    private static bool TryParseLong(IReadOnlyDictionary<string, string> fields, string key, out long value)
+    {
+        value = 0;
+        return fields.TryGetValue(key, out var text)
+            && long.TryParse(
+                text,
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value);
+    }
+
+    /// <summary>
+    /// Parses a required invariant-culture double field, tolerating the "NaN" sentinel; false if the
+    /// field is missing (a truncated read should retry, not be read as NaN) or malformed.
+    /// </summary>
+    private static bool TryParseStat(IReadOnlyDictionary<string, string> fields, string key, out double value)
+    {
+        value = double.NaN;
+        return fields.TryGetValue(key, out var text)
+            && double.TryParse(
+                text,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value);
+    }
 
     /// <summary>
     /// Waits (polling) until the live plot reports exactly <paramref name="expected"/> series.

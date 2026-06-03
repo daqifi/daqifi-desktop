@@ -25,7 +25,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = [];
     private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = [];
     private readonly TimestampGapDetector _gapDetector = new();
-    private string _plotStatsSummary = EmptyPlotStatsSummary;
+    private string _plotStatsSummary = EMPTY_PLOT_STATS_SUMMARY;
     #endregion
 
     #region Plot-stats UIA hook
@@ -39,7 +39,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     // where series = PlotModel.Series.Count, points = real sample points across all series
     // (gap markers excluded), nonfinite = real samples whose VALUE is NaN/Inf (expected 0),
     // and last/min/max are the latest-in-time / extent sample values ("NaN" when no data).
-    private const string EmptyPlotStatsSummary =
+    private const string EMPTY_PLOT_STATS_SUMMARY =
         "series=0;points=0;nonfinite=0;last=NaN;min=NaN;max=NaN";
 
     /// <summary>
@@ -50,12 +50,7 @@ public partial class PlotLogger : ObservableObject, ILogger
     public string PlotStatsSummary
     {
         get => _plotStatsSummary;
-        private set
-        {
-            if (_plotStatsSummary == value) { return; }
-            _plotStatsSummary = value;
-            OnPropertyChanged();
-        }
+        private set => SetProperty(ref _plotStatsSummary, value);
     }
     #endregion
 
@@ -272,7 +267,6 @@ public partial class PlotLogger : ObservableObject, ILogger
     {
         var key = (DeviceSerialNo, channelName);
         var newDataPoints = new List<DataPoint>();
-        LoggedPoints.Add(key, newDataPoints);
 
         var serialSuffix = DeviceSerialNo?.Length > 4
             ? $"...{DeviceSerialNo[^4..]}"
@@ -307,8 +301,16 @@ public partial class PlotLogger : ObservableObject, ILogger
             _ => newLineSeries.YAxisKey
         };
 
-        LoggedChannels.Add(key, newLineSeries);
-        PlotModel.Series.Add(newLineSeries);
+        // Mutate the shared collections under PlotModel.SyncRoot — the same lock held by Log()'s
+        // point-append and by the render tick (InvalidatePlot + plot-stats recompute). Without it
+        // these structural Adds raced the render-tick enumeration, so a concurrent OxyPlot render
+        // or stats recompute could observe a half-updated dictionary/series list.
+        lock (PlotModel.SyncRoot)
+        {
+            LoggedPoints.Add(key, newDataPoints);
+            LoggedChannels.Add(key, newLineSeries);
+            PlotModel.Series.Add(newLineSeries);
+        }
 
         OnPropertyChanged(nameof(PlotModel));
     }
@@ -342,27 +344,18 @@ public partial class PlotLogger : ObservableObject, ILogger
     }
 
     /// <summary>
-    /// Recomputes <see cref="PlotStatsSummary"/> from the currently buffered points. Called
-    /// on the once-a-second render tick while holding <c>PlotModel.SyncRoot</c> (so the
-    /// per-channel point lists are not mutated mid-read by <see cref="Log(DataSample)"/>).
-    /// Gap markers are inserted as <c>DataPoint.Undefined</c> (NaN X); a real sample always
-    /// has a finite X (elapsed ms), so an NaN X distinguishes a gap from data and lets a
-    /// genuinely non-finite sample VALUE still be counted (nonfinite) rather than hidden.
-    /// Best-effort: a transient enumeration race with off-thread series creation
-    /// (<see cref="AddChannelSeries"/> adds a dictionary key outside the lock) is swallowed so
-    /// the render callback never throws; the summary simply keeps its previous value.
+    /// Recomputes <see cref="PlotStatsSummary"/> from the currently buffered points. Called on the
+    /// once-a-second render tick while holding <c>PlotModel.SyncRoot</c>. Every mutation of the
+    /// per-channel collections — <see cref="Log(DataSample)"/>'s point-append and
+    /// <see cref="AddChannelSeries"/>'s series creation — takes that same lock, so enumerating the
+    /// point lists here is consistent (no torn reads, no structural-modification race).
+    /// Gap markers are inserted as <c>DataPoint.Undefined</c> (NaN X); a real sample always has a
+    /// finite X (elapsed ms), so an NaN X distinguishes a gap from data and lets a genuinely
+    /// non-finite sample VALUE still be counted (nonfinite) rather than hidden.
     /// </summary>
     private void UpdatePlotStatsSummary()
     {
-        try
-        {
-            PlotStatsSummary = BuildPlotStatsSummary(PlotModel.Series.Count, LoggedPoints.Values);
-        }
-        catch (InvalidOperationException)
-        {
-            // LoggedPoints was modified (a new channel series was added off-thread) while we
-            // enumerated it. Skip this tick; the next one recomputes from a settled dictionary.
-        }
+        PlotStatsSummary = BuildPlotStatsSummary(PlotModel.Series.Count, LoggedPoints.Values);
     }
 
     /// <summary>
@@ -387,7 +380,11 @@ public partial class PlotLogger : ObservableObject, ILogger
             for (var i = 0; i < pointList.Count; i++)
             {
                 var point = pointList[i];
-                if (double.IsNaN(point.X)) { continue; } // gap marker, not data
+                if (double.IsNaN(point.X))
+                {
+                    // Gap marker (DataPoint.Undefined), not data.
+                    continue;
+                }
 
                 points++;
 
@@ -398,14 +395,29 @@ public partial class PlotLogger : ObservableObject, ILogger
                     continue;
                 }
 
-                if (!any) { min = max = y; any = true; }
+                if (!any)
+                {
+                    min = max = y;
+                    any = true;
+                }
                 else
                 {
-                    if (y < min) { min = y; }
-                    if (y > max) { max = y; }
+                    if (y < min)
+                    {
+                        min = y;
+                    }
+
+                    if (y > max)
+                    {
+                        max = y;
+                    }
                 }
 
-                if (point.X >= lastX) { lastX = point.X; last = y; }
+                if (point.X >= lastX)
+                {
+                    lastX = point.X;
+                    last = y;
+                }
             }
         }
 
@@ -423,7 +435,7 @@ public partial class PlotLogger : ObservableObject, ILogger
         PlotModel.Series.Clear();
         PlotModel.InvalidatePlot(true);
         FirstTime = null;
-        PlotStatsSummary = EmptyPlotStatsSummary;
+        PlotStatsSummary = EMPTY_PLOT_STATS_SUMMARY;
         OnPropertyChanged(nameof(LoggedChannels));
         OnPropertyChanged(nameof(LoggedPoints));
         OnPropertyChanged(nameof(PlotModel));
