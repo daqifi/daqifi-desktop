@@ -5,7 +5,7 @@ Windows UI Automation tree) against a **physically attached device** (USB serial
 WiFi). It is the **integration gate** of the development loop — separate from the fast
 unit gate (`dotnet test` on the MSTest+Moq suites), which needs no hardware.
 
-It covers four end-to-end workflows plus a launch smoke test:
+It covers five end-to-end workflows plus a launch smoke test:
 
 | Test | What it verifies |
 |---|---|
@@ -14,6 +14,7 @@ It covers four end-to-end workflows plus a launch smoke test:
 | `ConfigureLoggingTests.ConfigureLogging_SetsFrequencyAndChannels` | Set sample frequency (device flyout) + enable analog channels; read both back |
 | `LoggingSessionTests.StartLoggingSession_RunsAndStops` | Start logging → data accrues (new session row) → stop |
 | `SdCardLoggingTests.SdCardLogging_LogsToSdCard_NotStream` | Switch to **Log to Device** (SD card) mode → run a session → a new file appears on the SD card (file count increased), confirming SD-card logging, not a stream session. **USB only; needs an SD card.** |
+| `SdCardImportTests.ImportSdCardFile_CreatesNonEmptyLoggingSession` | Open **Device Logs** → refresh SD files → import one (prefers an `error`-prefixed file when staged, guarding daqifi-core #195) → a new, non-empty `LoggingSession` appears in `LoggedSessionList`. Triangulated from the "Import Complete" dialog, the importer's `Imported N samples` log line (N&gt;0), and a +1 session delta. **USB only; needs an SD card with at least one log file.** |
 
 Every UI test is tagged `[TestCategory("Ui")]` and `[TestCategory("RequiresDevice")]`
 so it never runs as part of the unit gate.
@@ -111,8 +112,8 @@ init. Production (Release) is always elevated, so its `%ProgramData%` paths are 
   exe in test mode, waits for the main window, exposes reusable helpers, and on failure
   captures a screenshot + the NLog log into the test output. All scenario classes inherit it.
 - **Scenario classes** — `AddDeviceTests`, `ConfigureLoggingTests`, `LoggingSessionTests`,
-  `LaunchSmokeTests`. Each is independent; setup connects/configures fresh, teardown closes
-  the app.
+  `SdCardLoggingTests`, `SdCardImportTests`, `LaunchSmokeTests`. Each is independent; setup
+  connects/configures fresh, teardown closes the app.
 - **Assertions are black-box**: visible UI state (via UI Automation) plus the NLog log file
   (`...\DAQiFi\Logs\DAQifiAppLog.log` — under `%LOCALAPPDATA%` in test mode, `%ProgramData%`
   for elevated production runs; the fixture probes both). **Do not** reference app internals
@@ -140,8 +141,9 @@ IDs are added only on the controls the scenarios touch. The panes are the
 | Logged-session list | `LoggedSessionList` | `View/Prototype/LoggedDataPanePrototype.xaml` |
 | Logging-mode selector (device drawer) | `LoggingModeStreamToApp` / `LoggingModeLogToDevice` | `View/Prototype/DevicesPanePrototype.xaml` |
 | SD-card data-format selector (visible only in Log-to-Device mode) | `SdCardFormatSelector` | `View/Prototype/DevicesPanePrototype.xaml` |
-| Logged Data → DEVICE LOGS sub-tab | `DeviceLogsTab` | `View/Prototype/LoggedDataPanePrototype.xaml` |
+| Logged Data → APP LOGS / DEVICE LOGS sub-tabs | `AppLogsTab` / `DeviceLogsTab` | `View/Prototype/LoggedDataPanePrototype.xaml` |
 | SD refresh button / status line / file list | `RefreshSdCardFilesButton` / `SdCardStatusText` / `SdCardFileList` | `View/DeviceLogsView.xaml` |
+| Per-row SD file IMPORT button | `ImportSdCardFileButton` | `View/DeviceLogsView.xaml` |
 
 ---
 
@@ -223,6 +225,28 @@ why.
     signal — `SetLoggingMode` waits for the `SdCardFormatSelector` (rendered only while
     `Shell.IsLogToDeviceMode` is true), not the radio’s own checked state, which `Select()` sets
     directly regardless of whether the command ran.
+
+13. **The Logged Data pane's two sub-tabs are mutually exclusive in the UIA tree.** APP LOGS
+    (`AppLogsTab`, the default — hosts `LoggedSessionList`) and DEVICE LOGS (`DeviceLogsTab` —
+    hosts the SD card browser: `SdCardFileList`, `RefreshSdCardFilesButton`, the per-row
+    `ImportSdCardFileButton`) each bind their content's `Visibility` to their radio's
+    `IsChecked`. A `Collapsed` subtree is absent from the UIA tree, so **only the selected
+    sub-tab's content is reachable**. After working on DEVICE LOGS (e.g. importing a file) you
+    must switch back to APP LOGS before reading `LoggedSessionList` — `GetLoggedSessionCount`
+    now does this via `SelectAppLogsSubTab` so it is robust regardless of the prior sub-tab.
+    Both sub-tab radios are driven by `IsChecked` (no bound `Command`), so the SelectionItem
+    pattern switches them reliably (cf. gotcha #12).
+
+14. **MahApps `ShowMessageAsync` dialogs are NOT suppressed in test mode.** The test-mode
+    no-op message box (`NoOpMessageBoxService`) only covers the firewall-warning path; the
+    in-window metro dialog the import view-model shows on completion ("Import Complete" /
+    "Import Failed") still appears and **blocks the import `Task` until dismissed**. It is
+    hosted inside the `MetroWindow` (not a top-level window), so its single affirmative button
+    (default text **"OK"**) is reachable as a `Button` descendant of `MainWindow` — invoke it
+    to dismiss (`WaitAndDismissImportDialog`). The imported `LoggingSession` is added to
+    `LoggingManager.LoggingSessions` *before* the dialog, so the new `LoggedSessionList` row is
+    already present even while the dialog is up; still dismiss it so later navigation isn't
+    blocked by the overlay.
 
 ---
 

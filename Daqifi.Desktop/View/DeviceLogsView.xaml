@@ -553,6 +553,7 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <Button Style="{StaticResource PillButton}"
+                                            AutomationProperties.AutomationId="ImportSdCardFileButton"
                                             Command="{Binding DataContext.ImportFileCommand, ElementName=DeviceFilesList}"
                                             CommandParameter="{Binding}"
                                             HorizontalAlignment="Left"
