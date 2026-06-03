@@ -6,6 +6,7 @@ using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -24,6 +25,38 @@ public partial class PlotLogger : ObservableObject, ILogger
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = [];
     private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = [];
     private readonly TimestampGapDetector _gapDetector = new();
+    private string _plotStatsSummary = EmptyPlotStatsSummary;
+    #endregion
+
+    #region Plot-stats UIA hook
+    // Ground-truth summary of what the live plot is rendering, surfaced as a single
+    // machine-readable string so an out-of-process UI test can assert the plot is showing
+    // believable data while streaming (issue #560). OxyPlot draws every point to one canvas
+    // and exposes no per-point UI Automation elements, so the harness cannot walk the tree
+    // for points; this property is bound to an (invisible) UIA element's Name in
+    // LiveGraphPane.xaml, mirroring the LoggingStatusText hook. Format (invariant culture):
+    //   "series={count};points={n};nonfinite={n};last={y};min={y};max={y}"
+    // where series = PlotModel.Series.Count, points = real sample points across all series
+    // (gap markers excluded), nonfinite = real samples whose VALUE is NaN/Inf (expected 0),
+    // and last/min/max are the latest-in-time / extent sample values ("NaN" when no data).
+    private const string EmptyPlotStatsSummary =
+        "series=0;points=0;nonfinite=0;last=NaN;min=NaN;max=NaN";
+
+    /// <summary>
+    /// Machine-readable summary of the live plot's rendered content, updated about once a
+    /// second while streaming. Exposed for out-of-process UI automation (issue #560); not
+    /// shown to users. See the format note above.
+    /// </summary>
+    public string PlotStatsSummary
+    {
+        get => _plotStatsSummary;
+        private set
+        {
+            if (_plotStatsSummary == value) { return; }
+            _plotStatsSummary = value;
+            OnPropertyChanged();
+        }
+    }
     #endregion
 
     #region Properties
@@ -302,9 +335,84 @@ public partial class PlotLogger : ObservableObject, ILogger
                     }
                 }
                 PlotModel.InvalidatePlot(true); // This will redraw the plot with updated series visibility
+                UpdatePlotStatsSummary();
                 _lastUpdateMilliSeconds = _stopwatch.ElapsedMilliseconds;
             }
         }
+    }
+
+    /// <summary>
+    /// Recomputes <see cref="PlotStatsSummary"/> from the currently buffered points. Called
+    /// on the once-a-second render tick while holding <c>PlotModel.SyncRoot</c> (so the
+    /// per-channel point lists are not mutated mid-read by <see cref="Log(DataSample)"/>).
+    /// Gap markers are inserted as <c>DataPoint.Undefined</c> (NaN X); a real sample always
+    /// has a finite X (elapsed ms), so an NaN X distinguishes a gap from data and lets a
+    /// genuinely non-finite sample VALUE still be counted (nonfinite) rather than hidden.
+    /// Best-effort: a transient enumeration race with off-thread series creation
+    /// (<see cref="AddChannelSeries"/> adds a dictionary key outside the lock) is swallowed so
+    /// the render callback never throws; the summary simply keeps its previous value.
+    /// </summary>
+    private void UpdatePlotStatsSummary()
+    {
+        try
+        {
+            PlotStatsSummary = BuildPlotStatsSummary(PlotModel.Series.Count, LoggedPoints.Values);
+        }
+        catch (InvalidOperationException)
+        {
+            // LoggedPoints was modified (a new channel series was added off-thread) while we
+            // enumerated it. Skip this tick; the next one recomputes from a settled dictionary.
+        }
+    }
+
+    /// <summary>
+    /// Builds the <see cref="PlotStatsSummary"/> string from a series count and the per-series
+    /// point lists. Pure and side-effect-free so it can be unit-tested without a live PlotModel.
+    /// Gap markers (<c>DataPoint.Undefined</c>, i.e. NaN X) are excluded from the point count and
+    /// never mistaken for a non-finite sample value; <c>nonfinite</c> counts only real samples
+    /// (finite X) whose VALUE (Y) is NaN/Inf; <c>last</c> is the value at the greatest X seen.
+    /// </summary>
+    internal static string BuildPlotStatsSummary(int seriesCount, IEnumerable<List<DataPoint>> pointLists)
+    {
+        long points = 0;
+        long nonFinite = 0;
+        var min = double.NaN;
+        var max = double.NaN;
+        var last = double.NaN;
+        var lastX = double.NegativeInfinity;
+        var any = false;
+
+        foreach (var pointList in pointLists)
+        {
+            for (var i = 0; i < pointList.Count; i++)
+            {
+                var point = pointList[i];
+                if (double.IsNaN(point.X)) { continue; } // gap marker, not data
+
+                points++;
+
+                var y = point.Y;
+                if (double.IsNaN(y) || double.IsInfinity(y))
+                {
+                    nonFinite++;
+                    continue;
+                }
+
+                if (!any) { min = max = y; any = true; }
+                else
+                {
+                    if (y < min) { min = y; }
+                    if (y > max) { max = y; }
+                }
+
+                if (point.X >= lastX) { lastX = point.X; last = y; }
+            }
+        }
+
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "series={0};points={1};nonfinite={2};last={3:R};min={4:R};max={5:R}",
+            seriesCount, points, nonFinite, last, min, max);
     }
 
     public void ClearPlot()
@@ -315,6 +423,7 @@ public partial class PlotLogger : ObservableObject, ILogger
         PlotModel.Series.Clear();
         PlotModel.InvalidatePlot(true);
         FirstTime = null;
+        PlotStatsSummary = EmptyPlotStatsSummary;
         OnPropertyChanged(nameof(LoggedChannels));
         OnPropertyChanged(nameof(LoggedPoints));
         OnPropertyChanged(nameof(PlotModel));
