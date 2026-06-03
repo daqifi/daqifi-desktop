@@ -28,9 +28,10 @@ public class ProfilesTests : DaqifiAppFixture
     // The captured-then-reapplied frequency and the deliberately different "changed" frequency.
     // Both values are exercised by the other scenarios (100 Hz / 1000 Hz), so both are known to be
     // settable on the device; they are far apart so re-application is unambiguous.
-    private const double CapturedFrequencyHz = 100d;
-    private const double ChangedFrequencyHz = 1000d;
+    private const double CAPTURED_FREQUENCY_HZ = 100d;
+    private const double CHANGED_FREQUENCY_HZ = 1000d;
 
+    // static readonly (not const), so PascalCase per the existing RunPollTimeout precedent.
     private static readonly TimeSpan UiSettleTimeout = TimeSpan.FromSeconds(15);
     #endregion
 
@@ -44,7 +45,7 @@ public class ProfilesTests : DaqifiAppFixture
         ConnectFirstDevice(transport);
 
         // Configure a known state: a captured frequency + a set of active analog channels.
-        var capturedFrequency = SetSamplingFrequency(CapturedFrequencyHz);
+        var capturedFrequency = SetSamplingFrequency(CAPTURED_FREQUENCY_HZ);
         var capturedChannels = EnableAllAnalogChannels();
         Assert.IsTrue(
             capturedChannels > 0,
@@ -65,7 +66,7 @@ public class ProfilesTests : DaqifiAppFixture
         // Change the device configuration to something clearly different from the saved profile:
         // clear all channels (N -> 0) and set a different frequency.
         ClearAllChannels();
-        var changedFrequency = SetSamplingFrequency(ChangedFrequencyHz);
+        var changedFrequency = SetSamplingFrequency(CHANGED_FREQUENCY_HZ);
         Assert.AreNotEqual(
             capturedFrequency,
             changedFrequency,

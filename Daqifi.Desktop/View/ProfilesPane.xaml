@@ -386,6 +386,7 @@
                         <TextBlock FontSize="10" FontWeight="SemiBold"
                                    Foreground="{StaticResource StatusGreen}"
                                    VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="ActiveProfileIndicator"
                                    Margin="12,0,0,0">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">

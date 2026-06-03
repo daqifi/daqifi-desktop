@@ -192,6 +192,7 @@ suffix), also hosted by `MainWindow.xaml`.
 | New-profile drawer: CAPTURE FROM CURRENT SETTINGS / SAVE PROFILE | `SaveCurrentSettingsButton` / `SaveNewProfileButton` | `View/ProfilesPane.xaml` |
 | New-profile drawer: per-device select checkbox | `NewProfileDeviceCheckbox` | `View/ProfilesPane.xaml` |
 | Edit drawer: ACTIVATE/DEACTIVATE / DELETE PROFILE | `ActivateProfileButton` / `DeleteProfileButton` | `View/ProfilesPane.xaml` |
+| Profiles status-bar active indicator (present only while a profile is active) | `ActiveProfileIndicator` | `View/ProfilesPane.xaml` |
 
 ---
 
@@ -322,10 +323,12 @@ why.
     does not land from a background host (#6/#12), so activation/deletion is driven through the
     **edit drawer's** `ActivateProfileButton` / `DeleteProfileButton` — plain `Button`s whose
     `InvokePattern` raises a real click and runs the bound command. Open the drawer via the tile
-    gear first. **(c)** Deactivation is confirmed by the **status-bar `· {name} ACTIVE`
-    indicator** leaving the tree (a Visibility binding on the active-profile name), **not** by the
-    activate button's swapped label — that label is a DataTrigger content swap and may not surface
-    as a UIA name change (#8). Two more load-bearing facts: `IsProfileActive` is **not persisted**
+    gear first. **(c)** Deactivation is confirmed by the **status-bar active indicator**
+    (`ActiveProfileIndicator`) leaving the tree — its Visibility binds to the active-profile name,
+    so it is collapsed (and absent from UIA) when none is active. Look it up **by AutomationId**,
+    not by scanning the pane's text for "ACTIVE" (a profile *named* "…ACTIVE" would defeat a
+    substring scan), and **not** via the activate button's swapped label — that label is a
+    DataTrigger content swap and may not surface as a UIA name change (#8). Two more load-bearing facts: `IsProfileActive` is **not persisted**
     to the profiles XML, so a fresh launch has **no active profile** and single-profile activation
     takes the no-confirm path (`ActivateProfile` only prompts when switching *between* two active
     profiles); and **delete is blocked while any profile is active**, so the cleanup path must

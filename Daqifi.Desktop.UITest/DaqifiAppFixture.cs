@@ -121,10 +121,12 @@ public abstract class DaqifiAppFixture
     private const string ACTIVATE_PROFILE_BUTTON_ID = "ActivateProfileButton";
     private const string DELETE_PROFILE_BUTTON_ID = "DeleteProfileButton";
 
-    // "ACTIVE" appears on the Profiles pane only in the status-bar "· {name} ACTIVE" indicator
-    // (the activate button reads "ACTIVATE"/"DEACTIVATE", neither of which contains "ACTIVE"),
-    // so its presence is an independent profile-active signal used to confirm deactivation.
-    private const string PROFILE_ACTIVE_INDICATOR_TEXT = "ACTIVE";
+    // The Profiles status-bar "· {name} ACTIVE" indicator carries this AutomationId. Its
+    // Visibility binds to the active-profile name (collapsed, and so absent from the UIA tree,
+    // when none is active), so looking it up by id is a deterministic profile-active signal used
+    // to confirm deactivation — independent of any profile name text (a profile named "...ACTIVE"
+    // would defeat a substring scan).
+    private const string ACTIVE_PROFILE_INDICATOR_ID = "ActiveProfileIndicator";
 
     // Channels pane CLEAR ALL — used to move the device to a known-different state between
     // saving a profile and activating it, so the re-application is observable.
@@ -1718,23 +1720,13 @@ public abstract class DaqifiAppFixture
 
     /// <summary>
     /// True when the Profiles pane shows its "· {name} ACTIVE" status-bar indicator, i.e. some
-    /// profile is active. The indicator's Visibility binds to the active-profile name (collapsed,
-    /// and so absent from the UIA tree, when none is active), making its presence a reliable
-    /// signal. "ACTIVE" appears only here on the Profiles pane (the ACTIVATE/DEACTIVATE button
-    /// label contains "ACTIVATE"/"DEACTIVATE", neither of which contains the substring "ACTIVE").
+    /// profile is active. The indicator carries a dedicated AutomationId and its Visibility binds
+    /// to the active-profile name (collapsed, and so absent from the UIA tree, when none is
+    /// active), so an id lookup is a deterministic signal — unaffected by profile names (a profile
+    /// named "...ACTIVE" would defeat a substring scan of the pane's text).
     /// </summary>
-    private bool IsAnyProfileActiveIndicatorPresent()
-    {
-        foreach (var text in MainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)))
-        {
-            if ((text.Name ?? string.Empty).Contains(PROFILE_ACTIVE_INDICATOR_TEXT, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    private bool IsAnyProfileActiveIndicatorPresent() =>
+        MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(ACTIVE_PROFILE_INDICATOR_ID)) != null;
 
     /// <summary>
     /// Waits (polling) until the per-device sampling frequency flyout reads
