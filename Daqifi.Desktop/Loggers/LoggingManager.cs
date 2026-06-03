@@ -662,6 +662,12 @@ public partial class LoggingManager : ObservableObject
                 context.SaveChanges();
             }
 
+            // Surface the finalized count so a session end is observable out-of-process
+            // (the UI-test harness reads this line to learn the persisted sample count it
+            // then cross-checks against an exported CSV). All buffered samples are already
+            // flushed (WaitForIdle above), so this is the authoritative per-session total.
+            AppLogger.Information($"Persisted sample count {count} for session {session.ID}");
+
             // Marshal the in-memory mutation onto the UI thread so the
             // PropertyChanged notification fires on the dispatcher and WPF
             // bindings update safely.

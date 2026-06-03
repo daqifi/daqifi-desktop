@@ -5,7 +5,7 @@ Windows UI Automation tree) against a **physically attached device** (USB serial
 WiFi). It is the **integration gate** of the development loop — separate from the fast
 unit gate (`dotnet test` on the MSTest+Moq suites), which needs no hardware.
 
-It covers four end-to-end workflows plus a launch smoke test:
+It covers five end-to-end workflows plus a launch smoke test:
 
 | Test | What it verifies |
 |---|---|
@@ -14,6 +14,7 @@ It covers four end-to-end workflows plus a launch smoke test:
 | `ConfigureLoggingTests.ConfigureLogging_SetsFrequencyAndChannels` | Set sample frequency (device flyout) + enable analog channels; read both back |
 | `LoggingSessionTests.StartLoggingSession_RunsAndStops` | Start logging → data accrues (new session row) → stop |
 | `SdCardLoggingTests.SdCardLogging_LogsToSdCard_ThenImportsToSession` | Full SD lifecycle in one pass: switch to **Log to Device** (SD card) mode → run a session → a new file appears on the SD card (file count increased), confirming SD-card logging not a stream session → then **import that just-written file** (identified by diffing the file list — or a staged `error`-prefixed file when present, opportunistically guarding daqifi-core #195) and assert a new, non-empty `LoggingSession` appears in `LoggedSessionList`. The import is triangulated from the "Import Complete" dialog, the importer's `Imported N samples` log line (N&gt;0), and a +1 session delta. **USB only; needs an SD card.** |
+| `CsvExportTests.ExportLoggedSession_ProducesValidCsv` / `…ExportAllLoggedSessions_ProducesValidCsv` | Run a short logging session, then export it to CSV — once via the per-session **EXPORT** button and once via **EXPORT ALL** — through the `DAQIFI_TEST_EXPORT_PATH` hook (**no `SaveFileDialog`**, see below). Read the produced CSV back from disk (black box) and validate it: header is `Time` + one `Device:Serial:Channel` column per channel with no formula-injection prefix; every row has the header's field count (RFC 4180 consistency via a strict quote-aware parser); the time column parses as a round-trip timestamp and is non-decreasing; every value cell is a finite invariant-culture number; and the **value-cell count equals the session's persisted sample count** (each sample → one cell), proving no rows were dropped, duplicated, or corrupted. The sample count is read out-of-process from the app's `Persisted sample count N for session S` finalize log line. |
 
 Every UI test is tagged `[TestCategory("Ui")]` and `[TestCategory("RequiresDevice")]`
 so it never runs as part of the unit gate.
@@ -105,6 +106,40 @@ init. Production (Release) is always elevated, so its `%ProgramData%` paths are 
 
 ---
 
+## Dialog-free CSV export (`DAQIFI_TEST_EXPORT_PATH`)
+
+Logged-session export normally goes through a Win32 `SaveFileDialog`/`FolderBrowserDialog`,
+which is fragile to drive out-of-process from a background test host (gotcha #9). Rather than
+script the dialog, the app exposes a **test-mode export hook** at the same seam as
+`DAQIFI_TEST_MODE`:
+
+- **`AppDataPaths.TestExportPath`** reads the environment variable **`DAQIFI_TEST_EXPORT_PATH`**
+  once at startup. When it is set, `ExportLoggingSessionCommand` **and**
+  `ExportAllLoggingSessionCommand` (`DaqifiViewModel`) export **straight into that directory**
+  — one `{session}.csv` per session via `ExportDialogViewModel.ExportToDirectoryAsync` — and
+  **skip the file dialog entirely**. Both commands use the same seam, so single-session export
+  and "Export All" are equally dialog-free.
+- The hook directory is used for **both** export variants, so one env var covers both: a
+  single-session export still lands as `{session}.csv` inside it (the layout otherwise reserved
+  for multi-session export). The exporter and its default options (all samples, absolute time)
+  are unchanged — only the destination selection is bypassed.
+- When the variable is **unset** (every production run, and every scenario that doesn't opt in)
+  the interactive dialog behaviour is **completely unchanged**. It is impossible to trigger
+  accidentally in production because nothing sets the variable there.
+
+The fixture wires it per scenario: a test overrides `DaqifiAppFixture.ExportHookDirectory` to a
+fresh temp directory (`CsvExportTests` does this), which `Setup` passes to the child process as
+`DAQIFI_TEST_EXPORT_PATH`. The test then triggers export through the **real UI buttons**
+(`ExportSessionButton` per row / `ExportAllSessionsButton`) and reads the resulting CSV from
+that directory — zero modal interaction, fully deterministic.
+
+The companion oracle is the **`Persisted sample count N for session S`** log line the app
+writes when a session finalizes (`LoggingManager.PersistSessionSampleCount`, emitted after all
+buffered samples are flushed). The harness reads `N` from it and asserts the exported CSV holds
+exactly `N` value cells.
+
+---
+
 ## Architecture
 
 - **`DaqifiAppFixture`** — base fixture (`[TestInitialize]` / `[TestCleanup]`). Launches the
@@ -138,6 +173,8 @@ IDs are added only on the controls the scenarios touch. The panes are the
 | Channel list + “SELECT ALL” (analog) | `ChannelList` / `SelectAllAnalogChannels` | `View/Prototype/ChannelsPanePrototype.xaml` |
 | Logging toggle + status label | `StartLoggingToggle` / `LoggingStatusText` | `View/Prototype/LiveGraphPane.xaml` |
 | Logged-session list | `LoggedSessionList` | `View/Prototype/LoggedDataPanePrototype.xaml` |
+| Per-row session **EXPORT** button (one per row) | `ExportSessionButton` | `View/Prototype/LoggedDataPanePrototype.xaml` |
+| **EXPORT ALL** sessions button | `ExportAllSessionsButton` | `View/Prototype/LoggedDataPanePrototype.xaml` |
 | Logging-mode selector (device drawer) | `LoggingModeStreamToApp` / `LoggingModeLogToDevice` | `View/Prototype/DevicesPanePrototype.xaml` |
 | SD-card data-format selector (visible only in Log-to-Device mode) | `SdCardFormatSelector` | `View/Prototype/DevicesPanePrototype.xaml` |
 | Logged Data → APP LOGS / DEVICE LOGS sub-tabs | `AppLogsTab` / `DeviceLogsTab` | `View/Prototype/LoggedDataPanePrototype.xaml` |
@@ -247,6 +284,22 @@ why.
     `LoggingManager.LoggingSessions` *before* the dialog, so the new `LoggedSessionList` row is
     already present even while the dialog is up; still dismiss it so later navigation isn't
     blocked by the overlay.
+
+15. **Logged-session rows expose only their buttons to UIA — target a session by position, not
+    text.** Each `LoggedSessionList` row's template renders the session name/date/chips as
+    `TextBlock`s nested in non-control `Border`/`Grid`/`StackPanel` layout, and those `TextBlock`s
+    **do not surface as UIA descendants of the row** — a row's only reachable descendants are its
+    three action `Button`s (settings / `ExportSessionButton` / delete). So you cannot find a row by
+    reading its name. The list renders in **insertion order with no sort**, so the just-finalized
+    session is the **last** row; `CsvExportTests` invokes the last row's `ExportSessionButton` and
+    confirms which session it hit via the exported file name (`Session_{id}.csv`, from the finalize
+    log line). Relatedly, the list **disables UI virtualization in test mode only** — code-behind
+    calls `VirtualizingStackPanel.SetIsVirtualizing(SessionList, false)` when
+    `AppDataPaths.IsTestMode`. With virtualization on, an off-screen row (including the newest, at
+    the bottom of a long list) is absent from the UIA tree, so its `ExportSessionButton` is
+    unreachable by the harness. Production keeps virtualization **on** (the list grows unbounded
+    over a device's lifetime); screen readers realize rows on navigation, so the per-row
+    `AutomationProperties.Name` (bound to `LoggingSession.AccessibilitySummary`) still works there.
 
 ---
 

@@ -639,7 +639,11 @@
 
                 <!-- ── Session list ── -->
                 <Grid Grid.Row="2">
-                    <!-- Has sessions -->
+                    <!-- Has sessions. UI virtualization stays ON for production (this list grows
+                         unbounded over a device's lifetime); it is disabled only under the UI-test
+                         harness, from code-behind, so the harness can reach an off-screen row's
+                         per-session buttons by position. Screen readers realize rows on navigation
+                         either way, so the per-row AutomationProperties.Name still works. -->
                     <ListBox x:Name="SessionList"
                              AutomationProperties.AutomationId="LoggedSessionList"
                              ItemsSource="{Binding LoggingSessions}"
@@ -653,6 +657,10 @@
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                 <Setter Property="Padding" Value="0"/>
                                 <Setter Property="Margin" Value="0"/>
+                                <!-- Accessible name for the row: the templated name/date/sample
+                                     TextBlocks are not surfaced to UI Automation, so give the
+                                     container itself a spoken summary for screen readers. -->
+                                <Setter Property="AutomationProperties.Name" Value="{Binding AccessibilitySummary}"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
@@ -747,6 +755,7 @@
                                                                                         Foreground="{StaticResource TextTertiary}"/>
                                                         </Button>
                                                         <Button Style="{StaticResource TileIconButton}"
+                                                                AutomationProperties.AutomationId="ExportSessionButton"
                                                                 ToolTip="Export session"
                                                                 Command="{Binding DataContext.ExportLoggingSessionCommand, ElementName=Root}"
                                                                 CommandParameter="{Binding}">
@@ -838,6 +847,7 @@
                         <!-- Right: Export All + Delete All -->
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                             <Button Style="{StaticResource PillButton}"
+                                    AutomationProperties.AutomationId="ExportAllSessionsButton"
                                     Content="EXPORT ALL"
                                     Command="{Binding ExportAllLoggingSessionCommand}"
                                     ToolTip="Export all sessions"/>

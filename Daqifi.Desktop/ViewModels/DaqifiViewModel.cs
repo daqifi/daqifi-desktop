@@ -1316,7 +1316,7 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ExportLoggingSession(LoggingSession? session)
+    private async Task ExportLoggingSession(LoggingSession? session)
     {
         if (session == null)
         {
@@ -1326,11 +1326,21 @@ public partial class DaqifiViewModel : ObservableObject
 
         SelectedLoggingSession = session;
         var exportDialogViewModel = new ExportDialogViewModel(SelectedLoggingSession.ID);
+
+        // UI-test hook: when DAQIFI_TEST_EXPORT_PATH is set, export straight to that directory
+        // with no SaveFileDialog (mirrors DAQIFI_TEST_MODE / AppDataPaths). Unset in production,
+        // where the interactive dialog below is used unchanged.
+        if (Common.AppDataPaths.TestExportPath != null)
+        {
+            await exportDialogViewModel.ExportToDirectoryAsync(Common.AppDataPaths.TestExportPath);
+            return;
+        }
+
         _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
     }
 
     [RelayCommand(CanExecute = nameof(CanExportAllLoggingSession))]
-    private void ExportAllLoggingSession()
+    private async Task ExportAllLoggingSession()
     {
         if (LoggingSessions.Count == 0)
         {
@@ -1339,6 +1349,15 @@ public partial class DaqifiViewModel : ObservableObject
         }
 
         var exportDialogViewModel = new ExportDialogViewModel(LoggingSessions);
+
+        // UI-test hook: see ExportLoggingSession above. Same seam, so "Export All" is equally
+        // dialog-free and deterministic under automation when the env var is set.
+        if (Common.AppDataPaths.TestExportPath != null)
+        {
+            await exportDialogViewModel.ExportToDirectoryAsync(Common.AppDataPaths.TestExportPath);
+            return;
+        }
+
         _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
     }
 
