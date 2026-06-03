@@ -64,11 +64,21 @@ public class SdCardImportTests : DaqifiAppFixture
             $"but the importer reported {importedSampleCount} samples. An empty import means the " +
             "file had no parseable data (or the parser dropped every line).");
 
-        // Assert (out-of-process, log) — the device import path completed successfully.
+        // Assert (out-of-process, log) — the device import path completed successfully, and
+        // (when the row's file name was read) for the very file we selected. Tying the
+        // assertion to the chosen file name is the issue's "plausible" check: it confirms the
+        // new session corresponds to the imported file, not some other one. The importer logs
+        // "Successfully imported '{fileName}' from device", using the same FileName the row's
+        // NAME cell binds, so an exact match here also validates the row-name read. Falls back
+        // to the generic fragment if the name could not be read, keeping the gate robust.
+        var successFragment = string.IsNullOrEmpty(importedFile)
+            ? "Successfully imported"
+            : $"Successfully imported '{importedFile}'";
         Assert.IsTrue(
-            WaitForLogContains("Successfully imported", TimeSpan.FromSeconds(10)),
-            "Expected a 'Successfully imported ... from device' log line after the import, but " +
-            "none appeared. The download or parse likely failed.");
+            WaitForLogContains(successFragment, TimeSpan.FromSeconds(10)),
+            $"Expected a \"{successFragment} ... from device\" log line after the import, but " +
+            "none appeared. The download/parse failed, or a different file was imported than the " +
+            "one selected.");
 
         // Assert (out-of-process, UI) — a new row appears in the logged-session list. The
         // import adds the session to LoggingManager.LoggingSessions on the UI thread, so the
