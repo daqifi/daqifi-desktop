@@ -940,8 +940,10 @@ public abstract class DaqifiAppFixture
             throwOnTimeout: true,
             ignoreException: true,
             timeoutMessage:
-                $"Logged-session count did not return to {expected} within {timeout.TotalSeconds}s " +
-                $"(last read {GetLoggedSessionCount()}).");
+                // Note: do NOT re-read the count here — the message is built eagerly on every call,
+                // so an interpolated GetLoggedSessionCount() would add a UI read (that could itself
+                // throw, outside ignoreException) and report the entry count, not the timeout count.
+                $"Logged-session count did not return to {expected} within {timeout.TotalSeconds}s.");
     }
 
     /// <summary>
@@ -1013,14 +1015,19 @@ public abstract class DaqifiAppFixture
         button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
         button.Invoke();
 
-        // Wait for the overlay to close (its affirmative button leaves the UIA tree) so the scrim
-        // no longer blocks later navigation/reads.
+        // Require the overlay to actually close (its affirmative button leaves the UIA tree).
+        // Fail if it does not: a lingering overlay means its blocking scrim is still up, so any
+        // later navigation/read would be unreliable — better to fail here, precisely, than to
+        // proceed against a blocked UI and surface a confusing downstream failure.
         Retry.WhileFalse(
             () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(CONFIRM_AFFIRMATIVE_BUTTON_ID)) == null,
             timeout: TimeSpan.FromSeconds(15),
             interval: TimeSpan.FromMilliseconds(300),
-            throwOnTimeout: false,
-            ignoreException: true);
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                "The in-pane confirm overlay did not close after invoking its affirmative button; " +
+                "its blocking scrim is still present, so the confirm command may not have run.");
     }
     #endregion
 

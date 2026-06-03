@@ -106,11 +106,11 @@ public class LoggingSessionTests : DaqifiAppFixture
         // pre-run baseline instead of leaking one session per run.
         DeleteNewestLoggedSession();
 
-        // Assert (out-of-process) — the row is gone and the count returns to the pre-run
-        // baseline. The production delete path removes the session from the bound
-        // LoggingSessions collection ONLY after DbLogger.DeleteLoggingSession succeeds (the
-        // removal is gated on the DB delete not throwing), so the count returning to baseline is
-        // proof the session left the DB, not merely the view.
+        // Assert (out-of-process) — the row is gone and the count returns to the pre-run baseline.
+        // This proves the session left the bound LoggingSessions collection (the view). It is NOT,
+        // by itself, DB-level proof: DbLogger.DeleteLoggingSession swallows its own exceptions (logs
+        // and does not rethrow), so the view-model removes the row even if the SQL delete failed.
+        // DB-level deletion is asserted separately, from the app's log lines, just below.
         WaitForExactLoggedSessionCount(sessionsBefore, TimeSpan.FromSeconds(20));
         var sessionsAfterDelete = GetLoggedSessionCount();
         Assert.AreEqual(
@@ -118,9 +118,11 @@ public class LoggingSessionTests : DaqifiAppFixture
             $"Expected the logged-session count to return to its baseline ({sessionsBefore}) " +
             $"after deleting the session created during this run, but it was {sessionsAfterDelete}.");
 
-        // Corroborate at the DB layer via the app's own NLog lines (black box): the SQLite delete
-        // transaction ran to completion (DatabaseLogger.DeleteLoggingSession logs this in its
-        // finally) and reported no failure.
+        // DB-level proof (black box, via the app's own NLog lines). DeleteLoggingSession runs the
+        // SQL DELETEs inside a transaction: it logs "DeleteLoggingSession completed" in its finally
+        // (so its presence confirms the delete actually ran), and logs "Failed in
+        // DeleteLoggingSession" only if the transaction threw (so its absence confirms the delete
+        // committed). Together — completed present, failed absent — the rows really left the DB.
         Assert.IsTrue(
             WaitForLogContains("DeleteLoggingSession completed", TimeSpan.FromSeconds(10)),
             "The app never logged 'DeleteLoggingSession completed', so the DB-level delete did not run.");
