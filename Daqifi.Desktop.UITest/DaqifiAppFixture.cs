@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
@@ -51,6 +52,13 @@ public abstract class DaqifiAppFixture
     private const string LOGGING_STATUS_TEXT_ID = "LoggingStatusText";
     private const string LOGGED_SESSION_LIST_ID = "LoggedSessionList";
 
+    // The Logged Data pane hosts two mutually-exclusive sub-tabs: APP LOGS (default,
+    // showing the logged-session list) and DEVICE LOGS (showing the SD card browser).
+    // Each sub-tab's content binds Visibility to its radio's IsChecked, so only the
+    // selected sub-tab's content is in the UIA tree. Switching back to APP LOGS is
+    // required before reading LoggedSessionList after working on the DEVICE LOGS sub-tab.
+    private const string APP_LOGS_TAB_ID = "AppLogsTab";
+
     // AutomationIds for SD-card logging mode. The logging-mode selector lives in the
     // per-device settings drawer (gear icon); the SD-card DATA FORMAT selector is
     // rendered there only while in "Log to Device" mode, so its presence is an
@@ -63,6 +71,22 @@ public abstract class DaqifiAppFixture
     private const string REFRESH_SDCARD_FILES_BUTTON_ID = "RefreshSdCardFilesButton";
     private const string SDCARD_STATUS_TEXT_ID = "SdCardStatusText";
     private const string SDCARD_FILE_LIST_ID = "SdCardFileList";
+
+    // The per-row IMPORT button inside each SD card file row. Every realized row carries
+    // the same id (it is in a GridView cell template), so a row-scoped search targets a
+    // specific file; CommandParameter binds each button to its own row's SdCardFile.
+    private const string IMPORT_SDCARD_FILE_BUTTON_ID = "ImportSdCardFileButton";
+
+    // The file-name TextBlock in each SD card file row's NAME cell. A dedicated id lets the
+    // harness read the file name deterministically rather than guessing from text order (the
+    // row also contains the CREATED/FORMAT cells and the IMPORT button's "IMPORT" label).
+    private const string SDCARD_FILE_NAME_TEXT_ID = "SdCardFileNameText";
+
+    // The view-model shows a MahApps metro dialog after an import completes. It is hosted
+    // inside the MetroWindow (not a separate top-level window) with a single affirmative
+    // button whose default text is "OK"; the title reports success or failure.
+    private const string IMPORT_DIALOG_OK_BUTTON_TEXT = "OK";
+    private const string IMPORT_FAILED_TITLE = "Import Failed";
 
     private const string LOGGING_ON_TEXT = "LOGGING ON";
     private const string LOGGING_OFF_TEXT = "LOGGING OFF";
@@ -733,6 +757,9 @@ public abstract class DaqifiAppFixture
     protected int GetLoggedSessionCount()
     {
         NavigateToTab(LOGGED_DATA_TAB_TEXT);
+        // The session list lives on the APP LOGS sub-tab; ensure it is selected so the
+        // list is realized in the UIA tree even if a prior step left DEVICE LOGS active.
+        SelectAppLogsSubTab();
         var list = Retry.WhileNull(
             () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(LOGGED_SESSION_LIST_ID)),
             timeout: TimeSpan.FromSeconds(15),
@@ -741,6 +768,36 @@ public abstract class DaqifiAppFixture
             timeoutMessage: "Logged-session list not found on the Logged Data pane.").Result!;
 
         return list.AsListBox().Items.Length;
+    }
+
+    /// <summary>
+    /// Selects the APP LOGS sub-tab on the Logged Data pane (the default) and waits for
+    /// the logged-session list to realize. The sub-tab is a RadioButton whose checked
+    /// state drives the content's visibility directly (ElementName binding, no command),
+    /// so the UIA SelectionItem pattern switches it reliably. Selecting it also unchecks
+    /// the sibling DEVICE LOGS tab, collapsing the SD browser out of the UIA tree.
+    /// </summary>
+    private void SelectAppLogsSubTab()
+    {
+        var tab = FindByAutomationId(APP_LOGS_TAB_ID).AsRadioButton();
+        Retry.WhileFalse(
+            () =>
+            {
+                if (!tab.IsChecked)
+                {
+                    tab.IsChecked = true;
+                }
+
+                return tab.IsChecked;
+            },
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "APP LOGS sub-tab could not be selected on the Logged Data pane.");
+
+        // The session list only exists once the APP LOGS content is realized/visible.
+        FindByAutomationId(LOGGED_SESSION_LIST_ID);
     }
 
     /// <summary>
@@ -989,6 +1046,245 @@ public abstract class DaqifiAppFixture
         var refresh = FindByAutomationId(REFRESH_SDCARD_FILES_BUTTON_ID).AsButton();
         refresh.WaitUntilEnabled(TimeSpan.FromSeconds(10));
         refresh.Invoke();
+    }
+    #endregion
+
+    #region SD-Card Import Helpers
+    /// <summary>
+    /// Imports a single SD card log file through the DEVICE LOGS sub-tab and returns the
+    /// imported file's name (as read from its row). Selects the DEVICE LOGS sub-tab, waits
+    /// for the file rows to realize, picks a target row — the file named
+    /// <paramref name="targetFileName"/> when given (e.g. the file a logging run just
+    /// wrote), otherwise the first file — selects it, invokes its per-row IMPORT button,
+    /// then waits for and dismisses the completion dialog. Fails the test if the app reports
+    /// an import failure.
+    /// </summary>
+    /// <param name="targetFileName">
+    /// Exact name of the file to import; pass null/empty to import the first file. When the
+    /// named file is not present in the list, falls back to the first file.
+    /// </param>
+    /// <param name="importTimeout">How long to allow the download/parse to complete.</param>
+    /// <returns>The name of the file that was imported (empty if it could not be read).</returns>
+    protected string ImportSdCardFile(string? targetFileName = null, TimeSpan? importTimeout = null)
+    {
+        NavigateToTab(LOGGED_DATA_TAB_TEXT);
+        SelectDeviceLogsSubTab();
+
+        var list = FindByAutomationId(SDCARD_FILE_LIST_ID, timeoutSeconds: 20);
+        var listBox = list.AsListBox();
+
+        // The file list is collapsed (absent from the UIA tree) until HasFiles is true, so
+        // a realized list with rows means the device reported at least one SD log file.
+        Retry.WhileEmpty(
+            () => listBox.Items,
+            timeout: TimeSpan.FromSeconds(20),
+            interval: TimeSpan.FromMilliseconds(400),
+            throwOnTimeout: true,
+            timeoutMessage:
+                "The SD card file list is realized but no file rows appeared. The device " +
+                "may have no log files on its SD card; stage at least one and re-run.");
+
+        var rows = listBox.Items;
+
+        // Default to the first file; when a target name is given, import that exact file.
+        var target = rows[0];
+        var targetName = ReadSdCardFileRowName(rows[0]);
+        if (!string.IsNullOrEmpty(targetFileName))
+        {
+            foreach (var row in rows)
+            {
+                var name = ReadSdCardFileRowName(row);
+                if (string.Equals(name, targetFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    target = row;
+                    targetName = name;
+                    break;
+                }
+            }
+        }
+
+        // Select the row (faithful to "select a file and import it"); the per-row button's
+        // CommandParameter binds to its own row regardless, so this is belt-and-suspenders.
+        try
+        {
+            target.Patterns.SelectionItem.Pattern.Select();
+        }
+        catch (Exception ex)
+        {
+            // Selection is optional (the IMPORT button targets its own row via
+            // CommandParameter); surface it for diagnostics rather than failing the import.
+            TestContext?.WriteLine($"SD file row selection skipped: {ex.Message}");
+        }
+
+        // Invoke the row's IMPORT button. A plain Button's InvokePattern raises a real
+        // click (OnClick), so its bound ImportFileCommand runs — unlike the check controls
+        // in gotcha #12. Scope to the row first so a specific file is targeted; fall back
+        // to the first matching button anywhere in the list.
+        var importButton = Retry.WhileNull(
+            () => target.FindFirstDescendant(cf => cf.ByAutomationId(IMPORT_SDCARD_FILE_BUTTON_ID))
+                  ?? MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(IMPORT_SDCARD_FILE_BUTTON_ID)),
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "IMPORT button not found for the selected SD card file row.").Result!;
+
+        var button = importButton.AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+
+        WaitAndDismissImportDialog(importTimeout ?? TimeSpan.FromSeconds(120));
+
+        return targetName;
+    }
+
+    /// <summary>
+    /// Reads the file name shown in an SD card file row by returning the first non-empty
+    /// Text descendant. The NAME column is the first cell in the row's GridView template,
+    /// so the first realized text element is the file name.
+    /// </summary>
+    private static string ReadSdCardFileRowName(AutomationElement row)
+    {
+        // Prefer the dedicated NAME-cell id so other text in the row — the CREATED/FORMAT
+        // cells and the IMPORT button's "IMPORT" label — can never be mistaken for the file
+        // name (UIA descendant enumeration order is not a guaranteed contract).
+        var nameCell = row.FindFirstDescendant(cf => cf.ByAutomationId(SDCARD_FILE_NAME_TEXT_ID));
+        if (nameCell != null && !string.IsNullOrWhiteSpace(nameCell.Name))
+        {
+            return nameCell.Name.Trim();
+        }
+
+        // Fallback: the first non-empty Text descendant (NAME is the first cell in the row).
+        foreach (var text in row.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)))
+        {
+            var name = text.Name;
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name.Trim();
+            }
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// Reads the file names currently shown in the SD card file list, or an empty list when
+    /// no files are present (the list is collapsed and absent from the UIA tree then).
+    /// Assumes the DEVICE LOGS sub-tab is selected and a refresh has already settled — call
+    /// it right after <see cref="GetSdCardFileCount"/> / <see cref="WaitForSdCardFileCountAbove"/>.
+    /// Used to identify the file a logging run just wrote (the name in "after" but not "before").
+    /// </summary>
+    protected IReadOnlyList<string> ReadSdCardFileNames()
+    {
+        var list = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(SDCARD_FILE_LIST_ID));
+        if (list == null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var names = new List<string>();
+        foreach (var row in list.AsListBox().Items)
+        {
+            var name = ReadSdCardFileRowName(row);
+            if (!string.IsNullOrEmpty(name))
+            {
+                names.Add(name);
+            }
+        }
+
+        return names;
+    }
+
+    /// <summary>
+    /// Waits for the post-import MahApps dialog (hosted inside the MetroWindow) and
+    /// dismisses it via its "OK" affirmative button. Detects the "Import Failed" title
+    /// before dismissing and fails the test if present, so a failed import surfaces with a
+    /// clear message rather than only as a missing session later.
+    /// </summary>
+    private void WaitAndDismissImportDialog(TimeSpan timeout)
+    {
+        var ok = Retry.WhileNull(
+            () => FindDialogButtonByName(IMPORT_DIALOG_OK_BUTTON_TEXT),
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(400),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                "The SD card import did not complete: no completion dialog appeared within " +
+                $"{timeout.TotalSeconds:N0}s. The download/parse may have hung or the device " +
+                "may have disconnected.").Result!;
+
+        var failed = MainWindow.FindFirstDescendant(
+            cf => cf.ByControlType(ControlType.Text).And(cf.ByName(IMPORT_FAILED_TITLE))) != null;
+
+        ok.AsButton().Invoke();
+
+        // Wait for the dialog to close so the overlay no longer blocks later navigation.
+        Retry.WhileFalse(
+            () => FindDialogButtonByName(IMPORT_DIALOG_OK_BUTTON_TEXT) == null,
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: false,
+            ignoreException: true);
+
+        if (failed)
+        {
+            Assert.Fail(
+                "SD card import reported failure: the app showed its 'Import Failed' dialog. " +
+                "See the captured app log for the underlying exception.");
+        }
+    }
+
+    /// <summary>Finds a Button descendant of the main window whose Name matches (ignoring case).</summary>
+    private AutomationElement? FindDialogButtonByName(string name)
+    {
+        foreach (var button in MainWindow.FindAllDescendants(cf => cf.ByControlType(ControlType.Button)))
+        {
+            if (string.Equals(button.Name?.Trim(), name, StringComparison.OrdinalIgnoreCase))
+            {
+                return button;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Polls the app log for the importer's "Imported N samples for session" line and
+    /// returns the largest N seen since the fixture started, or -1 if none. A positive
+    /// value is out-of-process proof the imported session holds real sample data.
+    /// </summary>
+    protected int WaitForImportedSampleCount(TimeSpan timeout)
+    {
+        var count = -1;
+        Retry.WhileFalse(
+            () =>
+            {
+                count = ReadMaxImportedSampleCount();
+                return count >= 0;
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: false);
+        return count;
+    }
+
+    /// <summary>Parses the maximum "Imported N samples for session" count from new log text (-1 if none).</summary>
+    private int ReadMaxImportedSampleCount()
+    {
+        var matches = System.Text.RegularExpressions.Regex.Matches(
+            ReadNewLogText(), @"Imported (\d+) samples for session");
+        var max = -1;
+        foreach (System.Text.RegularExpressions.Match match in matches)
+        {
+            var value = int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            if (value > max)
+            {
+                max = value;
+            }
+        }
+
+        return max;
     }
     #endregion
 

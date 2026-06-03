@@ -513,6 +513,7 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding FileName}"
+                                               AutomationProperties.AutomationId="SdCardFileNameText"
                                                FontFamily="Consolas"
                                                FontSize="13"
                                                Foreground="{StaticResource TextPrimary}"
@@ -553,6 +554,7 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <Button Style="{StaticResource PillButton}"
+                                            AutomationProperties.AutomationId="ImportSdCardFileButton"
                                             Command="{Binding DataContext.ImportFileCommand, ElementName=DeviceFilesList}"
                                             CommandParameter="{Binding}"
                                             HorizontalAlignment="Left"

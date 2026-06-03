@@ -220,6 +220,7 @@
                             Margin="0,8,0,8">
                         <StackPanel Orientation="Horizontal">
                             <RadioButton x:Name="AppLogsTab"
+                                         AutomationProperties.AutomationId="AppLogsTab"
                                          GroupName="LoggedDataTab"
                                          IsChecked="True"
                                          Content="APP LOGS"
