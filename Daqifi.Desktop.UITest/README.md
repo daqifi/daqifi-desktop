@@ -12,7 +12,7 @@ It covers six end-to-end workflows plus a launch smoke test:
 | `LaunchSmokeTests.Launch_MainWindowAppears_AndIsResponsive` | App launches with no prompts; main window appears and is responsive |
 | `AddDeviceTests.AddDevice_ConnectsToAttachedDevice` | Open connection dialog → discover → connect; device shows in connected list |
 | `ConfigureLoggingTests.ConfigureLogging_SetsFrequencyAndChannels` | Set sample frequency (device flyout) + enable analog channels; read both back |
-| `LoggingSessionTests.StartLoggingSession_RunsAndStops` | Start logging → data accrues (new session row) → stop |
+| `LoggingSessionTests.StartLoggingSession_RunsStopsAndDeletesSession` | Start logging → data accrues (new session row) → stop → **delete that session** (issue #557) via its per-row trash action, accepting the dark **in-pane confirm overlay**. Asserts the row is gone and the session count returns to its pre-run baseline — proof it left the DB, not just the view (the app removes it from the bound collection only *after* the SQLite delete commits) — corroborated by the `DeleteLoggingSession completed` log line with no `Failed in DeleteLoggingSession`. Leaves the test-mode DB self-cleaned (no per-run session leak). |
 | `SdCardLoggingTests.SdCardLogging_LogsToSdCard_ThenImportsToSession` | Full SD lifecycle in one pass: switch to **Log to Device** (SD card) mode → run a session → a new file appears on the SD card (file count increased), confirming SD-card logging not a stream session → then **import that just-written file** (identified by diffing the file list — or a staged `error`-prefixed file when present, opportunistically guarding daqifi-core #195) and assert a new, non-empty `LoggingSession` appears in `LoggedSessionList`. The import is triangulated from the "Import Complete" dialog, the importer's `Imported N samples` log line (N&gt;0), and a +1 session delta. **USB only; needs an SD card.** |
 | `CsvExportTests.ExportLoggedSession_ProducesValidCsv` / `…ExportAllLoggedSessions_ProducesValidCsv` | Run a short logging session, then export it to CSV — once via the per-session **EXPORT** button and once via **EXPORT ALL** — through the `DAQIFI_TEST_EXPORT_PATH` hook (**no `SaveFileDialog`**, see below). Read the produced CSV back from disk (black box) and validate it: header is `Time` + one `Device:Serial:Channel` column per channel with no formula-injection prefix; every row has the header's field count (RFC 4180 consistency via a strict quote-aware parser); the time column parses as a round-trip timestamp and is non-decreasing; every value cell is a finite invariant-culture number; and the **value-cell count equals the session's persisted sample count** (each sample → one cell), proving no rows were dropped, duplicated, or corrupted. The sample count is read out-of-process from the app's `Persisted sample count N for session S` finalize log line. |
 | `ProfilesTests.SaveActivateDelete_ProfileRoundTrips` / `…CreateProfileViaForm_AppearsAndDeletes` | Full **Profiles** lifecycle. Configure a known state (set a frequency + enable analog channels), **save** it as a profile — once by capturing the live device settings (`SaveCurrentSettingsCommand`) and once via the new-profile form (`SaveNewProfileCommand`) — and assert it appears in the list. Then change the device config to something different (clear channels, set a different frequency), **activate** the saved profile (`ActivateProfileCommand`), and assert the captured **channel + frequency intent is re-applied to the device** — verified through the Channels pane `n / N ACTIVE` ground-truth indicator and the per-device frequency flyout (0 → N active; changed-Hz → captured-Hz). Finally **delete** the profile (`DeleteProfileCommand`) and assert the list returns to its original membership. Each test records the profile count up-front and removes any profile it creates (asserts membership before/after via deltas). A fresh launch never has an active profile (`IsProfileActive` is not persisted to XML), so single-profile activation takes the no-confirm path. **USB or WiFi.** |
@@ -178,7 +178,9 @@ suffix), also hosted by `MainWindow.xaml`.
 | Logging toggle + status label | `StartLoggingToggle` / `LoggingStatusText` | `View/Prototype/LiveGraphPane.xaml` |
 | Logged-session list | `LoggedSessionList` | `View/Prototype/LoggedDataPanePrototype.xaml` |
 | Per-row session **EXPORT** button (one per row) | `ExportSessionButton` | `View/Prototype/LoggedDataPanePrototype.xaml` |
+| Per-row session **DELETE** button (one per row) | `DeleteSessionButton` | `View/Prototype/LoggedDataPanePrototype.xaml` |
 | **EXPORT ALL** sessions button | `ExportAllSessionsButton` | `View/Prototype/LoggedDataPanePrototype.xaml` |
+| In-pane confirm overlay **affirmative** button (e.g. "DELETE"; both accent/danger variants share the id — only the visible one is in the tree) | `ConfirmAffirmativeButton` | `View/Prototype/LoggedDataPanePrototype.xaml` |
 | Logging-mode selector (device drawer) | `LoggingModeStreamToApp` / `LoggingModeLogToDevice` | `View/Prototype/DevicesPanePrototype.xaml` |
 | SD-card data-format selector (visible only in Log-to-Device mode) | `SdCardFormatSelector` | `View/Prototype/DevicesPanePrototype.xaml` |
 | Logged Data → APP LOGS / DEVICE LOGS sub-tabs | `AppLogsTab` / `DeviceLogsTab` | `View/Prototype/LoggedDataPanePrototype.xaml` |
@@ -334,6 +336,20 @@ why.
     profiles); and **delete is blocked while any profile is active**, so the cleanup path must
     deactivate before deleting. Frequency lives in the per-device flyout, not the profile drawer
     (#5) — the profile only *captures and re-applies* it.
+
+17. **Destructive confirmations use a dark *in-pane* overlay, not a MahApps modal.** Delete actions
+    (the per-row session delete, "Delete All") route through `DaqifiViewModel.ShowConfirm`, which
+    drives an in-window confirm card (`IsConfirmOpen` + `ConfirmAffirmativeCommand`) — **not**
+    `ShowMessageAsync` (cf. #14, which still applies to the SD-import completion dialog). Its
+    affirmative button carries `AutomationProperties.AutomationId="ConfirmAffirmativeButton"` on
+    **both** style variants (accent for non-destructive, danger/red for destructive); their
+    `Visibility` binds to `ConfirmAffirmativeIsDestructive`, and a `Collapsed` subtree is absent from
+    the UIA tree, so an id lookup returns whichever is currently shown. The card is a plain `Button`,
+    so `InvokePattern` raises a real click and runs the bound command (cf. #12). `ConfirmInPaneDialog`
+    invokes it and then waits for the overlay to leave the tree so its scrim no longer blocks later
+    navigation/reads. The just-deleted session leaves the bound `LoggingSessions` collection only
+    after `DbLogger.DeleteLoggingSession` commits, so a session count returning to baseline is an
+    out-of-process proof the row left the DB (not merely the view).
 
 ---
 

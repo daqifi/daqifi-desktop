@@ -56,6 +56,15 @@ public abstract class DaqifiAppFixture
     private const string LOGGING_STATUS_TEXT_ID = "LoggingStatusText";
     private const string LOGGED_SESSION_LIST_ID = "LoggedSessionList";
 
+    // Per-row DELETE button (one per session row, like ExportSessionButton — it is in the item
+    // template, so a row-scoped search targets that one row) and the affirmative button of the
+    // app's in-pane confirm overlay. That overlay is the dark, in-window card the app shows for
+    // destructive confirmations (delete) instead of a MahApps modal; both its accent/danger style
+    // variants carry the same id and only the visible one is in the UIA tree, so an id lookup
+    // returns whichever is shown. Used by the log-then-delete path.
+    private const string DELETE_SESSION_BUTTON_ID = "DeleteSessionButton";
+    private const string CONFIRM_AFFIRMATIVE_BUTTON_ID = "ConfirmAffirmativeButton";
+
     // CSV-export controls on the Logged Data pane's APP LOGS sub-tab. The per-row export button
     // and the EXPORT ALL button drive the two dialog-free export paths through the
     // DAQIFI_TEST_EXPORT_PATH hook. Every session row carries the same per-row id (it is in the
@@ -914,6 +923,104 @@ public abstract class DaqifiAppFixture
             throwOnTimeout: true,
             timeoutMessage:
                 $"Expected at least {minimum} logged-session row(s) but found fewer within {timeout.TotalSeconds}s.");
+    }
+
+    /// <summary>
+    /// Waits (polling) until the Logged Data pane holds exactly <paramref name="expected"/>
+    /// session rows. Unlike <see cref="WaitForLoggedSessionCount"/> (a &gt;= minimum used to prove
+    /// a session was created), this waits for an exact value — used after a delete to confirm the
+    /// count returns to its pre-run baseline.
+    /// </summary>
+    protected void WaitForExactLoggedSessionCount(int expected, TimeSpan timeout)
+    {
+        Retry.WhileFalse(
+            () => GetLoggedSessionCount() == expected,
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(400),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"Logged-session count did not return to {expected} within {timeout.TotalSeconds}s " +
+                $"(last read {GetLoggedSessionCount()}).");
+    }
+
+    /// <summary>
+    /// Deletes the most-recently-created logged session via its per-row DELETE button on the
+    /// Logged Data pane's APP LOGS sub-tab, then confirms the resulting in-pane dialog. The list
+    /// renders in insertion order with no sort, so a just-finalized session is the LAST row; this
+    /// invokes that row's <c>DeleteSessionButton</c>. (Row name/date TextBlocks are not surfaced
+    /// to UI Automation — only the action buttons are — so the target row is identified by
+    /// position, mirroring <see cref="ExportNewestLoggedSession"/>; cf. gotcha #15.) The button is
+    /// a plain <c>Button</c>, so InvokePattern raises a real click and its bound
+    /// <c>DeleteLoggingSessionCommand</c> runs (cf. gotcha #12). That command opens the app's
+    /// dark in-pane confirm overlay (NOT a MahApps modal), which <see cref="ConfirmInPaneDialog"/>
+    /// then accepts via its affirmative ("DELETE") button.
+    /// </summary>
+    protected void DeleteNewestLoggedSession()
+    {
+        NavigateToTab(LOGGED_DATA_TAB_TEXT);
+        SelectAppLogsSubTab();
+
+        var deleteButton = Retry.WhileNull(
+            () =>
+            {
+                var items = MainWindow
+                    .FindFirstDescendant(cf => cf.ByAutomationId(LOGGED_SESSION_LIST_ID))?.AsListBox()?.Items;
+                if (items == null || items.Length == 0)
+                {
+                    return null;
+                }
+
+                // Last row = newest session. Scope the button search to that row.
+                return items[^1].FindFirstDescendant(cf => cf.ByAutomationId(DELETE_SESSION_BUTTON_ID));
+            },
+            timeout: TimeSpan.FromSeconds(30),
+            interval: TimeSpan.FromMilliseconds(500),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                "The per-row DELETE button on the newest logged-session row was not found. The " +
+                "session row may not have rendered yet.").Result!;
+
+        var button = deleteButton.AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+
+        ConfirmInPaneDialog();
+    }
+
+    /// <summary>
+    /// Accepts the app's in-pane confirm overlay (<c>IsConfirmOpen</c>) by invoking its affirmative
+    /// button (<c>ConfirmAffirmativeButton</c> — its label is e.g. "DELETE"), then waits for the
+    /// overlay to close. This overlay is the dark, in-window card the app uses instead of a MahApps
+    /// modal for destructive confirmations; its accent/danger style variants share the id and only
+    /// the visible one is in the UIA tree. A plain Button's InvokePattern raises a real click, so
+    /// the bound <c>ConfirmAffirmativeCommand</c> runs (cf. gotcha #12).
+    /// </summary>
+    protected void ConfirmInPaneDialog(TimeSpan? timeout = null)
+    {
+        var affirmative = Retry.WhileNull(
+            () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(CONFIRM_AFFIRMATIVE_BUTTON_ID)),
+            timeout: timeout ?? TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                "The in-pane confirm overlay's affirmative button never appeared, so the action's " +
+                "confirmation dialog did not open.").Result!;
+
+        var button = affirmative.AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+
+        // Wait for the overlay to close (its affirmative button leaves the UIA tree) so the scrim
+        // no longer blocks later navigation/reads.
+        Retry.WhileFalse(
+            () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(CONFIRM_AFFIRMATIVE_BUTTON_ID)) == null,
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: false,
+            ignoreException: true);
     }
     #endregion
 

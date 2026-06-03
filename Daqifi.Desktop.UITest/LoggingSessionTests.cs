@@ -8,12 +8,16 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Daqifi.Desktop.UITest;
 
 /// <summary>
-/// Scenario 3 — Start / run / stop a logging session. Drives the real GUI
-/// out-of-process: connects to the physically attached device, configures logging
-/// (frequency + channels), starts a logging session via the toolbar toggle, polls
-/// for evidence that data is accruing, then stops the session. All assertions read
-/// from the visible UI (logging status text, a created session row in the Logged
-/// Data pane) plus a best-effort NLog log-file check. Requires a DAQiFi device.
+/// Scenario 3 — Start / run / stop a logging session, then delete it (issue #557).
+/// Drives the real GUI out-of-process: connects to the physically attached device,
+/// configures logging (frequency + channels), starts a logging session via the toolbar
+/// toggle, polls for evidence that data is accruing, then stops the session. It then
+/// deletes the just-created session via its per-row DELETE action (accepting the app's
+/// in-pane confirm overlay) and asserts the row is gone and the session count returns to
+/// its pre-run baseline — which also leaves the persistent test-mode DB self-cleaned
+/// rather than leaking one session per run. All assertions read from the visible UI
+/// (logging status text, the Logged Data session list) plus the app's NLog log file.
+/// Requires a DAQiFi device.
 /// </summary>
 [TestClass]
 public class LoggingSessionTests : DaqifiAppFixture
@@ -33,7 +37,7 @@ public class LoggingSessionTests : DaqifiAppFixture
     [TestMethod]
     [TestCategory("Ui")]
     [TestCategory("RequiresDevice")]
-    public void StartLoggingSession_RunsAndStops()
+    public void StartLoggingSession_RunsStopsAndDeletesSession()
     {
         // Arrange — connect to the attached device.
         var transport = ResolveTransport();
@@ -95,8 +99,37 @@ public class LoggingSessionTests : DaqifiAppFixture
             $"Expected a new logged session after the run (before={sessionsBefore}, " +
             $"after={sessionsAfter}). No new session row means no data accrued.");
 
+        // ── Delete the session we just created (issue #557) ──
+        // The scenario continues end-to-end: having proved a session was created, delete it via
+        // its per-row DELETE action and accept the in-pane "Delete Confirmation" overlay. This
+        // also makes the test self-cleaning — it returns the persistent test-mode DB to its
+        // pre-run baseline instead of leaking one session per run.
+        DeleteNewestLoggedSession();
+
+        // Assert (out-of-process) — the row is gone and the count returns to the pre-run
+        // baseline. The production delete path removes the session from the bound
+        // LoggingSessions collection ONLY after DbLogger.DeleteLoggingSession succeeds (the
+        // removal is gated on the DB delete not throwing), so the count returning to baseline is
+        // proof the session left the DB, not merely the view.
+        WaitForExactLoggedSessionCount(sessionsBefore, TimeSpan.FromSeconds(20));
+        var sessionsAfterDelete = GetLoggedSessionCount();
+        Assert.AreEqual(
+            sessionsBefore, sessionsAfterDelete,
+            $"Expected the logged-session count to return to its baseline ({sessionsBefore}) " +
+            $"after deleting the session created during this run, but it was {sessionsAfterDelete}.");
+
+        // Corroborate at the DB layer via the app's own NLog lines (black box): the SQLite delete
+        // transaction ran to completion (DatabaseLogger.DeleteLoggingSession logs this in its
+        // finally) and reported no failure.
+        Assert.IsTrue(
+            WaitForLogContains("DeleteLoggingSession completed", TimeSpan.FromSeconds(10)),
+            "The app never logged 'DeleteLoggingSession completed', so the DB-level delete did not run.");
+        Assert.IsFalse(
+            ReadNewLogText().Contains("Failed in DeleteLoggingSession", StringComparison.Ordinal),
+            "The app logged 'Failed in DeleteLoggingSession' — the SQLite delete transaction threw.");
+
         // Capture a screenshot of the final state as a test artifact.
-        CaptureScreenshot("StartLoggingSession_RunsAndStops_final");
+        CaptureScreenshot("StartLoggingSession_RunsStopsAndDeletesSession_final");
 
         // Per-test independence: the base fixture's [TestCleanup] closes the app,
         // which disconnects the device. A fresh app instance is launched per test.
