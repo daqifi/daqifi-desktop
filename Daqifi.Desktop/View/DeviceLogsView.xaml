@@ -513,6 +513,7 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding FileName}"
+                                               AutomationProperties.AutomationId="SdCardFileNameText"
                                                FontFamily="Consolas"
                                                FontSize="13"
                                                Foreground="{StaticResource TextPrimary}"

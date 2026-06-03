@@ -115,10 +115,24 @@ public class SdCardLoggingTests : DaqifiAppFixture
         var newFile = namesAfter.FirstOrDefault(
             n => !namesBefore.Contains(n, StringComparer.OrdinalIgnoreCase));
 
-        // Act (import) — import that just-written file back into the app. Passing its exact
-        // name makes this a true round trip (write -> read); if it could not be identified
-        // the helper falls back to the first file so the import path is still exercised.
-        var importedFile = ImportSdCardFile(targetFileName: newFile);
+        // Prefer a staged "error"-prefixed file when one is present on the card: importing it
+        // proves such files are both listed and importable, guarding daqifi-core #195 (where
+        // "error*" filenames were wrongly dropped from the SD listing). The harness cannot make
+        // the device write an error-named file, so this exercises #195 only when a fixture file
+        // is staged on the card; otherwise it imports the file this run just wrote (a true
+        // write -> read round trip). Either way the import must yield a non-empty session.
+        var errorFile = namesAfter.FirstOrDefault(
+            n => n.StartsWith("error", StringComparison.OrdinalIgnoreCase));
+        if (errorFile != null)
+        {
+            TestContext?.WriteLine(
+                $"Found staged 'error'-prefixed SD file '{errorFile}'; importing it to guard daqifi-core #195.");
+        }
+
+        // Act (import) — import the chosen file back into the app. Passing its exact name makes
+        // the normal case a true round trip; if no file could be identified the helper falls
+        // back to the first file so the import path is still exercised.
+        var importedFile = ImportSdCardFile(targetFileName: errorFile ?? newFile);
 
         // Assert (import, log) — the imported session holds real sample data. The importer
         // logs "Imported N samples for session ..."; N must be greater than zero, proving the

@@ -77,6 +77,11 @@ public abstract class DaqifiAppFixture
     // specific file; CommandParameter binds each button to its own row's SdCardFile.
     private const string IMPORT_SDCARD_FILE_BUTTON_ID = "ImportSdCardFileButton";
 
+    // The file-name TextBlock in each SD card file row's NAME cell. A dedicated id lets the
+    // harness read the file name deterministically rather than guessing from text order (the
+    // row also contains the CREATED/FORMAT cells and the IMPORT button's "IMPORT" label).
+    private const string SDCARD_FILE_NAME_TEXT_ID = "SdCardFileNameText";
+
     // The view-model shows a MahApps metro dialog after an import completes. It is hosted
     // inside the MetroWindow (not a separate top-level window) with a single affirmative
     // button whose default text is "OK"; the title reports success or failure.
@@ -1100,7 +1105,16 @@ public abstract class DaqifiAppFixture
 
         // Select the row (faithful to "select a file and import it"); the per-row button's
         // CommandParameter binds to its own row regardless, so this is belt-and-suspenders.
-        try { target.Patterns.SelectionItem.Pattern.Select(); } catch { /* selection optional */ }
+        try
+        {
+            target.Patterns.SelectionItem.Pattern.Select();
+        }
+        catch (Exception ex)
+        {
+            // Selection is optional (the IMPORT button targets its own row via
+            // CommandParameter); surface it for diagnostics rather than failing the import.
+            TestContext?.WriteLine($"SD file row selection skipped: {ex.Message}");
+        }
 
         // Invoke the row's IMPORT button. A plain Button's InvokePattern raises a real
         // click (OnClick), so its bound ImportFileCommand runs — unlike the check controls
@@ -1131,6 +1145,16 @@ public abstract class DaqifiAppFixture
     /// </summary>
     private static string ReadSdCardFileRowName(AutomationElement row)
     {
+        // Prefer the dedicated NAME-cell id so other text in the row — the CREATED/FORMAT
+        // cells and the IMPORT button's "IMPORT" label — can never be mistaken for the file
+        // name (UIA descendant enumeration order is not a guaranteed contract).
+        var nameCell = row.FindFirstDescendant(cf => cf.ByAutomationId(SDCARD_FILE_NAME_TEXT_ID));
+        if (nameCell != null && !string.IsNullOrWhiteSpace(nameCell.Name))
+        {
+            return nameCell.Name.Trim();
+        }
+
+        // Fallback: the first non-empty Text descendant (NAME is the first cell in the row).
         foreach (var text in row.FindAllDescendants(cf => cf.ByControlType(ControlType.Text)))
         {
             var name = text.Name;
