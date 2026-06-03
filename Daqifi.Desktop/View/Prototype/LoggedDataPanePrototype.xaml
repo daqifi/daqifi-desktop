@@ -639,19 +639,17 @@
 
                 <!-- ── Session list ── -->
                 <Grid Grid.Row="2">
-                    <!-- Has sessions -->
-                    <!-- IsVirtualizing=False: the session list is bounded (one row per logging run).
-                         UI virtualization leaves off-screen rows out of the UIA tree, so the
-                         automation harness can't reach a row's per-session action buttons (e.g. the
-                         EXPORT button) unless that row happens to be scrolled into view. Realizing
-                         every row keeps all per-row controls reachable for automation. -->
+                    <!-- Has sessions. UI virtualization stays ON for production (this list grows
+                         unbounded over a device's lifetime); it is disabled only under the UI-test
+                         harness, from code-behind, so the harness can reach an off-screen row's
+                         per-session buttons by position. Screen readers realize rows on navigation
+                         either way, so the per-row AutomationProperties.Name still works. -->
                     <ListBox x:Name="SessionList"
                              AutomationProperties.AutomationId="LoggedSessionList"
                              ItemsSource="{Binding LoggingSessions}"
                              SelectedItem="{Binding SelectedLoggingSession, Mode=TwoWay}"
                              Background="Transparent"
                              BorderThickness="0"
-                             VirtualizingStackPanel.IsVirtualizing="False"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              SelectionMode="Single">
                         <ListBox.ItemContainerStyle>

@@ -44,7 +44,15 @@ public class LoggingSession : ObservableObject
     public string Name
     {
         get => string.IsNullOrWhiteSpace(_name) ? "Session " + ID : _name;
-        set => SetProperty(ref _name, value);
+        set
+        {
+            if (SetProperty(ref _name, value))
+            {
+                // The row's accessible name (AutomationProperties.Name) binds to
+                // AccessibilitySummary, which embeds Name — keep it fresh after a rename.
+                OnPropertyChanged(nameof(AccessibilitySummary));
+            }
+        }
     }
 
     /// <summary>
@@ -148,8 +156,16 @@ public class LoggingSession : ObservableObject
                 Name,
                 SessionStart.ToString("g", System.Globalization.CultureInfo.CurrentCulture)
             };
-            if (HasSampleCount) { parts.Add(SampleCountTooltip); }
-            if (HasFrequencyDisplay) { parts.Add(FrequencyDisplay); }
+            if (HasSampleCount)
+            {
+                parts.Add(SampleCountTooltip);
+            }
+
+            if (HasFrequencyDisplay)
+            {
+                parts.Add(FrequencyDisplay);
+            }
+
             return string.Join(", ", parts);
         }
     }

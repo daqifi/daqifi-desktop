@@ -212,9 +212,11 @@ public class CsvExportTests : DaqifiAppFixture
                 Directory.Delete(_exportDir, recursive: true);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Temp-dir cleanup is best-effort; a leaked dir under %TEMP% is harmless.
+            // Temp-dir cleanup is best-effort; a leaked dir under %TEMP% is harmless. Surface the
+            // failure for diagnostics rather than swallowing it silently.
+            TestContext?.WriteLine($"Failed to delete export temp dir '{_exportDir}': {ex.Message}");
         }
     }
     #endregion

@@ -145,7 +145,18 @@ public partial class ExportDialogViewModel : ObservableObject
                     }
                     var sessionId = _sessionsIds[i];
                     var loggingSession = await GetLoggingSessionFromId(sessionId);
-                    var sessionName = LoggingManager.Instance.LoggingSessions.FirstOrDefault(s => s.ID == sessionId).Name;
+                    if (loggingSession == null)
+                    {
+                        AppLogger.Instance.Warning(
+                            $"Skipping export for session {sessionId}: it was not found in the database.");
+                        continue;
+                    }
+
+                    // Resolve the display name for per-session file naming; fall back to the default
+                    // "Session_{id}" form when the session is no longer in the in-memory list. Avoids
+                    // a NullReferenceException (FirstOrDefault can be null) that would fail the export.
+                    var sessionName = LoggingManager.Instance.LoggingSessions
+                        .FirstOrDefault(s => s.ID == sessionId)?.Name ?? $"Session_{sessionId}";
                     var filepath = _forceDirectoryLayout || totalSessions > 1
                         ? Path.Combine(ExportFilePath, $"{sessionName}.csv")
                         : ExportFilePath;

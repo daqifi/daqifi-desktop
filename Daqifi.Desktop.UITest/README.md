@@ -293,11 +293,13 @@ why.
     reading its name. The list renders in **insertion order with no sort**, so the just-finalized
     session is the **last** row; `CsvExportTests` invokes the last row's `ExportSessionButton` and
     confirms which session it hit via the exported file name (`Session_{id}.csv`, from the finalize
-    log line). Relatedly, the list sets **`VirtualizingStackPanel.IsVirtualizing="False"`**: with
-    virtualization on, an off-screen row (including the newest, at the bottom of a long list) is
-    absent from the UIA tree, so its `ExportSessionButton` is unreachable. The list is bounded (one
-    row per logging run), so realizing every row is a fine trade for keeping all per-row controls
-    automatable.
+    log line). Relatedly, the list **disables UI virtualization in test mode only** — code-behind
+    calls `VirtualizingStackPanel.SetIsVirtualizing(SessionList, false)` when
+    `AppDataPaths.IsTestMode`. With virtualization on, an off-screen row (including the newest, at
+    the bottom of a long list) is absent from the UIA tree, so its `ExportSessionButton` is
+    unreachable by the harness. Production keeps virtualization **on** (the list grows unbounded
+    over a device's lifetime); screen readers realize rows on navigation, so the per-row
+    `AutomationProperties.Name` (bound to `LoggingSession.AccessibilitySummary`) still works there.
 
 ---
 
