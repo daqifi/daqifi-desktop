@@ -5,7 +5,7 @@ Windows UI Automation tree) against a **physically attached device** (USB serial
 WiFi). It is the **integration gate** of the development loop — separate from the fast
 unit gate (`dotnet test` on the MSTest+Moq suites), which needs no hardware.
 
-It covers five end-to-end workflows plus a launch smoke test:
+It covers six end-to-end workflows plus a launch smoke test:
 
 | Test | What it verifies |
 |---|---|
@@ -15,6 +15,7 @@ It covers five end-to-end workflows plus a launch smoke test:
 | `LoggingSessionTests.StartLoggingSession_RunsAndStops` | Start logging → data accrues (new session row) → stop |
 | `SdCardLoggingTests.SdCardLogging_LogsToSdCard_ThenImportsToSession` | Full SD lifecycle in one pass: switch to **Log to Device** (SD card) mode → run a session → a new file appears on the SD card (file count increased), confirming SD-card logging not a stream session → then **import that just-written file** (identified by diffing the file list — or a staged `error`-prefixed file when present, opportunistically guarding daqifi-core #195) and assert a new, non-empty `LoggingSession` appears in `LoggedSessionList`. The import is triangulated from the "Import Complete" dialog, the importer's `Imported N samples` log line (N&gt;0), and a +1 session delta. **USB only; needs an SD card.** |
 | `CsvExportTests.ExportLoggedSession_ProducesValidCsv` / `…ExportAllLoggedSessions_ProducesValidCsv` | Run a short logging session, then export it to CSV — once via the per-session **EXPORT** button and once via **EXPORT ALL** — through the `DAQIFI_TEST_EXPORT_PATH` hook (**no `SaveFileDialog`**, see below). Read the produced CSV back from disk (black box) and validate it: header is `Time` + one `Device:Serial:Channel` column per channel with no formula-injection prefix; every row has the header's field count (RFC 4180 consistency via a strict quote-aware parser); the time column parses as a round-trip timestamp and is non-decreasing; every value cell is a finite invariant-culture number; and the **value-cell count equals the session's persisted sample count** (each sample → one cell), proving no rows were dropped, duplicated, or corrupted. The sample count is read out-of-process from the app's `Persisted sample count N for session S` finalize log line. |
+| `ProfilesTests.SaveActivateDelete_ProfileRoundTrips` / `…CreateProfileViaForm_AppearsAndDeletes` | Full **Profiles** lifecycle. Configure a known state (set a frequency + enable analog channels), **save** it as a profile — once by capturing the live device settings (`SaveCurrentSettingsCommand`) and once via the new-profile form (`SaveNewProfileCommand`) — and assert it appears in the list. Then change the device config to something different (clear channels, set a different frequency), **activate** the saved profile (`ActivateProfileCommand`), and assert the captured **channel + frequency intent is re-applied to the device** — verified through the Channels pane `n / N ACTIVE` ground-truth indicator and the per-device frequency flyout (0 → N active; changed-Hz → captured-Hz). Finally **delete** the profile (`DeleteProfileCommand`) and assert the list returns to its original membership. Each test records the profile count up-front and removes any profile it creates (asserts membership before/after via deltas). A fresh launch never has an active profile (`IsProfileActive` is not persisted to XML), so single-profile activation takes the no-confirm path. **USB or WiFi.** |
 
 Every UI test is tagged `[TestCategory("Ui")]` and `[TestCategory("RequiresDevice")]`
 so it never runs as part of the unit gate.
@@ -157,9 +158,11 @@ exactly `N` value cells.
   e.g. the frequency slider’s `Delay=500`.)
 
 ### AutomationIds — where they live
-IDs are added only on the controls the scenarios touch. The panes are the
+IDs are added only on the controls the scenarios touch. Most panes are the
 `View/Prototype/*.xaml` files (they are the **live** views despite the “Prototype” suffix —
-`MainWindow.xaml` hosts them; confirm against the runtime tree, not a prototype twin).
+`MainWindow.xaml` hosts them; confirm against the runtime tree, not a prototype twin). The
+**Profiles** pane is the exception: its live view is `View/ProfilesPane.xaml` (no `Prototype`
+suffix), also hosted by `MainWindow.xaml`.
 
 | Logical control | AutomationId | File |
 |---|---|---|
@@ -171,6 +174,7 @@ IDs are added only on the controls the scenarios touch. The panes are the
 | Discovered / serial device lists | `DiscoveredDeviceList` / `SerialPortList` | `View/ConnectionDialog.xaml` |
 | Connect buttons | `ConnectButton_Wifi` / `ConnectButton_Manual` / `ConnectButton_Serial` | `View/ConnectionDialog.xaml` |
 | Channel list + “SELECT ALL” (analog) | `ChannelList` / `SelectAllAnalogChannels` | `View/Prototype/ChannelsPanePrototype.xaml` |
+| Channels “CLEAR ALL” (status bar; clears every section) | `ClearAllChannels` | `View/Prototype/ChannelsPanePrototype.xaml` |
 | Logging toggle + status label | `StartLoggingToggle` / `LoggingStatusText` | `View/Prototype/LiveGraphPane.xaml` |
 | Logged-session list | `LoggedSessionList` | `View/Prototype/LoggedDataPanePrototype.xaml` |
 | Per-row session **EXPORT** button (one per row) | `ExportSessionButton` | `View/Prototype/LoggedDataPanePrototype.xaml` |
@@ -181,6 +185,14 @@ IDs are added only on the controls the scenarios touch. The panes are the
 | SD refresh button / status line / file list | `RefreshSdCardFilesButton` / `SdCardStatusText` / `SdCardFileList` | `View/DeviceLogsView.xaml` |
 | Per-row SD file IMPORT button | `ImportSdCardFileButton` | `View/DeviceLogsView.xaml` |
 | Per-row SD file NAME cell (for deterministic file-name reads) | `SdCardFileNameText` | `View/DeviceLogsView.xaml` |
+| Profiles: saved-profile list | `ProfileList` | `View/ProfilesPane.xaml` |
+| Profiles: per-tile settings (gear) → opens the edit drawer | `ProfileSettingsButton` | `View/ProfilesPane.xaml` |
+| Profiles: “+ ADD PROFILE” (status bar / empty-state CTA) | `AddProfileButton` / `AddProfileButtonEmpty` | `View/ProfilesPane.xaml` |
+| New-profile drawer: NAME field | `NewProfileNameInput` | `View/ProfilesPane.xaml` |
+| New-profile drawer: CAPTURE FROM CURRENT SETTINGS / SAVE PROFILE | `SaveCurrentSettingsButton` / `SaveNewProfileButton` | `View/ProfilesPane.xaml` |
+| New-profile drawer: per-device select checkbox | `NewProfileDeviceCheckbox` | `View/ProfilesPane.xaml` |
+| Edit drawer: ACTIVATE/DEACTIVATE / DELETE PROFILE | `ActivateProfileButton` / `DeleteProfileButton` | `View/ProfilesPane.xaml` |
+| Profiles status-bar active indicator (present only while a profile is active) | `ActiveProfileIndicator` | `View/ProfilesPane.xaml` |
 
 ---
 
@@ -300,6 +312,28 @@ why.
     unreachable by the harness. Production keeps virtualization **on** (the list grows unbounded
     over a device's lifetime); screen readers realize rows on navigation, so the per-row
     `AutomationProperties.Name` (bound to `LoggingSession.AccessibilitySummary`) still works there.
+
+16. **Profiles are targeted by position, driven through the drawer, and confirmed by independent
+    signals.** Three things make the Profiles round-trip automatable: **(a)** like the
+    logged-session rows (#15), a profile tile exposes only its **gear button**
+    (`ProfileSettingsButton`) to UIA — its name/date TextBlocks do not surface — so a profile is
+    targeted by **position**: the newest is the **last** tile (`SubscribedProfiles` appends; the
+    list renders in insertion order, and the plain `ItemsControl` does not virtualize, so every
+    tile is realized). **(b)** A profile tile **activates via a `MouseBinding` LeftClick**, which
+    does not land from a background host (#6/#12), so activation/deletion is driven through the
+    **edit drawer's** `ActivateProfileButton` / `DeleteProfileButton` — plain `Button`s whose
+    `InvokePattern` raises a real click and runs the bound command. Open the drawer via the tile
+    gear first. **(c)** Deactivation is confirmed by the **status-bar active indicator**
+    (`ActiveProfileIndicator`) leaving the tree — its Visibility binds to the active-profile name,
+    so it is collapsed (and absent from UIA) when none is active. Look it up **by AutomationId**,
+    not by scanning the pane's text for "ACTIVE" (a profile *named* "…ACTIVE" would defeat a
+    substring scan), and **not** via the activate button's swapped label — that label is a
+    DataTrigger content swap and may not surface as a UIA name change (#8). Two more load-bearing facts: `IsProfileActive` is **not persisted**
+    to the profiles XML, so a fresh launch has **no active profile** and single-profile activation
+    takes the no-confirm path (`ActivateProfile` only prompts when switching *between* two active
+    profiles); and **delete is blocked while any profile is active**, so the cleanup path must
+    deactivate before deleting. Frequency lives in the per-device flyout, not the profile drawer
+    (#5) — the profile only *captures and re-applies* it.
 
 ---
 

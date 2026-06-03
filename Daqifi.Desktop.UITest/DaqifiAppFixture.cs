@@ -102,6 +102,36 @@ public abstract class DaqifiAppFixture
     private const string IMPORT_DIALOG_OK_BUTTON_TEXT = "OK";
     private const string IMPORT_FAILED_TITLE = "Import Failed";
 
+    // AutomationIds for the Profiles pane (save / activate / delete round-trip). Profiles are
+    // saved experiment presets that re-apply a captured channel + frequency configuration to a
+    // matching connected device. The tile name/date TextBlocks are not reliably surfaced to UI
+    // Automation (like the logged-session rows), so a profile is targeted by POSITION — the
+    // newest is the LAST tile (SubscribedProfiles appends; the list renders in insertion order)
+    // — via its per-tile settings (gear) button, which opens the edit drawer holding ACTIVATE /
+    // DELETE. The "+ ADD PROFILE" button opens the new-profile drawer (status-bar id when
+    // profiles exist, empty-state id otherwise).
+    private const string PROFILE_LIST_ID = "ProfileList";
+    private const string PROFILE_SETTINGS_BUTTON_ID = "ProfileSettingsButton";
+    private const string ADD_PROFILE_BUTTON_ID = "AddProfileButton";
+    private const string ADD_PROFILE_BUTTON_EMPTY_ID = "AddProfileButtonEmpty";
+    private const string NEW_PROFILE_NAME_INPUT_ID = "NewProfileNameInput";
+    private const string SAVE_CURRENT_SETTINGS_BUTTON_ID = "SaveCurrentSettingsButton";
+    private const string SAVE_NEW_PROFILE_BUTTON_ID = "SaveNewProfileButton";
+    private const string NEW_PROFILE_DEVICE_CHECKBOX_ID = "NewProfileDeviceCheckbox";
+    private const string ACTIVATE_PROFILE_BUTTON_ID = "ActivateProfileButton";
+    private const string DELETE_PROFILE_BUTTON_ID = "DeleteProfileButton";
+
+    // The Profiles status-bar "· {name} ACTIVE" indicator carries this AutomationId. Its
+    // Visibility binds to the active-profile name (collapsed, and so absent from the UIA tree,
+    // when none is active), so looking it up by id is a deterministic profile-active signal used
+    // to confirm deactivation — independent of any profile name text (a profile named "...ACTIVE"
+    // would defeat a substring scan).
+    private const string ACTIVE_PROFILE_INDICATOR_ID = "ActiveProfileIndicator";
+
+    // Channels pane CLEAR ALL — used to move the device to a known-different state between
+    // saving a profile and activating it, so the re-application is observable.
+    private const string CLEAR_ALL_CHANNELS_ID = "ClearAllChannels";
+
     private const string LOGGING_ON_TEXT = "LOGGING ON";
     private const string LOGGING_OFF_TEXT = "LOGGING OFF";
 
@@ -652,6 +682,48 @@ public abstract class DaqifiAppFixture
         }
 
         return -1;
+    }
+
+    /// <summary>
+    /// Clears every active channel via the Channels pane's CLEAR ALL button, then waits until
+    /// the analog "n / N ACTIVE" indicator reads zero. Navigates to the Channels tab first.
+    /// Used to move the device to a known-different state before activating a profile, so the
+    /// profile's re-application of channels is observable (0 active -> N active).
+    /// </summary>
+    protected void ClearAllChannels()
+    {
+        NavigateToTab(CHANNELS_TAB_TEXT);
+        var clear = FindByAutomationId(CLEAR_ALL_CHANNELS_ID).AsButton();
+        clear.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        clear.Invoke();
+
+        Retry.WhileFalse(
+            () => ReadActiveAnalogCount() == 0,
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "Channels did not clear: the analog active count did not reach 0 after CLEAR ALL.");
+    }
+
+    /// <summary>
+    /// Navigates to the Channels pane (rebuilding it from current device state) and waits until
+    /// the analog "n / N ACTIVE" indicator reads <paramref name="expected"/>. The pane is
+    /// recreated on tab entry, so it reflects channels a profile activation added to the device
+    /// directly (bypassing the pane), making this a faithful ground-truth re-application check.
+    /// </summary>
+    protected void WaitForActiveAnalogChannelCount(int expected, TimeSpan timeout)
+    {
+        NavigateToTab(CHANNELS_TAB_TEXT);
+        Retry.WhileFalse(
+            () => ReadActiveAnalogCount() == expected,
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"Analog active channel count did not reach {expected} (last read " +
+                $"{ReadActiveAnalogCount()}). Expected the activated profile to re-apply its channels.");
     }
     #endregion
 
@@ -1407,6 +1479,278 @@ public abstract class DaqifiAppFixture
         }
 
         return max;
+    }
+    #endregion
+
+    #region Profiles Helpers
+    /// <summary>
+    /// Reads the number of saved profiles on the Profiles pane by counting the per-tile settings
+    /// (gear) buttons under the profile list — each tile renders exactly one. This is robust to
+    /// the tile's inner layout (its name/date TextBlocks are not reliably surfaced to UI
+    /// Automation, like the logged-session rows). Returns 0 when no profiles exist (the
+    /// empty-state view renders instead of the list, so the list element is absent from the
+    /// tree). Navigates to the Profiles tab first.
+    /// </summary>
+    protected int GetProfileCount()
+    {
+        NavigateToTab(PROFILES_TAB_TEXT);
+        var list = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(PROFILE_LIST_ID));
+        if (list == null)
+        {
+            return 0;
+        }
+
+        return list.FindAllDescendants(cf => cf.ByAutomationId(PROFILE_SETTINGS_BUTTON_ID)).Length;
+    }
+
+    /// <summary>Waits (polling) until the saved-profile count equals <paramref name="expected"/>.</summary>
+    protected void WaitForProfileCount(int expected, TimeSpan timeout)
+    {
+        Retry.WhileFalse(
+            () => GetProfileCount() == expected,
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"Saved-profile count did not reach {expected} within {timeout.TotalSeconds}s " +
+                $"(last read {GetProfileCount()}).");
+    }
+
+    /// <summary>
+    /// Opens the new-profile drawer by invoking the "+ ADD PROFILE" button — the status-bar
+    /// button when profiles already exist, or the empty-state button otherwise. Waits until the
+    /// new-profile NAME field is realized, confirming the drawer opened in new-profile mode.
+    /// </summary>
+    protected void OpenNewProfileDrawer()
+    {
+        NavigateToTab(PROFILES_TAB_TEXT);
+
+        var addButton = Retry.WhileNull(
+            () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(ADD_PROFILE_BUTTON_ID))
+                  ?? MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(ADD_PROFILE_BUTTON_EMPTY_ID)),
+            timeout: TimeSpan.FromSeconds(30),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "Add Profile button not found on the Profiles pane.").Result!;
+
+        var button = addButton.AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+
+        // The NAME field exists only while the drawer is open in new-profile mode.
+        FindByAutomationId(NEW_PROFILE_NAME_INPUT_ID);
+    }
+
+    /// <summary>
+    /// Types <paramref name="name"/> into the new-profile NAME field via the ValuePattern and
+    /// waits until the field reads it back. Assumes the new-profile drawer is open.
+    /// </summary>
+    protected void SetNewProfileName(string name)
+    {
+        FindByAutomationId(NEW_PROFILE_NAME_INPUT_ID).Patterns.Value.Pattern.SetValue(name);
+
+        Retry.WhileFalse(
+            () => string.Equals(
+                MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(NEW_PROFILE_NAME_INPUT_ID))
+                    ?.Patterns.Value.Pattern.Value.Value,
+                name,
+                StringComparison.Ordinal),
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: $"The new-profile NAME field did not accept the value '{name}'.");
+    }
+
+    /// <summary>
+    /// Invokes "CAPTURE FROM CURRENT SETTINGS" in the new-profile drawer
+    /// (<c>SaveCurrentSettingsCommand</c>), which snapshots every connected device's currently
+    /// active channels + sampling frequency into a new profile and closes the drawer. Waits
+    /// until the drawer closes. A plain Button's InvokePattern raises a real click, so its bound
+    /// command runs.
+    /// </summary>
+    protected void SaveCurrentSettingsAsProfile()
+    {
+        var capture = FindByAutomationId(SAVE_CURRENT_SETTINGS_BUTTON_ID).AsButton();
+        capture.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        capture.Invoke();
+        WaitForNewProfileDrawerClosed();
+    }
+
+    /// <summary>
+    /// Ticks the first connected-device checkbox in the new-profile form via the TogglePattern.
+    /// The checkbox's <c>IsChecked</c> binding drives selection directly (no bound command), so
+    /// the pattern works from a background host. Selecting a device satisfies
+    /// <c>CanSaveNewProfile</c>, enabling the SAVE PROFILE button.
+    /// </summary>
+    protected void SelectFirstNewProfileDevice()
+    {
+        Retry.WhileFalse(
+            () =>
+            {
+                var checkbox = MainWindow
+                    .FindFirstDescendant(cf => cf.ByAutomationId(NEW_PROFILE_DEVICE_CHECKBOX_ID))?.AsCheckBox();
+                if (checkbox == null)
+                {
+                    return false;
+                }
+
+                if (checkbox.IsChecked != true)
+                {
+                    checkbox.IsChecked = true;
+                }
+
+                return checkbox.IsChecked == true;
+            },
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "Could not select a device in the new-profile form (checkbox never became checked).");
+    }
+
+    /// <summary>
+    /// Invokes "SAVE PROFILE" in the new-profile drawer (<c>SaveNewProfileCommand</c>), which
+    /// persists the form's selections as a new profile and closes the drawer. Requires a name
+    /// (auto-populated) and at least one selected device. Waits until the drawer closes.
+    /// </summary>
+    protected void SaveNewProfileFromForm()
+    {
+        var save = FindByAutomationId(SAVE_NEW_PROFILE_BUTTON_ID).AsButton();
+        save.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        save.Invoke();
+        WaitForNewProfileDrawerClosed();
+    }
+
+    /// <summary>Waits until the new-profile drawer closes (its NAME field leaves the UIA tree).</summary>
+    private void WaitForNewProfileDrawerClosed()
+    {
+        Retry.WhileFalse(
+            () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(NEW_PROFILE_NAME_INPUT_ID)) == null,
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "The new-profile drawer did not close after saving.");
+    }
+
+    /// <summary>
+    /// Opens the edit drawer for the most-recently-created profile by invoking the settings
+    /// (gear) button on the LAST profile tile. Profiles render in insertion order with no sort,
+    /// so the newest — the one a test just created — is last. Waits until the drawer's
+    /// ACTIVATE/DEACTIVATE button is realized. Navigates to the Profiles tab first; entering the
+    /// tab rebuilds the pane with the drawer closed, so the gear is reachable underneath.
+    /// </summary>
+    protected void OpenLastProfileEditDrawer()
+    {
+        NavigateToTab(PROFILES_TAB_TEXT);
+
+        var gear = Retry.WhileNull(
+            () =>
+            {
+                var gears = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(PROFILE_LIST_ID))
+                    ?.FindAllDescendants(cf => cf.ByAutomationId(PROFILE_SETTINGS_BUTTON_ID));
+                return gears is { Length: > 0 } ? gears[^1] : null;
+            },
+            timeout: TimeSpan.FromSeconds(30),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "No profile tiles were found on the Profiles pane.").Result!;
+
+        var button = gear.AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+
+        // The ACTIVATE/DELETE buttons exist only while the edit drawer is open.
+        FindByAutomationId(ACTIVATE_PROFILE_BUTTON_ID);
+    }
+
+    /// <summary>
+    /// Invokes the ACTIVATE PROFILE button in the open edit drawer (the profile must be
+    /// inactive). The command re-applies the profile's captured sampling frequency + channels to
+    /// the matching connected device; the caller verifies that via the Devices flyout and the
+    /// Channels pane "n / N ACTIVE" indicator.
+    /// </summary>
+    protected void ActivateSelectedProfile()
+    {
+        var button = FindByAutomationId(ACTIVATE_PROFILE_BUTTON_ID).AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+    }
+
+    /// <summary>
+    /// Deactivates the active profile by invoking the (same) activate/deactivate button in the
+    /// open edit drawer, then waits until no profile reports active. Deactivation is confirmed by
+    /// the Profiles status-bar "ACTIVE" indicator leaving the tree — an INDEPENDENT signal driven
+    /// by a Visibility binding on the active-profile name, not the button's own swapped label
+    /// (a DataTrigger-driven content swap may not surface as a UIA name change). A profile must
+    /// be deactivated before it can be deleted.
+    /// </summary>
+    protected void DeactivateSelectedProfile()
+    {
+        var button = FindByAutomationId(ACTIVATE_PROFILE_BUTTON_ID).AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+
+        Retry.WhileTrue(
+            () => IsAnyProfileActiveIndicatorPresent(),
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                "The profile did not deactivate: the Profiles status-bar 'ACTIVE' indicator " +
+                "stayed visible after invoking the deactivate button.");
+    }
+
+    /// <summary>
+    /// Invokes the DELETE PROFILE button in the open edit drawer (<c>DeleteProfileCommand</c>).
+    /// The profile must already be deactivated — the command refuses (and surfaces an inline
+    /// error) while any profile is active. The command removes the profile and closes the drawer.
+    /// </summary>
+    protected void DeleteSelectedProfile()
+    {
+        var button = FindByAutomationId(DELETE_PROFILE_BUTTON_ID).AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+    }
+
+    /// <summary>
+    /// True when the Profiles pane shows its "· {name} ACTIVE" status-bar indicator, i.e. some
+    /// profile is active. The indicator carries a dedicated AutomationId and its Visibility binds
+    /// to the active-profile name (collapsed, and so absent from the UIA tree, when none is
+    /// active), so an id lookup is a deterministic signal — unaffected by profile names (a profile
+    /// named "...ACTIVE" would defeat a substring scan of the pane's text).
+    /// </summary>
+    private bool IsAnyProfileActiveIndicatorPresent() =>
+        MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(ACTIVE_PROFILE_INDICATOR_ID)) != null;
+
+    /// <summary>
+    /// Waits (polling) until the per-device sampling frequency flyout reads
+    /// <paramref name="expectedHz"/> (within 0.5 Hz) and returns the value read back. Used to
+    /// confirm a profile activation re-applied its captured frequency to the device.
+    /// </summary>
+    protected double WaitForSamplingFrequency(double expectedHz, TimeSpan timeout)
+    {
+        var last = double.NaN;
+        Retry.WhileFalse(
+            () =>
+            {
+                last = GetSamplingFrequency();
+                return Math.Abs(last - expectedHz) < 0.5;
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"Sampling frequency did not reach {expectedHz} Hz (last read {last}). Expected " +
+                "the activated profile to re-apply its captured frequency.");
+
+        return last;
     }
     #endregion
 

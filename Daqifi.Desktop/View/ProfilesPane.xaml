@@ -229,7 +229,8 @@
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Padding="28,0,28,0">
-                <ItemsControl ItemsSource="{Binding Profiles}">
+                <ItemsControl ItemsSource="{Binding Profiles}"
+                              AutomationProperties.AutomationId="ProfileList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border Margin="0,0,0,8"
@@ -335,6 +336,7 @@
                                                 BorderThickness="0"
                                                 Cursor="Hand"
                                                 ToolTip="Profile settings"
+                                                AutomationProperties.AutomationId="ProfileSettingsButton"
                                                 VerticalAlignment="Center"
                                                 Command="{Binding DataContext.OpenEditDrawerCommand, ElementName=Root}"
                                                 CommandParameter="{Binding}">
@@ -384,6 +386,7 @@
                         <TextBlock FontSize="10" FontWeight="SemiBold"
                                    Foreground="{StaticResource StatusGreen}"
                                    VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="ActiveProfileIndicator"
                                    Margin="12,0,0,0">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -414,6 +417,7 @@
                     <Button Grid.Column="1"
                             Style="{StaticResource PillButton}"
                             Content="+ ADD PROFILE"
+                            AutomationProperties.AutomationId="AddProfileButton"
                             IsEnabled="{Binding IsLoggingActive, Converter={StaticResource BooleanToInverse}}"
                             Command="{Binding OpenNewDrawerCommand}"/>
                 </Grid>
@@ -459,6 +463,7 @@
                 <Button Content="+ ADD PROFILE"
                         Style="{StaticResource AccentPillButton}"
                         HorizontalAlignment="Center"
+                        AutomationProperties.AutomationId="AddProfileButtonEmpty"
                         IsEnabled="{Binding IsLoggingActive, Converter={StaticResource BooleanToInverse}}"
                         Command="{Binding OpenNewDrawerCommand}"/>
             </StackPanel>
@@ -494,6 +499,7 @@
                     <Button Grid.Column="1"
                             Style="{StaticResource PillButton}"
                             Content="+ ADD PROFILE"
+                            AutomationProperties.AutomationId="AddProfileButton"
                             IsEnabled="{Binding IsLoggingActive, Converter={StaticResource BooleanToInverse}}"
                             Command="{Binding OpenNewDrawerCommand}"/>
                 </Grid>
@@ -736,6 +742,7 @@
                                            Margin="0,8,0,16"/>
 
                                 <Button Margin="0,0,0,8"
+                                        AutomationProperties.AutomationId="ActivateProfileButton"
                                         Command="{Binding ActivateProfileCommand}"
                                         CommandParameter="{Binding SelectedProfile}">
                                     <Button.Style>
@@ -752,6 +759,7 @@
 
                                 <Button Content="DELETE PROFILE"
                                         Style="{StaticResource DangerPillButton}"
+                                        AutomationProperties.AutomationId="DeleteProfileButton"
                                         Command="{Binding DeleteProfileCommand}"
                                         CommandParameter="{Binding SelectedProfile}"/>
 
@@ -767,6 +775,7 @@
                                            Style="{StaticResource SectionLabel}"
                                            Margin="0,8,0,8"/>
                                 <TextBox Style="{StaticResource DrawerTextBox}"
+                                         AutomationProperties.AutomationId="NewProfileNameInput"
                                          Text="{Binding NewProfileName, UpdateSourceTrigger=PropertyChanged}"/>
 
                                 <!-- CAPTURE shortcut -->
@@ -775,6 +784,7 @@
                                         HorizontalAlignment="Left"
                                         Margin="0,14,0,0"
                                         ToolTip="Snapshot currently active channels and device settings"
+                                        AutomationProperties.AutomationId="SaveCurrentSettingsButton"
                                         Command="{Binding SaveCurrentSettingsCommand}"/>
 
                                 <!-- DEVICES -->
@@ -820,6 +830,7 @@
 
                                                     <!-- Device checkbox -->
                                                     <CheckBox Style="{StaticResource DarkCheckBox}"
+                                                              AutomationProperties.AutomationId="NewProfileDeviceCheckbox"
                                                               IsChecked="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}">
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="{Binding Name}"
@@ -899,6 +910,7 @@
                                            Margin="0,20,0,16"/>
                                 <Button Content="SAVE PROFILE"
                                         Style="{StaticResource AccentPillButton}"
+                                        AutomationProperties.AutomationId="SaveNewProfileButton"
                                         Command="{Binding SaveNewProfileCommand}"/>
 
                             </StackPanel>
