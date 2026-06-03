@@ -12,7 +12,7 @@ It covers six end-to-end workflows plus a launch smoke test:
 | `LaunchSmokeTests.Launch_MainWindowAppears_AndIsResponsive` | App launches with no prompts; main window appears and is responsive |
 | `AddDeviceTests.AddDevice_ConnectsToAttachedDevice` | Open connection dialog → discover → connect; device shows in connected list |
 | `ConfigureLoggingTests.ConfigureLogging_SetsFrequencyAndChannels` | Set sample frequency (device flyout) + enable analog channels; read both back |
-| `LoggingSessionTests.StartLoggingSession_RunsStopsAndDeletesSession` | Start logging → data accrues (new session row) → stop → **delete that session** (issue #557) via its per-row trash action, accepting the dark **in-pane confirm overlay**. Asserts the row is gone and the session count returns to its pre-run baseline (the view), with **DB-level deletion proven separately from the app's log lines** — `DeleteLoggingSession completed` present and `Failed in DeleteLoggingSession` absent (the SQL `DELETE`s commit in a transaction; the view removal alone isn't DB-proof, since that delete swallows its exceptions). Leaves the test-mode DB self-cleaned (no per-run session leak). |
+| `LoggingSessionTests.StartLoggingSession_RendersLivePlot_RunsStopsAndDeletesSession` | Start logging → **assert the live plot renders believable data while streaming** (issue #560) → data accrues (new session row) → stop → **assert the plot stops accruing** → **delete that session** (issue #557) via its per-row trash action, accepting the dark **in-pane confirm overlay**. The believability check reads the Live Graph pane's **plot-stats hook** (`PlotStatsText`, see gotcha #18) — accessible UI state, not app internals — and asserts **series count == active channels**, **rendered point count strictly increases** over a window (flowing, not frozen), and **values are finite, in a plausible range, and not a dead flatline at zero**; after stop it asserts the point count freezes (no samples reach the plot once the session is inactive). Then asserts the row is gone and the session count returns to its pre-run baseline (the view), with **DB-level deletion proven separately from the app's log lines** — `DeleteLoggingSession completed` present and `Failed in DeleteLoggingSession` absent (the SQL `DELETE`s commit in a transaction; the view removal alone isn't DB-proof, since that delete swallows its exceptions). Leaves the test-mode DB self-cleaned (no per-run session leak). |
 | `SdCardLoggingTests.SdCardLogging_LogsToSdCard_ThenImportsToSession` | Full SD lifecycle in one pass: switch to **Log to Device** (SD card) mode → run a session → a new file appears on the SD card (file count increased), confirming SD-card logging not a stream session → then **import that just-written file** (identified by diffing the file list — or a staged `error`-prefixed file when present, opportunistically guarding daqifi-core #195) and assert a new, non-empty `LoggingSession` appears in `LoggedSessionList`. The import is triangulated from the "Import Complete" dialog, the importer's `Imported N samples` log line (N&gt;0), and a +1 session delta. **USB only; needs an SD card.** |
 | `CsvExportTests.ExportLoggedSession_ProducesValidCsv` / `…ExportAllLoggedSessions_ProducesValidCsv` | Run a short logging session, then export it to CSV — once via the per-session **EXPORT** button and once via **EXPORT ALL** — through the `DAQIFI_TEST_EXPORT_PATH` hook (**no `SaveFileDialog`**, see below). Read the produced CSV back from disk (black box) and validate it: header is `Time` + one `Device:Serial:Channel` column per channel with no formula-injection prefix; every row has the header's field count (RFC 4180 consistency via a strict quote-aware parser); the time column parses as a round-trip timestamp and is non-decreasing; every value cell is a finite invariant-culture number; and the **value-cell count equals the session's persisted sample count** (each sample → one cell), proving no rows were dropped, duplicated, or corrupted. The sample count is read out-of-process from the app's `Persisted sample count N for session S` finalize log line. |
 | `ProfilesTests.SaveActivateDelete_ProfileRoundTrips` / `…CreateProfileViaForm_AppearsAndDeletes` | Full **Profiles** lifecycle. Configure a known state (set a frequency + enable analog channels), **save** it as a profile — once by capturing the live device settings (`SaveCurrentSettingsCommand`) and once via the new-profile form (`SaveNewProfileCommand`) — and assert it appears in the list. Then change the device config to something different (clear channels, set a different frequency), **activate** the saved profile (`ActivateProfileCommand`), and assert the captured **channel + frequency intent is re-applied to the device** — verified through the Channels pane `n / N ACTIVE` ground-truth indicator and the per-device frequency flyout (0 → N active; changed-Hz → captured-Hz). Finally **delete** the profile (`DeleteProfileCommand`) and assert the list returns to its original membership. Each test records the profile count up-front and removes any profile it creates (asserts membership before/after via deltas). A fresh launch never has an active profile (`IsProfileActive` is not persisted to XML), so single-profile activation takes the no-confirm path. **USB or WiFi.** |
@@ -176,6 +176,7 @@ suffix), also hosted by `MainWindow.xaml`.
 | Channel list + “SELECT ALL” (analog) | `ChannelList` / `SelectAllAnalogChannels` | `View/Prototype/ChannelsPanePrototype.xaml` |
 | Channels “CLEAR ALL” (status bar; clears every section) | `ClearAllChannels` | `View/Prototype/ChannelsPanePrototype.xaml` |
 | Logging toggle + status label | `StartLoggingToggle` / `LoggingStatusText` | `View/Prototype/LiveGraphPane.xaml` |
+| Live-plot stats hook (invisible; surfaces the rendered plot's ground truth — see gotcha #18) | `PlotStatsText` | `View/Prototype/LiveGraphPane.xaml` |
 | Logged-session list | `LoggedSessionList` | `View/Prototype/LoggedDataPanePrototype.xaml` |
 | Per-row session **EXPORT** button (one per row) | `ExportSessionButton` | `View/Prototype/LoggedDataPanePrototype.xaml` |
 | Per-row session **DELETE** button (one per row) | `DeleteSessionButton` | `View/Prototype/LoggedDataPanePrototype.xaml` |
@@ -352,6 +353,31 @@ why.
     `DbLogger.DeleteLoggingSession` swallows its own exceptions, so the view-model removes the row
     even on a failed delete. DB-level deletion is asserted separately from the app's NLog lines
     (`DeleteLoggingSession completed` present, `Failed in DeleteLoggingSession` absent).
+
+18. **The live plot is an OxyPlot canvas with no per-point UIA elements — assert on a stats hook,
+    not the plot.** The Live Graph plot (`oxy:PlotView x:Name="DataLog"`, `Model="{Binding
+    Plotter.PlotModel}"`) draws every series and point to a **single drawing surface**; individual
+    points/series are **not** exposed as UI Automation elements, so the harness cannot walk the tree
+    to verify what is rendered. To assert the plot shows believable data while streaming (issue
+    #560) without touching app internals, `LiveGraphPane.xaml` carries an **invisible UIA-visible
+    indicator** `PlotStatsText` whose `AutomationProperties.Name` is bound to
+    `PlotLogger.PlotStatsSummary` — a machine-readable, invariant-culture string
+    `"series=N;points=M;nonfinite=K;last=V;min=A;max=B"` recomputed on the plot's own once-a-second
+    render tick. The harness reads and parses it (`ReadPlotStats` → `PlotStats`) to assert series
+    count == active channels, strictly-increasing point count (data flowing), and finite/plausible/
+    non-flatline values; mirrors the `LoggingStatusText` hook (#8). Two load-bearing details:
+    **(a)** the element is kept out of the `IsLogging`-collapsed status-chip `StackPanel` and made
+    invisible with **`Opacity="0"` + `IsHitTestVisible="False"`, NOT `Visibility="Collapsed"`** — a
+    `Collapsed` element is pruned from the UIA tree (so unreadable), whereas an `Opacity=0` element
+    stays in the tree and readable, and being outside the chips means it is readable **after** stop
+    too (for the freezes-after-stop assertion). **(b)** `PlotStatsSummary` distinguishes a **gap
+    marker** (`DataPoint.Undefined`, NaN *X*) from a real sample (finite *X*), so intentional gap
+    NaNs are not counted as data nor mistaken for a non-finite sample *value* — `nonfinite` counts
+    only real samples whose *value* is NaN/Inf. Samples reach the plot **only** while a stream-mode
+    session is active (`LoggingManager.HandleChannelUpdate` early-returns unless
+    `Active && CurrentMode == Stream && hasActiveApplicationSession`), which is exactly why the plot
+    accrues between start and stop and freezes after — and why an SD-card (`Log to Device`) run does
+    not populate the live plot.
 
 ---
 

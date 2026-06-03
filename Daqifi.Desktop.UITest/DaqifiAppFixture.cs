@@ -56,6 +56,13 @@ public abstract class DaqifiAppFixture
     private const string LOGGING_STATUS_TEXT_ID = "LoggingStatusText";
     private const string LOGGED_SESSION_LIST_ID = "LoggedSessionList";
 
+    // The (invisible) live-plot stats indicator on the Live Graph pane. OxyPlot draws every
+    // point to one canvas and exposes no per-point UI Automation elements, so the harness
+    // cannot walk the tree for points. Instead it reads this element's Name — a machine-readable
+    // "series=..;points=..;nonfinite=..;last=..;min=..;max=.." summary of what the live plot is
+    // rendering — to assert the plot shows believable data while streaming (issue #560).
+    private const string PLOT_STATS_TEXT_ID = "PlotStatsText";
+
     // Per-row DELETE button (one per session row, like ExportSessionButton — it is in the item
     // template, so a row-scoped search targets that one row) and the affirmative button of the
     // app's in-pane confirm overlay. That overlay is the dark, in-window card the app shows for
@@ -1028,6 +1035,231 @@ public abstract class DaqifiAppFixture
             timeoutMessage:
                 "The in-pane confirm overlay did not close after invoking its affirmative button; " +
                 "its blocking scrim is still present, so the confirm command may not have run.");
+    }
+    #endregion
+
+    #region Live-Plot (Plot-Stats) Helpers
+    /// <summary>
+    /// A parsed snapshot of what the live plot is rendering, read out-of-process from the
+    /// Live Graph pane's invisible <c>PlotStatsText</c> indicator (issue #560). OxyPlot draws
+    /// points to a single canvas with no per-point UI Automation elements, so this summary is
+    /// the harness's black-box window onto the plot's ground truth.
+    /// </summary>
+    /// <param name="SeriesCount">Number of rendered series (one per streaming channel).</param>
+    /// <param name="PointCount">Real sample points across all series (gap markers excluded).</param>
+    /// <param name="NonFiniteCount">Real samples whose VALUE is NaN/Inf (expected 0).</param>
+    /// <param name="Last">Latest-in-time finite sample value (<see cref="double.NaN"/> if none).</param>
+    /// <param name="Min">Minimum finite sample value (<see cref="double.NaN"/> if none).</param>
+    /// <param name="Max">Maximum finite sample value (<see cref="double.NaN"/> if none).</param>
+    protected readonly record struct PlotStats(
+        int SeriesCount, long PointCount, long NonFiniteCount, double Last, double Min, double Max);
+
+    /// <summary>
+    /// Reads and parses the live-plot stats indicator (<c>PlotStatsText</c>) from the Live Graph
+    /// pane. Navigates there first (the indicator is only realized in the UIA tree while that tab
+    /// is selected). Re-resolves and re-reads under a short retry because, while a device streams,
+    /// a single UIA Name read can transiently fail (gotcha #10) and the summary itself only
+    /// refreshes about once a second.
+    /// </summary>
+    protected PlotStats ReadPlotStats()
+    {
+        NavigateToTab(LIVE_GRAPH_TAB_TEXT);
+
+        var stats = default(PlotStats);
+        var lastRaw = string.Empty;
+
+        // Read AND parse inside the retry: while a device streams, a single UIA Name read can
+        // transiently fail or (rarely) return a partial value, so retrying the parse — not just
+        // the read — keeps every caller's first read robust (e.g. the baseline in
+        // WaitForPlotPointGrowth, which is otherwise unguarded). TryParse keeps it non-throwing.
+        var read = Retry.WhileFalse(
+            () =>
+            {
+                var name = MainWindow
+                    .FindFirstDescendant(cf => cf.ByAutomationId(PLOT_STATS_TEXT_ID))?.Name;
+                if (string.IsNullOrEmpty(name))
+                {
+                    return false;
+                }
+
+                lastRaw = name;
+                return TryParsePlotStats(name, out stats);
+            },
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: false,
+            ignoreException: true).Result;
+
+        // Assert (not throwOnTimeout) so the failure message can include the last raw value read,
+        // which the eagerly-built timeoutMessage could not capture.
+        Assert.IsTrue(
+            read,
+            "The live-plot stats indicator (PlotStatsText) was not readable/parseable on the Live " +
+            $"Graph pane (last raw value: '{lastRaw}'). Ensure the plot-stats UIA hook in " +
+            "LiveGraphPane.xaml is present and emits the expected 'series=..;points=..;..' format.");
+
+        return stats;
+    }
+
+    /// <summary>
+    /// Tries to parse the <c>"series=N;points=M;nonfinite=K;last=V;min=A;max=B"</c> summary string
+    /// (invariant culture; <c>last/min/max</c> may be <c>"NaN"</c>) into a <see cref="PlotStats"/>.
+    /// Returns false (so the caller retries) on any malformed or partially-read value, and requires
+    /// every field to be present so a truncated read is not silently accepted.
+    /// </summary>
+    private static bool TryParsePlotStats(string summary, out PlotStats stats)
+    {
+        stats = default;
+
+        var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var field in summary.Split(';', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var pair = field.Split('=', 2);
+            if (pair.Length != 2)
+            {
+                return false;
+            }
+
+            fields[pair[0].Trim()] = pair[1].Trim();
+        }
+
+        if (!TryParseLong(fields, "points", out var points)
+            || !TryParseLong(fields, "nonfinite", out var nonFinite)
+            || !TryParseStat(fields, "last", out var last)
+            || !TryParseStat(fields, "min", out var min)
+            || !TryParseStat(fields, "max", out var max))
+        {
+            return false;
+        }
+
+        if (!fields.TryGetValue("series", out var seriesText)
+            || !int.TryParse(
+                seriesText,
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var series))
+        {
+            return false;
+        }
+
+        stats = new PlotStats(series, points, nonFinite, last, min, max);
+        return true;
+    }
+
+    /// <summary>Parses a required invariant-culture integer field; false if missing or malformed.</summary>
+    private static bool TryParseLong(IReadOnlyDictionary<string, string> fields, string key, out long value)
+    {
+        value = 0;
+        return fields.TryGetValue(key, out var text)
+            && long.TryParse(
+                text,
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value);
+    }
+
+    /// <summary>
+    /// Parses a required invariant-culture double field, tolerating the "NaN" sentinel; false if the
+    /// field is missing (a truncated read should retry, not be read as NaN) or malformed.
+    /// </summary>
+    private static bool TryParseStat(IReadOnlyDictionary<string, string> fields, string key, out double value)
+    {
+        value = double.NaN;
+        return fields.TryGetValue(key, out var text)
+            && double.TryParse(
+                text,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out value);
+    }
+
+    /// <summary>
+    /// Waits (polling) until the live plot reports exactly <paramref name="expected"/> series.
+    /// Series materialize one per channel as each channel produces its first sample, so the
+    /// count ramps up over the first moments of streaming; this rides out that ramp. Reads the
+    /// plot-stats indicator, so it navigates to the Live Graph pane.
+    /// </summary>
+    protected void WaitForPlotSeriesCount(int expected, TimeSpan timeout)
+    {
+        Retry.WhileFalse(
+            () => ReadPlotStats().SeriesCount == expected,
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(500),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"The live plot did not render exactly {expected} series (one per active channel) " +
+                $"within {timeout.TotalSeconds:N0}s. A mismatch means the plot is not rendering the " +
+                "active channels' data.");
+    }
+
+    /// <summary>
+    /// Proves the live plot's rendered point count strictly increases over a streaming window
+    /// (data is flowing, not frozen). Takes a baseline reading, then polls until the point count
+    /// exceeds it or <paramref name="timeout"/> elapses, and fails if it never grew. Returns the
+    /// baseline and the first reading that showed growth.
+    /// </summary>
+    protected (PlotStats Before, PlotStats After) WaitForPlotPointGrowth(TimeSpan timeout)
+    {
+        var before = ReadPlotStats();
+        var after = before;
+
+        var grew = Retry.WhileFalse(
+            () =>
+            {
+                after = ReadPlotStats();
+                return after.PointCount > before.PointCount;
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(400),
+            throwOnTimeout: false,
+            ignoreException: true).Result;
+
+        Assert.IsTrue(
+            grew,
+            $"The live plot's rendered point count did not increase within {timeout.TotalSeconds:N0}s " +
+            $"(stayed at {before.PointCount}). The plot is frozen — data is not reaching it while streaming.");
+
+        return (before, after);
+    }
+
+    /// <summary>
+    /// Asserts the live plot stops accruing points after logging has stopped — by proving its
+    /// rendered point count <b>converges to a stable value</b>. Once the session goes inactive no
+    /// samples reach the plot (<c>HandleChannelUpdate</c> early-returns on <c>!Active</c>), so the
+    /// count stops rising; but the stats indicator recomputes only about once a second, so it takes
+    /// a tick or two to catch up to the final pre-stop points (and a brief post-stop pipeline drain
+    /// may add a few). This polls for two consecutive equal readings spaced safely longer than the
+    /// indicator's ~1 s refresh — so a genuinely frozen plot settles within a tick, while a plot
+    /// that kept streaming at any real rate would never produce two equal readings and so would
+    /// (correctly) fail. Convergence is the proof it stopped accruing. Call only after
+    /// <see cref="StopLogging"/> has confirmed "LOGGING OFF".
+    /// </summary>
+    protected void AssertPlotStoppedAccruing(TimeSpan settleTimeout)
+    {
+        // Read interval comfortably exceeds the indicator's ~1 s recompute, guaranteeing at least
+        // one refresh between consecutive reads: equal across that gap ⇒ the buffer is frozen;
+        // unequal ⇒ still accruing. (Two reads inside one refresh period could alias to the same
+        // stale value, so the gap must clear a full period.)
+        var previous = -1L;
+        var settled = Retry.WhileFalse(
+            () =>
+            {
+                var current = ReadPlotStats().PointCount;
+                var isStable = current >= 0 && current == previous;
+                previous = current;
+                return isStable;
+            },
+            timeout: settleTimeout,
+            interval: TimeSpan.FromMilliseconds(1500),
+            throwOnTimeout: false,
+            ignoreException: true).Result;
+
+        Assert.IsTrue(
+            settled,
+            $"The live plot's rendered point count never settled within {settleTimeout.TotalSeconds:N0}s " +
+            "of stopping logging — it kept accruing. Stopping logging should freeze the plot (no samples " +
+            "reach it once the session is inactive).");
     }
     #endregion
 

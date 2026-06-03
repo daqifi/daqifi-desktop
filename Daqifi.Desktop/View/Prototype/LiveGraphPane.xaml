@@ -394,6 +394,25 @@
                                    Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
+
+                <!--
+                    Invisible plot-stats hook for out-of-process UI automation (issue #560).
+                    OxyPlot renders points to a single canvas with no per-point UI Automation
+                    elements, so the harness reads this element's Name to assert the live plot
+                    is rendering believable data while streaming (series count, point growth,
+                    finite/plausible values). Opacity=0 + IsHitTestVisible=False keeps it fully
+                    invisible and non-interactive while remaining present and readable in the UIA
+                    tree (a Collapsed element would be pruned from it). Both Text and
+                    AutomationProperties.Name are bound so the Name tracks the value, mirroring
+                    the LoggingStatusText hook.
+                -->
+                <TextBlock AutomationProperties.AutomationId="PlotStatsText"
+                           Text="{Binding Plotter.PlotStatsSummary}"
+                           AutomationProperties.Name="{Binding Plotter.PlotStatsSummary}"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Top"
+                           Opacity="0"
+                           IsHitTestVisible="False"/>
             </Grid>
 
             <!-- ── Channel legend sidebar ── -->
