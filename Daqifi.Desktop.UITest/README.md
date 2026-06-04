@@ -380,6 +380,22 @@ why.
     accrues between start and stop and freezes after — and why an SD-card (`Log to Device`) run does
     not populate the live plot.
 
+19. **A bare `Border`/`Grid`/`StackPanel` has no UI Automation peer — put the detection id on a
+    *control*, not the layout container.** WPF only creates an automation peer (and thus a UIA-tree
+    node) for elements that override `OnCreateAutomationPeer` — `Control`s, `TextBlock`, `Image`,
+    etc. Pure layout decorators do **not**, so `AutomationProperties.AutomationId` on a `Border`
+    silently never surfaces — `FindFirstDescendant(ByAutomationId(...))` returns null **whether the
+    element is visible or not**, which reads exactly like "the feature isn't showing." This bit the
+    SD-logging overlay (issue #507): its panel is a `Border` bound `Visibility="{Binding
+    IsSdCardLoggingActive, ...}"`, and an id on it was unfindable even though the panel was on
+    screen (the header `ELAPSED` chip — same binding — confirmed it via the failure screenshot). The
+    fix is the rule every other id here already follows: key off a **peer-bearing child** that is
+    rendered only while the container is — here the elapsed-clock `TextBlock` `SdLoggingElapsedText`,
+    whose presence by id is the overlay's displayed/hidden signal (cf. the `TextBlock`
+    `ActiveProfileIndicator` #16c and the `ComboBox` `SdCardFormatSelector` #12). Confirm visual
+    presence from the on-failure screenshot before concluding an app bug — a null id lookup alone
+    does not distinguish "not displayed" from "displayed but has no peer."
+
 ---
 
 ## Adding a new scenario
