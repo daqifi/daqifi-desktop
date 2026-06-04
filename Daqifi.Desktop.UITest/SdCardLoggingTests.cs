@@ -19,6 +19,11 @@ namespace Daqifi.Desktop.UITest;
 /// the logged-session list — a true round trip that also proves the device's freshly
 /// written file actually parses.
 ///
+/// While the session runs it also asserts the Live Graph reflects SD-card mode (issue #507):
+/// the necessarily-empty live plot is replaced by the "Logging to Device" status overlay —
+/// present in the UIA tree only while the device reports SD-card logging — showing a live
+/// HH:mm:ss elapsed clock, and the overlay disappears once logging stops and the plot returns.
+///
 /// Combining both halves in one test avoids re-running the shared connect/configure setup
 /// and makes the imported file's provenance certain (it is the file this run produced).
 /// Requires a DAQiFi device with an SD card connected via USB (SD logging is USB-only).
@@ -41,7 +46,8 @@ public class SdCardLoggingTests : DaqifiAppFixture
     /// <summary>
     /// End-to-end SD card lifecycle: connect over USB, switch to "Log to Device" mode,
     /// enable channels, run a brief logging session, stop, assert the device logged to its
-    /// SD card (Enabled/Disabled log lines plus an increased SD file count), then import the
+    /// SD card (Enabled/Disabled log lines, the Live Graph "Logging to Device" overlay shown
+    /// while logging and hidden after stop, plus an increased SD file count), then import the
     /// file that was just written and assert a new non-empty logging session appears.
     /// </summary>
     [TestMethod]
@@ -87,6 +93,25 @@ public class SdCardLoggingTests : DaqifiAppFixture
             "log line appeared. Without it the session likely streamed to the app instead of " +
             "logging to the SD card.");
 
+        // Assert (UI) — the Live Graph reflects what's actually happening (issue #507). With the
+        // device recording to its own SD card (not streaming to the app), the necessarily-empty
+        // live plot is replaced by the centered "Logging to Device" status overlay. It is shown
+        // only while IsSdCardLoggingActive, which is driven by the device's IsLoggingToSdCard +
+        // PropertyChanged — so its appearance proves the device's logging state actually reached
+        // the UI. That is a stronger end-to-end signal than the "Enabled SD card logging" log line
+        // above, which the device emits even if its reported state never flipped true.
+        WaitForSdLoggingOverlay(shouldBeDisplayed: true, TimeSpan.FromSeconds(15));
+
+        // The overlay's elapsed clock is live — a 1 Hz timer drives the bound HH:mm:ss value.
+        // Reading it back as a well-formed clock confirms the panel shows real, ticking content,
+        // not merely that an empty Border is present in the tree.
+        var elapsed = ReadSdLoggingElapsed();
+        StringAssert.Matches(
+            elapsed,
+            new System.Text.RegularExpressions.Regex(@"^\d{2}:\d{2}:\d{2}$"),
+            $"Expected the 'Logging to Device' overlay to show an HH:mm:ss elapsed clock while SD " +
+            $"logging, but read '{elapsed}'. The SdLoggingElapsed timer may not be running.");
+
         // Let the device log to its SD card briefly.
         System.Threading.Thread.Sleep(SdRunDuration);
 
@@ -97,6 +122,11 @@ public class SdCardLoggingTests : DaqifiAppFixture
             WaitForLogContains("Disabled SD card logging for device", TimeSpan.FromSeconds(20)),
             "Expected the device to stop SD card logging, but no 'Disabled SD card logging' " +
             "log line appeared.");
+
+        // Assert (UI) — stopping SD logging hides the overlay and brings the live plot back.
+        // IsSdCardLoggingActive returns to false (device IsLoggingToSdCard=false + PropertyChanged),
+        // collapsing the "Logging to Device" Border out of the UIA tree.
+        WaitForSdLoggingOverlay(shouldBeDisplayed: false, TimeSpan.FromSeconds(15));
 
         // Assert (out-of-process) — a new file exists on the SD card. The device writes a
         // log file to its SD card per session, so an increased file count is positive proof

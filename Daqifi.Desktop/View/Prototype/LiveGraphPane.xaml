@@ -424,7 +424,12 @@
                 </Border>
 
                 <!-- SD-card logging overlay: replaces the (necessarily empty)
-                     plot when the device is recording to its own SD card. -->
+                     plot when the device is recording to its own SD card. A bare
+                     Border has no UI Automation peer (it never surfaces in the UIA
+                     tree, visible or not), so the automation harness asserts this
+                     panel is displayed via the SdLoggingElapsedText TextBlock below
+                     — a control that does have a peer and is rendered only while this
+                     overlay is (Visibility binds to IsSdCardLoggingActive). -->
                 <Border IsHitTestVisible="False"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
@@ -453,7 +458,15 @@
                                    Foreground="{StaticResource TextPrimary}"
                                    HorizontalAlignment="Center"/>
 
+                        <!-- Elapsed clock + the overlay's UI-automation hook. A bare Border has
+                             no automation peer, so this TextBlock (which does) is what the harness
+                             finds to assert the panel is displayed: it is in the UIA tree only while
+                             the overlay is. AutomationProperties.Name is pinned to the bound value so
+                             the once-a-second update is reliably readable out-of-process (mirrors the
+                             LoggingStatusText / PlotStatsText hooks). -->
                         <TextBlock Text="{Binding SdLoggingElapsed}"
+                                   AutomationProperties.AutomationId="SdLoggingElapsedText"
+                                   AutomationProperties.Name="{Binding SdLoggingElapsed}"
                                    FontFamily="Consolas"
                                    FontSize="22"
                                    Foreground="{StaticResource StatusGreen}"

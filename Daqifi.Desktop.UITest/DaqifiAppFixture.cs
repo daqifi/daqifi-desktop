@@ -102,6 +102,17 @@ public abstract class DaqifiAppFixture
     private const string SDCARD_STATUS_TEXT_ID = "SdCardStatusText";
     private const string SDCARD_FILE_LIST_ID = "SdCardFileList";
 
+    // The "Logging to Device" status panel shown on the Live Graph pane while a connected device
+    // is logging to its SD card (issue #507). The panel's Border Visibility binds to
+    // DaqifiViewModel.IsSdCardLoggingActive, but a bare Border has no UI Automation peer — it never
+    // surfaces in the UIA tree, visible or not — so the harness keys off the elapsed-clock TextBlock
+    // inside it instead: a TextBlock HAS a peer and is rendered only while the overlay is, so its
+    // presence by id is a clean displayed/hidden signal (every detection id in this harness sits on
+    // a control/TextBlock for this reason). Its AutomationProperties.Name is pinned to the bound
+    // HH:mm:ss value so the once-a-second update is readable out-of-process (mirrors the
+    // LoggingStatusText / PlotStatsText hooks).
+    private const string SDCARD_LOGGING_ELAPSED_TEXT_ID = "SdLoggingElapsedText";
+
     // The per-row IMPORT button inside each SD card file row. Every realized row carries
     // the same id (it is in a GridView cell template), so a row-scoped search targets a
     // specific file; CommandParameter binds each button to its own row's SdCardFile.
@@ -1586,6 +1597,67 @@ public abstract class DaqifiAppFixture
         var refresh = FindByAutomationId(REFRESH_SDCARD_FILES_BUTTON_ID).AsButton();
         refresh.WaitUntilEnabled(TimeSpan.FromSeconds(10));
         refresh.Invoke();
+    }
+
+    /// <summary>
+    /// Waits (polling) until the Live Graph pane's "Logging to Device" status overlay reaches the
+    /// expected display state. The overlay Border's Visibility binds to
+    /// <c>DaqifiViewModel.IsSdCardLoggingActive</c>; the Border itself has no automation peer, so
+    /// this keys off the <c>SdLoggingElapsedText</c> TextBlock inside it — a peer-bearing control
+    /// rendered (and thus in the UIA tree) only while the overlay is — making its presence/absence
+    /// a faithful displayed/hidden signal. The overlay appears only when a connected device actually
+    /// reports SD-card logging — the device sets <c>IsLoggingToSdCard</c> and raises PropertyChanged,
+    /// which the view model forwards to the binding — so this is a stronger end-to-end signal than
+    /// the "Enabled SD card logging" log line alone, which the device emits even if its reported
+    /// <c>IsLoggingToSdCard</c> never flips true. Navigates to the Live Graph pane first (the overlay
+    /// is only realized in the tree while that tab is selected).
+    /// </summary>
+    /// <param name="shouldBeDisplayed">True to wait until the overlay is shown; false until it is hidden.</param>
+    protected void WaitForSdLoggingOverlay(bool shouldBeDisplayed, TimeSpan timeout)
+    {
+        NavigateToTab(LIVE_GRAPH_TAB_TEXT);
+        Retry.WhileFalse(
+            () =>
+            {
+                var present = MainWindow.FindFirstDescendant(
+                    cf => cf.ByAutomationId(SDCARD_LOGGING_ELAPSED_TEXT_ID)) != null;
+                return present == shouldBeDisplayed;
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: shouldBeDisplayed
+                ? "The Live Graph 'Logging to Device' overlay never appeared while SD-card logging. " +
+                  "IsSdCardLoggingActive stayed false — either the device did not report " +
+                  "IsLoggingToSdCard=true, or the view model did not forward its PropertyChanged to " +
+                  "the overlay's Visibility binding."
+                : "The Live Graph 'Logging to Device' overlay did not disappear after SD-card logging " +
+                  "stopped — IsSdCardLoggingActive stayed true, so the live plot never returned.");
+    }
+
+    /// <summary>
+    /// Reads the elapsed-time clock shown inside the "Logging to Device" overlay (the
+    /// <c>SdLoggingElapsedText</c> hook, whose UIA Name is pinned to the bound HH:mm:ss value).
+    /// Assumes the overlay is displayed — call after <see cref="WaitForSdLoggingOverlay"/> with
+    /// <c>shouldBeDisplayed: true</c>. Polls briefly so a transient UIA read miss does not return a
+    /// spurious empty string. Returns the raw clock text, or an empty string if it never read.
+    /// </summary>
+    protected string ReadSdLoggingElapsed(TimeSpan? timeout = null)
+    {
+        var value = string.Empty;
+        Retry.WhileFalse(
+            () =>
+            {
+                value = MainWindow.FindFirstDescendant(
+                    cf => cf.ByAutomationId(SDCARD_LOGGING_ELAPSED_TEXT_ID))?.Name?.Trim() ?? string.Empty;
+                return value.Length > 0;
+            },
+            timeout: timeout ?? TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(250),
+            throwOnTimeout: false,
+            ignoreException: true);
+        return value;
     }
     #endregion
 
