@@ -100,7 +100,7 @@ public class SdCardLoggingTests : DaqifiAppFixture
         // PropertyChanged — so its appearance proves the device's logging state actually reached
         // the UI. That is a stronger end-to-end signal than the "Enabled SD card logging" log line
         // above, which the device emits even if its reported state never flipped true.
-        WaitForSdLoggingOverlay(shouldBeDisplayed: true, TimeSpan.FromSeconds(15));
+        WaitForSdLoggingOverlay(shouldBeDisplayed: true, timeout: TimeSpan.FromSeconds(15));
 
         // The overlay's elapsed clock is live — a 1 Hz timer drives the bound HH:mm:ss value.
         // Reading it back as a well-formed clock confirms the panel shows real, ticking content,
@@ -126,7 +126,7 @@ public class SdCardLoggingTests : DaqifiAppFixture
         // Assert (UI) — stopping SD logging hides the overlay and brings the live plot back.
         // IsSdCardLoggingActive returns to false (device IsLoggingToSdCard=false + PropertyChanged),
         // collapsing the "Logging to Device" Border out of the UIA tree.
-        WaitForSdLoggingOverlay(shouldBeDisplayed: false, TimeSpan.FromSeconds(15));
+        WaitForSdLoggingOverlay(shouldBeDisplayed: false, timeout: TimeSpan.FromSeconds(15));
 
         // Assert (out-of-process) — a new file exists on the SD card. The device writes a
         // log file to its SD card per session, so an increased file count is positive proof
