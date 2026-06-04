@@ -589,23 +589,28 @@ public abstract class DaqifiAppFixture
     {
         NavigateToTab(DEVICES_TAB_TEXT);
 
-        // The DISCONNECT button lives inside the settings drawer; open it via the gear if it is
-        // not already realized. Opening the drawer also sets SelectedTile/SelectedDevice, which
-        // the DisconnectSelectedCommand's CanExecute requires.
-        var probe = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(DISCONNECT_SELECTED_BUTTON_ID));
-        if (probe == null || probe.IsOffscreen)
+        // The DISCONNECT button lives inside the settings drawer; if it is absent the drawer is
+        // closed (a Collapsed subtree is pruned from the UIA tree), so open it via the gear. Presence
+        // by id — not on-screen position — is the drawer-open signal: opening the drawer also sets
+        // SelectedTile/SelectedDevice, which the DisconnectSelectedCommand's CanExecute requires. Do
+        // not key the open decision off IsOffscreen — the button sits in the ACTIONS section at the
+        // bottom of the drawer's ScrollViewer, so it can be present yet scrolled out of view, and
+        // re-clicking the gear then would not help.
+        if (MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(DISCONNECT_SELECTED_BUTTON_ID)) == null)
         {
             var gear = FindByAutomationId(DEVICE_SETTINGS_BUTTON_ID);
             gear.WaitUntilEnabled(TimeSpan.FromSeconds(10));
             gear.AsButton().Invoke();
         }
 
+        // Wait only for the button to be PRESENT (drawer realized) — not for !IsOffscreen. Because
+        // the button is at the bottom of the drawer's ScrollViewer, on a short window it can be
+        // present but scrolled off-screen; requiring !IsOffscreen would then time out and make this
+        // flaky. InvokePattern raises the click on the automation peer regardless of scroll position
+        // (the element need not be on-screen to Invoke), so presence is the only precondition that
+        // matters — consistent with this harness's pattern-over-physical-click approach (gotcha #9).
         var disconnect = Retry.WhileNull(
-            () =>
-            {
-                var el = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(DISCONNECT_SELECTED_BUTTON_ID));
-                return el != null && !el.IsOffscreen ? el : null;
-            },
+            () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(DISCONNECT_SELECTED_BUTTON_ID)),
             timeout: TimeSpan.FromSeconds(15),
             interval: TimeSpan.FromMilliseconds(300),
             throwOnTimeout: true,

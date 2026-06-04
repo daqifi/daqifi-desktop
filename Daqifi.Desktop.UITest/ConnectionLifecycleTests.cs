@@ -46,6 +46,14 @@ public class ConnectionLifecycleTests : DaqifiAppFixture
     private const int MAX_CLEANUP_DELETES = 12;
     #endregion
 
+    /// <summary>
+    /// Runs two connect → active → disconnect cycles against the attached device: it asserts a
+    /// clean teardown after each disconnect (device leaves the connected list, channels clear,
+    /// logging controls disable, no disconnect error logged) and proves the same device, after a
+    /// full disconnect, reconnects and is fully usable again (a second logging session starts,
+    /// streams, and stops just like the first). Self-cleans the sessions it created. See the class
+    /// summary for the full scenario rationale. Requires a DAQiFi device.
+    /// </summary>
     [TestMethod]
     [TestCategory("Ui")]
     [TestCategory("RequiresDevice")]
