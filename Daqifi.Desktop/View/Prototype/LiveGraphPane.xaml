@@ -314,16 +314,23 @@
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
                     <TextBlock VerticalAlignment="Center"
+                               AutomationProperties.AutomationId="LoggingStatusText"
                                FontSize="11"
                                FontWeight="SemiBold"
                                Margin="0,0,8,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Text" Value="LOGGING OFF"/>
+                                <!-- Keep the UIA Name in sync with the displayed Text so the
+                                     logging state is exposed to automation and screen readers.
+                                     (A TextBlock's Name does not track Text changes made by a
+                                     Style trigger, so set Name explicitly alongside Text.) -->
+                                <Setter Property="AutomationProperties.Name" Value="LOGGING OFF"/>
                                 <Setter Property="Foreground" Value="{StaticResource TextTertiary}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsLogging}" Value="True">
                                         <Setter Property="Text" Value="LOGGING ON"/>
+                                        <Setter Property="AutomationProperties.Name" Value="LOGGING ON"/>
                                         <Setter Property="Foreground" Value="{StaticResource StatusGreen}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -331,6 +338,7 @@
                         </TextBlock.Style>
                     </TextBlock>
                     <ToggleButton IsChecked="{Binding IsLogging, Mode=TwoWay}"
+                                  AutomationProperties.AutomationId="StartLoggingToggle"
                                   IsEnabled="{Binding CanToggleLogging, Mode=OneWay}"
                                   Style="{StaticResource LoggingToggle}"
                                   ToolTip="Toggle logging"/>
@@ -480,6 +488,25 @@
                                    Margin="0,2,0,0"/>
                     </StackPanel>
                 </Border>
+
+                <!--
+                    Invisible plot-stats hook for out-of-process UI automation (issue #560).
+                    OxyPlot renders points to a single canvas with no per-point UI Automation
+                    elements, so the harness reads this element's Name to assert the live plot
+                    is rendering believable data while streaming (series count, point growth,
+                    finite/plausible values). Opacity=0 + IsHitTestVisible=False keeps it fully
+                    invisible and non-interactive while remaining present and readable in the UIA
+                    tree (a Collapsed element would be pruned from it). Both Text and
+                    AutomationProperties.Name are bound so the Name tracks the value, mirroring
+                    the LoggingStatusText hook.
+                -->
+                <TextBlock AutomationProperties.AutomationId="PlotStatsText"
+                           Text="{Binding Plotter.PlotStatsSummary}"
+                           AutomationProperties.Name="{Binding Plotter.PlotStatsSummary}"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Top"
+                           Opacity="0"
+                           IsHitTestVisible="False"/>
             </Grid>
 
             <!-- ── Channel legend sidebar ── -->

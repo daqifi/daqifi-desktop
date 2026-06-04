@@ -16,12 +16,9 @@
 	<PropertyGroup>
 		<ApplicationIcon>Images\WiFiDAQ.ico</ApplicationIcon>
 		<AssemblyName>DAQiFi</AssemblyName>
-		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<ApplicationManifest Condition="'$(Configuration)'=='Debug'">app.Debug.manifest</ApplicationManifest>
+		<ApplicationManifest Condition="'$(Configuration)'!='Debug'">app.manifest</ApplicationManifest>
 		<EnableWindowsTargeting>true</EnableWindowsTargeting>
-	</PropertyGroup>
-	<PropertyGroup>
-		<AssemblyVersion>3.2.0.0</AssemblyVersion>
-		<FileVersion>3.2.0.0</FileVersion>
 	</PropertyGroup>
 	<PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
 	  <PlatformTarget>x64</PlatformTarget>
@@ -57,18 +54,23 @@
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-		<PackageReference Include="Daqifi.Core" Version="0.20.0" />
+		<PackageReference Include="Daqifi.Core" Version="0.22.0" />
 		<PackageReference Include="EFCore.BulkExtensions.Sqlite" Version="10.0.1" />
 		<PackageReference Include="MahApps.Metro" Version="2.4.11" />
 		<PackageReference Include="MahApps.Metro.IconPacks.Material" Version="6.2.1" />
-		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.7" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
-		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.7" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.7" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.7">
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="10.0.8" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.8">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
+		<!-- Used directly by View/Prototype/*.xaml (i:Interaction/EventTrigger/InvokeCommandAction).
+		     Referenced explicitly rather than relying on MahApps.Metro's transitive dependency so a
+		     clean restore cannot drop it out from under the XAML compiler. Version tracks the one
+		     MahApps.Metro 2.4.11 currently resolves. -->
+		<PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.19" />
 		<PackageReference Include="NCalcSync" Version="5.12.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 		<PackageReference Include="OxyPlot.Core" Version="2.2.0" />
@@ -77,11 +79,10 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.2" />
-		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
-		<PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.7" />
-		<PackageReference Include="System.IO.Ports" Version="10.0.7" />
-		<PackageReference Include="System.Management" Version="10.0.5" />
+		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
+		<PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.8" />
+		<PackageReference Include="System.IO.Ports" Version="10.0.8" />
+		<PackageReference Include="System.Management" Version="10.0.8" />
 	</ItemGroup>
 
 	<ItemGroup>

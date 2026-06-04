@@ -201,14 +201,25 @@ public partial class DaqifiViewModel : ObservableObject
     public SummaryLogger SummaryLogger { get; private set; }
 
     /// <summary>
-    /// True if the user has toggled logging on, OR if any connected device reports
-    /// it is actively logging to its SD card. Reading from device state ensures the
-    /// toggle reflects reality even when SD-card logging was started in a prior
-    /// session and the device kept logging across a desktop reconnect. Streaming-mode
-    /// state is not tracked here because <c>IsStreaming</c> is not on the
+    /// Gets or sets whether a logging session is active.
+    /// <para>
+    /// The getter returns true if the user has toggled logging on, OR if any connected
+    /// device reports it is actively logging to its SD card. Reading from device state
+    /// ensures the value reflects reality even when SD-card logging was started in a
+    /// prior session and the device kept logging across a desktop reconnect. Streaming-
+    /// mode state is not tracked here because <c>IsStreaming</c> is not on the
     /// <see cref="IStreamingDevice"/> interface; the streaming path updates state
-    /// synchronously through the setter via the toggle, so this getter only needs to
-    /// supplement that with the SD-card signal.
+    /// synchronously through the setter, so the getter only needs to supplement that
+    /// with the SD-card signal.
+    /// </para>
+    /// <para>
+    /// The setter is the single entry point for starting/stopping logging: it gates
+    /// startup on available disk space, starts or stops disk-space monitoring, and
+    /// starts or stops streaming (or SD-card logging) on every connected device. It
+    /// also raises a change notification so all bindings — the logging toggle, the
+    /// "LOGGING ON/OFF" status label, and the LIVE/MODE/RATE header chips — reflect the
+    /// current session state.
+    /// </para>
     /// </summary>
     public bool IsLogging
     {
@@ -243,6 +254,12 @@ public partial class DaqifiViewModel : ObservableObject
             }
 
             _isLogging = value;
+            // Notify bindings on the normal start/stop path. The toggle is the binding
+            // source so it flips on its own, but the "LOGGING ON/OFF" status label and
+            // the LIVE/MODE/RATE header chips are consumers that only refresh on this
+            // change notification — without it the label goes stale (toggle reads On
+            // while the label still says "LOGGING OFF").
+            OnPropertyChanged(nameof(IsLogging));
             LoggingManager.Instance.Active = value;
             if (_isLogging)
             {
@@ -590,7 +607,15 @@ public partial class DaqifiViewModel : ObservableObject
                     Plotter.ShowingMinorXAxisGrid = false;
                     Plotter.ShowingMinorYAxisGrid = false;
 
-                    FirewallConfiguration.InitializeFirewallRules();
+                    // Firewall configuration requires administrator rights. Only attempt it
+                    // on an elevated, non-test launch (production). Un-elevated runs (the UI
+                    // test harness or a normal non-admin Debug launch) cannot change firewall
+                    // rules and would otherwise just surface a modal "configure manually"
+                    // prompt, so skip it entirely.
+                    if (App.IsElevated && !App.IsTestMode)
+                    {
+                        FirewallConfiguration.InitializeFirewallRules();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -1070,8 +1095,7 @@ public partial class DaqifiViewModel : ObservableObject
     private static string GetFirmwareDownloadDirectory()
     {
         var firmwareDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "DAQiFi",
+            App.DaqifiDataDirectory,
             "Firmware",
             "PIC32");
         Directory.CreateDirectory(firmwareDirectory);
@@ -1081,8 +1105,7 @@ public partial class DaqifiViewModel : ObservableObject
     private static string GetWifiDownloadDirectory()
     {
         var wifiDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "DAQiFi",
+            App.DaqifiDataDirectory,
             "Firmware",
             "WiFi");
         Directory.CreateDirectory(wifiDirectory);
@@ -1339,7 +1362,7 @@ public partial class DaqifiViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ExportLoggingSession(LoggingSession? session)
+    private async Task ExportLoggingSession(LoggingSession? session)
     {
         if (session == null)
         {
@@ -1349,11 +1372,21 @@ public partial class DaqifiViewModel : ObservableObject
 
         SelectedLoggingSession = session;
         var exportDialogViewModel = new ExportDialogViewModel(SelectedLoggingSession.ID);
+
+        // UI-test hook: when DAQIFI_TEST_EXPORT_PATH is set, export straight to that directory
+        // with no SaveFileDialog (mirrors DAQIFI_TEST_MODE / AppDataPaths). Unset in production,
+        // where the interactive dialog below is used unchanged.
+        if (Common.AppDataPaths.TestExportPath != null)
+        {
+            await exportDialogViewModel.ExportToDirectoryAsync(Common.AppDataPaths.TestExportPath);
+            return;
+        }
+
         _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
     }
 
     [RelayCommand(CanExecute = nameof(CanExportAllLoggingSession))]
-    private void ExportAllLoggingSession()
+    private async Task ExportAllLoggingSession()
     {
         if (LoggingSessions.Count == 0)
         {
@@ -1362,6 +1395,15 @@ public partial class DaqifiViewModel : ObservableObject
         }
 
         var exportDialogViewModel = new ExportDialogViewModel(LoggingSessions);
+
+        // UI-test hook: see ExportLoggingSession above. Same seam, so "Export All" is equally
+        // dialog-free and deterministic under automation when the env var is set.
+        if (Common.AppDataPaths.TestExportPath != null)
+        {
+            await exportDialogViewModel.ExportToDirectoryAsync(Common.AppDataPaths.TestExportPath);
+            return;
+        }
+
         _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
     }
 
@@ -2156,7 +2198,6 @@ public partial class DaqifiViewModel : ObservableObject
         {
             _appLogger.Warning($"Disk space critical ({e.AvailableMegabytes} MB) — automatically stopping logging");
             IsLogging = false;
-            OnPropertyChanged(nameof(IsLogging));
 
             _ = ShowDiskSpaceMessage(
                 "Logging Stopped — Disk Space Critical",

@@ -9,7 +9,10 @@ public class DaqifiSettings
 {
     #region Private Data
     private string _csvDelimiter = ",";
-    private static readonly string AppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
+    // Use the shared, elevation-aware data directory (AppDataPaths): machine-wide for
+    // elevated production runs, per-user for un-elevated runs. Keeps settings writable
+    // (and consistent with the database/logs) instead of failing on an admin-owned file.
+    private static readonly string AppDirectory = Daqifi.Desktop.Common.AppDataPaths.DataDirectory;
     private static readonly string SettingsXmlPath = AppDirectory + "\\DAQifiConfiguration.xml";
     #endregion
 

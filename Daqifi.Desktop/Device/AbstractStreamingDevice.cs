@@ -149,6 +149,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     };
 
     /// <summary>
+    /// Gets the best available human-readable name for this device.
+    /// Returns the serial number when populated, otherwise falls back to DisplayIdentifier.
+    /// </summary>
+    public string DeviceDisplayName =>
+        !string.IsNullOrWhiteSpace(DeviceSerialNo) ? DeviceSerialNo : DisplayIdentifier;
+
+    /// <summary>
     /// Gets the COM port identifier for USB devices. Override in derived classes.
     /// </summary>
     /// <returns>COM port name for USB devices</returns>

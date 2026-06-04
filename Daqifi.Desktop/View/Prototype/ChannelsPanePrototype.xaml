@@ -61,6 +61,7 @@
 
         <DataTemplate x:Key="ChannelTileTemplate" DataType="{x:Type vm:ChannelTileViewModel}">
             <Border Width="148" Height="88" Margin="0,0,10,10"
+                    AutomationProperties.AutomationId="{Binding Name}"
                     Background="{Binding TileBackground}"
                     BorderBrush="{Binding TileBorderBrush}"
                     BorderThickness="1"
@@ -342,6 +343,7 @@
                         </StackPanel>
                         <Button Style="{StaticResource PillButton}"
                                 HorizontalAlignment="Right"
+                                AutomationProperties.AutomationId="SelectAllAnalogChannels"
                                 Content="SELECT ALL"
                                 Command="{Binding SelectAllCommand}"
                                 CommandParameter="AI"/>
@@ -351,6 +353,7 @@
                                Margin="0,0,0,14"
                                Visibility="{Binding TotalAnalogCount, Converter={StaticResource IntToVisibility}}"/>
                     <ItemsControl ItemsSource="{Binding AnalogInputs}"
+                                  AutomationProperties.AutomationId="ChannelList"
                                   ItemTemplate="{StaticResource ChannelTileTemplate}"
                                   ItemsPanel="{StaticResource TileWrap}"
                                   Margin="0,0,0,24"/>
@@ -455,6 +458,7 @@
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource PillButton}"
                                 Content="CLEAR ALL"
+                                AutomationProperties.AutomationId="ClearAllChannels"
                                 Command="{Binding ClearAllCommand}"/>
                     </StackPanel>
                 </Grid>
