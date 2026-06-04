@@ -856,6 +856,7 @@
                                         Command="{Binding RebootSelectedCommand}"/>
                                 <Button Style="{StaticResource DangerPillButton}"
                                         Content="DISCONNECT"
+                                        AutomationProperties.AutomationId="DisconnectSelectedButton"
                                         Command="{Binding DisconnectSelectedCommand}"/>
                             </StackPanel>
 

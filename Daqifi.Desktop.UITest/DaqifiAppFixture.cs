@@ -42,6 +42,14 @@ public abstract class DaqifiAppFixture
     private const string CONNECT_BUTTON_WIFI_ID = "ConnectButton_Wifi";
     private const string CONNECT_BUTTON_SERIAL_ID = "ConnectButton_Serial";
 
+    // The DISCONNECT button in the per-device settings drawer's ACTIONS section (opened by the
+    // tile gear, DeviceSettingsButton). It is a plain Button bound to DisconnectSelectedCommand,
+    // so InvokePattern raises a real click and the bound command runs (cf. gotcha #12, which only
+    // bites bound Commands on check controls). Disconnecting tears down the device: it unsubscribes
+    // active channels, disposes the transport, and removes the device from ConnectedDevices —
+    // exercised by the disconnect→reconnect lifecycle scenario (issue #559).
+    private const string DISCONNECT_SELECTED_BUTTON_ID = "DisconnectSelectedButton";
+
     // AutomationIds for the logging-configuration controls. Sampling frequency is set
     // in the per-device settings flyout (opened by the gear icon on the device tile),
     // not on the Profiles pane; channels are toggled on the Channels pane.
@@ -561,6 +569,137 @@ public abstract class DaqifiAppFixture
             throwOnTimeout: true,
             timeoutMessage:
                 $"Expected at least {minimum} connected device tile(s) but found fewer within {timeout.TotalSeconds}s.");
+    }
+    #endregion
+
+    #region Disconnect / Reconnect Lifecycle Helpers
+    /// <summary>
+    /// Disconnects the currently connected device through the real UI: opens its settings drawer
+    /// (via the tile gear, <c>DeviceSettingsButton</c>, which selects the tile and so satisfies
+    /// the command's <c>SelectedDevice != null</c> guard), then invokes the drawer's DISCONNECT
+    /// button (<c>DisconnectSelectedButton</c>). The button is a plain <c>Button</c>, so
+    /// InvokePattern raises a real click and the bound <c>DisconnectSelectedCommand</c> runs (cf.
+    /// gotcha #12, which only bites bound <c>Command</c>s on check controls) — which unsubscribes
+    /// the device's active channels, disposes its transport, and removes it from
+    /// <c>ConnectedDevices</c>. Assumes a device is connected. Does not wait for teardown to
+    /// settle; callers assert that via <see cref="WaitForNoConnectedDevices"/>,
+    /// <see cref="WaitForChannelsCleared"/>, and <see cref="WaitForLoggingToggleDisabled"/>.
+    /// </summary>
+    protected void DisconnectSelectedDevice()
+    {
+        NavigateToTab(DEVICES_TAB_TEXT);
+
+        // The DISCONNECT button lives inside the settings drawer; open it via the gear if it is
+        // not already realized. Opening the drawer also sets SelectedTile/SelectedDevice, which
+        // the DisconnectSelectedCommand's CanExecute requires.
+        var probe = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(DISCONNECT_SELECTED_BUTTON_ID));
+        if (probe == null || probe.IsOffscreen)
+        {
+            var gear = FindByAutomationId(DEVICE_SETTINGS_BUTTON_ID);
+            gear.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+            gear.AsButton().Invoke();
+        }
+
+        var disconnect = Retry.WhileNull(
+            () =>
+            {
+                var el = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(DISCONNECT_SELECTED_BUTTON_ID));
+                return el != null && !el.IsOffscreen ? el : null;
+            },
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                "The DISCONNECT button did not appear in the device settings drawer. The gear " +
+                "(DeviceSettingsButton) may not have opened the drawer, or no device is connected.").Result!;
+
+        var button = disconnect.AsButton();
+        button.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        button.Invoke();
+    }
+
+    /// <summary>
+    /// Waits (polling) until no devices remain in the connected-devices container — the
+    /// out-of-process signal of a clean disconnect. When <c>HasConnectedDevice</c> goes false the
+    /// whole device-list content collapses out of the UIA tree (the Devices pane swaps to its
+    /// empty state), so <see cref="GetConnectedDeviceCount"/> reads 0 whether the list is empty or
+    /// absent. Navigates to the Devices tab first so the read is independent of the prior tab.
+    /// </summary>
+    protected void WaitForNoConnectedDevices(TimeSpan timeout)
+    {
+        NavigateToTab(DEVICES_TAB_TEXT);
+        Retry.WhileFalse(
+            () => GetConnectedDeviceCount() == 0,
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"A device tile was still present in the connected-devices list within {timeout.TotalSeconds:N0}s " +
+                "of disconnecting — the device was not removed from ConnectedDevices.");
+    }
+
+    /// <summary>
+    /// Waits (polling) until the Channels pane shows no channel list — proving the disconnected
+    /// device's channel subscriptions were torn down. The Channels content (including
+    /// <c>ChannelList</c>) binds its Visibility to <c>HasConnectedDevice</c>; with no device
+    /// connected the pane collapses that content (swapping to its empty state), so
+    /// <c>ChannelList</c> leaves the UIA tree entirely. Its absence is therefore a clean "channels
+    /// gone" signal — stronger than an empty list, since the pane rebuilt with zero connected
+    /// devices. Navigates to the Channels tab first.
+    /// </summary>
+    protected void WaitForChannelsCleared(TimeSpan timeout)
+    {
+        NavigateToTab(CHANNELS_TAB_TEXT);
+        Retry.WhileFalse(
+            () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(CHANNEL_LIST_ID)) == null,
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"The Channels pane still showed its channel list within {timeout.TotalSeconds:N0}s of " +
+                "disconnecting — the device's channels were not torn down (HasConnectedDevice stayed true, " +
+                "so the pane did not return to its empty state).");
+    }
+
+    /// <summary>
+    /// Reads whether the Live Graph logging toggle (<c>StartLoggingToggle</c>) is currently
+    /// enabled. The toggle's <c>IsEnabled</c> binds to <c>CanToggleLogging</c>
+    /// (= <c>ActiveChannels.Count &gt; 0</c>), so it is enabled only while at least one channel is
+    /// subscribed. Navigates to the Live Graph tab first.
+    /// </summary>
+    protected bool IsLoggingToggleEnabled()
+    {
+        NavigateToTab(LIVE_GRAPH_TAB_TEXT);
+        return FindByAutomationId(START_LOGGING_TOGGLE_ID).IsEnabled;
+    }
+
+    /// <summary>
+    /// Waits (polling) until the Live Graph logging toggle (<c>StartLoggingToggle</c>) is
+    /// disabled — the "logging controls return to the disconnected state" signal. After a
+    /// disconnect the device's channels are unsubscribed, so <c>ActiveChannels</c> empties and
+    /// <c>CanToggleLogging</c> goes false, which disables the toggle. Navigates to the Live Graph
+    /// tab first.
+    /// </summary>
+    protected void WaitForLoggingToggleDisabled(TimeSpan timeout)
+    {
+        NavigateToTab(LIVE_GRAPH_TAB_TEXT);
+        Retry.WhileFalse(
+            () =>
+            {
+                var toggle = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(START_LOGGING_TOGGLE_ID));
+                return toggle != null && !toggle.IsEnabled;
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"The logging toggle was still enabled within {timeout.TotalSeconds:N0}s of disconnecting — " +
+                "CanToggleLogging stayed true, so the device's channels were not unsubscribed " +
+                "(ActiveChannels did not empty).");
     }
     #endregion
 
