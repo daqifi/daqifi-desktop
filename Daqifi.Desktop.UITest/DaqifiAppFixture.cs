@@ -572,6 +572,103 @@ public abstract class DaqifiAppFixture
     }
     #endregion
 
+    #region Manual-Serial Connect Helpers (issue #524)
+    // The connection dialog's Manual USB tab: type a COM port by hand and connect. These ids were
+    // added on that tab's controls (View/ConnectionDialog.xaml) so the harness can drive the
+    // manual-serial path that issue #524 fixed — graceful handling of a missing/typo'd COM port
+    // (inline error, dialog stays open, no Sentry) instead of a silent close + captured exception.
+    private const string CONN_TAB_MANUAL_SERIAL_ID = "ConnTab_ManualSerial";
+    private const string MANUAL_PORT_INPUT_ID = "ManualPortInput";
+    private const string MANUAL_PORT_ERROR_ID = "ManualPortError";
+    private const string CONNECT_BUTTON_MANUAL_SERIAL_ID = "ConnectButton_ManualSerial";
+
+    /// <summary>
+    /// Navigates to Devices, opens the connection dialog, and selects the Manual USB tab. Returns
+    /// the modal dialog window so callers can scope their element lookups to it.
+    /// </summary>
+    protected Window OpenManualSerialTab()
+    {
+        NavigateToTab(DEVICES_TAB_TEXT);
+        OpenConnectionDialog();
+        var dialog = WaitForConnectionDialog();
+
+        var tab = Retry.WhileNull(
+            () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(CONN_TAB_MANUAL_SERIAL_ID)),
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "Manual USB tab not found in the connection dialog.").Result!;
+        tab.AsTabItem().Select();
+
+        // The COM PORT field is realized only once the tab's content is selected/visible.
+        Retry.WhileNull(
+            () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(MANUAL_PORT_INPUT_ID)),
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "COM PORT input did not appear after selecting the Manual USB tab.");
+
+        return dialog;
+    }
+
+    /// <summary>Types <paramref name="portName"/> into the Manual USB tab's COM PORT field via the ValuePattern.</summary>
+    protected void SetManualPortName(Window dialog, string portName)
+    {
+        var input = Retry.WhileNull(
+            () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(MANUAL_PORT_INPUT_ID)),
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "COM PORT input not found on the Manual USB tab.").Result!;
+        input.Patterns.Value.Pattern.SetValue(portName);
+    }
+
+    /// <summary>Invokes the Manual USB tab's Connect button (runs <c>ConnectManualSerialCommand</c>).</summary>
+    protected void InvokeManualSerialConnect(Window dialog)
+    {
+        var button = Retry.WhileNull(
+            () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(CONNECT_BUTTON_MANUAL_SERIAL_ID)),
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "Connect button not found on the Manual USB tab.").Result!;
+        var b = button.AsButton();
+        b.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        b.Invoke();
+    }
+
+    /// <summary>
+    /// Reads the Manual USB tab's inline validation message (<c>ManualPortError</c>), or null when
+    /// none is shown. The TextBlock's Visibility binds through NotNullToVis, so a null/empty error
+    /// collapses it out of the UIA tree (absent == no error); when shown, a TextBlock surfaces its
+    /// text as its UIA Name.
+    /// </summary>
+    protected string? ReadManualPortError(Window dialog)
+    {
+        var error = dialog.FindFirstDescendant(cf => cf.ByAutomationId(MANUAL_PORT_ERROR_ID));
+        return string.IsNullOrEmpty(error?.Name) ? null : error!.Name;
+    }
+
+    /// <summary>
+    /// Captures a PNG of <paramref name="element"/> to a stable temp path and attaches it to the
+    /// test results, returning the path. Used to record evidence on the PASS path (the base
+    /// fixture only screenshots on failure).
+    /// </summary>
+    protected string CaptureElementPng(AutomationElement element, string fileName)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "daqifi-verify");
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, fileName);
+        FlaUI.Core.Capturing.Capture.Element(element).ToFile(path);
+        TestContext?.AddResultFile(path);
+        return path;
+    }
+    #endregion
+
     #region Disconnect / Reconnect Lifecycle Helpers
     /// <summary>
     /// Disconnects the currently connected device through the real UI: opens its settings drawer
