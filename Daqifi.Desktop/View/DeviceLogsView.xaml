@@ -265,6 +265,7 @@
 
             <Button Grid.Column="2"
                     Style="{StaticResource PillButton}"
+                    AutomationProperties.AutomationId="RefreshSdCardFilesButton"
                     Command="{Binding RefreshFilesCommand}"
                     ToolTip="{Binding ConnectionTypeMessage}"
                     IsEnabled="{Binding CanAccessSdCard}">
@@ -305,8 +306,12 @@
                            FontWeight="SemiBold"
                            Foreground="{StaticResource TextSecondary}"
                            VerticalAlignment="Center"/>
-                <!-- SD card status — includes its own " · " prefix; hidden when empty -->
+                <!-- SD card status — includes its own " · " prefix; hidden when empty.
+                     The UIA Name mirrors the bound Text (a direct binding, not a Style
+                     trigger), so the FlaUI harness reads the live "SD card OK · N files"
+                     line from here to assert the SD file count after a logging run. -->
                 <TextBlock Text="{Binding SdCardStatusLine}"
+                           AutomationProperties.AutomationId="SdCardStatusText"
                            FontSize="11"
                            VerticalAlignment="Center">
                     <TextBlock.Style>
@@ -387,7 +392,7 @@
             <StackPanel VerticalAlignment="Center"
                         HorizontalAlignment="Center"
                         Visibility="{Binding HasSdCardNotPresent, Converter={StaticResource BoolToVis}}">
-                <iconPacks:PackIconMaterial Kind="SdStorage"
+                <iconPacks:PackIconMaterial Kind="Sd"
                                             Width="40"
                                             Height="40"
                                             Foreground="{StaticResource TextTertiary}"
@@ -485,6 +490,7 @@
 
             <!-- File list (visible only when USB device has at least one file) -->
             <ListView Name="DeviceFilesList"
+                      AutomationProperties.AutomationId="SdCardFileList"
                       ItemsSource="{Binding DeviceFiles}"
                       Background="Transparent"
                       BorderThickness="0"
@@ -507,6 +513,7 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <TextBlock Text="{Binding FileName}"
+                                               AutomationProperties.AutomationId="SdCardFileNameText"
                                                FontFamily="Consolas"
                                                FontSize="13"
                                                Foreground="{StaticResource TextPrimary}"
@@ -547,6 +554,7 @@
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
                                     <Button Style="{StaticResource PillButton}"
+                                            AutomationProperties.AutomationId="ImportSdCardFileButton"
                                             Command="{Binding DataContext.ImportFileCommand, ElementName=DeviceFilesList}"
                                             CommandParameter="{Binding}"
                                             HorizontalAlignment="Left"

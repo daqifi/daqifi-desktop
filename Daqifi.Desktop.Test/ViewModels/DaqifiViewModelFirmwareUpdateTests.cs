@@ -137,9 +137,10 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
                 wifiPackageDirectory,
                 It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-                It.IsAny<CancellationToken>()))
-            .Callback<Daqifi.Core.Device.IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?, CancellationToken>(
-                (device, _, _, _) => wifiDevice = device)
+                It.IsAny<CancellationToken>(),
+                It.IsAny<bool>()))
+            .Callback<Daqifi.Core.Device.IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?, CancellationToken, bool>(
+                (device, _, _, _, _) => wifiDevice = device)
             .Returns(Task.CompletedTask);
 
         firmwareDownloadService
@@ -206,7 +207,8 @@ public class DaqifiViewModelFirmwareUpdateTests
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
             wifiPackageDirectory,
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<CancellationToken>(),
+            It.IsAny<bool>()), Times.Once);
     }
 
     private static SerialStreamingDevice CreateSerialDeviceWithCoreDevice(string portName, TestCoreStreamingDevice coreDevice)

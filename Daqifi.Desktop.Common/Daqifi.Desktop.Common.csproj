@@ -12,7 +12,7 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Sentry" Version="6.5.0" />
+		<PackageReference Include="Sentry" Version="6.6.0" />
 		<PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.8" />
 	</ItemGroup>
 
