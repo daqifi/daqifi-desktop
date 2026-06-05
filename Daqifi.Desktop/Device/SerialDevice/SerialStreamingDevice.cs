@@ -117,9 +117,9 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         {
             // .NET's SerialPort.Open throws FileNotFoundException when the COM port no
             // longer exists (device unplugged, never present, or renamed). Treat as a
-            // user/environmental condition, not an app bug — log a warning instead of
-            // capturing to Sentry.
-            AppLogger.Warning($"Cannot connect on {PortName}: port is not available ({ex.Message})");
+            // user/environmental condition, not an app bug — log a warning (keeping the
+            // exception detail in the local log) instead of capturing to Sentry.
+            AppLogger.Warning(ex, $"Cannot connect on {PortName}: port is not available");
             CleanupConnection();
             return false;
         }
@@ -127,7 +127,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         {
             // SerialPort.Open throws UnauthorizedAccessException when another process
             // already holds the port open. Same classification as above.
-            AppLogger.Warning($"Cannot connect on {PortName}: port is in use by another process ({ex.Message})");
+            AppLogger.Warning(ex, $"Cannot connect on {PortName}: port is in use by another process");
             CleanupConnection();
             return false;
         }

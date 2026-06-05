@@ -240,13 +240,16 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         var portName = ManualPortName.Trim();
 
-        if (!IsPortAvailable(portName))
+        // Port enumeration reads the registry; keep it off the UI thread per the
+        // app's async/UI-responsiveness standards (this runs before the first await).
+        if (!await Task.Run(() => IsPortAvailable(portName)))
         {
             // Avoid the FileNotFoundException round-trip from SerialPort.Open by
             // pre-checking against the system's enumerated ports. Surface a friendly
             // message in the dialog instead of silently closing.
             ManualPortError =
-                $"Port '{portName}' is not available. Plug in the device or check Device Manager for the correct port name.";
+                $"Port '{portName}' is not available. " +
+                "Plug in the device or check Device Manager for the correct port name.";
             Common.Loggers.AppLogger.Instance.Warning(
                 $"Manual serial connect rejected: port '{portName}' is not present on the system.");
             return;
@@ -263,7 +266,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
         if (ConnectionManager.Instance.ConnectionStatus == DAQiFiConnectionStatus.Error)
         {
             ManualPortError =
-                $"Could not connect to '{portName}'. The port may be in use by another application or the device is not responding.";
+                $"Could not connect to '{portName}'. " +
+                "The port may be in use by another application or the device is not responding.";
             return;
         }
 
@@ -281,8 +285,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
         {
             // If port enumeration itself fails, fall back to the connect attempt rather
             // than blocking the user — Connect() will surface its own error path.
-            Common.Loggers.AppLogger.Instance.Warning(
-                $"Failed to enumerate serial ports during manual-connect validation: {ex.Message}");
+            Common.Loggers.AppLogger.Instance.Warning(ex,
+                "Failed to enumerate serial ports during manual-connect validation.");
             return true;
         }
     }

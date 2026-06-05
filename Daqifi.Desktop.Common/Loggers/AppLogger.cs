@@ -111,6 +111,14 @@ public class AppLogger : IAppLogger
         _logger?.Warn(message);
     }
 
+    public void Warning(Exception ex, string message)
+    {
+        // Intentionally no SentrySdk.CaptureException here — the whole point of the
+        // exception-aware warning is to keep stack traces in the local log for
+        // expected user/environmental conditions without raising a Sentry event.
+        _logger?.Warn(ex, message);
+    }
+
     public void Error(string message)
     {
         _logger?.Error(message);

@@ -10,7 +10,7 @@ public class ConnectionDialogViewModelCloseTests
 {
     // A name guaranteed to be absent from SerialPort.GetPortNames() on every CI runner —
     // Windows uses COM1..COMn, macOS/Linux use /dev/tty.* paths.
-    private const string NonexistentPortName = "COM_DOES_NOT_EXIST_524";
+    private const string NONEXISTENT_PORT_NAME = "COM_DOES_NOT_EXIST_524";
 
     private Func<DuplicateDeviceCheckResult, DuplicateDeviceAction>? _originalDuplicateDeviceHandler;
 
@@ -78,7 +78,7 @@ public class ConnectionDialogViewModelCloseTests
     public async Task ConnectManualSerialCommand_WithNonexistentPort_SetsManualPortError()
     {
         var viewModel = CreateViewModel();
-        viewModel.ManualPortName = NonexistentPortName;
+        viewModel.ManualPortName = NONEXISTENT_PORT_NAME;
         var closeRaised = SubscribeToClose(viewModel);
 
         await viewModel.ConnectManualSerialCommand.ExecuteAsync(null);
@@ -87,7 +87,7 @@ public class ConnectionDialogViewModelCloseTests
             "CloseRequested should not fire when the entered port is not present on the system.");
         Assert.IsNotNull(viewModel.ManualPortError,
             "ManualPortError should be set when the entered port is not present on the system.");
-        StringAssert.Contains(viewModel.ManualPortError, NonexistentPortName,
+        StringAssert.Contains(viewModel.ManualPortError, NONEXISTENT_PORT_NAME,
             "Error message should mention the offending port name.");
     }
 
