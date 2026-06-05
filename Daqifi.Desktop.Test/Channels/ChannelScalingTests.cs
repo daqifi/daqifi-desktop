@@ -279,9 +279,9 @@ public class ChannelScalingTests
         // while the live path additionally does Convert.ToDouble(...). An expression that yields a
         // non-numeric result passes validation but fails per-sample conversion. The channel must
         // degrade gracefully: swallow the error, disable scaling, and keep the raw value intact.
-        // NOTE: this catch only fires when evaluation THROWS. A float divide-by-zero such as
-        // "100 / (x - 5)" returns +/-Infinity WITHOUT throwing, so it slips past here untouched —
-        // that non-finite-result leak is a separate, known gap, not covered by this test.
+        // NOTE: this catch only fires when evaluation THROWS. A float divide-by-zero returns
+        // +/-Infinity WITHOUT throwing; that non-finite path is handled separately by the
+        // finiteness guard and is covered by the two NonFinite tests below.
         var channel = CreateAnalogChannel();
         channel.ScaleExpression = "'not a number'"; // string literal: valid to evaluate, not convertible
         channel.IsScalingActive = true;
@@ -294,6 +294,48 @@ public class ChannelScalingTests
             "A runtime evaluation/conversion failure should disable the expression.");
         Assert.AreEqual(2.5, channel.ActiveSample.Value, Tolerance,
             "A runtime failure must leave the raw sample value uncorrupted.");
+    }
+
+    [TestMethod]
+    public void ActiveSample_ExpressionDividesByZero_DisablesScalingAndKeepsRawValue()
+    {
+        // A float divide-by-zero returns +Infinity WITHOUT throwing, so it bypasses the catch.
+        // The finiteness guard must keep the raw value and disable scaling rather than push a
+        // non-finite value to the plot / exported data (cf. the NonFiniteCount == 0 invariant
+        // asserted by the #560 live-plot integration test).
+        var channel = CreateAnalogChannel();
+        channel.ScaleExpression = "100 / (x - 5)"; // valid at x=1 (=> -25); divisor is 0 when x == 5
+        channel.IsScalingActive = true;
+        Assert.IsTrue(channel.HasValidExpression, "Precondition: the expression validates at x=1.");
+
+        channel.ActiveSample = Sample(5.0);
+
+        Assert.IsTrue(double.IsFinite(channel.ActiveSample.Value),
+            "A non-finite (Infinity) result must never reach the sample value.");
+        Assert.AreEqual(5.0, channel.ActiveSample.Value, Tolerance,
+            "The raw sample value must be preserved when scaling would produce Infinity.");
+        Assert.IsFalse(channel.HasValidExpression,
+            "A non-finite result should disable scaling, mirroring the throw-based path.");
+    }
+
+    [TestMethod]
+    public void ActiveSample_ExpressionProducesNaN_DisablesScalingAndKeepsRawValue()
+    {
+        // 0.0 / 0.0 yields NaN, also without throwing. double.IsFinite is false for NaN too,
+        // so the same guard must catch it.
+        var channel = CreateAnalogChannel();
+        channel.ScaleExpression = "(x - 5) / (x - 5)"; // valid at x=1 (=> 1); 0/0 (NaN) when x == 5
+        channel.IsScalingActive = true;
+        Assert.IsTrue(channel.HasValidExpression, "Precondition: the expression validates at x=1.");
+
+        channel.ActiveSample = Sample(5.0);
+
+        Assert.IsTrue(double.IsFinite(channel.ActiveSample.Value),
+            "A NaN result must never reach the sample value.");
+        Assert.AreEqual(5.0, channel.ActiveSample.Value, Tolerance,
+            "The raw sample value must be preserved when scaling would produce NaN.");
+        Assert.IsFalse(channel.HasValidExpression,
+            "A NaN result should disable scaling.");
     }
     #endregion
 }
