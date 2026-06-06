@@ -70,8 +70,8 @@
 		     Referenced explicitly rather than relying on MahApps.Metro's transitive dependency so a
 		     clean restore cannot drop it out from under the XAML compiler. Version tracks the one
 		     MahApps.Metro 2.4.11 currently resolves. -->
-		<PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.19" />
-		<PackageReference Include="NCalcSync" Version="5.12.0" />
+		<PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.142" />
+		<PackageReference Include="NCalcSync" Version="5.13.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 		<PackageReference Include="OxyPlot.Core" Version="2.2.0" />
 		<PackageReference Include="OxyPlot.Wpf" Version="2.2.0" />
