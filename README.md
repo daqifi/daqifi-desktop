@@ -103,7 +103,9 @@ Both devices are SCPI-compliant and compatible with LabVIEW.
 
 ## Build from source
 
-Building and running the app requires **Windows** (the UI targets WPF / `net10.0-windows`) and the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) — the exact SDK version is pinned in [`global.json`](global.json).
+Building and running the app requires **Windows** (the UI targets WPF / `net10.0-windows`) and the
+[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) — the exact SDK version is pinned in
+[`global.json`](global.json).
 
 ```bash
 git clone https://github.com/daqifi/daqifi-desktop.git
@@ -118,7 +120,17 @@ Run the unit tests (no hardware required):
 dotnet test --filter "TestCategory!=Ui&FullyQualifiedName!~WindowsFirewallWrapperTests"
 ```
 
-The `DAQifiDesktop_Setup.msi` installer is produced from the `Daqifi.Desktop.Setup` project (WiX Toolset) and is normally built by CI on release; to build it locally, run `dotnet build -c Release` inside `Daqifi.Desktop.Setup`. The UI-automation test gate drives the real GUI against an attached device — see [Daqifi.Desktop.UITest/README.md](Daqifi.Desktop.UITest/README.md).
+The `DAQifiDesktop_Setup.msi` installer is built from the `Daqifi.Desktop.Setup` project (WiX Toolset)
+and is normally produced by CI on release. The WiX project harvests the app's **published** output, so
+build it locally by publishing first, then building the setup project (mirroring CI):
+
+```bash
+dotnet publish Daqifi.Desktop/Daqifi.Desktop.csproj -c Release
+dotnet build -c Release Daqifi.Desktop.Setup
+```
+
+The UI-automation test gate drives the real GUI against an attached device — see
+[Daqifi.Desktop.UITest/README.md](Daqifi.Desktop.UITest/README.md).
 
 ## Contributing
 
@@ -128,7 +140,10 @@ Please read the [Contributing Guidelines](CONTRIBUTING.md) before opening a pull
 
 Releases are created by publishing a GitHub Release (via the GitHub web UI or API — the `release.yaml` workflow triggers on the `release: created` event, not on a tag push alone). Once a release is published, the workflow builds the MSI via WiX Toolset and attaches `DAQifiDesktop_Setup.msi` automatically. The app version is set in `Daqifi.Desktop/Daqifi.Desktop.csproj` (`<Version>`). Follow [semantic versioning](https://semver.org/); breaking changes should use the `feat!:` prefix in the PR title.
 
-Unhandled exceptions are reported to Sentry. The DSN lives in [`Daqifi.Desktop/App.config`](Daqifi.Desktop/App.config); like any Sentry client DSN it is write-only — it can submit crash events but cannot read them back — so it is safe to commit and ship in the app, and is not a leaked secret.
+Unhandled exceptions are reported to Sentry. The DSN lives in
+[`Daqifi.Desktop/App.config`](Daqifi.Desktop/App.config); like any Sentry client DSN it is write-only
+— it can submit crash events but cannot read them back — so it is safe to commit and ship in the app,
+and is not a leaked secret.
 
 ---
 
