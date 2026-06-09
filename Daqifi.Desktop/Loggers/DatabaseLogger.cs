@@ -607,25 +607,36 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                     return;
                 }
 
-                // Get all channels from the first timestamp (32 rows, instant)
-                var channelInfoRows = baseQuery
+                // Get the channels present at the first timestamp. A channel can
+                // appear there more than once (e.g. firmware that emits multiple
+                // messages per sample period, or SD imports whose timestamps could
+                // not be reconstructed), and series/legend items are keyed by
+                // (serial, channel), so duplicates would abort the whole session
+                // load (#572). Collapse them in SQL so a degenerate session does
+                // not materialize thousands of rows just to discover its channels.
+                var channelGroups = baseQuery
                     .Where(s => s.TimestampTicks == firstSample.TimestampTicks)
-                    .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color })
-                    .AsEnumerable()
-                    .Select(s => new SessionChannelInfo(s.ChannelName, s.DeviceSerialNo, s.Type, s.Color))
+                    .GroupBy(s => new { s.DeviceSerialNo, s.ChannelName })
+                    .Select(g => new
+                    {
+                        g.Key.DeviceSerialNo,
+                        g.Key.ChannelName,
+                        Type = g.Min(s => (int)s.Type),
+                        Color = g.Min(s => s.Color),
+                        RowCount = g.Count()
+                    })
                     .ToList();
 
-                // A channel can appear more than once at a single timestamp (e.g.
-                // firmware that emits multiple messages per sample period, or SD
-                // imports whose timestamps could not be reconstructed). Series and
-                // legend items are keyed by (serial, channel), so duplicates here
-                // would abort the whole session load (#572).
-                var channelInfoList = DeduplicateChannelInfo(channelInfoRows);
-                if (channelInfoList.Count != channelInfoRows.Count)
+                var duplicateRows = channelGroups.Sum(g => g.RowCount) - channelGroups.Count;
+                if (duplicateRows > 0)
                 {
                     _appLogger.Warning(
-                        $"Session {session.ID}: first timestamp has {channelInfoRows.Count - channelInfoList.Count} duplicate channel sample(s); ignoring duplicates for channel discovery.");
+                        $"Session {session.ID}: first timestamp has {duplicateRows} duplicate " +
+                        "channel sample(s); ignoring duplicates for channel discovery.");
                 }
+
+                var channelInfoList = DeduplicateChannelInfo(channelGroups.Select(g =>
+                    new SessionChannelInfo(g.ChannelName, g.DeviceSerialNo, (ChannelType)g.Type, g.Color)));
 
                 foreach (var chInfo in channelInfoList)
                 {
@@ -701,14 +712,30 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 var phase2FirstTime = LoadSampledData(session.ID, tempSeriesList.Count, phase2Points);
 
                 // LoadSampledData returns null when the session has no usable time
-                // range (e.g. every sample shares one timestamp). phase2Points is
-                // still empty then — swapping it in would blank the Phase 1 plot.
+                // range (every sample shares one timestamp). Phase 1 capped its
+                // load at INITIAL_LOAD_POINTS, so its value spread may be missing
+                // extrema from later rows — rebuild each channel as an exact
+                // min/max vertical segment aggregated in SQL over all rows.
                 if (phase2FirstTime == null)
                 {
+                    var spreadPoints = LoadSingleTickValueSpread(_loggingContext, session.ID, channelKeys);
+                    var spreadMinimapData = PrepareMinimapData(tempSeriesList, spreadPoints);
                     Application.Current.Dispatcher.Invoke(() =>
                     {
+                        _allSessionPoints = spreadPoints;
                         PlotModel.Subtitle = string.Empty;
-                        PlotModel.InvalidatePlot(false);
+
+                        foreach (var series in PlotModel.Series.OfType<LineSeries>())
+                        {
+                            if (series.Tag is (string deviceSerial, string channelName)
+                                && spreadPoints.TryGetValue((deviceSerial, channelName), out var points))
+                            {
+                                series.ItemsSource = points;
+                            }
+                        }
+
+                        SetupMinimapSeries(spreadMinimapData);
+                        PlotModel.InvalidatePlot(true);
                     });
                     return;
                 }
@@ -1161,6 +1188,58 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             .DistinctBy(r => (r.DeviceSerialNo, r.ChannelName))
             .NaturalOrderBy(r => r.ChannelName)
             .ToList();
+    }
+
+    /// <summary>
+    /// Builds per-channel value spreads for a session whose samples all share a
+    /// single timestamp. Phase 1 caps how many rows it loads, so this aggregates
+    /// MIN/MAX over every row in SQL — exact without materializing the rows —
+    /// and represents each channel as a two-point vertical segment at delta-time
+    /// zero (one point when the value never changes).
+    /// </summary>
+    /// <param name="contextFactory">Factory for the logging database context.</param>
+    /// <param name="sessionId">The session whose samples are aggregated.</param>
+    /// <param name="channelKeys">The channels discovered for the session.</param>
+    /// <returns>One point list per requested channel key.</returns>
+    internal static Dictionary<(string deviceSerial, string channelName), List<DataPoint>> LoadSingleTickValueSpread(
+        IDbContextFactory<LoggingContext> contextFactory,
+        int sessionId,
+        List<(string deviceSerial, string channelName)> channelKeys)
+    {
+        var result = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
+        foreach (var key in channelKeys)
+        {
+            result[key] = [];
+        }
+
+        using var context = contextFactory.CreateDbContext();
+        var spreads = context.Samples.AsNoTracking()
+            .Where(s => s.LoggingSessionID == sessionId)
+            .GroupBy(s => new { s.DeviceSerialNo, s.ChannelName })
+            .Select(g => new
+            {
+                g.Key.DeviceSerialNo,
+                g.Key.ChannelName,
+                MinValue = g.Min(s => s.Value),
+                MaxValue = g.Max(s => s.Value)
+            })
+            .ToList();
+
+        foreach (var spread in spreads)
+        {
+            if (!result.TryGetValue((spread.DeviceSerialNo, spread.ChannelName), out var points))
+            {
+                continue;
+            }
+
+            points.Add(new DataPoint(0, spread.MinValue));
+            if (spread.MaxValue > spread.MinValue)
+            {
+                points.Add(new DataPoint(0, spread.MaxValue));
+            }
+        }
+
+        return result;
     }
 
     private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(

@@ -74,8 +74,15 @@ public static class MinMaxDownsampler
             for (var i = startIndex; i < endIndex; i++)
             {
                 var y = points[i].Y;
-                if (y < rangeMinY) { rangeMinY = y; }
-                if (y > rangeMaxY) { rangeMaxY = y; }
+                if (y < rangeMinY)
+                {
+                    rangeMinY = y;
+                }
+
+                if (y > rangeMaxY)
+                {
+                    rangeMaxY = y;
+                }
             }
 
             return rangeMinY < rangeMaxY
