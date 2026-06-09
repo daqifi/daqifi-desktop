@@ -66,7 +66,21 @@ public static class MinMaxDownsampler
 
         if (xRange <= 0)
         {
-            return [points[startIndex]];
+            // Degenerate time range (every point shares one X, e.g. duplicate
+            // timestamps): a single point renders as nothing on a LineSeries,
+            // so return the value spread as a vertical segment instead.
+            var rangeMinY = double.MaxValue;
+            var rangeMaxY = double.MinValue;
+            for (var i = startIndex; i < endIndex; i++)
+            {
+                var y = points[i].Y;
+                if (y < rangeMinY) { rangeMinY = y; }
+                if (y > rangeMaxY) { rangeMaxY = y; }
+            }
+
+            return rangeMinY < rangeMaxY
+                ? [new DataPoint(xMin, rangeMinY), new DataPoint(xMin, rangeMaxY)]
+                : [points[startIndex]];
         }
 
         var bucketWidth = xRange / bucketCount;

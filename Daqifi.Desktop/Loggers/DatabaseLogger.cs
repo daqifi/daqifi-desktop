@@ -99,6 +99,15 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     }
 }
 
+/// <summary>
+/// Channel identity and presentation info discovered from a session's sample rows.
+/// </summary>
+/// <param name="ChannelName">Channel identifier (e.g., "AI0").</param>
+/// <param name="DeviceSerialNo">Serial number of the device that owns the channel.</param>
+/// <param name="Type">Channel type used to pick the Y axis.</param>
+/// <param name="Color">Series color stored with the samples.</param>
+internal sealed record SessionChannelInfo(string ChannelName, string DeviceSerialNo, ChannelType Type, string Color);
+
 public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 {
     #region Constants
@@ -471,8 +480,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
                     // Commit the transaction after the bulk insert
                     transaction.Commit();
+
+                    // Clear immediately after a successful commit: if disposal of the
+                    // transaction or context throws, the catch below keeps the list for
+                    // retry — re-inserting an already-committed batch would write
+                    // duplicate rows. A failure before the commit still retries.
+                    samples.Clear();
                 }
-                samples.Clear();
                 _consumerBusy = false;
             }
             catch (OperationCanceledException)
@@ -594,12 +608,24 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 }
 
                 // Get all channels from the first timestamp (32 rows, instant)
-                var channelInfoList = baseQuery
+                var channelInfoRows = baseQuery
                     .Where(s => s.TimestampTicks == firstSample.TimestampTicks)
                     .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.Type, s.Color })
-                    .ToList()
-                    .NaturalOrderBy(s => s.ChannelName)
+                    .AsEnumerable()
+                    .Select(s => new SessionChannelInfo(s.ChannelName, s.DeviceSerialNo, s.Type, s.Color))
                     .ToList();
+
+                // A channel can appear more than once at a single timestamp (e.g.
+                // firmware that emits multiple messages per sample period, or SD
+                // imports whose timestamps could not be reconstructed). Series and
+                // legend items are keyed by (serial, channel), so duplicates here
+                // would abort the whole session load (#572).
+                var channelInfoList = DeduplicateChannelInfo(channelInfoRows);
+                if (channelInfoList.Count != channelInfoRows.Count)
+                {
+                    _appLogger.Warning(
+                        $"Session {session.ID}: first timestamp has {channelInfoRows.Count - channelInfoList.Count} duplicate channel sample(s); ignoring duplicates for channel discovery.");
+                }
 
                 foreach (var chInfo in channelInfoList)
                 {
@@ -673,6 +699,19 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 }
 
                 var phase2FirstTime = LoadSampledData(session.ID, tempSeriesList.Count, phase2Points);
+
+                // LoadSampledData returns null when the session has no usable time
+                // range (e.g. every sample shares one timestamp). phase2Points is
+                // still empty then — swapping it in would blank the Phase 1 plot.
+                if (phase2FirstTime == null)
+                {
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        PlotModel.Subtitle = string.Empty;
+                        PlotModel.InvalidatePlot(false);
+                    });
+                    return;
+                }
 
                 // Refresh UI with sampled full-range data — swap on UI thread
                 var fullMinimapData = PrepareMinimapData(tempSeriesList, phase2Points);
@@ -1105,6 +1144,23 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     public void ResumeConsumer()
     {
         _consumerGate.Set();
+    }
+
+    /// <summary>
+    /// Collapses duplicate (device serial, channel name) rows to a single entry,
+    /// keeping the first occurrence, and orders the result naturally by channel name.
+    /// A session can contain several samples for one channel at a single timestamp
+    /// (duplicate device messages, SD imports without reconstructable timestamps);
+    /// series and legend construction require exactly one entry per channel.
+    /// </summary>
+    /// <param name="rows">Channel rows discovered from a session's samples.</param>
+    /// <returns>One entry per (device serial, channel name), naturally ordered.</returns>
+    internal static List<SessionChannelInfo> DeduplicateChannelInfo(IEnumerable<SessionChannelInfo> rows)
+    {
+        return rows
+            .DistinctBy(r => (r.DeviceSerialNo, r.ChannelName))
+            .NaturalOrderBy(r => r.ChannelName)
+            .ToList();
     }
 
     private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(
