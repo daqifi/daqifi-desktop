@@ -11,6 +11,7 @@
     <!--
         Shares the autosize-with-bounds layout of ErrorDialog (DAQiFi#576) so the alert
         family is visually consistent: compact for short messages, wraps + scrolls for long.
+        The message is a read-only (not disabled) TextBox so it stays selectable/copyable.
     -->
     <Grid Margin="20" Background="{StaticResource Surface}">
         <Grid.RowDefinitions>
@@ -27,12 +28,10 @@
                                     HorizontalAlignment="Center" VerticalAlignment="Top"
                                     Foreground="{StaticResource StatusGreen}"/>
 
-        <ScrollViewer Grid.Row="0" Grid.Column="1" Margin="14,0,0,0" MaxHeight="360"
-                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <TextBlock Text="{Binding SuccessMessage}" MaxWidth="400" TextWrapping="Wrap"
-                       FontSize="14" VerticalAlignment="Center"
-                       Foreground="{StaticResource TextPrimary}"/>
-        </ScrollViewer>
+        <TextBox Grid.Row="0" Grid.Column="1" Margin="14,0,0,0" Text="{Binding SuccessMessage}"
+                 IsReadOnly="True" TextWrapping="Wrap" MaxWidth="400" MaxHeight="360"
+                 VerticalScrollBarVisibility="Auto" BorderThickness="0" Background="Transparent"
+                 FontSize="14" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}"/>
 
         <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Content="Ok" Click="btnOk_Click"
                 IsDefault="True" Width="80" Height="30" Margin="0,20,0,0"

@@ -10,9 +10,10 @@
         GlowBrush="{DynamicResource AccentColorBrush}">
     <!--
         Autosizes to the message within bounds (DAQiFi#576): MinWidth/MinHeight keep short
-        messages compact, MaxWidth + the TextBlock's MaxWidth force long text to wrap rather
-        than stretch the window wide, and the height-capped ScrollViewer guarantees an
-        over-long message scrolls instead of clipping off-screen.
+        messages compact, the read-only TextBox's MaxWidth forces long text to wrap rather
+        than stretch the window wide, and its MaxHeight + Auto vertical scrollbar guarantee an
+        over-long message scrolls instead of clipping off-screen. The message is a read-only
+        (not disabled) TextBox so firmware error + recovery text stays selectable/copyable.
     -->
     <Grid Margin="20" Background="{StaticResource Surface}">
         <Grid.RowDefinitions>
@@ -29,12 +30,10 @@
                                     HorizontalAlignment="Center" VerticalAlignment="Top"
                                     Foreground="{StaticResource StatusRed}"/>
 
-        <ScrollViewer Grid.Row="0" Grid.Column="1" Margin="14,0,0,0" MaxHeight="360"
-                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <TextBlock Text="{Binding ErrorMessage}" MaxWidth="400" TextWrapping="Wrap"
-                       FontSize="14" VerticalAlignment="Center"
-                       Foreground="{StaticResource TextPrimary}"/>
-        </ScrollViewer>
+        <TextBox Grid.Row="0" Grid.Column="1" Margin="14,0,0,0" Text="{Binding ErrorMessage}"
+                 IsReadOnly="True" TextWrapping="Wrap" MaxWidth="400" MaxHeight="360"
+                 VerticalScrollBarVisibility="Auto" BorderThickness="0" Background="Transparent"
+                 FontSize="14" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}"/>
 
         <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Content="Ok" Click="btnOk_Click"
                 IsDefault="True" Width="80" Height="30" Margin="0,20,0,0"
