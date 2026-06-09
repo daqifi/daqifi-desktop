@@ -1431,17 +1431,22 @@ public partial class DaqifiViewModel : ObservableObject
                 LoggedDataBusyReason = $"Importing... {p.SamplesProcessed:N0} samples";
             });
 
-            var session = await Task.Run(() =>
+            var result = await Task.Run(() =>
                 importer.ImportFromFileAsync(dialog.FileName, null, progress, CancellationToken.None));
 
             Application.Current.Dispatcher.Invoke(() =>
             {
-                LoggingManager.Instance.LoggingSessions.Add(session);
+                LoggingManager.Instance.LoggingSessions.Add(result.Session);
             });
 
-            await ShowMessage("Import Complete",
-                $"Successfully imported {System.IO.Path.GetFileName(dialog.FileName)}",
-                MessageDialogStyle.Affirmative);
+            var message = $"Successfully imported {System.IO.Path.GetFileName(dialog.FileName)}";
+            var timestampWarning = result.TimestampQuality.BuildUserWarning();
+            if (timestampWarning != null)
+            {
+                message += $"\n\nWarning: {timestampWarning}";
+            }
+
+            await ShowMessage("Import Complete", message, MessageDialogStyle.Affirmative);
         }
         catch (OperationCanceledException)
         {
