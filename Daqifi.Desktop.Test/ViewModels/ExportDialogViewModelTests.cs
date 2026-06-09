@@ -20,6 +20,20 @@ public class ExportDialogViewModelTests
     [TestInitialize]
     public void Setup() => Directory.CreateDirectory(TestDirectoryPath);
 
+    [TestCleanup]
+    public void Cleanup()
+    {
+        // Remove exported CSVs / temp DBs so repeated runs don't accumulate files under %TEMP%.
+        try
+        {
+            if (Directory.Exists(TestDirectoryPath)) { Directory.Delete(TestDirectoryPath, recursive: true); }
+        }
+        catch
+        {
+            // Best-effort cleanup.
+        }
+    }
+
     private static ExportDialogViewModel CreateViewModel(IDbContextFactory<LoggingContext> factory = null)
         => new(factory ?? new Mock<IDbContextFactory<LoggingContext>>().Object, sessionId: 1);
 
@@ -28,8 +42,10 @@ public class ExportDialogViewModelTests
     [TestMethod]
     public void IsConfiguring_IsTrue_OnNewViewModel()
     {
+        // Arrange & Act
         var vm = CreateViewModel();
 
+        // Assert
         Assert.IsTrue(vm.IsConfiguring);
         Assert.IsFalse(vm.IsExporting);
         Assert.IsFalse(vm.IsExportComplete);
@@ -38,44 +54,56 @@ public class ExportDialogViewModelTests
     [TestMethod]
     public void IsConfiguring_IsFalse_WhileExporting()
     {
+        // Arrange
         var vm = CreateViewModel();
 
+        // Act
         vm.IsExporting = true;
 
+        // Assert
         Assert.IsFalse(vm.IsConfiguring);
     }
 
     [TestMethod]
     public void IsConfiguring_IsFalse_WhenComplete()
     {
+        // Arrange
         var vm = CreateViewModel();
 
+        // Act
         vm.IsExportComplete = true;
 
+        // Assert
         Assert.IsFalse(vm.IsConfiguring);
     }
 
     [TestMethod]
     public void IsConfiguring_RaisesPropertyChanged_WhenExportingChanges()
     {
+        // Arrange
         var vm = CreateViewModel();
         var raised = new List<string>();
         vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 
+        // Act
         vm.IsExporting = true;
 
+        // Assert
         CollectionAssert.Contains(raised, nameof(ExportDialogViewModel.IsConfiguring));
     }
 
     [TestMethod]
     public void IsConfiguring_RaisesPropertyChanged_WhenCompleteChanges()
     {
+        // Arrange
         var vm = CreateViewModel();
         var raised = new List<string>();
         vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 
+        // Act
         vm.IsExportComplete = true;
 
+        // Assert
         CollectionAssert.Contains(raised, nameof(ExportDialogViewModel.IsConfiguring));
     }
 
@@ -86,30 +114,41 @@ public class ExportDialogViewModelTests
     [TestMethod]
     public void ExportCommand_CannotExecute_WithoutDestination()
     {
+        // Arrange
         var vm = CreateViewModel();
 
-        Assert.IsFalse(vm.ExportLoggingSessionsCommand.CanExecute(null));
+        // Act
+        var canExecute = vm.ExportLoggingSessionsCommand.CanExecute(null);
+
+        // Assert
+        Assert.IsFalse(canExecute);
     }
 
     [TestMethod]
     public void ExportCommand_CanExecute_OnceDestinationIsSet()
     {
+        // Arrange
         var vm = CreateViewModel();
 
+        // Act
         vm.ExportFilePath = Path.Combine(TestDirectoryPath, "out.csv");
 
+        // Assert
         Assert.IsTrue(vm.ExportLoggingSessionsCommand.CanExecute(null));
     }
 
     [TestMethod]
     public void SettingDestination_RaisesCanExecuteChanged_ForExportCommand()
     {
+        // Arrange
         var vm = CreateViewModel();
         var raised = false;
         vm.ExportLoggingSessionsCommand.CanExecuteChanged += (_, _) => raised = true;
 
+        // Act
         vm.ExportFilePath = Path.Combine(TestDirectoryPath, "out.csv");
 
+        // Assert
         Assert.IsTrue(raised);
     }
 
@@ -120,8 +159,8 @@ public class ExportDialogViewModelTests
     [TestMethod]
     public async Task Export_OnFailure_ShowsFailedResult()
     {
-        // A factory that throws when the export reads the session forces the catch-all path
-        // deterministically — no file-system or timing dependence.
+        // Arrange — a factory that throws when the export reads the session forces the
+        // catch-all path deterministically (no file-system or timing dependence).
         var factory = new Mock<IDbContextFactory<LoggingContext>>();
         factory.Setup(f => f.CreateDbContext()).Throws(new InvalidOperationException("boom"));
         var vm = new ExportDialogViewModel(factory.Object, sessionId: 1)
@@ -129,8 +168,10 @@ public class ExportDialogViewModelTests
             ExportFilePath = Path.Combine(TestDirectoryPath, "fail.csv")
         };
 
+        // Act
         await vm.ExportLoggingSessionsCommand.ExecuteAsync(null);
 
+        // Assert
         Assert.IsTrue(vm.IsExportComplete, "Failure should still land on the result state.");
         Assert.IsFalse(vm.ExportSucceeded);
         Assert.IsFalse(vm.IsExporting);
@@ -141,13 +182,16 @@ public class ExportDialogViewModelTests
     [TestMethod]
     public async Task Export_OnSuccess_ShowsCompleteResultAndWritesFile()
     {
+        // Arrange
         using var factory = new TempSqliteLoggingContextFactory();
         SeedSession(factory, sessionId: 1);
         var exportPath = Path.Combine(TestDirectoryPath, $"success_{Guid.NewGuid():N}.csv");
         var vm = new ExportDialogViewModel(factory, sessionId: 1) { ExportFilePath = exportPath };
 
+        // Act
         await vm.ExportLoggingSessionsCommand.ExecuteAsync(null);
 
+        // Assert
         Assert.IsTrue(vm.IsExportComplete);
         Assert.IsTrue(vm.ExportSucceeded);
         Assert.IsFalse(vm.IsExporting);
@@ -186,6 +230,12 @@ public class ExportDialogViewModelTests
         context.SaveChanges();
     }
 
+    /// <summary>
+    /// A real file-backed SQLite <see cref="IDbContextFactory{T}"/>. The export success path runs
+    /// the full EF + streaming-exporter pipeline, so it is exercised against a real (tiny) database
+    /// rather than a mock — mirroring the existing pattern in ExportPerformanceTests. The state-machine
+    /// and command-gating tests above use a Moq factory instead. The .db file is deleted on Dispose.
+    /// </summary>
     private sealed class TempSqliteLoggingContextFactory : IDbContextFactory<LoggingContext>, IDisposable
     {
         private readonly string _dbPath;

@@ -169,10 +169,7 @@ public partial class ExportDialogViewModel : ObservableObject
                 var totalSessions = _sessionsIds.Count;
                 for (var i = 0; i < totalSessions; i++)
                 {
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        return;
-                    }
+                    cancellationToken.ThrowIfCancellationRequested();
                     var sessionId = _sessionsIds[i];
                     var loggingSession = await GetLoggingSessionFromId(sessionId);
                     if (loggingSession == null)
@@ -209,11 +206,11 @@ public partial class ExportDialogViewModel : ObservableObject
                 }
             }, cancellationToken);
 
-            cancelled = cancellationToken.IsCancellationRequested;
-            if (!cancelled)
-            {
-                AppLogger.Instance.AddBreadcrumb("export", "Data export completed");
-            }
+            // Reaching here means the loop ran to completion without a cancellation being
+            // observed at a checkpoint — a Cancel click that lands after the work is done no
+            // longer suppresses the result state. Cancellation is signalled only by the
+            // OperationCanceledException path below.
+            AppLogger.Instance.AddBreadcrumb("export", "Data export completed");
         }
         catch (OperationCanceledException)
         {
@@ -278,7 +275,7 @@ public partial class ExportDialogViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            AppLogger.Instance.Warning($"Could not open export location: {ex.Message}");
+            AppLogger.Instance.Warning(ex, $"Could not open export location '{ExportFilePath}'.");
         }
     }
 
