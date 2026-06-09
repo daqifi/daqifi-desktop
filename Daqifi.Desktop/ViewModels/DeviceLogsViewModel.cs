@@ -310,17 +310,22 @@ public partial class DeviceLogsViewModel : ObservableObject
                 BusyMessage = $"Importing {file.FileName}... {p.SamplesProcessed:N0} samples";
             });
 
-            var session = await Task.Run(() =>
+            var result = await Task.Run(() =>
                 importer.ImportFromDeviceAsync(SelectedDevice, file.FileName, null, progress, CancellationToken.None));
 
             Application.Current.Dispatcher.Invoke(() =>
             {
-                LoggingManager.Instance.LoggingSessions.Add(session);
+                LoggingManager.Instance.LoggingSessions.Add(result.Session);
             });
 
-            await ShowMessage("Import Complete",
-                $"Successfully imported {file.FileName}",
-                MessageDialogStyle.Affirmative);
+            var message = $"Successfully imported {file.FileName}";
+            var timestampWarning = result.TimestampQuality.BuildUserWarning();
+            if (timestampWarning != null)
+            {
+                message += $"\n\nWarning: {timestampWarning}";
+            }
+
+            await ShowMessage("Import Complete", message, MessageDialogStyle.Affirmative);
         }
         catch (OperationCanceledException)
         {
@@ -348,6 +353,7 @@ public partial class DeviceLogsViewModel : ObservableObject
         var filesToImport = DeviceFiles.ToList();
         var successCount = 0;
         var failCount = 0;
+        var timestampWarningCount = 0;
 
         try
         {
@@ -368,13 +374,18 @@ public partial class DeviceLogsViewModel : ObservableObject
                         BusyMessage = $"Importing {file.FileName} ({i + 1}/{filesToImport.Count})... {p.SamplesProcessed:N0} samples";
                     });
 
-                    var session = await Task.Run(() =>
+                    var result = await Task.Run(() =>
                         importer.ImportFromDeviceAsync(SelectedDevice, file.FileName, null, progress, CancellationToken.None));
 
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        LoggingManager.Instance.LoggingSessions.Add(session);
+                        LoggingManager.Instance.LoggingSessions.Add(result.Session);
                     });
+
+                    if (result.TimestampQuality.HasDegenerateTimeAxis)
+                    {
+                        timestampWarningCount++;
+                    }
 
                     successCount++;
                 }
@@ -389,6 +400,12 @@ public partial class DeviceLogsViewModel : ObservableObject
             if (failCount > 0)
             {
                 message += $"\n{failCount} file(s) failed to import.";
+            }
+
+            if (timestampWarningCount > 0)
+            {
+                message += $"\nWarning: {timestampWarningCount} file(s) lack usable per-sample timestamps; " +
+                           "their sessions' time axes will be flat.";
             }
 
             await ShowMessage("Import Complete", message, MessageDialogStyle.Affirmative);
