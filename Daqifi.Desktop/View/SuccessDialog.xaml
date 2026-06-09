@@ -1,19 +1,41 @@
 ﻿<controls:MetroWindow x:Class="Daqifi.Desktop.View.SuccessDialog"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-              xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
-            Title="Success" ResizeMode="NoResize" Width="300" Height="200" BorderThickness="0" Background="{StaticResource Surface}" GlowBrush="{DynamicResource AccentColorBrush}">
-    <Grid Background="{StaticResource Surface}">
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
+        Title="Success" ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight"
+        MinWidth="320" MinHeight="150" MaxWidth="520"
+        BorderThickness="0" Background="{StaticResource Surface}"
+        GlowBrush="{DynamicResource AccentColorBrush}">
+    <!--
+        Shares the autosize-with-bounds layout of ErrorDialog (DAQiFi#576) so the alert
+        family is visually consistent: compact for short messages, wraps + scrolls for long.
+        The message is a read-only (not disabled) TextBox so it stays selectable/copyable.
+    -->
+    <Grid Margin="20" Background="{StaticResource Surface}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <iconPacks:PackIconMaterial Grid.Column="0" Margin="5" Kind="AlertCircleCheckOutline" HorizontalAlignment="Center" Height="50" Width="50" Foreground="{StaticResource StatusGreen}"/>
+        <iconPacks:PackIconMaterial Grid.Row="0" Grid.Column="0" Kind="AlertCircleCheckOutline"
+                                    Width="40" Height="40"
+                                    HorizontalAlignment="Center" VerticalAlignment="Top"
+                                    Foreground="{StaticResource StatusGreen}"/>
 
-        <TextBox Grid.Column="1" Text="{Binding SuccessMessage}" VerticalAlignment="Center" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextPrimary}"/>
+        <TextBox Grid.Row="0" Grid.Column="1" Margin="14,0,0,0" Text="{Binding SuccessMessage}"
+                 IsReadOnly="True" TextWrapping="Wrap" MaxWidth="400" MaxHeight="360"
+                 VerticalScrollBarVisibility="Auto" BorderThickness="0" Background="Transparent"
+                 FontSize="14" VerticalAlignment="Center" Foreground="{StaticResource TextPrimary}"/>
 
-        <Button Grid.Column="0" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Click="btnOk_Click" Content="Ok" Width="100" Height="30"  Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+        <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Content="Ok" Click="btnOk_Click"
+                IsDefault="True" Width="80" Height="30" Margin="0,20,0,0"
+                HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent}"
+                controls:ControlsHelper.ContentCharacterCasing="Normal"/>
     </Grid>
 </controls:MetroWindow>

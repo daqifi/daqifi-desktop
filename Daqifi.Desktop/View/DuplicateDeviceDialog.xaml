@@ -3,7 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
-        Title="Device Already Connected" ResizeMode="NoResize" Width="480" Height="280" BorderThickness="0" Background="{StaticResource Surface}" GlowBrush="{DynamicResource AccentColorBrush}">
+        Title="Device Already Connected" ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight"
+        MinWidth="480" MinHeight="280" MaxWidth="620" MaxHeight="520"
+        BorderThickness="0" Background="{StaticResource Surface}" GlowBrush="{DynamicResource AccentColorBrush}">
 
     <controls:MetroWindow.Resources>
         <ResourceDictionary>
@@ -13,6 +16,8 @@
         </ResourceDictionary>
     </controls:MetroWindow.Resources>
 
+    <!-- Autosizes to content within bounds (DAQiFi#576); MinWidth/MinHeight hold the prior
+         480x280 footprint for the common case, so only unusually long device/interface text grows it. -->
     <Grid Margin="20" Background="{StaticResource Surface}" TextElement.Foreground="{StaticResource TextPrimary}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -33,7 +38,7 @@
 
         <!-- Message -->
         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Message}"
-                  VerticalAlignment="Top" Margin="10,5,0,10"
+                  VerticalAlignment="Top" Margin="10,5,0,10" MaxWidth="385"
                   TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextPrimary}"/>
 
         <!-- Options (sit directly under the prompt, aligned with the message) -->
