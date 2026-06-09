@@ -3,6 +3,7 @@ using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
 using System.IO;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -29,7 +30,15 @@ public partial class ExportDialogViewModel : ObservableObject
     [ObservableProperty]
     private bool _exportAverageSelected;
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsConfiguring))]
     private bool _isExporting;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsConfiguring))]
+    private bool _isExportComplete;
+    [ObservableProperty]
+    private bool _exportSucceeded;
+    [ObservableProperty]
+    private string _exportResultMessage;
     [ObservableProperty]
     private int _averageQuantity = 2;
     [ObservableProperty]
@@ -47,6 +56,7 @@ public partial class ExportDialogViewModel : ObservableObject
         {
             _exportFilePath = value;
             OnPropertyChanged();
+            ExportLoggingSessionsCommand.NotifyCanExecuteChanged();
             CommandManager.InvalidateRequerySuggested();
         }
     }
@@ -61,6 +71,12 @@ public partial class ExportDialogViewModel : ObservableObject
             ExportProgressText = $"Exporting progress: {ExportProgress}% completed";
         }
     }
+
+    /// <summary>
+    /// True while the dialog is showing its configuration form — i.e. not mid-export and not
+    /// showing the completion result. Selects which of the dialog's three states is visible.
+    /// </summary>
+    public bool IsConfiguring => !IsExporting && !IsExportComplete;
     #endregion
 
     #region Commands
@@ -82,6 +98,17 @@ public partial class ExportDialogViewModel : ObservableObject
         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
         _sessionsIds = sessions.Select(s => s.ID).ToList();
         BrowseCommand = BrowseExportDirectoryCommand;
+    }
+
+    /// <summary>
+    /// Test seam: supplies the logging-context factory directly so unit tests can exercise the
+    /// dialog's state machine and export flow without booting the App/DI container.
+    /// </summary>
+    internal ExportDialogViewModel(IDbContextFactory<LoggingContext> loggingContext, int sessionId)
+    {
+        _loggingContext = loggingContext;
+        _sessionsIds = [sessionId];
+        BrowseCommand = BrowseExportPathCommand;
     }
     #endregion
 
@@ -121,17 +148,20 @@ public partial class ExportDialogViewModel : ObservableObject
         _cts?.Cancel();
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanExport))]
     private async Task ExportLoggingSessions()
     {
         if (string.IsNullOrWhiteSpace(ExportFilePath)) { return; }
 
         IsExporting = true;
+        IsExportComplete = false;
         _cts = new CancellationTokenSource();
         var cancellationToken = _cts.Token;
         var progress = new Progress<int>(progressValue => ExportProgress = progressValue);
         AppLogger.Instance.AddBreadcrumb("export", $"Data export started ({_sessionsIds.Count} session(s))");
 
+        var cancelled = false;
+        var failed = false;
         try
         {
             await Task.Run(async () =>
@@ -139,10 +169,7 @@ public partial class ExportDialogViewModel : ObservableObject
                 var totalSessions = _sessionsIds.Count;
                 for (var i = 0; i < totalSessions; i++)
                 {
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        return;
-                    }
+                    cancellationToken.ThrowIfCancellationRequested();
                     var sessionId = _sessionsIds[i];
                     var loggingSession = await GetLoggingSessionFromId(sessionId);
                     if (loggingSession == null)
@@ -152,14 +179,21 @@ public partial class ExportDialogViewModel : ObservableObject
                         continue;
                     }
 
-                    // Resolve the display name for per-session file naming; fall back to the default
-                    // "Session_{id}" form when the session is no longer in the in-memory list. Avoids
-                    // a NullReferenceException (FirstOrDefault can be null) that would fail the export.
-                    var sessionName = LoggingManager.Instance.LoggingSessions
-                        .FirstOrDefault(s => s.ID == sessionId)?.Name ?? $"Session_{sessionId}";
-                    var filepath = _forceDirectoryLayout || totalSessions > 1
-                        ? Path.Combine(ExportFilePath, $"{MakeSafeFileName(sessionName)}.csv")
-                        : ExportFilePath;
+                    // Per-session file naming only applies when writing into a directory (multi-session
+                    // export, or the directory-layout test hook). Resolve the display name lazily so a
+                    // plain single-file export doesn't depend on LoggingManager — falling back to the
+                    // default "Session_{id}" form when the session is no longer in the in-memory list.
+                    string filepath;
+                    if (_forceDirectoryLayout || totalSessions > 1)
+                    {
+                        var sessionName = LoggingManager.Instance.LoggingSessions
+                            .FirstOrDefault(s => s.ID == sessionId)?.Name ?? $"Session_{sessionId}";
+                        filepath = Path.Combine(ExportFilePath, $"{MakeSafeFileName(sessionName)}.csv");
+                    }
+                    else
+                    {
+                        filepath = ExportFilePath;
+                    }
 
                     if (ExportAllSelected)
                     {
@@ -172,35 +206,88 @@ public partial class ExportDialogViewModel : ObservableObject
                 }
             }, cancellationToken);
 
+            // Reaching here means the loop ran to completion without a cancellation being
+            // observed at a checkpoint — a Cancel click that lands after the work is done no
+            // longer suppresses the result state. Cancellation is signalled only by the
+            // OperationCanceledException path below.
             AppLogger.Instance.AddBreadcrumb("export", "Data export completed");
         }
         catch (OperationCanceledException)
         {
+            cancelled = true;
             AppLogger.Instance.Information("Export operation was cancelled by user.");
             AppLogger.Instance.AddBreadcrumb("export", "Data export cancelled", Common.Loggers.BreadcrumbLevel.Warning);
         }
         catch (Exception ex)
         {
+            failed = true;
             AppLogger.Instance.Error(ex, "Problem Exporting Data");
             AppLogger.Instance.AddBreadcrumb("export", "Data export failed", Common.Loggers.BreadcrumbLevel.Error);
         }
         finally
         {
-            IsExporting = false;
             _cts.Dispose();
             _cts = null;
+
+            // A cancel returns to the configuration form; a success or failure shows the
+            // result state (set complete before clearing IsExporting so IsConfiguring never
+            // flips true in between).
+            if (!cancelled)
+            {
+                ExportSucceeded = !failed;
+                ExportResultMessage = failed ? "Export failed. Please try again." : "Export complete";
+                IsExportComplete = true;
+            }
+
+            IsExporting = false;
+        }
+    }
+
+    private bool CanExport => !string.IsNullOrWhiteSpace(ExportFilePath);
+
+    /// <summary>
+    /// Opens the export destination in File Explorer: the folder itself for a directory export,
+    /// or the containing folder with the file selected for a single-file export.
+    /// </summary>
+    [RelayCommand]
+    private void OpenExportLocation()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(ExportFilePath)) { return; }
+
+            if (Directory.Exists(ExportFilePath))
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{ExportFilePath}\"") { UseShellExecute = true });
+            }
+            else if (File.Exists(ExportFilePath))
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{ExportFilePath}\"") { UseShellExecute = true });
+            }
+            else
+            {
+                var directory = Path.GetDirectoryName(ExportFilePath);
+                if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
+                {
+                    Process.Start(new ProcessStartInfo("explorer.exe", $"\"{directory}\"") { UseShellExecute = true });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Instance.Warning(ex, $"Could not open export location '{ExportFilePath}'.");
         }
     }
 
     private void ExportAllSamples(LoggingSession session, string filepath, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
-        var loggingSessionExporter = new OptimizedLoggingSessionExporter();
+        var loggingSessionExporter = new OptimizedLoggingSessionExporter(_loggingContext);
         loggingSessionExporter.ExportLoggingSession(session, filepath, ExportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
     }
 
     private void ExportAverageSamples(LoggingSession session, string filepath, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
-        var loggingSessionExporter = new OptimizedLoggingSessionExporter();
+        var loggingSessionExporter = new OptimizedLoggingSessionExporter(_loggingContext);
         loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
     }
 

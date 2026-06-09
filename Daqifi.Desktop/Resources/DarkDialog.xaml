@@ -1,0 +1,180 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Dark-mode control skins for the app's legacy MahApps dialogs (Export, Firmware,
+        DuplicateDevice). The application runs on the MahApps "Light.Blue" theme, so a plain
+        MetroWindow and its standard controls render light; these styles re-skin GroupBox,
+        TextBox, Label and a secondary Button onto the dark design tokens so older dialogs
+        match the rest of the app (see /Resources/DesignTokens.xaml and
+        docs/design-philosophy.md §2 dark by default, §9 one visual system).
+
+        Usage: merge this dictionary into a dialog's Window.Resources and set the root
+        container Background to {StaticResource Surface}. The GroupBox/TextBox/Label styles
+        are implicit (no x:Key) so they apply automatically within that window only.
+
+        Tokens are referenced via DynamicResource so they resolve against the
+        application-scope DesignTokens dictionary at runtime — this file is merged into a
+        window, not into App.xaml, so the tokens are not in its own static scope. The
+        templates intentionally reference only DesignTokens keys (never MahApps-internal
+        brush/style keys) so there are no load-time resolution surprises.
+    -->
+
+    <!-- ── Content labels ──────────────────────────────────────────────── -->
+    <Style TargetType="Label">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+    </Style>
+
+    <!-- ── Radio option ─────────────────────────────────────────────────────
+         Self-contained dark template. The MahApps light-theme radio brings a white
+         content background that swallows light text, so we own the whole visual:
+         a ring + accent dot on a transparent background. -->
+    <Style TargetType="RadioButton">
+        <Setter Property="Foreground"               Value="{DynamicResource TextPrimary}"/>
+        <Setter Property="Background"               Value="Transparent"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Grid Background="Transparent">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.Column="0" Width="16" Height="16" VerticalAlignment="Center">
+                            <Ellipse x:Name="Ring"
+                                     Stroke="{DynamicResource BorderBright}"
+                                     StrokeThickness="1"
+                                     Fill="{DynamicResource Surface}"/>
+                            <Ellipse x:Name="Dot"
+                                     Margin="4"
+                                     Fill="{DynamicResource Accent}"
+                                     Visibility="Collapsed"/>
+                        </Grid>
+                        <ContentPresenter Grid.Column="1"
+                                          Margin="8,0,0,0"
+                                          VerticalAlignment="Center"
+                                          RecognizesAccessKey="True"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Dot"  Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="Ring" Property="Stroke"     Value="{DynamicResource Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Ring" Property="Stroke" Value="{DynamicResource Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Dark input field ────────────────────────────────────────────── -->
+    <Style TargetType="TextBox">
+        <Setter Property="Foreground"               Value="{DynamicResource TextPrimary}"/>
+        <Setter Property="CaretBrush"               Value="{DynamicResource TextPrimary}"/>
+        <Setter Property="Background"               Value="{DynamicResource Surface}"/>
+        <Setter Property="BorderBrush"              Value="{DynamicResource BorderDim}"/>
+        <Setter Property="BorderThickness"          Value="1"/>
+        <Setter Property="Padding"                  Value="8,4"/>
+        <Setter Property="MinHeight"                Value="28"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="3">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Grouping container: small header label over a raised panel ──── -->
+    <Style TargetType="GroupBox">
+        <Setter Property="Foreground"      Value="{DynamicResource TextPrimary}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BorderDim}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Margin"          Value="0,0,0,12"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="GroupBox">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <ContentPresenter Grid.Row="0"
+                                          ContentSource="Header"
+                                          TextElement.Foreground="{DynamicResource TextSecondary}"
+                                          TextElement.FontSize="11"
+                                          TextElement.FontWeight="SemiBold"
+                                          Margin="2,0,2,6"/>
+                        <Border Grid.Row="1"
+                                Background="{DynamicResource SurfaceRaised}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="10">
+                            <ContentPresenter/>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ── Secondary (non-accent) button ───────────────────────────────────
+         SurfaceActive (the lightest surface token) so the button reads as a control
+         on both the root Surface and the raised SurfaceRaised GroupBox panels. -->
+    <Style x:Key="DarkSecondaryButton" TargetType="Button">
+        <Setter Property="Background"      Value="{DynamicResource SurfaceActive}"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BorderBright}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Foreground"      Value="{DynamicResource TextPrimary}"/>
+        <Setter Property="Padding"         Value="16,6"/>
+        <Setter Property="FontSize"        Value="12"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="3">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background"  Value="#283143"/>
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

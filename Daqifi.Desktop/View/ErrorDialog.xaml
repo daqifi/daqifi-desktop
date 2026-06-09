@@ -3,16 +3,16 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
-        Title="Error" ResizeMode="NoResize" Width="300" Height="200" GlowBrush="{DynamicResource AccentColorBrush}">
-    <Grid>
+        Title="Error" ResizeMode="NoResize" Width="300" Height="200" BorderThickness="0" Background="{StaticResource Surface}" GlowBrush="{DynamicResource AccentColorBrush}">
+    <Grid Background="{StaticResource Surface}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <iconPacks:PackIconMaterial Grid.Column="0" Margin="5" Kind="AlertCircleOutline" HorizontalAlignment="Center" Height="50" Width="50"/>
+        <iconPacks:PackIconMaterial Grid.Column="0" Margin="5" Kind="AlertCircleOutline" HorizontalAlignment="Center" Height="50" Width="50" Foreground="{StaticResource StatusRed}"/>
 
-        <TextBox Grid.Column="1" Text="{Binding ErrorMessage}" VerticalAlignment="Center" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Foreground="Black"/>
+        <TextBox Grid.Column="1" Text="{Binding ErrorMessage}" VerticalAlignment="Center" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" Foreground="{StaticResource TextPrimary}"/>
 
         <Button Grid.Column="0" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Click="btnOk_Click" Content="Ok" Width="100" Height="30"  Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
     </Grid>
