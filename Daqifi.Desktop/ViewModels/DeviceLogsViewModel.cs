@@ -404,8 +404,8 @@ public partial class DeviceLogsViewModel : ObservableObject
 
             if (timestampWarningCount > 0)
             {
-                message += $"\nWarning: {timestampWarningCount} file(s) lack usable per-sample timestamps; " +
-                           "their sessions' time axes will be flat.";
+                message += $"\nWarning: {timestampWarningCount} file(s) have missing or unusable per-sample " +
+                           "timestamps; their sessions' time axes may be flat or partially collapsed.";
             }
 
             await ShowMessage("Import Complete", message, MessageDialogStyle.Affirmative);

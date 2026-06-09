@@ -10,8 +10,12 @@ namespace Daqifi.Desktop.Test.Loggers;
 /// with synthetic parsed sessions, covering the timestamp-quality diagnostics
 /// added for the issue #572 follow-up: collapsed-timestamp files still import,
 /// but the result flags the degenerate time axis so callers can warn the user.
+/// The bulk-insert pipeline is the subject under test, so the database is real
+/// (file-backed temp SQLite, hermetic per test) rather than mocked; the class
+/// is categorized accordingly. It still runs in the fast unit gate.
 /// </summary>
 [TestClass]
+[TestCategory("Integration")]
 public class SdCardSessionImporterTests
 {
     private static readonly DateTime BaseTime = new(2026, 6, 9, 12, 0, 0, DateTimeKind.Utc);
@@ -150,11 +154,15 @@ public class SdCardSessionImporterTests
             try
             {
                 Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-                if (File.Exists(_dbPath)) { File.Delete(_dbPath); }
+                if (File.Exists(_dbPath))
+                {
+                    File.Delete(_dbPath);
+                }
             }
-            catch
+            catch (Exception ex)
             {
-                // Best-effort cleanup.
+                // Best-effort cleanup of a temp file; never fail the test run.
+                Console.WriteLine($"Cleanup of test database '{_dbPath}' failed: {ex.Message}");
             }
         }
     }

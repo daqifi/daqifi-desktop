@@ -84,8 +84,16 @@ public sealed class ImportTimestampQuality
             EntriesAtFirstTimestamp++;
         }
 
-        if (timestampTicks < _minTicks) { _minTicks = timestampTicks; }
-        if (timestampTicks > _maxTicks) { _maxTicks = timestampTicks; }
+        if (timestampTicks < _minTicks)
+        {
+            _minTicks = timestampTicks;
+        }
+
+        if (timestampTicks > _maxTicks)
+        {
+            _maxTicks = timestampTicks;
+        }
+
         TotalEntries++;
     }
 
