@@ -138,7 +138,7 @@ Please read the [Contributing Guidelines](CONTRIBUTING.md) before opening a pull
 
 ## For maintainers
 
-To cut a release: push a `v<major>.<minor>.<patch>` tag (e.g. `git tag v3.3.0 && git push origin v3.3.0`). CI builds the MSI and creates a **draft** GitHub Release with the installer attached. Review and edit the auto-generated notes in the draft, then click **Publish release** — assets must be attached before publishing because the repo uses GitHub's Immutable Releases feature. The app version is set in `Daqifi.Desktop/Daqifi.Desktop.csproj` (`<Version>`). Follow [semantic versioning](https://semver.org/); breaking changes should use the `feat!:` prefix in the PR title.
+To cut a release: push a `<major>.<minor>.<patch>` tag (e.g. `git tag 3.3.0 && git push origin 3.3.0`). CI builds the MSI and creates a **draft** GitHub Release with the installer attached. Review and edit the auto-generated notes in the draft, then click **Publish release** — assets must be attached before publishing because the repo uses GitHub's Immutable Releases feature. The app version is set in `Daqifi.Desktop/Daqifi.Desktop.csproj` (`<Version>`). Follow [semantic versioning](https://semver.org/); breaking changes should use the `feat!:` prefix in the PR title.
 
 Unhandled exceptions are reported to Sentry. The DSN lives in
 [`Daqifi.Desktop/App.config`](Daqifi.Desktop/App.config); like any Sentry client DSN it is write-only

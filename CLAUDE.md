@@ -251,10 +251,11 @@ The release pipeline is compatible with GitHub's **Immutable Releases** setting 
 **How to cut a release:**
 
 1. Merge all intended changes to `main`.
-2. Push a version tag — must match `v<major>.<minor>.<patch>` (e.g. `v3.3.0`):
+2. Push a version tag matching `<major>.<minor>.<patch>` (e.g. `3.3.0`). Tags with or without a
+   `v` prefix both work, but the standard going forward is without:
    ```bash
-   git tag v3.3.0
-   git push origin v3.3.0
+   git tag 3.3.0
+   git push origin 3.3.0
    ```
 3. CI (`.github/workflows/release.yaml`) triggers on the tag push, builds the MSI, and creates a
    **draft** GitHub Release with the installer attached and auto-generated release notes as a
