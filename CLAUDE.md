@@ -256,10 +256,14 @@ The release pipeline is compatible with GitHub's **Immutable Releases** setting 
    git tag v3.3.0
    git push origin v3.3.0
    ```
-3. CI (`.github/workflows/release.yaml`) triggers on the tag push, builds the MSI, and creates a **draft** GitHub Release with the installer attached and auto-generated release notes as a starting point.
-4. Navigate to the draft release on GitHub, edit the notes to your liking, then click **Publish release**.
+3. CI (`.github/workflows/release.yaml`) triggers on the tag push, builds the MSI, and creates a
+   **draft** GitHub Release with the installer attached and auto-generated release notes as a
+   starting point.
+4. Navigate to the draft release on GitHub, edit the notes to your liking, then click
+   **Publish release**.
 
-Because the MSI is attached while the release is still a draft, publishing is safe under immutable releases — GitHub only blocks uploads to already-published immutable releases.
+Because the MSI is attached while the release is still a draft, publishing is safe under immutable
+releases — GitHub only blocks uploads to already-published immutable releases.
 
 The CI job fails loudly if the MSI is missing or zero bytes, so a bad build will never silently produce a release without an installer.
 
