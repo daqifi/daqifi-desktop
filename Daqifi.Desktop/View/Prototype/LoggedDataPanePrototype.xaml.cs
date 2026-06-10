@@ -18,6 +18,17 @@ public partial class LoggedDataPanePrototype
     public LoggedDataPanePrototype()
     {
         InitializeComponent();
+
+        // Disable UI virtualization only under the UI-test harness. Virtualization leaves
+        // off-screen rows out of the UIA tree, which the harness needs realized to reach a row's
+        // per-session buttons by position. Production keeps virtualization on — the session list
+        // grows unbounded over a device's lifetime — and screen readers realize rows on navigation,
+        // so the per-row accessible name (AutomationProperties.Name) still works there.
+        if (Daqifi.Desktop.Common.AppDataPaths.IsTestMode)
+        {
+            System.Windows.Controls.VirtualizingStackPanel.SetIsVirtualizing(SessionList, false);
+        }
+
         _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
         Unloaded += (_, _) =>
         {

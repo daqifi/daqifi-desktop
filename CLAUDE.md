@@ -88,6 +88,22 @@ dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 dotnet test Daqifi.Desktop.Tests/Daqifi.Desktop.Tests.csproj
 ```
 
+### Two-gate test loop
+- **Fast inner gate (every edit, no hardware):** unit tests with Moq.
+  ```bash
+  dotnet test --filter "TestCategory!=Ui&FullyQualifiedName!~WindowsFirewallWrapperTests"
+  ```
+- **Integration gate (device attached, on demand):** the FlaUI UI-automation harness drives
+  the real GUI against a physically connected device. Used when asked to validate a PR
+  against hardware or to extend the UI scenarios.
+  ```bash
+  dotnet test Daqifi.Desktop.UITest
+  ```
+  **How it works, how to run it for a PR, the AutomationId map, and the critical
+  out-of-process automation gotchas live in
+  [Daqifi.Desktop.UITest/README.md](Daqifi.Desktop.UITest/README.md) — read it before
+  running or extending the harness.**
+
 ### Code Quality
 ```bash
 # Format code
@@ -228,6 +244,30 @@ public void InitializeFirewallRules()
 - Squash merge to main
 - All PRs require code review
 
+## Release Process
+
+The release pipeline is compatible with GitHub's **Immutable Releases** setting (which must remain enabled).
+
+**How to cut a release:**
+
+1. Merge all intended changes to `main`.
+2. Push a version tag matching `<major>.<minor>.<patch>` (e.g. `3.3.0`). Tags with or without a
+   `v` prefix both work, but the standard going forward is without:
+   ```bash
+   git tag 3.3.0
+   git push origin 3.3.0
+   ```
+3. CI (`.github/workflows/release.yaml`) triggers on the tag push, builds the MSI, and creates a
+   **draft** GitHub Release with the installer attached and auto-generated release notes as a
+   starting point.
+4. Navigate to the draft release on GitHub, edit the notes to your liking, then click
+   **Publish release**.
+
+Because the MSI is attached while the release is still a draft, publishing is safe under immutable
+releases — GitHub only blocks uploads to already-published immutable releases.
+
+The CI job fails loudly if the MSI is missing or zero bytes, so a bad build will never silently produce a release without an installer.
+
 ## Code Review
 
 - **Qodo (automated reviewer)**: When Qodo leaves review comments on a PR, always reply to each comment on GitHub explaining what action was taken (fixed, partially fixed, or disagreed with and why). Use `gh api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies` to post threaded replies.
@@ -244,6 +284,7 @@ When working on:
 - **Manual IP Connections**: Ensure TCP port matches what device discovery reports
 - **Plot/Minimap changes**: Read the "Plot Rendering (OxyPlot)" section below — there are non-obvious gotchas with `InvalidatePlot`, auto-range, and feedback loops. Key files: `DatabaseLogger.cs`, `MinimapInteractionController.cs`, `MinMaxDownsampler.cs`
 - **New features**: Add unit tests with 80% coverage minimum
+- **UI automation / running the harness against a PR with a device, or extending the UI scenarios**: Read [Daqifi.Desktop.UITest/README.md](Daqifi.Desktop.UITest/README.md) first. It is the FlaUI integration gate (drives the real GUI out-of-process against attached hardware) and documents the unattended `DAQIFI_TEST_MODE` launch, the AutomationId map, and load-bearing gotchas (e.g. `PART_SelectedContentHost` exposes tab content to UI Automation — do not remove it)
 
 ## Performance Considerations
 

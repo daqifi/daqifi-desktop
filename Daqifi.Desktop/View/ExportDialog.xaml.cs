@@ -16,4 +16,9 @@ public partial class ExportDialog
     {
         Close();
     }
+
+    private void btnDone_Click(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
 }

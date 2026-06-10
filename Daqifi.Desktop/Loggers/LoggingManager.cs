@@ -16,7 +16,10 @@ public partial class LoggingManager : ObservableObject
 {
     #region Private Variables
     private readonly AppLogger AppLogger = AppLogger.Instance;
-    private static string ProfileAppDirectory = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + "\\DAQifi";
+    // Use the shared, elevation-aware data directory (AppDataPaths) so the profiles XML is
+    // written to a location the process can actually write (per-user when un-elevated),
+    // instead of failing on the admin-owned %ProgramData% file.
+    private static string ProfileAppDirectory = Daqifi.Desktop.Common.AppDataPaths.DataDirectory;
     private static readonly string ProfileSettingsXmlPath = ProfileAppDirectory + "\\DAQifiProfilesConfiguration.xml";
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     private bool _hasActiveApplicationSession;
@@ -658,6 +661,12 @@ public partial class LoggingManager : ObservableObject
                 tracked.SampleCount = count;
                 context.SaveChanges();
             }
+
+            // Surface the finalized count so a session end is observable out-of-process
+            // (the UI-test harness reads this line to learn the persisted sample count it
+            // then cross-checks against an exported CSV). All buffered samples are already
+            // flushed (WaitForIdle above), so this is the authoritative per-session total.
+            AppLogger.Information($"Persisted sample count {count} for session {session.ID}");
 
             // Marshal the in-memory mutation onto the UI thread so the
             // PropertyChanged notification fires on the dispatcher and WPF

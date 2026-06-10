@@ -73,12 +73,33 @@ public class DisplayIdentifierTests
     {
         // Arrange
         var device = new SerialStreamingDevice("COM1");
-        
+
         // Act & Assert
         Assert.AreEqual(ConnectionType.Usb, device.ConnectionType,
             "SerialStreamingDevice should have USB connection type");
     }
-    
+
+    [TestMethod]
+    public void SerialStreamingDevice_Connect_WithMissingPort_ReturnsFalseWithoutThrowing()
+    {
+        // Regression for issue #524: SerialPort.Open() throws FileNotFoundException on Windows
+        // when a syntactically-valid but absent COM port (e.g. "COM250") is opened. Connect()
+        // must catch and return false rather than letting the exception escape — previously
+        // this surfaced as a Sentry "error" for what is a user/environmental condition.
+        // "COM250" is intentionally chosen so it parses as a real COM port name (so we hit
+        // the FileNotFoundException path on Windows) but is unlikely to be present on a CI
+        // runner. On non-Windows hosts SerialPort.Open() throws PlatformNotSupportedException
+        // or similar; the generic Exception catch still suffices to satisfy this assertion.
+        var device = new SerialStreamingDevice("COM250");
+
+        var result = device.Connect();
+
+        Assert.IsFalse(result,
+            "Connect() against a nonexistent port should report failure, not throw.");
+        Assert.IsFalse(device.IsConnected,
+            "Device should not be marked connected when the underlying port could not be opened.");
+    }
+
     #endregion
     
     #region DaqifiStreamingDevice (WiFi) Tests

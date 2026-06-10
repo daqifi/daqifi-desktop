@@ -144,7 +144,22 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
                 try
                 {
                     Expression.Parameters["x"] = _activeSample.Value;
-                    _activeSample.Value = Convert.ToDouble(Expression.Evaluate());
+                    var scaledValue = Convert.ToDouble(Expression.Evaluate());
+
+                    if (double.IsFinite(scaledValue))
+                    {
+                        _activeSample.Value = scaledValue;
+                    }
+                    else
+                    {
+                        // A finite input can still yield a non-finite result WITHOUT throwing:
+                        // a float divide-by-zero gives +/-Infinity and 0.0/0.0 gives NaN. Keep
+                        // the raw value and disable scaling (mirroring the catch below) so
+                        // Infinity/NaN never reaches the live plot or exported data.
+                        AppLogger.Instance.Warning(
+                            $"Expression produced a non-finite result for channel {Name}; scaling disabled.");
+                        HasValidExpression = false;
+                    }
                 }
                 catch (Exception ex)
                 {

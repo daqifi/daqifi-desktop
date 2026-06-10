@@ -41,6 +41,41 @@ public class MinMaxDownsamplerTests
     }
 
     [TestMethod]
+    public void Downsample_AllPointsShareOneX_ReturnsVerticalValueSpread()
+    {
+        // Degenerate session shape from issue #572: every sample at one timestamp
+        var points = new List<DataPoint>();
+        for (var i = 0; i < 10000; i++)
+        {
+            points.Add(new DataPoint(5.0, Math.Cos(i * 0.01)));
+        }
+
+        var result = MinMaxDownsampler.Downsample(points, 100);
+
+        Assert.AreEqual(2, result.Count);
+        Assert.AreEqual(5.0, result[0].X);
+        Assert.AreEqual(5.0, result[1].X);
+        Assert.AreEqual(points.Min(p => p.Y), result[0].Y);
+        Assert.AreEqual(points.Max(p => p.Y), result[1].Y);
+    }
+
+    [TestMethod]
+    public void Downsample_AllPointsIdentical_ReturnsSinglePoint()
+    {
+        var points = new List<DataPoint>();
+        for (var i = 0; i < 10000; i++)
+        {
+            points.Add(new DataPoint(5.0, 1.25));
+        }
+
+        var result = MinMaxDownsampler.Downsample(points, 100);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual(5.0, result[0].X);
+        Assert.AreEqual(1.25, result[0].Y);
+    }
+
+    [TestMethod]
     public void Downsample_PreservesMinMax()
     {
         var points = new List<DataPoint>();
