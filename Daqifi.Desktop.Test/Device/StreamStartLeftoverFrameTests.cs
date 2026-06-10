@@ -269,18 +269,23 @@ public class StreamStartLeftoverFrameTests
         _device.RouteStreamFrame(1_000_000_000);
         _device.RouteStreamFrame(1_000_000_000 + SAMPLE_PERIOD_TICKS);
         _device.IsStreaming = false;
+        var lastSessionTicks = _device.DispatchedMessages[^1].TimestampTicks;
 
         // Act - restart sixty counter-seconds later; without the reset on start, the stale
-        // baseline would place the new session's samples a minute in the future
+        // baseline would place the new session's samples a minute past the previous session
         const uint sixtySecondsTicks = 60u * 50_000_000;
         _device.InitializeStreaming();
         _device.RouteStreamFrame(1_000_000_000 + SAMPLE_PERIOD_TICKS + sixtySecondsTicks);
 
-        // Assert
+        // Assert - the new anchor sits at a fresh baseline near the previous session's last
+        // sample (the test runs in milliseconds), not 60 s ahead via the stale counter baseline.
+        // Both tick values come from the code under test, so no wall-clock read is needed. The
+        // lower bound has slack because session 1's last sample sits one firmware period past
+        // its own baseline, which can be slightly ahead of the new session's anchor.
         var anchorTicks = _device.DispatchedMessages[^1].TimestampTicks;
-        var anchorOffsetSeconds = Math.Abs((new DateTime(anchorTicks) - DateTime.Now).TotalSeconds);
-        Assert.IsTrue(anchorOffsetSeconds < 10,
-            $"The new session should anchor at the current time, not the stale baseline (offset was {anchorOffsetSeconds:F1}s).");
+        var anchorOffsetSeconds = (anchorTicks - lastSessionTicks) / (double)TimeSpan.TicksPerSecond;
+        Assert.IsTrue(anchorOffsetSeconds > -1 && anchorOffsetSeconds < 10,
+            $"The new session should anchor at a fresh baseline, not the stale counter baseline (offset was {anchorOffsetSeconds:F1}s).");
     }
 
     private static Daqifi.Core.Channel.AnalogChannel BuildAnalogInputCoreChannel(int index)

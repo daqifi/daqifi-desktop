@@ -35,12 +35,13 @@ public partial class PlotLogger : ObservableObject, ILogger
     // and exposes no per-point UI Automation elements, so the harness cannot walk the tree
     // for points; this property is bound to an (invisible) UIA element's Name in
     // LiveGraphPane.xaml, mirroring the LoggingStatusText hook. Format (invariant culture):
-    //   "series={count};points={n};nonfinite={n};last={y};min={y};max={y}"
+    //   "series={count};points={n};nonfinite={n};last={y};min={y};max={y};firstx={x};lastx={x}"
     // where series = PlotModel.Series.Count, points = real sample points across all series
     // (gap markers excluded), nonfinite = real samples whose VALUE is NaN/Inf (expected 0),
-    // and last/min/max are the latest-in-time / extent sample values ("NaN" when no data).
-    private const string EMPTY_PLOT_STATS_SUMMARY =
-        "series=0;points=0;nonfinite=0;last=NaN;min=NaN;max=NaN";
+    // last/min/max are the latest-in-time / extent sample values ("NaN" when no data), and
+    // firstx/lastx are the rendered axis-X span in elapsed ms — the time-axis anchor (issue #573).
+    // Derived from the formatter so the empty value can never drift from the real format.
+    private static readonly string EMPTY_PLOT_STATS_SUMMARY = BuildPlotStatsSummary(0, []);
 
     /// <summary>
     /// Machine-readable summary of the live plot's rendered content, updated about once a
