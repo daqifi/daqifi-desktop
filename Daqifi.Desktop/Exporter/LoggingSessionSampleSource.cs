@@ -81,22 +81,27 @@ public sealed class LoggingSessionSampleSource : ISampleSource
         using var context = _contextFactory.CreateDbContext();
         context.ChangeTracker.AutoDetectChangesEnabled = false;
 
+        // DISTINCT over the four columns instead of GROUP BY + MIN aggregate: SQLite executes
+        // the former ~4x faster on million-sample sessions (measured on real device data), and
+        // a channel virtually always has a single Type, so the result set is the same size.
+        // The (pathological) multi-type collapse and the ordering happen client-side on the
+        // handful of resulting rows — ordinal comparison matches SQLite's BINARY collation so
+        // the column order (and therefore the CSV bytes) is unchanged.
         _channelsCache = context.Samples
             .AsNoTracking()
             .Where(s => s.LoggingSessionID == _session.ID)
+            .Select(s => new { s.DeviceName, s.DeviceSerialNo, s.ChannelName, s.Type })
+            .Distinct()
+            .AsEnumerable()
             .GroupBy(s => new { s.DeviceName, s.DeviceSerialNo, s.ChannelName })
-            .Select(g => new
-            {
+            .Select(g => new ChannelDescriptor(
                 g.Key.DeviceName,
                 g.Key.DeviceSerialNo,
                 g.Key.ChannelName,
-                Type = g.Min(s => s.Type),
-            })
-            .OrderBy(s => s.DeviceName)
-            .ThenBy(s => s.DeviceSerialNo)
-            .ThenBy(s => s.ChannelName)
-            .AsEnumerable()
-            .Select(s => new ChannelDescriptor(s.DeviceName, s.DeviceSerialNo, s.ChannelName, s.Type))
+                g.Min(s => s.Type)))
+            .OrderBy(c => c.DeviceName, StringComparer.Ordinal)
+            .ThenBy(c => c.DeviceSerialNo, StringComparer.Ordinal)
+            .ThenBy(c => c.ChannelName, StringComparer.Ordinal)
             .ToList();
         return _channelsCache;
     }
@@ -128,8 +133,11 @@ public sealed class LoggingSessionSampleSource : ISampleSource
     }
 
     /// <summary>
-    /// Streams all samples for this session in ascending timestamp order. The EF path uses
-    /// <c>AsAsyncEnumerable</c> so rows are read row-by-row without materializing the whole result set.
+    /// Streams all samples for this session in ascending timestamp order. The EF path enumerates
+    /// the query synchronously (row-by-row, without materializing the result set) inside the async
+    /// iterator: SQLite's provider is synchronous under the hood, so EF's async query pipeline adds
+    /// only per-row overhead — measurably slower on million-sample sessions. Cancellation is honored
+    /// via per-row token checks, matching the legacy exporter's responsiveness.
     /// </summary>
     public async IAsyncEnumerable<SampleRow> StreamSamples([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -155,8 +163,9 @@ public sealed class LoggingSessionSampleSource : ISampleSource
             .OrderBy(s => s.TimestampTicks)
             .Select(s => new { s.TimestampTicks, s.DeviceName, s.DeviceSerialNo, s.ChannelName, s.Value });
 
-        await foreach (var s in query.AsAsyncEnumerable().WithCancellation(cancellationToken))
+        foreach (var s in query)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             yield return new SampleRow(
                 s.TimestampTicks,
                 $"{s.DeviceName}:{s.DeviceSerialNo}:{s.ChannelName}",
