@@ -668,6 +668,24 @@ public partial class LoggingManager : ObservableObject
             // flushed (WaitForIdle above), so this is the authoritative per-session total.
             AppLogger.Information($"Persisted sample count {count} for session {session.ID}");
 
+            // Test-mode-only companion oracle for the CSV export harness: the number of
+            // DISTINCT (timestamp, device, serial, channel) positions. The device occasionally
+            // re-emits a frame with a duplicated timestamp tick mid-session, and the CSV
+            // exporters intentionally collapse same-position duplicates into one cell
+            // (last value wins) — so the raw sample count overstates the exported cell count
+            // whenever a session contains such a frame. This DISTINCT can cost ~a second on
+            // million-sample sessions, so it never runs in production.
+            if (Daqifi.Desktop.Common.AppDataPaths.IsTestMode)
+            {
+                var distinctPositions = context.Samples
+                    .Where(s => s.LoggingSessionID == session.ID)
+                    .Select(s => new { s.TimestampTicks, s.DeviceName, s.DeviceSerialNo, s.ChannelName })
+                    .Distinct()
+                    .LongCount();
+                AppLogger.Information(
+                    $"Persisted distinct sample positions {distinctPositions} for session {session.ID}");
+            }
+
             // Marshal the in-memory mutation onto the UI thread so the
             // PropertyChanged notification fires on the dispatcher and WPF
             // bindings update safely.

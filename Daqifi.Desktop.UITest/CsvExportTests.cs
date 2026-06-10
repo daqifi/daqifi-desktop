@@ -63,7 +63,7 @@ public class CsvExportTests : DaqifiAppFixture
     {
         try
         {
-            var (sessionName, sampleCount, channelCount) = RunShortLoggingSession();
+            var (sessionName, expectedCellCount, sampleCount, channelCount) = RunShortLoggingSession();
 
             // Act — export the just-finalized session (the newest, last row) via its per-row EXPORT
             // button. With the hook active, this writes "{sessionName}.csv" into _exportDir with no
@@ -72,7 +72,7 @@ public class CsvExportTests : DaqifiAppFixture
 
             // Assert — the CSV lands on disk and is well-formed and complete.
             var csvPath = WaitForExportedCsv(sessionName + ".csv", TimeSpan.FromSeconds(30));
-            ValidateExportedCsv(csvPath, sampleCount, channelCount);
+            ValidateExportedCsv(csvPath, expectedCellCount, sampleCount, channelCount);
 
             // The single-session export must produce exactly that one file in the dir.
             var produced = Directory.GetFiles(_exportDir, "*.csv");
@@ -98,7 +98,7 @@ public class CsvExportTests : DaqifiAppFixture
     {
         try
         {
-            var (sessionName, sampleCount, channelCount) = RunShortLoggingSession();
+            var (sessionName, expectedCellCount, sampleCount, channelCount) = RunShortLoggingSession();
 
             // Act — export ALL sessions. With the hook active this writes one "{session}.csv"
             // per session into _exportDir with no FolderBrowserDialog.
@@ -108,7 +108,7 @@ public class CsvExportTests : DaqifiAppFixture
             // session-by-session, so a generous timeout rides out a larger pre-existing DB)
             // and validates identically to the single-session export.
             var csvPath = WaitForExportedCsv(sessionName + ".csv", TimeSpan.FromSeconds(120));
-            ValidateExportedCsv(csvPath, sampleCount, channelCount);
+            ValidateExportedCsv(csvPath, expectedCellCount, sampleCount, channelCount);
 
             Assert.IsTrue(
                 Directory.GetFiles(_exportDir, "*.csv").Length >= 1,
@@ -124,11 +124,19 @@ public class CsvExportTests : DaqifiAppFixture
     #region Scenario Helpers
     /// <summary>
     /// Connects, configures logging (frequency + analog channels), runs a short session, stops
-    /// it, and waits for the app's session-finalize log line. Returns the finalized session's
-    /// name (<c>Session_{id}</c>), its persisted sample count, and the active analog channel
-    /// count. Fails the test if no data accrued (an empty session is discarded, never finalized).
+    /// it, and waits for the app's session-finalize log lines. Returns the finalized session's
+    /// name (<c>Session_{id}</c>), the exact number of value cells a correct export must contain
+    /// (the distinct (timestamp, device, serial, channel) position count — see below), its
+    /// persisted sample count, and the active analog channel count. Fails the test if no data
+    /// accrued (an empty session is discarded, never finalized).
+    ///
+    /// The expected cell count is the distinct-position count, NOT the raw sample count: the
+    /// device occasionally re-emits a frame with a duplicated timestamp tick mid-session, and
+    /// every CSV exporter intentionally collapses same-position duplicates into one cell (last
+    /// value wins), so a session containing such a frame legitimately exports fewer cells than
+    /// it persisted samples. The two counts are equal when no duplicated frames occurred.
     /// </summary>
-    private (string sessionName, long sampleCount, int channelCount) RunShortLoggingSession()
+    private (string sessionName, long expectedCellCount, long sampleCount, int channelCount) RunShortLoggingSession()
     {
         var transport = ResolveTransport();
         ConnectFirstDevice(transport);
@@ -143,15 +151,31 @@ public class CsvExportTests : DaqifiAppFixture
         StopLogging();
 
         // The app logs "Persisted sample count N for session S" once the session is finalized
-        // (after every buffered sample is flushed). That gives us the exact session id and the
-        // authoritative sample count to cross-check the CSV against.
+        // (after every buffered sample is flushed), followed in test mode by the
+        // "Persisted distinct sample positions D for session S" companion line. D is the
+        // duplicate-aware oracle the CSV is cross-checked against.
         var (sessionId, sampleCount) = WaitForPersistedSampleCount(TimeSpan.FromSeconds(30));
         Assert.IsTrue(
             sessionId > 0 && sampleCount > 0,
             "The logging session did not finalize with a positive sample count " +
             $"(sessionId={sessionId}, sampleCount={sampleCount}). No data accrued during the run.");
 
-        return ($"Session_{sessionId}", sampleCount, channelCount);
+        var expectedCellCount = WaitForDistinctSamplePositions(sessionId, TimeSpan.FromSeconds(30));
+        Assert.IsTrue(
+            expectedCellCount > 0,
+            $"The distinct-sample-positions log line for session {sessionId} did not appear. " +
+            "It is emitted right after the sample-count line whenever DAQIFI_TEST_MODE is set.");
+
+        if (expectedCellCount < sampleCount)
+        {
+            TestContext?.WriteLine(
+                $"Session {sessionId} contains {sampleCount - expectedCellCount} duplicate-position " +
+                "sample(s) (the device re-emitted frame(s) with a duplicated timestamp tick); " +
+                "exporters collapse these, so the CSV is expected to hold " +
+                $"{expectedCellCount} cells, not {sampleCount}.");
+        }
+
+        return ($"Session_{sessionId}", expectedCellCount, sampleCount, channelCount);
     }
     #endregion
 
@@ -223,7 +247,7 @@ public class CsvExportTests : DaqifiAppFixture
 
     #region CSV Validation
     /// <summary>
-    /// Validates an exported CSV black-box against the session's persisted sample count:
+    /// Validates an exported CSV black-box against the session's finalize-log oracles:
     /// <list type="bullet">
     /// <item>header is well-formed — <c>Time</c> plus one <c>Device:Serial:Channel</c> column
     /// per channel, with no formula-injection prefix;</item>
@@ -231,11 +255,17 @@ public class CsvExportTests : DaqifiAppFixture
     /// strict parser handles any quoting, so an unescaped delimiter would mismatch and fail);</item>
     /// <item>the time column parses as a round-trip <see cref="DateTime"/> and is non-decreasing;</item>
     /// <item>every non-empty value cell parses as a finite invariant-culture <see cref="double"/>;</item>
-    /// <item>the total non-empty value cells equal <paramref name="expectedSampleCount"/> — each
-    /// persisted sample becomes exactly one cell, so this proves no rows were dropped or duplicated.</item>
+    /// <item>the total non-empty value cells equal <paramref name="expectedCellCount"/> — the
+    /// session's distinct (timestamp, device, serial, channel) position count. Each position
+    /// becomes exactly one cell, so this proves no rows were dropped or duplicated. The raw
+    /// persisted sample count (<paramref name="persistedSampleCount"/>) is NOT the right oracle:
+    /// the device occasionally re-emits a frame with a duplicated timestamp tick, and exporters
+    /// intentionally collapse same-position duplicates last-wins, so on such sessions the CSV
+    /// legitimately holds fewer cells than persisted samples (it is only used here to enrich
+    /// the failure message).</item>
     /// </list>
     /// </summary>
-    private void ValidateExportedCsv(string path, long expectedSampleCount, int activeChannelCount)
+    private void ValidateExportedCsv(string path, long expectedCellCount, long persistedSampleCount, int activeChannelCount)
     {
         // File.ReadAllText auto-detects and strips a UTF-8 BOM, so the header parses cleanly.
         var text = File.ReadAllText(path);
@@ -317,13 +347,16 @@ public class CsvExportTests : DaqifiAppFixture
             }
         }
 
-        // --- Completeness: one value cell per persisted sample ---
+        // --- Completeness: one value cell per distinct sample position ---
         Assert.IsTrue(nonEmptyValueCells > 0, "CSV contains no value data.");
         Assert.AreEqual(
-            expectedSampleCount, nonEmptyValueCells,
-            $"CSV value-cell count ({nonEmptyValueCells}) does not match the session's persisted " +
-            $"sample count ({expectedSampleCount}). Each sample should export to exactly one cell; " +
-            "a mismatch means rows were dropped, duplicated, or corrupted during export.");
+            expectedCellCount, nonEmptyValueCells,
+            $"CSV value-cell count ({nonEmptyValueCells}) does not match the session's distinct " +
+            $"(timestamp, device, serial, channel) position count ({expectedCellCount}; raw persisted " +
+            $"sample count {persistedSampleCount} — the two differ only when the device re-emitted a " +
+            "frame with a duplicated timestamp tick, which exporters collapse last-wins into one cell). " +
+            "Each distinct position should export to exactly one cell; a mismatch means rows were " +
+            "dropped, duplicated, or corrupted during export.");
     }
 
     /// <summary>
