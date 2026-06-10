@@ -49,8 +49,46 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     [ObservableProperty]
     private DeviceState _deviceState = DeviceState.Disconnected;
 
+    /// <summary>
+    /// Detection window for leftover frames at stream start, in seconds of device-counter time.
+    /// The device holds the final frame of a stopped session in its transmit path and emits it
+    /// as the first frame of the next session (issue #573); that frame's counter sits one sample
+    /// period (1 s at the minimum 1 Hz rate) after the last counter seen before the stop, while
+    /// a genuine new-session frame is offset by the full stop-to-start gap. The same window also
+    /// bounds the plausible counter advance between two consecutive frames of one session, which
+    /// is how the no-reference first-frame validation tells a leftover from genuine data.
+    /// </summary>
+    private const double STALE_FRAME_WINDOW_SECONDS = 2.5;
+
+    /// <summary>
+    /// Safety cap on leftover-frame discards per stream start so genuine data can never be
+    /// dropped indefinitely (e.g., a stop-to-start gap that aliases the ~86 s counter wrap).
+    /// </summary>
+    private const int MAX_DISCARDED_LEFTOVER_FRAMES = 5;
+
+    /// <summary>
+    /// Fallback device counter frequency in Hz when the device has not reported one.
+    /// Matches the 20 ns tick period assumed by Core's <see cref="TimestampProcessor"/>.
+    /// </summary>
+    private const uint DEFAULT_TIMESTAMP_FREQUENCY = 50_000_000;
+
     private readonly ITimestampProcessor _timestampProcessor = new TimestampProcessor();
     private List<SdCardFile> _sdCardFiles = [];
+
+    // Leftover-frame detection state (issue #573). The last-seen counter is tracked for every
+    // stream frame — including frames dropped while not streaming — because the leftover frame
+    // emitted at the next start follows the device's last emitted frame by one sample period.
+    private uint _lastSeenDeviceTimestamp;
+    private bool _hasSeenDeviceTimestamp;
+    private volatile bool _checkForLeftoverFrames;
+    private int _discardedLeftoverFrameCount;
+
+    // First-frame validation state (issue #573 follow-up). The device's leftover frame survives
+    // a USB disconnect/reconnect, and a freshly connected instance has no counter reference to
+    // recognize it against — so the first frame of the first session is held until the next
+    // frame's counter delta validates the pair as same-session data.
+    private volatile bool _pendingFirstFrameValidation;
+    private DaqifiOutMessage? _heldFirstFrame;
 
     // Protocol handler for automatic message routing
     private IProtocolHandler? _protocolHandler;
@@ -248,8 +286,41 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         if (!IsStreaming || Mode != DeviceMode.StreamToApp)
         {
+            // Track the counter even while not streaming: the device can emit a final frame
+            // after the stop command lands, and the leftover frame at the next start follows
+            // it by one sample period — it must be included in the detection reference.
+            TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
             return;
         }
+
+        if (_checkForLeftoverFrames)
+        {
+            if (IsLeftoverFrameFromPreviousSession(message.MsgTimeStamp))
+            {
+                TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
+                return;
+            }
+
+            _checkForLeftoverFrames = false;
+        }
+
+        if (_pendingFirstFrameValidation)
+        {
+            ValidateFirstFramesWithoutReference(message);
+            return;
+        }
+
+        ProcessStreamMessage(message);
+    }
+
+    /// <summary>
+    /// Processes a validated streaming frame: computes its timestamp, updates channel samples,
+    /// and dispatches the device message to the logging pipeline.
+    /// </summary>
+    /// <param name="message">The streaming protobuf message to process.</param>
+    private void ProcessStreamMessage(DaqifiOutMessage message)
+    {
+        TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
 
         // Protocol handler already validated this is a streaming message with timestamp
         // No need to revalidate here
@@ -384,7 +455,100 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             Rollover = rollover,
         };
 
+        DispatchDeviceMessage(deviceMessage);
+    }
+
+    /// <summary>
+    /// Forwards a parsed streaming frame's device message to the logging pipeline.
+    /// Virtual so tests can intercept the dispatch without the application service provider.
+    /// </summary>
+    /// <param name="deviceMessage">The device message built from the streaming frame.</param>
+    protected virtual void DispatchDeviceMessage(DeviceMessage deviceMessage)
+    {
         Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
+    }
+
+    /// <summary>
+    /// Records the most recent device counter value seen on any stream frame.
+    /// </summary>
+    /// <param name="deviceTimestamp">The raw 32-bit counter value from the frame.</param>
+    private void TrackLastSeenDeviceTimestamp(uint deviceTimestamp)
+    {
+        _lastSeenDeviceTimestamp = deviceTimestamp;
+        _hasSeenDeviceTimestamp = true;
+    }
+
+    /// <summary>
+    /// Determines whether a frame received at stream start is a leftover from the previous
+    /// streaming session (issue #573). The device's free-running counter is never reset, so a
+    /// leftover frame sits within one sample period of the last counter value seen before the
+    /// stop, while a genuine new-session frame is offset by the full stop-to-start gap. Modular
+    /// uint subtraction keeps the comparison correct across the ~86 s counter wrap.
+    /// </summary>
+    /// <param name="deviceTimestamp">The raw 32-bit counter value from the frame.</param>
+    /// <returns><c>true</c> if the frame belongs to the previous session and must be discarded.</returns>
+    private bool IsLeftoverFrameFromPreviousSession(uint deviceTimestamp)
+    {
+        if (!_hasSeenDeviceTimestamp || _discardedLeftoverFrameCount >= MAX_DISCARDED_LEFTOVER_FRAMES)
+        {
+            return false;
+        }
+
+        var timestampFrequency = TimestampFrequency != 0 ? TimestampFrequency : DEFAULT_TIMESTAMP_FREQUENCY;
+        var elapsedSeconds = unchecked(deviceTimestamp - _lastSeenDeviceTimestamp) / (double)timestampFrequency;
+        if (elapsedSeconds >= STALE_FRAME_WINDOW_SECONDS)
+        {
+            return false;
+        }
+
+        _discardedLeftoverFrameCount++;
+        AppLogger.Information(
+            $"Discarded leftover frame from previous streaming session at stream start " +
+            $"(counter advanced {elapsedSeconds:F4}s, discard {_discardedLeftoverFrameCount} of {MAX_DISCARDED_LEFTOVER_FRAMES} max)");
+        return true;
+    }
+
+    /// <summary>
+    /// Validates the leading frames of a session started without a counter reference (the first
+    /// session after connect). The device's leftover frame survives a USB disconnect/reconnect,
+    /// so the first frame cannot be trusted on arrival: it is held until the next frame arrives,
+    /// and released only when the pair's counter delta fits within one session
+    /// (&lt; <see cref="STALE_FRAME_WINDOW_SECONDS"/>). A held frame whose successor implies a
+    /// multi-second jump is a leftover from an earlier session and is discarded, the successor
+    /// becoming the new held candidate — capped at <see cref="MAX_DISCARDED_LEFTOVER_FRAMES"/>
+    /// so genuine data can never be withheld indefinitely. Costs one sample period of latency
+    /// on the first sample of the first session only.
+    /// </summary>
+    /// <param name="message">The streaming frame received while validation is pending.</param>
+    private void ValidateFirstFramesWithoutReference(DaqifiOutMessage message)
+    {
+        var heldFrame = _heldFirstFrame;
+        if (heldFrame == null)
+        {
+            _heldFirstFrame = message;
+            TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
+            return;
+        }
+
+        var timestampFrequency = TimestampFrequency != 0 ? TimestampFrequency : DEFAULT_TIMESTAMP_FREQUENCY;
+        var elapsedSeconds = unchecked(message.MsgTimeStamp - heldFrame.MsgTimeStamp) / (double)timestampFrequency;
+        if (elapsedSeconds >= STALE_FRAME_WINDOW_SECONDS
+            && _discardedLeftoverFrameCount < MAX_DISCARDED_LEFTOVER_FRAMES)
+        {
+            _discardedLeftoverFrameCount++;
+            AppLogger.Information(
+                $"Discarded leftover frame at stream start (no counter reference; counter advanced " +
+                $"{elapsedSeconds:F4}s to the next frame, discard {_discardedLeftoverFrameCount} of " +
+                $"{MAX_DISCARDED_LEFTOVER_FRAMES} max)");
+            _heldFirstFrame = message;
+            TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
+            return;
+        }
+
+        _pendingFirstFrameValidation = false;
+        _heldFirstFrame = null;
+        ProcessStreamMessage(heldFrame);
+        ProcessStreamMessage(message);
     }
 
     /// <summary>
@@ -663,6 +827,20 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         var coreStreamingDevice = GetCoreDeviceForStreaming();
         coreStreamingDevice.StreamingFrequency = StreamingFrequency;
+
+        // A session must never anchor its time axis on prior-session data (issue #573).
+        // Reset the timestamp baseline here — StopStreaming's reset is skipped on unplug and
+        // error paths — and arm leftover-frame detection: the device holds the final frame of
+        // the previous session in its transmit path and emits it first when streaming resumes.
+        // With a counter reference (any frame seen on this connection), leftovers are recognized
+        // directly; without one (first session after connect — the device's leftover survives a
+        // disconnect/reconnect), the first frame is held and validated against its successor.
+        _timestampProcessor.ResetAll();
+        _discardedLeftoverFrameCount = 0;
+        _checkForLeftoverFrames = _hasSeenDeviceTimestamp;
+        _pendingFirstFrameValidation = !_hasSeenDeviceTimestamp;
+        _heldFirstFrame = null;
+
         coreStreamingDevice.StartStreaming();
         IsStreaming = coreStreamingDevice.IsStreaming;
         AppLogger.AddBreadcrumb("streaming", $"Streaming started at {StreamingFrequency} Hz");

@@ -458,6 +458,7 @@
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource PillButton}"
                                 Content="CLEAR ALL"
+                                AutomationProperties.AutomationId="ClearAllChannels"
                                 Command="{Binding ClearAllCommand}"/>
                     </StackPanel>
                 </Grid>

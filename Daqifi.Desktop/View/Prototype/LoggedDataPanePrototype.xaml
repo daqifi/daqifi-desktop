@@ -220,11 +220,13 @@
                             Margin="0,8,0,8">
                         <StackPanel Orientation="Horizontal">
                             <RadioButton x:Name="AppLogsTab"
+                                         AutomationProperties.AutomationId="AppLogsTab"
                                          GroupName="LoggedDataTab"
                                          IsChecked="True"
                                          Content="APP LOGS"
                                          Style="{StaticResource SegmentedToggle}"/>
                             <RadioButton x:Name="DeviceLogsTab"
+                                         AutomationProperties.AutomationId="DeviceLogsTab"
                                          GroupName="LoggedDataTab"
                                          Content="DEVICE LOGS"
                                          Style="{StaticResource SegmentedToggle}"/>
@@ -637,7 +639,11 @@
 
                 <!-- ── Session list ── -->
                 <Grid Grid.Row="2">
-                    <!-- Has sessions -->
+                    <!-- Has sessions. UI virtualization stays ON for production (this list grows
+                         unbounded over a device's lifetime); it is disabled only under the UI-test
+                         harness, from code-behind, so the harness can reach an off-screen row's
+                         per-session buttons by position. Screen readers realize rows on navigation
+                         either way, so the per-row AutomationProperties.Name still works. -->
                     <ListBox x:Name="SessionList"
                              AutomationProperties.AutomationId="LoggedSessionList"
                              ItemsSource="{Binding LoggingSessions}"
@@ -651,6 +657,10 @@
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                 <Setter Property="Padding" Value="0"/>
                                 <Setter Property="Margin" Value="0"/>
+                                <!-- Accessible name for the row: the templated name/date/sample
+                                     TextBlocks are not surfaced to UI Automation, so give the
+                                     container itself a spoken summary for screen readers. -->
+                                <Setter Property="AutomationProperties.Name" Value="{Binding AccessibilitySummary}"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="ListBoxItem">
@@ -745,6 +755,7 @@
                                                                                         Foreground="{StaticResource TextTertiary}"/>
                                                         </Button>
                                                         <Button Style="{StaticResource TileIconButton}"
+                                                                AutomationProperties.AutomationId="ExportSessionButton"
                                                                 ToolTip="Export session"
                                                                 Command="{Binding DataContext.ExportLoggingSessionCommand, ElementName=Root}"
                                                                 CommandParameter="{Binding}">
@@ -753,6 +764,7 @@
                                                                                         Foreground="{StaticResource TextTertiary}"/>
                                                         </Button>
                                                         <Button Style="{StaticResource TileIconButton}"
+                                                                AutomationProperties.AutomationId="DeleteSessionButton"
                                                                 ToolTip="Delete session"
                                                                 Command="{Binding DataContext.DeleteLoggingSessionCommand, ElementName=Root}"
                                                                 CommandParameter="{Binding}">
@@ -836,6 +848,7 @@
                         <!-- Right: Export All + Delete All -->
                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                             <Button Style="{StaticResource PillButton}"
+                                    AutomationProperties.AutomationId="ExportAllSessionsButton"
                                     Content="EXPORT ALL"
                                     Command="{Binding ExportAllLoggingSessionCommand}"
                                     ToolTip="Export all sessions"/>
@@ -1069,11 +1082,13 @@
                         <!-- Affirmative is one of two styles depending on whether the
                              confirmed action is destructive; only one is visible at a time. -->
                         <Button Content="{Binding ConfirmAffirmativeLabel}"
+                                AutomationProperties.AutomationId="ConfirmAffirmativeButton"
                                 Style="{StaticResource AccentPillButton}"
                                 Margin="10,0,0,0"
                                 Command="{Binding ConfirmAffirmativeCommand}"
                                 Visibility="{Binding ConfirmAffirmativeIsDestructive, Converter={StaticResource InvertedBoolToVis}}"/>
                         <Button Content="{Binding ConfirmAffirmativeLabel}"
+                                AutomationProperties.AutomationId="ConfirmAffirmativeButton"
                                 Style="{StaticResource DangerPillButton}"
                                 Margin="10,0,0,0"
                                 Command="{Binding ConfirmAffirmativeCommand}"

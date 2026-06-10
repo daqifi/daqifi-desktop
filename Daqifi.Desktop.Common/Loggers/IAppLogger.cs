@@ -4,6 +4,14 @@ public interface IAppLogger
 {
     void Information(string message);
     void Warning(string message);
+
+    /// <summary>
+    /// Logs a warning together with the originating exception (stack trace and inner
+    /// exceptions included in the local log). Unlike <see cref="Error(Exception, string)"/>,
+    /// this does NOT capture to Sentry — use it for expected user/environmental conditions
+    /// where the exception detail is still worth keeping for diagnostics.
+    /// </summary>
+    void Warning(Exception ex, string message);
     void Error(string message);
     void Error(Exception ex, string message);
 

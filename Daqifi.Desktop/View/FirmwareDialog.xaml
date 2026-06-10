@@ -9,8 +9,17 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=viewModels:FirmwareDialogViewModel}"
         dialogService:DialogService.IsRegisteredView="True"
-        Title="Firmware Settings" Height="300" Width="500" GlowBrush="{DynamicResource AccentColorBrush}">
-    <Grid>
+        Title="Firmware Settings" Height="300" Width="500" BorderThickness="0" Background="{StaticResource Surface}" GlowBrush="{DynamicResource AccentColorBrush}">
+
+    <controls:MetroWindow.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Resources/DarkDialog.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </controls:MetroWindow.Resources>
+
+    <Grid Background="{StaticResource Surface}" TextElement.Foreground="{StaticResource TextPrimary}">
         
         <!-- Before Upload -->
         <Grid Visibility="{Binding IsUploadComplete, Converter={StaticResource InvertedBoolToVis}}">
@@ -32,14 +41,14 @@
                         <ColumnDefinition Width="85"/>
                     </Grid.ColumnDefinitions>
                     <TextBox Grid.Column="0" Height="30" VerticalAlignment="Top" Margin="5" Text="{Binding FirmwareFilePath, Mode=OneWay}"/>
-                    <Button Grid.Column="1" Content="Browse" Width="75" Height="30" Margin="5" VerticalAlignment="Top" Style="{StaticResource  MahApps.Styles.Button.Square}" controls:ControlsHelper.ContentCharacterCasing="Normal" Command="{Binding BrowseFirmwarePathCommand}"/>
+                    <Button Grid.Column="1" Content="Browse" Width="75" Height="30" Margin="5" VerticalAlignment="Top" Style="{StaticResource DarkSecondaryButton}" controls:ControlsHelper.ContentCharacterCasing="Normal" Command="{Binding BrowseFirmwarePathCommand}"/>
                 </Grid>
             </GroupBox>
 
-            <Label Visibility="{Binding HasErrorOccured, Converter={StaticResource BoolToVis}}" Grid.Row="2" Content="Sorry, something went wrong uploading the firmware.  :(" HorizontalContentAlignment="Center" Foreground="Red"/>
+            <Label Visibility="{Binding HasErrorOccured, Converter={StaticResource BoolToVis}}" Grid.Row="2" Content="Sorry, something went wrong uploading the firmware.  :(" HorizontalContentAlignment="Center" Foreground="{StaticResource StatusRed}"/>
 
             <DockPanel Grid.Row="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" LastChildFill="True" Margin="5">
-                <Button Click="btnCancel_Click" Content="Cancel" Width="100" Height="30"  Style="{StaticResource  MahApps.Styles.Button.Square}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                <Button Click="btnCancel_Click" Content="Cancel" Width="100" Height="30" Margin="0,0,10,0" Style="{StaticResource DarkSecondaryButton}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
                 <Button DockPanel.Dock="Bottom" Content="Upload" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal" Command="{Binding UploadFirmwareCommand}"/>
             </DockPanel>
 

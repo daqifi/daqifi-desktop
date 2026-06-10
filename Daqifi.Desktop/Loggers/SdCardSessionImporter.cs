@@ -25,7 +25,7 @@ public class SdCardSessionImporter
     /// <summary>
     /// Imports an SD card log file from a local file path.
     /// </summary>
-    public async Task<LoggingSession> ImportFromFileAsync(
+    public async Task<SdCardImportResult> ImportFromFileAsync(
         string filePath,
         ImportOptions? options = null,
         IProgress<ImportProgress>? progress = null,
@@ -39,7 +39,7 @@ public class SdCardSessionImporter
     /// <summary>
     /// Imports an SD card log file from a stream.
     /// </summary>
-    public async Task<LoggingSession> ImportFromStreamAsync(
+    public async Task<SdCardImportResult> ImportFromStreamAsync(
         Stream stream,
         string fileName,
         ImportOptions? options = null,
@@ -54,7 +54,7 @@ public class SdCardSessionImporter
     /// <summary>
     /// Downloads an SD card log file from a connected USB device and imports it.
     /// </summary>
-    public async Task<LoggingSession> ImportFromDeviceAsync(
+    public async Task<SdCardImportResult> ImportFromDeviceAsync(
         IStreamingDevice device,
         string fileName,
         ImportOptions? options = null,
@@ -121,7 +121,7 @@ public class SdCardSessionImporter
                 FileShare.Read, 65536, useAsync: true);
             var logSession = await SdCardFileParserFactory.ParseAsync(
                 fileStream, downloadResult.FileName, parseOptions, ct);
-            var session = await ImportSessionAsync(logSession, options, progress, ct);
+            var result = await ImportSessionAsync(logSession, options, progress, ct);
 
             // Optionally delete from device after successful import
             if (options.DeleteFromDeviceAfterImport)
@@ -131,7 +131,7 @@ public class SdCardSessionImporter
             }
 
             _logger.Information($"Successfully imported '{fileName}' from device {device.DeviceSerialNo}");
-            return session;
+            return result;
         }
         finally
         {
@@ -152,14 +152,17 @@ public class SdCardSessionImporter
 
     /// <summary>
     /// Core import logic: maps parsed SD card data to desktop entities and bulk-inserts into SQLite.
+    /// Internal so tests can drive it with a synthetic <see cref="SdCardLogSession"/>;
+    /// production code enters through the file/stream/device methods above.
     /// </summary>
-    private async Task<LoggingSession> ImportSessionAsync(
+    internal async Task<SdCardImportResult> ImportSessionAsync(
         SdCardLogSession logSession,
         ImportOptions? options,
         IProgress<ImportProgress>? progress,
         CancellationToken ct)
     {
         options ??= new ImportOptions();
+        var timestampQuality = new ImportTimestampQuality();
 
         var config = logSession.DeviceConfig;
         var deviceSerialNo = config?.DeviceSerialNumber ?? "Unknown";
@@ -205,6 +208,7 @@ public class SdCardSessionImporter
             }
 
             sampleIndex++;
+            timestampQuality.Observe(entry.Timestamp.Ticks);
 
             // If we didn't have config, discover channel count from first entry
             if (analogPortCount == 0 && entry.AnalogValues.Count > 0)
@@ -277,6 +281,14 @@ public class SdCardSessionImporter
 
         _logger.Information($"Imported {samplesProcessed} samples for session '{session.Name}' (ID={session.ID})");
 
+        if (timestampQuality.HasDegenerateTimeAxis)
+        {
+            _logger.Warning(
+                $"Imported session '{session.Name}' (ID={session.ID}) has a degenerate time axis: " +
+                $"{timestampQuality.EntriesAtFirstTimestamp:N0} of {timestampQuality.TotalEntries:N0} " +
+                "entries share the first timestamp. The source file likely lacks per-sample timestamps.");
+        }
+
         // Record the sample count on the session so the list view can show it
         // without falling back to the lazy backfill on the next reload. We
         // already have the exact count locally, so no extra query is needed.
@@ -308,7 +320,11 @@ public class SdCardSessionImporter
             _logger.Error(ex, $"Failed to persist SampleCount for imported session {session.ID}");
         }
 
-        return session;
+        return new SdCardImportResult
+        {
+            Session = session,
+            TimestampQuality = timestampQuality
+        };
     }
 
     private LoggingSession CreateSession(SdCardLogSession logSession, ImportOptions options)
@@ -413,6 +429,24 @@ public class SdCardSessionImporter
             }
         }
     }
+}
+
+/// <summary>
+/// Outcome of an SD card import: the created logging session plus the
+/// timestamp-quality diagnostics gathered while importing, so callers can
+/// warn the user when the file's time axis could not be reconstructed.
+/// </summary>
+public sealed class SdCardImportResult
+{
+    /// <summary>
+    /// The logging session the import created.
+    /// </summary>
+    public required LoggingSession Session { get; init; }
+
+    /// <summary>
+    /// Timestamp statistics observed across the imported entries.
+    /// </summary>
+    public required ImportTimestampQuality TimestampQuality { get; init; }
 }
 
 public class ImportOptions

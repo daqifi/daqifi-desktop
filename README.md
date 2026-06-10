@@ -4,7 +4,7 @@
 >
 > The official Windows desktop application for DAQiFi hardware — real-time visualization, session logging, and firmware updates, all in one place.
 
-[![Latest release](https://img.shields.io/github/v/release/daqifi/daqifi-desktop?style=flat-square&label=release&color=brightgreen)](https://github.com/daqifi/daqifi-desktop/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/daqifi/daqifi-desktop?style=flat-square&label=release&color=brightgreen&cacheSeconds=3600)](https://github.com/daqifi/daqifi-desktop/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue?style=flat-square)](https://github.com/daqifi/daqifi-desktop/releases)
 [![.NET](https://img.shields.io/badge/.NET-10.0-purple?style=flat-square)](https://dotnet.microsoft.com/)
@@ -101,15 +101,49 @@ Both devices are SCPI-compliant and compatible with LabVIEW.
 - **Bug reports and feature requests**: [GitHub Issues](https://github.com/daqifi/daqifi-desktop/issues)
 - **Commercial inquiries and custom hardware**: [daqifi.com](https://daqifi.com)
 
+## Build from source
+
+Building and running the app requires **Windows** (the UI targets WPF / `net10.0-windows`) and the
+[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) — the exact SDK version is pinned in
+[`global.json`](global.json).
+
+```bash
+git clone https://github.com/daqifi/daqifi-desktop.git
+cd daqifi-desktop
+dotnet build                          # restore + build the solution
+dotnet run --project Daqifi.Desktop   # launch the app
+```
+
+Run the unit tests (no hardware required):
+
+```bash
+dotnet test --filter "TestCategory!=Ui&FullyQualifiedName!~WindowsFirewallWrapperTests"
+```
+
+The `DAQifiDesktop_Setup.msi` installer is built from the `Daqifi.Desktop.Setup` project (WiX Toolset)
+and is normally produced by CI on release. The WiX project harvests the app's **published** output, so
+build it locally by publishing first, then building the setup project (mirroring CI):
+
+```bash
+dotnet publish Daqifi.Desktop/Daqifi.Desktop.csproj -c Release
+dotnet build -c Release Daqifi.Desktop.Setup
+```
+
+The UI-automation test gate drives the real GUI against an attached device — see
+[Daqifi.Desktop.UITest/README.md](Daqifi.Desktop.UITest/README.md).
+
 ## Contributing
 
 Please read the [Contributing Guidelines](CONTRIBUTING.md) before opening a pull request. See [docs/architecture.md](docs/architecture.md) for the streaming data pipeline and system overview, and [docs/design-philosophy.md](docs/design-philosophy.md) for UI/UX principles. All PRs require a conventional commit title (`feat:`, `fix:`, `docs:`, `deps:`, `chore:`) and at least one approving review from a DAQiFi core member.
 
 ## For maintainers
 
-Releases are created by publishing a GitHub Release (via the GitHub web UI or API — the `release.yaml` workflow triggers on the `release: created` event, not on a tag push alone). Once a release is published, the workflow builds the MSI via WiX Toolset and attaches `DAQifiDesktop_Setup.msi` automatically. The app version is set in `Daqifi.Desktop/Daqifi.Desktop.csproj` (`<Version>`). Follow [semantic versioning](https://semver.org/); breaking changes should use the `feat!:` prefix in the PR title.
+To cut a release: push a `<major>.<minor>.<patch>` tag (e.g. `git tag 3.3.0 && git push origin 3.3.0`). CI builds the MSI and creates a **draft** GitHub Release with the installer attached. Review and edit the auto-generated notes in the draft, then click **Publish release** — assets must be attached before publishing because the repo uses GitHub's Immutable Releases feature. The app version is set in `Daqifi.Desktop/Daqifi.Desktop.csproj` (`<Version>`). Follow [semantic versioning](https://semver.org/); breaking changes should use the `feat!:` prefix in the PR title.
 
-Unhandled exceptions are captured via Sentry. The DSN is in `Daqifi.Desktop/App.config`.
+Unhandled exceptions are reported to Sentry. The DSN lives in
+[`Daqifi.Desktop/App.config`](Daqifi.Desktop/App.config); like any Sentry client DSN it is write-only
+— it can submit crash events but cannot read them back — so it is safe to commit and ship in the app,
+and is not a leaked secret.
 
 ---
 
