@@ -11,7 +11,8 @@ namespace Daqifi.Desktop.Test.Loggers;
 /// live-plot stats hook the UI-automation harness reads to assert the plot renders believable data
 /// (issue #560). Verifies the subtle parts deterministically, without a live PlotModel or hardware:
 /// gap markers are excluded from the point count, a non-finite sample VALUE is counted (not hidden),
-/// <c>last</c> tracks the greatest-X sample, and numbers are always invariant-culture.
+/// <c>last</c> tracks the greatest-X sample, <c>firstx</c>/<c>lastx</c> expose the time-axis span
+/// (issue #573), and numbers are always invariant-culture.
 /// </summary>
 [TestClass]
 public class PlotStatsSummaryTests
@@ -24,7 +25,7 @@ public class PlotStatsSummaryTests
         var summary = PlotLogger.BuildPlotStatsSummary(0, Series());
 
         Assert.AreEqual(
-            "series=0;points=0;nonfinite=0;last=NaN;min=NaN;max=NaN",
+            "series=0;points=0;nonfinite=0;last=NaN;min=NaN;max=NaN;firstx=NaN;lastx=NaN",
             summary,
             "An empty plot should report zero series/points and NaN value stats.");
     }
@@ -37,7 +38,7 @@ public class PlotStatsSummaryTests
             Series([new DataPoint(0, 1.5), new DataPoint(1, -0.5), new DataPoint(2, 2.25)]));
 
         // last = value at greatest X (X=2 -> 2.25); min/max span the values.
-        Assert.AreEqual("series=1;points=3;nonfinite=0;last=2.25;min=-0.5;max=2.25", summary);
+        Assert.AreEqual("series=1;points=3;nonfinite=0;last=2.25;min=-0.5;max=2.25;firstx=0;lastx=2", summary);
     }
 
     [TestMethod]
@@ -49,7 +50,7 @@ public class PlotStatsSummaryTests
             1,
             Series([new DataPoint(0, 1.5), DataPoint.Undefined, new DataPoint(1, 2.5)]));
 
-        Assert.AreEqual("series=1;points=2;nonfinite=0;last=2.5;min=1.5;max=2.5", summary);
+        Assert.AreEqual("series=1;points=2;nonfinite=0;last=2.5;min=1.5;max=2.5;firstx=0;lastx=1", summary);
     }
 
     [TestMethod]
@@ -67,7 +68,7 @@ public class PlotStatsSummaryTests
                 new DataPoint(3, 2.5)
             ]));
 
-        Assert.AreEqual("series=1;points=4;nonfinite=2;last=2.5;min=1.5;max=2.5", summary);
+        Assert.AreEqual("series=1;points=4;nonfinite=2;last=2.5;min=1.5;max=2.5;firstx=0;lastx=3", summary);
     }
 
     [TestMethod]
@@ -80,7 +81,21 @@ public class PlotStatsSummaryTests
                 [new DataPoint(0, 10.5), new DataPoint(5, 50.5)],
                 [new DataPoint(2, 20.5), new DataPoint(10, 99.5)]));
 
-        Assert.AreEqual("series=2;points=4;nonfinite=0;last=99.5;min=10.5;max=99.5", summary);
+        Assert.AreEqual("series=2;points=4;nonfinite=0;last=99.5;min=10.5;max=99.5;firstx=0;lastx=10", summary);
+    }
+
+    [TestMethod]
+    public void Build_NegativeAxisValues_SurfaceInFirstX()
+    {
+        // A mis-anchored session (issue #573) puts real samples at negative axis time; the
+        // harness detects it through firstx, so negative X must survive the formatter.
+        var summary = PlotLogger.BuildPlotStatsSummary(
+            1,
+            Series([new DataPoint(-73000, 1.5), new DataPoint(-72990, 2.5)]));
+
+        Assert.AreEqual(
+            "series=1;points=2;nonfinite=0;last=2.5;min=1.5;max=2.5;firstx=-73000;lastx=-72990",
+            summary);
     }
 
     [TestMethod]
@@ -94,9 +109,9 @@ public class PlotStatsSummaryTests
             Thread.CurrentThread.CurrentCulture = new CultureInfo("de-DE");
 
             var summary = PlotLogger.BuildPlotStatsSummary(
-                1, Series([new DataPoint(0, -1.5), new DataPoint(1, 2.5)]));
+                1, Series([new DataPoint(0.5, -1.5), new DataPoint(1.5, 2.5)]));
 
-            Assert.AreEqual("series=1;points=2;nonfinite=0;last=2.5;min=-1.5;max=2.5", summary);
+            Assert.AreEqual("series=1;points=2;nonfinite=0;last=2.5;min=-1.5;max=2.5;firstx=0.5;lastx=1.5", summary);
         }
         finally
         {

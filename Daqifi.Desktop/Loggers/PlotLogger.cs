@@ -364,6 +364,8 @@ public partial class PlotLogger : ObservableObject, ILogger
     /// Gap markers (<c>DataPoint.Undefined</c>, i.e. NaN X) are excluded from the point count and
     /// never mistaken for a non-finite sample value; <c>nonfinite</c> counts only real samples
     /// (finite X) whose VALUE (Y) is NaN/Inf; <c>last</c> is the value at the greatest X seen.
+    /// <c>firstx</c>/<c>lastx</c> are the smallest/greatest axis X (elapsed ms) across finite-valued
+    /// samples — the harness's window onto the time-axis anchor (issue #573).
     /// </summary>
     internal static string BuildPlotStatsSummary(int seriesCount, IEnumerable<List<DataPoint>> pointLists)
     {
@@ -372,6 +374,7 @@ public partial class PlotLogger : ObservableObject, ILogger
         var min = double.NaN;
         var max = double.NaN;
         var last = double.NaN;
+        var firstX = double.NaN;
         var lastX = double.NegativeInfinity;
         var any = false;
 
@@ -413,6 +416,11 @@ public partial class PlotLogger : ObservableObject, ILogger
                     }
                 }
 
+                if (double.IsNaN(firstX) || point.X < firstX)
+                {
+                    firstX = point.X;
+                }
+
                 if (point.X >= lastX)
                 {
                     lastX = point.X;
@@ -423,8 +431,9 @@ public partial class PlotLogger : ObservableObject, ILogger
 
         return string.Format(
             CultureInfo.InvariantCulture,
-            "series={0};points={1};nonfinite={2};last={3:R};min={4:R};max={5:R}",
-            seriesCount, points, nonFinite, last, min, max);
+            "series={0};points={1};nonfinite={2};last={3:R};min={4:R};max={5:R};firstx={6:R};lastx={7:R}",
+            seriesCount, points, nonFinite, last, min, max,
+            firstX, double.IsNegativeInfinity(lastX) ? double.NaN : lastX);
     }
 
     public void ClearPlot()

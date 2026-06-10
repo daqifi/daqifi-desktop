@@ -1303,8 +1303,12 @@ public abstract class DaqifiAppFixture
     /// <param name="Last">Latest-in-time finite sample value (<see cref="double.NaN"/> if none).</param>
     /// <param name="Min">Minimum finite sample value (<see cref="double.NaN"/> if none).</param>
     /// <param name="Max">Maximum finite sample value (<see cref="double.NaN"/> if none).</param>
+    /// <param name="FirstX">Smallest axis X in elapsed ms (<see cref="double.NaN"/> if none) — the
+    /// time-axis anchor; negative means the session anchored on prior-session data (issue #573).</param>
+    /// <param name="LastX">Greatest axis X in elapsed ms (<see cref="double.NaN"/> if none).</param>
     protected readonly record struct PlotStats(
-        int SeriesCount, long PointCount, long NonFiniteCount, double Last, double Min, double Max);
+        int SeriesCount, long PointCount, long NonFiniteCount, double Last, double Min, double Max,
+        double FirstX, double LastX);
 
     /// <summary>
     /// Reads and parses the live-plot stats indicator (<c>PlotStatsText</c>) from the Live Graph
@@ -1354,10 +1358,11 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>
-    /// Tries to parse the <c>"series=N;points=M;nonfinite=K;last=V;min=A;max=B"</c> summary string
-    /// (invariant culture; <c>last/min/max</c> may be <c>"NaN"</c>) into a <see cref="PlotStats"/>.
-    /// Returns false (so the caller retries) on any malformed or partially-read value, and requires
-    /// every field to be present so a truncated read is not silently accepted.
+    /// Tries to parse the <c>"series=N;points=M;nonfinite=K;last=V;min=A;max=B;firstx=X;lastx=Y"</c>
+    /// summary string (invariant culture; the double fields may be <c>"NaN"</c>) into a
+    /// <see cref="PlotStats"/>. Returns false (so the caller retries) on any malformed or
+    /// partially-read value, and requires every field to be present so a truncated read is not
+    /// silently accepted.
     /// </summary>
     private static bool TryParsePlotStats(string summary, out PlotStats stats)
     {
@@ -1379,7 +1384,9 @@ public abstract class DaqifiAppFixture
             || !TryParseLong(fields, "nonfinite", out var nonFinite)
             || !TryParseStat(fields, "last", out var last)
             || !TryParseStat(fields, "min", out var min)
-            || !TryParseStat(fields, "max", out var max))
+            || !TryParseStat(fields, "max", out var max)
+            || !TryParseStat(fields, "firstx", out var firstX)
+            || !TryParseStat(fields, "lastx", out var lastX))
         {
             return false;
         }
@@ -1394,7 +1401,7 @@ public abstract class DaqifiAppFixture
             return false;
         }
 
-        stats = new PlotStats(series, points, nonFinite, last, min, max);
+        stats = new PlotStats(series, points, nonFinite, last, min, max, firstX, lastX);
         return true;
     }
 
