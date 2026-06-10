@@ -54,7 +54,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// The device holds the final frame of a stopped session in its transmit path and emits it
     /// as the first frame of the next session (issue #573); that frame's counter sits one sample
     /// period (1 s at the minimum 1 Hz rate) after the last counter seen before the stop, while
-    /// a genuine new-session frame is offset by the full stop-to-start gap.
+    /// a genuine new-session frame is offset by the full stop-to-start gap. The same window also
+    /// bounds the plausible counter advance between two consecutive frames of one session, which
+    /// is how the no-reference first-frame validation tells a leftover from genuine data.
     /// </summary>
     private const double STALE_FRAME_WINDOW_SECONDS = 2.5;
 
@@ -80,6 +82,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private bool _hasSeenDeviceTimestamp;
     private volatile bool _checkForLeftoverFrames;
     private int _discardedLeftoverFrameCount;
+
+    // First-frame validation state (issue #573 follow-up). The device's leftover frame survives
+    // a USB disconnect/reconnect, and a freshly connected instance has no counter reference to
+    // recognize it against — so the first frame of the first session is held until the next
+    // frame's counter delta validates the pair as same-session data.
+    private volatile bool _pendingFirstFrameValidation;
+    private DaqifiOutMessage? _heldFirstFrame;
 
     // Protocol handler for automatic message routing
     private IProtocolHandler? _protocolHandler;
@@ -295,6 +304,22 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             _checkForLeftoverFrames = false;
         }
 
+        if (_pendingFirstFrameValidation)
+        {
+            ValidateFirstFramesWithoutReference(message);
+            return;
+        }
+
+        ProcessStreamMessage(message);
+    }
+
+    /// <summary>
+    /// Processes a validated streaming frame: computes its timestamp, updates channel samples,
+    /// and dispatches the device message to the logging pipeline.
+    /// </summary>
+    /// <param name="message">The streaming protobuf message to process.</param>
+    private void ProcessStreamMessage(DaqifiOutMessage message)
+    {
         TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
 
         // Protocol handler already validated this is a streaming message with timestamp
@@ -481,6 +506,49 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             $"Discarded leftover frame from previous streaming session at stream start " +
             $"(counter advanced {elapsedSeconds:F4}s, discard {_discardedLeftoverFrameCount} of {MAX_DISCARDED_LEFTOVER_FRAMES} max)");
         return true;
+    }
+
+    /// <summary>
+    /// Validates the leading frames of a session started without a counter reference (the first
+    /// session after connect). The device's leftover frame survives a USB disconnect/reconnect,
+    /// so the first frame cannot be trusted on arrival: it is held until the next frame arrives,
+    /// and released only when the pair's counter delta fits within one session
+    /// (&lt; <see cref="STALE_FRAME_WINDOW_SECONDS"/>). A held frame whose successor implies a
+    /// multi-second jump is a leftover from an earlier session and is discarded, the successor
+    /// becoming the new held candidate — capped at <see cref="MAX_DISCARDED_LEFTOVER_FRAMES"/>
+    /// so genuine data can never be withheld indefinitely. Costs one sample period of latency
+    /// on the first sample of the first session only.
+    /// </summary>
+    /// <param name="message">The streaming frame received while validation is pending.</param>
+    private void ValidateFirstFramesWithoutReference(DaqifiOutMessage message)
+    {
+        var heldFrame = _heldFirstFrame;
+        if (heldFrame == null)
+        {
+            _heldFirstFrame = message;
+            TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
+            return;
+        }
+
+        var timestampFrequency = TimestampFrequency != 0 ? TimestampFrequency : DEFAULT_TIMESTAMP_FREQUENCY;
+        var elapsedSeconds = unchecked(message.MsgTimeStamp - heldFrame.MsgTimeStamp) / (double)timestampFrequency;
+        if (elapsedSeconds >= STALE_FRAME_WINDOW_SECONDS
+            && _discardedLeftoverFrameCount < MAX_DISCARDED_LEFTOVER_FRAMES)
+        {
+            _discardedLeftoverFrameCount++;
+            AppLogger.Information(
+                $"Discarded leftover frame at stream start (no counter reference; counter advanced " +
+                $"{elapsedSeconds:F4}s to the next frame, discard {_discardedLeftoverFrameCount} of " +
+                $"{MAX_DISCARDED_LEFTOVER_FRAMES} max)");
+            _heldFirstFrame = message;
+            TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
+            return;
+        }
+
+        _pendingFirstFrameValidation = false;
+        _heldFirstFrame = null;
+        ProcessStreamMessage(heldFrame);
+        ProcessStreamMessage(message);
     }
 
     /// <summary>
@@ -764,9 +832,14 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // Reset the timestamp baseline here — StopStreaming's reset is skipped on unplug and
         // error paths — and arm leftover-frame detection: the device holds the final frame of
         // the previous session in its transmit path and emits it first when streaming resumes.
+        // With a counter reference (any frame seen on this connection), leftovers are recognized
+        // directly; without one (first session after connect — the device's leftover survives a
+        // disconnect/reconnect), the first frame is held and validated against its successor.
         _timestampProcessor.ResetAll();
         _discardedLeftoverFrameCount = 0;
         _checkForLeftoverFrames = _hasSeenDeviceTimestamp;
+        _pendingFirstFrameValidation = !_hasSeenDeviceTimestamp;
+        _heldFirstFrame = null;
 
         coreStreamingDevice.StartStreaming();
         IsStreaming = coreStreamingDevice.IsStreaming;

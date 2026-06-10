@@ -12,7 +12,10 @@ namespace Daqifi.Desktop.Test.Device;
 /// holds the final frame of a stopped session in its transmit path, emitting it as the first
 /// frame of the next session. Without rejection, that frame anchors the new session's time
 /// axis on prior-session data, shifting the plot by the stop-to-start gap (forward, or
-/// backward across a counter wrap).
+/// backward across a counter wrap). Two guards are covered: reference-based rejection when a
+/// counter value has been seen on this connection (restarts), and held-first-frame validation
+/// when none has (first session after connect — the device's latched leftover survives a USB
+/// disconnect/reconnect, see daqifi-nyquist-firmware#533).
 /// </summary>
 [TestClass]
 public class StreamStartLeftoverFrameTests
@@ -146,15 +149,97 @@ public class StreamStartLeftoverFrameTests
     }
 
     [TestMethod]
-    public void FirstSessionAfterConnect_NoCounterReference_ProcessesFirstFrameImmediately()
+    public void FreshConnection_GenuineFirstFrames_AreEmittedInOrderAfterValidation()
     {
-        // Act - no prior session means no reference, so nothing can be classified as leftover
+        // Arrange/Act - with no counter reference (first session after connect), the first frame
+        // is held until the second frame's counter delta validates the pair as same-session data
         _device.InitializeStreaming();
         _device.RouteStreamFrame(123_456_789);
+        var heldAfterFirstFrame = _device.DispatchedMessages.Count == 0 && _channel.ActiveSample == null;
+
+        _device.RouteStreamFrame(123_456_789 + SAMPLE_PERIOD_TICKS);
+        var releasedAfterSecondFrame = _device.DispatchedMessages.Count;
+
+        _device.RouteStreamFrame(123_456_789 + 2 * SAMPLE_PERIOD_TICKS);
+
+        // Assert - one-frame latency on the very first sample, then both released in order and
+        // subsequent frames flow with no holding
+        Assert.IsTrue(heldAfterFirstFrame, "The first frame of a fresh connection should be held for validation.");
+        Assert.AreEqual(2, releasedAfterSecondFrame, "A consistent pair should release both frames.");
+        Assert.AreEqual(3, _device.DispatchedMessages.Count, "Frames after validation should flow immediately.");
+
+        var deltaSeconds = (_device.DispatchedMessages[1].TimestampTicks - _device.DispatchedMessages[0].TimestampTicks)
+            / (double)TimeSpan.TicksPerSecond;
+        Assert.IsTrue(deltaSeconds > 0 && deltaSeconds < 1.0,
+            $"The released pair should be one sample period apart and in order (was {deltaSeconds:F4}s).");
+    }
+
+    [TestMethod]
+    public void FreshConnection_StaleFirstFrame_IsDiscardedAndSessionAnchorsOnGenuineData()
+    {
+        // Arrange - the device's latched leftover survives a disconnect/reconnect, so the first
+        // frame of a fresh connection can be prior-session data with no reference to flag it
+        const uint staleTimestamp = 2_000_000_000;
+        const uint genuineTimestamp = staleTimestamp + 1_200_000_000; // 24 s gap at 50 MHz
+
+        // Act
+        _device.InitializeStreaming();
+        _device.RouteStreamFrame(staleTimestamp);
+        _device.RouteStreamFrame(genuineTimestamp);
+        var dispatchedAfterGenuineArrived = _device.DispatchedMessages.Count;
+        _device.RouteStreamFrame(genuineTimestamp + SAMPLE_PERIOD_TICKS);
+
+        // Assert - the stale frame is discarded when the genuine frame exposes the jump; the
+        // genuine frame is re-held and released with its consistent successor
+        Assert.AreEqual(0, dispatchedAfterGenuineArrived,
+            "The stale held frame should be discarded (not dispatched) when the jump is detected.");
+        Assert.AreEqual(2, _device.DispatchedMessages.Count, "Both genuine frames should be released.");
+
+        var deltaSeconds = (_device.DispatchedMessages[1].TimestampTicks - _device.DispatchedMessages[0].TimestampTicks)
+            / (double)TimeSpan.TicksPerSecond;
+        Assert.IsTrue(deltaSeconds > 0 && deltaSeconds < 1.0,
+            $"The session should anchor on the genuine pair, not span the stale gap (delta was {deltaSeconds:F4}s).");
+    }
+
+    [TestMethod]
+    public void FreshConnection_StaleFirstFrameAcrossCounterWrap_IsDiscarded()
+    {
+        // Arrange - the counter wraps between the latched leftover and the genuine data; without
+        // rejection this is the negative-time symptom on the first session after reconnect
+        const uint staleTimestamp = 4_294_900_000;
+        var genuineTimestamp = unchecked(staleTimestamp + 1_200_000_000); // wraps past 2^32
+
+        // Act
+        _device.InitializeStreaming();
+        _device.RouteStreamFrame(staleTimestamp);
+        _device.RouteStreamFrame(genuineTimestamp);
+        _device.RouteStreamFrame(unchecked(genuineTimestamp + SAMPLE_PERIOD_TICKS));
 
         // Assert
-        Assert.AreEqual(1, _device.DispatchedMessages.Count, "The first frame ever seen should be processed.");
-        Assert.IsNotNull(_channel.ActiveSample, "The first frame should produce channel samples.");
+        Assert.AreEqual(2, _device.DispatchedMessages.Count,
+            "The wrapped stale frame should be discarded and the genuine pair released.");
+        Assert.IsTrue(
+            _device.DispatchedMessages[1].TimestampTicks > _device.DispatchedMessages[0].TimestampTicks,
+            "Time must move forward between the released genuine frames.");
+    }
+
+    [TestMethod]
+    public void FreshConnection_AllFramesMutuallyInconsistent_CapReleasesData()
+    {
+        // Arrange - pathological input: every consecutive pair implies a multi-second jump.
+        // The discard cap must bound the loss and eventually release data.
+        const uint thirteenSeconds = 650_000_000;
+
+        // Act - seven frames, each 13 s of counter time apart
+        _device.InitializeStreaming();
+        for (var i = 0; i < 7; i++)
+        {
+            _device.RouteStreamFrame(1_000_000_000 + (uint)i * thirteenSeconds);
+        }
+
+        // Assert - five discards maximum, then the next pair is accepted as-is
+        Assert.AreEqual(2, _device.DispatchedMessages.Count,
+            "After the discard cap is reached, the held frame and its successor should be released.");
     }
 
     [TestMethod]
