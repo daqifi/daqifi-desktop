@@ -1557,6 +1557,45 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>
+    /// Polls the app log for the test-mode-only
+    /// <c>"Persisted distinct sample positions D for session S"</c> line matching
+    /// <paramref name="sessionId"/> and returns <c>D</c>, or <c>-1</c> if it did not appear in
+    /// time. A "position" is a distinct <c>(timestamp, device, serial, channel)</c> tuple — the
+    /// device occasionally re-emits a frame with a duplicated timestamp tick mid-session, and
+    /// every CSV exporter intentionally collapses same-position duplicates into one cell (last
+    /// value wins). So <c>D</c>, not the raw persisted sample count, is the exact number of
+    /// value cells a correct export must contain (the two are equal when the session has no
+    /// duplicated frames). Emitted by <c>LoggingManager.PersistSessionSampleCount</c> right
+    /// after the sample-count line, only when <c>DAQIFI_TEST_MODE</c> is set.
+    /// </summary>
+    protected long WaitForDistinctSamplePositions(int sessionId, TimeSpan timeout)
+    {
+        var positions = -1L;
+        Retry.WhileFalse(
+            () =>
+            {
+                var matches = System.Text.RegularExpressions.Regex.Matches(
+                    ReadNewLogText(), @"Persisted distinct sample positions (\d+) for session (\d+)");
+                foreach (System.Text.RegularExpressions.Match match in matches)
+                {
+                    var id = int.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    if (id == sessionId)
+                    {
+                        positions = long.Parse(
+                            match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+                    }
+                }
+
+                return positions >= 0;
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: false);
+
+        return positions;
+    }
+
+    /// <summary>
     /// Exports the most-recently-created logged session via its per-row EXPORT button on the
     /// Logged Data pane's APP LOGS sub-tab. The list renders in insertion order with no sort, so a
     /// just-finalized session is the LAST row; this invokes that row's <c>ExportSessionButton</c>.
