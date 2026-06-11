@@ -815,9 +815,9 @@ public partial class DaqifiViewModel : ObservableObject
         SerialStreamingDevice serialStreamingDevice,
         CancellationToken cancellationToken)
     {
-        // Core's WiFi updater also performs its own version probe when the passed device
-        // implements ILanChipInfoProvider. Keep the explicit desktop-side check here so
-        // desktop can skip unnecessary downloads and surface the current/update version in UI.
+        // Probe the WiFi version here so the desktop can skip unnecessary downloads and surface the
+        // current/update version in the UI. Because the desktop owns this check, the Core call below
+        // passes skipVersionCheck: true so the device isn't queried a second time.
         if (serialStreamingDevice is ILanChipInfoProvider lanChipProvider)
         {
             FirmwareUpdateStatusText = "Checking WiFi firmware version...";
@@ -902,7 +902,8 @@ public partial class DaqifiViewModel : ObservableObject
                     coreDevice,
                     wifiPackage.Value.ExtractedPath,
                     wifiUpdateProgress,
-                    cancellationToken);
+                    cancellationToken,
+                    skipVersionCheck: true);
             }
             finally
             {
