@@ -823,56 +823,85 @@ public partial class DaqifiViewModel : ObservableObject
         FirmwareUpdateStatusText = "Checking WiFi firmware version...";
         _appLogger.Information("Checking WiFi firmware version before deciding whether to flash the WiFi module.");
 
-        var wifiStatus = await _firmwareUpdateService.CheckWifiFirmwareStatusAsync(coreDevice, cancellationToken);
-
-        if (wifiStatus.CurrentChipInfo != null)
+        WifiFirmwareStatus? wifiStatus = null;
+        try
         {
-            _appLogger.Information(
-                $"WiFi chip info query succeeded. Device WiFi firmware version: {wifiStatus.CurrentChipInfo.FwVersion}.");
+            wifiStatus = await _firmwareUpdateService.CheckWifiFirmwareStatusAsync(coreDevice, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // The status check is a UX optimization and expected failures already surface as Reason
+            // values, so this guards only unexpected faults (e.g. a broken service instance). Never
+            // let those abort the flash below, which runs on its own freshly created service.
+            _appLogger.Warning($"WiFi firmware status check failed ({ex.Message}); continuing with WiFi update.");
+            FirmwareUpdateStatusText = versionUnavailableStatus;
         }
 
-        switch (wifiStatus.Reason)
+        if (wifiStatus != null)
         {
-            case WifiFirmwareStatusReason.UpToDate:
+            if (wifiStatus.CurrentChipInfo != null)
             {
-                var latestVersion = NormalizeWifiFirmwareVersion(wifiStatus.LatestRelease!.TagName);
-                FirmwareUpdateStatusText = $"WiFi firmware already up to date ({wifiStatus.CurrentChipInfo!.FwVersion}).";
                 _appLogger.Information(
-                    $"WiFi firmware is already up to date (device: {wifiStatus.CurrentChipInfo.FwVersion}, latest: {latestVersion}); skipping WiFi flash.");
-                UploadWiFiProgress = 100;
-                return;
+                    "WiFi chip info query succeeded. " +
+                    $"Device WiFi firmware version: {wifiStatus.CurrentChipInfo.FwVersion}.");
             }
 
-            case WifiFirmwareStatusReason.UpdateAvailable:
+            switch (wifiStatus.Reason)
             {
-                var latestVersion = NormalizeWifiFirmwareVersion(wifiStatus.LatestRelease!.TagName);
-                FirmwareUpdateStatusText = $"WiFi update available ({wifiStatus.CurrentChipInfo!.FwVersion} → {latestVersion}). Downloading...";
-                _appLogger.Information(
-                    $"WiFi firmware update required (device: {wifiStatus.CurrentChipInfo.FwVersion}, latest: {latestVersion}); proceeding with WiFi flash.");
-                break;
+                case WifiFirmwareStatusReason.UpToDate:
+                {
+                    var deviceVersion = wifiStatus.CurrentChipInfo!.FwVersion;
+                    var latestVersion = NormalizeWifiFirmwareVersion(wifiStatus.LatestRelease!.TagName);
+                    FirmwareUpdateStatusText = $"WiFi firmware already up to date ({deviceVersion}).";
+                    _appLogger.Information(
+                        $"WiFi firmware is already up to date (device: {deviceVersion}, latest: {latestVersion}); " +
+                        "skipping WiFi flash.");
+                    UploadWiFiProgress = 100;
+                    return;
+                }
+
+                case WifiFirmwareStatusReason.UpdateAvailable:
+                {
+                    var deviceVersion = wifiStatus.CurrentChipInfo!.FwVersion;
+                    var latestVersion = NormalizeWifiFirmwareVersion(wifiStatus.LatestRelease!.TagName);
+                    FirmwareUpdateStatusText =
+                        $"WiFi update available ({deviceVersion} → {latestVersion}). Downloading...";
+                    _appLogger.Information(
+                        $"WiFi firmware update required (device: {deviceVersion}, latest: {latestVersion}); " +
+                        "proceeding with WiFi flash.");
+                    break;
+                }
+
+                case WifiFirmwareStatusReason.ChipInfoUnavailable:
+                    _appLogger.Warning(
+                        "WiFi chip info unavailable after startup retries; continuing with WiFi update.");
+                    FirmwareUpdateStatusText = versionUnavailableStatus;
+                    break;
+
+                case WifiFirmwareStatusReason.DeviceDoesNotSupportLanQuery:
+                    _appLogger.Warning(
+                        "Device does not support WiFi chip info queries; continuing with WiFi update.");
+                    FirmwareUpdateStatusText = versionUnavailableStatus;
+                    break;
+
+                case WifiFirmwareStatusReason.LatestReleaseUnavailable:
+                    _appLogger.Warning(
+                        "Latest WiFi firmware release metadata was unavailable; continuing with WiFi update.");
+                    break;
+
+                default:
+                    // VersionUnparseable or future reasons — the comparison was inconclusive,
+                    // so conservatively continue with the flash.
+                    _appLogger.Warning(
+                        $"WiFi firmware version check was inconclusive ({wifiStatus.Reason}); " +
+                        "continuing with WiFi update.");
+                    FirmwareUpdateStatusText = versionUnavailableStatus;
+                    break;
             }
-
-            case WifiFirmwareStatusReason.ChipInfoUnavailable:
-                _appLogger.Warning("WiFi chip info unavailable after startup retries; continuing with WiFi update.");
-                FirmwareUpdateStatusText = versionUnavailableStatus;
-                break;
-
-            case WifiFirmwareStatusReason.DeviceDoesNotSupportLanQuery:
-                _appLogger.Warning("Device does not support WiFi chip info queries; continuing with WiFi update.");
-                FirmwareUpdateStatusText = versionUnavailableStatus;
-                break;
-
-            case WifiFirmwareStatusReason.LatestReleaseUnavailable:
-                _appLogger.Warning("Latest WiFi firmware release metadata was unavailable; continuing with WiFi update.");
-                break;
-
-            default:
-                // VersionUnparseable or future reasons — the comparison was inconclusive,
-                // so conservatively continue with the flash.
-                _appLogger.Warning(
-                    $"WiFi firmware version check was inconclusive ({wifiStatus.Reason}); continuing with WiFi update.");
-                FirmwareUpdateStatusText = versionUnavailableStatus;
-                break;
         }
 
         FirmwareUpdateStatusText = "Downloading WiFi firmware package...";

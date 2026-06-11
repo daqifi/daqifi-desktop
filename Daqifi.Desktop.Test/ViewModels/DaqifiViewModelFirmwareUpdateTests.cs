@@ -284,6 +284,36 @@ public class DaqifiViewModelFirmwareUpdateTests
         WifiFirmwareStatusReason reason,
         bool expectsUnavailableStatusText)
     {
+        await AssertWifiFlashProceedsAsync(
+            pic32Service => pic32Service
+                .Setup(service => service.CheckWifiFirmwareStatusAsync(
+                    It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(CreateUnknownWifiStatus(reason)),
+            expectsUnavailableStatusText);
+    }
+
+    [TestMethod]
+    public async Task UploadFirmware_WifiStatusCheckThrows_StillFlashesWifi()
+    {
+        await AssertWifiFlashProceedsAsync(
+            pic32Service => pic32Service
+                .Setup(service => service.CheckWifiFirmwareStatusAsync(
+                    It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                    It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("WiFi status check failed")),
+            expectsUnavailableStatusText: true);
+    }
+
+    /// <summary>
+    /// Drives a full non-manual firmware upload where the WiFi status check yields no usable
+    /// verdict (inconclusive reason or thrown exception) and asserts the WiFi flash still runs
+    /// with skipVersionCheck: true.
+    /// </summary>
+    private async Task AssertWifiFlashProceedsAsync(
+        Action<Mock<IFirmwareUpdateService>> configureStatusCheck,
+        bool expectsUnavailableStatusText)
+    {
         var dialogService = new Mock<IDialogService>();
         var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
@@ -304,11 +334,7 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        pic32FirmwareUpdateService
-            .Setup(service => service.CheckWifiFirmwareStatusAsync(
-                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateUnknownWifiStatus(reason));
+        configureStatusCheck(pic32FirmwareUpdateService);
 
         wifiFirmwareUpdateService
             .Setup(service => service.UpdateWifiModuleAsync(
