@@ -324,16 +324,16 @@ public partial class ConnectionDialogViewModel : ObservableObject
         catch (ArgumentException ex)
         {
             ManualWifiError = $"'{endpointInput}' is not a valid IP address or host name.";
-            Common.Loggers.AppLogger.Instance.Warning(
+            Common.Loggers.AppLogger.Instance.Warning(ex,
                 $"Manual WiFi connection requires a valid IP address or host name. " +
-                $"Received '{ManualIpAddress}': {ex.Message}");
+                $"Received '{ManualIpAddress}'");
             return;
         }
         catch (SocketException ex)
         {
             ManualWifiError = $"Could not resolve '{endpointInput}'. Check the address and try again.";
-            Common.Loggers.AppLogger.Instance.Warning(
-                $"Failed to resolve manual WiFi endpoint '{ManualIpAddress}': {ex.Message}");
+            Common.Loggers.AppLogger.Instance.Warning(ex,
+                $"Failed to resolve manual WiFi endpoint '{ManualIpAddress}'");
             return;
         }
         catch (Exception ex)

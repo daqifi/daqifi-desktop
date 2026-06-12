@@ -103,6 +103,9 @@ public class ConnectionDialogViewModelCloseTests
             "Editing the manual port name should clear any prior validation error.");
     }
 
+    /// <summary>
+    /// Blank manual-WiFi input is a no-op: no close, and no validation error surfaced.
+    /// </summary>
     [TestMethod]
     public async Task ConnectManualWifiCommand_WithBlankAddress_DoesNotRaiseCloseRequested()
     {
@@ -117,6 +120,10 @@ public class ConnectionDialogViewModelCloseTests
             "Blank input should not surface a validation error message.");
     }
 
+    /// <summary>
+    /// An endpoint that fails to resolve must keep the dialog open and surface the
+    /// inline <c>ManualWifiError</c> message (issue #517).
+    /// </summary>
     [TestMethod]
     public async Task ConnectManualWifiCommand_WithInvalidAddress_SetsManualWifiError()
     {
@@ -131,6 +138,10 @@ public class ConnectionDialogViewModelCloseTests
             "ManualWifiError should be set when the entered endpoint fails to resolve.");
     }
 
+    /// <summary>
+    /// Editing the manual IP address clears a stale validation error
+    /// (the <c>OnManualIpAddressChanged</c> clear-on-edit behavior).
+    /// </summary>
     [TestMethod]
     public void ManualWifiError_ClearsWhenManualIpAddressChanges()
     {

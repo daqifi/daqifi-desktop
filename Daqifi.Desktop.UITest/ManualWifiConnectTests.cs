@@ -13,6 +13,10 @@ namespace Daqifi.Desktop.UITest;
 /// Before the fix, the TCP connect timeout surfaced from Core as a <c>TaskCanceledException</c>
 /// that was logged at error level (the sole Sentry-capture path) and the dialog closed silently.
 /// The fix classifies the timeout as a warning and keeps the dialog open with an inline message.
+///
+/// No physical device is required: the scenario types an unroutable address by hand, so these
+/// tests carry only <c>[TestCategory("Ui")]</c> (excluded from the unit gate, runnable on a
+/// hardware-free bench).
 /// </summary>
 [TestClass]
 public class ManualWifiConnectTests : DaqifiAppFixture
@@ -21,9 +25,13 @@ public class ManualWifiConnectTests : DaqifiAppFixture
     // connection timeout (~5s) — the exact failure mode Sentry reported in issue #517.
     private const string UNREACHABLE_IP = "192.0.2.1";
 
+    /// <summary>
+    /// Connecting to an unreachable address must show the inline error naming the address,
+    /// keep the dialog open, and log the timeout at warning level — never the error-level
+    /// (Sentry-capturing) connect-failure line.
+    /// </summary>
     [TestMethod]
     [TestCategory("Ui")]
-    [TestCategory("RequiresDevice")]
     public void ManualWifi_UnreachableAddress_ShowsInlineError_KeepsDialogOpen_NoErrorLog()
     {
         Assert.AreEqual(0, GetConnectedDeviceCount(), "Expected no device connected at test start.");
@@ -71,9 +79,12 @@ public class ManualWifiConnectTests : DaqifiAppFixture
             "The unreachable-device path must NOT log DaqifiStreamingDevice's error (the Sentry capture path).");
     }
 
+    /// <summary>
+    /// Editing the IP address after a failed connect must clear the stale inline error
+    /// (the <c>OnManualIpAddressChanged</c> clear-on-edit behavior).
+    /// </summary>
     [TestMethod]
     [TestCategory("Ui")]
-    [TestCategory("RequiresDevice")]
     public void ManualWifi_InlineError_ClearsWhenAddressEdited()
     {
         var dialog = OpenManualWifiTab();
