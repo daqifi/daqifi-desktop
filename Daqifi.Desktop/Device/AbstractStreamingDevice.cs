@@ -310,7 +310,15 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         try
         {
             StopStreaming();
+        }
+        catch (Exception ex)
+        {
+            // A dead transport (e.g., USB unplugged mid-stream) must not abort teardown.
+            AppLogger.Warning(ex, $"Error stopping streaming while disconnecting DAQiFi device {DisplayIdentifier}");
+        }
 
+        try
+        {
             // Unsubscribe before clearing channels so a late ChannelsPopulated event
             // cannot repopulate the list after the clear.
             if (CoreDevice != null)
@@ -376,15 +384,24 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return;
         }
 
+        UnsubscribeCoreDeviceEvents(coreDevice);
+
         try
         {
-            UnsubscribeCoreDeviceEvents(coreDevice);
             coreDevice.Disconnect();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Warning(ex, "Error disconnecting Core device during cleanup");
+        }
+
+        try
+        {
             coreDevice.Dispose();
         }
         catch (Exception ex)
         {
-            AppLogger.Warning($"Error disconnecting Core device during cleanup: {ex.Message}");
+            AppLogger.Warning(ex, "Error disposing Core device during cleanup");
         }
 
         CoreDevice = null;

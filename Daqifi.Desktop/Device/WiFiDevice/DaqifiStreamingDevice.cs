@@ -109,7 +109,9 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     {
         if (CoreDevice == null || !CoreDevice.IsConnected)
         {
-            AppLogger.Warning($"Cannot send message to {IpAddress}:{Port}: Core device is not connected (MessageType={message?.GetType().Name})");
+            AppLogger.Warning(
+                $"Cannot send message to {IpAddress}:{Port}: Core device is not connected " +
+                $"(MessageType={message?.GetType().Name})");
             return;
         }
 
@@ -119,7 +121,8 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to send message to {IpAddress}:{Port} (MessageType={message?.GetType().Name})");
+            AppLogger.Error(
+                ex, $"Failed to send message to {IpAddress}:{Port} (MessageType={message?.GetType().Name})");
         }
     }
     #endregion

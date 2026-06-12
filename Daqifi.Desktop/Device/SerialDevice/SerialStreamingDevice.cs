@@ -164,7 +164,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
             }
             catch (Exception ex)
             {
-                AppLogger.Warning($"Failed to re-request device info on {PortName}: {ex.Message}");
+                AppLogger.Warning(ex, $"Failed to re-request device info on {PortName}");
             }
 
             nextDeviceInfoRequestAt = DateTime.UtcNow + InitialStatusRequestInterval;
@@ -234,7 +234,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
             }
             catch (Exception ex)
             {
-                AppLogger.Warning($"Error disconnecting transport during cleanup: {ex.Message}");
+                AppLogger.Warning(ex, "Error disconnecting transport during cleanup");
             }
             _transport = null;
         }
