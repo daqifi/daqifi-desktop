@@ -17,14 +17,18 @@ DAQiFi Desktop is a Windows desktop application for communicating with DAQiFi ha
 ## Architecture
 
 The application follows MVVM (Model-View-ViewModel) pattern. `DAQiFi Desktop.sln` contains these projects:
-- **Daqifi.Desktop** - Main project containing the UI (bootloader/firmware-update code lives here, under `Device/Firmware/`)
+- **Daqifi.Desktop** - Main project containing the UI (bootloader/firmware-update code lives here, under
+  `Device/Firmware/`)
 - **Daqifi.Desktop.Common** - Shared components
 - **Daqifi.Desktop.DataModel** - Data models
 - **Daqifi.Desktop.IO** - Device messaging
-- **Daqifi.Desktop.Test / Daqifi.Desktop.Common.Test / Daqifi.Desktop.DataModel.Test / Daqifi.Desktop.IO.Test** - Unit test projects
-- **Daqifi.Desktop.UITest** - FlaUI UI-automation integration tests (see [Daqifi.Desktop.UITest/README.md](Daqifi.Desktop.UITest/README.md))
+- **Daqifi.Desktop.Test / Daqifi.Desktop.Common.Test / Daqifi.Desktop.DataModel.Test / Daqifi.Desktop.IO.Test** -
+  Unit test projects
+- **Daqifi.Desktop.UITest** - FlaUI UI-automation integration tests
+  (see [Daqifi.Desktop.UITest/README.md](Daqifi.Desktop.UITest/README.md))
 
-The WiX installer lives in **Daqifi.Desktop.Setup**, which has its own solution (`Daqifi.Desktop.Setup/DAQifi Desktop Setup.sln`) and is not part of the main solution.
+The WiX installer lives in **Daqifi.Desktop.Setup**, which has its own solution
+(`Daqifi.Desktop.Setup/DAQifi Desktop Setup.sln`) and is not part of the main solution.
 
 ## Coding Standards
 
@@ -73,7 +77,11 @@ public class FirewallConfiguration : IFirewallConfiguration
 
 ### MVVM Patterns
 
-ViewModel conventions live in [AGENTS.md](AGENTS.md): prefer CommunityToolkit.Mvvm `[ObservableProperty]` over manual backing fields and boilerplate setters when a property only needs standard change notification, and use `[NotifyPropertyChangedFor(...)]` for dependent UI properties. Write explicit property implementations only when validation, coercion, or other nontrivial side effects are required. (The private-field example above shows an injected dependency in a plain service class, not an observable ViewModel property.)
+ViewModel conventions live in [AGENTS.md](AGENTS.md): prefer CommunityToolkit.Mvvm `[ObservableProperty]` over
+manual backing fields and boilerplate setters when a property only needs standard change notification, and use
+`[NotifyPropertyChangedFor(...)]` for dependent UI properties. Write explicit property implementations only when
+validation, coercion, or other nontrivial side effects are required. (The private-field example above shows an
+injected dependency in a plain service class, not an observable ViewModel property.)
 
 ## Key Commands
 
@@ -121,12 +129,15 @@ dotnet build /p:EnforceCodeStyleInBuild=true
 
 DAQiFi Desktop is a Windows WPF application, but only part of the solution requires Windows at run time:
 
-- **`net10.0-windows`** — Daqifi.Desktop, Daqifi.Desktop.Test, Daqifi.Desktop.UITest. These set `EnableWindowsTargeting`, so they *compile* on macOS, but they can only *run* (app and tests) on Windows.
-- **`net10.0`** — Daqifi.Desktop.Common (+ .Test), Daqifi.Desktop.DataModel (+ .Test), Daqifi.Desktop.IO (+ .Test). These build and test anywhere, including macOS.
+- **`net10.0-windows`** — Daqifi.Desktop, Daqifi.Desktop.Test, Daqifi.Desktop.UITest. These set
+  `EnableWindowsTargeting`, so they *compile* on macOS, but they can only *run* (app and tests) on Windows.
+- **`net10.0`** — Daqifi.Desktop.Common (+ .Test), Daqifi.Desktop.DataModel (+ .Test), Daqifi.Desktop.IO (+ .Test).
+  These build and test anywhere, including macOS.
 
 Consequences on macOS:
 - `dotnet build` on the solution **works** — everything compiles, WPF included.
-- `dotnet test` on the solution **fails** (exit code 1) — the two `net10.0-windows` test projects abort at run time because their assemblies cannot execute on macOS.
+- `dotnet test` on the solution **fails** (exit code 1) — the two `net10.0-windows` test projects abort at run time
+  because their assemblies cannot execute on macOS.
 
 Run the cross-platform test projects individually instead:
 
@@ -136,9 +147,11 @@ dotnet test Daqifi.Desktop.DataModel.Test/Daqifi.Desktop.DataModel.Test.csproj
 dotnet test Daqifi.Desktop.IO.Test/Daqifi.Desktop.IO.Test.csproj
 ```
 
-(Common.Test and DataModel.Test are currently empty placeholders and report "no test is available" — that's expected, and they still exit 0.)
+(Common.Test and DataModel.Test are currently empty placeholders and report "no test is available" — that's
+expected, and they still exit 0.)
 
-Running the app and the full test suite — including `Daqifi.Desktop.Test` — requires Windows or CI ([.github/workflows/build.yaml](.github/workflows/build.yaml), which runs on `windows-latest`).
+Running the app and the full test suite — including `Daqifi.Desktop.Test` — requires Windows or CI
+([.github/workflows/build.yaml](.github/workflows/build.yaml), which runs on `windows-latest`).
 
 ## Testing Standards
 
@@ -303,7 +316,10 @@ The CI job fails loudly if the MSI is missing or zero bytes, so a bad build will
 
 When working on:
 - **Device connectivity**: Check `/Device/` directory and ensure network configuration
-- **Device-communication logic**: Protocol/device logic is being progressively delegated to the [daqifi-core](https://github.com/daqifi/daqifi-core) SDK (consumed as the `Daqifi.Core` NuGet package). Prefer using or extending Core implementations over re-implementing protocol logic here; remaining gaps are tracked as GitHub issues in the two repos
+- **Device-communication logic**: Protocol/device logic is being progressively delegated to the
+  [daqifi-core](https://github.com/daqifi/daqifi-core) SDK (consumed as the `Daqifi.Core` NuGet package). Prefer
+  using or extending Core implementations over re-implementing protocol logic here; remaining gaps are tracked as
+  GitHub issues in the two repos
 - **UI changes**: Update both View and ViewModel following MVVM. For new or redesigned surfaces, read [docs/design-philosophy.md](docs/design-philosophy.md) first — the Channels pane is the current exemplar
 - **Data persistence**: Use Entity Framework patterns
 - **Protocol changes**: Update `.proto` files and regenerate
