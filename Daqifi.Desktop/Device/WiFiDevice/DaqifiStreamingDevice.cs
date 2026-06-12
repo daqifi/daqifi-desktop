@@ -1,7 +1,6 @@
 ﻿using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
-using Daqifi.Desktop.IO.Messages;
 using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
@@ -14,18 +13,11 @@ namespace Daqifi.Desktop.Device.WiFiDevice;
 /// </summary>
 public class DaqifiStreamingDevice : AbstractStreamingDevice
 {
-    #region Private Fields
-    private CoreStreamingDevice? _coreDevice;
-    #endregion
-
     #region Properties
 
     public int Port { get; set; }
     public bool IsPowerOn { get; set; }
     public override ConnectionType ConnectionType => ConnectionType.Wifi;
-    public override bool IsConnected => _coreDevice?.IsConnected == true;
-    protected override CoreStreamingDevice? CoreDeviceForStreaming => _coreDevice;
-    protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
 
     #endregion
 
@@ -65,64 +57,39 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     #endregion
 
     #region Override Methods
-    public override bool Connect()
+    /// <summary>
+    /// Connects a Core streaming device over TCP for the shared
+    /// <see cref="AbstractStreamingDevice.Connect"/> template.
+    /// </summary>
+    protected override CoreStreamingDevice? CreateCoreDevice()
     {
-        try
+        var options = new DeviceConnectionOptions
         {
-            var options = new DeviceConnectionOptions
-            {
-                DeviceName = string.IsNullOrWhiteSpace(Name) ? "DAQiFi Device" : Name,
-                ConnectionRetry = ConnectionRetryOptions.NoRetry,
-                InitializeDevice = false
-            };
+            DeviceName = string.IsNullOrWhiteSpace(Name) ? "DAQiFi Device" : Name,
+            ConnectionRetry = ConnectionRetryOptions.NoRetry,
+            InitializeDevice = false
+        };
 
-            var connectedDevice = DaqifiDeviceFactory.ConnectTcp(IpAddress, Port, options);
-            _coreDevice = connectedDevice as CoreStreamingDevice;
-            if (_coreDevice == null)
-            {
-                connectedDevice.Dispose();
-                throw new InvalidOperationException("Connected Core device does not support streaming operations.");
-            }
-
-            if (!_coreDevice.IsConnected)
-            {
-                AppLogger.Error($"Failed to connect to DAQiFi device at {IpAddress}:{Port}");
-                return false;
-            }
-
-            // Subscribe to Core device events
-            _coreDevice.ChannelsPopulated += OnCoreChannelsPopulated;
-            _coreDevice.MessageReceived += OnCoreMessageReceived;
-
-            InitializeDeviceState();
-
-            // Use async initialization (safe because Connect() is called from Task.Run)
-            _coreDevice.InitializeAsync().GetAwaiter().GetResult();
-            return true;
-        }
-        catch (Exception ex)
+        var connectedDevice = DaqifiDeviceFactory.ConnectTcp(IpAddress, Port, options);
+        if (connectedDevice is not CoreStreamingDevice coreDevice)
         {
-            AppLogger.Error(ex, $"Problem with connecting to DAQiFi Device at {IpAddress}:{Port}");
-
-            // Clean up partially initialized device
-            if (_coreDevice != null)
-            {
-                try
-                {
-                    _coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
-                    _coreDevice.MessageReceived -= OnCoreMessageReceived;
-                    _coreDevice.Disconnect();
-                    _coreDevice.Dispose();
-                }
-                catch (Exception cleanupEx)
-                {
-                    AppLogger.Warning($"Error during connection cleanup: {cleanupEx.Message}");
-                }
-                _coreDevice = null;
-            }
-
-            return false;
+            connectedDevice.Dispose();
+            throw new InvalidOperationException("Connected Core device does not support streaming operations.");
         }
+
+        if (!coreDevice.IsConnected)
+        {
+            AppLogger.Error($"Failed to connect to DAQiFi device at {IpAddress}:{Port}");
+            coreDevice.Dispose();
+            return null;
+        }
+
+        return coreDevice;
+    }
+
+    protected override void LogConnectFailure(Exception ex)
+    {
+        AppLogger.Error(ex, $"Problem with connecting to DAQiFi Device at {IpAddress}:{Port}");
     }
 
     /// <summary>
@@ -135,41 +102,12 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
             "Raw text writes are not supported on WiFi devices.");
     }
 
-    public override bool Disconnect()
-    {
-        try
-        {
-            StopStreaming();
-
-            // Unsubscribe from Core device events
-            if (_coreDevice != null)
-            {
-                _coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
-                _coreDevice.MessageReceived -= OnCoreMessageReceived;
-            }
-
-            // Clear channels to prevent ghost channels on reconnect (Issue #29)
-            AppLogger.Information($"Cleared {DataChannels.Count} channels for device {DeviceSerialNo}");
-            DataChannels.Clear();
-
-            _coreDevice?.Disconnect();
-            _coreDevice?.Dispose();
-            _coreDevice = null;
-            return true;
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "Problem with Disconnecting from DAQiFi Device.");
-            return false;
-        }
-    }
-
     /// <summary>
     /// Sends messages directly through Core's DaqifiDevice instead of using adapters.
     /// </summary>
     protected override void SendMessage(IOutboundMessage<string> message)
     {
-        if (_coreDevice == null || !_coreDevice.IsConnected)
+        if (CoreDevice == null || !CoreDevice.IsConnected)
         {
             AppLogger.Warning($"Cannot send message to {IpAddress}:{Port}: Core device is not connected (MessageType={message?.GetType().Name})");
             return;
@@ -177,25 +115,12 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
 
         try
         {
-            _coreDevice.Send(message);
+            CoreDevice.Send(message);
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Failed to send message to {IpAddress}:{Port} (MessageType={message?.GetType().Name})");
         }
-    }
-    #endregion
-
-    #region Event Handlers
-    /// <summary>
-    /// Handles non-status messages received from Core's DaqifiDevice and routes them
-    /// to the protocol handler for streaming data processing.
-    /// Status messages are handled via <see cref="AbstractStreamingDevice.OnCoreChannelsPopulated"/>.
-    /// </summary>
-    private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
-    {
-        var args = new MessageEventArgs<object>(e.Message);
-        HandleInboundMessage(args);
     }
     #endregion
 

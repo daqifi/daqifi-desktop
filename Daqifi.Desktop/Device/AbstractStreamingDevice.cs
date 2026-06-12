@@ -72,6 +72,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     private const uint DEFAULT_TIMESTAMP_FREQUENCY = 50_000_000;
 
+    private const string SD_UNAVAILABLE_MESSAGE = "Core SD card operations are not available for this device.";
+    private const string STREAMING_UNAVAILABLE_MESSAGE = "Core live streaming operations are not available for this device.";
+    private const string NOT_CONNECTED_MESSAGE = "Device is not connected.";
+
     private readonly ITimestampProcessor _timestampProcessor = new TimestampProcessor();
     private List<SdCardFile> _sdCardFiles = [];
 
@@ -94,6 +98,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private IProtocolHandler? _protocolHandler;
 
     /// <summary>
+    /// The Core streaming device created by the shared <see cref="Connect"/> template,
+    /// or null while disconnected.
+    /// </summary>
+    protected CoreStreamingDevice? CoreDevice { get; set; }
+
+    /// <summary>
     /// Core streaming device used for SD card operations (USB devices only).
     /// </summary>
     protected virtual CoreStreamingDevice? CoreDeviceForSd => null;
@@ -101,12 +111,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// <summary>
     /// Core streaming device used for live stream start/stop operations.
     /// </summary>
-    protected virtual CoreStreamingDevice? CoreDeviceForStreaming => null;
+    protected virtual CoreStreamingDevice? CoreDeviceForStreaming => CoreDevice;
 
     /// <summary>
     /// Core streaming device used for network configuration orchestration.
     /// </summary>
-    protected virtual CoreStreamingDevice? CoreDeviceForNetworkConfiguration => null;
+    protected virtual CoreStreamingDevice? CoreDeviceForNetworkConfiguration => CoreDevice;
 
     #region Properties
 
@@ -209,10 +219,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     public List<IChannel> DataChannels { get; set; } = [];
 
     /// <summary>
-    /// Gets whether the device is currently connected.
-    /// Override in derived classes to provide accurate connection state.
+    /// Gets whether the device is currently connected via its Core device.
     /// </summary>
-    public virtual bool IsConnected => DeviceState == DeviceState.Connected || DeviceState == DeviceState.Ready;
+    public virtual bool IsConnected => CoreDevice?.IsConnected == true;
 
     public bool IsStreaming { get; set; }
     public bool IsFirmwareOutdated { get; set; }
@@ -231,10 +240,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     #endregion
 
     #region Abstract Methods
-    public abstract bool Connect();
-
-    public abstract bool Disconnect();
-
     public abstract bool Write(string command);
 
     /// <summary>
@@ -243,6 +248,164 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     /// <param name="message">The SCPI message to send.</param>
     protected abstract void SendMessage(IOutboundMessage<string> message);
+    #endregion
+
+    #region Core Connection Template
+    /// <summary>
+    /// Connects to the device using the shared Core connect/wire/initialize skeleton:
+    /// tear down any previous connection, create the transport-specific Core device
+    /// (<see cref="CreateCoreDevice"/>), subscribe Core events, initialize desktop state, run
+    /// Core's async initialization, then run the optional transport-specific post-initialize
+    /// step (<see cref="OnCoreDeviceInitialized"/>). On any failure the attempt is logged
+    /// (<see cref="LogConnectFailure"/>) and fully cleaned up (<see cref="CleanupConnection"/>).
+    /// </summary>
+    /// <remarks>
+    /// Synchronous by contract: <see cref="ConnectionManager"/> invokes <c>Connect()</c> from
+    /// <c>Task.Run</c>, which is what makes blocking on <c>InitializeAsync()</c> safe here.
+    /// Do not call this from the UI thread.
+    /// </remarks>
+    /// <returns><c>true</c> when the device connected and initialized; otherwise <c>false</c>.</returns>
+    public virtual bool Connect()
+    {
+        // Ensure any previous connection state is cleaned up first
+        CleanupConnection();
+
+        try
+        {
+            var coreDevice = CreateCoreDevice();
+            if (coreDevice == null)
+            {
+                return false;
+            }
+
+            CoreDevice = coreDevice;
+
+            coreDevice.ChannelsPopulated += OnCoreChannelsPopulated;
+            coreDevice.MessageReceived += OnCoreMessageReceived;
+
+            InitializeDeviceState();
+
+            // Blocking on Core's async initialization is safe because Connect() is invoked
+            // from Task.Run by ConnectionManager (see remarks).
+            coreDevice.InitializeAsync().GetAwaiter().GetResult();
+
+            OnCoreDeviceInitialized();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LogConnectFailure(ex);
+            CleanupConnection();
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Disconnects from the device: stops streaming, unsubscribes Core events, clears
+    /// channels, and tears down the connection via <see cref="CleanupConnection"/>.
+    /// </summary>
+    /// <returns><c>true</c> when the disconnect completed; otherwise <c>false</c>.</returns>
+    public virtual bool Disconnect()
+    {
+        try
+        {
+            StopStreaming();
+
+            // Unsubscribe before clearing channels so a late ChannelsPopulated event
+            // cannot repopulate the list after the clear.
+            if (CoreDevice != null)
+            {
+                UnsubscribeCoreDeviceEvents(CoreDevice);
+            }
+
+            // Clear channels to prevent ghost channels on reconnect (Issue #29)
+            AppLogger.Information($"Cleared {DataChannels.Count} channels for device {DeviceSerialNo}");
+            DataChannels.Clear();
+
+            CleanupConnection();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Error disconnecting from DAQiFi device {DisplayIdentifier}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates and connects the transport-specific Core streaming device for the shared
+    /// <see cref="Connect"/> template. Return <c>null</c> (after logging) to fail without an
+    /// exception, or throw to route the failure through <see cref="LogConnectFailure"/>.
+    /// Intermediate state assigned before a throw (e.g., a transport, or
+    /// <see cref="CoreDevice"/> itself) is torn down by <see cref="CleanupConnection"/>.
+    /// The default returns <c>null</c>; devices using the shared template must override.
+    /// </summary>
+    protected virtual CoreStreamingDevice? CreateCoreDevice() => null;
+
+    /// <summary>
+    /// Called by <see cref="Connect"/> after Core's <c>InitializeAsync()</c> completes.
+    /// Default does nothing; serial overrides to block until the device reports its
+    /// initial status message.
+    /// </summary>
+    protected virtual void OnCoreDeviceInitialized()
+    {
+    }
+
+    /// <summary>
+    /// Logs a failure of the shared <see cref="Connect"/> template. Default logs an error;
+    /// transports override to add context or downgrade user/environmental conditions
+    /// (e.g., a COM port that disappeared) to warnings.
+    /// </summary>
+    /// <param name="ex">The exception that failed the connection attempt.</param>
+    protected virtual void LogConnectFailure(Exception ex)
+    {
+        AppLogger.Error(ex, $"Problem connecting to DAQiFi device {DisplayIdentifier}");
+    }
+
+    /// <summary>
+    /// Tears down the Core device created by <see cref="Connect"/>: unsubscribes Core
+    /// events, disconnects, and disposes. Safe to call when no Core device is set.
+    /// Transports override to also tear down transport-specific state and must call the
+    /// base implementation.
+    /// </summary>
+    protected virtual void CleanupConnection()
+    {
+        var coreDevice = CoreDevice;
+        if (coreDevice == null)
+        {
+            return;
+        }
+
+        try
+        {
+            UnsubscribeCoreDeviceEvents(coreDevice);
+            coreDevice.Disconnect();
+            coreDevice.Dispose();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Warning($"Error disconnecting Core device during cleanup: {ex.Message}");
+        }
+
+        CoreDevice = null;
+    }
+
+    private void UnsubscribeCoreDeviceEvents(CoreStreamingDevice coreDevice)
+    {
+        coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
+        coreDevice.MessageReceived -= OnCoreMessageReceived;
+    }
+
+    /// <summary>
+    /// Handles non-status messages received from Core's DaqifiDevice and routes them
+    /// to the protocol handler for streaming data processing.
+    /// Status messages are handled via <see cref="OnCoreChannelsPopulated"/>.
+    /// </summary>
+    private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
+    {
+        var args = new MessageEventArgs<object>(e.Message);
+        HandleInboundMessage(args);
+    }
     #endregion
 
     #region Message Handlers
@@ -639,7 +802,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 ? ScpiMessageProducer.EnableDioPorts()
                 : ScpiMessageProducer.DisableDioPorts());
 
-            var coreDevice = GetCoreDeviceForSd();
+            var coreDevice = GetCoreDevice(CoreDeviceForSd, SD_UNAVAILABLE_MESSAGE);
             coreDevice.StreamingFrequency = StreamingFrequency;
 
             // The Core package resumes StartSdCardLoggingAsync continuations on the caller's
@@ -669,7 +832,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         try
         {
-            var coreDevice = GetCoreDeviceForSd();
+            var coreDevice = GetCoreDevice(CoreDeviceForSd, SD_UNAVAILABLE_MESSAGE);
             coreDevice.StopSdCardLoggingAsync().GetAwaiter().GetResult();
 
             IsLoggingToSdCard = false;
@@ -698,7 +861,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         EnsureSdOperationsQuiesced();
 
-        var coreDevice = GetCoreDeviceForSd();
+        var coreDevice = GetCoreDevice(CoreDeviceForSd, SD_UNAVAILABLE_MESSAGE);
         var files = Task.Run(() => coreDevice.GetSdCardFilesAsync()).GetAwaiter().GetResult();
         UpdateSdCardFiles(MapSdCardFiles(files));
     }
@@ -712,15 +875,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         OnPropertyChanged(nameof(SdCardFiles));
     }
 
-    private CoreStreamingDevice GetCoreDeviceForSd()
+    /// <summary>
+    /// Returns the given Core device, or throws <see cref="InvalidOperationException"/> with
+    /// <paramref name="unavailableMessage"/> when the operation is not available.
+    /// </summary>
+    private static CoreStreamingDevice GetCoreDevice(CoreStreamingDevice? coreDevice, string unavailableMessage)
     {
-        var coreDevice = CoreDeviceForSd;
-        if (coreDevice == null)
-        {
-            throw new InvalidOperationException("Core SD card operations are not available for this device.");
-        }
-
-        return coreDevice;
+        return coreDevice ?? throw new InvalidOperationException(unavailableMessage);
     }
 
     /// <summary>
@@ -737,7 +898,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         EnsureSdOperationsQuiesced();
 
-        var coreDevice = GetCoreDeviceForSd();
+        var coreDevice = GetCoreDevice(CoreDeviceForSd, SD_UNAVAILABLE_MESSAGE);
         return await coreDevice.DownloadSdCardFileAsync(fileName, progress, ct);
     }
 
@@ -751,19 +912,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         EnsureSdOperationsQuiesced();
 
-        var coreDevice = GetCoreDeviceForSd();
+        var coreDevice = GetCoreDevice(CoreDeviceForSd, SD_UNAVAILABLE_MESSAGE);
         await coreDevice.DeleteSdCardFileAsync(fileName, ct);
-    }
-
-    private CoreStreamingDevice GetCoreDeviceForNetworkConfiguration()
-    {
-        var coreDevice = CoreDeviceForNetworkConfiguration;
-        if (coreDevice == null)
-        {
-            throw new InvalidOperationException("Device is not connected.");
-        }
-
-        return coreDevice;
     }
 
     private static List<SdCardFile> MapSdCardFiles(IEnumerable<CoreSdCardFileInfo> files)
@@ -825,7 +975,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             throw new InvalidOperationException("Cannot initialize streaming while in LogToDevice mode");
         }
 
-        var coreStreamingDevice = GetCoreDeviceForStreaming();
+        var coreStreamingDevice = GetCoreDevice(CoreDeviceForStreaming, STREAMING_UNAVAILABLE_MESSAGE);
         coreStreamingDevice.StreamingFrequency = StreamingFrequency;
 
         // A session must never anchor its time axis on prior-session data (issue #573).
@@ -861,7 +1011,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             AppLogger.Information("Allowing computer sleep after streaming.");
         }
 
-        var coreStreamingDevice = GetCoreDeviceForStreaming();
+        var coreStreamingDevice = GetCoreDevice(CoreDeviceForStreaming, STREAMING_UNAVAILABLE_MESSAGE);
         coreStreamingDevice.StopStreaming();
         IsStreaming = coreStreamingDevice.IsStreaming;
         AppLogger.AddBreadcrumb("streaming", "Streaming stopped");
@@ -877,18 +1027,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             }
         }
     }
-
-    private CoreStreamingDevice GetCoreDeviceForStreaming()
-    {
-        var coreDevice = CoreDeviceForStreaming;
-        if (coreDevice == null)
-        {
-            throw new InvalidOperationException("Core live streaming operations are not available for this device.");
-        }
-
-        return coreDevice;
-    }
-
 
     #endregion
 
@@ -1050,8 +1188,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// <summary>
     /// Handles the <see cref="DaqifiDevice.ChannelsPopulated"/> event from Core.
     /// Syncs metadata and channel wrappers from the already-populated Core device.
+    /// Virtual so transports can layer additional signaling (serial signals its
+    /// initial-status wait) before the shared sync runs.
     /// </summary>
-    protected void OnCoreChannelsPopulated(object? sender, ChannelsPopulatedEventArgs e)
+    protected virtual void OnCoreChannelsPopulated(object? sender, ChannelsPopulatedEventArgs e)
     {
         if (sender is not DaqifiDevice coreDevice)
         {
@@ -1221,7 +1361,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public async Task UpdateNetworkConfiguration()
     {
-        var coreDevice = GetCoreDeviceForNetworkConfiguration();
+        var coreDevice = GetCoreDevice(CoreDeviceForNetworkConfiguration, NOT_CONNECTED_MESSAGE);
 
         var restoreSdInterface = ConnectionType == ConnectionType.Usb && Mode == DeviceMode.LogToDevice;
 
