@@ -4,7 +4,6 @@ using Daqifi.Core.Device;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Firmware;
-using Daqifi.Desktop.IO.Messages;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
@@ -18,7 +17,6 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
     #region Properties
     private SerialPort? _port;
-    private CoreStreamingDevice? _coreDevice;
     private SerialStreamTransport? _transport;
     private TaskCompletionSource<bool>? _initialStatusReceivedSource;
 
@@ -44,14 +42,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
     public override ConnectionType ConnectionType => ConnectionType.Usb;
 
-    /// <summary>
-    /// Gets whether the device is currently connected via Core's transport.
-    /// </summary>
-    public override bool IsConnected => _coreDevice?.IsConnected == true;
-
-    protected override CoreStreamingDevice? CoreDeviceForSd => _coreDevice;
-    protected override CoreStreamingDevice? CoreDeviceForStreaming => _coreDevice;
-    protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
+    protected override CoreStreamingDevice? CoreDeviceForSd => CoreDevice;
     #endregion
 
     #region Constructor
@@ -64,7 +55,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     internal SerialStreamingDevice(string portName, CoreStreamingDevice coreDevice)
         : this(portName)
     {
-        _coreDevice = coreDevice ?? throw new ArgumentNullException(nameof(coreDevice));
+        CoreDevice = coreDevice ?? throw new ArgumentNullException(nameof(coreDevice));
     }
 
     /// <summary>
@@ -81,88 +72,70 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
     #endregion
     #region Override Methods
-    public override bool Connect()
+    /// <summary>
+    /// Connects a Core streaming device over the serial transport for the shared
+    /// <see cref="AbstractStreamingDevice.Connect"/> template. <see cref="CoreDevice"/> is
+    /// assigned before its transport connect so every failure path is cleaned up by
+    /// <see cref="CleanupConnection"/>.
+    /// </summary>
+    protected override CoreStreamingDevice CreateCoreDevice()
     {
-        // Ensure any previous connection state is cleaned up first
-        CleanupConnection();
+        _initialStatusReceivedSource = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
 
-        try
+        // Use Core's transport for unified message handling (both send and receive).
+        // The transport manages the actual SerialPort connection internally; DTR must stay
+        // enabled or the device will not stream over USB.
+        _transport = new SerialStreamTransport(Port.PortName, enableDtr: true);
+        _transport.Connect();
+
+        CoreDevice = new CoreStreamingDevice(
+            string.IsNullOrWhiteSpace(Name) ? "DAQiFi Serial Device" : Name,
+            _transport);
+        CoreDevice.Connect();
+        return CoreDevice;
+    }
+
+    protected override void LogConnectFailure(Exception ex)
+    {
+        switch (ex)
         {
-            _initialStatusReceivedSource = new TaskCompletionSource<bool>(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-
-            // Use Core's transport for unified message handling (both send and receive)
-            // Note: Transport manages the actual SerialPort connection internally
-            _transport = new SerialStreamTransport(Port.PortName, enableDtr: true);
-            _transport.Connect();
-
-            // Create Core device with transport - this enables both sending AND receiving
-            _coreDevice = new CoreStreamingDevice(
-                string.IsNullOrWhiteSpace(Name) ? "DAQiFi Serial Device" : Name,
-                _transport);
-            _coreDevice.Connect();
-
-            // Subscribe to Core device events
-            _coreDevice.ChannelsPopulated += OnCoreChannelsPopulatedSerial;
-            _coreDevice.MessageReceived += OnCoreMessageReceived;
-
-            InitializeDeviceState();
-
-            // Use Core's async initialization (safe because Connect() is called from Task.Run)
-            _coreDevice.InitializeAsync().GetAwaiter().GetResult();
-            WaitForInitialStatusMessage();
-            return true;
-        }
-        catch (FileNotFoundException ex)
-        {
-            // .NET's SerialPort.Open throws FileNotFoundException when the COM port no
-            // longer exists (device unplugged, never present, or renamed). Treat as a
-            // user/environmental condition, not an app bug — log a warning (keeping the
-            // exception detail in the local log) instead of capturing to Sentry.
-            AppLogger.Warning(ex, $"Cannot connect on {PortName}: port is not available");
-            CleanupConnection();
-            return false;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            // SerialPort.Open throws UnauthorizedAccessException when another process
-            // already holds the port open. Same classification as above.
-            AppLogger.Warning(ex, $"Cannot connect on {PortName}: port is in use by another process");
-            CleanupConnection();
-            return false;
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, $"Failed to connect on {PortName}");
-            CleanupConnection();
-            return false;
+            case FileNotFoundException:
+                // .NET's SerialPort.Open throws FileNotFoundException when the COM port no
+                // longer exists (device unplugged, never present, or renamed). Treat as a
+                // user/environmental condition, not an app bug — log a warning (keeping the
+                // exception detail in the local log) instead of capturing to Sentry.
+                AppLogger.Warning(ex, $"Cannot connect on {PortName}: port is not available");
+                break;
+            case UnauthorizedAccessException:
+                // SerialPort.Open throws UnauthorizedAccessException when another process
+                // already holds the port open. Same classification as above.
+                AppLogger.Warning(ex, $"Cannot connect on {PortName}: port is in use by another process");
+                break;
+            default:
+                AppLogger.Error(ex, $"Failed to connect on {PortName}");
+                break;
         }
     }
 
     /// <summary>
-    /// Handles the <see cref="DaqifiDevice.ChannelsPopulated"/> event from Core and
-    /// signals the initial-status wait so <see cref="WaitForInitialStatusMessage"/> can return.
+    /// Signals the initial-status wait so <see cref="OnCoreDeviceInitialized"/> can return,
+    /// then runs the shared Core-to-desktop sync.
     /// </summary>
-    private void OnCoreChannelsPopulatedSerial(object? sender, ChannelsPopulatedEventArgs e)
+    protected override void OnCoreChannelsPopulated(object? sender, ChannelsPopulatedEventArgs e)
     {
         _initialStatusReceivedSource?.TrySetResult(true);
-        OnCoreChannelsPopulated(sender, e);
+        base.OnCoreChannelsPopulated(sender, e);
     }
 
     /// <summary>
-    /// Handles non-status messages received from Core's DaqifiDevice and routes them
-    /// to the protocol handler for streaming data processing.
-    /// Status messages are handled via <see cref="OnCoreChannelsPopulatedSerial"/>.
+    /// Blocks until the device reports its initial status message, which gates
+    /// <see cref="AbstractStreamingDevice.Connect"/> returning for serial devices.
     /// </summary>
-    private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
+    protected override void OnCoreDeviceInitialized()
     {
-        var args = new MessageEventArgs<object>(e.Message);
-        HandleInboundMessage(args);
-    }
-
-    private void WaitForInitialStatusMessage()
-    {
-        if (_coreDevice == null)
+        var coreDevice = CoreDevice;
+        if (coreDevice == null)
         {
             throw new InvalidOperationException("Core device was not initialized.");
         }
@@ -187,11 +160,11 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
             try
             {
-                _coreDevice.Send(ScpiMessageProducer.GetDeviceInfo);
+                coreDevice.Send(ScpiMessageProducer.GetDeviceInfo);
             }
             catch (Exception ex)
             {
-                AppLogger.Warning($"Failed to re-request device info on {PortName}: {ex.Message}");
+                AppLogger.Warning(ex, $"Failed to re-request device info on {PortName}");
             }
 
             nextDeviceInfoRequestAt = DateTime.UtcNow + InitialStatusRequestInterval;
@@ -206,12 +179,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     /// </summary>
     protected override void SendMessage(IOutboundMessage<string> message)
     {
-        if (_coreDevice == null || !_coreDevice.IsConnected)
+        if (CoreDevice == null || !CoreDevice.IsConnected)
         {
             AppLogger.Warning($"Cannot send to {PortName}: Core device not connected");
             return;
         }
-        _coreDevice.Send(message);
+        CoreDevice.Send(message);
     }
 
     public override bool Write(string command)
@@ -244,53 +217,12 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         }
     }
 
-    public override bool Disconnect()
-    {
-        try
-        {
-            StopStreaming();
-
-            // Unsubscribe from Core device events
-            if (_coreDevice != null)
-            {
-                _coreDevice.ChannelsPopulated -= OnCoreChannelsPopulatedSerial;
-                _coreDevice.MessageReceived -= OnCoreMessageReceived;
-            }
-
-            // Clear channels to prevent ghost channels on reconnect (Issue #29)
-            AppLogger.Information($"Cleared {DataChannels.Count} channels for device {DeviceSerialNo}");
-            DataChannels.Clear();
-
-            CleanupConnection();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(ex, "Error during disconnect");
-            return false;
-        }
-    }
-
-    private void CleanupConnection()
+    protected override void CleanupConnection()
     {
         _initialStatusReceivedSource = null;
 
-        // Unsubscribe from Core device events first
-        if (_coreDevice != null)
-        {
-            try
-            {
-                _coreDevice.ChannelsPopulated -= OnCoreChannelsPopulatedSerial;
-                _coreDevice.MessageReceived -= OnCoreMessageReceived;
-                _coreDevice.Disconnect();
-                _coreDevice.Dispose();
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Warning($"Error disconnecting Core device during cleanup: {ex.Message}");
-            }
-            _coreDevice = null;
-        }
+        // Unsubscribe Core device events and dispose the Core device first
+        base.CleanupConnection();
 
         // Clean up transport (this handles the actual serial port)
         if (_transport != null)
@@ -302,7 +234,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
             }
             catch (Exception ex)
             {
-                AppLogger.Warning($"Error disconnecting transport during cleanup: {ex.Message}");
+                AppLogger.Warning(ex, "Error disconnecting transport during cleanup");
             }
             _transport = null;
         }
@@ -322,13 +254,13 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     /// <summary>
     /// Gets the connected Core serial streaming device used for firmware update workflows.
     /// </summary>
-    internal CoreStreamingDevice ConnectedCoreStreamingDevice => _coreDevice ?? throw new InvalidOperationException(
+    internal CoreStreamingDevice ConnectedCoreStreamingDevice => CoreDevice ?? throw new InvalidOperationException(
         $"Core streaming device for {PortName} is not connected.");
 
     public bool EnableLanUpdateMode()
     {
         AppLogger.Information($"Preparing {PortName} for WiFi firmware mode.");
-        if (_coreDevice == null || !_coreDevice.IsConnected)
+        if (CoreDevice == null || !CoreDevice.IsConnected)
         {
             AppLogger.Warning($"Cannot prepare {PortName} for WiFi firmware mode: core device is not connected.");
             return false;
@@ -345,19 +277,19 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
         // the bridge before the tool issues its first serial query.
         Thread.Sleep(2000);
         AppLogger.Information("Sending LAN FW update prep command: SYSTem:POWer:STATe 1");
-        _coreDevice.Send(ScpiMessageProducer.TurnDeviceOn);
+        CoreDevice.Send(ScpiMessageProducer.TurnDeviceOn);
         Thread.Sleep(1000);
         AppLogger.Information("Sending LAN FW update prep command: SYSTem:COMMUnicate:LAN:FWUpdate");
-        _coreDevice.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
+        CoreDevice.Send(ScpiMessageProducer.SetLanFirmwareUpdateMode);
         return true;
     }
 
     public void ResetLanAfterUpdate()
     {
-        _coreDevice?.Send(ScpiMessageProducer.SetUsbTransparencyMode(0));
-        _coreDevice?.Send(ScpiMessageProducer.EnableNetworkLan);
-        _coreDevice?.Send(ScpiMessageProducer.ApplyNetworkLan);
-        _coreDevice?.Send(ScpiMessageProducer.SaveNetworkLan);
+        CoreDevice?.Send(ScpiMessageProducer.SetUsbTransparencyMode(0));
+        CoreDevice?.Send(ScpiMessageProducer.EnableNetworkLan);
+        CoreDevice?.Send(ScpiMessageProducer.ApplyNetworkLan);
+        CoreDevice?.Send(ScpiMessageProducer.SaveNetworkLan);
     }
 
     /// <summary>
@@ -365,7 +297,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     /// </summary>
     public Task<LanChipInfo?> GetLanChipInfoAsync(CancellationToken cancellationToken = default)
     {
-        if (_coreDevice is not ILanChipInfoProvider provider)
+        if (CoreDevice is not ILanChipInfoProvider provider)
             return Task.FromResult<LanChipInfo?>(null);
         return provider.GetLanChipInfoAsync(cancellationToken);
     }
