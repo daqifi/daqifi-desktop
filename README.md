@@ -103,7 +103,7 @@ Both devices are SCPI-compliant and compatible with LabVIEW.
 
 ## Build from source
 
-Building and running the app requires **Windows** (the UI targets WPF / `net10.0-windows`) and the
+Running the app requires **Windows** (the UI targets WPF / `net10.0-windows`). Building requires the
 [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) — the exact SDK version is pinned in
 [`global.json`](global.json).
 
@@ -119,6 +119,13 @@ Run the unit tests (no hardware required):
 ```bash
 dotnet test --filter "TestCategory!=Ui&FullyQualifiedName!~WindowsFirewallWrapperTests"
 ```
+
+On macOS/Linux the solution compiles (the Windows-targeted projects set `EnableWindowsTargeting`),
+but the app and the Windows-only test projects cannot run there, so solution-wide `dotnet test`
+fails. The cross-platform `net10.0` library projects (Common, DataModel, IO) build and test on any
+OS — run their test projects individually, e.g.
+`dotnet test Daqifi.Desktop.IO.Test/Daqifi.Desktop.IO.Test.csproj`. See the "Cross-Platform
+Development (macOS)" section in [CLAUDE.md](CLAUDE.md) for details.
 
 The `DAQifiDesktop_Setup.msi` installer is built from the `Daqifi.Desktop.Setup` project (WiX Toolset)
 and is normally produced by CI on release. The WiX project harvests the app's **published** output, so
