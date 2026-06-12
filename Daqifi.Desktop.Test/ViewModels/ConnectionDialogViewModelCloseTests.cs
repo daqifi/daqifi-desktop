@@ -113,10 +113,12 @@ public class ConnectionDialogViewModelCloseTests
         await viewModel.ConnectManualWifiCommand.ExecuteAsync(null);
 
         Assert.IsFalse(closeRaised(), "CloseRequested should not fire when the manual IP is blank.");
+        Assert.IsNull(viewModel.ManualWifiError,
+            "Blank input should not surface a validation error message.");
     }
 
     [TestMethod]
-    public async Task ConnectManualWifiCommand_WithInvalidAddress_DoesNotRaiseCloseRequested()
+    public async Task ConnectManualWifiCommand_WithInvalidAddress_SetsManualWifiError()
     {
         var viewModel = CreateViewModel();
         viewModel.ManualIpAddress = "not a valid hostname or ip !@#";
@@ -125,6 +127,20 @@ public class ConnectionDialogViewModelCloseTests
         await viewModel.ConnectManualWifiCommand.ExecuteAsync(null);
 
         Assert.IsFalse(closeRaised(), "CloseRequested should not fire when the manual endpoint fails to resolve.");
+        Assert.IsNotNull(viewModel.ManualWifiError,
+            "ManualWifiError should be set when the entered endpoint fails to resolve.");
+    }
+
+    [TestMethod]
+    public void ManualWifiError_ClearsWhenManualIpAddressChanges()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.ManualWifiError = "stale validation message";
+
+        viewModel.ManualIpAddress = "192.168.1.50";
+
+        Assert.IsNull(viewModel.ManualWifiError,
+            "Editing the manual IP address should clear any prior validation error.");
     }
 
     [TestMethod]

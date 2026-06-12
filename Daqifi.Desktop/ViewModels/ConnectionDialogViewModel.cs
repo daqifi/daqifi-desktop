@@ -69,7 +69,16 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     public SerialStreamingDevice ManualSerialDevice { get; set; }
 
-    public string ManualIpAddress { get; set; }
+    [ObservableProperty]
+    private string? _manualIpAddress;
+
+    /// <summary>
+    /// User-facing validation message for the Manual WiFi tab. Non-null when the entered
+    /// endpoint failed to resolve or the device did not respond (issue #517).
+    /// Cleared automatically when the user edits <see cref="ManualIpAddress"/>.
+    /// </summary>
+    [ObservableProperty]
+    private string? _manualWifiError;
     #endregion
 
     partial void OnManualPortNameChanged(string? value)
@@ -78,6 +87,15 @@ public partial class ConnectionDialogViewModel : ObservableObject
         if (!string.IsNullOrEmpty(ManualPortError))
         {
             ManualPortError = null;
+        }
+    }
+
+    partial void OnManualIpAddressChanged(string? value)
+    {
+        // Clear stale validation error as soon as the user starts editing the address.
+        if (!string.IsNullOrEmpty(ManualWifiError))
+        {
+            ManualWifiError = null;
         }
     }
 
@@ -293,6 +311,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     private async Task ConnectManualWifiAsync()
     {
+        ManualWifiError = null;
+
         if (string.IsNullOrWhiteSpace(ManualIpAddress)) { return; }
 
         var endpointInput = ManualIpAddress.Trim();
@@ -303,6 +323,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
         catch (ArgumentException ex)
         {
+            ManualWifiError = $"'{endpointInput}' is not a valid IP address or host name.";
             Common.Loggers.AppLogger.Instance.Warning(
                 $"Manual WiFi connection requires a valid IP address or host name. " +
                 $"Received '{ManualIpAddress}': {ex.Message}");
@@ -310,6 +331,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
         catch (SocketException ex)
         {
+            ManualWifiError = $"Could not resolve '{endpointInput}'. Check the address and try again.";
             Common.Loggers.AppLogger.Instance.Warning(
                 $"Failed to resolve manual WiFi endpoint '{ManualIpAddress}': {ex.Message}");
             return;
@@ -324,6 +346,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         if (ipAddress == null)
         {
+            ManualWifiError = $"Could not resolve '{endpointInput}'. Check the address and try again.";
             Common.Loggers.AppLogger.Instance.Warning(
                 $"Manual WiFi endpoint '{ManualIpAddress}' did not resolve to an IP address.");
             return;
@@ -340,6 +363,17 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         var device = new DaqifiStreamingDevice(deviceInfo);
         await ConnectionManager.Instance.Connect(device);
+
+        // Post-connect status check mirrors the manual-serial path: an unreachable device
+        // (connect timeout — issue #517) must keep the dialog open with an inline message
+        // instead of closing silently.
+        if (ConnectionManager.Instance.ConnectionStatus == DAQiFiConnectionStatus.Error)
+        {
+            ManualWifiError =
+                $"Could not connect to '{endpointInput}'. " +
+                "Verify the device is powered on and reachable on this network.";
+            return;
+        }
 
         RaiseCloseRequested();
     }

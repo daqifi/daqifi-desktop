@@ -184,6 +184,7 @@ suffix), also hosted by `MainWindow.xaml`.
 | Discovered / serial device lists | `DiscoveredDeviceList` / `SerialPortList` | `View/ConnectionDialog.xaml` |
 | Connect buttons | `ConnectButton_Wifi` / `ConnectButton_Manual` / `ConnectButton_Serial` | `View/ConnectionDialog.xaml` |
 | **Manual USB** tab + its COM-port field, inline error, and Connect button (issue #524) | `ConnTab_ManualSerial` / `ManualPortInput` / `ManualPortError` / `ConnectButton_ManualSerial` | `View/ConnectionDialog.xaml` |
+| **Manual WiFi** tab's IP field + inline error (issue #517) | `ManualIpInput` / `ManualWifiError` | `View/ConnectionDialog.xaml` |
 | Channel list + “SELECT ALL” (analog) | `ChannelList` / `SelectAllAnalogChannels` | `View/Prototype/ChannelsPanePrototype.xaml` |
 | Channels “CLEAR ALL” (status bar; clears every section) | `ClearAllChannels` | `View/Prototype/ChannelsPanePrototype.xaml` |
 | Logging toggle + status label | `StartLoggingToggle` / `LoggingStatusText` | `View/Prototype/LiveGraphPane.xaml` |
