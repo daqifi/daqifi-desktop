@@ -93,12 +93,14 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         switch (ex)
         {
             case OperationCanceledException:
+            case TimeoutException:
                 // Core's TcpStreamTransport enforces its connection timeout with a
                 // CancellationTokenSource, so an unreachable device (powered off, stale
-                // discovery entry, wrong subnet) surfaces as a TaskCanceledException.
-                // Treat as a user/environmental condition, not an app bug — log a warning
-                // (keeping the exception detail in the local log) instead of capturing to
-                // Sentry (issue #517).
+                // discovery entry, wrong subnet) surfaces as a TaskCanceledException —
+                // or a TimeoutException once daqifi-core#237 translates it. Treat as a
+                // user/environmental condition, not an app bug — log a warning (keeping
+                // the exception detail in the local log) instead of capturing to Sentry
+                // (issue #517).
                 AppLogger.Warning(ex, $"Device at {IpAddress}:{Port} did not respond within the connection timeout");
                 break;
             case SocketException socketEx:
