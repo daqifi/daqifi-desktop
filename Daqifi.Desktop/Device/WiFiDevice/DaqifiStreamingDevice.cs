@@ -1,4 +1,5 @@
-﻿using Daqifi.Core.Communication.Messages;
+﻿using System.Net.Sockets;
+using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
 using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
@@ -89,7 +90,24 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
 
     protected override void LogConnectFailure(Exception ex)
     {
-        AppLogger.Error(ex, $"Problem with connecting to DAQiFi Device at {IpAddress}:{Port}");
+        switch (ex)
+        {
+            case TimeoutException:
+                // Core's TcpStreamTransport surfaces an exhausted connection timeout as a
+                // TimeoutException (daqifi-core#237). An unreachable device (powered off,
+                // stale discovery entry, wrong subnet) is a user/environmental condition,
+                // not an app bug — log a warning (keeping the exception detail in the
+                // local log) instead of capturing to Sentry (issue #517).
+                AppLogger.Warning(ex, $"Device at {IpAddress}:{Port} did not respond within the connection timeout");
+                break;
+            case SocketException socketEx:
+                // Connection refused / host unreachable. Same classification as above.
+                AppLogger.Warning(ex, $"Cannot reach device at {IpAddress}:{Port}: {socketEx.SocketErrorCode}");
+                break;
+            default:
+                AppLogger.Error(ex, $"Problem with connecting to DAQiFi Device at {IpAddress}:{Port}");
+                break;
+        }
     }
 
     /// <summary>

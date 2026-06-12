@@ -20,8 +20,10 @@ It covers seven end-to-end workflows plus a launch smoke test:
 | `ConnectionLifecycleTests.DisconnectThenReconnect_TearsDownCleanly_AndDeviceIsUsableAgain` | Device **disconnect + reconnect lifecycle** (issue #559) in one self-contained pass. Two cycles, each: connect → enable channels → run a brief logging session (start, assert the live plot streams real data, stop, assert a new session row persisted) → **disconnect** via the device drawer's `DisconnectSelectedButton`. After each disconnect it asserts a **clean teardown** through the visible UI alone — the device leaves `ConnectedDeviceList`, its channels disappear from the Channels pane (the pane returns to its empty state, so `ChannelList` leaves the UIA tree — subscriptions torn down), and the logging toggle falls back to **disabled** (`CanToggleLogging` goes false once `ActiveChannels` empties) — plus a black-box negative log check that the app logged no `Failed in Disconnect`. The **second cycle is the payload**: it proves the same device, after a full disconnect, **reconnects and is fully usable again** (channels re-enable; a second session starts, streams, and stops exactly like the first), with no leaked state (un-disposed transport, dangling subscriptions, stale connection status) degrading it. Self-cleans the sessions it created back to baseline. **USB or WiFi.** |
 | `ProfilesTests.SaveActivateDelete_ProfileRoundTrips` / `…CreateProfileViaForm_AppearsAndDeletes` | Full **Profiles** lifecycle. Configure a known state (set a frequency + enable analog channels), **save** it as a profile — once by capturing the live device settings (`SaveCurrentSettingsCommand`) and once via the new-profile form (`SaveNewProfileCommand`) — and assert it appears in the list. Then change the device config to something different (clear channels, set a different frequency), **activate** the saved profile (`ActivateProfileCommand`), and assert the captured **channel + frequency intent is re-applied to the device** — verified through the Channels pane `n / N ACTIVE` ground-truth indicator and the per-device frequency flyout (0 → N active; changed-Hz → captured-Hz). Finally **delete** the profile (`DeleteProfileCommand`) and assert the list returns to its original membership. Each test records the profile count up-front and removes any profile it creates (asserts membership before/after via deltas). A fresh launch never has an active profile (`IsProfileActive` is not persisted to XML), so single-profile activation takes the no-confirm path. **USB or WiFi.** |
 
-Every UI test is tagged `[TestCategory("Ui")]` and `[TestCategory("RequiresDevice")]`
-so it never runs as part of the unit gate.
+Every UI test is tagged `[TestCategory("Ui")]` so it never runs as part of the unit gate.
+Tests that need attached hardware are additionally tagged `[TestCategory("RequiresDevice")]`;
+scenarios that drive the GUI without a device (e.g. `ManualWifiConnectTests`, which connects
+to an unroutable address) carry only `Ui` so device-filtered runs classify them correctly.
 
 ---
 
@@ -184,6 +186,7 @@ suffix), also hosted by `MainWindow.xaml`.
 | Discovered / serial device lists | `DiscoveredDeviceList` / `SerialPortList` | `View/ConnectionDialog.xaml` |
 | Connect buttons | `ConnectButton_Wifi` / `ConnectButton_Manual` / `ConnectButton_Serial` | `View/ConnectionDialog.xaml` |
 | **Manual USB** tab + its COM-port field, inline error, and Connect button (issue #524) | `ConnTab_ManualSerial` / `ManualPortInput` / `ManualPortError` / `ConnectButton_ManualSerial` | `View/ConnectionDialog.xaml` |
+| **Manual WiFi** tab's IP field + inline error (issue #517) | `ManualIpInput` / `ManualWifiError` | `View/ConnectionDialog.xaml` |
 | Channel list + “SELECT ALL” (analog) | `ChannelList` / `SelectAllAnalogChannels` | `View/Prototype/ChannelsPanePrototype.xaml` |
 | Channels “CLEAR ALL” (status bar; clears every section) | `ClearAllChannels` | `View/Prototype/ChannelsPanePrototype.xaml` |
 | Logging toggle + status label | `StartLoggingToggle` / `LoggingStatusText` | `View/Prototype/LiveGraphPane.xaml` |
@@ -441,8 +444,8 @@ why.
 3. **Add a reusable helper** to `DaqifiAppFixture` (e.g. a new `protected` method) and a
    constant for the id, following the existing regions.
 4. **Write the test** in a new `*Tests.cs` class inheriting `DaqifiAppFixture`, tagged
-   `[TestCategory("Ui")]` and `[TestCategory("RequiresDevice")]`. Assert only through visible
-   UI + the NLog log.
+   `[TestCategory("Ui")]` — plus `[TestCategory("RequiresDevice")]` when the scenario needs
+   attached hardware. Assert only through visible UI + the NLog log.
 5. **Use patterns, not clicks** (gotcha #9) and `Retry`/`WaitUntil*`, never fixed sleeps.
 6. **Run with a device attached** and verify green before committing. Conventional commits
    (`test(ui): …`, and `fix(...)` for any app fix the harness surfaces).

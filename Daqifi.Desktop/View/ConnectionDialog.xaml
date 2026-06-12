@@ -302,11 +302,17 @@
                         <TextBlock Text="IP ADDRESS" Style="{StaticResource FieldLabel}"/>
                         <Border Style="{StaticResource DarkTextField}">
                             <TextBox Text="{Binding ManualIpAddress, UpdateSourceTrigger=PropertyChanged}"
+                                     AutomationProperties.AutomationId="ManualIpInput"
                                      Style="{StaticResource DarkTextBox}"/>
                         </Border>
                         <TextBlock Text="Enter the IP address or hostname of the DAQiFi device."
                                    FontSize="10" Foreground="{StaticResource TextTertiary}"
                                    Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding ManualWifiError}"
+                                   AutomationProperties.AutomationId="ManualWifiError"
+                                   FontSize="11" Foreground="{StaticResource StatusRed}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding ManualWifiError, Converter={StaticResource NotNullToVis}}"/>
                     </StackPanel>
 
                     <Border Grid.Row="1"

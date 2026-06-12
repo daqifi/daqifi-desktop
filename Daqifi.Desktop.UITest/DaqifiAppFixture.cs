@@ -669,6 +669,88 @@ public abstract class DaqifiAppFixture
     }
     #endregion
 
+    #region Manual-WiFi Connect Helpers (issue #517)
+    // The connection dialog's Manual WiFi tab: type an IP address by hand and connect. Mirrors the
+    // Manual-Serial helpers above for the WiFi twin of that fix — an unreachable device (TCP connect
+    // timeout) must surface an inline error and keep the dialog open instead of silently closing
+    // and capturing a Sentry error.
+    private const string CONN_TAB_MANUAL_WIFI_ID = "ConnTab_Manual";
+    private const string MANUAL_IP_INPUT_ID = "ManualIpInput";
+    private const string MANUAL_WIFI_ERROR_ID = "ManualWifiError";
+    private const string CONNECT_BUTTON_MANUAL_WIFI_ID = "ConnectButton_Manual";
+
+    /// <summary>
+    /// Navigates to Devices, opens the connection dialog, and selects the Manual WiFi tab. Returns
+    /// the modal dialog window so callers can scope their element lookups to it.
+    /// </summary>
+    protected Window OpenManualWifiTab()
+    {
+        NavigateToTab(DEVICES_TAB_TEXT);
+        OpenConnectionDialog();
+        var dialog = WaitForConnectionDialog();
+
+        var tab = Retry.WhileNull(
+            () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(CONN_TAB_MANUAL_WIFI_ID)),
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "Manual WiFi tab not found in the connection dialog.").Result!;
+        tab.AsTabItem().Select();
+
+        // The IP ADDRESS field is realized only once the tab's content is selected/visible.
+        Retry.WhileNull(
+            () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(MANUAL_IP_INPUT_ID)),
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "IP ADDRESS input did not appear after selecting the Manual WiFi tab.");
+
+        return dialog;
+    }
+
+    /// <summary>Types <paramref name="ipAddress"/> into the Manual WiFi tab's IP ADDRESS field via the ValuePattern.</summary>
+    protected void SetManualIpAddress(Window dialog, string ipAddress)
+    {
+        var input = Retry.WhileNull(
+            () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(MANUAL_IP_INPUT_ID)),
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "IP ADDRESS input not found on the Manual WiFi tab.").Result!;
+        input.Patterns.Value.Pattern.SetValue(ipAddress);
+    }
+
+    /// <summary>Invokes the Manual WiFi tab's Connect button (runs <c>ConnectManualWifiCommand</c>).</summary>
+    protected void InvokeManualWifiConnect(Window dialog)
+    {
+        var button = Retry.WhileNull(
+            () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(CONNECT_BUTTON_MANUAL_WIFI_ID)),
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: "Connect button not found on the Manual WiFi tab.").Result!;
+        var b = button.AsButton();
+        b.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+        b.Invoke();
+    }
+
+    /// <summary>
+    /// Reads the Manual WiFi tab's inline validation message (<c>ManualWifiError</c>), or null when
+    /// none is shown. The TextBlock's Visibility binds through NotNullToVis, so a null/empty error
+    /// collapses it out of the UIA tree (absent == no error); when shown, a TextBlock surfaces its
+    /// text as its UIA Name.
+    /// </summary>
+    protected string? ReadManualWifiError(Window dialog)
+    {
+        var error = dialog.FindFirstDescendant(cf => cf.ByAutomationId(MANUAL_WIFI_ERROR_ID));
+        return string.IsNullOrEmpty(error?.Name) ? null : error!.Name;
+    }
+    #endregion
+
     #region Disconnect / Reconnect Lifecycle Helpers
     /// <summary>
     /// Disconnects the currently connected device through the real UI: opens its settings drawer

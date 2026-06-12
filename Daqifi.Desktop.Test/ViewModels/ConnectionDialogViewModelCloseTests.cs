@@ -103,6 +103,9 @@ public class ConnectionDialogViewModelCloseTests
             "Editing the manual port name should clear any prior validation error.");
     }
 
+    /// <summary>
+    /// Blank manual-WiFi input is a no-op: no close, and no validation error surfaced.
+    /// </summary>
     [TestMethod]
     public async Task ConnectManualWifiCommand_WithBlankAddress_DoesNotRaiseCloseRequested()
     {
@@ -113,10 +116,16 @@ public class ConnectionDialogViewModelCloseTests
         await viewModel.ConnectManualWifiCommand.ExecuteAsync(null);
 
         Assert.IsFalse(closeRaised(), "CloseRequested should not fire when the manual IP is blank.");
+        Assert.IsNull(viewModel.ManualWifiError,
+            "Blank input should not surface a validation error message.");
     }
 
+    /// <summary>
+    /// An endpoint that fails to resolve must keep the dialog open and surface the
+    /// inline <c>ManualWifiError</c> message (issue #517).
+    /// </summary>
     [TestMethod]
-    public async Task ConnectManualWifiCommand_WithInvalidAddress_DoesNotRaiseCloseRequested()
+    public async Task ConnectManualWifiCommand_WithInvalidAddress_SetsManualWifiError()
     {
         var viewModel = CreateViewModel();
         viewModel.ManualIpAddress = "not a valid hostname or ip !@#";
@@ -125,6 +134,24 @@ public class ConnectionDialogViewModelCloseTests
         await viewModel.ConnectManualWifiCommand.ExecuteAsync(null);
 
         Assert.IsFalse(closeRaised(), "CloseRequested should not fire when the manual endpoint fails to resolve.");
+        Assert.IsNotNull(viewModel.ManualWifiError,
+            "ManualWifiError should be set when the entered endpoint fails to resolve.");
+    }
+
+    /// <summary>
+    /// Editing the manual IP address clears a stale validation error
+    /// (the <c>OnManualIpAddressChanged</c> clear-on-edit behavior).
+    /// </summary>
+    [TestMethod]
+    public void ManualWifiError_ClearsWhenManualIpAddressChanges()
+    {
+        var viewModel = CreateViewModel();
+        viewModel.ManualWifiError = "stale validation message";
+
+        viewModel.ManualIpAddress = "192.168.1.50";
+
+        Assert.IsNull(viewModel.ManualWifiError,
+            "Editing the manual IP address should clear any prior validation error.");
     }
 
     [TestMethod]
