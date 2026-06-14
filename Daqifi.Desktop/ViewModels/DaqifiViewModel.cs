@@ -1006,7 +1006,9 @@ public partial class DaqifiViewModel : ObservableObject
         };
 
         return new FirmwareUpdateService(
-            new HidLibraryTransport(),
+            // Keep firmware HID transports uniformly configured even though the WiFi flow flashes
+            // via the external WINC tool rather than the HID loop (issue #575).
+            FirmwareUpdateServiceConfig.CreateBootloaderHidTransport(),
             _firmwareDownloadService,
             new WifiPromptDelayProcessRunner(
                 new ProcessExternalProcessRunner(),
@@ -1120,10 +1122,11 @@ public partial class DaqifiViewModel : ObservableObject
         ILogger<FirmwareUpdateService> logger)
     {
         return new FirmwareUpdateService(
-            new HidLibraryTransport(),
+            FirmwareUpdateServiceConfig.CreateBootloaderHidTransport(),
             firmwareDownloadService,
             new ProcessExternalProcessRunner(),
-            logger);
+            logger,
+            options: FirmwareUpdateServiceConfig.CreateOptions());
     }
 
     #endregion
