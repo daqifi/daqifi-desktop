@@ -6,7 +6,7 @@
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="System.IO.Ports" Version="10.0.8" />
+		<PackageReference Include="System.IO.Ports" Version="10.0.9" />
 		<PackageReference Include="Daqifi.Core" Version="0.23.0" />
 		<PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
 			<PrivateAssets>all</PrivateAssets>
