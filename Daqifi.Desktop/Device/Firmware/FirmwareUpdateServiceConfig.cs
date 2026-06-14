@@ -37,6 +37,7 @@ public static class FirmwareUpdateServiceConfig
     /// <summary>
     /// Creates a HID transport configured with <see cref="BootloaderHidTimeout"/> for both reads and writes.
     /// </summary>
+    /// <returns>A <see cref="HidLibraryTransport"/> whose read and write timeouts are set to <see cref="BootloaderHidTimeout"/>.</returns>
     public static HidLibraryTransport CreateBootloaderHidTransport()
     {
         return new HidLibraryTransport
@@ -49,6 +50,10 @@ public static class FirmwareUpdateServiceConfig
     /// <summary>
     /// Creates the firmware update options for PIC32 updates with the widened bootloader response timeout.
     /// </summary>
+    /// <returns>
+    /// A <see cref="FirmwareUpdateServiceOptions"/> with <see cref="FirmwareUpdateServiceOptions.BootloaderResponseTimeout"/>
+    /// set to <see cref="BootloaderHidTimeout"/>; all other options retain their Core defaults.
+    /// </returns>
     public static FirmwareUpdateServiceOptions CreateOptions()
     {
         return new FirmwareUpdateServiceOptions

@@ -1,3 +1,4 @@
+using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Device.Firmware;
 
 namespace Daqifi.Desktop.Test.Device.Firmware;
@@ -44,11 +45,15 @@ public class FirmwareUpdateServiceConfigTests
     [TestMethod]
     public void CreateOptions_LeavesProgrammingTimeoutAtCoreDefault()
     {
-        // Act - the overall programming-phase budget should remain the Core default (10 min);
-        // only the per-operation HID window is widened.
+        // Arrange - compare against a fresh Core default rather than a hard-coded value so this
+        // stays green if Core changes its default; the intent is "desktop config does not override
+        // ProgrammingTimeout", not "ProgrammingTimeout is exactly 10 min".
+        var coreDefault = new FirmwareUpdateServiceOptions().ProgrammingTimeout;
+
+        // Act - only the per-operation HID window is widened, not the overall programming budget.
         var options = FirmwareUpdateServiceConfig.CreateOptions();
 
         // Assert
-        Assert.AreEqual(TimeSpan.FromMinutes(10), options.ProgrammingTimeout);
+        Assert.AreEqual(coreDefault, options.ProgrammingTimeout);
     }
 }

@@ -1005,9 +1005,24 @@ public partial class DaqifiViewModel : ObservableObject
             }
         };
 
+        // Start from the shared firmware config so the bootloader HID timeouts stay aligned with
+        // the transport (keeps read and write windows symmetric), then layer on WiFi-specific
+        // settings. The WiFi flow flashes via the external WINC tool rather than the HID loop, so
+        // the bootloader timeout is inert here, but starting from CreateOptions() keeps every
+        // construction site uniform (issue #575).
+        var wifiOptions = FirmwareUpdateServiceConfig.CreateOptions();
+        // winc_flash_tool.cmd requires an explicit release version folder.
+        // Keep legacy argument profile used by shipped WINC tool bundle.
+        wifiOptions.WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /k /e /i aio /w";
+        wifiOptions.WifiPortOverride = portName;
+        // After sending FWUpdate (flag-only, no APPLY), disconnect quickly so the
+        // COM port is free for the bridge activation raw write at the "Power cycle
+        // WINC" prompt.  The FWUpdate flag persists in firmware RAM until APPLY fires.
+        wifiOptions.PostLanFirmwareModeDelay = TimeSpan.FromMilliseconds(100);
+        // Give Windows a little more time to re-enumerate the UART before reconnect attempts.
+        wifiOptions.PostWifiReconnectDelay = TimeSpan.FromSeconds(3);
+
         return new FirmwareUpdateService(
-            // Keep firmware HID transports uniformly configured even though the WiFi flow flashes
-            // via the external WINC tool rather than the HID loop (issue #575).
             FirmwareUpdateServiceConfig.CreateBootloaderHidTransport(),
             _firmwareDownloadService,
             new WifiPromptDelayProcessRunner(
@@ -1015,19 +1030,7 @@ public partial class DaqifiViewModel : ObservableObject
                 promptResponseDelay: TimeSpan.FromSeconds(2),
                 bridgeActivationAction: bridgeActivationAction),
             firmwareLogger,
-            options: new FirmwareUpdateServiceOptions
-            {
-                // winc_flash_tool.cmd requires an explicit release version folder.
-                // Keep legacy argument profile used by shipped WINC tool bundle.
-                WifiFlashToolArgumentsTemplate = $"/p {{port}} /d WINC1500 /v {wifiVersion} /k /e /i aio /w",
-                WifiPortOverride = portName,
-                // After sending FWUpdate (flag-only, no APPLY), disconnect quickly so the
-                // COM port is free for the bridge activation raw write at the "Power cycle
-                // WINC" prompt.  The FWUpdate flag persists in firmware RAM until APPLY fires.
-                PostLanFirmwareModeDelay = TimeSpan.FromMilliseconds(100),
-                // Give Windows a little more time to re-enumerate the UART before reconnect attempts.
-                PostWifiReconnectDelay = TimeSpan.FromSeconds(3)
-            });
+            options: wifiOptions);
     }
 
     private static string NormalizeWifiFirmwareVersion(string rawVersion)
