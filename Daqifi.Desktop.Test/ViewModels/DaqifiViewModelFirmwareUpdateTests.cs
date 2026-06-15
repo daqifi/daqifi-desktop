@@ -212,6 +212,237 @@ public class DaqifiViewModelFirmwareUpdateTests
     }
 
     [TestMethod]
+    public async Task UploadFirmware_RunTwiceInSession_UpdatesWifiOnEachRun()
+    {
+        // Regression test for issue #599. The auto-update path used to write the downloaded
+        // package path into the bound FirmwareFilePath property. Because the manual-vs-auto
+        // decision is derived from FirmwareFilePath being non-empty, the SECOND in-session
+        // update was misclassified as a manual upload and silently skipped the WiFi-module
+        // flash (only an app restart restored correct behavior). Each auto-update run must
+        // download firmware and flash the WiFi module independently, and FirmwareFilePath must
+        // stay empty so subsequent runs remain auto-updates.
+        var dialogService = new Mock<IDialogService>();
+        var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
+
+        using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
+        coreDevice.Connect();
+
+        var serialDevice = CreateSerialDeviceWithCoreDevice("COM9", coreDevice);
+        var pic32FirmwarePath = CreateTempFile(".hex");
+        var wifiPackageDirectory = CreateTempDirectory();
+        var wifiFactoryCalls = 0;
+
+        pic32FirmwareUpdateService
+            .Setup(service => service.UpdateFirmwareAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                pic32FirmwarePath,
+                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        pic32FirmwareUpdateService
+            .Setup(service => service.CheckWifiFirmwareStatusAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateWifiStatus(WifiFirmwareStatusReason.UpdateAvailable, "19.3.0", "v19.7.0"));
+
+        wifiFirmwareUpdateService
+            .Setup(service => service.UpdateWifiModuleAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                wifiPackageDirectory,
+                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<bool>()))
+            .Returns(Task.CompletedTask);
+
+        firmwareDownloadService
+            .Setup(service => service.DownloadLatestFirmwareAsync(
+                It.IsAny<string>(),
+                true,
+                It.IsAny<IProgress<int>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pic32FirmwarePath);
+
+        firmwareDownloadService
+            .Setup(service => service.DownloadWifiFirmwareAsync(
+                It.IsAny<string>(),
+                It.IsAny<IProgress<int>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((wifiPackageDirectory, "v19.7.0"));
+
+        var viewModel = new DaqifiViewModel(
+            dialogService.Object,
+            pic32FirmwareUpdateService.Object,
+            firmwareDownloadService.Object,
+            NullLogger<FirmwareUpdateService>.Instance,
+            (_, _) =>
+            {
+                wifiFactoryCalls++;
+                return wifiFirmwareUpdateService.Object;
+            })
+        {
+            SelectedDevice = serialDevice
+        };
+
+        // First in-session update.
+        await InvokeUploadFirmwareAsync(viewModel);
+        Assert.IsTrue(viewModel.IsUploadComplete);
+        Assert.IsFalse(viewModel.HasErrorOccured);
+        Assert.IsTrue(
+            string.IsNullOrWhiteSpace(viewModel.FirmwareFilePath),
+            "Auto-update must not populate FirmwareFilePath; doing so reclassifies the next run as a manual upload.");
+
+        // Second in-session update WITHOUT restarting the app.
+        await InvokeUploadFirmwareAsync(viewModel);
+        Assert.IsTrue(viewModel.IsUploadComplete);
+        Assert.IsFalse(viewModel.HasErrorOccured);
+        Assert.IsTrue(
+            string.IsNullOrWhiteSpace(viewModel.FirmwareFilePath),
+            "Auto-update must not populate FirmwareFilePath; doing so reclassifies the next run as a manual upload.");
+
+        // The WiFi module must be flashed on BOTH runs, not just the first.
+        Assert.AreEqual(2, wifiFactoryCalls);
+        // The main (PIC32) firmware flash is not gated by the auto/manual classification, so it
+        // must run on both passes; counting it guards against a future regression that gates it.
+        pic32FirmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
+            It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+            pic32FirmwarePath,
+            It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+        firmwareDownloadService.Verify(service => service.DownloadLatestFirmwareAsync(
+            It.IsAny<string>(),
+            true,
+            It.IsAny<IProgress<int>>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+        pic32FirmwareUpdateService.Verify(service => service.CheckWifiFirmwareStatusAsync(
+            It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+        wifiFirmwareUpdateService.Verify(service => service.UpdateWifiModuleAsync(
+            It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+            wifiPackageDirectory,
+            It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+            It.IsAny<CancellationToken>(),
+            true), Times.Exactly(2));
+    }
+
+    [TestMethod]
+    public async Task UploadFirmware_ManualThenAuto_FlashesWifiOnAutoRun()
+    {
+        // Regression test for the symmetric case of issue #599. A manual .hex upload is
+        // intentionally PIC32-only (no WiFi), and the auto/manual decision is derived from
+        // FirmwareFilePath being non-empty. If a manual selection persisted across runs, the
+        // NEXT (intended auto) update would be misclassified as manual and silently skip the
+        // WiFi-module flash until the app restart. UploadFirmware must consume the manual
+        // selection so a subsequent run defaults to a full auto-update.
+        var dialogService = new Mock<IDialogService>();
+        var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
+
+        using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
+        coreDevice.Connect();
+
+        var serialDevice = CreateSerialDeviceWithCoreDevice("COM9", coreDevice);
+        var manualFirmwarePath = CreateTempFile(".hex");
+        var downloadedFirmwarePath = CreateTempFile(".hex");
+        var wifiPackageDirectory = CreateTempDirectory();
+        var wifiFactoryCalls = 0;
+
+        pic32FirmwareUpdateService
+            .Setup(service => service.UpdateFirmwareAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                It.IsAny<string>(),
+                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        pic32FirmwareUpdateService
+            .Setup(service => service.CheckWifiFirmwareStatusAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateWifiStatus(WifiFirmwareStatusReason.UpdateAvailable, "19.3.0", "v19.7.0"));
+
+        wifiFirmwareUpdateService
+            .Setup(service => service.UpdateWifiModuleAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                wifiPackageDirectory,
+                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+                It.IsAny<CancellationToken>(),
+                It.IsAny<bool>()))
+            .Returns(Task.CompletedTask);
+
+        firmwareDownloadService
+            .Setup(service => service.DownloadLatestFirmwareAsync(
+                It.IsAny<string>(),
+                true,
+                It.IsAny<IProgress<int>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(downloadedFirmwarePath);
+
+        firmwareDownloadService
+            .Setup(service => service.DownloadWifiFirmwareAsync(
+                It.IsAny<string>(),
+                It.IsAny<IProgress<int>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((wifiPackageDirectory, "v19.7.0"));
+
+        var viewModel = new DaqifiViewModel(
+            dialogService.Object,
+            pic32FirmwareUpdateService.Object,
+            firmwareDownloadService.Object,
+            NullLogger<FirmwareUpdateService>.Instance,
+            (_, _) =>
+            {
+                wifiFactoryCalls++;
+                return wifiFirmwareUpdateService.Object;
+            })
+        {
+            SelectedDevice = serialDevice,
+            FirmwareFilePath = manualFirmwarePath
+        };
+
+        // First run: manual upload (PIC32 only, no WiFi, no download).
+        await InvokeUploadFirmwareAsync(viewModel);
+        Assert.IsTrue(viewModel.IsUploadComplete);
+        Assert.IsFalse(viewModel.HasErrorOccured);
+        Assert.AreEqual(0, wifiFactoryCalls);
+        Assert.IsTrue(
+            string.IsNullOrWhiteSpace(viewModel.FirmwareFilePath),
+            "A manual upload must be consumed so the next run is not silently trapped in manual mode.");
+
+        // Second run WITHOUT restarting the app and without re-selecting a file: must be a full
+        // auto-update that downloads firmware and flashes the WiFi module.
+        await InvokeUploadFirmwareAsync(viewModel);
+        Assert.IsTrue(viewModel.IsUploadComplete);
+        Assert.IsFalse(viewModel.HasErrorOccured);
+        Assert.AreEqual(1, wifiFactoryCalls);
+
+        pic32FirmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
+            It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+            manualFirmwarePath,
+            It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        firmwareDownloadService.Verify(service => service.DownloadLatestFirmwareAsync(
+            It.IsAny<string>(),
+            true,
+            It.IsAny<IProgress<int>>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        pic32FirmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
+            It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+            downloadedFirmwarePath,
+            It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        wifiFirmwareUpdateService.Verify(service => service.UpdateWifiModuleAsync(
+            It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+            wifiPackageDirectory,
+            It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+            It.IsAny<CancellationToken>(),
+            true), Times.Once);
+    }
+
+    [TestMethod]
     public async Task UploadFirmware_WifiFirmwareUpToDate_SkipsWifiFlash()
     {
         var dialogService = new Mock<IDialogService>();
