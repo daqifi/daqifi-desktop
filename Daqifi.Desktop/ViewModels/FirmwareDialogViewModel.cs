@@ -1,4 +1,3 @@
-using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device.Firmware;
@@ -148,9 +147,10 @@ public partial class FirmwareDialogViewModel : ObservableObject
     {
         var downloadService = new GitHubFirmwareDownloadService(new HttpClient());
         return new FirmwareUpdateService(
-            new HidLibraryTransport(),
+            FirmwareUpdateServiceConfig.CreateBootloaderHidTransport(),
             downloadService,
             new ProcessExternalProcessRunner(),
-            NullLogger<FirmwareUpdateService>.Instance);
+            NullLogger<FirmwareUpdateService>.Instance,
+            options: FirmwareUpdateServiceConfig.CreateOptions());
     }
 }

@@ -3,6 +3,7 @@ using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Configuration;
+using Daqifi.Desktop.Device.Firmware;
 using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Services;
 using Daqifi.Desktop.Logger;
@@ -11,6 +12,7 @@ using Daqifi.Desktop.WindowViewModelMapping;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
@@ -90,9 +92,16 @@ public partial class App
             var httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
             return new GitHubFirmwareDownloadService(httpClientFactory.CreateClient());
         });
-        serviceCollection.AddSingleton<IHidTransport, HidLibraryTransport>();
+        // Widen the bootloader HID timeouts past Core's 10 s defaults so a long late flash op
+        // doesn't trip the PIC32 update; see FirmwareUpdateServiceConfig / issue #575.
+        serviceCollection.AddSingleton<IHidTransport>(_ => FirmwareUpdateServiceConfig.CreateBootloaderHidTransport());
         serviceCollection.AddSingleton<IExternalProcessRunner, ProcessExternalProcessRunner>();
-        serviceCollection.AddSingleton<IFirmwareUpdateService, FirmwareUpdateService>();
+        serviceCollection.AddSingleton<IFirmwareUpdateService>(provider => new FirmwareUpdateService(
+            provider.GetRequiredService<IHidTransport>(),
+            provider.GetRequiredService<IFirmwareDownloadService>(),
+            provider.GetRequiredService<IExternalProcessRunner>(),
+            provider.GetRequiredService<ILogger<FirmwareUpdateService>>(),
+            options: FirmwareUpdateServiceConfig.CreateOptions()));
 
         serviceCollection.AddSingleton<LoggingManager>();
         ServiceLocator.RegisterSingleton<IDialogService, DialogService.DialogService>();
