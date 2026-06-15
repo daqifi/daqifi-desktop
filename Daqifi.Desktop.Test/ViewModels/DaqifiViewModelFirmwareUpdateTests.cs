@@ -1,16 +1,25 @@
+using System.Collections.ObjectModel;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Producers;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
 using Daqifi.Core.Firmware;
+using Daqifi.Desktop.Device.Firmware;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.DialogService;
-using Daqifi.Desktop.ViewModels;
+using Daqifi.Desktop.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace Daqifi.Desktop.Test.ViewModels;
 
+/// <summary>
+/// Behavior contract for <see cref="FirmwareUpdateCoordinator"/>. These tests originally drove the
+/// firmware flow through <c>DaqifiViewModel</c>; after the coordinator extraction (issue #592) they
+/// target the coordinator directly through a lightweight <see cref="FakeFirmwareUpdateHost"/>, with
+/// no WPF dependency. The asserted behavior (PIC32/WiFi flash sequencing, the auto-vs-manual rule,
+/// the WiFi version-check verdicts, and progress/status state) is unchanged.
+/// </summary>
 [TestClass]
 public class DaqifiViewModelFirmwareUpdateTests
 {
@@ -63,7 +72,14 @@ public class DaqifiViewModelFirmwareUpdateTests
                 (device, _, _, _) => pic32Device = device)
             .Returns(Task.CompletedTask);
 
-        var viewModel = new DaqifiViewModel(
+        var host = new FakeFirmwareUpdateHost
+        {
+            SelectedDevice = serialDevice,
+            FirmwareFilePath = firmwareFilePath
+        };
+
+        var coordinator = new FirmwareUpdateCoordinator(
+            host,
             dialogService.Object,
             firmwareUpdateService.Object,
             firmwareDownloadService.Object,
@@ -72,18 +88,14 @@ public class DaqifiViewModelFirmwareUpdateTests
             {
                 wifiFactoryCalls++;
                 return Mock.Of<IFirmwareUpdateService>();
-            })
-        {
-            SelectedDevice = serialDevice,
-            FirmwareFilePath = firmwareFilePath
-        };
+            });
 
-        await InvokeUploadFirmwareAsync(viewModel);
+        await coordinator.UploadFirmwareAsync();
 
         Assert.AreSame(coreDevice, pic32Device);
         Assert.AreEqual(0, wifiFactoryCalls);
-        Assert.IsTrue(viewModel.IsUploadComplete);
-        Assert.IsFalse(viewModel.HasErrorOccured);
+        Assert.IsTrue(host.IsUploadComplete);
+        Assert.IsFalse(host.HasErrorOccured);
 
         firmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
@@ -162,7 +174,13 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((wifiPackageDirectory, "v19.7.0"));
 
-        var viewModel = new DaqifiViewModel(
+        var host = new FakeFirmwareUpdateHost
+        {
+            SelectedDevice = serialDevice
+        };
+
+        var coordinator = new FirmwareUpdateCoordinator(
+            host,
             dialogService.Object,
             pic32FirmwareUpdateService.Object,
             firmwareDownloadService.Object,
@@ -172,19 +190,16 @@ public class DaqifiViewModelFirmwareUpdateTests
                 wifiVersion = version;
                 wifiPort = port;
                 return wifiFirmwareUpdateService.Object;
-            })
-        {
-            SelectedDevice = serialDevice
-        };
+            });
 
-        await InvokeUploadFirmwareAsync(viewModel);
+        await coordinator.UploadFirmwareAsync();
 
         Assert.AreSame(coreDevice, pic32Device);
         Assert.AreSame(coreDevice, wifiDevice);
         Assert.AreEqual("19.7.0", wifiVersion);
         Assert.AreEqual("COM9", wifiPort);
-        Assert.IsTrue(viewModel.IsUploadComplete);
-        Assert.IsFalse(viewModel.HasErrorOccured);
+        Assert.IsTrue(host.IsUploadComplete);
+        Assert.IsFalse(host.HasErrorOccured);
 
         AssertCommandSent(coreDevice, ScpiMessageProducer.TurnDeviceOn);
         AssertCommandSent(coreDevice, ScpiMessageProducer.SetLanFirmwareUpdateMode);
@@ -274,7 +289,13 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((wifiPackageDirectory, "v19.7.0"));
 
-        var viewModel = new DaqifiViewModel(
+        var host = new FakeFirmwareUpdateHost
+        {
+            SelectedDevice = serialDevice
+        };
+
+        var coordinator = new FirmwareUpdateCoordinator(
+            host,
             dialogService.Object,
             pic32FirmwareUpdateService.Object,
             firmwareDownloadService.Object,
@@ -283,22 +304,19 @@ public class DaqifiViewModelFirmwareUpdateTests
             {
                 wifiFactoryCalls++;
                 return wifiFirmwareUpdateService.Object;
-            })
-        {
-            SelectedDevice = serialDevice
-        };
+            });
 
         // Act: two consecutive in-session auto-updates with no app restart between them.
-        await InvokeUploadFirmwareAsync(viewModel);
-        await InvokeUploadFirmwareAsync(viewModel);
+        await coordinator.UploadFirmwareAsync();
+        await coordinator.UploadFirmwareAsync();
 
         // Assert: each run performed a full auto-update and the bound path was never populated.
         // (The per-run state is proven by the Times.Exactly(2) counts below: had run 1 left
         // FirmwareFilePath set, run 2 would be classified manual and these would be Times.Once.)
-        Assert.IsTrue(viewModel.IsUploadComplete);
-        Assert.IsFalse(viewModel.HasErrorOccured);
+        Assert.IsTrue(host.IsUploadComplete);
+        Assert.IsFalse(host.HasErrorOccured);
         Assert.IsTrue(
-            string.IsNullOrWhiteSpace(viewModel.FirmwareFilePath),
+            string.IsNullOrWhiteSpace(host.FirmwareFilePath),
             "Auto-update must not populate FirmwareFilePath; doing so reclassifies the next run as a manual upload.");
         // The WiFi module must be flashed on BOTH runs, not just the first.
         Assert.AreEqual(2, wifiFactoryCalls);
@@ -388,7 +406,14 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((wifiPackageDirectory, "v19.7.0"));
 
-        var viewModel = new DaqifiViewModel(
+        var host = new FakeFirmwareUpdateHost
+        {
+            SelectedDevice = serialDevice,
+            FirmwareFilePath = manualFirmwarePath
+        };
+
+        var coordinator = new FirmwareUpdateCoordinator(
+            host,
             dialogService.Object,
             pic32FirmwareUpdateService.Object,
             firmwareDownloadService.Object,
@@ -397,28 +422,24 @@ public class DaqifiViewModelFirmwareUpdateTests
             {
                 wifiFactoryCalls++;
                 return wifiFirmwareUpdateService.Object;
-            })
-        {
-            SelectedDevice = serialDevice,
-            FirmwareFilePath = manualFirmwarePath
-        };
+            });
 
         // Arrange (cont.): drive a manual upload so the session is left in the post-manual state.
         // A manual upload is PIC32-only and must consume the selection; these guards confirm the
         // precondition the Act below depends on.
-        await InvokeUploadFirmwareAsync(viewModel);
+        await coordinator.UploadFirmwareAsync();
         Assert.AreEqual(0, wifiFactoryCalls, "A manual upload must not flash the WiFi module.");
         Assert.IsTrue(
-            string.IsNullOrWhiteSpace(viewModel.FirmwareFilePath),
+            string.IsNullOrWhiteSpace(host.FirmwareFilePath),
             "A manual upload must be consumed so the next run is not silently trapped in manual mode.");
 
         // Act: the next in-session update, without restarting the app and without re-selecting a
         // file. With the selection consumed it must default to a full auto-update.
-        await InvokeUploadFirmwareAsync(viewModel);
+        await coordinator.UploadFirmwareAsync();
 
         // Assert: the second run downloaded firmware and flashed the WiFi module.
-        Assert.IsTrue(viewModel.IsUploadComplete);
-        Assert.IsFalse(viewModel.HasErrorOccured);
+        Assert.IsTrue(host.IsUploadComplete);
+        Assert.IsFalse(host.HasErrorOccured);
         Assert.AreEqual(1, wifiFactoryCalls);
 
         pic32FirmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
@@ -480,7 +501,13 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(pic32FirmwarePath);
 
-        var viewModel = new DaqifiViewModel(
+        var host = new FakeFirmwareUpdateHost
+        {
+            SelectedDevice = serialDevice
+        };
+
+        var coordinator = new FirmwareUpdateCoordinator(
+            host,
             dialogService.Object,
             pic32FirmwareUpdateService.Object,
             firmwareDownloadService.Object,
@@ -489,18 +516,15 @@ public class DaqifiViewModelFirmwareUpdateTests
             {
                 wifiFactoryCalls++;
                 return Mock.Of<IFirmwareUpdateService>();
-            })
-        {
-            SelectedDevice = serialDevice
-        };
+            });
 
-        await InvokeUploadFirmwareAsync(viewModel);
+        await coordinator.UploadFirmwareAsync();
 
         Assert.AreEqual(0, wifiFactoryCalls);
-        Assert.IsTrue(viewModel.IsUploadComplete);
-        Assert.IsFalse(viewModel.HasErrorOccured);
-        Assert.AreEqual(100, viewModel.UploadWiFiProgress);
-        Assert.AreEqual("WiFi firmware already up to date (19.7.0).", viewModel.FirmwareUpdateStatusText);
+        Assert.IsTrue(host.IsUploadComplete);
+        Assert.IsFalse(host.HasErrorOccured);
+        Assert.AreEqual(100, host.UploadWiFiProgress);
+        Assert.AreEqual("WiFi firmware already up to date (19.7.0).", host.FirmwareUpdateStatusText);
 
         firmwareDownloadService.Verify(service => service.DownloadWifiFirmwareAsync(
             It.IsAny<string>(),
@@ -593,32 +617,26 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((wifiPackageDirectory, "v19.7.0"));
 
-        var viewModel = new DaqifiViewModel(
-            dialogService.Object,
-            pic32FirmwareUpdateService.Object,
-            firmwareDownloadService.Object,
-            NullLogger<FirmwareUpdateService>.Instance,
-            (_, _) => wifiFirmwareUpdateService.Object)
+        var host = new FakeFirmwareUpdateHost
         {
             SelectedDevice = serialDevice
         };
 
-        var statusTextHistory = new List<string>();
-        viewModel.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName == nameof(DaqifiViewModel.FirmwareUpdateStatusText))
-            {
-                statusTextHistory.Add(viewModel.FirmwareUpdateStatusText);
-            }
-        };
+        var coordinator = new FirmwareUpdateCoordinator(
+            host,
+            dialogService.Object,
+            pic32FirmwareUpdateService.Object,
+            firmwareDownloadService.Object,
+            NullLogger<FirmwareUpdateService>.Instance,
+            (_, _) => wifiFirmwareUpdateService.Object);
 
-        await InvokeUploadFirmwareAsync(viewModel);
+        await coordinator.UploadFirmwareAsync();
 
-        Assert.IsTrue(viewModel.IsUploadComplete);
-        Assert.IsFalse(viewModel.HasErrorOccured);
+        Assert.IsTrue(host.IsUploadComplete);
+        Assert.IsFalse(host.HasErrorOccured);
         Assert.AreEqual(
             expectsUnavailableStatusText,
-            statusTextHistory.Contains("WiFi firmware version unavailable; continuing with update."));
+            host.StatusTextHistory.Contains("WiFi firmware version unavailable; continuing with update."));
 
         wifiFirmwareUpdateService.Verify(service => service.UpdateWifiModuleAsync(
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
@@ -626,6 +644,119 @@ public class DaqifiViewModelFirmwareUpdateTests
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
             It.IsAny<CancellationToken>(),
             true), Times.Once);
+    }
+
+    [TestMethod]
+    public async Task RefreshFirmwareUpdates_NoConnectedDevices_DoesNotQueryReleases()
+    {
+        var dialogService = new Mock<IDialogService>();
+        var firmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
+
+        var host = new FakeFirmwareUpdateHost();
+        var coordinator = CreateVersionCheckCoordinator(host, dialogService, firmwareUpdateService, firmwareDownloadService);
+
+        await coordinator.RefreshFirmwareUpdatesAsync();
+
+        Assert.AreEqual(string.Empty, coordinator.LatestFirmwareVersion);
+        firmwareDownloadService.Verify(service => service.GetLatestReleaseAsync(
+            It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task RefreshFirmwareUpdates_OutdatedDevice_FlagsDeviceAndAddsNotification()
+    {
+        var dialogService = new Mock<IDialogService>();
+        var firmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
+
+        var latestRelease = new FirmwareReleaseInfo
+        {
+            Version = new FirmwareVersion(2, 0, 0, null, 0),
+            TagName = "v2.0.0",
+            IsPreRelease = false
+        };
+        firmwareDownloadService
+            .Setup(service => service.GetLatestReleaseAsync(true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(latestRelease);
+        firmwareDownloadService
+            .Setup(service => service.CheckForUpdateAsync(It.IsAny<string>(), true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FirmwareUpdateCheckResult { UpdateAvailable = true });
+
+        var device = CreateDeviceMock("SN-OUTDATED", "1.0.0");
+        var host = new FakeFirmwareUpdateHost { ConnectedDevices = [device.Object] };
+        var coordinator = CreateVersionCheckCoordinator(host, dialogService, firmwareUpdateService, firmwareDownloadService);
+
+        await coordinator.RefreshFirmwareUpdatesAsync();
+
+        Assert.AreEqual(latestRelease.Version.ToString(), coordinator.LatestFirmwareVersion);
+        Assert.IsTrue(device.Object.IsFirmwareOutdated);
+        Assert.AreEqual(1, host.Notifications.Count);
+        Assert.IsTrue(host.Notifications[0].IsFirmwareUpdate);
+        Assert.AreEqual("SN-OUTDATED", host.Notifications[0].DeviceSerialNo);
+        Assert.AreEqual(1, host.NotificationCount);
+    }
+
+    [TestMethod]
+    public async Task RefreshFirmwareUpdates_UpToDateDevice_ClearsFlagAndRemovesNotification()
+    {
+        var dialogService = new Mock<IDialogService>();
+        var firmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
+
+        firmwareDownloadService
+            .Setup(service => service.GetLatestReleaseAsync(true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FirmwareReleaseInfo
+            {
+                Version = new FirmwareVersion(2, 0, 0, null, 0),
+                TagName = "v2.0.0",
+                IsPreRelease = false
+            });
+        firmwareDownloadService
+            .Setup(service => service.CheckForUpdateAsync(It.IsAny<string>(), true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FirmwareUpdateCheckResult { UpdateAvailable = false });
+
+        var device = CreateDeviceMock("SN-CURRENT", "2.0.0");
+        device.Object.IsFirmwareOutdated = true;
+        var host = new FakeFirmwareUpdateHost { ConnectedDevices = [device.Object] };
+        // Pre-existing stale notification for this device that the refresh must clear.
+        host.Notifications.Add(new Notifications
+        {
+            DeviceSerialNo = "SN-CURRENT",
+            Message = "stale",
+            IsFirmwareUpdate = true
+        });
+
+        var coordinator = CreateVersionCheckCoordinator(host, dialogService, firmwareUpdateService, firmwareDownloadService);
+
+        await coordinator.RefreshFirmwareUpdatesAsync();
+
+        Assert.IsFalse(device.Object.IsFirmwareOutdated);
+        Assert.AreEqual(0, host.Notifications.Count);
+    }
+
+    private static FirmwareUpdateCoordinator CreateVersionCheckCoordinator(
+        FakeFirmwareUpdateHost host,
+        Mock<IDialogService> dialogService,
+        Mock<IFirmwareUpdateService> firmwareUpdateService,
+        Mock<IFirmwareDownloadService> firmwareDownloadService)
+    {
+        return new FirmwareUpdateCoordinator(
+            host,
+            dialogService.Object,
+            firmwareUpdateService.Object,
+            firmwareDownloadService.Object,
+            NullLogger<FirmwareUpdateService>.Instance,
+            (_, _) => Mock.Of<IFirmwareUpdateService>());
+    }
+
+    private static Mock<Daqifi.Desktop.Device.IStreamingDevice> CreateDeviceMock(string serialNo, string version)
+    {
+        var device = new Mock<Daqifi.Desktop.Device.IStreamingDevice>();
+        device.SetupGet(d => d.DeviceSerialNo).Returns(serialNo);
+        device.SetupGet(d => d.DeviceVersion).Returns(version);
+        device.SetupProperty(d => d.IsFirmwareOutdated);
+        return device;
     }
 
     private static SerialStreamingDevice CreateSerialDeviceWithCoreDevice(string portName, TestCoreStreamingDevice coreDevice)
@@ -697,11 +828,6 @@ public class DaqifiViewModelFirmwareUpdateTests
         };
     }
 
-    private static async Task InvokeUploadFirmwareAsync(DaqifiViewModel viewModel)
-    {
-        await viewModel.UploadFirmwareCommand.ExecuteAsync(null);
-    }
-
     private string CreateTempFile(string extension)
     {
         var tempFile = Path.GetTempFileName();
@@ -728,6 +854,59 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.IsTrue(
             coreDevice.SentCommands.Any(command => command.Contains(expectedCommandText, StringComparison.Ordinal)),
             $"Expected command '{expectedCommandText}' to be sent.");
+    }
+
+    /// <summary>
+    /// In-memory <see cref="IFirmwareUpdateHost"/> for driving the coordinator without WPF.
+    /// Captures the progress/status writes (and a full history of status text) the firmware
+    /// flow pushes, and exposes the inputs the coordinator reads.
+    /// </summary>
+    private sealed class FakeFirmwareUpdateHost : IFirmwareUpdateHost
+    {
+        private string _firmwareUpdateStatusText = string.Empty;
+
+        public Daqifi.Desktop.Device.IStreamingDevice? SelectedDevice { get; set; }
+
+        public IReadOnlyList<Daqifi.Desktop.Device.IStreamingDevice> ConnectedDevices { get; set; } = [];
+
+        public string FirmwareFilePath { get; set; } = string.Empty;
+
+        public bool SelectedDeviceSupportsFirmwareUpdate { get; set; }
+
+        public bool IsFirmwareUploading { get; set; }
+
+        public bool IsUploadComplete { get; set; }
+
+        public bool HasErrorOccured { get; set; }
+
+        public int UploadFirmwareProgress { get; set; }
+
+        public int UploadWiFiProgress { get; set; }
+
+        public string FirmwareUpdateStatusText
+        {
+            get => _firmwareUpdateStatusText;
+            set
+            {
+                _firmwareUpdateStatusText = value;
+                StatusTextHistory.Add(value);
+            }
+        }
+
+        /// <summary>Every value written to <see cref="FirmwareUpdateStatusText"/>, in order.</summary>
+        public List<string> StatusTextHistory { get; } = [];
+
+        public ObservableCollection<Notifications> Notifications { get; } = [];
+
+        public Daqifi.Desktop.Device.IStreamingDevice? DeviceBeingUpdated { get; set; }
+
+        public int CloseFlyoutsCallCount { get; private set; }
+
+        public int NotificationCount { get; private set; }
+
+        public void CloseFlyouts() => CloseFlyoutsCallCount++;
+
+        public void RefreshNotificationCount() => NotificationCount = Notifications.Count;
     }
 
     private sealed class TestCoreStreamingDevice : DaqifiStreamingDevice, ILanChipInfoProvider
