@@ -724,18 +724,28 @@ public partial class DaqifiViewModel : ObservableObject
                 return;
             }
 
+            // For an auto-update, download into a LOCAL variable rather than the bound
+            // FirmwareFilePath property. Writing the downloaded path back into the property
+            // would make the NEXT in-session update look like a manual upload (isManualUpload
+            // is derived from FirmwareFilePath being non-empty), silently skipping the
+            // WiFi-module step until the app is restarted. See issue #599.
+            string effectiveFirmwarePath;
             if (!isManualUpload)
             {
                 FirmwareUpdateStatusText = "Downloading latest firmware package...";
-                FirmwareFilePath = await _firmwareDownloadService.DownloadLatestFirmwareAsync(
+                effectiveFirmwarePath = await _firmwareDownloadService.DownloadLatestFirmwareAsync(
                     GetFirmwareDownloadDirectory(),
                     includePreRelease: true,
                     cancellationToken: _firmwareUploadCts.Token);
             }
-
-            if (string.IsNullOrWhiteSpace(FirmwareFilePath) || !File.Exists(FirmwareFilePath))
+            else
             {
-                throw new FileNotFoundException("Firmware file path is invalid or does not exist.", FirmwareFilePath);
+                effectiveFirmwarePath = FirmwareFilePath;
+            }
+
+            if (string.IsNullOrWhiteSpace(effectiveFirmwarePath) || !File.Exists(effectiveFirmwarePath))
+            {
+                throw new FileNotFoundException("Firmware file path is invalid or does not exist.", effectiveFirmwarePath);
             }
 
             var pic32Progress = new Progress<FirmwareUpdateProgress>(report =>
@@ -749,7 +759,7 @@ public partial class DaqifiViewModel : ObservableObject
 
             await _firmwareUpdateService.UpdateFirmwareAsync(
                 coreDevice,
-                FirmwareFilePath,
+                effectiveFirmwarePath,
                 pic32Progress,
                 _firmwareUploadCts.Token);
 
@@ -787,6 +797,15 @@ public partial class DaqifiViewModel : ObservableObject
             _firmwareUploadCts = null;
             _deviceBeingUpdated = null;
             ConnectionManager.Instance.DeviceBeingUpdated = null;
+
+            // Consume any manual .hex selection so the auto/manual decision is a per-run input,
+            // not sticky session state. A manual upload is intentionally PIC32-only (no WiFi),
+            // and isManualUpload is derived from FirmwareFilePath being non-empty. Without this
+            // reset a prior manual selection would trap every later run in manual mode and
+            // silently skip the WiFi-module flash until the app is restarted — the symmetric
+            // case of issue #599. The next run defaults to a full auto-update unless the user
+            // explicitly re-selects a file. (The auto path never writes this property.)
+            FirmwareFilePath = string.Empty;
         }
     }
 
