@@ -15,6 +15,7 @@ using MahApps.Metro.Controls.Dialogs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Device.Firmware;
 using Microsoft.Data.Sqlite;
@@ -22,6 +23,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.IO;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -532,15 +534,21 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
         _loggingContextFactory = loggingContextFactory;
 
         // Firmware update orchestration and version-checking live in the coordinator (issue #592).
-        // It resolves the production defaults itself when the injected services are null, mirroring
-        // the previous in-view-model construction; this view model keeps only the bound properties
-        // and thin command bindings, and feeds the coordinator through the IFirmwareUpdateHost seam.
+        // The view model is the composition root: it builds the production service defaults here when
+        // DI supplied none, so the coordinator itself never news up service clients or reaches into
+        // singletons. The view model keeps only the bound properties + thin command bindings and
+        // feeds the coordinator through the IFirmwareUpdateHost seam (which it implements below).
+        var firmwareDownload = firmwareDownloadService ?? CreateDefaultFirmwareDownloadService();
+        var resolvedFirmwareLogger = firmwareLogger ?? NullLogger<FirmwareUpdateService>.Instance;
+        var firmwareUpdate = firmwareUpdateService
+            ?? CreateDefaultFirmwareUpdateService(firmwareDownload, resolvedFirmwareLogger);
         _firmwareCoordinator = new FirmwareUpdateCoordinator(
             this,
-            _dialogService,
-            firmwareUpdateService,
-            firmwareDownloadService,
-            firmwareLogger,
+            firmwareUpdate,
+            firmwareDownload,
+            resolvedFirmwareLogger,
+            _appLogger,
+            App.DaqifiDataDirectory,
             wifiFirmwareUpdateServiceFactory);
 
         ConfirmAffirmativeCommand = new RelayCommand(() => CompleteConfirm(true));
@@ -628,6 +636,31 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
         return App.ServiceProvider?.GetService<IDbContextFactory<LoggingContext>>() == null
             ? null
             : LoggingManager.Instance;
+    }
+
+    /// <summary>
+    /// Builds the production firmware download service used when DI supplies none. Lives here at the
+    /// composition root so <see cref="FirmwareUpdateCoordinator"/> receives a ready-made instance
+    /// rather than constructing its own service clients.
+    /// </summary>
+    private static IFirmwareDownloadService CreateDefaultFirmwareDownloadService()
+    {
+        return new GitHubFirmwareDownloadService(new HttpClient());
+    }
+
+    /// <summary>
+    /// Builds the production PIC32 firmware update service used when DI supplies none.
+    /// </summary>
+    private static IFirmwareUpdateService CreateDefaultFirmwareUpdateService(
+        IFirmwareDownloadService firmwareDownloadService,
+        ILogger<FirmwareUpdateService> logger)
+    {
+        return new FirmwareUpdateService(
+            FirmwareUpdateServiceConfig.CreateBootloaderHidTransport(),
+            firmwareDownloadService,
+            new ProcessExternalProcessRunner(),
+            logger,
+            options: FirmwareUpdateServiceConfig.CreateOptions());
     }
 
     #endregion
@@ -1586,6 +1619,52 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
 
     /// <summary>Re-syncs the notification badge after the coordinator adds/removes a notification.</summary>
     void IFirmwareUpdateHost.RefreshNotificationCount() => NotificationCount = NotificationList.Count;
+
+    /// <summary>
+    /// Presents a firmware error dialog on the UI thread. Dialog presentation is a view concern,
+    /// so the coordinator delegates it here and stays free of WPF dependencies.
+    /// </summary>
+    void IFirmwareUpdateHost.ShowFirmwareError(string message)
+    {
+        void ShowDialog()
+        {
+            var errorDialogViewModel = new ErrorDialogViewModel(message);
+            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            ShowDialog();
+            return;
+        }
+
+        dispatcher.Invoke(ShowDialog);
+    }
+
+    /// <summary>
+    /// Presents the firmware-update success dialog on the UI thread and closes the firmware flyout.
+    /// </summary>
+    void IFirmwareUpdateHost.ShowFirmwareUpdateSucceeded()
+    {
+        void ShowDialog()
+        {
+            var successDialogViewModel =
+                new SuccessDialogViewModel("Firmware update completed successfully.");
+            _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            ShowDialog();
+            CloseFlyouts();
+            return;
+        }
+
+        dispatcher.Invoke(ShowDialog);
+        CloseFlyouts();
+    }
 
     #endregion
 

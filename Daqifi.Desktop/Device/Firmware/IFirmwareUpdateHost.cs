@@ -67,10 +67,20 @@ public interface IFirmwareUpdateHost
     /// </summary>
     IStreamingDevice? DeviceBeingUpdated { set; }
 
-    /// <summary>Closes all open flyouts (used after a successful upload).</summary>
-    void CloseFlyouts();
-
     /// <summary>Re-syncs the notification badge count after the coordinator mutates the list.</summary>
     void RefreshNotificationCount();
+
+    /// <summary>
+    /// Presents a firmware error dialog. Dialog presentation (and its UI-thread marshalling) is a
+    /// view concern, so the coordinator delegates it here rather than touching WPF directly.
+    /// </summary>
+    /// <param name="message">The error message to display.</param>
+    void ShowFirmwareError(string message);
+
+    /// <summary>
+    /// Presents the firmware-update success dialog and closes the firmware flyout. Kept on the host
+    /// so the coordinator stays free of WPF dependencies.
+    /// </summary>
+    void ShowFirmwareUpdateSucceeded();
     #endregion
 }

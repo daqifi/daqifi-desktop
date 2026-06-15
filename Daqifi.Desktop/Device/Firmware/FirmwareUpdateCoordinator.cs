@@ -1,19 +1,10 @@
 using System.IO;
 using System.IO.Ports;
-using System.Net.Http;
-using System.Windows;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device.SerialDevice;
-using Daqifi.Desktop.DialogService;
-using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Models;
-using Daqifi.Desktop.View;
-using Daqifi.Desktop.ViewModels;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
-using Application = System.Windows.Application;
 
 namespace Daqifi.Desktop.Device.Firmware;
 
@@ -21,52 +12,60 @@ namespace Daqifi.Desktop.Device.Firmware;
 /// Owns the full PIC32 + WiFi firmware update flow (download, bootloader/HID session, progress,
 /// cancellation, WiFi-module update) and the firmware version-check / outdated-device notifications.
 /// <para>
-/// Extracted from <c>DaqifiViewModel</c> (issue #592) so the orchestration is unit-testable without
-/// WPF: every collaborator is constructor-injected, and all bound progress/status state is reached
-/// through the <see cref="IFirmwareUpdateHost"/> seam rather than touching the view model or desktop
-/// singletons directly. The view model keeps the bound properties and thin command bindings.
+/// Extracted from <c>DaqifiViewModel</c> (issue #592). Every collaborator is constructor-injected
+/// (firmware services, loggers, the firmware data directory), all bound progress/status state is
+/// reached through the <see cref="IFirmwareUpdateHost"/> seam, and dialog presentation is delegated
+/// to the host — so the coordinator has no dependency on WPF or on desktop singletons
+/// (<c>AppLogger.Instance</c>, <c>App.ServiceProvider</c>, <c>App.DaqifiDataDirectory</c>) and is
+/// unit-testable in isolation.
 /// </para>
 /// </summary>
 public class FirmwareUpdateCoordinator
 {
     #region Private Fields
     private readonly IFirmwareUpdateHost _host;
-    private readonly IDialogService _dialogService;
     private readonly IFirmwareUpdateService _firmwareUpdateService;
     private readonly IFirmwareDownloadService _firmwareDownloadService;
+    private readonly ILogger<FirmwareUpdateService> _firmwareLogger;
+    private readonly IAppLogger _appLogger;
+    private readonly string _firmwareDataDirectory;
     private readonly Func<string, string, IFirmwareUpdateService> _wifiFirmwareUpdateServiceFactory;
-    private readonly AppLogger _appLogger = AppLogger.Instance;
     private CancellationTokenSource? _firmwareUploadCts;
     private string _latestFirmwareVersion = string.Empty;
     #endregion
 
     #region Constructor
     /// <summary>
-    /// Creates the coordinator. The firmware services and WiFi-update factory are optional so the
-    /// view model can forward whatever the DI container resolved (or <c>null</c> for the default
-    /// production wiring), mirroring the previous in-view-model construction.
+    /// Creates the coordinator. All firmware collaborators are required and injected; the
+    /// composition root (the view model / DI container) is responsible for building the production
+    /// defaults so this class never news up service clients or reaches into singletons.
     /// </summary>
-    /// <param name="host">The host view model surface the coordinator reads input from and pushes state to.</param>
-    /// <param name="dialogService">Dialog service used for firmware error/success dialogs.</param>
-    /// <param name="firmwareUpdateService">PIC32 firmware update service; a default is built when null.</param>
-    /// <param name="firmwareDownloadService">Firmware package download service; a default is built when null.</param>
-    /// <param name="firmwareLogger">Logger used when constructing the default update service.</param>
+    /// <param name="host">The host view-model surface the coordinator reads input from and pushes state to.</param>
+    /// <param name="firmwareUpdateService">PIC32 firmware update service.</param>
+    /// <param name="firmwareDownloadService">Firmware package download service.</param>
+    /// <param name="firmwareLogger">Logger passed to the WiFi update service built by the default factory.</param>
+    /// <param name="appLogger">Application logger used for diagnostics and Sentry breadcrumbs.</param>
+    /// <param name="firmwareDataDirectory">Base directory under which firmware packages are downloaded.</param>
     /// <param name="wifiFirmwareUpdateServiceFactory">
-    /// Factory used to build the WiFi firmware update service for a specific firmware version and COM port.
+    /// Factory used to build the WiFi firmware update service for a specific firmware version and COM
+    /// port. When null, the built-in desktop factory (<see cref="CreateWifiFirmwareUpdateService"/>)
+    /// is used; tests inject a fake to assert WiFi sequencing without hardware.
     /// </param>
     public FirmwareUpdateCoordinator(
         IFirmwareUpdateHost host,
-        IDialogService dialogService,
-        IFirmwareUpdateService? firmwareUpdateService = null,
-        IFirmwareDownloadService? firmwareDownloadService = null,
-        ILogger<FirmwareUpdateService>? firmwareLogger = null,
+        IFirmwareUpdateService firmwareUpdateService,
+        IFirmwareDownloadService firmwareDownloadService,
+        ILogger<FirmwareUpdateService> firmwareLogger,
+        IAppLogger appLogger,
+        string firmwareDataDirectory,
         Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
-        _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
-        _firmwareDownloadService = firmwareDownloadService ?? CreateDefaultFirmwareDownloadService();
-        var resolvedLogger = firmwareLogger ?? NullLogger<FirmwareUpdateService>.Instance;
-        _firmwareUpdateService = firmwareUpdateService ?? CreateDefaultFirmwareUpdateService(_firmwareDownloadService, resolvedLogger);
+        _firmwareUpdateService = firmwareUpdateService ?? throw new ArgumentNullException(nameof(firmwareUpdateService));
+        _firmwareDownloadService = firmwareDownloadService ?? throw new ArgumentNullException(nameof(firmwareDownloadService));
+        _firmwareLogger = firmwareLogger ?? throw new ArgumentNullException(nameof(firmwareLogger));
+        _appLogger = appLogger ?? throw new ArgumentNullException(nameof(appLogger));
+        _firmwareDataDirectory = firmwareDataDirectory ?? throw new ArgumentNullException(nameof(firmwareDataDirectory));
         _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
     }
     #endregion
@@ -180,7 +179,7 @@ public class FirmwareUpdateCoordinator
 
             _host.IsUploadComplete = true;
             _appLogger.AddBreadcrumb("firmware", "Firmware update completed");
-            ShowUploadSuccessMessage();
+            _host.ShowFirmwareUpdateSucceeded();
         }
         catch (OperationCanceledException)
         {
@@ -198,7 +197,7 @@ public class FirmwareUpdateCoordinator
             _host.HasErrorOccured = true;
             _appLogger.Error(ex, "Problem Uploading Firmware");
             _appLogger.AddBreadcrumb("firmware", "Firmware update failed", Common.Loggers.BreadcrumbLevel.Error);
-            ShowFirmwareErrorDialog("Firmware update failed. Please try again.");
+            _host.ShowFirmwareError("Firmware update failed. Please try again.");
         }
         finally
         {
@@ -390,9 +389,6 @@ public class FirmwareUpdateCoordinator
 
     private FirmwareUpdateService CreateWifiFirmwareUpdateService(string wifiVersion, string portName)
     {
-        var firmwareLogger = App.ServiceProvider?.GetService<ILogger<FirmwareUpdateService>>()
-            ?? NullLogger<FirmwareUpdateService>.Instance;
-
         // Bridge activation action: opened at the "Power cycle WINC" prompt to trigger the
         // device's bridge-mode state machine right before the flash tool starts programming.
         // By deferring APPLY (SYSTem:COMMunicate:LAN:APPLY) until this point we give the
@@ -454,7 +450,7 @@ public class FirmwareUpdateCoordinator
                 new ProcessExternalProcessRunner(),
                 promptResponseDelay: TimeSpan.FromSeconds(2),
                 bridgeActivationAction: bridgeActivationAction),
-            firmwareLogger,
+            _firmwareLogger,
             options: wifiOptions);
     }
 
@@ -499,83 +495,21 @@ public class FirmwareUpdateCoordinator
             dialogMessage += $"{Environment.NewLine}{Environment.NewLine}Suggested recovery: {exception.RecoveryGuidance}";
         }
 
-        ShowFirmwareErrorDialog(dialogMessage);
+        _host.ShowFirmwareError(dialogMessage);
     }
 
-    private void ShowFirmwareErrorDialog(string message)
+    private string GetFirmwareDownloadDirectory()
     {
-        void ShowDialog()
-        {
-            var errorDialogViewModel = new ErrorDialogViewModel(message);
-            _dialogService.ShowDialog<ErrorDialog>(_host, errorDialogViewModel);
-        }
-
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher == null)
-        {
-            ShowDialog();
-            return;
-        }
-
-        dispatcher.Invoke(ShowDialog);
-    }
-
-    private void ShowUploadSuccessMessage()
-    {
-        void ShowDialog()
-        {
-            var successDialogViewModel =
-                new SuccessDialogViewModel("Firmware update completed successfully.");
-            _dialogService.ShowDialog<SuccessDialog>(_host, successDialogViewModel);
-        }
-
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher == null)
-        {
-            ShowDialog();
-            _host.CloseFlyouts();
-            return;
-        }
-
-        dispatcher.Invoke(ShowDialog);
-        _host.CloseFlyouts();
-    }
-
-    private static string GetFirmwareDownloadDirectory()
-    {
-        var firmwareDirectory = Path.Combine(
-            App.DaqifiDataDirectory,
-            "Firmware",
-            "PIC32");
+        var firmwareDirectory = Path.Combine(_firmwareDataDirectory, "Firmware", "PIC32");
         Directory.CreateDirectory(firmwareDirectory);
         return firmwareDirectory;
     }
 
-    private static string GetWifiDownloadDirectory()
+    private string GetWifiDownloadDirectory()
     {
-        var wifiDirectory = Path.Combine(
-            App.DaqifiDataDirectory,
-            "Firmware",
-            "WiFi");
+        var wifiDirectory = Path.Combine(_firmwareDataDirectory, "Firmware", "WiFi");
         Directory.CreateDirectory(wifiDirectory);
         return wifiDirectory;
-    }
-
-    private static IFirmwareDownloadService CreateDefaultFirmwareDownloadService()
-    {
-        return new GitHubFirmwareDownloadService(new HttpClient());
-    }
-
-    private static IFirmwareUpdateService CreateDefaultFirmwareUpdateService(
-        IFirmwareDownloadService firmwareDownloadService,
-        ILogger<FirmwareUpdateService> logger)
-    {
-        return new FirmwareUpdateService(
-            FirmwareUpdateServiceConfig.CreateBootloaderHidTransport(),
-            firmwareDownloadService,
-            new ProcessExternalProcessRunner(),
-            logger,
-            options: FirmwareUpdateServiceConfig.CreateOptions());
     }
     #endregion
 

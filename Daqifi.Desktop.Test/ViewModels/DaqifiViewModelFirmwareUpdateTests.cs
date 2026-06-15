@@ -4,9 +4,9 @@ using Daqifi.Core.Communication.Producers;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
 using Daqifi.Core.Firmware;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device.Firmware;
 using Daqifi.Desktop.Device.SerialDevice;
-using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -49,7 +49,6 @@ public class DaqifiViewModelFirmwareUpdateTests
     [TestMethod]
     public async Task UploadFirmware_ManualPackage_UsesConnectedCoreDeviceForPic32Only()
     {
-        var dialogService = new Mock<IDialogService>();
         var firmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
 
@@ -78,12 +77,10 @@ public class DaqifiViewModelFirmwareUpdateTests
             FirmwareFilePath = firmwareFilePath
         };
 
-        var coordinator = new FirmwareUpdateCoordinator(
+        var coordinator = CreateCoordinator(
             host,
-            dialogService.Object,
             firmwareUpdateService.Object,
             firmwareDownloadService.Object,
-            NullLogger<FirmwareUpdateService>.Instance,
             (_, _) =>
             {
                 wifiFactoryCalls++;
@@ -115,7 +112,6 @@ public class DaqifiViewModelFirmwareUpdateTests
     [TestMethod]
     public async Task UploadFirmware_DownloadedPackage_UsesConnectedCoreDeviceForPic32AndWifi()
     {
-        var dialogService = new Mock<IDialogService>();
         var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
@@ -179,12 +175,10 @@ public class DaqifiViewModelFirmwareUpdateTests
             SelectedDevice = serialDevice
         };
 
-        var coordinator = new FirmwareUpdateCoordinator(
+        var coordinator = CreateCoordinator(
             host,
-            dialogService.Object,
             pic32FirmwareUpdateService.Object,
             firmwareDownloadService.Object,
-            NullLogger<FirmwareUpdateService>.Instance,
             (version, port) =>
             {
                 wifiVersion = version;
@@ -238,7 +232,6 @@ public class DaqifiViewModelFirmwareUpdateTests
         // stay empty so subsequent runs remain auto-updates.
 
         // Arrange
-        var dialogService = new Mock<IDialogService>();
         var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
@@ -294,12 +287,10 @@ public class DaqifiViewModelFirmwareUpdateTests
             SelectedDevice = serialDevice
         };
 
-        var coordinator = new FirmwareUpdateCoordinator(
+        var coordinator = CreateCoordinator(
             host,
-            dialogService.Object,
             pic32FirmwareUpdateService.Object,
             firmwareDownloadService.Object,
-            NullLogger<FirmwareUpdateService>.Instance,
             (_, _) =>
             {
                 wifiFactoryCalls++;
@@ -354,7 +345,6 @@ public class DaqifiViewModelFirmwareUpdateTests
         // selection so a subsequent run defaults to a full auto-update.
 
         // Arrange
-        var dialogService = new Mock<IDialogService>();
         var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
@@ -412,12 +402,10 @@ public class DaqifiViewModelFirmwareUpdateTests
             FirmwareFilePath = manualFirmwarePath
         };
 
-        var coordinator = new FirmwareUpdateCoordinator(
+        var coordinator = CreateCoordinator(
             host,
-            dialogService.Object,
             pic32FirmwareUpdateService.Object,
             firmwareDownloadService.Object,
-            NullLogger<FirmwareUpdateService>.Instance,
             (_, _) =>
             {
                 wifiFactoryCalls++;
@@ -468,7 +456,6 @@ public class DaqifiViewModelFirmwareUpdateTests
     [TestMethod]
     public async Task UploadFirmware_WifiFirmwareUpToDate_SkipsWifiFlash()
     {
-        var dialogService = new Mock<IDialogService>();
         var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
 
@@ -506,12 +493,10 @@ public class DaqifiViewModelFirmwareUpdateTests
             SelectedDevice = serialDevice
         };
 
-        var coordinator = new FirmwareUpdateCoordinator(
+        var coordinator = CreateCoordinator(
             host,
-            dialogService.Object,
             pic32FirmwareUpdateService.Object,
             firmwareDownloadService.Object,
-            NullLogger<FirmwareUpdateService>.Instance,
             (_, _) =>
             {
                 wifiFactoryCalls++;
@@ -571,7 +556,6 @@ public class DaqifiViewModelFirmwareUpdateTests
         Action<Mock<IFirmwareUpdateService>> configureStatusCheck,
         bool expectsUnavailableStatusText)
     {
-        var dialogService = new Mock<IDialogService>();
         var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
@@ -622,12 +606,10 @@ public class DaqifiViewModelFirmwareUpdateTests
             SelectedDevice = serialDevice
         };
 
-        var coordinator = new FirmwareUpdateCoordinator(
+        var coordinator = CreateCoordinator(
             host,
-            dialogService.Object,
             pic32FirmwareUpdateService.Object,
             firmwareDownloadService.Object,
-            NullLogger<FirmwareUpdateService>.Instance,
             (_, _) => wifiFirmwareUpdateService.Object);
 
         await coordinator.UploadFirmwareAsync();
@@ -649,12 +631,11 @@ public class DaqifiViewModelFirmwareUpdateTests
     [TestMethod]
     public async Task RefreshFirmwareUpdates_NoConnectedDevices_DoesNotQueryReleases()
     {
-        var dialogService = new Mock<IDialogService>();
         var firmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
 
         var host = new FakeFirmwareUpdateHost();
-        var coordinator = CreateVersionCheckCoordinator(host, dialogService, firmwareUpdateService, firmwareDownloadService);
+        var coordinator = CreateCoordinator(host, firmwareUpdateService.Object, firmwareDownloadService.Object);
 
         await coordinator.RefreshFirmwareUpdatesAsync();
 
@@ -666,7 +647,6 @@ public class DaqifiViewModelFirmwareUpdateTests
     [TestMethod]
     public async Task RefreshFirmwareUpdates_OutdatedDevice_FlagsDeviceAndAddsNotification()
     {
-        var dialogService = new Mock<IDialogService>();
         var firmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
 
@@ -685,7 +665,7 @@ public class DaqifiViewModelFirmwareUpdateTests
 
         var device = CreateDeviceMock("SN-OUTDATED", "1.0.0");
         var host = new FakeFirmwareUpdateHost { ConnectedDevices = [device.Object] };
-        var coordinator = CreateVersionCheckCoordinator(host, dialogService, firmwareUpdateService, firmwareDownloadService);
+        var coordinator = CreateCoordinator(host, firmwareUpdateService.Object, firmwareDownloadService.Object);
 
         await coordinator.RefreshFirmwareUpdatesAsync();
 
@@ -700,7 +680,6 @@ public class DaqifiViewModelFirmwareUpdateTests
     [TestMethod]
     public async Task RefreshFirmwareUpdates_UpToDateDevice_ClearsFlagAndRemovesNotification()
     {
-        var dialogService = new Mock<IDialogService>();
         var firmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
 
@@ -727,7 +706,7 @@ public class DaqifiViewModelFirmwareUpdateTests
             IsFirmwareUpdate = true
         });
 
-        var coordinator = CreateVersionCheckCoordinator(host, dialogService, firmwareUpdateService, firmwareDownloadService);
+        var coordinator = CreateCoordinator(host, firmwareUpdateService.Object, firmwareDownloadService.Object);
 
         await coordinator.RefreshFirmwareUpdatesAsync();
 
@@ -735,19 +714,26 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.AreEqual(0, host.Notifications.Count);
     }
 
-    private static FirmwareUpdateCoordinator CreateVersionCheckCoordinator(
+    /// <summary>
+    /// Builds a coordinator with no-op test loggers and a throwaway firmware data directory.
+    /// Dialog/flyout host operations are captured by <see cref="FakeFirmwareUpdateHost"/>, so no
+    /// dialog service is needed; the WiFi factory defaults to null (the WiFi path is only reached by
+    /// tests that pass one explicitly).
+    /// </summary>
+    private FirmwareUpdateCoordinator CreateCoordinator(
         FakeFirmwareUpdateHost host,
-        Mock<IDialogService> dialogService,
-        Mock<IFirmwareUpdateService> firmwareUpdateService,
-        Mock<IFirmwareDownloadService> firmwareDownloadService)
+        IFirmwareUpdateService firmwareUpdateService,
+        IFirmwareDownloadService firmwareDownloadService,
+        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null)
     {
         return new FirmwareUpdateCoordinator(
             host,
-            dialogService.Object,
-            firmwareUpdateService.Object,
-            firmwareDownloadService.Object,
+            firmwareUpdateService,
+            firmwareDownloadService,
             NullLogger<FirmwareUpdateService>.Instance,
-            (_, _) => Mock.Of<IFirmwareUpdateService>());
+            Mock.Of<IAppLogger>(),
+            CreateTempDirectory(),
+            wifiFirmwareUpdateServiceFactory);
     }
 
     private static Mock<Daqifi.Desktop.Device.IStreamingDevice> CreateDeviceMock(string serialNo, string version)
@@ -900,13 +886,19 @@ public class DaqifiViewModelFirmwareUpdateTests
 
         public Daqifi.Desktop.Device.IStreamingDevice? DeviceBeingUpdated { get; set; }
 
-        public int CloseFlyoutsCallCount { get; private set; }
-
         public int NotificationCount { get; private set; }
 
-        public void CloseFlyouts() => CloseFlyoutsCallCount++;
+        /// <summary>Messages passed to <see cref="ShowFirmwareError"/>, in order.</summary>
+        public List<string> FirmwareErrors { get; } = [];
+
+        /// <summary>Number of times <see cref="ShowFirmwareUpdateSucceeded"/> was invoked.</summary>
+        public int SucceededCallCount { get; private set; }
 
         public void RefreshNotificationCount() => NotificationCount = Notifications.Count;
+
+        public void ShowFirmwareError(string message) => FirmwareErrors.Add(message);
+
+        public void ShowFirmwareUpdateSucceeded() => SucceededCallCount++;
     }
 
     private sealed class TestCoreStreamingDevice : DaqifiStreamingDevice, ILanChipInfoProvider
