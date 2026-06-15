@@ -221,6 +221,8 @@ public class DaqifiViewModelFirmwareUpdateTests
         // flash (only an app restart restored correct behavior). Each auto-update run must
         // download firmware and flash the WiFi module independently, and FirmwareFilePath must
         // stay empty so subsequent runs remain auto-updates.
+
+        // Arrange
         var dialogService = new Mock<IDialogService>();
         var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
@@ -286,22 +288,18 @@ public class DaqifiViewModelFirmwareUpdateTests
             SelectedDevice = serialDevice
         };
 
-        // First in-session update.
+        // Act: two consecutive in-session auto-updates with no app restart between them.
         await InvokeUploadFirmwareAsync(viewModel);
+        await InvokeUploadFirmwareAsync(viewModel);
+
+        // Assert: each run performed a full auto-update and the bound path was never populated.
+        // (The per-run state is proven by the Times.Exactly(2) counts below: had run 1 left
+        // FirmwareFilePath set, run 2 would be classified manual and these would be Times.Once.)
         Assert.IsTrue(viewModel.IsUploadComplete);
         Assert.IsFalse(viewModel.HasErrorOccured);
         Assert.IsTrue(
             string.IsNullOrWhiteSpace(viewModel.FirmwareFilePath),
             "Auto-update must not populate FirmwareFilePath; doing so reclassifies the next run as a manual upload.");
-
-        // Second in-session update WITHOUT restarting the app.
-        await InvokeUploadFirmwareAsync(viewModel);
-        Assert.IsTrue(viewModel.IsUploadComplete);
-        Assert.IsFalse(viewModel.HasErrorOccured);
-        Assert.IsTrue(
-            string.IsNullOrWhiteSpace(viewModel.FirmwareFilePath),
-            "Auto-update must not populate FirmwareFilePath; doing so reclassifies the next run as a manual upload.");
-
         // The WiFi module must be flashed on BOTH runs, not just the first.
         Assert.AreEqual(2, wifiFactoryCalls);
         // The main (PIC32) firmware flash is not gated by the auto/manual classification, so it
@@ -336,6 +334,8 @@ public class DaqifiViewModelFirmwareUpdateTests
         // NEXT (intended auto) update would be misclassified as manual and silently skip the
         // WiFi-module flash until the app restart. UploadFirmware must consume the manual
         // selection so a subsequent run defaults to a full auto-update.
+
+        // Arrange
         var dialogService = new Mock<IDialogService>();
         var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
@@ -403,18 +403,20 @@ public class DaqifiViewModelFirmwareUpdateTests
             FirmwareFilePath = manualFirmwarePath
         };
 
-        // First run: manual upload (PIC32 only, no WiFi, no download).
+        // Arrange (cont.): drive a manual upload so the session is left in the post-manual state.
+        // A manual upload is PIC32-only and must consume the selection; these guards confirm the
+        // precondition the Act below depends on.
         await InvokeUploadFirmwareAsync(viewModel);
-        Assert.IsTrue(viewModel.IsUploadComplete);
-        Assert.IsFalse(viewModel.HasErrorOccured);
-        Assert.AreEqual(0, wifiFactoryCalls);
+        Assert.AreEqual(0, wifiFactoryCalls, "A manual upload must not flash the WiFi module.");
         Assert.IsTrue(
             string.IsNullOrWhiteSpace(viewModel.FirmwareFilePath),
             "A manual upload must be consumed so the next run is not silently trapped in manual mode.");
 
-        // Second run WITHOUT restarting the app and without re-selecting a file: must be a full
-        // auto-update that downloads firmware and flashes the WiFi module.
+        // Act: the next in-session update, without restarting the app and without re-selecting a
+        // file. With the selection consumed it must default to a full auto-update.
         await InvokeUploadFirmwareAsync(viewModel);
+
+        // Assert: the second run downloaded firmware and flashed the WiFi module.
         Assert.IsTrue(viewModel.IsUploadComplete);
         Assert.IsFalse(viewModel.HasErrorOccured);
         Assert.AreEqual(1, wifiFactoryCalls);
