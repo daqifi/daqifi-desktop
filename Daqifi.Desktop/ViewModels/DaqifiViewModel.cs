@@ -18,24 +18,21 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Device.Firmware;
-using Microsoft.Data.Sqlite;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.IO;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Application = System.Windows.Application;
-using File = System.IO.File;
 using CommunityToolkit.Mvvm.Input;
 using Daqifi.Core.Device.SdCard;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
+public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, ILoggingSessionListHost
 {
     private readonly AppLogger _appLogger = AppLogger.Instance;
 
@@ -154,12 +151,12 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
     private bool _selectedDeviceSupportsFirmwareUpdate;
     private readonly IDbContextFactory<LoggingContext>? _loggingContextFactory;
     private readonly FirmwareUpdateCoordinator _firmwareCoordinator;
+    private readonly LoggingSessionListViewModel _loggingSessionList;
     private ConnectionDialogViewModel _connectionDialogViewModel;
     private string _selectedLoggingMode = "Stream to App";
     private bool _isLogToDeviceMode;
     private SdCardLogFormat _selectedSdCardLogFormat = SdCardLogFormat.Protobuf;
     private IDiskSpaceMonitor? _diskSpaceMonitor;
-    private ObservableCollection<LoggingSession>? _observedLoggingSessions;
     private CancellationTokenSource? _networkSettingsAppliedCts;
     private DispatcherTimer? _sdLoggingElapsedTimer;
     private DateTime? _sdLoggingStartedAt;
@@ -551,6 +548,17 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
             App.DaqifiDataDirectory,
             wifiFirmwareUpdateServiceFactory);
 
+        // Logged-data session-list actions (display/export/delete + collection plumbing) live in the
+        // list view model (issue #592). The view model keeps the bound properties + thin command
+        // bindings and feeds the list through the ILoggingSessionListHost seam (implemented below);
+        // the storage purge collaborators are injected here so the list never reaches into
+        // App.DatabasePath / App.ServiceProvider directly.
+        _loggingSessionList = new LoggingSessionListViewModel(
+            this,
+            GetLoggingContextFactory,
+            App.DatabasePath,
+            _appLogger);
+
         ConfirmAffirmativeCommand = new RelayCommand(() => CompleteConfirm(true));
         ConfirmNegativeCommand = new RelayCommand(() => CompleteConfirm(false));
 
@@ -574,7 +582,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
 
                     // Manage data for plotting
                     LoggingManager.Instance.PropertyChanged += UpdateUi;
-                    AttachLoggingSessionsCollection(LoggingManager.Instance.LoggingSessions);
+                    _loggingSessionList.AttachCollection(LoggingManager.Instance.LoggingSessions);
                     Plotter = new PlotLogger();
                     LoggingManager.Instance.AddLogger(Plotter);
 
@@ -669,8 +677,8 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
 
     private void RegisterCommands()
     {
-        DeleteLoggingSessionCommand = new AsyncRelayCommand<LoggingSession?>(DeleteLoggingSessionAsync);
-        DeleteAllLoggingSessionCommand = new AsyncRelayCommand(DeleteAllLoggingSessionAsync, CanDeleteAllLoggingSession);
+        DeleteLoggingSessionCommand = new AsyncRelayCommand<LoggingSession?>(_loggingSessionList.DeleteSessionAsync);
+        DeleteAllLoggingSessionCommand = new AsyncRelayCommand(_loggingSessionList.DeleteAllSessionsAsync, CanDeleteAllLoggingSession);
         ToggleChannelVisibilityCommand = new RelayCommand<IChannel>(ToggleChannelVisibility);
         ToggleLoggedSeriesVisibilityCommand = new RelayCommand<LoggedSeriesLegendItem>(ToggleLoggedSeriesVisibility);
 
@@ -915,85 +923,17 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
         IsLoggingSessionSettingsOpen = true;
     }
 
+    // Thin command bindings: the logged-data session-list logic lives in _loggingSessionList
+    // (issue #592). XAML still binds DisplayLoggingSessionCommand / ExportLoggingSessionCommand /
+    // ExportAllLoggingSessionCommand on this view model, so DataContext bindings are unchanged.
     [RelayCommand]
-    private void DisplayLoggingSession(LoggingSession? session)
-    {
-        if (session == null)
-        {
-            DbLogger.ClearPlot();
-            return;
-        }
-
-        SelectedLoggingSession = session;
-        IsLoggedDataBusy = true;
-        LoggedDataBusyReason = "Loading " + SelectedLoggingSession.Name;
-        var bw = new BackgroundWorker();
-        bw.DoWork += delegate
-        {
-            try
-            {
-                DbLogger.DisplayLoggingSession(SelectedLoggingSession);
-            }
-            catch (Exception ex)
-            {
-                _appLogger.Error(ex, $"Failed to display logging session {SelectedLoggingSession.ID}.");
-            }
-        };
-
-        bw.RunWorkerCompleted += (s, e) =>
-        {
-            IsLoggedDataBusy = false;
-            LoggedDataBusyReason = string.Empty;
-        };
-
-        bw.RunWorkerAsync();
-    }
+    private Task DisplayLoggingSession(LoggingSession? session) => _loggingSessionList.DisplaySessionAsync(session);
 
     [RelayCommand]
-    private async Task ExportLoggingSession(LoggingSession? session)
-    {
-        if (session == null)
-        {
-            _appLogger.Error("Error exporting logging session");
-            return;
-        }
-
-        SelectedLoggingSession = session;
-        var exportDialogViewModel = new ExportDialogViewModel(SelectedLoggingSession.ID);
-
-        // UI-test hook: when DAQIFI_TEST_EXPORT_PATH is set, export straight to that directory
-        // with no SaveFileDialog (mirrors DAQIFI_TEST_MODE / AppDataPaths). Unset in production,
-        // where the interactive dialog below is used unchanged.
-        if (Common.AppDataPaths.TestExportPath != null)
-        {
-            await exportDialogViewModel.ExportToDirectoryAsync(Common.AppDataPaths.TestExportPath);
-            return;
-        }
-
-        _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
-    }
+    private Task ExportLoggingSession(LoggingSession? session) => _loggingSessionList.ExportSessionAsync(session);
 
     [RelayCommand(CanExecute = nameof(CanExportAllLoggingSession))]
-    private async Task ExportAllLoggingSession()
-    {
-        if (LoggingSessions.Count == 0)
-        {
-            _appLogger.Error("Error exporting all logging sessions");
-            return;
-        }
-
-        var exportDialogViewModel = new ExportDialogViewModel(LoggingSessions);
-
-        // UI-test hook: see ExportLoggingSession above. Same seam, so "Export All" is equally
-        // dialog-free and deterministic under automation when the env var is set.
-        if (Common.AppDataPaths.TestExportPath != null)
-        {
-            await exportDialogViewModel.ExportToDirectoryAsync(Common.AppDataPaths.TestExportPath);
-            return;
-        }
-
-        _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
-    }
+    private Task ExportAllLoggingSession() => _loggingSessionList.ExportAllSessionsAsync();
 
     [RelayCommand]
     private async Task ImportSdCardLogFile()
@@ -1054,152 +994,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
         }
     }
 
-    private async Task DeleteLoggingSessionAsync(LoggingSession? session)
-    {
-        try
-        {
-            if (session == null)
-            {
-                _appLogger.Error("Error deleting logging session: Invalid object provided.");
-                return;
-            }
-
-            SelectedLoggingSession = session;
-
-            var confirmed = await ShowConfirm(
-                "Delete Confirmation",
-                $"Are you sure you want to delete {SelectedLoggingSession.Name}?",
-                affirmativeLabel: "DELETE",
-                isDestructive: true);
-            if (!confirmed)
-            {
-                return;
-            }
-
-            IsLoggedDataBusy = true;
-            LoggedDataBusyReason = $"Deleting Logging Session #{SelectedLoggingSession.ID}";
-            var bw = new BackgroundWorker();
-            var sessionToDelete = SelectedLoggingSession;
-            bw.DoWork += delegate
-            {
-                var deleteSucceeded = false;
-                try
-                {
-                    DbLogger.DeleteLoggingSession(sessionToDelete);
-                    deleteSucceeded = true;
-                }
-                catch (Exception dbEx)
-                {
-                    _appLogger.Error(dbEx, $"Failed to delete session {sessionToDelete.ID} from database.");
-                }
-
-                if (deleteSucceeded)
-                {
-                    Application.Current.Dispatcher.Invoke(delegate
-                    {
-                        LoggingManager.Instance.LoggingSessions.Remove(sessionToDelete);
-                        NotifyLoggingSessionsChanged();
-                    });
-                }
-            };
-
-            bw.RunWorkerCompleted += (s, e) =>
-            {
-                IsLoggedDataBusy = false;
-                LoggedDataBusyReason = string.Empty;
-            };
-
-            bw.RunWorkerAsync();
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex, "Error initiating logging session deletion");
-        }
-    }
-
-    private async Task DeleteAllLoggingSessionAsync()
-    {
-        try
-        {
-            if (LoggingSessions.Count == 0)
-            {
-                return;
-            }
-
-            if (LoggingManager.Instance.Active)
-            {
-                await ShowMessage(
-                    "Cannot Delete",
-                    "Please stop logging before deleting all sessions.",
-                    MessageDialogStyle.Affirmative);
-                return;
-            }
-
-            var confirmed = await ShowConfirm(
-                "Delete Confirmation",
-                "Are you sure you want to delete all logging sessions? This cannot be undone.",
-                affirmativeLabel: "DELETE ALL",
-                isDestructive: true);
-            if (!confirmed)
-            {
-                return;
-            }
-
-            IsLoggedDataBusy = true;
-            LoggedDataBusyReason = "Deleting All Logging Sessions";
-
-            try
-            {
-                var contextFactory = GetLoggingContextFactory();
-                await Task.Run(() => DeleteAllLoggingSessionsFromStorage(contextFactory));
-                LoggingManager.Instance.LoggingSessions.Clear();
-                NotifyLoggingSessionsChanged();
-                DbLogger.ClearPlot();
-            }
-            catch (IOException ioEx)
-            {
-                _appLogger.Error(ioEx, "Database file is in use. Please try again.");
-            }
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex, "Error during deletion of all logging sessions");
-        }
-        finally
-        {
-            IsLoggedDataBusy = false;
-            LoggedDataBusyReason = string.Empty;
-        }
-    }
-
-    private void DeleteAllLoggingSessionsFromStorage(IDbContextFactory<LoggingContext> contextFactory)
-    {
-        DbLogger.SuspendConsumer();
-        try
-        {
-            DbLogger.ClearBuffer();
-
-            // Release all pooled SQLite connections so the file is not locked.
-            SqliteConnection.ClearAllPools();
-
-            var dbPath = App.DatabasePath;
-            DeleteFileIfExists(dbPath);
-            DeleteFileIfExists(dbPath + "-wal");
-            DeleteFileIfExists(dbPath + "-shm");
-
-            // Recreate the database schema. Constructing a context does not
-            // create tables — only Migrate() (or EnsureCreated) does. Without
-            // this, the next session-start query against Samples/Sessions
-            // throws "no such table: Samples".
-            using var context = contextFactory.CreateDbContext();
-            context.Database.Migrate();
-        }
-        finally
-        {
-            DbLogger.ResumeConsumer();
-        }
-    }
-
     private IDbContextFactory<LoggingContext> GetLoggingContextFactory()
     {
         return _loggingContextFactory
@@ -1207,47 +1001,18 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
             ?? throw new InvalidOperationException("Logging context factory is not available.");
     }
 
-    private void AttachLoggingSessionsCollection(ObservableCollection<LoggingSession> loggingSessions)
-    {
-        if (ReferenceEquals(_observedLoggingSessions, loggingSessions))
-        {
-            return;
-        }
-
-        if (_observedLoggingSessions != null)
-        {
-            _observedLoggingSessions.CollectionChanged -= OnLoggingSessionsCollectionChanged;
-        }
-
-        _observedLoggingSessions = loggingSessions;
-        _observedLoggingSessions.CollectionChanged += OnLoggingSessionsCollectionChanged;
-    }
-
-    private void OnLoggingSessionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
-        {
-            _ = dispatcher.InvokeAsync(NotifyLoggingSessionsChanged);
-            return;
-        }
-
-        NotifyLoggingSessionsChanged();
-    }
-
+    /// <summary>
+    /// Re-raises change notifications for the bound session collection and refreshes the
+    /// "export all" / "delete all" command CanExecute state. Internal callers (the
+    /// <see cref="UpdateUi"/> property-changed handler) invoke this directly; the
+    /// <see cref="ILoggingSessionListHost"/> seam adds UI-thread marshalling for the list view model.
+    /// </summary>
     private void NotifyLoggingSessionsChanged()
     {
         OnPropertyChanged(nameof(LoggingSessions));
         OnPropertyChanged(nameof(HasLoggingSessions));
         DeleteAllLoggingSessionCommand?.NotifyCanExecuteChanged();
         ExportAllLoggingSessionCommand.NotifyCanExecuteChanged();
-    }
-
-    private static void DeleteFileIfExists(string path)
-    {
-        if (File.Exists(path))
-        {
-            File.Delete(path);
-        }
     }
 
     private bool CanDeleteAllLoggingSession()
@@ -1505,7 +1270,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
                 }
                 break;
             case nameof(LoggingManager.LoggingSessions):
-                AttachLoggingSessionsCollection(LoggingManager.Instance.LoggingSessions);
+                _loggingSessionList.AttachCollection(LoggingManager.Instance.LoggingSessions);
                 NotifyLoggingSessionsChanged();
                 break;
             case "NotificationCount":
@@ -1665,6 +1430,91 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost
         dispatcher.Invoke(ShowDialog);
         CloseFlyouts();
     }
+
+    #endregion
+
+    #region ILoggingSessionListHost implementation
+
+    // The list view model reaches the view model's bound logged-data state (SelectedLoggingSession,
+    // IsLoggedDataBusy, LoggedDataBusyReason, LoggingSessions) through their existing public members,
+    // which already satisfy the ILoggingSessionListHost setters/getters implicitly. Only the members
+    // below need an explicit bridge because they map onto DbLogger, desktop singletons, or WPF the
+    // list view model intentionally never touches directly.
+
+    /// <summary>True while logging is active. Sourced from <see cref="LoggingManager"/>.</summary>
+    bool ILoggingSessionListHost.IsLoggingActive => LoggingManager.Instance.Active;
+
+    /// <summary>
+    /// Re-raises the session-collection notifications on the UI thread. The list view model calls this
+    /// off the UI thread (from a collection-changed callback or after a background delete), so this
+    /// folds in the dispatcher marshalling the old collection-changed handler performed.
+    /// </summary>
+    void ILoggingSessionListHost.NotifyLoggingSessionsChanged()
+    {
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.InvokeAsync(NotifyLoggingSessionsChanged);
+            return;
+        }
+
+        NotifyLoggingSessionsChanged();
+    }
+
+    void ILoggingSessionListHost.DisplaySessionOnPlot(LoggingSession session) => DbLogger.DisplayLoggingSession(session);
+
+    void ILoggingSessionListHost.DeleteSessionFromDatabase(LoggingSession session) => DbLogger.DeleteLoggingSession(session);
+
+    void ILoggingSessionListHost.ClearPlot() => DbLogger.ClearPlot();
+
+    void ILoggingSessionListHost.SuspendConsumer() => DbLogger.SuspendConsumer();
+
+    void ILoggingSessionListHost.ResumeConsumer() => DbLogger.ResumeConsumer();
+
+    void ILoggingSessionListHost.ClearBuffer() => DbLogger.ClearBuffer();
+
+    /// <summary>
+    /// Builds and presents the single-session export dialog. Kept on the host because the dialog view
+    /// model resolves services from the desktop container and presentation is a WPF concern.
+    /// </summary>
+    async Task ILoggingSessionListHost.ShowExportDialogForSessionAsync(int sessionId)
+    {
+        var exportDialogViewModel = new ExportDialogViewModel(sessionId);
+
+        // UI-test hook: when DAQIFI_TEST_EXPORT_PATH is set, export straight to that directory
+        // with no SaveFileDialog (mirrors DAQIFI_TEST_MODE / AppDataPaths). Unset in production,
+        // where the interactive dialog below is used unchanged.
+        if (Common.AppDataPaths.TestExportPath != null)
+        {
+            await exportDialogViewModel.ExportToDirectoryAsync(Common.AppDataPaths.TestExportPath);
+            return;
+        }
+
+        _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
+    }
+
+    /// <summary>Builds and presents the "export all" dialog for the supplied sessions.</summary>
+    async Task ILoggingSessionListHost.ShowExportDialogForSessionsAsync(IReadOnlyList<LoggingSession> sessions)
+    {
+        var exportDialogViewModel = new ExportDialogViewModel(sessions);
+
+        // UI-test hook: see ShowExportDialogForSessionAsync above. Same seam, so "Export All" is
+        // equally dialog-free and deterministic under automation when the env var is set.
+        if (Common.AppDataPaths.TestExportPath != null)
+        {
+            await exportDialogViewModel.ExportToDirectoryAsync(Common.AppDataPaths.TestExportPath);
+            return;
+        }
+
+        _dialogService.ShowDialog<ExportDialog>(this, exportDialogViewModel);
+    }
+
+    /// <summary>Routes the list view model's confirmations through the in-pane confirm overlay.</summary>
+    Task<bool> ILoggingSessionListHost.ShowConfirmAsync(string title, string message, string affirmativeLabel, bool isDestructive)
+        => ShowConfirm(title, message, affirmativeLabel, isDestructive);
+
+    /// <summary>Routes the list view model's informational messages through the MahApps message dialog.</summary>
+    Task ILoggingSessionListHost.ShowMessageAsync(string title, string message)
+        => ShowMessage(title, message, MessageDialogStyle.Affirmative);
 
     #endregion
 
