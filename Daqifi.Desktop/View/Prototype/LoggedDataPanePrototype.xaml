@@ -1086,13 +1086,15 @@
                                 Style="{StaticResource AccentPillButton}"
                                 Margin="10,0,0,0"
                                 Command="{Binding ConfirmOverlay.AffirmativeCommand}"
-                                Visibility="{Binding ConfirmOverlay.AffirmativeIsDestructive, Converter={StaticResource InvertedBoolToVis}}"/>
+                                Visibility="{Binding ConfirmOverlay.AffirmativeIsDestructive,
+                                             Converter={StaticResource InvertedBoolToVis}}"/>
                         <Button Content="{Binding ConfirmOverlay.AffirmativeLabel}"
                                 AutomationProperties.AutomationId="ConfirmAffirmativeButton"
                                 Style="{StaticResource DangerPillButton}"
                                 Margin="10,0,0,0"
                                 Command="{Binding ConfirmOverlay.AffirmativeCommand}"
-                                Visibility="{Binding ConfirmOverlay.AffirmativeIsDestructive, Converter={StaticResource BoolToVis}}"/>
+                                Visibility="{Binding ConfirmOverlay.AffirmativeIsDestructive,
+                                             Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
