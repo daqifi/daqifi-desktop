@@ -31,7 +31,10 @@ public class LoggingSessionListViewModelTests
             {
                 try
                 {
-                    if (File.Exists(path + suffix)) { File.Delete(path + suffix); }
+                    if (File.Exists(path + suffix))
+                    {
+                        File.Delete(path + suffix);
+                    }
                 }
                 catch
                 {

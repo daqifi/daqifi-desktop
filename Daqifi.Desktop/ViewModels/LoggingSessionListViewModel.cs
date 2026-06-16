@@ -157,6 +157,13 @@ public class LoggingSessionListViewModel
             _host.LoggedDataBusyReason = $"Deleting Logging Session #{session.ID}";
             try
             {
+                // Remove the bound row only when the database delete reports success — the gating is
+                // preserved verbatim from the pre-extraction DaqifiViewModel. Note the production host
+                // routes DeleteSessionFromDatabase to DatabaseLogger.DeleteLoggingSession, which today
+                // logs and swallows its own exceptions, so this catch is currently a latent guard
+                // rather than a live failure path. Surfacing delete failures (so a failed delete keeps
+                // the row) belongs to the separate DatabaseLogger extraction tracked in #592; this
+                // contract is unit-tested here so it stays correct once the host propagates failure.
                 var deleteSucceeded = false;
                 try
                 {
