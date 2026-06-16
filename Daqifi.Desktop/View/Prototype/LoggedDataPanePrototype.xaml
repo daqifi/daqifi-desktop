@@ -1040,8 +1040,8 @@
         <!-- Focusable + Cycle traps Tab inside the overlay so keyboard focus can't reach
              the now-scrim-covered controls behind. Initial focus is moved to the Cancel
              button by code-behind on IsVisibleChanged so the safe option is the default. -->
-        <Grid x:Name="ConfirmOverlay"
-              Visibility="{Binding IsConfirmOpen, Converter={StaticResource BoolToVis}}"
+        <Grid x:Name="ConfirmOverlayHost"
+              Visibility="{Binding ConfirmOverlay.IsOpen, Converter={StaticResource BoolToVis}}"
               Panel.ZIndex="30"
               Focusable="True"
               KeyboardNavigation.TabNavigation="Cycle"
@@ -1049,7 +1049,7 @@
             <!-- Scrim. Click = cancel (same pattern as the drawer). -->
             <Rectangle Fill="#A0000000">
                 <Rectangle.InputBindings>
-                    <MouseBinding MouseAction="LeftClick" Command="{Binding ConfirmNegativeCommand}"/>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding ConfirmOverlay.NegativeCommand}"/>
                 </Rectangle.InputBindings>
             </Rectangle>
 
@@ -1063,11 +1063,11 @@
                     CornerRadius="4"
                     Padding="24">
                 <StackPanel>
-                    <TextBlock Text="{Binding ConfirmTitle}"
+                    <TextBlock Text="{Binding ConfirmOverlay.Title}"
                                FontSize="16"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource TextPrimary}"/>
-                    <TextBlock Text="{Binding ConfirmMessage}"
+                    <TextBlock Text="{Binding ConfirmOverlay.Message}"
                                FontSize="13"
                                Foreground="{StaticResource TextSecondary}"
                                TextWrapping="Wrap"
@@ -1078,21 +1078,21 @@
                                 Content="CANCEL"
                                 Style="{StaticResource PillButton}"
                                 IsCancel="True"
-                                Command="{Binding ConfirmNegativeCommand}"/>
+                                Command="{Binding ConfirmOverlay.NegativeCommand}"/>
                         <!-- Affirmative is one of two styles depending on whether the
                              confirmed action is destructive; only one is visible at a time. -->
-                        <Button Content="{Binding ConfirmAffirmativeLabel}"
+                        <Button Content="{Binding ConfirmOverlay.AffirmativeLabel}"
                                 AutomationProperties.AutomationId="ConfirmAffirmativeButton"
                                 Style="{StaticResource AccentPillButton}"
                                 Margin="10,0,0,0"
-                                Command="{Binding ConfirmAffirmativeCommand}"
-                                Visibility="{Binding ConfirmAffirmativeIsDestructive, Converter={StaticResource InvertedBoolToVis}}"/>
-                        <Button Content="{Binding ConfirmAffirmativeLabel}"
+                                Command="{Binding ConfirmOverlay.AffirmativeCommand}"
+                                Visibility="{Binding ConfirmOverlay.AffirmativeIsDestructive, Converter={StaticResource InvertedBoolToVis}}"/>
+                        <Button Content="{Binding ConfirmOverlay.AffirmativeLabel}"
                                 AutomationProperties.AutomationId="ConfirmAffirmativeButton"
                                 Style="{StaticResource DangerPillButton}"
                                 Margin="10,0,0,0"
-                                Command="{Binding ConfirmAffirmativeCommand}"
-                                Visibility="{Binding ConfirmAffirmativeIsDestructive, Converter={StaticResource BoolToVis}}"/>
+                                Command="{Binding ConfirmOverlay.AffirmativeCommand}"
+                                Visibility="{Binding ConfirmOverlay.AffirmativeIsDestructive, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

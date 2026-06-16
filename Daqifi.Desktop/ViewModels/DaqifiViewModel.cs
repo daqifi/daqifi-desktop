@@ -70,30 +70,18 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     [ObservableProperty]
     private bool _isAppSettingsOpen;
 
-    // In-pane confirm dialog state (used by ShowConfirm for delete confirmations, etc.).
-    // Bound by the LoggedDataPane confirm overlay; replaces the MahApps MessageDialog
-    // (white card / blue theme) which clashed with the dark, tile-based design system.
-
-    /// <summary>True while the in-pane confirm overlay is visible.</summary>
-    [ObservableProperty] private bool _isConfirmOpen;
-
-    /// <summary>Title shown at the top of the confirm overlay card.</summary>
-    [ObservableProperty] private string _confirmTitle = string.Empty;
-
-    /// <summary>Body message shown in the confirm overlay card.</summary>
-    [ObservableProperty] private string _confirmMessage = string.Empty;
-
-    /// <summary>Label shown on the affirmative button of the confirm overlay (e.g. "DELETE").</summary>
-    [ObservableProperty] private string _confirmAffirmativeLabel = "OK";
+    // In-pane confirm overlay (delete confirmations, etc.). The reusable ConfirmOverlayViewModel
+    // owns the bound state, the affirmative/negative commands, and the awaitable ShowAsync
+    // (issue #592); the LoggedDataPane overlay binds ConfirmOverlay.*. It replaces the MahApps
+    // MessageDialog (white card / blue theme) which clashed with the dark, tile-based design system.
 
     /// <summary>
-    /// When true, the confirm overlay's affirmative button uses the danger style
-    /// (red outline) instead of the accent style (filled blue). Set by destructive
-    /// callers of <see cref="ShowConfirm"/>.
+    /// Backs the in-pane confirm overlay. Bound by the LoggedDataPane confirm overlay via
+    /// <c>ConfirmOverlay.IsOpen</c> / <c>ConfirmOverlay.Title</c> / <c>ConfirmOverlay.Message</c> /
+    /// <c>ConfirmOverlay.AffirmativeLabel</c> / <c>ConfirmOverlay.AffirmativeIsDestructive</c> and
+    /// the affirmative/negative button commands.
     /// </summary>
-    [ObservableProperty] private bool _confirmAffirmativeIsDestructive;
-
-    private TaskCompletionSource<bool>? _confirmTcs;
+    public ConfirmOverlayViewModel ConfirmOverlay { get; } = new();
 
     private SettingsViewModel? _appSettings;
 
@@ -322,7 +310,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             // Cancel any pending confirm overlay so its awaiter (e.g. an in-flight
             // delete) doesn't get stranded when the user navigates away from the
             // pane that owns the overlay.
-            CompleteConfirm(false);
+            ConfirmOverlay.Cancel();
             OnPropertyChanged();
         }
     }
@@ -483,17 +471,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     public AsyncRelayCommand DeleteAllLoggingSessionCommand { get; private set; }
     public ICommand ToggleChannelVisibilityCommand { get; private set; }
     public ICommand ToggleLoggedSeriesVisibilityCommand { get; private set; }
-    /// <summary>
-    /// Resolves the confirm overlay's awaitable Task with <c>true</c>.
-    /// Bound to the affirmative button.
-    /// </summary>
-    public IRelayCommand ConfirmAffirmativeCommand { get; }
-
-    /// <summary>
-    /// Resolves the confirm overlay's awaitable Task with <c>false</c>.
-    /// Bound to the cancel button and the scrim.
-    /// </summary>
-    public IRelayCommand ConfirmNegativeCommand { get; }
     #endregion
 
     #region Constructor
@@ -558,9 +535,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             GetLoggingContextFactory,
             App.DatabasePath,
             _appLogger);
-
-        ConfirmAffirmativeCommand = new RelayCommand(() => CompleteConfirm(true));
-        ConfirmNegativeCommand = new RelayCommand(() => CompleteConfirm(false));
 
         // Track device-side logging/streaming state so the toggle and the Live Graph
         // overlay reflect what's *actually* happening, not just what the user clicked.
@@ -1313,39 +1287,17 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     }
 
     /// <summary>
-    /// Displays the in-pane dark confirm overlay and returns true if the user
-    /// chose the affirmative button. Bound by the LoggedDataPane confirm overlay
-    /// via <see cref="IsConfirmOpen"/>, <see cref="ConfirmTitle"/>,
-    /// <see cref="ConfirmMessage"/>, and <see cref="ConfirmAffirmativeLabel"/>;
-    /// the two button commands complete the underlying
-    /// <see cref="TaskCompletionSource{TResult}"/>.
+    /// Displays the in-pane dark confirm overlay and returns true if the user chose the affirmative
+    /// button. Thin forwarder to <see cref="ConfirmOverlay"/> (issue #592); the existing
+    /// <see cref="ILoggingSessionListHost.ShowConfirmAsync"/> caller stays unchanged.
     /// </summary>
     private Task<bool> ShowConfirm(
         string title,
         string message,
         string affirmativeLabel = "OK",
         bool isDestructive = false)
-    {
-        // Defensive: if a prior confirm is somehow still pending, cancel it
-        // with a negative so the previous awaiter unwinds cleanly.
-        _confirmTcs?.TrySetResult(false);
+        => ConfirmOverlay.ShowAsync(title, message, affirmativeLabel, isDestructive);
 
-        _confirmTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        ConfirmTitle = title;
-        ConfirmMessage = message;
-        ConfirmAffirmativeLabel = affirmativeLabel;
-        ConfirmAffirmativeIsDestructive = isDestructive;
-        IsConfirmOpen = true;
-        return _confirmTcs.Task;
-    }
-
-    private void CompleteConfirm(bool result)
-    {
-        IsConfirmOpen = false;
-        var tcs = _confirmTcs;
-        _confirmTcs = null;
-        tcs?.TrySetResult(result);
-    }
     public void CloseFlyouts()
     {
         IsDeviceSettingsOpen = false;

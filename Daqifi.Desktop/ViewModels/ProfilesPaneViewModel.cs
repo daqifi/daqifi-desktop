@@ -19,7 +19,6 @@ public partial class ProfilesPaneViewModel : ObservableObject
 {
     #region Private Fields
     private readonly AppLogger _logger = AppLogger.Instance;
-    private TaskCompletionSource<bool>? _confirmTcs;
     #endregion
 
     #region Observable Properties
@@ -46,20 +45,6 @@ public partial class ProfilesPaneViewModel : ObservableObject
     /// <summary>Name of the currently active profile (null when none is active).</summary>
     [ObservableProperty] private string? _activeProfileName;
 
-    // In-pane confirm dialog state (used by ShowConfirm for profile switch, etc.).
-
-    /// <summary>True while the in-pane confirm overlay is being displayed.</summary>
-    [ObservableProperty] private bool _isConfirmOpen;
-
-    /// <summary>Title shown on the confirm overlay.</summary>
-    [ObservableProperty] private string _confirmTitle = string.Empty;
-
-    /// <summary>Body message shown on the confirm overlay.</summary>
-    [ObservableProperty] private string _confirmMessage = string.Empty;
-
-    /// <summary>Text displayed on the affirmative (primary) button of the confirm overlay.</summary>
-    [ObservableProperty] private string _confirmAffirmativeLabel = "OK";
-
     // New-profile form fields (active only when IsNewProfile = true)
 
     /// <summary>Name bound to the new-profile form.</summary>
@@ -82,6 +67,13 @@ public partial class ProfilesPaneViewModel : ObservableObject
 
     /// <summary>Devices available to include when building a new profile.</summary>
     public ObservableCollection<NewProfileDeviceItem> NewDeviceItems { get; } = [];
+
+    /// <summary>
+    /// Backs the in-pane confirm overlay. Bound by the Profiles confirm overlay via
+    /// <c>ConfirmOverlay.IsOpen</c> / <c>ConfirmOverlay.Title</c> / <c>ConfirmOverlay.Message</c> /
+    /// <c>ConfirmOverlay.AffirmativeLabel</c> and the affirmative/negative button commands.
+    /// </summary>
+    public ConfirmOverlayViewModel ConfirmOverlay { get; } = new();
     #endregion
 
     #region Commands
@@ -105,12 +97,6 @@ public partial class ProfilesPaneViewModel : ObservableObject
 
     /// <summary>Snapshots the current device configuration into a new profile.</summary>
     public IRelayCommand SaveCurrentSettingsCommand { get; }
-
-    /// <summary>Affirmative response for the in-pane confirm overlay.</summary>
-    public IRelayCommand ConfirmAffirmativeCommand { get; }
-
-    /// <summary>Negative response for the in-pane confirm overlay.</summary>
-    public IRelayCommand ConfirmNegativeCommand { get; }
     #endregion
 
     #region Constructor
@@ -128,8 +114,6 @@ public partial class ProfilesPaneViewModel : ObservableObject
         DeleteProfileCommand = new RelayCommand<Profile>(DeleteProfile);
         SaveNewProfileCommand = new RelayCommand(SaveNewProfile, CanSaveNewProfile);
         SaveCurrentSettingsCommand = new RelayCommand(SaveCurrentSettings);
-        ConfirmAffirmativeCommand = new RelayCommand(() => CompleteConfirm(true));
-        ConfirmNegativeCommand = new RelayCommand(() => CompleteConfirm(false));
 
         LoggingManager.Instance.PropertyChanged += OnLoggingManagerPropertyChanged;
         IsLoggingActive = LoggingManager.Instance.Active;
@@ -386,34 +370,11 @@ public partial class ProfilesPaneViewModel : ObservableObject
 
     #region Confirm Overlay
     /// <summary>
-    /// Displays the in-pane dark confirm overlay and returns true if the user
-    /// chose the affirmative button. The overlay is bound to
-    /// <see cref="IsConfirmOpen"/>, <see cref="ConfirmTitle"/>,
-    /// <see cref="ConfirmMessage"/>, and <see cref="ConfirmAffirmativeLabel"/>;
-    /// the two button commands complete the underlying
-    /// <see cref="TaskCompletionSource{TResult}"/>.
+    /// Displays the in-pane dark confirm overlay and returns true if the user chose the affirmative
+    /// button. Thin forwarder to <see cref="ConfirmOverlay"/> (issue #592).
     /// </summary>
     private Task<bool> ShowConfirm(string title, string message, string affirmativeLabel = "OK")
-    {
-        // Defensive: if a prior confirm is somehow still pending, cancel it
-        // with a negative so the previous awaiter unwinds cleanly.
-        _confirmTcs?.TrySetResult(false);
-
-        _confirmTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        ConfirmTitle = title;
-        ConfirmMessage = message;
-        ConfirmAffirmativeLabel = affirmativeLabel;
-        IsConfirmOpen = true;
-        return _confirmTcs.Task;
-    }
-
-    private void CompleteConfirm(bool result)
-    {
-        IsConfirmOpen = false;
-        var tcs = _confirmTcs;
-        _confirmTcs = null;
-        tcs?.TrySetResult(result);
-    }
+        => ConfirmOverlay.ShowAsync(title, message, affirmativeLabel);
     #endregion
 
     #region Profile CRUD
@@ -562,8 +523,7 @@ public partial class ProfilesPaneViewModel : ObservableObject
         foreach (var item in NewDeviceItems)
             item.PropertyChanged -= OnNewDeviceItemPropertyChanged;
         // Release any awaiter on an unresolved confirm dialog.
-        _confirmTcs?.TrySetResult(false);
-        _confirmTcs = null;
+        ConfirmOverlay.Cancel();
     }
     #endregion
 }
