@@ -302,7 +302,16 @@ public class LoggingSessionListViewModelTests
         // The consumer thread must be suspended around the purge and resumed afterward.
         Assert.AreEqual(1, host.SuspendConsumerCount);
         Assert.AreEqual(1, host.ClearBufferCount);
+        Assert.AreEqual(1, host.DiscardPendingBatchCount,
+            "The purge must discard any retained retry batch so it cannot repopulate the wiped database.");
         Assert.AreEqual(1, host.ResumeConsumerCount);
+
+        // Order matters: the discard must happen inside the suspend window, after the buffer is
+        // cleared and before the consumer resumes — otherwise a stranded batch could slip through.
+        CollectionAssert.AreEqual(
+            new[] { "Suspend", "ClearBuffer", "DiscardPendingBatch", "Resume" },
+            host.ConsumerCallLog,
+            "The purge must suspend, clear the buffer, discard the retained batch, then resume — in order.");
         Assert.IsTrue(host.SuspendBeforeResume, "Consumer must be suspended before it is resumed.");
 
         // The database file is deleted and re-migrated, the bound collection is emptied, and the plot reset.
@@ -311,6 +320,33 @@ public class LoggingSessionListViewModelTests
         Assert.IsTrue(host.NotifyCount >= 1);
         Assert.AreEqual(1, host.ClearPlotCount);
         Assert.IsFalse(host.IsLoggedDataBusyValue, "Busy must clear after the purge completes.");
+    }
+
+    [TestMethod]
+    public async Task DeleteAll_WhenPurgeFails_DoesNotDiscardRetainedBatch_AndKeepsSessions()
+    {
+        var host = new FakeLoggingSessionListHost { ConfirmResult = true };
+        host.LoggingSessions.Add(new LoggingSession { ID = 1, Name = "A" });
+
+        // A context factory that cannot create a context models a purge that fails to recreate the
+        // database (e.g. the file is locked). The recreate step throws, so the purge does not complete.
+        var failingFactory = new Mock<IDbContextFactory<LoggingContext>>();
+        failingFactory.Setup(f => f.CreateDbContext()).Throws(new IOException("database file is in use"));
+
+        var dbPath = NewTempDbPath();
+        var list = new LoggingSessionListViewModel(host, () => failingFactory.Object, dbPath, Mock.Of<IAppLogger>());
+
+        await list.DeleteAllSessionsAsync();
+
+        // The consumer must still be suspended and resumed around the (failed) purge...
+        Assert.AreEqual(1, host.SuspendConsumerCount);
+        Assert.AreEqual(1, host.ResumeConsumerCount, "The consumer must always be resumed, even on failure.");
+
+        // ...but the retained retry batch must NOT be discarded: the database is still intact and the
+        // sessions remain, so dropping the batch would silently lose unflushed samples.
+        Assert.AreEqual(0, host.DiscardPendingBatchCount,
+            "A failed purge must not discard the retained retry batch.");
+        Assert.AreEqual(1, host.LoggingSessions.Count, "A failed purge must leave the sessions intact.");
     }
 
     #endregion
@@ -456,7 +492,15 @@ public class LoggingSessionListViewModelTests
 
         public int ClearBufferCount { get; private set; }
 
+        public int DiscardPendingBatchCount { get; private set; }
+
         public bool SuspendBeforeResume { get; private set; }
+
+        /// <summary>
+        /// Ordered log of the consumer-control calls (Suspend/ClearBuffer/DiscardPendingBatch/Resume)
+        /// so a test can assert the purge invokes them in the right order, not merely the right counts.
+        /// </summary>
+        public List<string> ConsumerCallLog { get; } = [];
 
         public List<int> ExportSessionIds { get; } = [];
 
@@ -498,6 +542,7 @@ public class LoggingSessionListViewModelTests
         {
             SuspendConsumerCount++;
             _suspendedAtLeastOnce = true;
+            ConsumerCallLog.Add("Suspend");
         }
 
         public void ResumeConsumer()
@@ -507,9 +552,20 @@ public class LoggingSessionListViewModelTests
             {
                 SuspendBeforeResume = true;
             }
+            ConsumerCallLog.Add("Resume");
         }
 
-        public void ClearBuffer() => ClearBufferCount++;
+        public void ClearBuffer()
+        {
+            ClearBufferCount++;
+            ConsumerCallLog.Add("ClearBuffer");
+        }
+
+        public void DiscardPendingBatch()
+        {
+            DiscardPendingBatchCount++;
+            ConsumerCallLog.Add("DiscardPendingBatch");
+        }
 
         public Task ShowExportDialogForSessionAsync(int sessionId)
         {

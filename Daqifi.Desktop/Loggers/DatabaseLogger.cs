@@ -1055,6 +1055,12 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     public void ClearBuffer() => _sampleWriter.ClearBuffer();
 
     /// <summary>
+    /// Drops any batch the writer has retained for retry after a failed commit, so a delete-all purge
+    /// does not repopulate the freshly recreated database with stranded rows.
+    /// </summary>
+    public void DiscardPendingBatch() => _sampleWriter.DiscardPendingBatch();
+
+    /// <summary>
     /// Blocks until the buffered samples have been flushed to the database, or
     /// the timeout elapses. Used by <c>LoggingManager</c> when finalizing a
     /// session so the persisted <c>SampleCount</c> reflects every row that was

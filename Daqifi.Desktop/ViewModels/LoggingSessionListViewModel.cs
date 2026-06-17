@@ -254,6 +254,7 @@ public class LoggingSessionListViewModel
     private void DeleteAllLoggingSessionsFromStorage(IDbContextFactory<LoggingContext> contextFactory)
     {
         _host.SuspendConsumer();
+        var purgeSucceeded = false;
         try
         {
             _host.ClearBuffer();
@@ -271,9 +272,22 @@ public class LoggingSessionListViewModel
             // throws "no such table: Samples".
             using var context = contextFactory.CreateDbContext();
             context.Database.Migrate();
+            purgeSucceeded = true;
         }
         finally
         {
+            // Discard any batch the consumer retained after a failed commit — but ONLY when the wipe
+            // actually succeeded. ClearBuffer empties just the producer buffer; a stranded batch lives
+            // in the consumer's local list and would otherwise repopulate the recreated database on
+            // resume. If the purge failed (e.g. the file was locked), the database is still intact and
+            // the sessions remain, so dropping the batch would silently lose unflushed samples —
+            // leaving it lets the consumer commit them to the surviving database instead. Requested
+            // before ResumeConsumer so the consumer honors it before its next insert.
+            if (purgeSucceeded)
+            {
+                _host.DiscardPendingBatch();
+            }
+
             _host.ResumeConsumer();
         }
     }

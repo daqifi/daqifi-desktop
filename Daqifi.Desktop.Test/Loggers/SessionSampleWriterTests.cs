@@ -18,8 +18,10 @@ namespace Daqifi.Desktop.Test.Loggers;
 /// <c>SuspendConsumer</c> halts draining while <c>ResumeConsumer</c> resumes it, <c>ClearBuffer</c>
 /// drops pending samples, <c>Dispose</c> stops the consumer thread cleanly and is idempotent, and —
 /// via an injected transient DB failure — a failed batch is retained, keeps <c>WaitForIdle</c> from
-/// reporting idle, is retried to completion exactly once (no lost or duplicate rows) on recovery, and
-/// is logged only once (not on every poll) while it stays stranded on a persistently failing DB.
+/// reporting idle, is retried to completion exactly once (no lost or duplicate rows) on recovery, is
+/// logged only once (not on every poll) while it stays stranded on a persistently failing DB, has its
+/// retry backoff overridden by a waiting <c>WaitForIdle</c>, and is dropped by <c>DiscardPendingBatch</c>
+/// so a delete-all purge is not repopulated.
 /// </summary>
 [TestClass]
 public class SessionSampleWriterTests
@@ -302,6 +304,44 @@ public class SessionSampleWriterTests
             "window; otherwise the persisted SampleCount would undercount.");
         Assert.AreEqual(0, writer.PendingRetryCount,
             "The flushed batch must clear the pending-retry count.");
+    }
+
+    [TestMethod]
+    public void DiscardPendingBatch_DropsStrandedBatch_SoAPurgeIsNotRepopulated()
+    {
+        const int sampleCount = 5;
+        using var inner = NewFactory();
+        SeedSession(inner);
+
+        var failing = new FailUntilReleasedContextFactory(inner);
+        using var writer = new SessionSampleWriter(failing, Mock.Of<IAppLogger>());
+
+        for (var i = 0; i < sampleCount; i++)
+        {
+            writer.Add(MakeSample("AI0", i));
+        }
+
+        // Strand the batch in the consumer's retry list via the injected failure.
+        Assert.IsTrue(
+            WaitUntil(() => writer.PendingRetryCount == sampleCount, TimeSpan.FromSeconds(5)),
+            "Consumer should strand the batch after the injected commit failure.");
+
+        // Mirror the delete-all purge ordering, including the discard step. Unlike ClearBuffer (which
+        // empties only the producer buffer), DiscardPendingBatch must drop the stranded batch the
+        // consumer is holding so it is not re-inserted into the recreated database on resume — even
+        // once the database is healthy again.
+        writer.SuspendConsumer();
+        writer.ClearBuffer();
+        writer.DiscardPendingBatch();
+        failing.Release();
+        writer.ResumeConsumer();
+
+        writer.WaitForIdle(TimeSpan.FromSeconds(5));
+
+        Assert.AreEqual(0, CountSamples(inner),
+            "A discarded stranded batch must NOT be re-inserted after the purge, even once the DB recovers.");
+        Assert.AreEqual(0, writer.PendingRetryCount,
+            "Discarding the stranded batch must reset the pending-retry count.");
     }
 
     #region Helpers
