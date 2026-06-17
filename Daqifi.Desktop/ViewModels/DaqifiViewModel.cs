@@ -1424,6 +1424,8 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
     void ILoggingSessionListHost.ClearBuffer() => DbLogger.ClearBuffer();
 
+    void ILoggingSessionListHost.DiscardPendingBatch() => DbLogger.DiscardPendingBatch();
+
     /// <summary>
     /// Builds and presents the single-session export dialog. Kept on the host because the dialog view
     /// model resolves services from the desktop container and presentation is a WPF concern.

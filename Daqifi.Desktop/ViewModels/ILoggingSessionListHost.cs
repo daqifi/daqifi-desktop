@@ -70,6 +70,12 @@ public interface ILoggingSessionListHost
 
     /// <summary>Clears the pending sample buffer before a bulk storage purge (routes to <c>DbLogger</c>).</summary>
     void ClearBuffer();
+
+    /// <summary>
+    /// Discards any batch retained for retry after a failed commit, so a bulk storage purge does not
+    /// repopulate the freshly recreated database with stranded rows (routes to <c>DbLogger</c>).
+    /// </summary>
+    void DiscardPendingBatch();
     #endregion
 
     #region Dialogs

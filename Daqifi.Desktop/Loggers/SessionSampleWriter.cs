@@ -68,6 +68,15 @@ public sealed class SessionSampleWriter : IDisposable
     /// cooldown that could outlast the caller's timeout and persist a sample undercount.
     /// </summary>
     private volatile bool _expediteRetry;
+
+    /// <summary>
+    /// Set by <see cref="DiscardPendingBatch"/> to ask the consumer to drop any batch retained for
+    /// retry instead of committing it. Honored by the consumer the moment it next passes the gate,
+    /// so a batch stranded by a failed commit is not re-inserted into a database that a delete-all
+    /// purge has just wiped and recreated. Written under suspension by the purge; the consumer is the
+    /// only reader/clearer.
+    /// </summary>
+    private volatile bool _discardRequested;
     #endregion
 
     #region Constructor
@@ -135,7 +144,13 @@ public sealed class SessionSampleWriter : IDisposable
                 // so without the samples.Count check it would be retried only when *new* samples
                 // happened to arrive — stranding unsaved rows indefinitely and letting WaitForIdle
                 // report idle while they are still pending.
-                if (bufferCount < 1 && samples.Count == 0) { continue; }
+                if (bufferCount < 1 && samples.Count == 0)
+                {
+                    // Nothing is held, so any discard request is already satisfied; clear it here so
+                    // a request raised while idle cannot linger and affect a future batch.
+                    _discardRequested = false;
+                    continue;
+                }
 
                 // Wait if the consumer is suspended (e.g. during delete-all)
                 _consumerGate.Wait(_consumerCts.Token);
@@ -143,6 +158,20 @@ public sealed class SessionSampleWriter : IDisposable
                 _consumerBusy = true;
                 try
                 {
+                    // Honor a delete-all purge's discard request. Checked here — right after the gate,
+                    // before draining or inserting — because a batch stranded by a failed commit is
+                    // held by this thread while it is parked at the gate during SuspendConsumer();
+                    // dropping it now keeps those stale rows out of the freshly recreated database.
+                    if (_discardRequested)
+                    {
+                        samples.Clear();
+                        _pendingRetryCount = 0;
+                        consecutiveFailures = 0;
+                        _pollsUntilRetry = 0;
+                        _discardRequested = false;
+                        continue;
+                    }
+
                     // Drain whatever is newly buffered onto the (possibly retained) batch. On a
                     // pure retry pass bufferCount is 0 and the existing batch is re-attempted.
                     for (var i = 0; i < bufferCount; i++)
@@ -248,6 +277,19 @@ public sealed class SessionSampleWriter : IDisposable
         while (_buffer.TryTake(out _))
         {
         }
+    }
+
+    /// <summary>
+    /// Drops any batch the consumer has retained for retry after a failed commit, so it is not
+    /// re-inserted into the database. <see cref="ClearBuffer"/> only empties the producer buffer; a
+    /// failed batch lives in the consumer's local list and survives it. The delete-all storage purge
+    /// calls this (under suspension, after <see cref="ClearBuffer"/>) so a stranded batch does not
+    /// repopulate the freshly wiped database when the consumer resumes. The drop happens
+    /// asynchronously the next time the consumer passes the gate; it is honored before any insert.
+    /// </summary>
+    public void DiscardPendingBatch()
+    {
+        _discardRequested = true;
     }
 
     /// <summary>
