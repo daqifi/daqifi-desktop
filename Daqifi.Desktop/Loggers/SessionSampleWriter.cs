@@ -22,6 +22,19 @@ namespace Daqifi.Desktop.Logger;
 /// </summary>
 public sealed class SessionSampleWriter : IDisposable
 {
+    #region Constants
+    /// <summary>
+    /// Upper bound, in consumer poll cycles (~100ms each), on the exponential backoff applied to a
+    /// persistently failing batch during normal background operation. Caps the re-attempt interval at
+    /// roughly 5s so a permanently broken database (disk full, file locked) is retried at a low rate
+    /// instead of on every poll, without ever abandoning the batch, and so a transient failure while
+    /// logging keeps at most ~5s of samples in memory before they land. While a <see cref="WaitForIdle"/>
+    /// caller is waiting for the flush, the backoff is overridden entirely (see <see cref="_expediteRetry"/>)
+    /// so a recovered database is committed at the full poll rate within the caller's timeout.
+    /// </summary>
+    private const int MAX_RETRY_BACKOFF_POLLS = 50;
+    #endregion
+
     #region Private Fields
     private readonly BlockingCollection<DataSample> _buffer = new();
     private readonly ManualResetEventSlim _consumerGate = new(true);
@@ -40,6 +53,21 @@ public sealed class SessionSampleWriter : IDisposable
     /// count alone cannot see it).
     /// </summary>
     private volatile int _pendingRetryCount;
+
+    /// <summary>
+    /// Consumer poll cycles still to skip before the next bulk-insert attempt of a failed batch — the
+    /// exponential backoff that throttles retries on a persistently failing database. Written only by
+    /// the consumer thread; exposed (read-only) for tests via <see cref="PollsUntilRetry"/>.
+    /// </summary>
+    private volatile int _pollsUntilRetry;
+
+    /// <summary>
+    /// Set by <see cref="WaitForIdle"/> while a caller is waiting for the buffer to flush. The consumer
+    /// ignores <see cref="_pollsUntilRetry"/> (the retry backoff) while this is set, so a database that
+    /// recovers during the wait is committed at the full poll rate rather than after a multi-second
+    /// cooldown that could outlast the caller's timeout and persist a sample undercount.
+    /// </summary>
+    private volatile bool _expediteRetry;
     #endregion
 
     #region Constructor
@@ -85,6 +113,13 @@ public sealed class SessionSampleWriter : IDisposable
         // commit, so a batch whose commit failed is retained here and retried on a later pass.
         var samples = new List<DataSample>();
         int bufferCount;
+
+        // Failure-streak length for a persistently failing batch. Loop-local because the consumer is
+        // single-threaded. Drives both log-once (only the first failure of a streak is logged) and the
+        // exponential backoff (_pollsUntilRetry). Reset to 0 after a successful commit. The backoff
+        // counter itself is the field _pollsUntilRetry so WaitForIdle/tests can observe it.
+        var consecutiveFailures = 0;
+
         while (!_consumerCts.IsCancellationRequested)
         {
             try
@@ -120,6 +155,18 @@ public sealed class SessionSampleWriter : IDisposable
                     // until a later pass commits the batch.
                     _pendingRetryCount = samples.Count;
 
+                    // Back off a persistently failing batch: skip this DB attempt while the backoff
+                    // is cooling down. New samples were still drained above (so the buffer stays
+                    // bounded) and _pendingRetryCount is still set (so WaitForIdle keeps waiting),
+                    // we just avoid re-opening a connection and re-failing at the full poll rate.
+                    // Exception: while a WaitForIdle caller is waiting (_expediteRetry), ignore the
+                    // backoff and attempt every poll so a recovered DB is flushed within its timeout.
+                    if (_pollsUntilRetry > 0 && !_expediteRetry)
+                    {
+                        _pollsUntilRetry--;
+                        continue;
+                    }
+
                     using (var context = _loggingContext.CreateDbContext())
                     {
                         // Start a new transaction for bulk insert
@@ -139,6 +186,18 @@ public sealed class SessionSampleWriter : IDisposable
                         // even when no new samples have arrived).
                         samples.Clear();
                         _pendingRetryCount = 0;
+
+                        // Clear the retry-throttle state and emit a single all-clear on the
+                        // proven-commit path — inside the using, before disposal could throw — so a
+                        // recovered batch always logs its recovery and re-arms the log-once gate even
+                        // if context/transaction Dispose() then fails.
+                        if (consecutiveFailures > 0)
+                        {
+                            _appLogger.Information(
+                                $"Consumer thread recovered after {consecutiveFailures} failed batch insert attempt(s).");
+                        }
+                        consecutiveFailures = 0;
+                        _pollsUntilRetry = 0;
                     }
                 }
                 finally
@@ -156,7 +215,25 @@ public sealed class SessionSampleWriter : IDisposable
             catch (Exception ex)
             {
                 if (_consumerCts.IsCancellationRequested) { break; }
-                _appLogger.Error(ex, "Failed in Consumer Thread");
+
+                // Log only the first failure of a streak. A persistently failing database (disk
+                // full, file locked, etc.) would otherwise flood the NLog file — and, because
+                // Error() also reports to Sentry, flood Sentry — at the ~10Hz poll rate. The streak
+                // resets on the next successful commit, so a later, distinct failure is logged anew.
+                consecutiveFailures++;
+                if (consecutiveFailures == 1)
+                {
+                    _appLogger.Error(ex,
+                        "Failed in Consumer Thread; retaining the batch for retry. Further " +
+                        "consecutive failures of this batch are suppressed until it succeeds.");
+                }
+
+                // Re-attempt with bounded exponential backoff (in poll cycles): 1, 2, 4, 8, ...
+                // capped at MAX_RETRY_BACKOFF_POLLS, so a permanently failing batch is retried at a
+                // decreasing rate instead of on every poll. The shift is clamped to avoid overflow.
+                // A waiting WaitForIdle caller overrides this cooldown (see the gate above).
+                var shift = Math.Min(consecutiveFailures - 1, 30);
+                _pollsUntilRetry = (int)Math.Min(1L << shift, MAX_RETRY_BACKOFF_POLLS);
             }
         }
     }
@@ -183,17 +260,30 @@ public sealed class SessionSampleWriter : IDisposable
     /// <param name="timeout">Maximum time to wait for the buffer to drain before returning.</param>
     public void WaitForIdle(TimeSpan timeout)
     {
-        var deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline)
+        // While we wait, tell the consumer to ignore its retry backoff so a stranded batch whose
+        // database has recovered is committed at the full poll rate. Without this, the batch's
+        // exponential cooldown could exceed this timeout, leaving rows unflushed when the caller
+        // (PersistSessionSampleCount) runs its COUNT — persisting a SampleCount undercount that the
+        // null-only backfill never repairs.
+        _expediteRetry = true;
+        try
         {
-            if (IsDrained())
+            var deadline = DateTime.UtcNow + timeout;
+            while (DateTime.UtcNow < deadline)
             {
-                // Sleep one consumer poll interval to ensure no in-flight item
-                // slipped between TryTake and the busy flag being set.
-                Thread.Sleep(120);
-                if (IsDrained()) { return; }
+                if (IsDrained())
+                {
+                    // Sleep one consumer poll interval to ensure no in-flight item
+                    // slipped between TryTake and the busy flag being set.
+                    Thread.Sleep(120);
+                    if (IsDrained()) { return; }
+                }
+                Thread.Sleep(50);
             }
-            Thread.Sleep(50);
+        }
+        finally
+        {
+            _expediteRetry = false;
         }
     }
 
@@ -238,6 +328,13 @@ public sealed class SessionSampleWriter : IDisposable
     /// observe a stranded batch deterministically rather than racing the consumer's poll interval.
     /// </summary>
     internal int PendingRetryCount => _pendingRetryCount;
+
+    /// <summary>
+    /// Consumer poll cycles still to skip before the next retry of a failed batch (the exponential
+    /// backoff). Exposed so a test can wait until the backoff has grown before asserting that
+    /// <see cref="WaitForIdle"/> overrides it.
+    /// </summary>
+    internal int PollsUntilRetry => _pollsUntilRetry;
     #endregion
 
     #region IDisposable

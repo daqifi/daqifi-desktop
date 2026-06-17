@@ -18,7 +18,8 @@ namespace Daqifi.Desktop.Test.Loggers;
 /// <c>SuspendConsumer</c> halts draining while <c>ResumeConsumer</c> resumes it, <c>ClearBuffer</c>
 /// drops pending samples, <c>Dispose</c> stops the consumer thread cleanly and is idempotent, and —
 /// via an injected transient DB failure — a failed batch is retained, keeps <c>WaitForIdle</c> from
-/// reporting idle, and is retried to completion exactly once (no lost or duplicate rows) on recovery.
+/// reporting idle, is retried to completion exactly once (no lost or duplicate rows) on recovery, and
+/// is logged only once (not on every poll) while it stays stranded on a persistently failing DB.
 /// </summary>
 [TestClass]
 public class SessionSampleWriterTests
@@ -222,6 +223,85 @@ public class SessionSampleWriterTests
             "no duplicate rows.");
         Assert.AreEqual(0, writer.PendingRetryCount,
             "A successful commit must clear the pending-retry count.");
+    }
+
+    [TestMethod]
+    public void PersistentFailure_LogsErrorOnce_NotOnEveryPoll()
+    {
+        const int sampleCount = 5;
+        using var inner = NewFactory();
+        SeedSession(inner);
+
+        // A real mock logger (not Mock.Of) so we can count how often Error is invoked.
+        var logger = new Mock<IAppLogger>();
+        var failing = new FailUntilReleasedContextFactory(inner);
+        using var writer = new SessionSampleWriter(failing, logger.Object);
+
+        for (var i = 0; i < sampleCount; i++)
+        {
+            writer.Add(MakeSample("AI0", i));
+        }
+
+        // Strand the batch, then let the consumer keep polling the broken DB for several more
+        // ~100ms cycles. Pre-throttle, each poll re-attempted the insert and logged Error — at the
+        // poll rate that floods both the NLog file and (via Error -> Sentry) Sentry.
+        Assert.IsTrue(
+            WaitUntil(() => writer.PendingRetryCount == sampleCount, TimeSpan.FromSeconds(5)),
+            "Consumer should strand the batch after the injected commit failure.");
+        Thread.Sleep(800); // ~8 poll intervals of sustained failure
+
+        Assert.AreEqual(0, CountSamples(inner), "Nothing should persist while the DB is failing.");
+        logger.Verify(
+            l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()),
+            Times.Once(),
+            "A batch that stays stranded on a persistently failing DB must be logged once, " +
+            "not on every poll.");
+
+        // Durability is preserved: once the DB recovers the stranded batch still persists exactly
+        // once, and recovery adds no further error logs.
+        failing.Release();
+        writer.WaitForIdle(TimeSpan.FromSeconds(5));
+
+        Assert.AreEqual(sampleCount, CountSamples(inner),
+            "The retained batch must still persist after recovery — log throttling must not drop data.");
+        logger.Verify(
+            l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()),
+            Times.Once(),
+            "Recovery must not add further error logs.");
+    }
+
+    [TestMethod]
+    public void WaitForIdle_OverridesRetryBackoff_ToFlushARecoveredBatch()
+    {
+        const int sampleCount = 5;
+        using var inner = NewFactory();
+        SeedSession(inner);
+
+        var failing = new FailUntilReleasedContextFactory(inner);
+        using var writer = new SessionSampleWriter(failing, Mock.Of<IAppLogger>());
+
+        for (var i = 0; i < sampleCount; i++)
+        {
+            writer.Add(MakeSample("AI0", i));
+        }
+
+        // Let the failure streak grow until the retry backoff is at least ~16 poll cycles (~1.6s).
+        // A plain cooldown of that length would NOT re-attempt within the 1s WaitForIdle window below.
+        Assert.IsTrue(
+            WaitUntil(() => writer.PollsUntilRetry >= 16, TimeSpan.FromSeconds(8)),
+            "The retry backoff should grow while the database keeps failing.");
+
+        // The database recovers. WaitForIdle must override the multi-second backoff and flush the
+        // batch within its (shorter) window — without the override, the next retry would not fire
+        // until the cooldown elapsed, and PersistSessionSampleCount would COUNT an undercount.
+        failing.Release();
+        writer.WaitForIdle(TimeSpan.FromSeconds(1));
+
+        Assert.AreEqual(sampleCount, CountSamples(inner),
+            "WaitForIdle must override the retry backoff so a recovered batch is flushed within its " +
+            "window; otherwise the persisted SampleCount would undercount.");
+        Assert.AreEqual(0, writer.PendingRetryCount,
+            "The flushed batch must clear the pending-retry count.");
     }
 
     #region Helpers
