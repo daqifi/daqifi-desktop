@@ -8,7 +8,6 @@ using OxyPlot;
 using OxyPlot.Annotations;
 using OxyPlot.Axes;
 using OxyPlot.Series;
-using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Exception = System.Exception;
@@ -123,13 +122,12 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private Dictionary<string, int> _sessionDeviceFrequencyHz = new();
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _downsampledCache = new();
-    private readonly BlockingCollection<DataSample> _buffer = new();
     private readonly Dictionary<(string deviceSerial, string channelName), LineSeries> _minimapSeries = new();
 
     private DateTime? _firstTime;
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
-    private readonly ManualResetEventSlim _consumerGate = new(true);
+    private readonly SessionSampleWriter _sampleWriter;
     private RectangleAnnotation _minimapSelectionRect;
     private RectangleAnnotation _minimapDimLeft;
     private RectangleAnnotation _minimapDimRight;
@@ -142,10 +140,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private DispatcherTimer _settleTimer;
     private int? _currentSessionId;
     private CancellationTokenSource _fetchCts;
-    private readonly CancellationTokenSource _consumerCts = new();
-    private Thread _consumerThread;
-    private volatile bool _disposed;
-    private volatile bool _consumerBusy;
 
     [ObservableProperty]
     private PlotModel _plotModel;
@@ -314,8 +308,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         // Initialize minimap PlotModel
         InitializeMinimapPlotModel();
 
-        _consumerThread = new Thread(Consumer) { IsBackground = true };
-        _consumerThread.Start();
+        // The sample write path (buffer + background consumer thread + SQLite bulk insert) lives in
+        // SessionSampleWriter. Constructing it here starts the consumer thread, matching the original
+        // startup timing.
+        _sampleWriter = new SessionSampleWriter(_loggingContext, _appLogger);
     }
     #endregion
 
@@ -418,19 +414,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     #endregion
 
     /// <summary>
-    /// Producer
+    /// Producer. Enqueues a sample onto the <see cref="SessionSampleWriter"/> for the background
+    /// consumer thread to persist.
     /// </summary>
     /// <param name="dataSample"></param>
     public void Log(DataSample dataSample)
     {
-        if (_disposed) { return; }
-
-        try
-        {
-            _buffer.Add(dataSample);
-        }
-        catch (ObjectDisposedException) { }
-        catch (InvalidOperationException) { }
+        _sampleWriter.Add(dataSample);
     }
 
     /// <summary>
@@ -441,68 +431,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     {
         // No-op
     }
-
-    #region Private Data
-    private void Consumer()
-    {
-        var samples = new List<DataSample>();
-        int bufferCount;
-        while (!_consumerCts.IsCancellationRequested)
-        {
-            try
-            {
-                Thread.Sleep(100);
-
-                if (_consumerCts.IsCancellationRequested) { break; }
-
-                bufferCount = _buffer.Count;
-
-                if (bufferCount < 1) { continue; }
-
-                // Wait if the consumer is suspended (e.g. during delete-all)
-                _consumerGate.Wait(_consumerCts.Token);
-
-                _consumerBusy = true;
-
-                // Remove the samples from the collection
-                for (var i = 0; i < bufferCount; i++)
-                {
-                    if (_buffer.TryTake(out var sample)) { samples.Add(sample); }
-                }
-
-                using (var context = _loggingContext.CreateDbContext())
-                {
-
-                    // Start a new transaction for bulk insert
-                    using var transaction = context.Database.BeginTransaction();
-                    // Perform the bulk insert
-                    context.BulkInsert(samples);
-
-                    // Commit the transaction after the bulk insert
-                    transaction.Commit();
-
-                    // Clear immediately after a successful commit: if disposal of the
-                    // transaction or context throws, the catch below keeps the list for
-                    // retry — re-inserting an already-committed batch would write
-                    // duplicate rows. A failure before the commit still retries.
-                    samples.Clear();
-                }
-                _consumerBusy = false;
-            }
-            catch (OperationCanceledException)
-            {
-                _consumerBusy = false;
-                break;
-            }
-            catch (Exception ex)
-            {
-                _consumerBusy = false;
-                if (_consumerCts.IsCancellationRequested) { break; }
-                _appLogger.Error(ex, "Failed in Consumer Thread");
-            }
-        }
-    }
-    #endregion
 
     public void ClearPlot()
     {
@@ -1124,12 +1052,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// <summary>
     /// Drains the sample buffer to prevent stale data from being inserted after a database reset.
     /// </summary>
-    public void ClearBuffer()
-    {
-        while (_buffer.TryTake(out _))
-        {
-        }
-    }
+    public void ClearBuffer() => _sampleWriter.ClearBuffer();
 
     /// <summary>
     /// Blocks until the buffered samples have been flushed to the database, or
@@ -1138,40 +1061,18 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// actually written, not just the rows the consumer happened to have
     /// drained at the moment Active flipped to false.
     /// </summary>
-    public void WaitForIdle(TimeSpan timeout)
-    {
-        var deadline = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < deadline)
-        {
-            if (_buffer.Count == 0 && !_consumerBusy)
-            {
-                // Sleep one consumer poll interval to ensure no in-flight item
-                // slipped between TryTake and the busy flag being set.
-                Thread.Sleep(120);
-                if (_buffer.Count == 0 && !_consumerBusy) { return; }
-            }
-            Thread.Sleep(50);
-        }
-    }
+    public void WaitForIdle(TimeSpan timeout) => _sampleWriter.WaitForIdle(timeout);
 
     /// <summary>
     /// Suspends the background consumer thread so no new database connections are opened.
     /// Must be followed by <see cref="ResumeConsumer"/>.
     /// </summary>
-    public void SuspendConsumer()
-    {
-        _consumerGate.Reset();
-        // Give the consumer time to finish any in-flight DB operation
-        Thread.Sleep(200);
-    }
+    public void SuspendConsumer() => _sampleWriter.SuspendConsumer();
 
     /// <summary>
     /// Resumes the background consumer thread after a <see cref="SuspendConsumer"/> call.
     /// </summary>
-    public void ResumeConsumer()
-    {
-        _consumerGate.Set();
-    }
+    public void ResumeConsumer() => _sampleWriter.ResumeConsumer();
 
     /// <summary>
     /// Collapses duplicate (device serial, channel name) rows to a single entry,
@@ -1809,13 +1710,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         }
 
         _minimapInteraction?.Dispose();
-        _disposed = true;
-        _consumerCts.Cancel();
-        _buffer.CompleteAdding();
-        _consumerThread?.Join(TimeSpan.FromSeconds(2));
-        _buffer.Dispose();
-        _consumerCts.Dispose();
-        _consumerGate.Dispose();
+        _sampleWriter.Dispose();
     }
     #endregion
 }
