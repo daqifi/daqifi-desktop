@@ -149,6 +149,7 @@ public sealed class SessionSampleWriter : IDisposable
     /// actually written, not just the rows the consumer happened to have
     /// drained at the moment Active flipped to false.
     /// </summary>
+    /// <param name="timeout">Maximum time to wait for the buffer to drain before returning.</param>
     public void WaitForIdle(TimeSpan timeout)
     {
         var deadline = DateTime.UtcNow + timeout;
