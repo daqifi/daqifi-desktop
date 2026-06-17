@@ -922,12 +922,12 @@
         </Grid>
 
         <!-- ========== CONFIRM DIALOG (over everything) ========== -->
-        <Grid Visibility="{Binding IsConfirmOpen, Converter={StaticResource BoolToVis}}"
+        <Grid Visibility="{Binding ConfirmOverlay.IsOpen, Converter={StaticResource BoolToVis}}"
               Panel.ZIndex="20">
             <!-- Scrim. Click = cancel (same pattern as the drawer). -->
             <Rectangle Fill="#A0000000">
                 <Rectangle.InputBindings>
-                    <MouseBinding MouseAction="LeftClick" Command="{Binding ConfirmNegativeCommand}"/>
+                    <MouseBinding MouseAction="LeftClick" Command="{Binding ConfirmOverlay.NegativeCommand}"/>
                 </Rectangle.InputBindings>
             </Rectangle>
 
@@ -941,11 +941,11 @@
                     CornerRadius="4"
                     Padding="24">
                 <StackPanel>
-                    <TextBlock Text="{Binding ConfirmTitle}"
+                    <TextBlock Text="{Binding ConfirmOverlay.Title}"
                                FontSize="16"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource TextPrimary}"/>
-                    <TextBlock Text="{Binding ConfirmMessage}"
+                    <TextBlock Text="{Binding ConfirmOverlay.Message}"
                                FontSize="13"
                                Foreground="{StaticResource TextSecondary}"
                                TextWrapping="Wrap"
@@ -954,11 +954,11 @@
                                 HorizontalAlignment="Right">
                         <Button Content="CANCEL"
                                 Style="{StaticResource PillButton}"
-                                Command="{Binding ConfirmNegativeCommand}"/>
-                        <Button Content="{Binding ConfirmAffirmativeLabel}"
+                                Command="{Binding ConfirmOverlay.NegativeCommand}"/>
+                        <Button Content="{Binding ConfirmOverlay.AffirmativeLabel}"
                                 Style="{StaticResource AccentPillButton}"
                                 Margin="10,0,0,0"
-                                Command="{Binding ConfirmAffirmativeCommand}"/>
+                                Command="{Binding ConfirmOverlay.AffirmativeCommand}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

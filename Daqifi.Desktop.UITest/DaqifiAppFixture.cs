@@ -1333,12 +1333,12 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>
-    /// Accepts the app's in-pane confirm overlay (<c>IsConfirmOpen</c>) by invoking its affirmative
-    /// button (<c>ConfirmAffirmativeButton</c> — its label is e.g. "DELETE"), then waits for the
-    /// overlay to close. This overlay is the dark, in-window card the app uses instead of a MahApps
-    /// modal for destructive confirmations; its accent/danger style variants share the id and only
-    /// the visible one is in the UIA tree. A plain Button's InvokePattern raises a real click, so
-    /// the bound <c>ConfirmAffirmativeCommand</c> runs (cf. gotcha #12).
+    /// Accepts the app's in-pane confirm overlay (<c>ConfirmOverlay.IsOpen</c>) by invoking its
+    /// affirmative button (<c>ConfirmAffirmativeButton</c> — its label is e.g. "DELETE"), then waits
+    /// for the overlay to close. This overlay is the dark, in-window card the app uses instead of a
+    /// MahApps modal for destructive confirmations; its accent/danger style variants share the id and
+    /// only the visible one is in the UIA tree. A plain Button's InvokePattern raises a real click, so
+    /// the bound <c>ConfirmOverlay.AffirmativeCommand</c> runs (cf. gotcha #12).
     /// </summary>
     protected void ConfirmInPaneDialog(TimeSpan? timeout = null)
     {

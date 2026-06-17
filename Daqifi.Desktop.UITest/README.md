@@ -355,11 +355,12 @@ why.
 
 17. **Destructive confirmations use a dark *in-pane* overlay, not a MahApps modal.** Delete actions
     (the per-row session delete, "Delete All") route through `DaqifiViewModel.ShowConfirm`, which
-    drives an in-window confirm card (`IsConfirmOpen` + `ConfirmAffirmativeCommand`) — **not**
+    forwards to the reusable `ConfirmOverlayViewModel` exposed as `ConfirmOverlay` and drives an
+    in-window confirm card (`ConfirmOverlay.IsOpen` + `ConfirmOverlay.AffirmativeCommand`) — **not**
     `ShowMessageAsync` (cf. #14, which still applies to the SD-import completion dialog). Its
     affirmative button carries `AutomationProperties.AutomationId="ConfirmAffirmativeButton"` on
     **both** style variants (accent for non-destructive, danger/red for destructive); their
-    `Visibility` binds to `ConfirmAffirmativeIsDestructive`, and a `Collapsed` subtree is absent from
+    `Visibility` binds to `ConfirmOverlay.AffirmativeIsDestructive`, and a `Collapsed` subtree is absent from
     the UIA tree, so an id lookup returns whichever is currently shown. The card is a plain `Button`,
     so `InvokePattern` raises a real click and runs the bound command (cf. #12). `ConfirmInPaneDialog`
     invokes it and then waits for the overlay to leave the tree so its scrim no longer blocks later
