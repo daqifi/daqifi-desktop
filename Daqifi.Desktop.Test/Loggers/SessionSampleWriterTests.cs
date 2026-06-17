@@ -16,7 +16,9 @@ namespace Daqifi.Desktop.Test.Loggers;
 /// background bulk-insert, and the suspend/resume/clear controls the session-list purge relies on are
 /// all exercised end-to-end. Covers: buffered samples reach the database after <c>WaitForIdle</c>,
 /// <c>SuspendConsumer</c> halts draining while <c>ResumeConsumer</c> resumes it, <c>ClearBuffer</c>
-/// drops pending samples, and <c>Dispose</c> stops the consumer thread cleanly and is idempotent.
+/// drops pending samples, <c>Dispose</c> stops the consumer thread cleanly and is idempotent, and —
+/// via an injected transient DB failure — a failed batch is retained, keeps <c>WaitForIdle</c> from
+/// reporting idle, and is retried to completion exactly once (no lost or duplicate rows) on recovery.
 /// </summary>
 [TestClass]
 public class SessionSampleWriterTests
@@ -147,6 +149,81 @@ public class SessionSampleWriterTests
         writer.Add(MakeSample("AI0", 2));
     }
 
+    [TestMethod]
+    public void WaitForIdle_DoesNotReportIdle_WhileFailedBatchAwaitsRetry()
+    {
+        const int sampleCount = 10;
+        using var inner = NewFactory();
+        SeedSession(inner);
+
+        // The consumer's first commit attempt fails, so the batch is retained for retry. Because
+        // that retained batch lives outside the buffer, WaitForIdle must still treat the writer as
+        // not-idle until the batch is committed.
+        var failing = new FailUntilReleasedContextFactory(inner);
+        using var writer = new SessionSampleWriter(failing, Mock.Of<IAppLogger>());
+
+        for (var i = 0; i < sampleCount; i++)
+        {
+            writer.Add(MakeSample("AI0", i));
+        }
+
+        // Wait until the consumer has drained the buffer into a retained batch after the injected
+        // failure — nothing should have reached the database.
+        Assert.IsTrue(
+            WaitUntil(() => writer.PendingRetryCount == sampleCount, TimeSpan.FromSeconds(5)),
+            "Consumer should drain the buffer into a retained batch after the injected commit failure.");
+        Assert.AreEqual(0, CountSamples(inner),
+            "A failed commit must not leave any rows in the database.");
+
+        // With the batch unsaved, WaitForIdle must NOT report idle — it must block for the full
+        // timeout. (The pre-fix code inspected only the buffer count and the busy flag, so it
+        // returned almost immediately, falsely reporting idle while rows were still pending.)
+        var timeout = TimeSpan.FromMilliseconds(400);
+        var stopwatch = Stopwatch.StartNew();
+        writer.WaitForIdle(timeout);
+        stopwatch.Stop();
+
+        Assert.IsTrue(stopwatch.ElapsedMilliseconds >= 300,
+            "WaitForIdle must block while a failed batch is pending retry rather than report idle " +
+            $"(it returned after only {stopwatch.ElapsedMilliseconds}ms).");
+
+        // Release so the consumer recovers and the writer disposes from a clean state.
+        failing.Release();
+    }
+
+    [TestMethod]
+    public void FailedBatch_IsRetriedAndPersistedExactlyOnce_AfterRecovery()
+    {
+        const int sampleCount = 10;
+        using var inner = NewFactory();
+        SeedSession(inner);
+
+        var failing = new FailUntilReleasedContextFactory(inner);
+        using var writer = new SessionSampleWriter(failing, Mock.Of<IAppLogger>());
+
+        for (var i = 0; i < sampleCount; i++)
+        {
+            writer.Add(MakeSample("AI0", i));
+        }
+
+        // The first commit attempt fails and the batch is stranded for retry.
+        Assert.IsTrue(
+            WaitUntil(() => writer.PendingRetryCount == sampleCount, TimeSpan.FromSeconds(5)),
+            "Consumer should retain the batch for retry after the injected commit failure.");
+        Assert.AreEqual(0, CountSamples(inner), "Nothing should be persisted while the DB is failing.");
+
+        // Recover: the consumer must retry the retained batch on its own, with NO new samples
+        // arriving. (The pre-fix code only retried when fresh samples were later enqueued.)
+        failing.Release();
+        writer.WaitForIdle(TimeSpan.FromSeconds(5));
+
+        Assert.AreEqual(sampleCount, CountSamples(inner),
+            "The retained batch must be persisted exactly once after recovery — no lost rows and " +
+            "no duplicate rows.");
+        Assert.AreEqual(0, writer.PendingRetryCount,
+            "A successful commit must clear the pending-retry count.");
+    }
+
     #region Helpers
 
     private static void SeedSession(IDbContextFactory<LoggingContext> factory)
@@ -182,6 +259,49 @@ public class SessionSampleWriterTests
         var path = Path.Combine(Path.GetTempPath(), $"daqifi_samplewriter_{Guid.NewGuid():N}.db");
         _tempDbPaths.Add(path);
         return new TempSqliteLoggingContextFactory(path);
+    }
+
+    /// <summary>
+    /// Polls <paramref name="condition"/> until it is true or <paramref name="timeout"/> elapses.
+    /// Returns the final evaluation so callers can assert on it. Used to observe consumer-thread
+    /// state deterministically instead of racing its fixed poll interval.
+    /// </summary>
+    private static bool WaitUntil(Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (condition()) { return true; }
+            Thread.Sleep(20);
+        }
+        return condition();
+    }
+
+    /// <summary>
+    /// Wraps a real SQLite factory and throws from <see cref="CreateDbContext"/> while armed, then
+    /// delegates once <see cref="Release"/> is called — simulating a transient database failure that
+    /// later recovers. The consumer opens the context before any insert, so a throw here means the
+    /// batch is never partially written; recovery re-inserts it exactly once with no duplicate rows.
+    /// Does not own (dispose) the inner factory — the test's own <c>using</c> handles that, and
+    /// <see cref="SessionSampleWriter"/> never disposes its factory.
+    /// </summary>
+    private sealed class FailUntilReleasedContextFactory : IDbContextFactory<LoggingContext>
+    {
+        private readonly IDbContextFactory<LoggingContext> _inner;
+        private volatile bool _failing = true;
+
+        public FailUntilReleasedContextFactory(IDbContextFactory<LoggingContext> inner) => _inner = inner;
+
+        public void Release() => _failing = false;
+
+        public LoggingContext CreateDbContext()
+        {
+            if (_failing)
+            {
+                throw new InvalidOperationException("Injected transient database failure.");
+            }
+            return _inner.CreateDbContext();
+        }
     }
 
     /// <summary>

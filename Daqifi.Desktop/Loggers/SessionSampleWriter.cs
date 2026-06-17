@@ -31,6 +31,15 @@ public sealed class SessionSampleWriter : IDisposable
     private readonly Thread _consumerThread;
     private volatile bool _disposed;
     private volatile bool _consumerBusy;
+
+    /// <summary>
+    /// Number of samples drained from the buffer that have not yet been committed — non-zero only
+    /// while a batch is in flight or has been retained for retry after a failed commit. Read by
+    /// <see cref="WaitForIdle"/> so it cannot report idle while unsaved rows are stranded in the
+    /// consumer's local batch (a failed batch lives outside <see cref="_buffer"/>, so the buffer
+    /// count alone cannot see it).
+    /// </summary>
+    private volatile int _pendingRetryCount;
     #endregion
 
     #region Constructor
@@ -72,6 +81,8 @@ public sealed class SessionSampleWriter : IDisposable
     #region Consumer
     private void Consumer()
     {
+        // Persists across loop iterations on purpose: a batch is cleared only after a successful
+        // commit, so a batch whose commit failed is retained here and retried on a later pass.
         var samples = new List<DataSample>();
         int bufferCount;
         while (!_consumerCts.IsCancellationRequested)
@@ -84,46 +95,66 @@ public sealed class SessionSampleWriter : IDisposable
 
                 bufferCount = _buffer.Count;
 
-                if (bufferCount < 1) { continue; }
+                // Stay idle only when nothing is buffered AND no previously failed batch is
+                // awaiting retry. A retained batch (samples.Count > 0) lives outside the buffer,
+                // so without the samples.Count check it would be retried only when *new* samples
+                // happened to arrive — stranding unsaved rows indefinitely and letting WaitForIdle
+                // report idle while they are still pending.
+                if (bufferCount < 1 && samples.Count == 0) { continue; }
 
                 // Wait if the consumer is suspended (e.g. during delete-all)
                 _consumerGate.Wait(_consumerCts.Token);
 
                 _consumerBusy = true;
-
-                // Remove the samples from the collection
-                for (var i = 0; i < bufferCount; i++)
+                try
                 {
-                    if (_buffer.TryTake(out var sample)) { samples.Add(sample); }
-                }
+                    // Drain whatever is newly buffered onto the (possibly retained) batch. On a
+                    // pure retry pass bufferCount is 0 and the existing batch is re-attempted.
+                    for (var i = 0; i < bufferCount; i++)
+                    {
+                        if (_buffer.TryTake(out var sample)) { samples.Add(sample); }
+                    }
 
-                using (var context = _loggingContext.CreateDbContext())
+                    // Publish the at-risk count before opening the connection so WaitForIdle cannot
+                    // observe a momentary all-clear: if the insert below throws, this stays non-zero
+                    // until a later pass commits the batch.
+                    _pendingRetryCount = samples.Count;
+
+                    using (var context = _loggingContext.CreateDbContext())
+                    {
+                        // Start a new transaction for bulk insert
+                        using var transaction = context.Database.BeginTransaction();
+                        // Perform the bulk insert
+                        context.BulkInsert(samples);
+
+                        // Commit the transaction after the bulk insert
+                        transaction.Commit();
+
+                        // Clear only after a successful commit. If disposal of the transaction or
+                        // context throws past this point, the batch is already cleared and
+                        // _pendingRetryCount is 0, so it is not re-inserted — re-inserting an
+                        // already-committed batch would write duplicate rows. A failure before the
+                        // commit leaves both intact, so the loop-local batch is retried on a later
+                        // pass (the bufferCount < 1 && samples.Count == 0 gate above lets it run
+                        // even when no new samples have arrived).
+                        samples.Clear();
+                        _pendingRetryCount = 0;
+                    }
+                }
+                finally
                 {
-
-                    // Start a new transaction for bulk insert
-                    using var transaction = context.Database.BeginTransaction();
-                    // Perform the bulk insert
-                    context.BulkInsert(samples);
-
-                    // Commit the transaction after the bulk insert
-                    transaction.Commit();
-
-                    // Clear immediately after a successful commit: if disposal of the
-                    // transaction or context throws, the catch below keeps the list for
-                    // retry — re-inserting an already-committed batch would write
-                    // duplicate rows. A failure before the commit still retries.
-                    samples.Clear();
+                    // Reset busy on every exit path (success or exception) so it can never get
+                    // stuck true and wedge WaitForIdle. The retained batch is tracked separately
+                    // by _pendingRetryCount, which is only cleared after a committed batch.
+                    _consumerBusy = false;
                 }
-                _consumerBusy = false;
             }
             catch (OperationCanceledException)
             {
-                _consumerBusy = false;
                 break;
             }
             catch (Exception ex)
             {
-                _consumerBusy = false;
                 if (_consumerCts.IsCancellationRequested) { break; }
                 _appLogger.Error(ex, "Failed in Consumer Thread");
             }
@@ -155,16 +186,24 @@ public sealed class SessionSampleWriter : IDisposable
         var deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
         {
-            if (_buffer.Count == 0 && !_consumerBusy)
+            if (IsDrained())
             {
                 // Sleep one consumer poll interval to ensure no in-flight item
                 // slipped between TryTake and the busy flag being set.
                 Thread.Sleep(120);
-                if (_buffer.Count == 0 && !_consumerBusy) { return; }
+                if (IsDrained()) { return; }
             }
             Thread.Sleep(50);
         }
     }
+
+    /// <summary>
+    /// True only when there is genuinely nothing left to persist: the buffer is empty, the consumer
+    /// is not mid-insert, and no failed batch is retained for retry. The last check is what makes
+    /// <see cref="WaitForIdle"/> durability-correct — a batch whose commit failed lives in the
+    /// consumer's local list, invisible to <see cref="_buffer"/>, and must not be reported as idle.
+    /// </summary>
+    private bool IsDrained() => _buffer.Count == 0 && !_consumerBusy && _pendingRetryCount == 0;
 
     /// <summary>
     /// Suspends the background consumer thread so no new database connections are opened.
@@ -192,6 +231,13 @@ public sealed class SessionSampleWriter : IDisposable
     /// <see cref="Dispose"/> joins the thread cleanly.
     /// </summary>
     internal bool IsConsumerThreadAlive => _consumerThread.IsAlive;
+
+    /// <summary>
+    /// Number of samples drained from the buffer but not yet committed — non-zero while a batch is
+    /// in flight or retained for retry after a failed commit. Exposed so failure-injection tests can
+    /// observe a stranded batch deterministically rather than racing the consumer's poll interval.
+    /// </summary>
+    internal int PendingRetryCount => _pendingRetryCount;
     #endregion
 
     #region IDisposable
