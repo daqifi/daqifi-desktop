@@ -1562,13 +1562,22 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     void IDiskSpaceMonitorHost.StopLogging()
     {
         var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher != null && !dispatcher.CheckAccess())
+        if (dispatcher == null)
         {
-            dispatcher.BeginInvoke(() => IsLogging = false);
+            // No UI thread to marshal to (shutdown / non-WPF host). The IsLogging setter raises
+            // PropertyChanged and iterates the bound ConnectedDevices, so it must not run on the
+            // monitor's background timer thread — matches the original BeginInvoke, which no-op'd
+            // when the dispatcher was unavailable.
             return;
         }
 
-        IsLogging = false;
+        if (dispatcher.CheckAccess())
+        {
+            IsLogging = false;
+            return;
+        }
+
+        dispatcher.BeginInvoke(() => IsLogging = false);
     }
 
     /// <summary>
