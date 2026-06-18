@@ -64,6 +64,12 @@ public abstract class DaqifiAppFixture
     private const string LOGGING_STATUS_TEXT_ID = "LoggingStatusText";
     private const string LOGGED_SESSION_LIST_ID = "LoggedSessionList";
 
+    // The (invisible) logged-data viewer hook. The session header strip collapses when no session is
+    // loaded and OxyPlot exposes no per-point UIA elements, so the harness reads this element's Name —
+    // the displayed session's sample count (0 when nothing is shown) — to prove that clicking a
+    // session row actually loaded it onto the logged-data plot (DisplayLoggingSession ran).
+    private const string LOGGED_SESSION_STATS_TEXT_ID = "LoggedSessionStatsText";
+
     // The (invisible) live-plot stats indicator on the Live Graph pane. OxyPlot draws every
     // point to one canvas and exposes no per-point UI Automation elements, so the harness
     // cannot walk the tree for points. Instead it reads this element's Name — a machine-readable
@@ -78,6 +84,10 @@ public abstract class DaqifiAppFixture
     // variants carry the same id and only the visible one is in the UIA tree, so an id lookup
     // returns whichever is shown. Used by the log-then-delete path.
     private const string DELETE_SESSION_BUTTON_ID = "DeleteSessionButton";
+    // Invisible per-row invoke seam for the whole-row "view this session" action (which is a WPF
+    // MouseBinding with no InvokePattern). Lets the harness load a session onto the logged-data plot
+    // via InvokePattern instead of an out-of-process physical click (see DisplayNewestLoggedSession).
+    private const string DISPLAY_SESSION_BUTTON_ID = "DisplaySessionButton";
     private const string CONFIRM_AFFIRMATIVE_BUTTON_ID = "ConfirmAffirmativeButton";
 
     // CSV-export controls on the Logged Data pane's APP LOGS sub-tab. The per-row export button
@@ -1369,6 +1379,89 @@ public abstract class DaqifiAppFixture
             timeoutMessage:
                 "The in-pane confirm overlay did not close after invoking its affirmative button; " +
                 "its blocking scrim is still present, so the confirm command may not have run.");
+    }
+
+    /// <summary>
+    /// Loads the most-recently-created logged session onto the logged-data plot. The user-facing
+    /// "view this session" affordance is a WPF <c>MouseBinding</c> on the row Border
+    /// (<c>DisplayLoggingSessionCommand</c>) with no InvokePattern, and out-of-process physical row
+    /// clicks are unreliable (the app is one window among others). So the row template carries an
+    /// invisible Button (<c>DisplaySessionButton</c>) bound to the same command; invoking it raises a
+    /// real command execution (cf. gotcha #12) without a coordinate-based click. The list renders in
+    /// insertion order, so the newest session is the last row (mirrors <see cref="DeleteNewestLoggedSession"/>).
+    /// </summary>
+    protected void DisplayNewestLoggedSession()
+    {
+        NavigateToTab(LOGGED_DATA_TAB_TEXT);
+        SelectAppLogsSubTab();
+
+        var displayButton = Retry.WhileNull(
+            () =>
+            {
+                var items = MainWindow
+                    .FindFirstDescendant(cf => cf.ByAutomationId(LOGGED_SESSION_LIST_ID))?.AsListBox()?.Items;
+                if (items == null || items.Length == 0)
+                {
+                    return null;
+                }
+
+                // Last row = newest session. Scope the invoke-seam search to that row.
+                return items[^1].FindFirstDescendant(cf => cf.ByAutomationId(DISPLAY_SESSION_BUTTON_ID));
+            },
+            timeout: TimeSpan.FromSeconds(30),
+            interval: TimeSpan.FromMilliseconds(500),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                "The newest logged-session row's display invoke-seam (DisplaySessionButton) was not " +
+                "found. The session row may not have rendered yet.").Result!;
+
+        displayButton.AsButton().Invoke();
+    }
+
+    /// <summary>
+    /// Waits (polling) until the logged-data viewer reports a displayed session with a non-zero sample
+    /// count via the invisible <c>LoggedSessionStatsText</c> hook, and returns that count. A count
+    /// greater than zero is positive proof that <c>DisplayLoggingSession</c> loaded the session onto the
+    /// plot (the count is 0 while nothing is displayed). The load is asynchronous — the command runs the
+    /// DB read on a background thread, then marshals to the UI thread — so this rides out that latency.
+    /// </summary>
+    protected long WaitForDisplayedSessionSampleCount(TimeSpan timeout)
+    {
+        NavigateToTab(LOGGED_DATA_TAB_TEXT);
+        SelectAppLogsSubTab();
+
+        long count = 0;
+        var lastRaw = string.Empty;
+        var read = Retry.WhileFalse(
+            () =>
+            {
+                var name = MainWindow
+                    .FindFirstDescendant(cf => cf.ByAutomationId(LOGGED_SESSION_STATS_TEXT_ID))?.Name;
+                if (string.IsNullOrEmpty(name))
+                {
+                    return false;
+                }
+
+                lastRaw = name;
+                return long.TryParse(
+                    name,
+                    System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out count) && count > 0;
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: false,
+            ignoreException: true).Result;
+
+        Assert.IsTrue(
+            read,
+            "The logged-data viewer never reported a displayed session with samples " +
+            $"(LoggedSessionStatsText last raw value: '{lastRaw}'). Clicking the session row did not " +
+            "load it onto the plot, or the hook is missing from LoggedDataPanePrototype.xaml.");
+
+        return count;
     }
     #endregion
 

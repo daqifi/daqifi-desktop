@@ -158,12 +158,11 @@ public class LoggingSessionListViewModel
             try
             {
                 // Remove the bound row only when the database delete reports success — the gating is
-                // preserved verbatim from the pre-extraction DaqifiViewModel. Note the production host
-                // routes DeleteSessionFromDatabase to DatabaseLogger.DeleteLoggingSession, which today
-                // logs and swallows its own exceptions, so this catch is currently a latent guard
-                // rather than a live failure path. Surfacing delete failures (so a failed delete keeps
-                // the row) belongs to the separate DatabaseLogger extraction tracked in #592; this
-                // contract is unit-tested here so it stays correct once the host propagates failure.
+                // preserved verbatim from the pre-extraction DaqifiViewModel. The production host
+                // routes DeleteSessionFromDatabase to DatabaseLogger.DeleteLoggingSession, which since
+                // the SessionDataRepository extraction (#592) rethrows on failure instead of swallowing
+                // it — so this is now a live failure path: a failed delete throws, deleteSucceeded stays
+                // false, and the row is kept rather than silently dropped while its data still exists.
                 var deleteSucceeded = false;
                 try
                 {

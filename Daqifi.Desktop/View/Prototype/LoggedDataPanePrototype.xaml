@@ -441,6 +441,26 @@
                             </oxy:PlotView.Style>
                         </oxy:PlotView>
 
+                        <!--
+                            UIA hook for the logged-data viewer (mirrors the PlotStatsText /
+                            SdLoggingElapsedText hooks; cf. UITest README gotcha #18). The session
+                            header strip collapses when no session is loaded and OxyPlot exposes no
+                            per-point UIA elements, so this always-present, invisible TextBlock is the
+                            harness's black-box proof that clicking a session row actually loaded it
+                            onto the plot: its Name reports the displayed session's sample count — 0
+                            with nothing displayed, the loaded count once DisplayLoggingSession runs.
+                            Opacity=0 + IsHitTestVisible=False keep it invisible and non-interactive
+                            while present in the UIA tree (a Collapsed element would be pruned).
+                        -->
+                        <TextBlock Grid.Row="1"
+                                   AutomationProperties.AutomationId="LoggedSessionStatsText"
+                                   Text="{Binding DbLogger.CurrentSessionSampleCount}"
+                                   AutomationProperties.Name="{Binding DbLogger.CurrentSessionSampleCount}"
+                                   HorizontalAlignment="Left"
+                                   VerticalAlignment="Top"
+                                   Opacity="0"
+                                   IsHitTestVisible="False"/>
+
                         <!-- Empty state (no session selected) - only when sessions exist but none picked -->
                         <StackPanel Grid.Row="1"
                                     HorizontalAlignment="Center"
@@ -773,6 +793,33 @@
                                                                                         Foreground="{StaticResource TextTertiary}"/>
                                                         </Button>
                                                     </StackPanel>
+
+                                                    <!--
+                                                        Automation-only invoke seam for the whole-row "view
+                                                        this session" action. The user-facing trigger is the
+                                                        row Border's LeftClick MouseBinding above, which has
+                                                        no InvokePattern; this invisible, non-interactive
+                                                        Button binds the same DisplayLoggingSessionCommand so
+                                                        the FlaUI harness can load a session onto the plot via
+                                                        InvokePattern (out-of-process physical row clicks are
+                                                        unreliable — the app is one window among others).
+                                                        Opacity=0 + IsHitTestVisible=False keep it invisible
+                                                        and never intercepting real clicks, while present and
+                                                        invokable in the UIA tree (cf. the read-only
+                                                        PlotStatsText / LoggedSessionStatsText hooks).
+                                                    -->
+                                                    <Button Grid.Column="1"
+                                                            AutomationProperties.AutomationId="DisplaySessionButton"
+                                                            Command="{Binding DataContext.DisplayLoggingSessionCommand, ElementName=Root}"
+                                                            CommandParameter="{Binding}"
+                                                            HorizontalAlignment="Left"
+                                                            VerticalAlignment="Top"
+                                                            Width="1"
+                                                            Height="1"
+                                                            Opacity="0"
+                                                            IsHitTestVisible="False"
+                                                            Focusable="False"
+                                                            IsTabStop="False"/>
                                                 </Grid>
                                             </Border>
                                             <ControlTemplate.Triggers>

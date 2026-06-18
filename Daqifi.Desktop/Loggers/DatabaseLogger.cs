@@ -9,7 +9,6 @@ using OxyPlot.Annotations;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using Exception = System.Exception;
 using TickStyle = OxyPlot.Axes.TickStyle;
 using Microsoft.EntityFrameworkCore;
@@ -98,22 +97,11 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     }
 }
 
-/// <summary>
-/// Channel identity and presentation info discovered from a session's sample rows.
-/// </summary>
-/// <param name="ChannelName">Channel identifier (e.g., "AI0").</param>
-/// <param name="DeviceSerialNo">Serial number of the device that owns the channel.</param>
-/// <param name="Type">Channel type used to pick the Y axis.</param>
-/// <param name="Color">Series color stored with the samples.</param>
-internal sealed record SessionChannelInfo(string ChannelName, string DeviceSerialNo, ChannelType Type, string Color);
-
 public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 {
     #region Constants
     private const int MINIMAP_BUCKET_COUNT = 800;
     private const int MAIN_PLOT_BUCKET_COUNT = 2000;
-    private const int INITIAL_LOAD_POINTS = 100_000;
-    private const int SAMPLED_POINTS_PER_CHANNEL = 3000;
     #endregion
 
     #region Private Data
@@ -128,6 +116,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     private readonly SessionSampleWriter _sampleWriter;
+    private readonly SessionDataRepository _sessionDataRepository;
     private RectangleAnnotation _minimapSelectionRect;
     private RectangleAnnotation _minimapDimLeft;
     private RectangleAnnotation _minimapDimRight;
@@ -308,6 +297,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         // Initialize minimap PlotModel
         InitializeMinimapPlotModel();
 
+        // The session read/delete path (EF/ADO queries, channel discovery, sampled loads, the
+        // transactional delete) lives in SessionDataRepository, built with the same context factory.
+        _sessionDataRepository = new SessionDataRepository(_loggingContext, _appLogger);
+
         // The sample write path (buffer + background consumer thread + SQLite bulk insert) lives in
         // SessionSampleWriter. Constructing it here starts the consumer thread, matching the original
         // startup timing.
@@ -474,9 +467,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
     /// <summary>
     /// Loads and displays a logging session on the plot. Designed to be called from a
-    /// background thread (e.g., BackgroundWorker). Builds point data in local dictionaries
-    /// on the calling thread, then swaps references atomically on the UI thread via
-    /// Dispatcher.Invoke to avoid concurrent access to shared state.
+    /// background thread (e.g., from <c>Task.Run</c>). The EF/ADO reads run in
+    /// <see cref="SessionDataRepository"/> on the calling thread; the resulting point data is then
+    /// swapped into shared state atomically on the UI thread via Dispatcher.Invoke to avoid
+    /// concurrent access.
     /// </summary>
     /// <param name="session">The logging session to display.</param>
     public void DisplayLoggingSession(LoggingSession session)
@@ -488,109 +482,44 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             _currentSessionId = session.ID;
             Application.Current.Dispatcher.Invoke(() => CurrentSession = session);
 
-            var sessionName = session.Name;
-            var subtitle = string.Empty;
             var tempSeriesList = new List<LineSeries>();
             var tempLegendItemsList = new List<LoggedSeriesLegendItem>();
-            int totalSamplesCount;
-
-            // Build all point data in a local dictionary on this background
-            // thread, then swap the reference on the UI thread atomically.
-            // This eliminates shared mutable state between threads.
-            var localPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
-            DateTime? localFirstTime = null;
 
             // Load per-device sampling frequency from session metadata.
             // Built on this background thread; swapped to shared state on the UI thread.
-            var localDeviceFrequency = LoadSessionDeviceFrequency(session.ID);
+            var localDeviceFrequency = _sessionDataRepository.LoadSessionDeviceFrequency(session.ID);
 
             // ── Phase 1: Fast initial load (<1s) ──────────────────────────
-            // Get channel metadata from first timestamp (6ms via index)
-            // and load a small initial batch for immediate display
-            using (var context = _loggingContext.CreateDbContext())
+            // Discover the channels at the first timestamp, load a small initial batch for immediate
+            // display, and count the session's samples. The EF/ADO read work (including the #572
+            // duplicate-channel collapse) lives in SessionDataRepository; here we build the plot
+            // series/legend around the points it returns, then swap them to shared state on the UI
+            // thread atomically so there is no shared mutable state between threads.
+            var initial = _sessionDataRepository.LoadInitialSession(session.ID);
+            var localPoints = initial.Points;
+            var localFirstTime = initial.FirstTime;
+            var totalSamplesCount = initial.TotalSampleCount;
+
+            if (initial.IsEmpty)
             {
-                context.ChangeTracker.AutoDetectChangesEnabled = false;
-
-                var baseQuery = context.Samples.AsNoTracking()
-                    .Where(s => s.LoggingSessionID == session.ID);
-
-                // Get the first timestamp to extract channel info (instant via composite index)
-                var firstSample = baseQuery
-                    .OrderBy(s => s.TimestampTicks)
-                    .Select(s => new { s.TimestampTicks })
-                    .FirstOrDefault();
-
-                if (firstSample == null)
+                // Empty session
+                Application.Current.Dispatcher.Invoke(() =>
                 {
-                    // Empty session
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        _sessionDeviceFrequencyHz = localDeviceFrequency;
-                        // Title is rendered in the WPF header strip, not by OxyPlot
-                        PlotModel.Title = string.Empty;
-                        CurrentSessionSampleCount = 0;
-                        HasSessionData = false;
-                        PlotModel.InvalidatePlot(true);
-                    });
-                    return;
-                }
+                    _sessionDeviceFrequencyHz = localDeviceFrequency;
+                    // Title is rendered in the WPF header strip, not by OxyPlot
+                    PlotModel.Title = string.Empty;
+                    CurrentSessionSampleCount = 0;
+                    HasSessionData = false;
+                    PlotModel.InvalidatePlot(true);
+                });
+                return;
+            }
 
-                // Get the channels present at the first timestamp. A channel can
-                // appear there more than once (e.g. firmware that emits multiple
-                // messages per sample period, or SD imports whose timestamps could
-                // not be reconstructed), and series/legend items are keyed by
-                // (serial, channel), so duplicates would abort the whole session
-                // load (#572). Collapse them in SQL so a degenerate session does
-                // not materialize thousands of rows just to discover its channels.
-                var channelGroups = baseQuery
-                    .Where(s => s.TimestampTicks == firstSample.TimestampTicks)
-                    .GroupBy(s => new { s.DeviceSerialNo, s.ChannelName })
-                    .Select(g => new
-                    {
-                        g.Key.DeviceSerialNo,
-                        g.Key.ChannelName,
-                        Type = g.Min(s => (int)s.Type),
-                        Color = g.Min(s => s.Color),
-                        RowCount = g.Count()
-                    })
-                    .ToList();
-
-                var duplicateRows = channelGroups.Sum(g => g.RowCount) - channelGroups.Count;
-                if (duplicateRows > 0)
-                {
-                    _appLogger.Warning(
-                        $"Session {session.ID}: first timestamp has {duplicateRows} duplicate " +
-                        "channel sample(s); ignoring duplicates for channel discovery.");
-                }
-
-                var channelInfoList = DeduplicateChannelInfo(channelGroups.Select(g =>
-                    new SessionChannelInfo(g.ChannelName, g.DeviceSerialNo, (ChannelType)g.Type, g.Color)));
-
-                foreach (var chInfo in channelInfoList)
-                {
-                    var (series, legendItem) = AddChannelSeries(chInfo.ChannelName, chInfo.DeviceSerialNo, chInfo.Type, chInfo.Color, localPoints);
-                    tempSeriesList.Add(series);
-                    tempLegendItemsList.Add(legendItem);
-                }
-
-                // Load initial batch for fast display (100K rows, ~16ms via index)
-                foreach (var sample in baseQuery
-                    .OrderBy(s => s.TimestampTicks)
-                    .Select(s => new { s.ChannelName, s.DeviceSerialNo, s.TimestampTicks, s.Value })
-                    .Take(INITIAL_LOAD_POINTS)
-                    .AsEnumerable())
-                {
-                    var key = (sample.DeviceSerialNo, sample.ChannelName);
-                    if (localFirstTime == null) { localFirstTime = new DateTime(sample.TimestampTicks); }
-                    var deltaTime = (sample.TimestampTicks - localFirstTime.Value.Ticks) / 10000.0;
-
-                    if (localPoints.TryGetValue(key, out var points))
-                    {
-                        points.Add(new DataPoint(deltaTime, sample.Value));
-                    }
-                }
-
-                totalSamplesCount = baseQuery.Count();
+            foreach (var chInfo in initial.Channels)
+            {
+                var (series, legendItem) = AddChannelSeries(chInfo.ChannelName, chInfo.DeviceSerialNo, chInfo.Type, chInfo.Color);
+                tempSeriesList.Add(series);
+                tempLegendItemsList.Add(legendItem);
             }
 
             // Snapshot channel keys before the swap — after the swap, localPoints
@@ -608,7 +537,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 // Session name is rendered in the WPF header strip; keep the
                 // OxyPlot title clear so we don't double up on it.
                 PlotModel.Title = string.Empty;
-                PlotModel.Subtitle = totalSamplesCount > INITIAL_LOAD_POINTS
+                PlotModel.Subtitle = totalSamplesCount > SessionDataRepository.INITIAL_LOAD_POINTS
                     ? "\nLoading full dataset..."
                     : string.Empty;
                 // Prefer the persisted SampleCount when available; fall back to
@@ -627,7 +556,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             // seeks spread across the time range. Each seek reads one batch
             // of interleaved channel data at that timestamp position.
             // Result: ~96K rows covering the full range in ~1-3 seconds.
-            if (totalSamplesCount > INITIAL_LOAD_POINTS)
+            if (totalSamplesCount > SessionDataRepository.INITIAL_LOAD_POINTS)
             {
                 // Build Phase 2 data in a fresh local dictionary using the
                 // snapshotted keys (not localPoints, which is now UI-owned)
@@ -637,7 +566,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                     phase2Points.Add(key, []);
                 }
 
-                var phase2FirstTime = LoadSampledData(session.ID, tempSeriesList.Count, phase2Points);
+                var phase2FirstTime = _sessionDataRepository.LoadSampledData(session.ID, tempSeriesList.Count, phase2Points);
 
                 // LoadSampledData returns null when the session has no usable time
                 // range (every sample shares one timestamp). Phase 1 capped its
@@ -646,7 +575,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 // min/max vertical segment aggregated in SQL over all rows.
                 if (phase2FirstTime == null)
                 {
-                    var spreadPoints = LoadSingleTickValueSpread(_loggingContext, session.ID, channelKeys);
+                    var spreadPoints = SessionDataRepository.LoadSingleTickValueSpread(_loggingContext, session.ID, channelKeys);
                     var spreadMinimapData = PrepareMinimapData(tempSeriesList, spreadPoints);
                     Application.Current.Dispatcher.Invoke(() =>
                     {
@@ -739,158 +668,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         }
         return result;
     }
-
-    /// <summary>
-    /// Loads a uniformly sampled subset of data covering the full time range
-    /// using targeted index seeks. Instead of reading all N million rows,
-    /// divides the time range into SAMPLED_POINTS_PER_CHANNEL segments and
-    /// seeks to each segment boundary via the composite index. Each seek
-    /// reads one batch of interleaved channel data (~channelCount rows).
-    /// Result: ~3000 points per channel in ~1-3 seconds regardless of total dataset size.
-    /// </summary>
-    private DateTime? LoadSampledData(
-        int sessionId,
-        int channelCount,
-        Dictionary<(string deviceSerial, string channelName), List<DataPoint>> localPoints)
-    {
-        using var context = _loggingContext.CreateDbContext();
-        var connection = context.Database.GetDbConnection();
-        connection.Open();
-
-        // Get time bounds via index (instant)
-        long minTicks, maxTicks;
-        using (var boundsCmd = connection.CreateCommand())
-        {
-            boundsCmd.CommandText = @"
-                SELECT MIN(TimestampTicks), MAX(TimestampTicks)
-                FROM Samples
-                WHERE LoggingSessionID = @id";
-            var idParam = boundsCmd.CreateParameter();
-            idParam.ParameterName = "@id";
-            idParam.Value = sessionId;
-            boundsCmd.Parameters.Add(idParam);
-
-            using var reader = boundsCmd.ExecuteReader();
-            if (!reader.Read() || reader.IsDBNull(0))
-            {
-                return null;
-            }
-
-            minTicks = reader.GetInt64(0);
-            maxTicks = reader.GetInt64(1);
-        }
-
-        if (minTicks >= maxTicks)
-        {
-            return null;
-        }
-
-        var localFirstTime = new DateTime(minTicks);
-        var tickStep = Math.Max(1, (maxTicks - minTicks) / SAMPLED_POINTS_PER_CHANNEL);
-        // Read at least channelCount rows per seek to get one sample per channel
-        var batchSize = Math.Max(channelCount * 2, 100);
-
-        // Prepared statement for repeated seeks
-        using var seekCmd = connection.CreateCommand();
-        seekCmd.CommandText = @"
-            SELECT ChannelName, DeviceSerialNo, TimestampTicks, Value
-            FROM Samples
-            WHERE LoggingSessionID = @id AND TimestampTicks >= @t
-            ORDER BY TimestampTicks
-            LIMIT @limit";
-
-        var seekIdParam = seekCmd.CreateParameter();
-        seekIdParam.ParameterName = "@id";
-        seekIdParam.Value = sessionId;
-        seekCmd.Parameters.Add(seekIdParam);
-
-        var seekTParam = seekCmd.CreateParameter();
-        seekTParam.ParameterName = "@t";
-        seekTParam.Value = minTicks;
-        seekCmd.Parameters.Add(seekTParam);
-
-        var seekLimitParam = seekCmd.CreateParameter();
-        seekLimitParam.ParameterName = "@limit";
-        seekLimitParam.Value = batchSize;
-        seekCmd.Parameters.Add(seekLimitParam);
-
-        seekCmd.Prepare();
-
-        // Track which timestamps we've already added to avoid duplicates
-        // from overlapping batches
-        var lastAddedTimestamp = new Dictionary<(string, string), long>();
-
-        // Use <= so the final iteration (i == SAMPLED_POINTS_PER_CHANNEL)
-        // seeks at maxTicks, ensuring the session tail is always included
-        for (var i = 0; i <= SAMPLED_POINTS_PER_CHANNEL; i++)
-        {
-            var seekTimestamp = i < SAMPLED_POINTS_PER_CHANNEL
-                ? minTicks + i * tickStep
-                : maxTicks;
-            seekTParam.Value = seekTimestamp;
-
-            using var reader = seekCmd.ExecuteReader();
-            while (reader.Read())
-            {
-                var channelName = reader.GetString(0);
-                var deviceSerialNo = reader.GetString(1);
-                var timestampTicks = reader.GetInt64(2);
-                var value = reader.GetDouble(3);
-
-                var key = (deviceSerialNo, channelName);
-
-                // Skip duplicate timestamps from overlapping batches
-                if (lastAddedTimestamp.TryGetValue(key, out var lastT) && timestampTicks <= lastT)
-                {
-                    continue;
-                }
-
-                lastAddedTimestamp[key] = timestampTicks;
-
-                var deltaTime = (timestampTicks - localFirstTime.Ticks) / 10000.0;
-                if (localPoints.TryGetValue(key, out var points))
-                {
-                    points.Add(new DataPoint(deltaTime, value));
-                }
-            }
-        }
-
-        return localFirstTime;
-    }
-
-    /// <summary>
-    /// Loads per-device sampling frequency for a session from <c>SessionDeviceMetadata</c>.
-    /// Returns an empty dictionary for legacy sessions logged before metadata was persisted —
-    /// the legend will simply omit the frequency line for those.
-    /// </summary>
-    /// <param name="sessionId">The session whose device metadata to load.</param>
-    /// <returns>Map of device serial number to configured sampling frequency in Hz.</returns>
-    private Dictionary<string, int> LoadSessionDeviceFrequency(int sessionId)
-    {
-        var result = new Dictionary<string, int>();
-        try
-        {
-            using var context = _loggingContext.CreateDbContext();
-            var metadata = context.SessionDeviceMetadata.AsNoTracking()
-                .Where(m => m.LoggingSessionID == sessionId)
-                .Select(m => new { m.DeviceSerialNo, m.SamplingFrequencyHz })
-                .ToList();
-
-            foreach (var entry in metadata)
-            {
-                if (!string.IsNullOrEmpty(entry.DeviceSerialNo))
-                {
-                    result[entry.DeviceSerialNo] = entry.SamplingFrequencyHz;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex, "Failed to load SessionDeviceMetadata");
-        }
-        return result;
-    }
-
 
     /// <summary>
     /// Sets up UI collections (legend items, device groups, series) on the UI thread.
@@ -992,62 +769,13 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         MinimapPlotModel.InvalidatePlot(true);
     }
 
-    public void DeleteLoggingSession(LoggingSession session)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        try
-        {
-            using var context = _loggingContext.CreateDbContext();
-            var connection = context.Database.GetDbConnection();
-            connection.Open();
-
-            using var transaction = connection.BeginTransaction();
-
-            using (var cmd = connection.CreateCommand())
-            {
-                cmd.Transaction = transaction;
-                cmd.CommandText = "DELETE FROM Samples WHERE LoggingSessionID = @id";
-                var param = cmd.CreateParameter();
-                param.ParameterName = "@id";
-                param.Value = session.ID;
-                cmd.Parameters.Add(param);
-                cmd.ExecuteNonQuery();
-            }
-
-            using (var cmd = connection.CreateCommand())
-            {
-                cmd.Transaction = transaction;
-                cmd.CommandText = "DELETE FROM SessionDeviceMetadata WHERE LoggingSessionID = @id";
-                var param = cmd.CreateParameter();
-                param.ParameterName = "@id";
-                param.Value = session.ID;
-                cmd.Parameters.Add(param);
-                cmd.ExecuteNonQuery();
-            }
-
-            using (var cmd = connection.CreateCommand())
-            {
-                cmd.Transaction = transaction;
-                cmd.CommandText = "DELETE FROM Sessions WHERE ID = @id";
-                var param = cmd.CreateParameter();
-                param.ParameterName = "@id";
-                param.Value = session.ID;
-                cmd.Parameters.Add(param);
-                cmd.ExecuteNonQuery();
-            }
-
-            transaction.Commit();
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex, "Failed in DeleteLoggingSession");
-        }
-        finally
-        {
-            stopwatch.Stop();
-            _appLogger.Information($"DeleteLoggingSession completed in {stopwatch.ElapsedMilliseconds}ms");
-        }
-    }
+    /// <summary>
+    /// Deletes a logging session's storage (samples, device metadata, and the session row). Routes to
+    /// <see cref="SessionDataRepository.DeleteSession"/>, which logs the timing, and — unlike the
+    /// pre-#592 behavior — rethrows on failure so the session-list view model keeps the bound row when
+    /// the delete does not actually remove the data.
+    /// </summary>
+    public void DeleteLoggingSession(LoggingSession session) => _sessionDataRepository.DeleteSession(session);
 
     /// <summary>
     /// Drains the sample buffer to prevent stale data from being inserted after a database reset.
@@ -1080,85 +808,12 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// </summary>
     public void ResumeConsumer() => _sampleWriter.ResumeConsumer();
 
-    /// <summary>
-    /// Collapses duplicate (device serial, channel name) rows to a single entry,
-    /// keeping the first occurrence, and orders the result naturally by channel name.
-    /// A session can contain several samples for one channel at a single timestamp
-    /// (duplicate device messages, SD imports without reconstructable timestamps);
-    /// series and legend construction require exactly one entry per channel.
-    /// </summary>
-    /// <param name="rows">Channel rows discovered from a session's samples.</param>
-    /// <returns>One entry per (device serial, channel name), naturally ordered.</returns>
-    internal static List<SessionChannelInfo> DeduplicateChannelInfo(IEnumerable<SessionChannelInfo> rows)
-    {
-        return rows
-            .DistinctBy(r => (r.DeviceSerialNo, r.ChannelName))
-            .NaturalOrderBy(r => r.ChannelName)
-            .ToList();
-    }
-
-    /// <summary>
-    /// Builds per-channel value spreads for a session whose samples all share a
-    /// single timestamp. Phase 1 caps how many rows it loads, so this aggregates
-    /// MIN/MAX over every row in SQL — exact without materializing the rows —
-    /// and represents each channel as a two-point vertical segment at delta-time
-    /// zero (one point when the value never changes).
-    /// </summary>
-    /// <param name="contextFactory">Factory for the logging database context.</param>
-    /// <param name="sessionId">The session whose samples are aggregated.</param>
-    /// <param name="channelKeys">The channels discovered for the session.</param>
-    /// <returns>One point list per requested channel key.</returns>
-    internal static Dictionary<(string deviceSerial, string channelName), List<DataPoint>> LoadSingleTickValueSpread(
-        IDbContextFactory<LoggingContext> contextFactory,
-        int sessionId,
-        List<(string deviceSerial, string channelName)> channelKeys)
-    {
-        var result = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
-        foreach (var key in channelKeys)
-        {
-            result[key] = [];
-        }
-
-        using var context = contextFactory.CreateDbContext();
-        var spreads = context.Samples.AsNoTracking()
-            .Where(s => s.LoggingSessionID == sessionId)
-            .GroupBy(s => new { s.DeviceSerialNo, s.ChannelName })
-            .Select(g => new
-            {
-                g.Key.DeviceSerialNo,
-                g.Key.ChannelName,
-                MinValue = g.Min(s => s.Value),
-                MaxValue = g.Max(s => s.Value)
-            })
-            .ToList();
-
-        foreach (var spread in spreads)
-        {
-            if (!result.TryGetValue((spread.DeviceSerialNo, spread.ChannelName), out var points))
-            {
-                continue;
-            }
-
-            points.Add(new DataPoint(0, spread.MinValue));
-            if (spread.MaxValue > spread.MinValue)
-            {
-                points.Add(new DataPoint(0, spread.MaxValue));
-            }
-        }
-
-        return result;
-    }
-
     private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(
         string channelName,
         string deviceSerialNo,
         ChannelType type,
-        string color,
-        Dictionary<(string deviceSerial, string channelName), List<DataPoint>> localPoints)
+        string color)
     {
-        var key = (deviceSerial: deviceSerialNo, channelName);
-        localPoints.Add(key, []);
-
         var serialSuffix = deviceSerialNo?.Length > 4
             ? $"...{deviceSerialNo[^4..]}"
             : deviceSerialNo;
@@ -1307,7 +962,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
                 }
 
                 // Only check channels that are actually sampled (not full datasets)
-                if (kvp.Value.Count < SAMPLED_POINTS_PER_CHANNEL / 2)
+                if (kvp.Value.Count < SessionDataRepository.SAMPLED_POINTS_PER_CHANNEL / 2)
                 {
                     continue;
                 }

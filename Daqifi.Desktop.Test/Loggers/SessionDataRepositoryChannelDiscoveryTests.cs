@@ -7,10 +7,11 @@ namespace Daqifi.Desktop.Test.Loggers;
 /// <summary>
 /// Regression tests for issue #572: sessions whose samples contain duplicate
 /// (device serial, channel name) rows at a single timestamp must not abort
-/// channel discovery when displaying a logging session.
+/// channel discovery when displaying a logging session. The de-duplication now
+/// lives in <see cref="SessionDataRepository"/> (extracted from <c>DatabaseLogger</c>, #592).
 /// </summary>
 [TestClass]
-public class DatabaseLoggerChannelDiscoveryTests
+public class SessionDataRepositoryChannelDiscoveryTests
 {
     private static SessionChannelInfo Analog(string channelName, string serial, string color = "#D32F2F")
     {
@@ -30,7 +31,7 @@ public class DatabaseLoggerChannelDiscoveryTests
         };
 
         // Act
-        var result = DatabaseLogger.DeduplicateChannelInfo(rows);
+        var result = SessionDataRepository.DeduplicateChannelInfo(rows);
 
         // Assert
         Assert.AreEqual(2, result.Count);
@@ -49,7 +50,7 @@ public class DatabaseLoggerChannelDiscoveryTests
         };
 
         // Act
-        var result = DatabaseLogger.DeduplicateChannelInfo(rows);
+        var result = SessionDataRepository.DeduplicateChannelInfo(rows);
 
         // Assert
         Assert.AreEqual(1, result.Count);
@@ -67,7 +68,7 @@ public class DatabaseLoggerChannelDiscoveryTests
         };
 
         // Act
-        var result = DatabaseLogger.DeduplicateChannelInfo(rows);
+        var result = SessionDataRepository.DeduplicateChannelInfo(rows);
 
         // Assert
         Assert.AreEqual(2, result.Count);
@@ -85,7 +86,7 @@ public class DatabaseLoggerChannelDiscoveryTests
         };
 
         // Act
-        var result = DatabaseLogger.DeduplicateChannelInfo(rows);
+        var result = SessionDataRepository.DeduplicateChannelInfo(rows);
 
         // Assert
         string[] expectedOrder = ["AI0", "AI2", "AI10"];
@@ -96,7 +97,7 @@ public class DatabaseLoggerChannelDiscoveryTests
     public void DeduplicateChannelInfo_EmptyInput_ReturnsEmptyList()
     {
         // Act
-        var result = DatabaseLogger.DeduplicateChannelInfo([]);
+        var result = SessionDataRepository.DeduplicateChannelInfo([]);
 
         // Assert
         Assert.AreEqual(0, result.Count);
@@ -116,8 +117,8 @@ public class DatabaseLoggerChannelDiscoveryTests
 
         var localPoints = new Dictionary<(string deviceSerial, string channelName), List<DataPoint>>();
 
-        // Act - mirrors AddChannelSeries seeding one dictionary entry per channel
-        foreach (var row in DatabaseLogger.DeduplicateChannelInfo(rows))
+        // Act - mirrors LoadInitialSession seeding one dictionary entry per channel
+        foreach (var row in SessionDataRepository.DeduplicateChannelInfo(rows))
         {
             localPoints.Add((row.DeviceSerialNo, row.ChannelName), []);
         }
