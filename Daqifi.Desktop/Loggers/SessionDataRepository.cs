@@ -34,8 +34,12 @@ internal sealed record InitialSessionLoad(
     /// <summary>True when the session had no samples to discover channels from.</summary>
     public bool IsEmpty => Channels.Count == 0;
 
-    /// <summary>The empty-session result: no channels, no points, no time origin.</summary>
-    public static InitialSessionLoad Empty { get; } = new([], new(), null, 0);
+    /// <summary>
+    /// A fresh empty-session result: no channels, no points, no time origin. Returns a new instance on
+    /// each access so the empty sentinel never shares its mutable <see cref="Points"/> dictionary across
+    /// loads (a cached singleton would leak any accidental mutation into every later empty-session load).
+    /// </summary>
+    public static InitialSessionLoad Empty => new([], new(), null, 0);
 }
 
 /// <summary>
