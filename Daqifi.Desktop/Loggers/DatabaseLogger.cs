@@ -1,6 +1,5 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
-using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.View;
@@ -10,92 +9,14 @@ using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Collections.ObjectModel;
 using Exception = System.Exception;
-using TickStyle = OxyPlot.Axes.TickStyle;
 using Microsoft.EntityFrameworkCore;
 using EFCore.BulkExtensions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Windows.Threading;
 using Application = System.Windows.Application;
-using FontWeights = OxyPlot.FontWeights;
 
 namespace Daqifi.Desktop.Logger;
-
-public partial class LoggedSeriesLegendItem : ObservableObject
-{
-    [ObservableProperty]
-    private string _displayName;
-
-    [ObservableProperty]
-    private string _channelName;
-
-    [ObservableProperty]
-    private string _deviceSerialNo;
-
-    /// <summary>
-    /// Truncated serial number for compact legend display (e.g., "...4104").
-    /// </summary>
-    public string TruncatedSerialNo => _deviceSerialNo?.Length > 4
-        ? $"...{_deviceSerialNo[^4..]}"
-        : _deviceSerialNo ?? string.Empty;
-
-    [ObservableProperty]
-    private OxyColor _seriesColor;
-
-    private bool _isVisible;
-    public bool IsVisible
-    {
-        get => _isVisible;
-        set
-        {
-            if (SetProperty(ref _isVisible, value) && ActualSeries != null)
-            {
-                ActualSeries.IsVisible = _isVisible;
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    _plotModel?.InvalidatePlot(true);
-                    _databaseLogger?.SetMinimapSeriesVisibility(_deviceSerialNo, _channelName, _isVisible);
-                });
-            }
-        }
-    }
-
-    public LineSeries ActualSeries { get; }
-    private readonly PlotModel _plotModel;
-    private readonly DatabaseLogger _databaseLogger;
-
-    /// <summary>
-    /// Initializes a new legend item linked to a plot series and optional minimap sync.
-    /// </summary>
-    /// <param name="displayName">Full display name including channel and device info.</param>
-    /// <param name="channelName">Channel identifier (e.g., "AI0").</param>
-    /// <param name="deviceSerialNo">Device serial number for grouping.</param>
-    /// <param name="seriesColor">Color of the associated plot series.</param>
-    /// <param name="isVisible">Initial visibility state of the series.</param>
-    /// <param name="actualSeries">The OxyPlot LineSeries this legend item controls.</param>
-    /// <param name="plotModel">The main PlotModel to invalidate on visibility changes.</param>
-    /// <param name="databaseLogger">Optional logger for syncing minimap series visibility.</param>
-    public LoggedSeriesLegendItem(
-        string displayName,
-        string channelName,
-        string deviceSerialNo,
-        OxyColor seriesColor,
-        bool isVisible,
-        LineSeries actualSeries,
-        PlotModel plotModel,
-        DatabaseLogger databaseLogger = null)
-    {
-        _displayName = displayName;
-        _channelName = channelName;
-        _deviceSerialNo = deviceSerialNo;
-        _seriesColor = seriesColor;
-        _isVisible = isVisible; // Initialize the backing field
-        ActualSeries = actualSeries;
-        ActualSeries.IsVisible = isVisible; // Ensure series visibility matches
-        _plotModel = plotModel;
-        _databaseLogger = databaseLogger;
-    }
-}
 
 public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 {
@@ -115,6 +36,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private DateTime? _firstTime;
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
+    private readonly PlotModelFactory _plotModelFactory;
     private readonly SessionSampleWriter _sampleWriter;
     private readonly SessionDataRepository _sessionDataRepository;
     private RectangleAnnotation _minimapSelectionRect;
@@ -206,76 +128,16 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     {
         _loggingContext = loggingContext;
 
-        PlotModel = new PlotModel();
+        // Pure OxyPlot construction (axes, theme, minimap model + annotations, series) lives in
+        // PlotModelFactory (issue #592). The logger keeps every live mutation: the axis subscription
+        // below and all viewport/minimap-sync machinery.
+        _plotModelFactory = new PlotModelFactory();
 
-        var analogAxis = new LinearAxis
-        {
-            Position = AxisPosition.Left,
-            TickStyle = TickStyle.None,
-            MajorGridlineStyle = LineStyle.Solid,
-            MinorGridlineStyle = LineStyle.Solid,
-            TitleFontSize = 12,
-            TitleFontWeight = FontWeights.Bold,
-            MinimumPadding = 0.1,
-            MaximumPadding = 0.1,
-            StringFormat = "0.###",
-            AxisDistance = 5,
-            Key = "Analog",
-            Title = "Analog (V)"
-        };
+        PlotModel = _plotModelFactory.CreateMainPlotModel();
 
-        var digitalAxis = new LinearAxis
-        {
-            Position = AxisPosition.Right,
-            TickStyle = TickStyle.None,
-            MajorGridlineStyle = LineStyle.None,
-            MinorGridlineStyle = LineStyle.None,
-            MinorGridlineThickness = 0,
-            MajorGridlineThickness = 0,
-            MajorStep = 1,
-            MinorStep = 1,
-            TitleFontSize = 12,
-            TitleFontWeight = FontWeights.Bold,
-            AxisTitleDistance = -10,
-            Minimum = -0.1,
-            Maximum = 1.1,
-            MinimumPadding = 0.1,
-            MaximumPadding = 0.1,
-            AxisDistance = 5,
-            Key = "Digital",
-            Title = "Digital"
-        };
-
-        var timeAxis = new LinearAxis
-        {
-            Position = AxisPosition.Bottom,
-            TickStyle = TickStyle.None,
-            MajorGridlineStyle = LineStyle.Solid,
-            MinorGridlineStyle = LineStyle.Solid,
-            TitleFontSize = 12,
-            TitleFontWeight = FontWeights.Bold,
-            Key = "Time",
-            Title = "Time (ms)"
-        };
-
-        // OxyPlot.Legends.Legend legend = new OxyPlot.Legends.Legend
-        // {
-        //     LegendOrientation = OxyPlot.Legends.LegendOrientation.Vertical,
-        //     LegendPlacement = OxyPlot.Legends.LegendPlacement.Outside,
-        //     LegendItemMode = LegendItemMode.ToggleVisibility // Attempt to set direct interactivity
-        // };
-
-        OxyPlotDarkTheme.ApplyTo(PlotModel);
-        OxyPlotDarkTheme.ApplyTo(analogAxis);
-        OxyPlotDarkTheme.ApplyTo(digitalAxis);
-        OxyPlotDarkTheme.ApplyTo(timeAxis);
-
-        PlotModel.Axes.Add(analogAxis);
-        PlotModel.Axes.Add(digitalAxis);
-        PlotModel.Axes.Add(timeAxis);
-        PlotModel.IsLegendVisible = false; // Disable the built-in legend
-
-        // Subscribe to main time axis changes for minimap sync
+        // Subscribe to main time axis changes for minimap sync. The axis is built by the factory; the
+        // subscription — like every other viewport mutation — stays here.
+        var timeAxis = PlotModel.Axes.First(a => a.Key == PlotModelFactory.TimeAxisKey);
         timeAxis.AxisChanged += OnMainTimeAxisChanged;
 
         // Throttle viewport updates from main plot interaction to 60fps
@@ -311,90 +173,14 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     #region Minimap Initialization
     private void InitializeMinimapPlotModel()
     {
-        MinimapPlotModel = new PlotModel
-        {
-            IsLegendVisible = false,
-            PlotMargins = new OxyThickness(4, 2, 4, 2),
-            Padding = new OxyThickness(0)
-        };
-        OxyPlotDarkTheme.ApplyTo(MinimapPlotModel);
-
-        var minimapTimeAxis = new LinearAxis
-        {
-            Position = AxisPosition.Bottom,
-            Key = "MinimapTime",
-            TickStyle = TickStyle.None,
-            MajorGridlineStyle = LineStyle.None,
-            MinorGridlineStyle = LineStyle.None,
-            TitleFontSize = 0,
-            FontSize = 0,
-            IsZoomEnabled = false,
-            IsPanEnabled = false
-        };
-
-        var minimapYAxis = new LinearAxis
-        {
-            Position = AxisPosition.Left,
-            Key = "MinimapY",
-            TickStyle = TickStyle.None,
-            MajorGridlineStyle = LineStyle.None,
-            MinorGridlineStyle = LineStyle.None,
-            TitleFontSize = 0,
-            FontSize = 0,
-            IsZoomEnabled = false,
-            IsPanEnabled = false,
-            MinimumPadding = 0.1,
-            MaximumPadding = 0.1
-        };
-
-        MinimapPlotModel.Axes.Add(minimapTimeAxis);
-        MinimapPlotModel.Axes.Add(minimapYAxis);
-
-        // Dim overlays for areas outside the selected range
-        _minimapDimLeft = new RectangleAnnotation
-        {
-            Fill = OxyPlotDarkTheme.MinimapDim,
-            Stroke = OxyColors.Transparent,
-            StrokeThickness = 0,
-            MinimumX = -1e18,
-            MaximumX = 0,
-            MinimumY = -1e18,
-            MaximumY = 1e18,
-            Layer = AnnotationLayer.AboveSeries,
-            XAxisKey = "MinimapTime",
-            YAxisKey = "MinimapY"
-        };
-
-        _minimapDimRight = new RectangleAnnotation
-        {
-            Fill = OxyPlotDarkTheme.MinimapDim,
-            Stroke = OxyColors.Transparent,
-            StrokeThickness = 0,
-            MinimumX = 0,
-            MaximumX = 1e18,
-            MinimumY = -1e18,
-            MaximumY = 1e18,
-            Layer = AnnotationLayer.AboveSeries,
-            XAxisKey = "MinimapTime",
-            YAxisKey = "MinimapY"
-        };
-
-        // Selection rectangle border
-        _minimapSelectionRect = new RectangleAnnotation
-        {
-            Fill = OxyColors.Transparent,
-            Stroke = OxyPlotDarkTheme.Accent,
-            StrokeThickness = 2,
-            MinimumY = -1e18,
-            MaximumY = 1e18,
-            Layer = AnnotationLayer.AboveSeries,
-            XAxisKey = "MinimapTime",
-            YAxisKey = "MinimapY"
-        };
-
-        MinimapPlotModel.Annotations.Add(_minimapDimLeft);
-        MinimapPlotModel.Annotations.Add(_minimapDimRight);
-        MinimapPlotModel.Annotations.Add(_minimapSelectionRect);
+        // The minimap model, its axes, and the three annotations are pure construction (PlotModelFactory).
+        // The logger keeps the annotation field references so the viewport machinery can mutate their
+        // bounds, and wires the live interaction controller below.
+        var minimap = _plotModelFactory.CreateMinimapPlotModel();
+        MinimapPlotModel = minimap.Model;
+        _minimapSelectionRect = minimap.SelectionRect;
+        _minimapDimLeft = minimap.DimLeft;
+        _minimapDimRight = minimap.DimRight;
 
         _minimapInteraction = new MinimapInteractionController(
             PlotModel,
@@ -517,7 +303,8 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
             foreach (var chInfo in initial.Channels)
             {
-                var (series, legendItem) = AddChannelSeries(chInfo.ChannelName, chInfo.DeviceSerialNo, chInfo.Type, chInfo.Color);
+                var (series, legendItem) = _plotModelFactory.CreateChannelSeries(
+                    chInfo.ChannelName, chInfo.DeviceSerialNo, chInfo.Type, chInfo.Color, PlotModel, this);
                 tempSeriesList.Add(series);
                 tempLegendItemsList.Add(legendItem);
             }
@@ -734,14 +521,9 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         _minimapSeries.Clear();
         foreach (var (channelName, deviceSerial, color, downsampled) in minimapData)
         {
-            var minimapLine = new LineSeries
-            {
-                Color = color,
-                StrokeThickness = 1,
-                ItemsSource = downsampled,
-                XAxisKey = "MinimapTime",
-                YAxisKey = "MinimapY"
-            };
+            // Series construction is pure (PlotModelFactory); adding it to the live model, tracking it
+            // for visibility sync, and the axis/annotation/invalidate work below all stay here.
+            var minimapLine = _plotModelFactory.CreateMinimapSeries(color, downsampled);
             MinimapPlotModel.Series.Add(minimapLine);
             _minimapSeries[(deviceSerial, channelName)] = minimapLine;
         }
@@ -754,10 +536,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             var dataMinX = nonEmpty.Min(d => d.downsampled[0].X);
             var dataMaxX = nonEmpty.Max(d => d.downsampled[^1].X);
 
-            var minimapTimeAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == "MinimapTime");
+            var minimapTimeAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.MinimapTimeAxisKey);
             minimapTimeAxis?.Zoom(dataMinX, dataMaxX);
 
-            var minimapYAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == "MinimapY");
+            var minimapYAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.MinimapYAxisKey);
             minimapYAxis?.Reset();
 
             _minimapSelectionRect.MinimumX = dataMinX;
@@ -808,45 +590,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// </summary>
     public void ResumeConsumer() => _sampleWriter.ResumeConsumer();
 
-    private (LineSeries series, LoggedSeriesLegendItem legendItem) AddChannelSeries(
-        string channelName,
-        string deviceSerialNo,
-        ChannelType type,
-        string color)
-    {
-        var serialSuffix = deviceSerialNo?.Length > 4
-            ? $"...{deviceSerialNo[^4..]}"
-            : deviceSerialNo;
-
-        var newLineSeries = new LineSeries
-        {
-            Title = channelName,
-            Tag = (deviceSerialNo, channelName),
-            Color = OxyColor.Parse(color),
-            IsVisible = true,
-            TrackerFormatString = $"{channelName} ({serialSuffix})\n{{1}}: {{2:0.###}}\n{{3}}: {{4:0.######}}"
-        };
-
-        var legendItem = new LoggedSeriesLegendItem(
-            newLineSeries.Title,
-            channelName,
-            deviceSerialNo,
-            newLineSeries.Color,
-            newLineSeries.IsVisible,
-            newLineSeries,
-            PlotModel,
-            this);
-
-        newLineSeries.YAxisKey = type switch
-        {
-            ChannelType.Analog => "Analog",
-            ChannelType.Digital => "Digital",
-            _ => newLineSeries.YAxisKey
-        };
-
-        return (newLineSeries, legendItem);
-    }
-
     #region Minimap Synchronization
     private void OnMainTimeAxisChanged(object? sender, AxisChangedEventArgs e)
     {
@@ -858,7 +601,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         // Mark viewport dirty — the throttle timer will handle the actual update at 60fps
         _viewportDirty = true;
 
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
         if (timeAxis == null)
         {
             return;
@@ -912,7 +655,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// </summary>
     private void UpdateMainPlotViewport(bool highFidelity = true)
     {
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
         if (timeAxis == null)
         {
             return;
@@ -1283,7 +1026,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         // Reset Y axes to auto-range for amplitude
         foreach (var axis in PlotModel.Axes)
         {
-            if (axis.Key != "Time")
+            if (axis.Key != PlotModelFactory.TimeAxisKey)
             {
                 axis.Reset();
             }
@@ -1304,7 +1047,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             }
         }
 
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
         if (timeAxis != null && fullMin < fullMax)
         {
             timeAxis.Zoom(fullMin, fullMax);
@@ -1319,7 +1062,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     [RelayCommand]
     private void ZoomOutX()
     {
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
         timeAxis?.ZoomAtCenter(0.8);
         UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
@@ -1328,7 +1071,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     [RelayCommand]
     private void ZoomInX()
     {
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
         timeAxis?.ZoomAtCenter(1.25);
         UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
@@ -1337,7 +1080,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     [RelayCommand]
     private void ZoomOutY()
     {
-        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Analog");
+        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.AnalogAxisKey);
         analogAxis?.ZoomAtCenter(0.8);
         PlotModel.InvalidatePlot(true);
     }
@@ -1345,7 +1088,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     [RelayCommand]
     private void ZoomInY()
     {
-        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Analog");
+        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.AnalogAxisKey);
         analogAxis?.ZoomAtCenter(1.25);
         PlotModel.InvalidatePlot(true);
     }
@@ -1364,7 +1107,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         _fetchCts?.Cancel();
         _fetchCts?.Dispose();
 
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == "Time");
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
         if (timeAxis != null)
         {
             timeAxis.AxisChanged -= OnMainTimeAxisChanged;
