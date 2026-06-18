@@ -165,10 +165,11 @@ public class LoggingSessionTests : DaqifiAppFixture
         DeleteNewestLoggedSession();
 
         // Assert (out-of-process) — the row is gone and the count returns to the pre-run baseline.
-        // This proves the session left the bound LoggingSessions collection (the view). It is NOT,
-        // by itself, DB-level proof: DbLogger.DeleteLoggingSession swallows its own exceptions (logs
-        // and does not rethrow), so the view-model removes the row even if the SQL delete failed.
-        // DB-level deletion is asserted separately, from the app's log lines, just below.
+        // This proves the session left the bound LoggingSessions collection (the view). Since the
+        // SessionDataRepository extraction (#592), DbLogger.DeleteLoggingSession rethrows on failure,
+        // so the view-model removes the row only when the SQL delete succeeds — a returned-to-baseline
+        // count now implies the DB delete ran. The log-based assertions just below are kept as
+        // independent, DB-level confirmation that the rows really left the database.
         WaitForExactLoggedSessionCount(sessionsBefore, TimeSpan.FromSeconds(20));
         var sessionsAfterDelete = GetLoggedSessionCount();
         Assert.AreEqual(
@@ -193,6 +194,82 @@ public class LoggingSessionTests : DaqifiAppFixture
 
         // Per-test independence: the base fixture's [TestCleanup] closes the app,
         // which disconnects the device. A fresh app instance is launched per test.
+    }
+
+    /// <summary>
+    /// Scenario 3b — view a previously logged session on the Logged Data plot. Complements the
+    /// create/run/stop/delete scenario above by exercising the <b>logged-session viewer</b> end-to-end:
+    /// the path that loads a stored session's samples from SQLite and renders them on the logged-data
+    /// plot + minimap (<c>DatabaseLogger.DisplayLoggingSession</c> delegating to the extracted
+    /// <c>SessionDataRepository</c> read path, issue #592). Runs a brief session to produce a stored
+    /// row, loads it onto the plot (via the row's invisible <c>DisplaySessionButton</c> invoke-seam,
+    /// since the user-facing whole-row trigger is a <c>MouseBinding</c> with no InvokePattern and
+    /// out-of-process physical clicks are unreliable), and asserts — black box — that the viewer
+    /// actually loaded it: the logged-data sample-count hook (<c>LoggedSessionStatsText</c>) reports a
+    /// non-zero count (it is 0 until <c>DisplayLoggingSession</c> reads the session from the database
+    /// and populates the plot) and the app logged no <c>Failed in DisplayLoggingSession</c>. Self-cleans
+    /// by deleting the session it created, returning the persistent test-mode DB to baseline. Requires
+    /// a DAQiFi device.
+    /// </summary>
+    [TestMethod]
+    [TestCategory("Ui")]
+    [TestCategory("RequiresDevice")]
+    public void ViewLoggedSession_LoadsStoredSessionOntoLoggedDataPlot()
+    {
+        // Arrange — connect, configure, and run a brief session so a stored session exists to view.
+        var transport = ResolveTransport();
+        ConnectFirstDevice(transport);
+
+        var sessionsBefore = GetLoggedSessionCount();
+
+        SetSamplingFrequency(TARGET_FREQUENCY_HZ);
+        var activeChannels = EnableAllAnalogChannels();
+        Assert.IsTrue(activeChannels > 0, "Pre-condition failed: no analog channels became active.");
+
+        StartLogging();
+        WaitForLoggingStatusLabel("LOGGING ON", TimeSpan.FromSeconds(15));
+
+        // Poll (not sleep) for the accrual signal: a session row only persists if samples were
+        // recorded, so its appearance is positive proof there is real data to view.
+        var accrued = Retry.WhileFalse(
+            () => GetLoggedSessionCount() > sessionsBefore,
+            timeout: RunPollTimeout,
+            interval: TimeSpan.FromMilliseconds(500),
+            throwOnTimeout: false).Result;
+
+        StopLogging();
+        WaitForLoggingStatusLabel("LOGGING OFF", TimeSpan.FromSeconds(15));
+
+        if (!accrued)
+        {
+            WaitForLoggedSessionCount(sessionsBefore + 1, TimeSpan.FromSeconds(20));
+        }
+
+        // Act — load the newest session onto the logged-data plot (via the row's invoke-seam).
+        DisplayNewestLoggedSession();
+
+        // Assert — the viewer loaded the session. The sample-count hook goes from 0 to the session's
+        // sample count only once DisplayLoggingSession has read the session from the database and
+        // populated the plot, so a non-zero count is positive, black-box proof the read path ran
+        // (#592: that read path now lives in SessionDataRepository).
+        var displayedCount = WaitForDisplayedSessionSampleCount(TimeSpan.FromSeconds(20));
+        Assert.IsTrue(
+            displayedCount > 0,
+            "Expected the logged-data viewer to report a displayed session with samples, but the " +
+            $"sample-count hook read {displayedCount}.");
+
+        // And the load did not throw: DisplayLoggingSession logs 'Failed in DisplayLoggingSession' in
+        // its catch, so its absence confirms the session loaded cleanly.
+        Assert.IsFalse(
+            ReadNewLogText().Contains("Failed in DisplayLoggingSession", StringComparison.Ordinal),
+            "The app logged 'Failed in DisplayLoggingSession' — loading the stored session onto the " +
+            "plot threw inside the read path.");
+
+        CaptureScreenshot("ViewLoggedSession_LoadsStoredSessionOntoLoggedDataPlot_displayed");
+
+        // Clean up — delete the session we created so the persistent test-mode DB returns to baseline.
+        DeleteNewestLoggedSession();
+        WaitForExactLoggedSessionCount(sessionsBefore, TimeSpan.FromSeconds(20));
     }
 
     /// <summary>

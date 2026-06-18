@@ -8,10 +8,11 @@ namespace Daqifi.Desktop.Test.Loggers;
 /// <summary>
 /// Covers the single-timestamp value-spread fallback used when a session has no
 /// usable time range (issue #572): the spread must aggregate over every row in
-/// the database, not just the rows Phase 1 happened to load.
+/// the database, not just the rows Phase 1 happened to load. The aggregation now
+/// lives in <see cref="SessionDataRepository"/> (extracted from <c>DatabaseLogger</c>, #592).
 /// </summary>
 [TestClass]
-public class DatabaseLoggerSingleTickSpreadTests
+public class SessionDataRepositorySingleTickSpreadTests
 {
     private const string Serial = "9090684023231015079";
     private const long Tick = 638_000_000_000_000_000;
@@ -59,7 +60,7 @@ public class DatabaseLoggerSingleTickSpreadTests
         };
 
         // Act
-        var result = DatabaseLogger.LoadSingleTickValueSpread(_factory, 1, channelKeys);
+        var result = SessionDataRepository.LoadSingleTickValueSpread(_factory, 1, channelKeys);
 
         // Assert - AI0 spans its true extrema; both points sit at delta-time zero
         var ai0 = result[(Serial, "AI0")];
@@ -93,7 +94,7 @@ public class DatabaseLoggerSingleTickSpreadTests
         }
 
         // Act
-        var result = DatabaseLogger.LoadSingleTickValueSpread(
+        var result = SessionDataRepository.LoadSingleTickValueSpread(
             _factory, 1, [(Serial, "AI0")]);
 
         // Assert
@@ -118,7 +119,7 @@ public class DatabaseLoggerSingleTickSpreadTests
         }
 
         // Act
-        var result = DatabaseLogger.LoadSingleTickValueSpread(
+        var result = SessionDataRepository.LoadSingleTickValueSpread(
             _factory, 1, [(Serial, "AI0"), (Serial, "AI1")]);
 
         // Assert
