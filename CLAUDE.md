@@ -326,7 +326,7 @@ When working on:
 - **Firewall/Network**: Ensure admin privileges handled properly, verify ports match
 - **WiFi Discovery Issues**: Check network interface detection and port configuration
 - **Manual IP Connections**: Ensure TCP port matches what device discovery reports
-- **Plot/Minimap changes**: Read the "Plot Rendering (OxyPlot)" section below — there are non-obvious gotchas with `InvalidatePlot`, auto-range, and feedback loops. Key files: `DatabaseLogger.cs`, `MinimapInteractionController.cs`, `MinMaxDownsampler.cs`
+- **Plot/Minimap changes**: Read the "Plot Rendering (OxyPlot)" section below — there are non-obvious gotchas with `InvalidatePlot`, auto-range, and feedback loops. Key files: `DatabaseLogger.cs` (orchestration + live-model mutation/binding surface), `PlotModelFactory.cs` (pure OxyPlot construction — axes, theme, minimap model + annotations, channel/minimap series), `MinimapInteractionController.cs`, `MinMaxDownsampler.cs`
 - **New features**: Add unit tests with 80% coverage minimum
 - **UI automation / running the harness against a PR with a device, or extending the UI scenarios**: Read [Daqifi.Desktop.UITest/README.md](Daqifi.Desktop.UITest/README.md) first. It is the FlaUI integration gate (drives the real GUI out-of-process against attached hardware) and documents the unattended `DAQIFI_TEST_MODE` launch, the AutomationId map, and load-bearing gotchas (e.g. `PART_SelectedContentHost` exposes tab content to UI Automation — do not remove it)
 
