@@ -10,23 +10,6 @@ using TickStyle = OxyPlot.Axes.TickStyle;
 namespace Daqifi.Desktop.Logger;
 
 /// <summary>
-/// The minimap <see cref="PlotModel"/> together with the three annotation handles
-/// <see cref="DatabaseLogger"/> keeps mutating as the viewport changes: the selection rectangle and
-/// the two dim overlays that shade the unselected regions. Returned by
-/// <see cref="PlotModelFactory.CreateMinimapPlotModel"/> so the logger can hold the field references
-/// while the construction lives in the factory.
-/// </summary>
-/// <param name="Model">The fully configured minimap plot model (axes + annotations added).</param>
-/// <param name="SelectionRect">The accent-bordered rectangle marking the visible time range.</param>
-/// <param name="DimLeft">The dim overlay shading the range to the left of the selection.</param>
-/// <param name="DimRight">The dim overlay shading the range to the right of the selection.</param>
-public sealed record MinimapPlotComponents(
-    PlotModel Model,
-    RectangleAnnotation SelectionRect,
-    RectangleAnnotation DimLeft,
-    RectangleAnnotation DimRight);
-
-/// <summary>
 /// Owns the pure OxyPlot <em>construction</em> extracted from <see cref="DatabaseLogger"/> (issue #592):
 /// building the main logged-data <see cref="PlotModel"/> and its Analog/Digital/Time axes, the overview
 /// minimap model with its axes and selection/dim annotations, a channel's <see cref="LineSeries"/> plus
@@ -45,19 +28,19 @@ public sealed class PlotModelFactory
 {
     #region Axis Keys
     /// <summary>Key of the left-hand analog (volts) Y axis on the main plot.</summary>
-    public const string AnalogAxisKey = "Analog";
+    public const string ANALOG_AXIS_KEY = "Analog";
 
     /// <summary>Key of the right-hand digital Y axis on the main plot.</summary>
-    public const string DigitalAxisKey = "Digital";
+    public const string DIGITAL_AXIS_KEY = "Digital";
 
     /// <summary>Key of the bottom time (ms) X axis on the main plot.</summary>
-    public const string TimeAxisKey = "Time";
+    public const string TIME_AXIS_KEY = "Time";
 
     /// <summary>Key of the minimap's time X axis.</summary>
-    public const string MinimapTimeAxisKey = "MinimapTime";
+    public const string MINIMAP_TIME_AXIS_KEY = "MinimapTime";
 
     /// <summary>Key of the minimap's value Y axis.</summary>
-    public const string MinimapYAxisKey = "MinimapY";
+    public const string MINIMAP_Y_AXIS_KEY = "MinimapY";
     #endregion
 
     #region Main Plot
@@ -85,7 +68,7 @@ public sealed class PlotModelFactory
             MaximumPadding = 0.1,
             StringFormat = "0.###",
             AxisDistance = 5,
-            Key = AnalogAxisKey,
+            Key = ANALOG_AXIS_KEY,
             Title = "Analog (V)"
         };
 
@@ -107,7 +90,7 @@ public sealed class PlotModelFactory
             MinimumPadding = 0.1,
             MaximumPadding = 0.1,
             AxisDistance = 5,
-            Key = DigitalAxisKey,
+            Key = DIGITAL_AXIS_KEY,
             Title = "Digital"
         };
 
@@ -119,7 +102,7 @@ public sealed class PlotModelFactory
             MinorGridlineStyle = LineStyle.Solid,
             TitleFontSize = 12,
             TitleFontWeight = FontWeights.Bold,
-            Key = TimeAxisKey,
+            Key = TIME_AXIS_KEY,
             Title = "Time (ms)"
         };
 
@@ -146,7 +129,7 @@ public sealed class PlotModelFactory
     /// </summary>
     /// <param name="channelName">Channel identifier (e.g., "AI0"); also the series title.</param>
     /// <param name="deviceSerialNo">Serial number of the owning device, used for the tag and legend grouping.</param>
-    /// <param name="type">Channel type; selects the <see cref="AnalogAxisKey"/> or <see cref="DigitalAxisKey"/> Y axis.</param>
+    /// <param name="type">Channel type; selects the <see cref="ANALOG_AXIS_KEY"/> or <see cref="DIGITAL_AXIS_KEY"/> Y axis.</param>
     /// <param name="color">Series color in a format <see cref="OxyColor.Parse"/> understands (e.g., "#FFD32F2F").</param>
     /// <param name="plotModel">The live main plot model the legend item invalidates on visibility changes.</param>
     /// <param name="databaseLogger">Logger the legend item uses to sync minimap series visibility, or null to skip that sync.</param>
@@ -184,8 +167,8 @@ public sealed class PlotModelFactory
 
         newLineSeries.YAxisKey = type switch
         {
-            ChannelType.Analog => AnalogAxisKey,
-            ChannelType.Digital => DigitalAxisKey,
+            ChannelType.Analog => ANALOG_AXIS_KEY,
+            ChannelType.Digital => DIGITAL_AXIS_KEY,
             _ => newLineSeries.YAxisKey
         };
 
@@ -216,7 +199,7 @@ public sealed class PlotModelFactory
         var minimapTimeAxis = new LinearAxis
         {
             Position = AxisPosition.Bottom,
-            Key = MinimapTimeAxisKey,
+            Key = MINIMAP_TIME_AXIS_KEY,
             TickStyle = TickStyle.None,
             MajorGridlineStyle = LineStyle.None,
             MinorGridlineStyle = LineStyle.None,
@@ -229,7 +212,7 @@ public sealed class PlotModelFactory
         var minimapYAxis = new LinearAxis
         {
             Position = AxisPosition.Left,
-            Key = MinimapYAxisKey,
+            Key = MINIMAP_Y_AXIS_KEY,
             TickStyle = TickStyle.None,
             MajorGridlineStyle = LineStyle.None,
             MinorGridlineStyle = LineStyle.None,
@@ -255,8 +238,8 @@ public sealed class PlotModelFactory
             MinimumY = -1e18,
             MaximumY = 1e18,
             Layer = AnnotationLayer.AboveSeries,
-            XAxisKey = MinimapTimeAxisKey,
-            YAxisKey = MinimapYAxisKey
+            XAxisKey = MINIMAP_TIME_AXIS_KEY,
+            YAxisKey = MINIMAP_Y_AXIS_KEY
         };
 
         var dimRight = new RectangleAnnotation
@@ -269,8 +252,8 @@ public sealed class PlotModelFactory
             MinimumY = -1e18,
             MaximumY = 1e18,
             Layer = AnnotationLayer.AboveSeries,
-            XAxisKey = MinimapTimeAxisKey,
-            YAxisKey = MinimapYAxisKey
+            XAxisKey = MINIMAP_TIME_AXIS_KEY,
+            YAxisKey = MINIMAP_Y_AXIS_KEY
         };
 
         // Selection rectangle border
@@ -282,8 +265,8 @@ public sealed class PlotModelFactory
             MinimumY = -1e18,
             MaximumY = 1e18,
             Layer = AnnotationLayer.AboveSeries,
-            XAxisKey = MinimapTimeAxisKey,
-            YAxisKey = MinimapYAxisKey
+            XAxisKey = MINIMAP_TIME_AXIS_KEY,
+            YAxisKey = MINIMAP_Y_AXIS_KEY
         };
 
         minimapPlotModel.Annotations.Add(dimLeft);
@@ -300,7 +283,7 @@ public sealed class PlotModelFactory
     /// </summary>
     /// <param name="color">The series color, matched to its main-plot counterpart.</param>
     /// <param name="downsampled">The downsampled overview points to render.</param>
-    /// <returns>A minimap line series bound to the <see cref="MinimapTimeAxisKey"/>/<see cref="MinimapYAxisKey"/> axes.</returns>
+    /// <returns>A minimap line series bound to the <see cref="MINIMAP_TIME_AXIS_KEY"/>/<see cref="MINIMAP_Y_AXIS_KEY"/> axes.</returns>
     public LineSeries CreateMinimapSeries(OxyColor color, List<DataPoint> downsampled)
     {
         return new LineSeries
@@ -308,8 +291,8 @@ public sealed class PlotModelFactory
             Color = color,
             StrokeThickness = 1,
             ItemsSource = downsampled,
-            XAxisKey = MinimapTimeAxisKey,
-            YAxisKey = MinimapYAxisKey
+            XAxisKey = MINIMAP_TIME_AXIS_KEY,
+            YAxisKey = MINIMAP_Y_AXIS_KEY
         };
     }
     #endregion

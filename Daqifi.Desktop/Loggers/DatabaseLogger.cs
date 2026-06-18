@@ -137,7 +137,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
         // Subscribe to main time axis changes for minimap sync. The axis is built by the factory; the
         // subscription — like every other viewport mutation — stays here.
-        var timeAxis = PlotModel.Axes.First(a => a.Key == PlotModelFactory.TimeAxisKey);
+        var timeAxis = PlotModel.Axes.First(a => a.Key == PlotModelFactory.TIME_AXIS_KEY);
         timeAxis.AxisChanged += OnMainTimeAxisChanged;
 
         // Throttle viewport updates from main plot interaction to 60fps
@@ -536,10 +536,10 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             var dataMinX = nonEmpty.Min(d => d.downsampled[0].X);
             var dataMaxX = nonEmpty.Max(d => d.downsampled[^1].X);
 
-            var minimapTimeAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.MinimapTimeAxisKey);
+            var minimapTimeAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.MINIMAP_TIME_AXIS_KEY);
             minimapTimeAxis?.Zoom(dataMinX, dataMaxX);
 
-            var minimapYAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.MinimapYAxisKey);
+            var minimapYAxis = MinimapPlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.MINIMAP_Y_AXIS_KEY);
             minimapYAxis?.Reset();
 
             _minimapSelectionRect.MinimumX = dataMinX;
@@ -601,7 +601,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         // Mark viewport dirty — the throttle timer will handle the actual update at 60fps
         _viewportDirty = true;
 
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TIME_AXIS_KEY);
         if (timeAxis == null)
         {
             return;
@@ -655,7 +655,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// </summary>
     private void UpdateMainPlotViewport(bool highFidelity = true)
     {
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TIME_AXIS_KEY);
         if (timeAxis == null)
         {
             return;
@@ -1026,7 +1026,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         // Reset Y axes to auto-range for amplitude
         foreach (var axis in PlotModel.Axes)
         {
-            if (axis.Key != PlotModelFactory.TimeAxisKey)
+            if (axis.Key != PlotModelFactory.TIME_AXIS_KEY)
             {
                 axis.Reset();
             }
@@ -1047,7 +1047,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
             }
         }
 
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TIME_AXIS_KEY);
         if (timeAxis != null && fullMin < fullMax)
         {
             timeAxis.Zoom(fullMin, fullMax);
@@ -1062,7 +1062,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     [RelayCommand]
     private void ZoomOutX()
     {
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TIME_AXIS_KEY);
         timeAxis?.ZoomAtCenter(0.8);
         UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
@@ -1071,7 +1071,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     [RelayCommand]
     private void ZoomInX()
     {
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TIME_AXIS_KEY);
         timeAxis?.ZoomAtCenter(1.25);
         UpdateMainPlotViewport();
         PlotModel.InvalidatePlot(true);
@@ -1080,7 +1080,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     [RelayCommand]
     private void ZoomOutY()
     {
-        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.AnalogAxisKey);
+        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.ANALOG_AXIS_KEY);
         analogAxis?.ZoomAtCenter(0.8);
         PlotModel.InvalidatePlot(true);
     }
@@ -1088,7 +1088,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     [RelayCommand]
     private void ZoomInY()
     {
-        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.AnalogAxisKey);
+        var analogAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.ANALOG_AXIS_KEY);
         analogAxis?.ZoomAtCenter(1.25);
         PlotModel.InvalidatePlot(true);
     }
@@ -1107,7 +1107,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         _fetchCts?.Cancel();
         _fetchCts?.Dispose();
 
-        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TimeAxisKey);
+        var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TIME_AXIS_KEY);
         if (timeAxis != null)
         {
             timeAxis.AxisChanged -= OnMainTimeAxisChanged;

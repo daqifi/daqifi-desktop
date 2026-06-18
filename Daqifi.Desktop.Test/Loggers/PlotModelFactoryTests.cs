@@ -31,11 +31,11 @@ public class PlotModelFactoryTests
     {
         // The logger's viewport code and the minimap controller find axes by these exact strings, so the
         // constants are a shared contract the factory must not drift from.
-        Assert.AreEqual("Analog", PlotModelFactory.AnalogAxisKey);
-        Assert.AreEqual("Digital", PlotModelFactory.DigitalAxisKey);
-        Assert.AreEqual("Time", PlotModelFactory.TimeAxisKey);
-        Assert.AreEqual("MinimapTime", PlotModelFactory.MinimapTimeAxisKey);
-        Assert.AreEqual("MinimapY", PlotModelFactory.MinimapYAxisKey);
+        Assert.AreEqual("Analog", PlotModelFactory.ANALOG_AXIS_KEY);
+        Assert.AreEqual("Digital", PlotModelFactory.DIGITAL_AXIS_KEY);
+        Assert.AreEqual("Time", PlotModelFactory.TIME_AXIS_KEY);
+        Assert.AreEqual("MinimapTime", PlotModelFactory.MINIMAP_TIME_AXIS_KEY);
+        Assert.AreEqual("MinimapY", PlotModelFactory.MINIMAP_Y_AXIS_KEY);
     }
 
     #endregion
@@ -49,20 +49,20 @@ public class PlotModelFactoryTests
 
         Assert.AreEqual(3, model.Axes.Count, "Main plot has exactly the analog, digital, and time axes.");
 
-        var analog = GetAxis(model, PlotModelFactory.AnalogAxisKey);
+        var analog = GetAxis(model, PlotModelFactory.ANALOG_AXIS_KEY);
         Assert.IsInstanceOfType(analog, typeof(LinearAxis));
         Assert.AreEqual(AxisPosition.Left, analog.Position);
         Assert.AreEqual("Analog (V)", analog.Title);
         Assert.AreEqual("0.###", analog.StringFormat);
 
-        var digital = GetAxis(model, PlotModelFactory.DigitalAxisKey);
+        var digital = GetAxis(model, PlotModelFactory.DIGITAL_AXIS_KEY);
         Assert.IsInstanceOfType(digital, typeof(LinearAxis));
         Assert.AreEqual(AxisPosition.Right, digital.Position);
         Assert.AreEqual("Digital", digital.Title);
         Assert.AreEqual(-0.1, digital.Minimum, "Digital axis is pinned to a fixed 0..1 range with padding.");
         Assert.AreEqual(1.1, digital.Maximum);
 
-        var time = GetAxis(model, PlotModelFactory.TimeAxisKey);
+        var time = GetAxis(model, PlotModelFactory.TIME_AXIS_KEY);
         Assert.IsInstanceOfType(time, typeof(LinearAxis));
         Assert.AreEqual(AxisPosition.Bottom, time.Position);
         Assert.AreEqual("Time (ms)", time.Title);
@@ -86,7 +86,7 @@ public class PlotModelFactoryTests
         Assert.AreEqual(OxyPlotDarkTheme.TextSecondary, model.TextColor);
 
         // The theme is also applied to each axis (gridline color is a theme value, not the OxyPlot default).
-        var time = GetAxis(model, PlotModelFactory.TimeAxisKey);
+        var time = GetAxis(model, PlotModelFactory.TIME_AXIS_KEY);
         Assert.AreEqual(OxyPlotDarkTheme.Gridline, time.MajorGridlineColor);
     }
 
@@ -100,7 +100,7 @@ public class PlotModelFactoryTests
         var (series, _) = _factory.CreateChannelSeries(
             "AI0", Serial, ChannelType.Analog, Color, _factory.CreateMainPlotModel(), null);
 
-        Assert.AreEqual(PlotModelFactory.AnalogAxisKey, series.YAxisKey);
+        Assert.AreEqual(PlotModelFactory.ANALOG_AXIS_KEY, series.YAxisKey);
     }
 
     [TestMethod]
@@ -109,7 +109,7 @@ public class PlotModelFactoryTests
         var (series, _) = _factory.CreateChannelSeries(
             "DIO0", Serial, ChannelType.Digital, Color, _factory.CreateMainPlotModel(), null);
 
-        Assert.AreEqual(PlotModelFactory.DigitalAxisKey, series.YAxisKey);
+        Assert.AreEqual(PlotModelFactory.DIGITAL_AXIS_KEY, series.YAxisKey);
     }
 
     [TestMethod]
@@ -143,6 +143,23 @@ public class PlotModelFactoryTests
         Assert.AreEqual("...5079", legendItem.TruncatedSerialNo);
     }
 
+    [TestMethod]
+    public void CreateChannelSeries_TogglingLegendVisibility_WithoutWpfRuntime_TogglesSeriesAndDoesNotThrow()
+    {
+        // The legend item's visibility setter normally hops to Application.Current.Dispatcher; in this
+        // WPF-runtime-free test host Application.Current is null, so the setter must run its work inline
+        // rather than dereferencing a null dispatcher. Proves the construction seam stays exercisable
+        // headless (a null databaseLogger means no minimap sync is attempted).
+        var (series, legendItem) = _factory.CreateChannelSeries(
+            "AI0", Serial, ChannelType.Analog, Color, _factory.CreateMainPlotModel(), null);
+
+        legendItem.IsVisible = false;
+        Assert.IsFalse(series.IsVisible, "Toggling the legend item flips the underlying series visibility.");
+
+        legendItem.IsVisible = true;
+        Assert.IsTrue(series.IsVisible);
+    }
+
     #endregion
 
     #region CreateMinimapPlotModel
@@ -154,12 +171,12 @@ public class PlotModelFactoryTests
 
         Assert.AreEqual(2, minimap.Model.Axes.Count);
 
-        var timeAxis = GetAxis(minimap.Model, PlotModelFactory.MinimapTimeAxisKey);
+        var timeAxis = GetAxis(minimap.Model, PlotModelFactory.MINIMAP_TIME_AXIS_KEY);
         Assert.AreEqual(AxisPosition.Bottom, timeAxis.Position);
         Assert.IsFalse(timeAxis.IsZoomEnabled, "The minimap axis is driven programmatically, not by user zoom.");
         Assert.IsFalse(timeAxis.IsPanEnabled);
 
-        var yAxis = GetAxis(minimap.Model, PlotModelFactory.MinimapYAxisKey);
+        var yAxis = GetAxis(minimap.Model, PlotModelFactory.MINIMAP_Y_AXIS_KEY);
         Assert.AreEqual(AxisPosition.Left, yAxis.Position);
         Assert.IsFalse(yAxis.IsZoomEnabled);
         Assert.IsFalse(yAxis.IsPanEnabled);
@@ -193,8 +210,8 @@ public class PlotModelFactoryTests
         // Every annotation is bound to the minimap axes and drawn above the series.
         foreach (var annotation in new[] { minimap.SelectionRect, minimap.DimLeft, minimap.DimRight })
         {
-            Assert.AreEqual(PlotModelFactory.MinimapTimeAxisKey, annotation.XAxisKey);
-            Assert.AreEqual(PlotModelFactory.MinimapYAxisKey, annotation.YAxisKey);
+            Assert.AreEqual(PlotModelFactory.MINIMAP_TIME_AXIS_KEY, annotation.XAxisKey);
+            Assert.AreEqual(PlotModelFactory.MINIMAP_Y_AXIS_KEY, annotation.YAxisKey);
             Assert.AreEqual(AnnotationLayer.AboveSeries, annotation.Layer);
         }
     }
@@ -222,8 +239,8 @@ public class PlotModelFactoryTests
 
         Assert.AreEqual(color, series.Color);
         Assert.AreEqual(1d, series.StrokeThickness);
-        Assert.AreEqual(PlotModelFactory.MinimapTimeAxisKey, series.XAxisKey);
-        Assert.AreEqual(PlotModelFactory.MinimapYAxisKey, series.YAxisKey);
+        Assert.AreEqual(PlotModelFactory.MINIMAP_TIME_AXIS_KEY, series.XAxisKey);
+        Assert.AreEqual(PlotModelFactory.MINIMAP_Y_AXIS_KEY, series.YAxisKey);
         Assert.AreSame(points, series.ItemsSource, "The downsampled list is used directly as the items source.");
     }
 

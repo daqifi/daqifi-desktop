@@ -43,11 +43,26 @@ public partial class LoggedSeriesLegendItem : ObservableObject
             if (SetProperty(ref _isVisible, value) && ActualSeries != null)
             {
                 ActualSeries.IsVisible = _isVisible;
-                Application.Current.Dispatcher.Invoke(() =>
+
+                void ApplyVisibility()
                 {
                     _plotModel?.InvalidatePlot(true);
                     _databaseLogger?.SetMinimapSeriesVisibility(_deviceSerialNo, _channelName, _isVisible);
-                });
+                }
+
+                // In the live app Application.Current is always set, so this is a UI-thread dispatch as
+                // before. In a headless/unit-test host it is null; run the work inline instead of
+                // dereferencing a null dispatcher, so the extracted construction stays exercisable
+                // without a WPF runtime.
+                var dispatcher = Application.Current?.Dispatcher;
+                if (dispatcher != null)
+                {
+                    dispatcher.Invoke(ApplyVisibility);
+                }
+                else
+                {
+                    ApplyVisibility();
+                }
             }
         }
     }
