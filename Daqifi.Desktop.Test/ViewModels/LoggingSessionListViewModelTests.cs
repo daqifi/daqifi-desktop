@@ -407,6 +407,32 @@ public class LoggingSessionListViewModelTests
             "Re-attaching the same collection must not add a second subscription.");
     }
 
+    [TestMethod]
+    public void DetachCollection_UnsubscribesFromTheObservedCollection()
+    {
+        var host = new FakeLoggingSessionListHost();
+        var list = CreateList(host);
+        var collection = new ObservableCollection<LoggingSession>();
+
+        list.AttachCollection(collection);
+        list.DetachCollection();
+        var baseline = host.NotifyCount;
+
+        // After detaching, mutations of the previously-observed collection must not notify.
+        collection.Add(new LoggingSession { ID = 1, Name = "A" });
+        Assert.AreEqual(baseline, host.NotifyCount);
+    }
+
+    [TestMethod]
+    public void DetachCollection_WhenNothingAttached_DoesNotThrow()
+    {
+        var host = new FakeLoggingSessionListHost();
+        var list = CreateList(host);
+
+        // Mirrors the non-window-init path where AttachCollection was never called.
+        list.DetachCollection();
+    }
+
     #endregion
 
     #region Helpers

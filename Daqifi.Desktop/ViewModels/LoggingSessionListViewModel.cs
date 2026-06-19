@@ -321,6 +321,22 @@ public class LoggingSessionListViewModel
         _observedLoggingSessions.CollectionChanged += OnLoggingSessionsCollectionChanged;
     }
 
+    /// <summary>
+    /// Unsubscribes from the currently-observed session collection, if any. Called by the host on
+    /// teardown so the long-lived <c>LoggingManager.Instance.LoggingSessions</c> collection does not
+    /// keep this view model (and, through it, the host) alive (issue #592).
+    /// </summary>
+    public void DetachCollection()
+    {
+        if (_observedLoggingSessions == null)
+        {
+            return;
+        }
+
+        _observedLoggingSessions.CollectionChanged -= OnLoggingSessionsCollectionChanged;
+        _observedLoggingSessions = null;
+    }
+
     private void OnLoggingSessionsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         // The host owns the UI-thread marshalling so this class stays dispatcher-free.

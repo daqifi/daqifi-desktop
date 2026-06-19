@@ -32,7 +32,7 @@ using Daqifi.Core.Device.SdCard;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, ILoggingSessionListHost, IDiskSpaceMonitorHost
+public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, ILoggingSessionListHost, IDiskSpaceMonitorHost, IDisposable
 {
     private readonly AppLogger _appLogger = AppLogger.Instance;
 
@@ -1541,15 +1541,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
     #region Disk Space Monitoring
 
-    /// <summary>
-    /// Disposes disk space monitoring resources. Call on application shutdown.
-    /// </summary>
-    public void DisposeDiskSpaceMonitor()
-    {
-        _diskSpaceCoordinator?.Dispose();
-        _diskSpaceCoordinator = null;
-    }
-
     // IDiskSpaceMonitorHost implementation. The coordinator owns the gate/monitor/event logic and
     // reaches back here only to stop the session and present dialogs — both of which are WPF concerns
     // and must be marshalled to the UI thread because the monitor's threshold events fire on its
@@ -1610,6 +1601,64 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         {
             _appLogger.Error(ex, "Failed to show disk space warning dialog");
         }
+    }
+
+    #endregion
+
+    #region IDisposable
+
+    private bool _disposed;
+
+    /// <summary>
+    /// Tears down the resources and event subscriptions this view model owns. Invoked once when the
+    /// main window closes (see <c>MainWindow</c>). Consolidates the previously ad-hoc cleanup into a
+    /// single deterministic path (issue #592): the disk-space coordinator, the transient
+    /// network-settings status timer, the SD-card elapsed-time timer, and the long-lived singleton /
+    /// per-device event subscriptions wired up in the constructor (which would otherwise pin this view
+    /// model for the life of the process).
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+
+        // Disk-space gating/monitoring coordinator (owns the IDiskSpaceMonitor and its subscriptions).
+        _diskSpaceCoordinator?.Dispose();
+        _diskSpaceCoordinator = null;
+
+        // Transient WiFi-settings "applied" status timer.
+        CancelAndDisposeNetworkSettingsCts();
+
+        // SD-card elapsed-time DispatcherTimer.
+        if (_sdLoggingElapsedTimer != null)
+        {
+            _sdLoggingElapsedTimer.Stop();
+            _sdLoggingElapsedTimer.Tick -= OnSdLoggingTimerTick;
+            _sdLoggingElapsedTimer = null;
+            _sdLoggingStartedAt = null;
+        }
+
+        // Unsubscribe from the long-lived singletons + the VM's own collection so they don't keep this
+        // view model alive after the window closes. (-= is a no-op for handlers that were never wired,
+        // e.g. in non-window-init construction paths.)
+        ConnectionManager.Instance.PropertyChanged -= UpdateUi;
+        LoggingManager.Instance.PropertyChanged -= UpdateUi;
+        ConnectedDevices.CollectionChanged -= OnConnectedDevicesCollectionChanged;
+
+        // Per-device logging-state subscriptions tracked across collection changes.
+        foreach (var device in _loggingStateSubscribedDevices)
+        {
+            device.PropertyChanged -= OnDeviceLoggingStateChanged;
+        }
+        _loggingStateSubscribedDevices.Clear();
+
+        // The session-list view model observes the singleton LoggingManager.LoggingSessions collection.
+        _loggingSessionList.DetachCollection();
+
+        GC.SuppressFinalize(this);
     }
 
     #endregion
