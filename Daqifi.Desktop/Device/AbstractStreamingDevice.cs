@@ -1409,11 +1409,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         Disconnect();
     }
 
-    // SD and LAN can't both be enabled due to hardware limitations
+    // SD and LAN share one SPI bus and can't both be enabled (hardware limitation).
+    // Core owns the LAN-disable/SD-enable SCPI pair; the desktop only adds the USB-only
+    // stream-interface switch (Core's base method omits it by design).
     private void PrepareSdInterface()
     {
-        SendMessage(ScpiMessageProducer.DisableNetworkLan);
-        SendMessage(ScpiMessageProducer.EnableStorageSd);
+        var coreDevice = GetCoreDevice(CoreDeviceForNetworkConfiguration, NOT_CONNECTED_MESSAGE);
+        coreDevice.PrepareSdInterface();
 
         if (ConnectionType == ConnectionType.Usb)
         {
@@ -1421,11 +1423,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
     }
 
-    // SD and LAN can't both be enabled due to hardware limitations
+    // SD and LAN share one SPI bus and can't both be enabled (hardware limitation).
+    // Core owns the SD-disable/LAN-enable SCPI pair; the desktop only adds the USB-only
+    // stream-interface switch (Core's base method omits it by design).
     private void PrepareLanInterface()
     {
-        SendMessage(ScpiMessageProducer.DisableStorageSd);
-        SendMessage(ScpiMessageProducer.EnableNetworkLan);
+        var coreDevice = GetCoreDevice(CoreDeviceForNetworkConfiguration, NOT_CONNECTED_MESSAGE);
+        coreDevice.PrepareLanInterface();
 
         if (ConnectionType == ConnectionType.Usb)
         {

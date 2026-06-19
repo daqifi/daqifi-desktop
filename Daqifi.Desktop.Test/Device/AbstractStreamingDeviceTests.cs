@@ -318,13 +318,15 @@ public class AbstractStreamingDeviceTests
         // Act
         await device.UpdateNetworkConfiguration();
 
-        // Assert
-        Assert.IsFalse(
-            device.SentCommands.Contains($"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}"),
-            "Desktop should not disable LAN for a WiFi device after a network update.");
+        // Assert — the SD-restore path (PrepareSdInterface) must not run for a WiFi device.
+        // EnableStorageSd is emitted only by PrepareSdInterface, never by Core's network update,
+        // so its absence in either layer proves the SD interface was not restored.
         Assert.IsFalse(
             device.SentCommands.Contains($"desktop:{ScpiMessageProducer.EnableStorageSd.Data}"),
             "Desktop should not re-enable SD for a WiFi device; it shares no SPI bus with the desktop transport.");
+        Assert.IsFalse(
+            device.SentCommands.Contains($"core:{ScpiMessageProducer.EnableStorageSd.Data}"),
+            "Core's SD-enable command must not run for a WiFi device; the SD interface is never restored.");
     }
 
     [TestMethod]
@@ -348,12 +350,12 @@ public class AbstractStreamingDeviceTests
             new[]
             {
                 $"core:{ScpiMessageProducer.SaveNetworkLan.Data}",
-                $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
-                $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
+                $"core:{ScpiMessageProducer.DisableNetworkLan.Data}",
+                $"core:{ScpiMessageProducer.EnableStorageSd.Data}",
                 $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data}"
             },
             device.SentCommands.TakeLast(4).ToArray(),
-            "Desktop should restore the full SD interface after the Core network update when the device is in LogToDevice mode.");
+            "Core should own the SD/LAN interface SCPI pair; the desktop only adds the USB stream-interface switch when restoring the SD interface in LogToDevice mode.");
     }
 
     [TestMethod]
@@ -382,12 +384,12 @@ public class AbstractStreamingDeviceTests
         CollectionAssert.AreEqual(
             new[]
             {
-                $"desktop:{ScpiMessageProducer.DisableNetworkLan.Data}",
-                $"desktop:{ScpiMessageProducer.EnableStorageSd.Data}",
+                $"core:{ScpiMessageProducer.DisableNetworkLan.Data}",
+                $"core:{ScpiMessageProducer.EnableStorageSd.Data}",
                 $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data}"
             },
             device.SentCommands.TakeLast(3).ToArray(),
-            "Desktop should restore the full SD interface even when the Core network update fails.");
+            "Desktop should restore the full SD interface even when the Core network update fails (Core owns the LAN-disable/SD-enable pair).");
     }
 
     [TestMethod]
@@ -605,7 +607,9 @@ public class AbstractStreamingDeviceTests
     [TestMethod]
     public void SwitchMode_WhenReturningToStreamToApp_SetsUsbStreamInterface()
     {
-        var device = new TestStreamingDevice();
+        // PrepareLanInterface now delegates the SD/LAN pair to the connected Core device,
+        // so this scenario needs a Core-backed harness rather than the bare TestStreamingDevice.
+        var device = new NetworkConfigurationTestDevice();
         device.SwitchMode(DeviceMode.LogToDevice);
         device.SentCommands.Clear();
 
@@ -614,11 +618,12 @@ public class AbstractStreamingDeviceTests
         CollectionAssert.AreEqual(
             new[]
             {
-                ScpiMessageProducer.DisableStorageSd.Data,
-                ScpiMessageProducer.EnableNetworkLan.Data,
-                ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.Usb).Data
+                $"core:{ScpiMessageProducer.DisableStorageSd.Data}",
+                $"core:{ScpiMessageProducer.EnableNetworkLan.Data}",
+                $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.Usb).Data}"
             },
-            device.SentCommands);
+            device.SentCommands,
+            "Core should own the SD-disable/LAN-enable pair when returning to StreamToApp; the desktop only adds the USB stream-interface switch.");
     }
 
     [TestMethod]
@@ -710,7 +715,7 @@ public class AbstractStreamingDeviceTests
     /// <summary>
     /// Test implementation of AbstractStreamingDevice for testing purposes
     /// </summary>
-    private class TestStreamingDevice : AbstractStreamingDevice
+    private sealed class TestStreamingDevice : AbstractStreamingDevice
     {
         public List<string> SentCommands { get; } = [];
 
