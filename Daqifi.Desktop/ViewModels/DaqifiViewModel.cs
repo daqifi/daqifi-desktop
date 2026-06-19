@@ -32,7 +32,7 @@ using Daqifi.Core.Device.SdCard;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, ILoggingSessionListHost
+public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, ILoggingSessionListHost, IDiskSpaceMonitorHost
 {
     private readonly AppLogger _appLogger = AppLogger.Instance;
 
@@ -144,7 +144,11 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private string _selectedLoggingMode = "Stream to App";
     private bool _isLogToDeviceMode;
     private SdCardLogFormat _selectedSdCardLogFormat = SdCardLogFormat.Protobuf;
-    private IDiskSpaceMonitor? _diskSpaceMonitor;
+
+    // Disk-space gating + monitoring (pre-logging check, in-session monitor, low/critical handling)
+    // lives in the coordinator (issue #592). Created during window init; null in non-window-init
+    // construction paths, so callers null-check it exactly as the previous monitor field was.
+    private DiskSpaceMonitorCoordinator? _diskSpaceCoordinator;
     private CancellationTokenSource? _networkSettingsAppliedCts;
     private DispatcherTimer? _sdLoggingElapsedTimer;
     private DateTime? _sdLoggingStartedAt;
@@ -201,31 +205,20 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         get => _isLogging || AnyDeviceActivelyLogging();
         set
         {
+            // Pre-logging disk-space gate lives in the coordinator: it blocks the start (and shows the
+            // appropriate dialog) when the disk is critically low, or warns when low-but-not-critical.
             var preSessionWarningShown = false;
-            if (value && _diskSpaceMonitor != null)
+            if (value && _diskSpaceCoordinator != null)
             {
-                var check = _diskSpaceMonitor.CheckPreLoggingSpace();
-                if (check.Level == DiskSpaceLevel.Critical)
+                var decision = _diskSpaceCoordinator.EvaluateStartLogging();
+                if (!decision.CanStart)
                 {
                     // Notify bindings so TwoWay toggle reverts to false
                     OnPropertyChanged(nameof(IsLogging));
-                    _ = ShowDiskSpaceMessage(
-                        "Cannot Start Logging",
-                        $"Only {check.AvailableMegabytes} MB of disk space remaining. " +
-                        "Logging cannot start because the disk is critically low.\n\n" +
-                        "Please free disk space by deleting old logging sessions or removing other files.");
                     return;
                 }
 
-                if (check.Level == DiskSpaceLevel.PreSessionWarning || check.Level == DiskSpaceLevel.Warning)
-                {
-                    preSessionWarningShown = true;
-                    _ = ShowDiskSpaceMessage(
-                        "Low Disk Space Warning",
-                        $"Only {check.AvailableMegabytes} MB of disk space remaining. " +
-                        "Logging may be stopped automatically if space runs out.\n\n" +
-                        "Consider freeing disk space by deleting old logging sessions or removing other files.");
-                }
+                preSessionWarningShown = decision.SuppressInitialWarning;
             }
 
             _isLogging = value;
@@ -238,7 +231,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             LoggingManager.Instance.Active = value;
             if (_isLogging)
             {
-                _diskSpaceMonitor?.StartMonitoring(suppressInitialWarning: preSessionWarningShown);
+                _diskSpaceCoordinator?.StartMonitoring(suppressInitialWarning: preSessionWarningShown);
 
                 foreach (var device in ConnectedDevices)
                 {
@@ -254,7 +247,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             }
             else
             {
-                _diskSpaceMonitor?.StopMonitoring();
+                _diskSpaceCoordinator?.StopMonitoring();
 
                 foreach (var device in ConnectedDevices)
                 {
@@ -579,10 +572,15 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                     SummaryLogger = new SummaryLogger();
                     LoggingManager.Instance.AddLogger(SummaryLogger);
 
-                    // Disk space monitoring
-                    _diskSpaceMonitor = new DiskSpaceMonitor(App.DaqifiDataDirectory);
-                    _diskSpaceMonitor.LowSpaceWarning += OnDiskSpaceLowWarning;
-                    _diskSpaceMonitor.CriticalSpaceReached += OnDiskSpaceCritical;
+                    // Disk space gating + monitoring. The view model is the composition root: it builds
+                    // the production monitor here and hands it to the coordinator, which owns the
+                    // pre-logging gate, the in-session monitor, and the low/critical handling and reaches
+                    // back through the IDiskSpaceMonitorHost seam (implemented below) to stop logging and
+                    // present dialogs.
+                    _diskSpaceCoordinator = new DiskSpaceMonitorCoordinator(
+                        this,
+                        new DiskSpaceMonitor(App.DaqifiDataDirectory),
+                        _appLogger);
 
                     if (LoggingManager.Instance.LoggingSessions.Count == 0)
                     {
@@ -1548,44 +1546,55 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// </summary>
     public void DisposeDiskSpaceMonitor()
     {
-        if (_diskSpaceMonitor == null)
+        _diskSpaceCoordinator?.Dispose();
+        _diskSpaceCoordinator = null;
+    }
+
+    // IDiskSpaceMonitorHost implementation. The coordinator owns the gate/monitor/event logic and
+    // reaches back here only to stop the session and present dialogs — both of which are WPF concerns
+    // and must be marshalled to the UI thread because the monitor's threshold events fire on its
+    // background timer thread.
+
+    /// <summary>
+    /// Stops the active logging session in response to critically-low disk space. Marshalled to the UI
+    /// thread without blocking the monitor's timer thread (the previous handler used BeginInvoke).
+    /// </summary>
+    void IDiskSpaceMonitorHost.StopLogging()
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
         {
+            // No UI thread to marshal to (shutdown / non-WPF host). The IsLogging setter raises
+            // PropertyChanged and iterates the bound ConnectedDevices, so it must not run on the
+            // monitor's background timer thread — matches the original BeginInvoke, which no-op'd
+            // when the dispatcher was unavailable.
             return;
         }
 
-        _diskSpaceMonitor.LowSpaceWarning -= OnDiskSpaceLowWarning;
-        _diskSpaceMonitor.CriticalSpaceReached -= OnDiskSpaceCritical;
-        _diskSpaceMonitor.Dispose();
-        _diskSpaceMonitor = null;
-    }
-
-    private void OnDiskSpaceLowWarning(object? sender, DiskSpaceEventArgs e)
-    {
-        // BeginInvoke (async) to avoid blocking the timer thread
-        Application.Current?.Dispatcher?.BeginInvoke(() =>
+        if (dispatcher.CheckAccess())
         {
-            _ = ShowDiskSpaceMessage(
-                "Low Disk Space Warning",
-                $"Only {e.AvailableMegabytes} MB of disk space remaining. " +
-                "Logging will be stopped automatically if space drops below 50 MB.\n\n" +
-                "Consider freeing disk space by deleting old logging sessions or removing other files.");
-        });
-    }
-
-    private void OnDiskSpaceCritical(object? sender, DiskSpaceEventArgs e)
-    {
-        // BeginInvoke (async) to avoid blocking the timer thread
-        Application.Current?.Dispatcher?.BeginInvoke(() =>
-        {
-            _appLogger.Warning($"Disk space critical ({e.AvailableMegabytes} MB) — automatically stopping logging");
             IsLogging = false;
+            return;
+        }
 
-            _ = ShowDiskSpaceMessage(
-                "Logging Stopped — Disk Space Critical",
-                $"Logging was automatically stopped because disk space dropped to {e.AvailableMegabytes} MB.\n\n" +
-                "To prevent system instability, logging has been halted. " +
-                "Please free disk space by deleting old logging sessions or removing other files before resuming.");
-        });
+        dispatcher.BeginInvoke(() => IsLogging = false);
+    }
+
+    /// <summary>
+    /// Presents a disk-space dialog. The pre-logging gate calls this on the UI thread; the low/critical
+    /// events call it from the monitor's timer thread, so off-thread calls are marshalled (non-blocking,
+    /// matching the previous BeginInvoke handlers).
+    /// </summary>
+    Task IDiskSpaceMonitorHost.ShowDiskSpaceMessageAsync(string title, string message)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(() => _ = ShowDiskSpaceMessage(title, message));
+            return Task.CompletedTask;
+        }
+
+        return ShowDiskSpaceMessage(title, message);
     }
 
     private async Task ShowDiskSpaceMessage(string title, string message)
