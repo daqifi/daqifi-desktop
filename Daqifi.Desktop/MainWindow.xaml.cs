@@ -25,7 +25,7 @@ public partial class MainWindow
             {
                 if (DataContext is DaqifiViewModel viewModel)
                 {
-                    viewModel.DisposeDiskSpaceMonitor();
+                    viewModel.Dispose();
                 }
 
                 if (HostCommands.ShutdownCommand.CanExecute(e))
