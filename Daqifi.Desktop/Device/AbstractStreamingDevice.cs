@@ -1396,9 +1396,24 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             // Core always restores LAN after applying settings. USB devices that are currently
             // logging to the SD card need the desktop wrapper to switch the shared SPI bus back,
             // even if the Core update fails after toggling the shared SPI bus to LAN.
+            //
+            // This restore is best-effort: PrepareSdInterface delegates to the Core device and
+            // throws when it is gone (e.g. a mid-update disconnect nulls CoreDevice). Inside a
+            // finally that would mask the original UpdateNetworkConfigurationAsync failure, so
+            // swallow-and-log here — the SPI bus is moot once the device is disconnected anyway.
             if (restoreSdInterface)
             {
-                PrepareSdInterface();
+                try
+                {
+                    PrepareSdInterface();
+                }
+                catch (Exception restoreException)
+                {
+                    AppLogger.Warning(
+                        restoreException,
+                        "Failed to restore the SD interface for device " +
+                        $"{DeviceSerialNo} after a network configuration update.");
+                }
             }
         }
     }

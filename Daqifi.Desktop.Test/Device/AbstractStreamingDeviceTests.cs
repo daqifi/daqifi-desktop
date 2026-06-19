@@ -355,7 +355,8 @@ public class AbstractStreamingDeviceTests
                 $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data}"
             },
             device.SentCommands.TakeLast(4).ToArray(),
-            "Core should own the SD/LAN interface SCPI pair; the desktop only adds the USB stream-interface switch when restoring the SD interface in LogToDevice mode.");
+            "Core should own the SD/LAN interface SCPI pair; the desktop only adds the USB " +
+            "stream-interface switch when restoring the SD interface in LogToDevice mode.");
     }
 
     [TestMethod]
@@ -389,7 +390,40 @@ public class AbstractStreamingDeviceTests
                 $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data}"
             },
             device.SentCommands.TakeLast(3).ToArray(),
-            "Desktop should restore the full SD interface even when the Core network update fails (Core owns the LAN-disable/SD-enable pair).");
+            "Desktop should restore the full SD interface even when the Core network update fails " +
+            "(Core owns the LAN-disable/SD-enable pair).");
+    }
+
+    [TestMethod]
+    public async Task UpdateNetworkConfiguration_WhenSdRestoreFailsAfterDisconnect_PreservesOriginalException()
+    {
+        // Arrange — USB + LogToDevice so the finally restores the SD interface. The injected Core
+        // update failure also drops the Core device (as a mid-update disconnect would, via
+        // CleanupConnection nulling CoreDevice), so the finally's PrepareSdInterface would throw
+        // "Device is not connected." if the restore were not best-effort.
+        var device = new NetworkConfigurationTestDevice(
+            throwOnCommandData: ScpiMessageProducer.SaveNetworkLan.Data,
+            dropCoreDeviceOnThrow: true);
+        device.NetworkConfiguration = new NetworkConfiguration(
+            WifiMode.SelfHosted,
+            WifiSecurityType.None,
+            "DAQiFi_Device",
+            string.Empty);
+        device.SwitchMode(DeviceMode.LogToDevice);
+
+        // Act + Assert — the original Core update failure must surface, not the restore failure.
+        try
+        {
+            await device.UpdateNetworkConfiguration();
+            Assert.Fail("Expected the Core update failure to propagate.");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.AreEqual(
+                "Injected test failure.",
+                exception.Message,
+                "The best-effort SD restore must not mask the original network update failure.");
+        }
     }
 
     [TestMethod]
@@ -623,7 +657,8 @@ public class AbstractStreamingDeviceTests
                 $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.Usb).Data}"
             },
             device.SentCommands,
-            "Core should own the SD-disable/LAN-enable pair when returning to StreamToApp; the desktop only adds the USB stream-interface switch.");
+            "Core should own the SD-disable/LAN-enable pair when returning to StreamToApp; " +
+            "the desktop only adds the USB stream-interface switch.");
     }
 
     [TestMethod]
@@ -744,10 +779,20 @@ public class AbstractStreamingDeviceTests
     {
         private readonly RecordingCoreStreamingDevice _coreDevice;
         private readonly ConnectionType _connectionType;
+        private bool _coreDeviceAvailable = true;
 
-        public NetworkConfigurationTestDevice(string? throwOnCommandData = null, ConnectionType connectionType = ConnectionType.Usb)
+        public NetworkConfigurationTestDevice(
+            string? throwOnCommandData = null,
+            ConnectionType connectionType = ConnectionType.Usb,
+            bool dropCoreDeviceOnThrow = false)
         {
-            _coreDevice = new RecordingCoreStreamingDevice(SentCommands, throwOnCommandData);
+            // When dropCoreDeviceOnThrow is set, the injected failure also drops the Core device,
+            // mirroring a mid-update disconnect where CleanupConnection nulls CoreDevice. The
+            // finally-block SD restore then sees a null Core device.
+            _coreDevice = new RecordingCoreStreamingDevice(
+                SentCommands,
+                throwOnCommandData,
+                onThrow: dropCoreDeviceOnThrow ? () => _coreDeviceAvailable = false : null);
             _coreDevice.Connect();
             _connectionType = connectionType;
         }
@@ -756,7 +801,8 @@ public class AbstractStreamingDeviceTests
 
         public override ConnectionType ConnectionType => _connectionType;
 
-        protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration => _coreDevice;
+        protected override CoreStreamingDevice? CoreDeviceForNetworkConfiguration =>
+            _coreDeviceAvailable ? _coreDevice : null;
 
         protected override CoreStreamingDevice? CoreDeviceForStreaming => _coreDevice;
 
@@ -858,7 +904,10 @@ public class AbstractStreamingDeviceTests
         }
     }
 
-    private sealed class RecordingCoreStreamingDevice(List<string> sentCommands, string? throwOnCommandData) : CoreStreamingDevice("TestDevice")
+    private sealed class RecordingCoreStreamingDevice(
+        List<string> sentCommands,
+        string? throwOnCommandData,
+        Action? onThrow = null) : CoreStreamingDevice("TestDevice")
     {
         public override bool IsUsbConnection => true;
 
@@ -870,6 +919,7 @@ public class AbstractStreamingDeviceTests
 
                 if (throwOnCommandData == stringMessage.Data)
                 {
+                    onThrow?.Invoke();
                     throw new InvalidOperationException("Injected test failure.");
                 }
             }
