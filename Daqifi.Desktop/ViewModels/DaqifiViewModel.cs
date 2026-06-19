@@ -1107,10 +1107,12 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             // Sync SD card log format so newly connected devices match the UI selection
             connectedDevice.SdCardLogFormat = _selectedSdCardLogFormat;
 
-            // Subscribe to debug events if this is a streaming device
+            // Apply the current debug-mode toggle to streaming devices. The DebugDataReceived
+            // subscription itself is managed centrally in OnConnectedDevicesCollectionChanged (wired
+            // when the device is added to ConnectedDevices above, unwired when it's removed), so it
+            // stays symmetric across reconnects instead of accumulating duplicate handlers.
             if (connectedDevice is AbstractStreamingDevice streamingDevice)
             {
-                streamingDevice.DebugDataReceived += OnDebugDataReceived;
                 streamingDevice.SetDebugMode(IsDebugModeEnabled);
             }
         }
@@ -1118,7 +1120,10 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         return Task.CompletedTask;
     }
 
-    private readonly HashSet<IStreamingDevice> _loggingStateSubscribedDevices = [];
+    // Devices we've wired per-VM event handlers onto — both the logging-state PropertyChanged handler
+    // and (for streaming devices) the DebugDataReceived handler. Tracked as one set so subscribe and
+    // unsubscribe stay symmetric across Reset/Replace/add/remove and so Dispose can tear them all down.
+    private readonly HashSet<IStreamingDevice> _subscribedDevices = [];
 
     private void OnConnectedDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -1127,19 +1132,49 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         // to handle Reset, Replace, and per-item adds/removes uniformly.
         var current = new HashSet<IStreamingDevice>(ConnectedDevices);
 
-        foreach (var stale in _loggingStateSubscribedDevices.Except(current).ToList())
+        foreach (var stale in _subscribedDevices.Except(current).ToList())
         {
-            stale.PropertyChanged -= OnDeviceLoggingStateChanged;
-            _loggingStateSubscribedDevices.Remove(stale);
+            UnsubscribeDeviceEvents(stale);
+            _subscribedDevices.Remove(stale);
         }
 
-        foreach (var added in current.Except(_loggingStateSubscribedDevices).ToList())
+        foreach (var added in current.Except(_subscribedDevices).ToList())
         {
-            added.PropertyChanged += OnDeviceLoggingStateChanged;
-            _loggingStateSubscribedDevices.Add(added);
+            SubscribeDeviceEvents(added);
+            _subscribedDevices.Add(added);
         }
 
         RaiseLoggingStateChanged();
+    }
+
+    /// <summary>
+    /// Wires up the per-device handlers this view model owns: the logging-state change handler and,
+    /// for streaming devices, the debug-data handler. Paired with <see cref="UnsubscribeDeviceEvents"/>
+    /// and driven from <see cref="OnConnectedDevicesCollectionChanged"/> so the two subscriptions are
+    /// added and removed together (issue #592).
+    /// </summary>
+    private void SubscribeDeviceEvents(IStreamingDevice device)
+    {
+        device.PropertyChanged += OnDeviceLoggingStateChanged;
+        if (device is AbstractStreamingDevice streamingDevice)
+        {
+            streamingDevice.DebugDataReceived += OnDebugDataReceived;
+        }
+    }
+
+    /// <summary>
+    /// Removes the per-device handlers wired by <see cref="SubscribeDeviceEvents"/>. Called when a
+    /// device leaves <c>ConnectedDevices</c> and on <see cref="Dispose"/>, so a removed (or
+    /// reconnecting) device never leaves a dangling debug subscription that keeps this view model
+    /// rooted or fires after teardown.
+    /// </summary>
+    private void UnsubscribeDeviceEvents(IStreamingDevice device)
+    {
+        device.PropertyChanged -= OnDeviceLoggingStateChanged;
+        if (device is AbstractStreamingDevice streamingDevice)
+        {
+            streamingDevice.DebugDataReceived -= OnDebugDataReceived;
+        }
     }
 
     private void OnDeviceLoggingStateChanged(object? sender, PropertyChangedEventArgs e)
@@ -1648,23 +1683,15 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         LoggingManager.Instance.PropertyChanged -= UpdateUi;
         ConnectedDevices.CollectionChanged -= OnConnectedDevicesCollectionChanged;
 
-        // Per-device logging-state subscriptions tracked across collection changes.
-        foreach (var device in _loggingStateSubscribedDevices)
+        // Per-device subscriptions (logging-state PropertyChanged + debug-data) wired up as devices
+        // are added in OnConnectedDevicesCollectionChanged. Left subscribed, a device keeps this VM
+        // rooted and a late debug callback would marshal onto the UI thread during shutdown
+        // (OnDebugDataReceived -> DebugData.AddEntry uses Dispatcher.Invoke).
+        foreach (var device in _subscribedDevices)
         {
-            device.PropertyChanged -= OnDeviceLoggingStateChanged;
+            UnsubscribeDeviceEvents(device);
         }
-        _loggingStateSubscribedDevices.Clear();
-
-        // Per-device debug-data subscriptions wired up in UpdateConnectedDeviceUI. Left subscribed,
-        // a device keeps this VM rooted and a late debug callback would marshal onto the UI thread
-        // during shutdown (OnDebugDataReceived -> DebugData.AddEntry uses Dispatcher.Invoke).
-        foreach (var device in ConnectedDevices)
-        {
-            if (device is AbstractStreamingDevice streamingDevice)
-            {
-                streamingDevice.DebugDataReceived -= OnDebugDataReceived;
-            }
-        }
+        _subscribedDevices.Clear();
 
         // The session-list view model observes the singleton LoggingManager.LoggingSessions collection.
         _loggingSessionList.DetachCollection();
