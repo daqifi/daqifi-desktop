@@ -1655,6 +1655,17 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         }
         _loggingStateSubscribedDevices.Clear();
 
+        // Per-device debug-data subscriptions wired up in UpdateConnectedDeviceUI. Left subscribed,
+        // a device keeps this VM rooted and a late debug callback would marshal onto the UI thread
+        // during shutdown (OnDebugDataReceived -> DebugData.AddEntry uses Dispatcher.Invoke).
+        foreach (var device in ConnectedDevices)
+        {
+            if (device is AbstractStreamingDevice streamingDevice)
+            {
+                streamingDevice.DebugDataReceived -= OnDebugDataReceived;
+            }
+        }
+
         // The session-list view model observes the singleton LoggingManager.LoggingSessions collection.
         _loggingSessionList.DetachCollection();
 

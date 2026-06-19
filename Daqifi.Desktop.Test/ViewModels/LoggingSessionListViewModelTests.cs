@@ -424,13 +424,19 @@ public class LoggingSessionListViewModelTests
     }
 
     [TestMethod]
-    public void DetachCollection_WhenNothingAttached_DoesNotThrow()
+    public void DetachCollection_WhenNothingAttached_IsSafeNoOp()
     {
         var host = new FakeLoggingSessionListHost();
         var list = CreateList(host);
 
         // Mirrors the non-window-init path where AttachCollection was never called.
         list.DetachCollection();
+
+        // The no-op detach must leave the list usable: a later attach still wires notifications.
+        var collection = new ObservableCollection<LoggingSession>();
+        list.AttachCollection(collection);
+        collection.Add(new LoggingSession { ID = 1, Name = "A" });
+        Assert.AreEqual(1, host.NotifyCount);
     }
 
     #endregion
