@@ -382,8 +382,63 @@ public class FirmwareUpdateCoordinator
         {
             if (lanUpdateModeEnabled)
             {
-                serialStreamingDevice.ResetLanAfterUpdate();
+                // Bring the device back out of WiFi-update / USB-transparent (bridge) mode. The managed
+                // ResetLanAfterUpdate routes through the Core device; if a failed flash has already torn
+                // that connection down, its SetTransparentMode 0 silently no-ops and the device is left
+                // stranded in transparent mode — it stops answering SCPI and vanishes from the app until
+                // it is power-cycled.
+                try
+                {
+                    serialStreamingDevice.ResetLanAfterUpdate();
+                }
+                catch (Exception ex)
+                {
+                    _appLogger.Warning($"ResetLanAfterUpdate failed for {serialStreamingDevice.PortName}: {ex.Message}");
+                }
+
+                // Safety net: only when the managed reset could NOT have worked (the Core connection is
+                // gone), also send the transparent-mode exit over a raw serial write so a failed flash
+                // can never strand the device. Run it off the calling thread — it does blocking serial
+                // I/O with short sleeps.
+                if (!coreDevice.IsConnected)
+                {
+                    await Task.Run(() => ExitWifiTransparentModeRaw(serialStreamingDevice.PortName));
+                }
             }
+        }
+    }
+
+    /// <summary>
+    /// Sends the USB-transparent-mode exit (<c>SYSTem:USB:SetTransparentMode 0</c>) directly over a raw
+    /// serial write, mirroring the bridge-activation path. This is the safety net for a failed WiFi
+    /// flash whose managed Core connection has already been torn down: the PIC32 still parses this
+    /// command even while bridging to the WINC, so it reliably pulls the device back out of transparent
+    /// mode where the managed <see cref="SerialStreamingDevice.ResetLanAfterUpdate"/> could not. No-op
+    /// if the port can't be opened (e.g. another handle still holds it).
+    /// </summary>
+    private void ExitWifiTransparentModeRaw(string portName)
+    {
+        try
+        {
+            // USB CDC virtual ports ignore the baud rate; match the bridge-activation defaults.
+            using var port = new SerialPort(portName, 9600, Parity.None, 8, StopBits.One)
+            {
+                DtrEnable = true,
+                RtsEnable = false,
+                WriteTimeout = 2000
+            };
+            port.Open();
+            Thread.Sleep(200);
+            port.Write("SYSTem:USB:SetTransparentMode 0\n");
+            Thread.Sleep(150);
+            // Re-apply normal LAN config so the module returns to its operating mode.
+            port.Write("SYSTem:COMMUnicate:LAN:APPLY\n");
+            Thread.Sleep(300);
+            _appLogger.Information($"Sent transparent-mode exit to {portName} (raw) after WiFi flash.");
+        }
+        catch (Exception ex)
+        {
+            _appLogger.Warning($"Raw transparent-mode exit could not open {portName}: {ex.Message}");
         }
     }
 
