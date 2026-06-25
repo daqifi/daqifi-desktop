@@ -108,6 +108,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private readonly IDialogService _dialogService;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UpdateWifiFirmwareOnlyCommand))]
     private IStreamingDevice? _selectedDevice;
 
     private VersionNotification? _versionNotification;
@@ -127,6 +128,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private string _firmwareFilePath;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CancelFirmwareUploadCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UpdateWifiFirmwareOnlyCommand))]
     private bool _isFirmwareUploading;
     [ObservableProperty]
     private bool _isUploadComplete;
@@ -1772,10 +1774,12 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
     private bool CanUpdateWifiFirmwareOnly()
     {
+        // Allowed on demand for any USB WINC1500 device — not gated on IsWifiFirmwareOutdated — so the
+        // line can re-flash a module that reports as current (e.g. a prior flash that didn't take).
+        // The command force-flashes regardless of the reported version.
         return !IsFirmwareUploading
             && SelectedDevice?.ConnectionType == Device.ConnectionType.Usb
-            && SelectedDevice.HasWincWifiModule
-            && SelectedDevice.IsWifiFirmwareOutdated;
+            && SelectedDevice.HasWincWifiModule;
     }
 
     private void AddWifiNotification(IStreamingDevice device, string reportedVersion)
