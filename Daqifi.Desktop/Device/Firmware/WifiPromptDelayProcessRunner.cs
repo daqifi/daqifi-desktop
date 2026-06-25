@@ -33,14 +33,24 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
     /// </summary>
     private readonly Action? _bridgeActivationAction;
 
+    // Core disconnects the managed serial connection immediately before invoking this runner, but
+    // Windows doesn't free the USB-CDC COM handle instantly. Without a pause the WINC flash tool tries
+    // to open the port before the OS has released it, fails to open, and returns in ~1s — which the
+    // false-success guard (correctly) reports as "the device did not release the serial port." Wait here
+    // so the port is actually free before the tool launches. Most visible on the WiFi-only path, where
+    // the device was on an established connection (vs the auto path, where it had just re-enumerated).
+    private readonly TimeSpan _portReleaseDelay;
+
     public WifiPromptDelayProcessRunner(
         IExternalProcessRunner? innerRunner = null,
         TimeSpan? promptResponseDelay = null,
-        Action? bridgeActivationAction = null)
+        Action? bridgeActivationAction = null,
+        TimeSpan? portReleaseDelay = null)
     {
         _innerRunner = innerRunner ?? new ProcessExternalProcessRunner();
         _promptResponseDelay = promptResponseDelay ?? TimeSpan.FromSeconds(1);
         _bridgeActivationAction = bridgeActivationAction;
+        _portReleaseDelay = portReleaseDelay ?? TimeSpan.FromSeconds(1.5);
     }
 
     public async Task<ExternalProcessResult> RunAsync(
@@ -48,6 +58,12 @@ public sealed class WifiPromptDelayProcessRunner : IExternalProcessRunner
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        // Let Windows release the COM handle Core just disconnected before the tool opens the port.
+        if (_portReleaseDelay > TimeSpan.Zero)
+        {
+            await Task.Delay(_portReleaseDelay, cancellationToken).ConfigureAwait(false);
+        }
 
         var firstAttempt = await RunSingleAttemptAsync(
             request,
