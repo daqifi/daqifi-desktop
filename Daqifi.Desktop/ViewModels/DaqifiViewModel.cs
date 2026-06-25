@@ -900,6 +900,11 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         SelectedDevice = device;
         IsFirmwareUpdatationFlyoutOpen = true;
 
+        // Re-evaluate the FLASH WIFI button now: its CanExecute reads SelectedDevice.HasWincWifiModule,
+        // which derives from DeviceType — populated asynchronously on connect, so the change-for
+        // SelectedDevice alone can leave it stale. The probe's result also re-notifies.
+        UpdateWifiFirmwareOnlyCommand.NotifyCanExecuteChanged();
+
         // Read the WiFi module version now that the user is in the firmware context (device already
         // connected and idle) — not automatically on connect, which would query a blank WINC on a
         // fresh unit and could keep it from coming up.

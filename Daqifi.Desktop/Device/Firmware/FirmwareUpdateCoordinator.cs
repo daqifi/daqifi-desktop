@@ -155,11 +155,14 @@ public class FirmwareUpdateCoordinator
         _firmwareUploadCts?.Dispose();
         _firmwareUploadCts = new CancellationTokenSource();
         _host.IsFirmwareUploading = true;
-        await _host.QuiesceWifiFirmwareProbeAsync();
         _appLogger.AddBreadcrumb("firmware", $"Firmware update started for {serialStreamingDevice.Name}");
 
         try
         {
+            // Quiesce inside the try so a fault here still runs the finally (which clears
+            // IsFirmwareUploading and DeviceBeingUpdated); otherwise the UI could stay stuck "uploading".
+            await _host.QuiesceWifiFirmwareProbeAsync();
+
             var coreDevice = serialStreamingDevice.ConnectedCoreStreamingDevice;
 
             if (!coreDevice.IsConnected)
