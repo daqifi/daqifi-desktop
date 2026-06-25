@@ -1565,6 +1565,14 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
     private async Task CheckWifiFirmwareCoreAsync()
     {
+        // WiFi firmware is an advanced, debug-gated feature: normal users shouldn't see or worry about
+        // it. Gating the probe here means a non-debug session never queries the WINC at all — which also
+        // means a blank/fresh WINC is never touched on connect for those users.
+        if (!IsDebugModeEnabled)
+        {
+            return;
+        }
+
         // Hard stop before touching any device: never probe while a flash is running. The probe sends
         // SCPI (POWer:STATe 1 / GETChipInfo?); a byte landing on a WINC that is bridging for a flash
         // corrupts the program and bricks the module. (The device only reconnects after it has rebooted
@@ -2069,10 +2077,20 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         {
             _appLogger.Information("[DEBUG_MODE] Debug mode enabled - detailed diagnostics will be logged");
             DebugData.Clear();
+            // WiFi firmware is debug-gated; now that it's visible, read the version for the
+            // already-connected devices (the per-connection guard runs it at most once each).
+            _ = CheckWifiFirmwareAsync();
         }
         else
         {
             _appLogger.Information("[DEBUG_MODE] Debug mode disabled");
+            // Hide all WiFi-firmware concerns from the normal view: drop any "WiFi firmware out of
+            // date" prompts and forget which devices were checked so re-enabling re-probes fresh.
+            foreach (var device in ConnectedDevices.ToList())
+            {
+                RemoveWifiNotification(device);
+            }
+            _wifiFirmwareCheckedDevices.Clear();
         }
 
         // Notify all connected devices about debug mode change
