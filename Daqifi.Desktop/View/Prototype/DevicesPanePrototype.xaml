@@ -382,7 +382,7 @@
                                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
                                     <!-- Debug-gated: hide the per-tile WiFi version unless debug mode is on. -->
                                     <StackPanel.Visibility>
-                                        <MultiBinding Converter="{StaticResource BoolAndToVis}">
+                                        <MultiBinding Converter="{StaticResource BoolAndToVis}" FallbackValue="Collapsed">
                                             <Binding Path="ShowWifiVersion"/>
                                             <Binding Path="DataContext.Shell.IsDebugModeEnabled" ElementName="Root"/>
                                         </MultiBinding>
@@ -651,7 +651,7 @@
                                     <!-- WiFi module firmware (USB Nyquist/WINC1500 devices only) — debug-gated. -->
                                     <StackPanel Grid.Column="0" Grid.Row="2" Margin="0,10,0,0">
                                         <StackPanel.Visibility>
-                                            <MultiBinding Converter="{StaticResource BoolAndToVis}">
+                                            <MultiBinding Converter="{StaticResource BoolAndToVis}" FallbackValue="Collapsed">
                                                 <Binding Path="SelectedTile.ShowWifiVersion"/>
                                                 <Binding Path="Shell.IsDebugModeEnabled"/>
                                             </MultiBinding>
@@ -873,7 +873,7 @@
                                      normal users don't see WiFi-firmware controls unless debug mode is on. -->
                                 <StackPanel>
                                     <StackPanel.Visibility>
-                                        <MultiBinding Converter="{StaticResource BoolAndToVis}">
+                                        <MultiBinding Converter="{StaticResource BoolAndToVis}" FallbackValue="Collapsed">
                                             <Binding Path="Shell.SelectedDevice.HasWincWifiModule"/>
                                             <Binding Path="Shell.IsDebugModeEnabled"/>
                                         </MultiBinding>

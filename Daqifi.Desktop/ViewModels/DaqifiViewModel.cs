@@ -165,7 +165,8 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     // Guards against overlapping probes. CheckWifiFirmwareAsync is fire-and-forget from the
     // ConnectedDevices change handler (UI thread); a second change firing before the first probe's
     // awaits finish would race on the cache / dispose the in-flight CTS out from under it.
-    private bool _wifiCheckInProgress;
+    // 0 = idle, 1 = a probe pass is running. Interlocked single-flight guard (see CheckWifiFirmwareAsync).
+    private int _wifiCheckInProgress;
 
     // The currently-running probe task (null when none). A flash awaits this after cancelling so an
     // in-flight POWer:STATe 1 / GETChipInfo? exchange is fully unwound before the device enters WiFi
@@ -1516,15 +1517,15 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// </summary>
     private async Task CheckWifiFirmwareAsync()
     {
-        // Serialize probes: a second ConnectedDevices change before this one's awaits finish would
-        // race on _wifiFirmwareCheckedDevices and dispose the in-flight _wifiCheckCts out from under
-        // the first probe. The flag is set/read on the UI thread, so no lock is needed.
-        if (_wifiCheckInProgress)
+        // Single-flight the probe: a second ConnectedDevices change before this one's awaits finish
+        // would race on _wifiFirmwareCheckedDevices and dispose the in-flight _wifiCheckCts out from
+        // under the first probe. Triggers are UI-thread today, but use Interlocked so the guard holds
+        // even if a probe continuation resumes off the UI thread.
+        if (Interlocked.Exchange(ref _wifiCheckInProgress, 1) == 1)
         {
             return;
         }
 
-        _wifiCheckInProgress = true;
         try
         {
             await CheckWifiFirmwareCoreAsync();
@@ -1542,7 +1543,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         }
         finally
         {
-            _wifiCheckInProgress = false;
+            Interlocked.Exchange(ref _wifiCheckInProgress, 0);
         }
     }
 
