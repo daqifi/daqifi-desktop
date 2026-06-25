@@ -1729,8 +1729,8 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             }
             catch (Exception ex)
             {
-                _appLogger.Warning(
-                    $"WiFi chip info query attempt {attempt}/{WifiChipInfoMaxAttempts} failed: {ex.Message}");
+                _appLogger.Warning(ex,
+                    $"WiFi chip info query attempt {attempt}/{WifiChipInfoMaxAttempts} failed.");
             }
 
             if (attempt >= WifiChipInfoMaxAttempts)

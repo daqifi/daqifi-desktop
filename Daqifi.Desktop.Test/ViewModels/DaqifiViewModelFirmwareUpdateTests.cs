@@ -834,7 +834,12 @@ public class DaqifiViewModelFirmwareUpdateTests
 
     private static SerialStreamingDevice CreateSerialDeviceWithCoreDevice(string portName, TestCoreStreamingDevice coreDevice)
     {
-        return new SerialStreamingDevice(portName, coreDevice);
+        // These tests exercise the WiFi-module flash, so model a Nyquist (WINC1500) device — that's
+        // what HasWincWifiModule keys on, which the coordinator now requires before a WiFi update.
+        return new SerialStreamingDevice(portName, coreDevice)
+        {
+            DeviceType = Daqifi.Core.Device.DeviceType.Nyquist1
+        };
     }
 
     private static LanChipInfo CreateLanChipInfo(string firmwareVersion)

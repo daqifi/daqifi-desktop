@@ -278,6 +278,16 @@ public class FirmwareUpdateCoordinator
         CancellationToken cancellationToken,
         bool force = false)
     {
+        // Only the Nyquist family carries a separately-flashable WINC1500 module. ESP32 / unknown
+        // devices integrate WiFi into the SoC and answer GETChipInfo? with non-version data, which must
+        // never be read as "needs flash" — don't attempt an unsupported WiFi flash on them.
+        if (!serialStreamingDevice.HasWincWifiModule)
+        {
+            _appLogger.Information(
+                $"{serialStreamingDevice.Name} has no separately-flashable WiFi module; skipping WiFi update.");
+            return;
+        }
+
         // Core's WiFi updater also performs its own version probe when the passed device
         // implements ILanChipInfoProvider. Keep the explicit desktop-side check here so
         // desktop can skip unnecessary downloads and surface the current/update version in UI.
@@ -401,7 +411,9 @@ public class FirmwareUpdateCoordinator
             await Task.Delay(_wifiUpdateModeSettleDelay, cancellationToken);
 
             var wifiUpdateService = _wifiFirmwareUpdateServiceFactory(wifiVersion, serialStreamingDevice.PortName);
-            var flashStart = DateTime.UtcNow;
+            // Monotonic clock for the duration guard below — DateTime.UtcNow can jump with a system
+            // clock adjustment and skew the pass/fail decision.
+            var flashStopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 await wifiUpdateService.UpdateWifiModuleAsync(
@@ -418,7 +430,7 @@ public class FirmwareUpdateCoordinator
             // False-success guard: if the tool returned implausibly fast it never programmed the WINC
             // (typically the device didn't release the port, so the tool couldn't open it). Don't let
             // that surface as a success — fail so the user gets the disconnect/power-cycle guidance.
-            var flashElapsed = DateTime.UtcNow - flashStart;
+            var flashElapsed = flashStopwatch.Elapsed;
             if (flashElapsed < _minPlausibleWifiFlashDuration)
             {
                 throw new InvalidOperationException(
@@ -528,8 +540,8 @@ public class FirmwareUpdateCoordinator
             }
             catch (Exception ex)
             {
-                _appLogger.Warning(
-                    $"WiFi chip info query attempt {attempt}/{WifiChipInfoMaxAttempts} failed: {ex.Message}");
+                _appLogger.Warning(ex,
+                    $"WiFi chip info query attempt {attempt}/{WifiChipInfoMaxAttempts} failed.");
             }
 
             if (attempt >= WifiChipInfoMaxAttempts)
