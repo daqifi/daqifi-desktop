@@ -55,6 +55,28 @@ public interface IStreamingDevice : IDevice
     string DeviceSerialNo { get; set; }
     string DeviceVersion { get; set; }
     bool IsFirmwareOutdated { get; set; }
+
+    /// <summary>
+    /// Gets whether this device has a separately-flashable WINC1500 WiFi module — i.e. it is
+    /// part of the Nyquist family. ESP32-based and unrecognized devices integrate WiFi into the
+    /// SoC and have no WINC firmware to query or flash, so the WiFi-firmware check is skipped
+    /// for them.
+    /// </summary>
+    bool HasWincWifiModule { get; }
+
+    /// <summary>
+    /// Gets or sets whether the device's WiFi module firmware needs to be flashed —
+    /// either because the reported version is below the minimum supported version or
+    /// because the WiFi chip-info query failed. Only meaningful for USB-connected
+    /// devices with a WINC1500 module (see <see cref="HasWincWifiModule"/>).
+    /// </summary>
+    bool IsWifiFirmwareOutdated { get; set; }
+
+    /// <summary>
+    /// Gets or sets the WiFi module firmware version reported by the device, or
+    /// <c>"Unknown"</c> when the chip-info query could not be completed.
+    /// </summary>
+    string WifiFirmwareVersion { get; set; }
     string IpAddress { get; set; }
     int StreamingFrequency { get; set; }
     

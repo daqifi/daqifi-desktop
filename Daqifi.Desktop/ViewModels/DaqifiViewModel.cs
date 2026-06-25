@@ -18,6 +18,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Device.Firmware;
+using Daqifi.Desktop.Device.SerialDevice;
+using ILanChipInfoProvider = Daqifi.Core.Firmware.ILanChipInfoProvider;
+using LanChipInfo = Daqifi.Core.Firmware.LanChipInfo;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -105,6 +108,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private readonly IDialogService _dialogService;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UpdateWifiFirmwareOnlyCommand))]
     private IStreamingDevice? _selectedDevice;
 
     private VersionNotification? _versionNotification;
@@ -124,6 +128,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private string _firmwareFilePath;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CancelFirmwareUploadCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UpdateWifiFirmwareOnlyCommand))]
     private bool _isFirmwareUploading;
     [ObservableProperty]
     private bool _isUploadComplete;
@@ -139,6 +144,38 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private bool _selectedDeviceSupportsFirmwareUpdate;
     private readonly IDbContextFactory<LoggingContext>? _loggingContextFactory;
     private readonly FirmwareUpdateCoordinator _firmwareCoordinator;
+
+    /// <summary>
+    /// Keys (serial number, falling back to COM port) of USB devices whose WiFi firmware
+    /// has already been probed this connection. Prevents the connect-time probe — which
+    /// powers on the WiFi module and can take several seconds — from re-running on every
+    /// UI refresh. Entries are pruned when their device disconnects. Case-insensitive to
+    /// match the casing used elsewhere for serial numbers / COM keys.
+    /// </summary>
+    private const int WifiChipInfoMaxAttempts = 3;
+    private static readonly TimeSpan WifiChipInfoRetryDelay = TimeSpan.FromSeconds(2);
+
+    private readonly HashSet<string> _wifiFirmwareCheckedDevices = new(StringComparer.OrdinalIgnoreCase);
+
+    // Cancels an in-flight WiFi firmware probe. A probe powers on the WiFi module and runs a
+    // multi-second SCPI exchange; if a firmware flash starts while one is in flight it corrupts
+    // the bootloader handshake, so the flash commands cancel it before touching the device.
+    private CancellationTokenSource? _wifiCheckCts;
+
+    // Guards against overlapping probes. CheckWifiFirmwareAsync is fire-and-forget from the
+    // ConnectedDevices change handler (UI thread); a second change firing before the first probe's
+    // awaits finish would race on the cache / dispose the in-flight CTS out from under it.
+    // 0 = idle, 1 = a probe pass is running. Interlocked single-flight guard (see CheckWifiFirmwareAsync).
+    private int _wifiCheckInProgress;
+
+    // The currently-running probe task (null when none). A flash awaits this after cancelling so an
+    // in-flight POWer:STATe 1 / GETChipInfo? exchange is fully unwound before the device enters WiFi
+    // update mode — cancelling the token alone does NOT abort an SCPI write already on the wire, and
+    // any byte that lands while the WINC is bridging corrupts the program (bricks the module).
+    private Task? _wifiProbeTask;
+
+    // Owns the WiFi-only flash lifecycle (the PIC32 path's CTS lives in the coordinator).
+    private CancellationTokenSource? _firmwareUploadCts;
     private readonly LoggingSessionListViewModel _loggingSessionList;
     private ConnectionDialogViewModel _connectionDialogViewModel;
     private string _selectedLoggingMode = "Stream to App";
@@ -845,19 +882,27 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         IsLiveGraphSettingsOpen = true;
     }
 
-    [RelayCommand]
-    private void OpenFirmwareUpdateSettings(IStreamingDevice? device)
+    /// <summary>
+    /// Starts the WiFi version probe for the connected USB devices and tracks the running task so a
+    /// subsequent flash can await it draining (see <see cref="QuiesceWifiFirmwareProbeAsync"/>) — that
+    /// tracking is load-bearing for the "no SCPI on the bridging WINC during a flash" guarantee.
+    /// Triggered on connect and when debug mode is enabled (the probe itself is debug-gated and a no-op
+    /// otherwise). All probe-start paths must go through here, never a bare <c>CheckWifiFirmwareAsync()</c>.
+    /// </summary>
+    private void TriggerWifiFirmwareProbe()
     {
-        if (device == null)
+        // The FLASH WIFI button's CanExecute reads SelectedDevice.HasWincWifiModule, which derives from
+        // DeviceType — populated asynchronously on connect — so refresh it here (the probe result also
+        // re-notifies once it lands).
+        UpdateWifiFirmwareOnlyCommand.NotifyCanExecuteChanged();
+
+        var probe = CheckWifiFirmwareAsync();
+        // The re-entrancy guard returns an already-completed task when a probe is in progress; only
+        // track a task that actually started so the flash's quiesce awaits the real probe.
+        if (!probe.IsCompleted)
         {
-            return;
+            _wifiProbeTask = probe;
         }
-
-        SelectedDeviceSupportsFirmwareUpdate = device.ConnectionType == Device.ConnectionType.Usb;
-
-        CloseFlyouts();
-        SelectedDevice = device;
-        IsFirmwareUpdatationFlyoutOpen = true;
     }
 
     [RelayCommand]
@@ -1138,13 +1183,23 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             _subscribedDevices.Remove(stale);
         }
 
+        var anyAdded = false;
         foreach (var added in current.Except(_subscribedDevices).ToList())
         {
             SubscribeDeviceEvents(added);
             _subscribedDevices.Add(added);
+            anyAdded = true;
         }
 
         RaiseLoggingStateChanged();
+
+        // NOTE: the WiFi version probe is intentionally NOT fired here. It sends a WINC chip-info query
+        // (SYSTem:COMMunicate:LAN:GETChipInfo?), and a device with a blank/erased WINC — exactly a fresh
+        // manufacturing unit with no WiFi firmware yet — can choke on that query and fail to come up,
+        // so probing every device the instant it connects hides the very devices that need flashing.
+        // The probe is triggered explicitly instead, when the user opens the firmware settings for a
+        // device (OpenFirmwareUpdateSettings) — by then it is connected and the user is in the WiFi
+        // context. See TriggerWifiFirmwareProbe.
     }
 
     /// <summary>
@@ -1258,6 +1313,15 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 {
                     LoggingManager.Instance.Unsubscribe(orphan);
                 }
+
+                // Probe the WiFi module version now that the device list (and each device's
+                // initialization) has settled — this runs AFTER UpdateConnectedDeviceUI, so it never
+                // races the connection handshake. The WiFi version is shown inline on the device pane,
+                // so it must be populated on connect. A device with a blank/erased WINC simply times
+                // out → "unknown", which is the correct display. The per-connection guard
+                // (_wifiFirmwareCheckedDevices) keeps this to one probe each. Go through
+                // TriggerWifiFirmwareProbe so the task is tracked for the pre-flash quiesce.
+                TriggerWifiFirmwareProbe();
                 break;
             case "SubscribedChannels":
                 ActiveChannels.Clear();
@@ -1416,6 +1480,474 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         CloseFlyouts();
     }
 
+    /// <summary>
+    /// Cancels any in-flight connect-time WiFi firmware probe AND waits for it to fully unwind before
+    /// a flash proceeds. Cancelling the token alone does not abort an SCPI exchange already on the wire,
+    /// so the coordinator awaits this before the device enters WiFi update mode — otherwise a stray
+    /// <c>POWer:STATe 1</c> / <c>GETChipInfo?</c> can land while the WINC is bridging and brick it.
+    /// </summary>
+    public async Task QuiesceWifiFirmwareProbeAsync(CancellationToken cancellationToken = default)
+    {
+        CancelWifiFirmwareCheck();
+
+        var inflight = _wifiProbeTask;
+        if (inflight != null)
+        {
+            // CheckWifiFirmwareAsync already swallows cancellation/probe faults; this await just blocks
+            // until the probe's last SCPI exchange has returned (or been cancelled) so nothing overlaps.
+            // Honor the caller's token (the firmware-upload CTS) so a user CancelUpload() can interrupt
+            // this wait instead of being stuck behind a slow probe unwind.
+            try { await inflight.WaitAsync(cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch { /* probe outcome is irrelevant here; we only need it to have stopped touching the device */ }
+            _wifiProbeTask = null;
+        }
+    }
+
+    #endregion
+
+    #region WiFi firmware probe and WiFi-only flash
+
+    /// <summary>
+    /// Probes the WiFi module firmware for each connected USB device and flags any whose
+    /// firmware is below <see cref="FirmwareUpdateCoordinator.MinimumWifiFirmwareVersion"/> — or whose
+    /// chip info cannot be read (<c>SYSTem:COMMunicate:LAN:GETChipInfo?</c> fails) — as needing a
+    /// WiFi-only flash. The probe powers on the WiFi module (<c>SYSTem:POWer:STATe 1</c>) and is run at
+    /// most once per device connection. Only USB-connected serial devices can be probed or flashed.
+    /// </summary>
+    private async Task CheckWifiFirmwareAsync()
+    {
+        // Single-flight the probe: a second ConnectedDevices change before this one's awaits finish
+        // would race on _wifiFirmwareCheckedDevices and dispose the in-flight _wifiCheckCts out from
+        // under the first probe. Triggers are UI-thread today, but use Interlocked so the guard holds
+        // even if a probe continuation resumes off the UI thread.
+        if (Interlocked.Exchange(ref _wifiCheckInProgress, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            await CheckWifiFirmwareCoreAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when a firmware flash starts and cancels the probe.
+        }
+        catch (Exception ex)
+        {
+            // Fire-and-forget (_ = CheckWifiFirmwareAsync()): swallow so an unexpected probe failure
+            // can't surface as an unobserved task exception. This is the unexpected path (per-device
+            // failures are handled in the loop), so log at Error to capture it in telemetry/Sentry.
+            _appLogger.Error(ex, "WiFi firmware probe failed unexpectedly.");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _wifiCheckInProgress, 0);
+        }
+    }
+
+    private async Task CheckWifiFirmwareCoreAsync()
+    {
+        // WiFi firmware is an advanced, debug-gated feature: normal users shouldn't see or worry about
+        // it. Gating the probe here means a non-debug session never queries the WINC at all — which also
+        // means a blank/fresh WINC is never touched on connect for those users.
+        if (!IsDebugModeEnabled)
+        {
+            return;
+        }
+
+        // Hard stop before touching any device: never probe while a flash is running. The probe sends
+        // SCPI (POWer:STATe 1 / GETChipInfo?); a byte landing on a WINC that is bridging for a flash
+        // corrupts the program and bricks the module. (The device only reconnects after it has rebooted
+        // out of bridge mode, so a post-flash reconnect is already a safe moment to probe.)
+        if (IsFirmwareUploading)
+        {
+            return;
+        }
+
+        // Fresh cancellation source for this probe pass; CancelWifiFirmwareCheck() (called when a
+        // firmware flash starts) aborts the in-flight SCPI exchange so it can never overlap the flash.
+        // Cancel (not just dispose) the prior source first.
+        _wifiCheckCts?.Cancel();
+        _wifiCheckCts?.Dispose();
+        _wifiCheckCts = new CancellationTokenSource();
+        var wifiCheckToken = _wifiCheckCts.Token;
+
+        // Snapshot the UI-owned ConnectedDevices list on the dispatcher: this probe is fire-and-forget
+        // and can resume on a thread-pool thread, while the list is mutated on the UI thread. One
+        // snapshot is reused for both the prune below and the loop, so we never enumerate the live list.
+        var dispatcher = Application.Current?.Dispatcher;
+        var connectedDevices = dispatcher != null
+            ? await dispatcher.InvokeAsync(() => ConnectionManager.Instance.ConnectedDevices.ToList())
+            : ConnectionManager.Instance.ConnectedDevices.ToList();
+
+        // Prune devices that have disconnected so a reconnect re-probes them. Case-insensitive to
+        // match _wifiFirmwareCheckedDevices and serial handling elsewhere.
+        var connectedKeys = connectedDevices
+            .Select(GetWifiCheckKey)
+            .Where(k => !string.IsNullOrWhiteSpace(k))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _wifiFirmwareCheckedDevices.RemoveWhere(k => !connectedKeys.Contains(k));
+
+        foreach (var device in connectedDevices)
+        {
+            // WiFi firmware can only be probed/flashed over USB on a serial device, and only on
+            // the Nyquist family (WINC1500 module). ESP32-based / unrecognized devices integrate
+            // WiFi into the SoC — GETChipInfo? returns non-version data — so skip them entirely.
+            if (device.ConnectionType != Device.ConnectionType.Usb ||
+                !device.HasWincWifiModule ||
+                device is not SerialStreamingDevice serialStreamingDevice ||
+                serialStreamingDevice is not ILanChipInfoProvider lanChipProvider)
+            {
+                continue;
+            }
+
+            // Only probe a device that is still fully connected (it may have dropped during the settle
+            // wait), and never one that is mid firmware-update or the device currently being updated.
+            // Re-checked per-device because these can flip during the loop's awaits.
+            var deviceBeingUpdated = ConnectionManager.Instance.DeviceBeingUpdated;
+            if (!device.IsConnected
+                || IsFirmwareUploading
+                || wifiCheckToken.IsCancellationRequested
+                || (deviceBeingUpdated != null && ReferenceEquals(deviceBeingUpdated, device)))
+            {
+                continue;
+            }
+
+            var key = GetWifiCheckKey(device);
+            // Add() returns false if already present, so the probe runs once per connection.
+            // The synchronous Add before the first await guards against re-entrant UI refreshes.
+            if (string.IsNullOrWhiteSpace(key) || !_wifiFirmwareCheckedDevices.Add(key))
+            {
+                continue;
+            }
+
+            try
+            {
+                _appLogger.Information($"Checking WiFi module firmware for {key}.");
+
+                // SYSTem:POWer:STATe 1 — power on the WiFi module before GETChipInfo?.
+                serialStreamingDevice.PowerOnWifiModule();
+
+                var chipInfo = await TryGetLanChipInfoAsync(lanChipProvider, wifiCheckToken);
+                var needsFlash = FirmwareUpdateCoordinator.WifiFirmwareNeedsFlash(chipInfo, out var reportedVersion);
+
+                // These mutate UI-bound state (device properties + the NotificationList collection),
+                // so marshal them onto the UI thread — the probe can resume on a thread-pool thread
+                // when the ConnectedDevices change that started it fired off the UI thread.
+                void ApplyResult()
+                {
+                    device.WifiFirmwareVersion = reportedVersion;
+                    device.IsWifiFirmwareOutdated = needsFlash;
+                    UpdateWifiFirmwareOnlyCommand.NotifyCanExecuteChanged();
+
+                    if (needsFlash && !string.IsNullOrWhiteSpace(device.DeviceSerialNo))
+                    {
+                        AddWifiNotification(device, reportedVersion);
+                    }
+                    else if (!needsFlash)
+                    {
+                        RemoveWifiNotification(device);
+                    }
+                }
+
+                if (dispatcher != null && !dispatcher.CheckAccess())
+                {
+                    // InvokeAsync (awaited) rather than a blocking Invoke — this probe runs on a
+                    // thread-pool thread and shouldn't block it waiting on the UI thread. Pass the probe
+                    // token so a pre-flash quiesce can interrupt this wait instead of blocking on the UI.
+                    await dispatcher.InvokeAsync(ApplyResult, DispatcherPriority.Normal, wifiCheckToken);
+                }
+                else
+                {
+                    ApplyResult();
+                }
+
+                _appLogger.Information(needsFlash
+                    ? $"WiFi firmware for {key} needs a flash (reported: {reportedVersion}, minimum: {FirmwareUpdateCoordinator.MinimumWifiFirmwareVersion})."
+                    : $"WiFi firmware for {key} is up to date ({reportedVersion}).");
+            }
+            catch (OperationCanceledException)
+            {
+                // A firmware flash started and cancelled the probe — expected. Drop the key so the
+                // device is re-probed once it reconnects after the flash.
+                _appLogger.Information($"WiFi firmware check for {key} cancelled (firmware update in progress).");
+                _wifiFirmwareCheckedDevices.Remove(key);
+                return;
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Warning($"WiFi firmware check failed for {key}: {ex.Message}");
+                // Allow a retry on a later UI refresh.
+                _wifiFirmwareCheckedDevices.Remove(key);
+            }
+        }
+    }
+
+    private async Task<LanChipInfo?> TryGetLanChipInfoAsync(
+        ILanChipInfoProvider lanChipProvider,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= WifiChipInfoMaxAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                var chipInfo = await lanChipProvider.GetLanChipInfoAsync(cancellationToken);
+                if (chipInfo != null)
+                {
+                    return chipInfo;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Warning(ex,
+                    $"WiFi chip info query attempt {attempt}/{WifiChipInfoMaxAttempts} failed.");
+            }
+
+            if (attempt >= WifiChipInfoMaxAttempts)
+            {
+                break;
+            }
+
+            _appLogger.Information(
+                $"WiFi chip info unavailable on attempt {attempt}/{WifiChipInfoMaxAttempts}; retrying after startup delay.");
+            FirmwareUpdateStatusText = "Waiting for device to finish starting up before checking WiFi firmware version...";
+            await Task.Delay(WifiChipInfoRetryDelay, cancellationToken);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Aborts any in-flight WiFi firmware probe. Called when a firmware flash begins so the
+    /// probe's SCPI exchange can never overlap the flash and corrupt the bootloader handshake.
+    /// </summary>
+    private void CancelWifiFirmwareCheck()
+    {
+        try
+        {
+            _wifiCheckCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already disposed — nothing in flight.
+        }
+    }
+
+    private static string? GetWifiCheckKey(IStreamingDevice device)
+    {
+        if (!string.IsNullOrWhiteSpace(device.DeviceSerialNo))
+        {
+            return device.DeviceSerialNo;
+        }
+
+        return (device as SerialStreamingDevice)?.PortName;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUpdateWifiFirmwareOnly))]
+    private async Task UpdateWifiFirmwareOnly()
+    {
+        if (IsFirmwareUploading)
+        {
+            return;
+        }
+
+        if (SelectedDevice?.ConnectionType != Device.ConnectionType.Usb ||
+            SelectedDevice is not SerialStreamingDevice serialStreamingDevice)
+        {
+            return;
+        }
+
+        SelectedDeviceSupportsFirmwareUpdate = true;
+        HasErrorOccured = false;
+        IsUploadComplete = false;
+        UploadWiFiProgress = 0;
+        FirmwareUpdateStatusText = "Preparing WiFi firmware update...";
+
+        ConnectionManager.Instance.DeviceBeingUpdated = SelectedDevice;
+
+        _firmwareUploadCts?.Dispose();
+        _firmwareUploadCts = new CancellationTokenSource();
+        IsFirmwareUploading = true;
+        CancelWifiFirmwareCheck();
+        _appLogger.AddBreadcrumb("firmware", $"WiFi-only firmware update started for {serialStreamingDevice.Name}");
+
+        try
+        {
+            var coreDevice = serialStreamingDevice.ConnectedCoreStreamingDevice;
+
+            if (!coreDevice.IsConnected)
+            {
+                _appLogger.Error($"Device {serialStreamingDevice.Name} is not connected. Cannot update WiFi firmware on a disconnected device.");
+                NotificationList.Add(new Notifications
+                {
+                    Message = $"Please connect device {serialStreamingDevice.Name} before attempting a WiFi firmware update.",
+                    DeviceSerialNo = serialStreamingDevice.DeviceSerialNo
+                });
+
+                return;
+            }
+
+            await _firmwareCoordinator.UpdateWifiModuleAsync(coreDevice, serialStreamingDevice, _firmwareUploadCts.Token, force: true);
+
+            IsUploadComplete = true;
+            _appLogger.AddBreadcrumb("firmware", "WiFi firmware update completed");
+
+            // Clear the outdated state and allow a fresh probe on reconnect.
+            SelectedDevice.IsWifiFirmwareOutdated = false;
+            RemoveWifiNotification(SelectedDevice);
+            var key = GetWifiCheckKey(SelectedDevice);
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                _wifiFirmwareCheckedDevices.Remove(key);
+            }
+            UpdateWifiFirmwareOnlyCommand.NotifyCanExecuteChanged();
+
+            ShowUploadSuccessMessage("WiFi firmware");
+        }
+        catch (OperationCanceledException)
+        {
+            FirmwareUpdateStatusText = "WiFi firmware update canceled.";
+            _appLogger.Warning("WiFi firmware update canceled by user.");
+            _appLogger.AddBreadcrumb("firmware", "WiFi firmware update cancelled", Common.Loggers.BreadcrumbLevel.Warning);
+        }
+        catch (FirmwareUpdateException ex)
+        {
+            HasErrorOccured = true;
+            _appLogger.Error(ex, $"WiFi firmware flash failed during '{ex.Operation}' ({ex.FailedState}).");
+            _appLogger.AddBreadcrumb("firmware", $"WiFi firmware update failed: {ex.FailedState}", Common.Loggers.BreadcrumbLevel.Error);
+            ShowWifiFlashFailedDialog();
+        }
+        catch (Exception ex)
+        {
+            HasErrorOccured = true;
+            _appLogger.Error(ex, "Problem Uploading WiFi Firmware");
+            _appLogger.AddBreadcrumb("firmware", "WiFi firmware update failed", Common.Loggers.BreadcrumbLevel.Error);
+            ShowWifiFlashFailedDialog();
+        }
+        finally
+        {
+            IsFirmwareUploading = false;
+            _firmwareUploadCts?.Dispose();
+            _firmwareUploadCts = null;
+            ConnectionManager.Instance.DeviceBeingUpdated = null;
+        }
+    }
+
+    private bool CanUpdateWifiFirmwareOnly()
+    {
+        // Allowed on demand for any USB WINC1500 device — not gated on IsWifiFirmwareOutdated — so the
+        // line can re-flash a module that reports as current (e.g. a prior flash that didn't take).
+        // The command force-flashes regardless of the reported version.
+        return !IsFirmwareUploading
+            && SelectedDevice?.ConnectionType == Device.ConnectionType.Usb
+            && SelectedDevice.HasWincWifiModule;
+    }
+
+    private void AddWifiNotification(IStreamingDevice device, string reportedVersion)
+    {
+        var versionText = string.Equals(reportedVersion, "Unknown", StringComparison.OrdinalIgnoreCase)
+            ? "could not be read"
+            : $"is out of date ({reportedVersion})";
+        var message = $"Device {device.DeviceSerialNo}: WiFi module firmware {versionText} " +
+                      $"(minimum {FirmwareUpdateCoordinator.MinimumWifiFirmwareVersion}). Click below to update just the WiFi module.";
+
+        var existingNotification = NotificationList.FirstOrDefault(n => n.IsWifiFirmwareUpdate
+                                                                        && !string.IsNullOrWhiteSpace(n.DeviceSerialNo)
+                                                                        && string.Equals(n.DeviceSerialNo, device.DeviceSerialNo, StringComparison.OrdinalIgnoreCase));
+
+        // Notifications.Message is init-only, so to refresh stale text (e.g. the reported WiFi
+        // version changed on re-probe) replace the existing entry rather than mutating it.
+        if (existingNotification != null)
+        {
+            if (existingNotification.Message == message)
+            {
+                return;
+            }
+            NotificationList.Remove(existingNotification);
+        }
+
+        NotificationList.Add(new Notifications
+        {
+            DeviceSerialNo = device.DeviceSerialNo,
+            Message = message,
+            IsWifiFirmwareUpdate = true
+        });
+
+        NotificationCount = NotificationList.Count;
+    }
+
+    private void RemoveWifiNotification(IStreamingDevice deviceToRemove)
+    {
+        if (deviceToRemove?.DeviceSerialNo == null)
+        {
+            return;
+        }
+
+        var notificationToRemove = NotificationList
+            .FirstOrDefault(x => x.IsWifiFirmwareUpdate
+                                 && !string.IsNullOrWhiteSpace(x.DeviceSerialNo)
+                                 && string.Equals(x.DeviceSerialNo, deviceToRemove.DeviceSerialNo, StringComparison.OrdinalIgnoreCase));
+
+        if (notificationToRemove != null)
+        {
+            NotificationList.Remove(notificationToRemove);
+            NotificationCount = NotificationList.Count;
+        }
+    }
+
+    private void ShowUploadSuccessMessage(string firmwareLabel)
+    {
+        void ShowDialog()
+        {
+            var successDialogViewModel =
+                new SuccessDialogViewModel($"{firmwareLabel} update completed successfully.");
+            _dialogService.ShowDialog<SuccessDialog>(this, successDialogViewModel);
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            ShowDialog();
+            CloseFlyouts();
+            return;
+        }
+
+        dispatcher.Invoke(ShowDialog);
+        CloseFlyouts();
+    }
+
+    /// <summary>
+    /// User-facing message for a failed WiFi-module flash. A failed WINC bridge/program can leave
+    /// the module in a confused state, so the reliable recovery is a full power-cycle before retrying
+    /// (the cleanup path has already pulled the device out of transparent mode).
+    /// </summary>
+    private void ShowWifiFlashFailedDialog()
+    {
+        void ShowDialog()
+        {
+            var errorDialogViewModel = new ErrorDialogViewModel(
+                "WiFi firmware flash failed. Disconnect the device, ensure power is cycled, and try again.");
+            _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            ShowDialog();
+            return;
+        }
+
+        dispatcher.Invoke(ShowDialog);
+    }
+
     #endregion
 
     #region ILoggingSessionListHost implementation
@@ -1519,10 +2051,20 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         {
             _appLogger.Information("[DEBUG_MODE] Debug mode enabled - detailed diagnostics will be logged");
             DebugData.Clear();
+            // WiFi firmware is debug-gated; now that it's visible, read the version for the
+            // already-connected devices (the per-connection guard runs it at most once each).
+            TriggerWifiFirmwareProbe();
         }
         else
         {
             _appLogger.Information("[DEBUG_MODE] Debug mode disabled");
+            // Hide all WiFi-firmware concerns from the normal view: drop any "WiFi firmware out of
+            // date" prompts and forget which devices were checked so re-enabling re-probes fresh.
+            foreach (var device in ConnectedDevices.ToList())
+            {
+                RemoveWifiNotification(device);
+            }
+            _wifiFirmwareCheckedDevices.Clear();
         }
 
         // Notify all connected devices about debug mode change

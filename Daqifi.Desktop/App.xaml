@@ -38,6 +38,7 @@
             </Style>
 
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+            <converters:BoolAndToVisibilityConverter x:Key="BoolAndToVis"/>
             <helpers:BooleanToVisibilityConverter x:Key="InvertedBoolToVis" True="Collapsed" False="Visible" />
             <helpers:IntToVisibilityConverter x:Key="IntToVisibility"/>
             <helpers:EnumDescriptionConverter x:Key="EnumDescription"/>

@@ -143,8 +143,7 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
                 wifiPackageDirectory,
                 It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-                It.IsAny<CancellationToken>(),
-                It.IsAny<bool>()))
+                It.IsAny<CancellationToken>()))
             .Callback<Daqifi.Core.Device.IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?, CancellationToken, bool>(
                 (device, _, _, _, _) => wifiDevice = device)
             .Returns(Task.CompletedTask);
@@ -157,11 +156,10 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(pic32FirmwarePath);
 
-        pic32FirmwareUpdateService
-            .Setup(service => service.CheckWifiFirmwareStatusAsync(
-                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateWifiStatus(WifiFirmwareStatusReason.UpdateAvailable, "19.3.0", "v19.7.0"));
+        // The coordinator's WiFi version check now reads chip info via the serial device's
+        // ILanChipInfoProvider. Leaving it null models an unreadable module, which the coordinator
+        // treats as out-of-date and proceeds to flash.
+        coreDevice.LanChipInfoResult = null;
 
         firmwareDownloadService
             .Setup(service => service.DownloadWifiFirmwareAsync(
@@ -189,33 +187,37 @@ public class DaqifiViewModelFirmwareUpdateTests
         await coordinator.UploadFirmwareAsync();
 
         Assert.AreSame(coreDevice, pic32Device);
-        Assert.AreSame(coreDevice, wifiDevice);
+        // Unlike the PIC32 flash, the WiFi flash releases the managed serial connection and runs the
+        // WINC tool against a no-op device (the tool reaches the board over raw serial via bridge
+        // activation) — that's what frees the COM port so the tool can open it. So the WiFi flash does
+        // NOT reuse the live core device.
+        Assert.IsInstanceOfType(wifiDevice, typeof(Daqifi.Desktop.Device.Firmware.BootloaderSessionStreamingDeviceAdapter));
         Assert.AreEqual("19.7.0", wifiVersion);
         Assert.AreEqual("COM9", wifiPort);
         Assert.IsTrue(host.IsUploadComplete);
         Assert.IsFalse(host.HasErrorOccured);
+        // The connect-time WiFi probe must be quiesced before the device enters update mode, so a
+        // stray POWer:STATe 1 / GETChipInfo? can't land on the bridging WINC and brick it.
+        Assert.IsTrue(host.QuiesceWifiFirmwareProbeCallCount >= 1,
+            "Coordinator must quiesce the WiFi probe before flashing.");
 
+        // LAN-update-mode prep goes over the managed connection before it's released.
         AssertCommandSent(coreDevice, ScpiMessageProducer.TurnDeviceOn);
         AssertCommandSent(coreDevice, ScpiMessageProducer.SetLanFirmwareUpdateMode);
-        AssertCommandSent(coreDevice, ScpiMessageProducer.SetUsbTransparencyMode(0));
-        AssertCommandSent(coreDevice, ScpiMessageProducer.EnableNetworkLan);
-        AssertCommandSent(coreDevice, ScpiMessageProducer.ApplyNetworkLan);
-        AssertCommandSent(coreDevice, ScpiMessageProducer.SaveNetworkLan);
+        // The post-flash reset (SetTransparentMode 0 / EnableNetworkLan / Apply / Save) no longer
+        // travels over the managed connection — it's released before the tool runs, so the transparent-
+        // mode exit happens via the raw ExitWifiTransparentModeRaw path (and the device's reboot).
 
         pic32FirmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
             pic32FirmwarePath,
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
             It.IsAny<CancellationToken>()), Times.Once);
-        pic32FirmwareUpdateService.Verify(service => service.CheckWifiFirmwareStatusAsync(
-            coreDevice,
-            It.IsAny<CancellationToken>()), Times.Once);
         wifiFirmwareUpdateService.Verify(service => service.UpdateWifiModuleAsync(
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
             wifiPackageDirectory,
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-            It.IsAny<CancellationToken>(),
-            true), Times.Once);
+            It.IsAny<CancellationToken>()), Times.Once);
         firmwareDownloadService.Verify(service => service.GetLatestWifiReleaseAsync(
             It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -236,10 +238,18 @@ public class DaqifiViewModelFirmwareUpdateTests
         var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
 
+        // The WiFi-flash cleanup (ExitWifiTransparentModeRaw) tears down the managed connection when it
+        // can't open the COM port for the raw transparent-mode exit — which it can't against a mock
+        // transport. On real hardware the device reboots and the app reconnects with a fresh transport
+        // after a flash; model that here with a separate connected device per run so each in-session
+        // auto-update runs against a live connection.
         using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
         coreDevice.Connect();
+        using var coreDevice2 = new TestCoreStreamingDevice("DAQiFi Core");
+        coreDevice2.Connect();
 
         var serialDevice = CreateSerialDeviceWithCoreDevice("COM9", coreDevice);
+        var serialDevice2 = CreateSerialDeviceWithCoreDevice("COM9", coreDevice2);
         var pic32FirmwarePath = CreateTempFile(".hex");
         var wifiPackageDirectory = CreateTempDirectory();
         var wifiFactoryCalls = 0;
@@ -252,19 +262,15 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        pic32FirmwareUpdateService
-            .Setup(service => service.CheckWifiFirmwareStatusAsync(
-                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateWifiStatus(WifiFirmwareStatusReason.UpdateAvailable, "19.3.0", "v19.7.0"));
+        // Unreadable WiFi chip info -> coordinator treats the module as out-of-date and flashes.
+        coreDevice.LanChipInfoResult = null;
 
         wifiFirmwareUpdateService
             .Setup(service => service.UpdateWifiModuleAsync(
                 It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
                 wifiPackageDirectory,
                 It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-                It.IsAny<CancellationToken>(),
-                It.IsAny<bool>()))
+                It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         firmwareDownloadService
@@ -297,8 +303,10 @@ public class DaqifiViewModelFirmwareUpdateTests
                 return wifiFirmwareUpdateService.Object;
             });
 
-        // Act: two consecutive in-session auto-updates with no app restart between them.
+        // Act: two consecutive in-session auto-updates with no app restart between them. The second
+        // run uses the freshly reconnected device (see the per-run device note above).
         await coordinator.UploadFirmwareAsync();
+        host.SelectedDevice = serialDevice2;
         await coordinator.UploadFirmwareAsync();
 
         // Assert: each run performed a full auto-update and the bound path was never populated.
@@ -323,15 +331,11 @@ public class DaqifiViewModelFirmwareUpdateTests
             true,
             It.IsAny<IProgress<int>>(),
             It.IsAny<CancellationToken>()), Times.Exactly(2));
-        pic32FirmwareUpdateService.Verify(service => service.CheckWifiFirmwareStatusAsync(
-            It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
-            It.IsAny<CancellationToken>()), Times.Exactly(2));
         wifiFirmwareUpdateService.Verify(service => service.UpdateWifiModuleAsync(
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
             wifiPackageDirectory,
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-            It.IsAny<CancellationToken>(),
-            true), Times.Exactly(2));
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [TestMethod]
@@ -366,19 +370,15 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        pic32FirmwareUpdateService
-            .Setup(service => service.CheckWifiFirmwareStatusAsync(
-                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateWifiStatus(WifiFirmwareStatusReason.UpdateAvailable, "19.3.0", "v19.7.0"));
+        // Unreadable WiFi chip info -> coordinator treats the module as out-of-date and flashes.
+        coreDevice.LanChipInfoResult = null;
 
         wifiFirmwareUpdateService
             .Setup(service => service.UpdateWifiModuleAsync(
                 It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
                 wifiPackageDirectory,
                 It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-                It.IsAny<CancellationToken>(),
-                It.IsAny<bool>()))
+                It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         firmwareDownloadService
@@ -449,8 +449,7 @@ public class DaqifiViewModelFirmwareUpdateTests
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
             wifiPackageDirectory,
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-            It.IsAny<CancellationToken>(),
-            true), Times.Once);
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -474,11 +473,9 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        pic32FirmwareUpdateService
-            .Setup(service => service.CheckWifiFirmwareStatusAsync(
-                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(CreateWifiStatus(WifiFirmwareStatusReason.UpToDate, "19.7.0", "v19.7.0"));
+        // A WiFi module already at/above the minimum supported version. The coordinator reads chip
+        // info via the serial device's ILanChipInfoProvider and skips the flash when it's current.
+        coreDevice.LanChipInfoResult = CreateLanChipInfo(FirmwareUpdateCoordinator.MinimumWifiFirmwareVersion);
 
         firmwareDownloadService
             .Setup(service => service.DownloadLatestFirmwareAsync(
@@ -509,7 +506,9 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.IsTrue(host.IsUploadComplete);
         Assert.IsFalse(host.HasErrorOccured);
         Assert.AreEqual(100, host.UploadWiFiProgress);
-        Assert.AreEqual("WiFi firmware already up to date (19.7.0).", host.FirmwareUpdateStatusText);
+        Assert.AreEqual(
+            $"WiFi firmware already up to date ({FirmwareUpdateCoordinator.MinimumWifiFirmwareVersion}).",
+            host.FirmwareUpdateStatusText);
 
         firmwareDownloadService.Verify(service => service.DownloadWifiFirmwareAsync(
             It.IsAny<string>(),
@@ -518,42 +517,31 @@ public class DaqifiViewModelFirmwareUpdateTests
     }
 
     [TestMethod]
-    [DataRow(WifiFirmwareStatusReason.ChipInfoUnavailable, true)]
-    [DataRow(WifiFirmwareStatusReason.DeviceDoesNotSupportLanQuery, true)]
-    [DataRow(WifiFirmwareStatusReason.LatestReleaseUnavailable, false)]
-    [DataRow(WifiFirmwareStatusReason.VersionUnparseable, true)]
-    public async Task UploadFirmware_WifiFirmwareStatusUnknown_StillFlashesWifi(
-        WifiFirmwareStatusReason reason,
-        bool expectsUnavailableStatusText)
+    public async Task UploadFirmware_WifiChipInfoUnreadable_StillFlashesWifi()
     {
+        // GETChipInfo? returns nothing (module not answering): the coordinator can't read a version,
+        // surfaces the "unavailable" status, and proceeds with the flash so a dead module is reflashed.
         await AssertWifiFlashProceedsAsync(
-            pic32Service => pic32Service
-                .Setup(service => service.CheckWifiFirmwareStatusAsync(
-                    It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
-                    It.IsAny<CancellationToken>()))
-                .ReturnsAsync(CreateUnknownWifiStatus(reason)),
-            expectsUnavailableStatusText);
-    }
-
-    [TestMethod]
-    public async Task UploadFirmware_WifiStatusCheckThrows_StillFlashesWifi()
-    {
-        await AssertWifiFlashProceedsAsync(
-            pic32Service => pic32Service
-                .Setup(service => service.CheckWifiFirmwareStatusAsync(
-                    It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
-                    It.IsAny<CancellationToken>()))
-                .ThrowsAsync(new InvalidOperationException("WiFi status check failed")),
+            coreDevice => coreDevice.LanChipInfoResult = null,
             expectsUnavailableStatusText: true);
     }
 
+    [TestMethod]
+    public async Task UploadFirmware_WifiVersionUnparseable_StillFlashesWifi()
+    {
+        // Chip info came back but its version string can't be parsed: treated as needing a flash.
+        // The version is reported (not "unavailable"), so the unavailable status is not shown.
+        await AssertWifiFlashProceedsAsync(
+            coreDevice => coreDevice.LanChipInfoResult = CreateLanChipInfo("WINC-19.3"),
+            expectsUnavailableStatusText: false);
+    }
+
     /// <summary>
-    /// Drives a full non-manual firmware upload where the WiFi status check yields no usable
-    /// verdict (inconclusive reason or thrown exception) and asserts the WiFi flash still runs
-    /// with skipVersionCheck: true.
+    /// Drives a full non-manual firmware upload where the WiFi version check yields no usable
+    /// verdict (chip info unreadable or its version unparseable) and asserts the WiFi flash still runs.
     /// </summary>
     private async Task AssertWifiFlashProceedsAsync(
-        Action<Mock<IFirmwareUpdateService>> configureStatusCheck,
+        Action<TestCoreStreamingDevice> configureChipInfo,
         bool expectsUnavailableStatusText)
     {
         var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
@@ -562,6 +550,7 @@ public class DaqifiViewModelFirmwareUpdateTests
 
         using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
         coreDevice.Connect();
+        configureChipInfo(coreDevice);
 
         var serialDevice = CreateSerialDeviceWithCoreDevice("COM9", coreDevice);
         var pic32FirmwarePath = CreateTempFile(".hex");
@@ -575,15 +564,12 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        configureStatusCheck(pic32FirmwareUpdateService);
-
         wifiFirmwareUpdateService
             .Setup(service => service.UpdateWifiModuleAsync(
                 It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
                 wifiPackageDirectory,
                 It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-                It.IsAny<CancellationToken>(),
-                It.IsAny<bool>()))
+                It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         firmwareDownloadService
@@ -624,8 +610,7 @@ public class DaqifiViewModelFirmwareUpdateTests
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
             wifiPackageDirectory,
             It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-            It.IsAny<CancellationToken>(),
-            true), Times.Once);
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [TestMethod]
@@ -714,6 +699,106 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.AreEqual(0, host.Notifications.Count);
     }
 
+    [TestMethod]
+    public void WifiFirmwareNeedsFlash_NullChipInfo_NeedsFlashAndReportsUnknown()
+    {
+        var needsFlash = FirmwareUpdateCoordinator.WifiFirmwareNeedsFlash(null, out var reportedVersion);
+
+        Assert.IsTrue(needsFlash);
+        Assert.AreEqual("Unknown", reportedVersion);
+    }
+
+    [TestMethod]
+    public void WifiFirmwareNeedsFlash_EmptyChipVersion_NeedsFlashAndReportsUnknown()
+    {
+        var chipInfo = CreateLanChipInfo(string.Empty);
+
+        var needsFlash = FirmwareUpdateCoordinator.WifiFirmwareNeedsFlash(chipInfo, out var reportedVersion);
+
+        Assert.IsTrue(needsFlash);
+        Assert.AreEqual("Unknown", reportedVersion);
+    }
+
+    [DataTestMethod]
+    [DataRow("19.7.7", false)]   // exactly the minimum supported version
+    [DataRow("19.8.0", false)]   // newer than the minimum
+    [DataRow("20.0.0", false)]
+    [DataRow("19.6.1", true)]    // older than the minimum
+    [DataRow("19.3.0", true)]
+    [DataRow("not-a-version", true)] // unparseable -> can't be trusted, flash
+    public void WifiFirmwareNeedsFlash_ComparesReportedVersionAgainstMinimum(string reportedFwVersion, bool expectedNeedsFlash)
+    {
+        var chipInfo = CreateLanChipInfo(reportedFwVersion);
+
+        var needsFlash = FirmwareUpdateCoordinator.WifiFirmwareNeedsFlash(chipInfo, out var reportedVersion);
+
+        Assert.AreEqual(expectedNeedsFlash, needsFlash);
+        Assert.AreEqual(reportedFwVersion, reportedVersion);
+    }
+
+    [TestMethod]
+    public async Task UploadFirmware_WifiFlashReturnsImplausiblyFast_FailsInsteadOfReportingSuccess()
+    {
+        // A real WINC program takes tens of seconds. With the false-success guard active (15 s),
+        // a WiFi update service that returns instantly must surface as a failure — not a bogus
+        // success — so the user gets the disconnect/power-cycle guidance.
+        var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
+
+        using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
+        coreDevice.Connect();
+        coreDevice.LanChipInfoResult = null; // unreadable -> proceeds to flash
+
+        var serialDevice = CreateSerialDeviceWithCoreDevice("COM9", coreDevice);
+        var pic32FirmwarePath = CreateTempFile(".hex");
+        var wifiPackageDirectory = CreateTempDirectory();
+
+        pic32FirmwareUpdateService
+            .Setup(service => service.UpdateFirmwareAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                pic32FirmwarePath,
+                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        // Returns immediately — models the tool exiting without programming the WINC.
+        wifiFirmwareUpdateService
+            .Setup(service => service.UpdateWifiModuleAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                wifiPackageDirectory,
+                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        firmwareDownloadService
+            .Setup(service => service.DownloadLatestFirmwareAsync(
+                It.IsAny<string>(), true, It.IsAny<IProgress<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pic32FirmwarePath);
+        firmwareDownloadService
+            .Setup(service => service.DownloadWifiFirmwareAsync(
+                It.IsAny<string>(), It.IsAny<IProgress<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((wifiPackageDirectory, "v19.7.0"));
+
+        var host = new FakeFirmwareUpdateHost { SelectedDevice = serialDevice };
+
+        var coordinator = CreateCoordinator(
+            host,
+            pic32FirmwareUpdateService.Object,
+            firmwareDownloadService.Object,
+            (_, _) => wifiFirmwareUpdateService.Object,
+            minPlausibleWifiFlashDuration: TimeSpan.FromSeconds(15));
+
+        await coordinator.UploadFirmwareAsync();
+
+        Assert.IsTrue(host.HasErrorOccured, "An implausibly fast WiFi flash must surface as an error.");
+        Assert.IsFalse(host.IsUploadComplete, "A false-success flash must not report completion.");
+
+        // The device is still brought out of transparent mode even on failure, but that now happens via
+        // the raw ExitWifiTransparentModeRaw path (the managed connection is released before the flash),
+        // so SetTransparentMode 0 is not sent over the core device here.
+    }
+
     /// <summary>
     /// Builds a coordinator with no-op test loggers and a throwaway firmware data directory.
     /// Dialog/flyout host operations are captured by <see cref="FakeFirmwareUpdateHost"/>, so no
@@ -724,7 +809,8 @@ public class DaqifiViewModelFirmwareUpdateTests
         FakeFirmwareUpdateHost host,
         IFirmwareUpdateService firmwareUpdateService,
         IFirmwareDownloadService firmwareDownloadService,
-        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null)
+        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null,
+        TimeSpan? minPlausibleWifiFlashDuration = null)
     {
         return new FirmwareUpdateCoordinator(
             host,
@@ -733,7 +819,13 @@ public class DaqifiViewModelFirmwareUpdateTests
             NullLogger<FirmwareUpdateService>.Instance,
             Mock.Of<IAppLogger>(),
             CreateTempDirectory(),
-            wifiFirmwareUpdateServiceFactory);
+            wifiFirmwareUpdateServiceFactory,
+            // Collapse the real-hardware timing so these unit tests stay fast and deterministic:
+            // skip the WiFi-update-mode settle wait and (by default) disable the false-success
+            // duration guard. The guard test passes a non-zero value to exercise it explicitly.
+            // (Both behaviors are exercised under their production values by the integration gate.)
+            wifiUpdateModeSettleDelay: TimeSpan.Zero,
+            minPlausibleWifiFlashDuration: minPlausibleWifiFlashDuration ?? TimeSpan.Zero);
     }
 
     private static Mock<Daqifi.Desktop.Device.IStreamingDevice> CreateDeviceMock(string serialNo, string version)
@@ -747,60 +839,11 @@ public class DaqifiViewModelFirmwareUpdateTests
 
     private static SerialStreamingDevice CreateSerialDeviceWithCoreDevice(string portName, TestCoreStreamingDevice coreDevice)
     {
-        return new SerialStreamingDevice(portName, coreDevice);
-    }
-
-    private static WifiFirmwareStatus CreateWifiStatus(
-        WifiFirmwareStatusReason reason,
-        string deviceVersion,
-        string latestTag)
-    {
-        return new WifiFirmwareStatus
+        // These tests exercise the WiFi-module flash, so model a Nyquist (WINC1500) device — that's
+        // what HasWincWifiModule keys on, which the coordinator now requires before a WiFi update.
+        return new SerialStreamingDevice(portName, coreDevice)
         {
-            CurrentChipInfo = CreateLanChipInfo(deviceVersion),
-            LatestRelease = new FirmwareReleaseInfo
-            {
-                Version = new FirmwareVersion(19, 7, 0, null, 0),
-                TagName = latestTag,
-                IsPreRelease = false
-            },
-            IsUpToDate = reason == WifiFirmwareStatusReason.UpToDate,
-            Reason = reason
-        };
-    }
-
-    /// <summary>
-    /// Builds an inconclusive <see cref="WifiFirmwareStatus"/> mirroring Core's contract:
-    /// IsUpToDate is false and CurrentChipInfo/LatestRelease are populated only as far
-    /// as the check got before failing.
-    /// </summary>
-    private static WifiFirmwareStatus CreateUnknownWifiStatus(WifiFirmwareStatusReason reason)
-    {
-        return reason switch
-        {
-            WifiFirmwareStatusReason.LatestReleaseUnavailable => new WifiFirmwareStatus
-            {
-                CurrentChipInfo = CreateLanChipInfo("19.3.0"),
-                IsUpToDate = false,
-                Reason = reason
-            },
-            WifiFirmwareStatusReason.VersionUnparseable => new WifiFirmwareStatus
-            {
-                CurrentChipInfo = CreateLanChipInfo("WINC-19.3"),
-                LatestRelease = new FirmwareReleaseInfo
-                {
-                    Version = new FirmwareVersion(19, 7, 0, null, 0),
-                    TagName = "v19.7.0",
-                    IsPreRelease = false
-                },
-                IsUpToDate = false,
-                Reason = reason
-            },
-            _ => new WifiFirmwareStatus
-            {
-                IsUpToDate = false,
-                Reason = reason
-            }
+            DeviceType = Daqifi.Core.Device.DeviceType.Nyquist1
         };
     }
 
@@ -899,6 +942,15 @@ public class DaqifiViewModelFirmwareUpdateTests
         public void ShowFirmwareError(string message) => FirmwareErrors.Add(message);
 
         public void ShowFirmwareUpdateSucceeded() => SucceededCallCount++;
+
+        public Task QuiesceWifiFirmwareProbeAsync(CancellationToken cancellationToken = default)
+        {
+            QuiesceWifiFirmwareProbeCallCount++;
+            return Task.CompletedTask;
+        }
+
+        /// <summary>Number of times <see cref="QuiesceWifiFirmwareProbeAsync"/> was invoked.</summary>
+        public int QuiesceWifiFirmwareProbeCallCount { get; private set; }
     }
 
     private sealed class TestCoreStreamingDevice : DaqifiStreamingDevice, ILanChipInfoProvider
@@ -910,17 +962,25 @@ public class DaqifiViewModelFirmwareUpdateTests
 
         public List<string> SentCommands { get; } = [];
 
+        /// <summary>
+        /// Chip info returned by the shadowed <see cref="ILanChipInfoProvider.GetLanChipInfoAsync"/>.
+        /// Null (the default) models a WiFi module whose chip info cannot be read — which the
+        /// coordinator treats as "needs flash"; set it to a populated value to model an
+        /// up-to-date / specific-version module.
+        /// </summary>
+        public LanChipInfo? LanChipInfoResult { get; set; }
+
         public override void Send<T>(IOutboundMessage<T> message)
         {
             SentCommands.Add(message.Data?.ToString() ?? string.Empty);
         }
 
-        // Shadows the base implementation so no test path ever runs a real SCPI
-        // exchange against the mock transport. The WiFi status check itself is
-        // mocked at the IFirmwareUpdateService level.
+        // Shadows the base implementation so no test path ever runs a real SCPI exchange against
+        // the mock transport. The coordinator's WiFi version check reads this via the serial
+        // device's ILanChipInfoProvider; LanChipInfoResult lets each test pick the verdict.
         Task<LanChipInfo?> ILanChipInfoProvider.GetLanChipInfoAsync(CancellationToken cancellationToken)
         {
-            return Task.FromResult<LanChipInfo?>(null);
+            return Task.FromResult(LanChipInfoResult);
         }
     }
 

@@ -41,6 +41,18 @@ public sealed class DeviceTileViewModel : ObservableObject, IDisposable
     /// <summary>Whether the device needs a firmware update.</summary>
     public bool IsFirmwareOutdated => Device.IsFirmwareOutdated;
 
+    /// <summary>WiFi module firmware version as read from the device (or "Unknown").</summary>
+    public string WifiVersion => Device.WifiFirmwareVersion;
+
+    /// <summary>
+    /// Whether to show the WiFi firmware version line — only for USB-connected Nyquist (WINC1500)
+    /// devices. ESP32-based devices have no separate WiFi firmware version to display.
+    /// </summary>
+    public bool ShowWifiVersion => IsUsb && Device.HasWincWifiModule;
+
+    /// <summary>Whether the device's WiFi module firmware needs to be flashed.</summary>
+    public bool IsWifiFirmwareOutdated => Device.IsWifiFirmwareOutdated;
+
     /// <summary>Whether the device is currently connected.</summary>
     public bool IsConnected => Device.IsConnected;
 
@@ -78,6 +90,15 @@ public sealed class DeviceTileViewModel : ObservableObject, IDisposable
                 break;
             case nameof(IStreamingDevice.IsFirmwareOutdated):
                 OnPropertyChanged(nameof(IsFirmwareOutdated));
+                break;
+            case nameof(IStreamingDevice.IsWifiFirmwareOutdated):
+                OnPropertyChanged(nameof(IsWifiFirmwareOutdated));
+                break;
+            case nameof(IStreamingDevice.WifiFirmwareVersion):
+                OnPropertyChanged(nameof(WifiVersion));
+                break;
+            case nameof(IStreamingDevice.HasWincWifiModule):
+                OnPropertyChanged(nameof(ShowWifiVersion));
                 break;
             case nameof(IStreamingDevice.DeviceSerialNo):
                 OnPropertyChanged(nameof(SerialNumber));
