@@ -1332,6 +1332,14 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 {
                     LoggingManager.Instance.Unsubscribe(orphan);
                 }
+
+                // Probe the WiFi module version now that the device list (and each device's
+                // initialization) has settled — this runs AFTER UpdateConnectedDeviceUI, so it never
+                // races the connection handshake. The WiFi version is shown inline on the device pane,
+                // so it must be populated on connect (not only when a firmware panel opens). A device
+                // with a blank/erased WINC simply times out → "unknown", which is the correct display.
+                // The per-connection guard (_wifiFirmwareCheckedDevices) keeps this to one probe each.
+                _ = CheckWifiFirmwareAsync();
                 break;
             case "SubscribedChannels":
                 ActiveChannels.Clear();
