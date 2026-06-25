@@ -1679,7 +1679,9 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
                 if (dispatcher != null && !dispatcher.CheckAccess())
                 {
-                    dispatcher.Invoke(ApplyResult);
+                    // InvokeAsync (awaited) rather than a blocking Invoke — this probe runs on a
+                    // thread-pool thread and shouldn't block it waiting on the UI thread.
+                    await dispatcher.InvokeAsync(ApplyResult);
                 }
                 else
                 {
