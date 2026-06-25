@@ -9,7 +9,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=viewModels:FirmwareDialogViewModel}"
         dialogService:DialogService.IsRegisteredView="True"
-        Title="Firmware Settings" Height="300" Width="500" BorderThickness="0" Background="{StaticResource Surface}" GlowBrush="{DynamicResource AccentColorBrush}">
+        Title="Firmware Settings" Height="380" Width="500" BorderThickness="0" Background="{StaticResource Surface}" GlowBrush="{DynamicResource AccentColorBrush}">
 
     <controls:MetroWindow.Resources>
         <ResourceDictionary>
@@ -35,14 +35,26 @@
             </GroupBox>
 
             <GroupBox Grid.Row="1" Header="Update Firmware">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="85"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0" Height="30" VerticalAlignment="Top" Margin="5" Text="{Binding FirmwareFilePath, Mode=OneWay}"/>
-                    <Button Grid.Column="1" Content="Browse" Width="75" Height="30" Margin="5" VerticalAlignment="Top" Style="{StaticResource DarkSecondaryButton}" controls:ControlsHelper.ContentCharacterCasing="Normal" Command="{Binding BrowseFirmwarePathCommand}"/>
-                </Grid>
+                <StackPanel>
+                    <!-- Latest DAQiFi firmware (default path): no need to locate a .hex file. -->
+                    <TextBlock Text="DAQiFi Firmware" Foreground="{StaticResource TextSecondary}" FontSize="11" Margin="2,0,2,4"/>
+                    <ComboBox Style="{StaticResource DarkComboBox}"
+                              AutomationProperties.AutomationId="BootloaderFirmwareSelector"
+                              ItemsSource="{Binding AvailableFirmwares}"
+                              DisplayMemberPath="Display"
+                              SelectedItem="{Binding SelectedFirmware, Mode=TwoWay}"/>
+
+                    <!-- Or browse for a specific .hex file -->
+                    <TextBlock Text="Or browse for a firmware file" Foreground="{StaticResource TextTertiary}" FontSize="11" Margin="2,12,2,4"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="85"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" Height="34" VerticalAlignment="Top" Margin="0,0,5,0" Text="{Binding FirmwareFilePath, Mode=OneWay}"/>
+                        <Button Grid.Column="1" Content="Browse" Width="75" Height="34" VerticalAlignment="Top" Style="{StaticResource DarkSecondaryButton}" controls:ControlsHelper.ContentCharacterCasing="Normal" Command="{Binding BrowseFirmwarePathCommand}"/>
+                    </Grid>
+                </StackPanel>
             </GroupBox>
 
             <Label Visibility="{Binding HasErrorOccured, Converter={StaticResource BoolToVis}}" Grid.Row="2" Content="Sorry, something went wrong uploading the firmware.  :(" HorizontalContentAlignment="Center" Foreground="{StaticResource StatusRed}"/>
