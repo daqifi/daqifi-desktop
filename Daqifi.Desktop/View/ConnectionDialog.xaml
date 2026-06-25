@@ -433,30 +433,16 @@
                                    FontSize="11" Foreground="{StaticResource StatusRed}"
                                    Margin="0,8,0,0" TextWrapping="Wrap"
                                    Visibility="{Binding ManualPortError, Converter={StaticResource NotNullToVis}}"/>
-                        <TextBlock Text="{Binding ManualPortStatus}"
-                                   AutomationProperties.AutomationId="ManualPortStatus"
-                                   FontSize="11" Foreground="{StaticResource StatusGreen}"
-                                   Margin="0,8,0,0" TextWrapping="Wrap"
-                                   Visibility="{Binding ManualPortStatus, Converter={StaticResource NotNullToVis}}"/>
-                        <TextBlock Text="Stuck after a WiFi flash? If the device opens in PuTTY but the app can't see it, it's stranded in transparent mode — enter its port above and click Recover."
-                                   FontSize="10" Foreground="{StaticResource TextTertiary}"
-                                   Margin="0,12,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
 
                     <Border Grid.Row="1"
                             BorderBrush="{StaticResource BorderDim}" BorderThickness="0,1,0,0"
                             Padding="0,12,0,0" Margin="0,12,0,0">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button AutomationProperties.AutomationId="RecoverTransparentModeButton"
-                                    Style="{StaticResource AccentPillButton}"
-                                    Command="{Binding RecoverTransparentModeCommand}"
-                                    Content="Recover (exit transparent mode)"
-                                    Margin="0,0,8,0"/>
-                            <Button AutomationProperties.AutomationId="ConnectButton_ManualSerial"
-                                    Style="{StaticResource AccentPillButton}"
-                                    Command="{Binding ConnectManualSerialCommand}"
-                                    Content="Connect"/>
-                        </StackPanel>
+                        <Button HorizontalAlignment="Right"
+                                AutomationProperties.AutomationId="ConnectButton_ManualSerial"
+                                Style="{StaticResource AccentPillButton}"
+                                Command="{Binding ConnectManualSerialCommand}"
+                                Content="Connect"/>
                     </Border>
                 </Grid>
             </TabItem>

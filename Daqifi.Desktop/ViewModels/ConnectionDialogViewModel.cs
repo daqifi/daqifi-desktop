@@ -67,13 +67,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
     [ObservableProperty]
     private string? _manualPortError;
 
-    /// <summary>
-    /// User-facing informational message for the Manual USB tab (non-error), e.g. the result of the
-    /// "Recover (exit transparent mode)" action. Cleared when the user edits <see cref="ManualPortName"/>.
-    /// </summary>
-    [ObservableProperty]
-    private string? _manualPortStatus;
-
     public SerialStreamingDevice ManualSerialDevice { get; set; }
 
     [ObservableProperty]
@@ -90,14 +83,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     partial void OnManualPortNameChanged(string? value)
     {
-        // Clear stale validation error / status as soon as the user starts editing the port name.
+        // Clear stale validation error as soon as the user starts editing the port name.
         if (!string.IsNullOrEmpty(ManualPortError))
         {
             ManualPortError = null;
-        }
-        if (!string.IsNullOrEmpty(ManualPortStatus))
-        {
-            ManualPortStatus = null;
         }
     }
 
@@ -120,7 +109,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
         ConnectSerialCommand = new AsyncRelayCommand<object>(ConnectSerialAsync);
         ConnectManualSerialCommand = new AsyncRelayCommand(ConnectManualSerialAsync);
         ConnectManualWifiCommand = new AsyncRelayCommand(ConnectManualWifiAsync);
-        RecoverTransparentModeCommand = new AsyncRelayCommand(RecoverTransparentModeAsync);
         
         // Set up the duplicate device handler
         ConnectionManager.Instance.DuplicateDeviceHandler = HandleDuplicateDevice;
@@ -266,7 +254,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
     public IAsyncRelayCommand ConnectSerialCommand { get; }
     public IAsyncRelayCommand ConnectManualSerialCommand { get; }
     public IAsyncRelayCommand ConnectManualWifiCommand { get; }
-    public IAsyncRelayCommand RecoverTransparentModeCommand { get; }
 
     private async Task ConnectAsync(object? selectedItems)
     {
@@ -338,90 +325,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
 
         RaiseCloseRequested();
-    }
-
-    /// <summary>
-    /// Recovers a device stranded in USB-transparent / WiFi-bridge mode (a failed WiFi flash can leave
-    /// it there — it ignores the managed protobuf connection, so the app can't see it, but the PIC32
-    /// still parses raw SCPI). Sends <c>SYSTem:USB:SetTransparentMode 0</c> + LAN apply over a raw serial
-    /// write to the manually-entered COM port, mirroring the firmware flow's transparent-mode exit.
-    /// After this the device answers the app again (or is ready for a manual connect).
-    /// </summary>
-    private async Task RecoverTransparentModeAsync()
-    {
-        ManualPortError = null;
-        ManualPortStatus = null;
-
-        if (string.IsNullOrWhiteSpace(ManualPortName))
-        {
-            ManualPortError = "Enter the device's COM port (e.g. COM3) first, then recover.";
-            return;
-        }
-
-        var portName = ManualPortName.Trim();
-
-        if (!await Task.Run(() => IsPortAvailable(portName)))
-        {
-            ManualPortError =
-                $"Port '{portName}' is not available. " +
-                "Plug in the device or check Device Manager for the correct port name.";
-            return;
-        }
-
-        ManualPortStatus = $"Sending transparent-mode exit to {portName}...";
-
-        // Raw serial write off the UI thread (blocking I/O with short sleeps). Must NOT go through the
-        // managed connection — while transparent the device ignores protobuf; only a raw write reaches
-        // the PIC32.
-        var sent = await Task.Run(() => TrySendTransparentModeExit(portName));
-
-        if (sent)
-        {
-            ManualPortStatus =
-                $"Sent transparent-mode exit to {portName}. The device should answer the app now — " +
-                "click Connect, or wait for it to reappear in discovery.";
-        }
-        else
-        {
-            ManualPortStatus = null;
-            ManualPortError =
-                $"Could not open {portName} to send the recovery command. It may be held by another " +
-                "application (close PuTTY/other apps), or power-cycle the device.";
-        }
-    }
-
-    /// <summary>
-    /// Opens <paramref name="portName"/> raw and sends the USB-transparent-mode exit + LAN apply.
-    /// Returns false if the port can't be opened. Mirrors the firmware flow's
-    /// <c>TrySendTransparentModeExit</c> (9600 baud, DTR asserted — USB CDC ignores the baud rate).
-    /// </summary>
-    private static bool TrySendTransparentModeExit(string portName)
-    {
-        try
-        {
-            using var port = new SerialPort(portName, 9600, Parity.None, 8, StopBits.One)
-            {
-                DtrEnable = true,
-                RtsEnable = false,
-                WriteTimeout = 2000
-            };
-            port.Open();
-            Thread.Sleep(200);
-            port.Write("SYSTem:USB:SetTransparentMode 0\n");
-            Thread.Sleep(150);
-            // Re-apply normal LAN config so the module returns to its operating mode.
-            port.Write("SYSTem:COMMunicate:LAN:APPLY\n");
-            Thread.Sleep(300);
-            Common.Loggers.AppLogger.Instance.Information(
-                $"Sent transparent-mode exit to {portName} (manual recovery).");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Common.Loggers.AppLogger.Instance.Warning(
-                $"Manual transparent-mode recovery could not open {portName}: {ex.Message}");
-            return false;
-        }
     }
 
     private static bool IsPortAvailable(string portName)
