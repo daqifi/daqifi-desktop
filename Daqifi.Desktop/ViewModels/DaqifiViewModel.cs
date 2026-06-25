@@ -173,11 +173,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     // any byte that lands while the WINC is bridging corrupts the program (bricks the module).
     private Task? _wifiProbeTask;
 
-    // Probes are suppressed until this time. Set after a flash so a post-flash reconnect doesn't query
-    // a WINC that is still rebooting/settling. UtcNow is fine here (this is app code, not a workflow).
-    private DateTime _suppressWifiProbeUntilUtc = DateTime.MinValue;
-    private static readonly TimeSpan WifiProbeCooldownAfterFlash = TimeSpan.FromSeconds(20);
-
     // Owns the WiFi-only flash lifecycle (the PIC32 path's CTS lives in the coordinator).
     private CancellationTokenSource? _firmwareUploadCts;
     private readonly LoggingSessionListViewModel _loggingSessionList;
@@ -1515,32 +1510,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         }
     }
 
-    /// <summary>
-    /// Suppresses connect-time WiFi probes for <paramref name="duration"/> so a post-flash reconnect
-    /// doesn't immediately query a WINC that is still rebooting/settling.
-    /// </summary>
-    private void SuppressWifiFirmwareProbe(TimeSpan duration)
-    {
-        var until = DateTime.UtcNow + duration;
-        if (until > _suppressWifiProbeUntilUtc)
-        {
-            _suppressWifiProbeUntilUtc = until;
-        }
-    }
-
-    /// <summary>
-    /// When any firmware flash finishes (the flag falls true→false), start the post-flash WiFi-probe
-    /// cooldown. Centralizes the cooldown for both the auto (PIC32+WiFi) and WiFi-only paths, which both
-    /// clear <see cref="IsFirmwareUploading"/> when they complete.
-    /// </summary>
-    partial void OnIsFirmwareUploadingChanged(bool value)
-    {
-        if (!value)
-        {
-            SuppressWifiFirmwareProbe(WifiProbeCooldownAfterFlash);
-        }
-    }
-
     #endregion
 
     #region WiFi firmware probe and WiFi-only flash
@@ -1586,10 +1555,11 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
     private async Task CheckWifiFirmwareCoreAsync()
     {
-        // Hard stop before touching any device: never probe while a flash is running or during the
-        // post-flash cooldown. The probe sends SCPI (POWer:STATe 1 / GETChipInfo?); a byte landing on a
-        // WINC that is bridging or still settling corrupts the program and bricks the module.
-        if (IsFirmwareUploading || DateTime.UtcNow < _suppressWifiProbeUntilUtc)
+        // Hard stop before touching any device: never probe while a flash is running. The probe sends
+        // SCPI (POWer:STATe 1 / GETChipInfo?); a byte landing on a WINC that is bridging for a flash
+        // corrupts the program and bricks the module. (The device only reconnects after it has rebooted
+        // out of bridge mode, so a post-flash reconnect is already a safe moment to probe.)
+        if (IsFirmwareUploading)
         {
             return;
         }
@@ -1632,14 +1602,12 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             }
 
             // Only probe a device that is still fully connected (it may have dropped during the settle
-            // wait), and never one that is mid firmware-update, the device currently being updated, or
-            // any device during the post-flash cooldown. Re-checked per-device because these can flip
-            // during the loop's awaits.
+            // wait), and never one that is mid firmware-update or the device currently being updated.
+            // Re-checked per-device because these can flip during the loop's awaits.
             var deviceBeingUpdated = ConnectionManager.Instance.DeviceBeingUpdated;
             if (!device.IsConnected
                 || IsFirmwareUploading
                 || wifiCheckToken.IsCancellationRequested
-                || DateTime.UtcNow < _suppressWifiProbeUntilUtc
                 || (deviceBeingUpdated != null && ReferenceEquals(deviceBeingUpdated, device)))
             {
                 continue;
