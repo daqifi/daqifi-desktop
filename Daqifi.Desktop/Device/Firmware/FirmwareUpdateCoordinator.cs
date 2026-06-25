@@ -413,6 +413,18 @@ public class FirmwareUpdateCoordinator
             _host.FirmwareUpdateStatusText = "Waiting for WiFi module to enter update mode...";
             await Task.Delay(_wifiUpdateModeSettleDelay, cancellationToken);
 
+            // Release the desktop's managed serial connection so the external WINC flash tool can open
+            // the COM port. Verified from logs: on the WiFi-only path the established connection keeps
+            // holding the port, so the tool can't open it and returns in ~1s (false-success guard fires);
+            // the app's own raw open even gets "Access denied" until this Disconnect runs. The tool talks
+            // to the WINC over raw serial (the bridge-activation writes), and Core's device commands were
+            // already issued by EnableLanUpdateMode above — so hand Core a no-op device for the tool step
+            // (mirrors the bootloader flash) and let the freed port go to the tool. WifiPromptDelay-
+            // ProcessRunner's pre-launch wait gives Windows time to release the USB-CDC handle.
+            _appLogger.Information($"Releasing managed connection on {serialStreamingDevice.PortName} before the WINC flash tool.");
+            serialStreamingDevice.Disconnect();
+            var flashDevice = new BootloaderSessionStreamingDeviceAdapter(serialStreamingDevice.Name);
+
             var wifiUpdateService = _wifiFirmwareUpdateServiceFactory(wifiVersion, serialStreamingDevice.PortName);
             // Monotonic clock for the duration guard below — DateTime.UtcNow can jump with a system
             // clock adjustment and skew the pass/fail decision.
@@ -420,7 +432,7 @@ public class FirmwareUpdateCoordinator
             try
             {
                 await wifiUpdateService.UpdateWifiModuleAsync(
-                    coreDevice,
+                    flashDevice,
                     extractedBasePath,
                     progress,
                     cancellationToken);

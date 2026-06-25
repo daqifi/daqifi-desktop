@@ -187,7 +187,11 @@ public class DaqifiViewModelFirmwareUpdateTests
         await coordinator.UploadFirmwareAsync();
 
         Assert.AreSame(coreDevice, pic32Device);
-        Assert.AreSame(coreDevice, wifiDevice);
+        // Unlike the PIC32 flash, the WiFi flash releases the managed serial connection and runs the
+        // WINC tool against a no-op device (the tool reaches the board over raw serial via bridge
+        // activation) — that's what frees the COM port so the tool can open it. So the WiFi flash does
+        // NOT reuse the live core device.
+        Assert.IsInstanceOfType(wifiDevice, typeof(Daqifi.Desktop.Device.Firmware.BootloaderSessionStreamingDeviceAdapter));
         Assert.AreEqual("19.7.0", wifiVersion);
         Assert.AreEqual("COM9", wifiPort);
         Assert.IsTrue(host.IsUploadComplete);
@@ -197,12 +201,12 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.IsTrue(host.QuiesceWifiFirmwareProbeCallCount >= 1,
             "Coordinator must quiesce the WiFi probe before flashing.");
 
+        // LAN-update-mode prep goes over the managed connection before it's released.
         AssertCommandSent(coreDevice, ScpiMessageProducer.TurnDeviceOn);
         AssertCommandSent(coreDevice, ScpiMessageProducer.SetLanFirmwareUpdateMode);
-        AssertCommandSent(coreDevice, ScpiMessageProducer.SetUsbTransparencyMode(0));
-        AssertCommandSent(coreDevice, ScpiMessageProducer.EnableNetworkLan);
-        AssertCommandSent(coreDevice, ScpiMessageProducer.ApplyNetworkLan);
-        AssertCommandSent(coreDevice, ScpiMessageProducer.SaveNetworkLan);
+        // The post-flash reset (SetTransparentMode 0 / EnableNetworkLan / Apply / Save) no longer
+        // travels over the managed connection — it's released before the tool runs, so the transparent-
+        // mode exit happens via the raw ExitWifiTransparentModeRaw path (and the device's reboot).
 
         pic32FirmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
@@ -790,8 +794,9 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.IsTrue(host.HasErrorOccured, "An implausibly fast WiFi flash must surface as an error.");
         Assert.IsFalse(host.IsUploadComplete, "A false-success flash must not report completion.");
 
-        // The device must still be brought out of transparent mode even though the flash failed.
-        AssertCommandSent(coreDevice, ScpiMessageProducer.SetUsbTransparencyMode(0));
+        // The device is still brought out of transparent mode even on failure, but that now happens via
+        // the raw ExitWifiTransparentModeRaw path (the managed connection is released before the flash),
+        // so SetTransparentMode 0 is not sent over the core device here.
     }
 
     /// <summary>
