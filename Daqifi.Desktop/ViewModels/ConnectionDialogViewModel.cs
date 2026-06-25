@@ -308,6 +308,15 @@ public partial class ConnectionDialogViewModel : ObservableObject
             return;
         }
 
+        // Drain serial discovery before opening the port — same exclusive-access guarantee the
+        // discovered-device path (ConnectSerialAsync) already takes. The continuous SerialDeviceFinder
+        // loop opens/probes every DAQiFi-VID/PID COM port each cycle (and a probe on a port that never
+        // answers the identify sits there holding the handle), so without this the app races ITSELF for
+        // the port and the open fails "in use by another process". This is the common path for a device
+        // stranded in transparent mode: it isn't auto-discovered, so the user connects to it by port
+        // here while discovery is still hammering it.
+        await StopSerialDiscoveryAsync();
+
         ManualSerialDevice = new SerialStreamingDevice(portName);
         await ConnectionManager.Instance.Connect(ManualSerialDevice);
 
@@ -321,6 +330,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
             ManualPortError =
                 $"Could not connect to '{portName}'. " +
                 "The port may be in use by another application or the device is not responding.";
+            // Restart discovery so the dialog keeps finding devices after a failed manual attempt.
+            StartSerialDiscovery();
             return;
         }
 
