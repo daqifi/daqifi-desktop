@@ -204,9 +204,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
             while (!cancellationToken.IsCancellationRequested && _serialFinder != null)
             {
                 await _serialFinder.DiscoverAsync(cancellationToken);
-                // Core's finder only surfaces devices that answer the GetDeviceInfo probe. Also surface
-                // DAQiFi-VID/PID ports that didn't answer (blank-WINC / slow units) so they're connectable.
-                AddUnprobedDaqifiSerialPorts();
                 // Serial discovery is quick, pause longer between scans
                 await Task.Delay(2000, cancellationToken);
             }
@@ -546,128 +543,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         return AvailableSerialDevices.FirstOrDefault(d =>
             d.Port?.PortName.Equals(portName, StringComparison.OrdinalIgnoreCase) == true);
-    }
-
-    /// <summary>
-    /// Surfaces DAQiFi USB serial devices that Core's probe-based discovery did NOT confirm: a unit whose
-    /// USB descriptor matches the DAQiFi CDC VID/PID but that never answered the lightweight
-    /// <c>GetDeviceInfo</c> probe — most importantly a fresh unit with a blank/erased WINC, or one slow to
-    /// respond. Such a device connects fine over the full connect handshake (and can then be flashed), but
-    /// without this it never appears in the list. Matched by VID/PID only (via WMI); the actual identify
-    /// happens on connect. Deduped against ports Core already surfaced and ports already connected.
-    /// </summary>
-    private void AddUnprobedDaqifiSerialPorts()
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
-        string[] portNames;
-        try
-        {
-            portNames = SerialPort.GetPortNames();
-        }
-        catch (Exception ex)
-        {
-            Common.Loggers.AppLogger.Instance.Warning(ex, "Failed to enumerate serial ports for the unprobed-DAQiFi scan.");
-            return;
-        }
-
-        var connectedPorts = ConnectionManager.Instance.ConnectedDevices
-            .OfType<SerialStreamingDevice>()
-            .Select(d => d.Port?.PortName)
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var portName in portNames)
-        {
-            // Skip ports Core's probe already surfaced or that are already connected.
-            if (connectedPorts.Contains(portName) || FindSerialDeviceByPortName(portName) != null)
-            {
-                continue;
-            }
-
-            var vidPid = TryGetUsbVidPid(portName);
-            if (vidPid is not (DaqifiUsbIds.VendorId, DaqifiUsbIds.CdcProductId))
-            {
-                continue;
-            }
-
-            InvokeOnUiThread(() =>
-            {
-                // Re-check on the UI thread: Core's probe may have surfaced it between the off-thread
-                // VID/PID lookup and here.
-                if (FindSerialDeviceByPortName(portName) != null)
-                {
-                    return;
-                }
-
-                var serialDevice = new SerialStreamingDevice(
-                    portName,
-                    $"DAQiFi device ({portName})",
-                    string.Empty,
-                    string.Empty);
-                AvailableSerialDevices.Add(serialDevice);
-                if (HasNoSerialDevices) { HasNoSerialDevices = false; }
-                Common.Loggers.AppLogger.Instance.Information(
-                    $"Surfaced DAQiFi device on {portName} by VID/PID (did not answer the discovery probe — " +
-                    "e.g. blank WiFi module). Connect to identify/flash it.");
-            });
-        }
-    }
-
-    /// <summary>
-    /// Resolves a serial port's USB VID/PID via WMI <c>Win32_PnPEntity</c>, mirroring Core's
-    /// platform descriptor provider (which is internal, so it can't be reused directly). Returns null
-    /// off Windows, on any WMI error, or when the port has no readable USB VID/PID.
-    /// </summary>
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static (int Vid, int Pid)? TryGetUsbVidPid(string portName)
-    {
-        if (string.IsNullOrWhiteSpace(portName) ||
-            !System.Text.RegularExpressions.Regex.IsMatch(portName, @"^COM\d+$",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
-        {
-            return null;
-        }
-
-        try
-        {
-            using var searcher = new System.Management.ManagementObjectSearcher(
-                $"SELECT DeviceID FROM Win32_PnPEntity WHERE PNPClass = 'Ports' AND Caption LIKE '%({portName})%'");
-            using var results = searcher.Get();
-            foreach (var entity in results)
-            {
-                using (entity)
-                {
-                    if (entity["DeviceID"] is not string deviceId || string.IsNullOrEmpty(deviceId))
-                    {
-                        continue;
-                    }
-
-                    var match = System.Text.RegularExpressions.Regex.Match(
-                        deviceId, @"VID_(?<vid>[0-9A-F]{4}).*PID_(?<pid>[0-9A-F]{4})",
-                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                    if (!match.Success)
-                    {
-                        continue;
-                    }
-
-                    var vid = int.Parse(match.Groups["vid"].Value,
-                        System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
-                    var pid = int.Parse(match.Groups["pid"].Value,
-                        System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
-                    return (vid, pid);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Common.Loggers.AppLogger.Instance.Warning($"USB VID/PID lookup failed for {portName}: {ex.Message}");
-        }
-
-        return null;
     }
 
     private static void UpdateSerialDeviceMetadata(
