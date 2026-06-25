@@ -118,19 +118,54 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         Common.Loggers.AppLogger.Instance.AddBreadcrumb("discovery", "Device discovery started");
 
-        // WiFi Discovery
+        StartWiFiDiscovery();
+        StartSerialDiscovery();
+        StartHidDiscovery();
+    }
+
+    private void StartWiFiDiscovery()
+    {
+        // Idempotent while actually running; allow a restart once the prior loop has completed (e.g.
+        // it was drained around a firmware flash), otherwise a stale task reference blocks discovery.
+        if (_closed || _wifiDiscoveryTask is { IsCompleted: false }) { return; }
+
+        // Restart-after-drain: dispose the prior finder/CTS before replacing them so we never leak a
+        // subscribed finder or an undisposed CancellationTokenSource.
+        if (_wifiFinder != null) { _wifiFinder.DeviceDiscovered -= HandleCoreWifiDeviceDiscovered; _wifiFinder.Dispose(); }
+        _wifiDiscoveryCts?.Dispose();
+
         _wifiFinder = new WiFiDeviceFinder(30303);
         _wifiDiscoveryCts = new CancellationTokenSource();
         _wifiFinder.DeviceDiscovered += HandleCoreWifiDeviceDiscovered;
         _wifiDiscoveryTask = RunContinuousWiFiDiscoveryAsync(_wifiDiscoveryCts.Token);
+    }
 
-        // Serial Discovery
+    private void StartSerialDiscovery()
+    {
+        if (_closed || _serialDiscoveryTask is { IsCompleted: false }) { return; }
+
+        if (_serialFinder != null) { _serialFinder.DeviceDiscovered -= HandleCoreSerialDeviceDiscovered; _serialFinder.Dispose(); }
+        _serialDiscoveryCts?.Dispose();
+
         _serialFinder = new Daqifi.Core.Device.Discovery.SerialDeviceFinder();
         _serialDiscoveryCts = new CancellationTokenSource();
         _serialFinder.DeviceDiscovered += HandleCoreSerialDeviceDiscovered;
         _serialDiscoveryTask = RunContinuousSerialDiscoveryAsync(_serialDiscoveryCts.Token);
+    }
 
-        // HID Discovery
+    /// <summary>
+    /// Starts the continuous HID discovery loop. Extracted so it can be paused around a bootloader
+    /// flash: the loop opens every matching HID device each cycle (to read USB string descriptors),
+    /// which collides with the bootloader's in-progress HID I/O and corrupts the flash.
+    /// <see cref="ConnectHid"/> drains it before flashing and restarts it afterward.
+    /// </summary>
+    private void StartHidDiscovery()
+    {
+        if (_closed || _hidDiscoveryTask is { IsCompleted: false }) { return; }
+
+        if (_hidDeviceFinder != null) { _hidDeviceFinder.DeviceDiscovered -= HandleCoreHidDeviceDiscovered; _hidDeviceFinder.Dispose(); }
+        _hidDiscoveryCts?.Dispose();
+
         _hidDeviceFinder = new Daqifi.Core.Device.Discovery.HidDeviceFinder();
         _hidDiscoveryCts = new CancellationTokenSource();
         _hidDeviceFinder.DeviceDiscovered += HandleCoreHidDeviceDiscovered;
@@ -403,17 +438,35 @@ public partial class ConnectionDialogViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ConnectHid(object selectedItems)
+    private async Task ConnectHid(object selectedItems)
     {
-        //_hidDeviceFinder.Stop();
+        if (selectedItems is not IEnumerable enumerable) { return; }
 
-        var selectedDevices = ((IEnumerable)selectedItems).Cast<CoreDeviceInfo>();
-        var hidDevice = selectedDevices.FirstOrDefault();
+        var hidDevice = enumerable.Cast<CoreDeviceInfo>().FirstOrDefault();
         if (hidDevice == null) { return; }
 
-        var firmwareDialogViewModel = new FirmwareDialogViewModel(hidDevice.Name);
-        _dialogService.ShowDialog<FirmwareDialog>(this, firmwareDialogViewModel);
-
+        // Pause ALL discovery for the duration of the flash, not just HID. Each loop probes the bus
+        // every cycle: HID discovery re-opens every matching HID device (reading USB string descriptors
+        // opens the handle) and serial discovery opens/probes every COM port waiting for an identify
+        // response. Either can collide with — or starve — the bootloader's HID I/O mid-flash, producing
+        // the intermittent "Connecting"-state HID write failure / read timeout. Awaiting the drains
+        // matters: cancel/dispose does NOT abort an in-flight DiscoverAsync cycle, so a still-running
+        // probe can hold a handle when the flasher fires.
+        await StopWiFiDiscoveryAsync();
+        await StopSerialDiscoveryAsync();
+        await StopHidDiscoveryAsync();
+        try
+        {
+            var firmwareDialogViewModel = new FirmwareDialogViewModel(hidDevice.Name);
+            _dialogService.ShowDialog<FirmwareDialog>(this, firmwareDialogViewModel);
+        }
+        finally
+        {
+            // Resume discovery once the flash dialog closes so the device list stays live.
+            StartWiFiDiscovery();
+            StartSerialDiscovery();
+            StartHidDiscovery();
+        }
     }
     #endregion
 
@@ -626,6 +679,86 @@ public partial class ConnectionDialogViewModel : ObservableObject
     private void StopHidDiscovery()
     {
         _hidDiscoveryCts?.Cancel();
+
+        if (_hidDeviceFinder != null)
+        {
+            _hidDeviceFinder.DeviceDiscovered -= HandleCoreHidDeviceDiscovered;
+            _hidDeviceFinder.Dispose();
+            _hidDeviceFinder = null;
+        }
+
+        _hidDiscoveryCts?.Dispose();
+        _hidDiscoveryCts = null;
+    }
+
+    /// <summary>
+    /// Stops WiFi discovery and waits for the in-flight discovery cycle to drain before returning —
+    /// the async counterpart to <see cref="StopWiFiDiscovery"/>, used before a bootloader flash so a
+    /// running UDP discovery cycle isn't still live when the flash begins. Mirrors
+    /// <see cref="StopSerialDiscoveryAsync"/>.
+    /// </summary>
+    private async Task StopWiFiDiscoveryAsync()
+    {
+        _wifiDiscoveryCts?.Cancel();
+
+        if (_wifiDiscoveryTask != null)
+        {
+            try
+            {
+                await _wifiDiscoveryTask.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (TimeoutException)
+            {
+                Common.Loggers.AppLogger.Instance.Warning("WiFi discovery task did not complete within timeout");
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception ex)
+            {
+                Common.Loggers.AppLogger.Instance.Error(ex, "Unexpected error while stopping WiFi discovery");
+            }
+            _wifiDiscoveryTask = null;
+        }
+
+        if (_wifiFinder != null)
+        {
+            _wifiFinder.DeviceDiscovered -= HandleCoreWifiDeviceDiscovered;
+            _wifiFinder.Dispose();
+            _wifiFinder = null;
+        }
+
+        _wifiDiscoveryCts?.Dispose();
+        _wifiDiscoveryCts = null;
+    }
+
+    /// <summary>
+    /// Stops HID discovery and waits for the in-flight discovery cycle to finish before returning.
+    /// <see cref="StopHidDiscovery"/> alone only signals cancellation and disposes the finder, but a
+    /// running <c>DiscoverAsync</c> cycle keeps the bootloader's HID handle open until it returns;
+    /// draining the task first guarantees the flasher has exclusive access for its first write.
+    /// </summary>
+    private async Task StopHidDiscoveryAsync()
+    {
+        _hidDiscoveryCts?.Cancel();
+
+        if (_hidDiscoveryTask != null)
+        {
+            try
+            {
+                await _hidDiscoveryTask.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            catch (TimeoutException)
+            {
+                Common.Loggers.AppLogger.Instance.Warning("HID discovery task did not complete within timeout");
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception ex)
+            {
+                Common.Loggers.AppLogger.Instance.Error(ex, "Unexpected error while stopping HID discovery");
+            }
+            _hidDiscoveryTask = null;
+        }
 
         if (_hidDeviceFinder != null)
         {
