@@ -155,7 +155,7 @@ public class FirmwareUpdateCoordinator
         _firmwareUploadCts?.Dispose();
         _firmwareUploadCts = new CancellationTokenSource();
         _host.IsFirmwareUploading = true;
-        _host.CancelWifiFirmwareProbe();
+        await _host.QuiesceWifiFirmwareProbeAsync();
         _appLogger.AddBreadcrumb("firmware", $"Firmware update started for {serialStreamingDevice.Name}");
 
         try
@@ -372,6 +372,12 @@ public class FirmwareUpdateCoordinator
         IProgress<FirmwareUpdateProgress> progress,
         CancellationToken cancellationToken)
     {
+        // Final gate before the device enters WiFi update mode: ensure no connect-time WiFi probe is
+        // still mid SCPI exchange. Cancelling its token (done when the flash started) does not abort a
+        // POWer:STATe 1 / GETChipInfo? already on the wire — await it fully draining here, because any
+        // byte that lands once the WINC is bridging corrupts the program and bricks the module.
+        await _host.QuiesceWifiFirmwareProbeAsync();
+
         // Preserve the legacy serial prep/reset sequence now that the firmware flow uses the
         // underlying Core device directly instead of routing through a desktop-shaped adapter.
         var lanUpdateModeEnabled = false;

@@ -84,9 +84,11 @@ public interface IFirmwareUpdateHost
     void ShowFirmwareUpdateSucceeded();
 
     /// <summary>
-    /// Cancels any in-flight connect-time WiFi firmware probe. Called by the coordinator before a
-    /// PIC32 flash so the probe's SCPI exchange can never overlap and corrupt the bootloader handshake.
+    /// Cancels any in-flight connect-time WiFi firmware probe and awaits its full unwind. Called by the
+    /// coordinator before a flash (PIC32 or WiFi) so the probe's SCPI exchange
+    /// (<c>POWer:STATe 1</c> / <c>GETChipInfo?</c>) can never still be on the wire when the device
+    /// enters update mode — a stray byte while the WINC is bridging corrupts the program and bricks it.
     /// </summary>
-    void CancelWifiFirmwareProbe();
+    Task QuiesceWifiFirmwareProbeAsync();
     #endregion
 }

@@ -192,6 +192,10 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.AreEqual("COM9", wifiPort);
         Assert.IsTrue(host.IsUploadComplete);
         Assert.IsFalse(host.HasErrorOccured);
+        // The connect-time WiFi probe must be quiesced before the device enters update mode, so a
+        // stray POWer:STATe 1 / GETChipInfo? can't land on the bridging WINC and brick it.
+        Assert.IsTrue(host.QuiesceWifiFirmwareProbeCallCount >= 1,
+            "Coordinator must quiesce the WiFi probe before flashing.");
 
         AssertCommandSent(coreDevice, ScpiMessageProducer.TurnDeviceOn);
         AssertCommandSent(coreDevice, ScpiMessageProducer.SetLanFirmwareUpdateMode);
@@ -929,10 +933,14 @@ public class DaqifiViewModelFirmwareUpdateTests
 
         public void ShowFirmwareUpdateSucceeded() => SucceededCallCount++;
 
-        public void CancelWifiFirmwareProbe() => CancelWifiFirmwareProbeCallCount++;
+        public Task QuiesceWifiFirmwareProbeAsync()
+        {
+            QuiesceWifiFirmwareProbeCallCount++;
+            return Task.CompletedTask;
+        }
 
-        /// <summary>Number of times <see cref="CancelWifiFirmwareProbe"/> was invoked.</summary>
-        public int CancelWifiFirmwareProbeCallCount { get; private set; }
+        /// <summary>Number of times <see cref="QuiesceWifiFirmwareProbeAsync"/> was invoked.</summary>
+        public int QuiesceWifiFirmwareProbeCallCount { get; private set; }
     }
 
     private sealed class TestCoreStreamingDevice : DaqifiStreamingDevice, ILanChipInfoProvider

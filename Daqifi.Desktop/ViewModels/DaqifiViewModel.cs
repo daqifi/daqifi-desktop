@@ -167,6 +167,17 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     // awaits finish would race on the cache / dispose the in-flight CTS out from under it.
     private bool _wifiCheckInProgress;
 
+    // The currently-running probe task (null when none). A flash awaits this after cancelling so an
+    // in-flight POWer:STATe 1 / GETChipInfo? exchange is fully unwound before the device enters WiFi
+    // update mode — cancelling the token alone does NOT abort an SCPI write already on the wire, and
+    // any byte that lands while the WINC is bridging corrupts the program (bricks the module).
+    private Task? _wifiProbeTask;
+
+    // Probes are suppressed until this time. Set after a flash so a post-flash reconnect doesn't query
+    // a WINC that is still rebooting/settling. UtcNow is fine here (this is app code, not a workflow).
+    private DateTime _suppressWifiProbeUntilUtc = DateTime.MinValue;
+    private static readonly TimeSpan WifiProbeCooldownAfterFlash = TimeSpan.FromSeconds(20);
+
     // Owns the WiFi-only flash lifecycle (the PIC32 path's CTS lives in the coordinator).
     private CancellationTokenSource? _firmwareUploadCts;
     private readonly LoggingSessionListViewModel _loggingSessionList;
@@ -1180,10 +1191,16 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
         // A newly connected device may have an out-of-date WiFi module. Fire-and-forget the probe
         // (it powers on the WINC, runs a multi-second SCPI exchange, and flags outdated modules);
-        // the re-entrancy guard inside serializes overlapping change notifications.
+        // the re-entrancy guard inside serializes overlapping change notifications. Track the task
+        // (only when it actually starts a probe — the re-entrancy guard returns a completed task)
+        // so a flash can await it draining before touching the device.
         if (anyAdded)
         {
-            _ = CheckWifiFirmwareAsync();
+            var probe = CheckWifiFirmwareAsync();
+            if (!probe.IsCompleted)
+            {
+                _wifiProbeTask = probe;
+            }
         }
     }
 
@@ -1456,8 +1473,52 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         CloseFlyouts();
     }
 
-    /// <summary>Cancels any in-flight connect-time WiFi firmware probe before a PIC32 flash.</summary>
-    public void CancelWifiFirmwareProbe() => CancelWifiFirmwareCheck();
+    /// <summary>
+    /// Cancels any in-flight connect-time WiFi firmware probe AND waits for it to fully unwind before
+    /// a flash proceeds. Cancelling the token alone does not abort an SCPI exchange already on the wire,
+    /// so the coordinator awaits this before the device enters WiFi update mode — otherwise a stray
+    /// <c>POWer:STATe 1</c> / <c>GETChipInfo?</c> can land while the WINC is bridging and brick it.
+    /// </summary>
+    public async Task QuiesceWifiFirmwareProbeAsync()
+    {
+        CancelWifiFirmwareCheck();
+
+        var inflight = _wifiProbeTask;
+        if (inflight != null)
+        {
+            // CheckWifiFirmwareAsync already swallows cancellation/probe faults; this await just blocks
+            // until the probe's last SCPI exchange has returned (or been cancelled) so nothing overlaps.
+            try { await inflight.ConfigureAwait(false); }
+            catch { /* probe outcome is irrelevant here; we only need it to have stopped touching the device */ }
+            _wifiProbeTask = null;
+        }
+    }
+
+    /// <summary>
+    /// Suppresses connect-time WiFi probes for <paramref name="duration"/> so a post-flash reconnect
+    /// doesn't immediately query a WINC that is still rebooting/settling.
+    /// </summary>
+    private void SuppressWifiFirmwareProbe(TimeSpan duration)
+    {
+        var until = DateTime.UtcNow + duration;
+        if (until > _suppressWifiProbeUntilUtc)
+        {
+            _suppressWifiProbeUntilUtc = until;
+        }
+    }
+
+    /// <summary>
+    /// When any firmware flash finishes (the flag falls true→false), start the post-flash WiFi-probe
+    /// cooldown. Centralizes the cooldown for both the auto (PIC32+WiFi) and WiFi-only paths, which both
+    /// clear <see cref="IsFirmwareUploading"/> when they complete.
+    /// </summary>
+    partial void OnIsFirmwareUploadingChanged(bool value)
+    {
+        if (!value)
+        {
+            SuppressWifiFirmwareProbe(WifiProbeCooldownAfterFlash);
+        }
+    }
 
     #endregion
 
@@ -1504,6 +1565,14 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
     private async Task CheckWifiFirmwareCoreAsync()
     {
+        // Hard stop before touching any device: never probe while a flash is running or during the
+        // post-flash cooldown. The probe sends SCPI (POWer:STATe 1 / GETChipInfo?); a byte landing on a
+        // WINC that is bridging or still settling corrupts the program and bricks the module.
+        if (IsFirmwareUploading || DateTime.UtcNow < _suppressWifiProbeUntilUtc)
+        {
+            return;
+        }
+
         // Snapshot the UI-owned ConnectedDevices list on the dispatcher: this probe is fire-and-forget
         // and can resume on a thread-pool thread, while the list is mutated on the UI thread. One
         // snapshot is reused for both the prune below and the loop, so we never enumerate the live list.
@@ -1543,8 +1612,14 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 continue;
             }
 
-            // Don't disturb a device that is mid firmware-update.
-            if (IsFirmwareUploading || wifiCheckToken.IsCancellationRequested)
+            // Don't disturb a device that is mid firmware-update, the device currently being updated,
+            // or any device during the post-flash cooldown. Re-checked per-device because these can
+            // flip during the loop's awaits.
+            var deviceBeingUpdated = ConnectionManager.Instance.DeviceBeingUpdated;
+            if (IsFirmwareUploading
+                || wifiCheckToken.IsCancellationRequested
+                || DateTime.UtcNow < _suppressWifiProbeUntilUtc
+                || (deviceBeingUpdated != null && ReferenceEquals(deviceBeingUpdated, device)))
             {
                 continue;
             }
