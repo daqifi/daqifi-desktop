@@ -178,12 +178,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private DateTime _suppressWifiProbeUntilUtc = DateTime.MinValue;
     private static readonly TimeSpan WifiProbeCooldownAfterFlash = TimeSpan.FromSeconds(20);
 
-    // Wait this long after a device appears in ConnectedDevices before probing its WiFi version, so the
-    // probe runs strictly AFTER the connection bring-up (Core's InitializeAsync handshake) is finished
-    // and the device is idle — never racing it. Sending SCPI into the connect window disrupts the
-    // device (most visibly when it's in standby and the chip query can't answer).
-    private static readonly TimeSpan WifiProbeConnectSettleDelay = TimeSpan.FromSeconds(4);
-
     // Owns the WiFi-only flash lifecycle (the PIC32 path's CTS lives in the coordinator).
     private CancellationTokenSource? _firmwareUploadCts;
     private readonly LoggingSessionListViewModel _loggingSessionList;
@@ -1595,35 +1589,17 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             return;
         }
 
-        // Snapshot the UI-owned ConnectedDevices list on the dispatcher: this probe is fire-and-forget
-        // and can resume on a thread-pool thread, while the list is mutated on the UI thread. One
-        // snapshot is reused for both the prune below and the loop, so we never enumerate the live list.
         // Fresh cancellation source for this probe pass; CancelWifiFirmwareCheck() (called when a
-        // firmware flash starts) aborts the settle wait + SCPI exchange so they can never overlap the
-        // flash. Cancel (not just dispose) the prior source first.
+        // firmware flash starts) aborts the in-flight SCPI exchange so it can never overlap the flash.
+        // Cancel (not just dispose) the prior source first.
         _wifiCheckCts?.Cancel();
         _wifiCheckCts?.Dispose();
         _wifiCheckCts = new CancellationTokenSource();
         var wifiCheckToken = _wifiCheckCts.Token;
 
-        // Probe strictly AFTER connecting: wait out a short settle so the connection handshake is done
-        // and the device is idle before any SCPI. Snapshot ConnectedDevices AFTER the wait so devices
-        // that finished connecting during it are still included.
-        try
-        {
-            await Task.Delay(WifiProbeConnectSettleDelay, wifiCheckToken);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-
-        // A flash may have started (or the cooldown begun) during the settle wait.
-        if (IsFirmwareUploading || DateTime.UtcNow < _suppressWifiProbeUntilUtc)
-        {
-            return;
-        }
-
+        // Snapshot the UI-owned ConnectedDevices list on the dispatcher: this probe is fire-and-forget
+        // and can resume on a thread-pool thread, while the list is mutated on the UI thread. One
+        // snapshot is reused for both the prune below and the loop, so we never enumerate the live list.
         var dispatcher = Application.Current?.Dispatcher;
         var connectedDevices = dispatcher != null
             ? await dispatcher.InvokeAsync(() => ConnectionManager.Instance.ConnectedDevices.ToList())
