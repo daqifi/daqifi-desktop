@@ -1,11 +1,12 @@
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device.Firmware;
+using Daqifi.Desktop.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
-using System.Net.Http;
+using System.Collections.ObjectModel;
+using System.IO;
 using File = System.IO.File;
 
 namespace Daqifi.Desktop.ViewModels;
@@ -13,6 +14,7 @@ namespace Daqifi.Desktop.ViewModels;
 public partial class FirmwareDialogViewModel : ObservableObject
 {
     private readonly IFirmwareUpdateService _firmwareUpdateService;
+    private readonly IFirmwareDownloadService _firmwareDownloadService;
     private readonly Daqifi.Core.Device.IStreamingDevice _coreDevice;
     private CancellationTokenSource? _updateCts;
 
@@ -20,10 +22,24 @@ public partial class FirmwareDialogViewModel : ObservableObject
     private string _version = "Bootloader mode";
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UploadFirmwareCommand))]
     private string _firmwareFilePath = string.Empty;
+
+    /// <summary>
+    /// The latest published firmware the user can flash without browsing for a <c>.hex</c>. In
+    /// bootloader/recovery mode the device model isn't known, so this is typically a single
+    /// "DAQiFi — &lt;version&gt;" entry, loaded asynchronously after construction.
+    /// </summary>
+    public ObservableCollection<FirmwareOption> AvailableFirmwares { get; } = [];
+
+    /// <summary>The firmware option selected in the dropdown to flash when no .hex is browsed.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UploadFirmwareCommand))]
+    private FirmwareOption? _selectedFirmware;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CancelUploadFirmwareCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UploadFirmwareCommand))]
     private bool _isFirmwareUploading;
 
     [ObservableProperty]
@@ -38,15 +54,77 @@ public partial class FirmwareDialogViewModel : ObservableObject
 
     public string UploadFirmwareProgressText => $"Upload Progress: {UploadFirmwareProgress}%";
 
+    /// <summary>
+    /// Creates the bootloader firmware dialog view-model for a HID bootloader session and kicks off
+    /// loading the latest published firmware so the user can flash it without locating a .hex file.
+    /// </summary>
+    /// <param name="hidDeviceName">HID device name for the bootloader session (used by the flasher adapter).</param>
+    /// <param name="firmwareUpdateService">Optional override for tests; otherwise resolved from DI.</param>
+    /// <param name="firmwareDownloadService">Optional override for tests; otherwise resolved from DI.</param>
     public FirmwareDialogViewModel(
         string? hidDeviceName,
-        IFirmwareUpdateService? firmwareUpdateService = null)
+        IFirmwareUpdateService? firmwareUpdateService = null,
+        IFirmwareDownloadService? firmwareDownloadService = null)
     {
+        // Resolve from DI rather than newing up services/HttpClient here. Both are registered in
+        // App.ConfigureServices and the provider is always present at runtime; the throw is a
+        // fail-fast for a misconfigured container (tests pass mocks via the constructor args).
         _firmwareUpdateService = firmwareUpdateService
             ?? App.ServiceProvider?.GetService<IFirmwareUpdateService>()
-            ?? CreateFallbackFirmwareUpdateService();
+            ?? throw new InvalidOperationException("IFirmwareUpdateService is not registered.");
+
+        _firmwareDownloadService = firmwareDownloadService
+            ?? App.ServiceProvider?.GetService<IFirmwareDownloadService>()
+            ?? throw new InvalidOperationException("IFirmwareDownloadService is not registered.");
 
         _coreDevice = new BootloaderSessionStreamingDeviceAdapter(hidDeviceName ?? "DAQiFi Bootloader");
+
+        _ = LoadFirmwareOptionsAsync();
+    }
+
+    /// <summary>
+    /// Fetches the latest published firmware release and populates the dropdown so the user can flash
+    /// the latest DAQiFi firmware without browsing for a .hex file. Best-effort: a failure leaves the
+    /// dropdown empty and the user can still browse for a file.
+    /// </summary>
+    private async Task LoadFirmwareOptionsAsync()
+    {
+        try
+        {
+            var latestRelease = await _firmwareDownloadService.GetLatestReleaseAsync(includePreRelease: true);
+            if (latestRelease == null)
+            {
+                return;
+            }
+
+            var option = new FirmwareOption
+            {
+                DeviceModel = "DAQiFi",
+                Version = latestRelease.Version.ToString()
+            };
+
+            // GetLatestReleaseAsync may resume this continuation off the UI thread; AvailableFirmwares
+            // is bound to the dropdown, so marshal the mutation onto the dispatcher.
+            void AddOption()
+            {
+                AvailableFirmwares.Add(option);
+                SelectedFirmware ??= option;
+            }
+
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                await dispatcher.InvokeAsync(AddOption);
+            }
+            else
+            {
+                AddOption();
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Instance.Warning($"Failed to load latest firmware for bootloader dialog: {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -68,7 +146,16 @@ public partial class FirmwareDialogViewModel : ObservableObject
         FirmwareFilePath = dialog.FileName;
     }
 
-    [RelayCommand]
+    /// <summary>
+    /// Upload is allowed once there's something to flash: a browsed .hex path, or a dropdown
+    /// selection (populated asynchronously). Gating the command prevents a click before
+    /// <see cref="LoadFirmwareOptionsAsync"/> finishes from showing a false "something went wrong".
+    /// </summary>
+    private bool CanUploadFirmware() =>
+        !IsFirmwareUploading
+        && (!string.IsNullOrWhiteSpace(FirmwareFilePath) || SelectedFirmware != null);
+
+    [RelayCommand(CanExecute = nameof(CanUploadFirmware))]
     private async Task UploadFirmware()
     {
         if (IsFirmwareUploading)
@@ -76,7 +163,10 @@ public partial class FirmwareDialogViewModel : ObservableObject
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(FirmwareFilePath) || !File.Exists(FirmwareFilePath))
+        // A manually-browsed .hex takes precedence; otherwise flash the latest firmware selected
+        // from the dropdown (downloaded on demand).
+        var isManualUpload = !string.IsNullOrWhiteSpace(FirmwareFilePath);
+        if (!isManualUpload && SelectedFirmware == null)
         {
             HasErrorOccured = true;
             return;
@@ -92,6 +182,20 @@ public partial class FirmwareDialogViewModel : ObservableObject
             UploadFirmwareProgress = 0;
             IsFirmwareUploading = true;
             AppLogger.Instance.AddBreadcrumb("firmware", "Firmware update started");
+
+            if (!isManualUpload)
+            {
+                FirmwareFilePath = await _firmwareDownloadService.DownloadLatestFirmwareAsync(
+                    GetFirmwareDownloadDirectory(),
+                    includePreRelease: true,
+                    cancellationToken: _updateCts.Token);
+            }
+
+            if (string.IsNullOrWhiteSpace(FirmwareFilePath) || !File.Exists(FirmwareFilePath))
+            {
+                HasErrorOccured = true;
+                return;
+            }
 
             var progress = new Progress<FirmwareUpdateProgress>(report =>
             {
@@ -143,14 +247,10 @@ public partial class FirmwareDialogViewModel : ObservableObject
         return IsFirmwareUploading;
     }
 
-    private static IFirmwareUpdateService CreateFallbackFirmwareUpdateService()
+    private static string GetFirmwareDownloadDirectory()
     {
-        var downloadService = new GitHubFirmwareDownloadService(new HttpClient());
-        return new FirmwareUpdateService(
-            FirmwareUpdateServiceConfig.CreateBootloaderHidTransport(),
-            downloadService,
-            new ProcessExternalProcessRunner(),
-            NullLogger<FirmwareUpdateService>.Instance,
-            options: FirmwareUpdateServiceConfig.CreateOptions());
+        var firmwareDirectory = Path.Combine(App.DaqifiDataDirectory, "Firmware", "PIC32");
+        Directory.CreateDirectory(firmwareDirectory);
+        return firmwareDirectory;
     }
 }
