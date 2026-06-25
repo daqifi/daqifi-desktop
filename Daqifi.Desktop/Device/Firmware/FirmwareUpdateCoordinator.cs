@@ -32,6 +32,34 @@ public class FirmwareUpdateCoordinator
     private readonly Func<string, string, IFirmwareUpdateService> _wifiFirmwareUpdateServiceFactory;
     private CancellationTokenSource? _firmwareUploadCts;
     private string _latestFirmwareVersion = string.Empty;
+
+    private const int WifiChipInfoMaxAttempts = 3;
+    private static readonly TimeSpan WifiChipInfoRetryDelay = TimeSpan.FromSeconds(2);
+
+    /// <summary>Production default for <see cref="_wifiUpdateModeSettleDelay"/>.</summary>
+    public static readonly TimeSpan DefaultWifiUpdateModeSettleDelay = TimeSpan.FromSeconds(5);
+
+    /// <summary>Production default for <see cref="_minPlausibleWifiFlashDuration"/>.</summary>
+    public static readonly TimeSpan DefaultMinPlausibleWifiFlashDuration = TimeSpan.FromSeconds(15);
+
+    // After entering LAN FW-update mode (SYSTem:COMMunicate:LAN:FWUpdate) the device needs a few
+    // seconds to re-init the WINC into a state where the serial bridge is reachable. Launching the
+    // WINC flash tool immediately makes the FIRST attempt exit without programming (it reports a
+    // false success); a second attempt works only because the device has since settled. Wait here
+    // so the first attempt is reliable. Injectable (production default DefaultWifiUpdateModeSettleDelay)
+    // so unit tests can collapse the wait without weakening the production behavior.
+    private readonly TimeSpan _wifiUpdateModeSettleDelay;
+
+    // A real WINC program (bridge handshake + ~765 KB write + verify) takes tens of seconds. If the
+    // flash tool returns far faster than this it never actually programmed — almost always because the
+    // device didn't hand off the serial port to the tool, so the tool couldn't open it and bailed. We
+    // treat that as a failure instead of reporting a bogus success. Injectable (production default
+    // DefaultMinPlausibleWifiFlashDuration) so unit tests can drive the guard deterministically.
+    private readonly TimeSpan _minPlausibleWifiFlashDuration;
+
+    /// <summary>Minimum supported WiFi module firmware version. A device below this — or whose WiFi
+    /// chip info cannot be read — is flagged as needing a WiFi-only flash.</summary>
+    public const string MinimumWifiFirmwareVersion = "19.7.7";
     #endregion
 
     #region Constructor
@@ -51,6 +79,14 @@ public class FirmwareUpdateCoordinator
     /// port. When null, the built-in desktop factory (<see cref="CreateWifiFirmwareUpdateService"/>)
     /// is used; tests inject a fake to assert WiFi sequencing without hardware.
     /// </param>
+    /// <param name="wifiUpdateModeSettleDelay">
+    /// Overrides the WiFi-update-mode settle delay. Null uses
+    /// <see cref="DefaultWifiUpdateModeSettleDelay"/>; tests pass <see cref="TimeSpan.Zero"/> to skip the wait.
+    /// </param>
+    /// <param name="minPlausibleWifiFlashDuration">
+    /// Overrides the minimum plausible WiFi-flash duration (the false-success guard). Null uses
+    /// <see cref="DefaultMinPlausibleWifiFlashDuration"/>; tests pass <see cref="TimeSpan.Zero"/> to disable the guard.
+    /// </param>
     public FirmwareUpdateCoordinator(
         IFirmwareUpdateHost host,
         IFirmwareUpdateService firmwareUpdateService,
@@ -58,7 +94,9 @@ public class FirmwareUpdateCoordinator
         ILogger<FirmwareUpdateService> firmwareLogger,
         IAppLogger appLogger,
         string firmwareDataDirectory,
-        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null)
+        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null,
+        TimeSpan? wifiUpdateModeSettleDelay = null,
+        TimeSpan? minPlausibleWifiFlashDuration = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _firmwareUpdateService = firmwareUpdateService ?? throw new ArgumentNullException(nameof(firmwareUpdateService));
@@ -67,6 +105,8 @@ public class FirmwareUpdateCoordinator
         _appLogger = appLogger ?? throw new ArgumentNullException(nameof(appLogger));
         _firmwareDataDirectory = firmwareDataDirectory ?? throw new ArgumentNullException(nameof(firmwareDataDirectory));
         _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
+        _wifiUpdateModeSettleDelay = wifiUpdateModeSettleDelay ?? DefaultWifiUpdateModeSettleDelay;
+        _minPlausibleWifiFlashDuration = minPlausibleWifiFlashDuration ?? DefaultMinPlausibleWifiFlashDuration;
     }
     #endregion
 
@@ -115,6 +155,7 @@ public class FirmwareUpdateCoordinator
         _firmwareUploadCts?.Dispose();
         _firmwareUploadCts = new CancellationTokenSource();
         _host.IsFirmwareUploading = true;
+        _host.CancelWifiFirmwareProbe();
         _appLogger.AddBreadcrumb("firmware", $"Firmware update started for {serialStreamingDevice.Name}");
 
         try
@@ -231,100 +272,57 @@ public class FirmwareUpdateCoordinator
         _firmwareUploadCts?.Cancel();
     }
 
-    private async Task UpdateWifiModuleAsync(
+    internal async Task UpdateWifiModuleAsync(
         Daqifi.Core.Device.IStreamingDevice coreDevice,
         SerialStreamingDevice serialStreamingDevice,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool force = false)
     {
-        // Let Core probe the WiFi version and look up the latest release in one call so the desktop
-        // can skip unnecessary downloads and surface the current/update versions in the UI. Core owns
-        // the startup retry policy for the chip-info probe (the chip may still be booting right after
-        // a PIC32 update; see FirmwareUpdateServiceOptions.LanChipInfoMaxAttempts/LanChipInfoRetryDelay).
-        // Because the desktop owns this check, the Core flash call below passes skipVersionCheck: true
-        // so the device isn't queried a second time.
-        const string versionUnavailableStatus = "WiFi firmware version unavailable; continuing with update.";
+        // Core's WiFi updater also performs its own version probe when the passed device
+        // implements ILanChipInfoProvider. Keep the explicit desktop-side check here so
+        // desktop can skip unnecessary downloads and surface the current/update version in UI.
+        // When force is true the caller is an explicit user-initiated WiFi flash, so skip the
+        // up-to-date short-circuit and always flash; the auto path after a PIC32 update leaves
+        // force false so an already-current module is still skipped.
+        if (!force && serialStreamingDevice is ILanChipInfoProvider lanChipProvider)
+        {
+            _host.FirmwareUpdateStatusText = "Checking WiFi firmware version...";
+            _appLogger.Information("Checking WiFi firmware version before deciding whether to flash the WiFi module.");
 
-        _host.FirmwareUpdateStatusText = "Checking WiFi firmware version...";
-        _appLogger.Information("Checking WiFi firmware version before deciding whether to flash the WiFi module.");
+            // Power the WINC on before querying it. After a PIC32 reflash the device reboots and the
+            // WiFi module comes back powered OFF, so GETChipInfo? hits a dead module and every retry
+            // fails — which made the code fall through to "flash anyway" and needlessly re-flash an
+            // already-current module (then NACK). The connection-time probe (CheckWifiFirmwareAsync)
+            // already powers on before its query; mirror that here so the version check can succeed.
+            serialStreamingDevice.PowerOnWifiModule();
 
-        WifiFirmwareStatus? wifiStatus = null;
-        try
-        {
-            wifiStatus = await _firmwareUpdateService.CheckWifiFirmwareStatusAsync(coreDevice, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            // The status check is a UX optimization and expected failures already surface as Reason
-            // values, so this guards only unexpected faults (e.g. a broken service instance). Never
-            // let those abort the flash below, which runs on its own freshly created service.
-            _appLogger.Warning($"WiFi firmware status check failed ({ex.Message}); continuing with WiFi update.");
-            _host.FirmwareUpdateStatusText = versionUnavailableStatus;
-        }
+            var chipInfo = await TryGetLanChipInfoAsync(lanChipProvider, cancellationToken);
 
-        if (wifiStatus != null)
-        {
-            if (wifiStatus.CurrentChipInfo != null)
+            if (chipInfo == null)
+            {
+                _appLogger.Warning("WiFi chip info unavailable after startup retries; continuing with WiFi update.");
+                _host.FirmwareUpdateStatusText = "WiFi firmware version unavailable; continuing with update.";
+            }
+            else
             {
                 _appLogger.Information(
-                    "WiFi chip info query succeeded. " +
-                    $"Device WiFi firmware version: {wifiStatus.CurrentChipInfo.FwVersion}.");
-            }
+                    $"WiFi chip info query succeeded. Device WiFi firmware version: {chipInfo.FwVersion}.");
 
-            switch (wifiStatus.Reason)
-            {
-                case WifiFirmwareStatusReason.UpToDate:
+                // Use the same target version + decision helper as the connect-time probe
+                // (WifiFirmwareNeedsFlash against MinimumWifiFirmwareVersion) so the two surfaces
+                // never disagree about whether a module is out of date.
+                if (!WifiFirmwareNeedsFlash(chipInfo, out var reportedWifiVersion))
                 {
-                    var deviceVersion = wifiStatus.CurrentChipInfo!.FwVersion;
-                    var latestVersion = NormalizeWifiFirmwareVersion(wifiStatus.LatestRelease!.TagName);
-                    _host.FirmwareUpdateStatusText = $"WiFi firmware already up to date ({deviceVersion}).";
+                    _host.FirmwareUpdateStatusText = $"WiFi firmware already up to date ({reportedWifiVersion}).";
                     _appLogger.Information(
-                        $"WiFi firmware is already up to date (device: {deviceVersion}, latest: {latestVersion}); " +
-                        "skipping WiFi flash.");
+                        $"WiFi firmware is already up to date (device: {reportedWifiVersion}, target: {MinimumWifiFirmwareVersion}); skipping WiFi flash.");
                     _host.UploadWiFiProgress = 100;
                     return;
                 }
 
-                case WifiFirmwareStatusReason.UpdateAvailable:
-                {
-                    var deviceVersion = wifiStatus.CurrentChipInfo!.FwVersion;
-                    var latestVersion = NormalizeWifiFirmwareVersion(wifiStatus.LatestRelease!.TagName);
-                    _host.FirmwareUpdateStatusText =
-                        $"WiFi update available ({deviceVersion} → {latestVersion}). Downloading...";
-                    _appLogger.Information(
-                        $"WiFi firmware update required (device: {deviceVersion}, latest: {latestVersion}); " +
-                        "proceeding with WiFi flash.");
-                    break;
-                }
-
-                case WifiFirmwareStatusReason.ChipInfoUnavailable:
-                    _appLogger.Warning(
-                        "WiFi chip info unavailable after startup retries; continuing with WiFi update.");
-                    _host.FirmwareUpdateStatusText = versionUnavailableStatus;
-                    break;
-
-                case WifiFirmwareStatusReason.DeviceDoesNotSupportLanQuery:
-                    _appLogger.Warning(
-                        "Device does not support WiFi chip info queries; continuing with WiFi update.");
-                    _host.FirmwareUpdateStatusText = versionUnavailableStatus;
-                    break;
-
-                case WifiFirmwareStatusReason.LatestReleaseUnavailable:
-                    _appLogger.Warning(
-                        "Latest WiFi firmware release metadata was unavailable; continuing with WiFi update.");
-                    break;
-
-                default:
-                    // VersionUnparseable or future reasons — the comparison was inconclusive,
-                    // so conservatively continue with the flash.
-                    _appLogger.Warning(
-                        $"WiFi firmware version check was inconclusive ({wifiStatus.Reason}); " +
-                        "continuing with WiFi update.");
-                    _host.FirmwareUpdateStatusText = versionUnavailableStatus;
-                    break;
+                _host.FirmwareUpdateStatusText = $"WiFi update available ({reportedWifiVersion} → {MinimumWifiFirmwareVersion}). Downloading...";
+                _appLogger.Information(
+                    $"WiFi firmware update required (device: {reportedWifiVersion}, target: {MinimumWifiFirmwareVersion}); proceeding with WiFi flash.");
             }
         }
 
@@ -356,6 +354,24 @@ public class FirmwareUpdateCoordinator
             }
         });
 
+        await FlashWifiPackageAsync(
+            coreDevice, serialStreamingDevice, wifiVersion, wifiPackage.Value.ExtractedPath, wifiUpdateProgress, cancellationToken);
+    }
+
+    /// <summary>
+    /// Flashes an already-available WINC firmware package (downloaded or local) to the WiFi
+    /// module, wrapping the flash in the required LAN-update-mode prep/reset serial sequence.
+    /// <paramref name="extractedBasePath"/> is the base directory the flash tool runs against;
+    /// the tool selects the version sub-folder via the <c>/v {wifiVersion}</c> argument.
+    /// </summary>
+    private async Task FlashWifiPackageAsync(
+        Daqifi.Core.Device.IStreamingDevice coreDevice,
+        SerialStreamingDevice serialStreamingDevice,
+        string wifiVersion,
+        string extractedBasePath,
+        IProgress<FirmwareUpdateProgress> progress,
+        CancellationToken cancellationToken)
+    {
         // Preserve the legacy serial prep/reset sequence now that the firmware flow uses the
         // underlying Core device directly instead of routing through a desktop-shaped adapter.
         var lanUpdateModeEnabled = false;
@@ -363,60 +379,100 @@ public class FirmwareUpdateCoordinator
         {
             lanUpdateModeEnabled = serialStreamingDevice.EnableLanUpdateMode();
 
+            // If the device wouldn't enter LAN update mode (e.g. it disconnected), the flash tool
+            // can't reach the WINC — abort instead of running it against a device that isn't ready.
+            if (!lanUpdateModeEnabled)
+            {
+                _host.FirmwareUpdateStatusText = "Failed to enter WiFi update mode. Reconnect the device and try again.";
+                _appLogger.Warning($"Failed to enable LAN update mode for {serialStreamingDevice.PortName}; aborting WiFi flash.");
+                throw new InvalidOperationException(
+                    $"Could not put {serialStreamingDevice.PortName} into WiFi update mode (device not connected?).");
+            }
+
+            // Give the WINC time to come up in bridge mode before the flash tool opens the port,
+            // otherwise the first attempt runs too early and exits without programming.
+            _host.FirmwareUpdateStatusText = "Waiting for WiFi module to enter update mode...";
+            await Task.Delay(_wifiUpdateModeSettleDelay, cancellationToken);
+
             var wifiUpdateService = _wifiFirmwareUpdateServiceFactory(wifiVersion, serialStreamingDevice.PortName);
+            var flashStart = DateTime.UtcNow;
             try
             {
                 await wifiUpdateService.UpdateWifiModuleAsync(
                     coreDevice,
-                    wifiPackage.Value.ExtractedPath,
-                    wifiUpdateProgress,
-                    cancellationToken,
-                    skipVersionCheck: true);
+                    extractedBasePath,
+                    progress,
+                    cancellationToken);
             }
             finally
             {
                 (wifiUpdateService as IDisposable)?.Dispose();
+            }
+
+            // False-success guard: if the tool returned implausibly fast it never programmed the WINC
+            // (typically the device didn't release the port, so the tool couldn't open it). Don't let
+            // that surface as a success — fail so the user gets the disconnect/power-cycle guidance.
+            var flashElapsed = DateTime.UtcNow - flashStart;
+            if (flashElapsed < _minPlausibleWifiFlashDuration)
+            {
+                throw new InvalidOperationException(
+                    $"WiFi flash returned in {flashElapsed.TotalSeconds:F1}s — the WINC programmer did not run " +
+                    "(the device likely did not release the serial port to the flash tool).");
             }
         }
         finally
         {
             if (lanUpdateModeEnabled)
             {
-                // Bring the device back out of WiFi-update / USB-transparent (bridge) mode. The managed
-                // ResetLanAfterUpdate routes through the Core device; if a failed flash has already torn
-                // that connection down, its SetTransparentMode 0 silently no-ops and the device is left
-                // stranded in transparent mode — it stops answering SCPI and vanishes from the app until
-                // it is power-cycled.
-                try
-                {
-                    serialStreamingDevice.ResetLanAfterUpdate();
-                }
+                // Bring the device back out of WiFi-update / USB-transparent (bridge) mode. First try
+                // the managed ResetLanAfterUpdate (restores LAN config while the device still answers
+                // protobuf). Then the raw exit, which guarantees the device leaves transparent mode even
+                // when the managed connection both holds the port AND is being ignored by the device.
+                try { serialStreamingDevice.ResetLanAfterUpdate(); }
                 catch (Exception ex)
                 {
                     _appLogger.Warning($"ResetLanAfterUpdate failed for {serialStreamingDevice.PortName}: {ex.Message}");
                 }
 
-                // Safety net: only when the managed reset could NOT have worked (the Core connection is
-                // gone), also send the transparent-mode exit over a raw serial write so a failed flash
-                // can never strand the device. Run it off the calling thread — it does blocking serial
-                // I/O with short sleeps.
-                if (!coreDevice.IsConnected)
-                {
-                    await Task.Run(() => ExitWifiTransparentModeRaw(serialStreamingDevice.PortName));
-                }
+                ExitWifiTransparentModeRaw(serialStreamingDevice);
             }
         }
     }
 
     /// <summary>
-    /// Sends the USB-transparent-mode exit (<c>SYSTem:USB:SetTransparentMode 0</c>) directly over a raw
-    /// serial write, mirroring the bridge-activation path. This is the safety net for a failed WiFi
-    /// flash whose managed Core connection has already been torn down: the PIC32 still parses this
-    /// command even while bridging to the WINC, so it reliably pulls the device back out of transparent
-    /// mode where the managed <see cref="SerialStreamingDevice.ResetLanAfterUpdate"/> could not. No-op
-    /// if the port can't be opened (e.g. another handle still holds it).
+    /// Brings the device out of USB-transparent / FW-update mode by sending
+    /// <c>SYSTem:USB:SetTransparentMode 0</c> over a raw serial write (while transparent the device
+    /// ignores the managed protobuf connection — only a raw write reaches the PIC32). If the port is
+    /// still held by the managed connection — which can't itself exit the mode — that connection is
+    /// disconnected to free the port and the exit is retried. A flash must never leave the device
+    /// stranded in transparent mode, where it stops answering and vanishes from the app.
     /// </summary>
-    private void ExitWifiTransparentModeRaw(string portName)
+    private void ExitWifiTransparentModeRaw(SerialStreamingDevice device)
+    {
+        var portName = device.PortName;
+        if (TrySendTransparentModeExit(portName))
+        {
+            return;
+        }
+
+        // The raw open failed — almost always because the managed connection still holds the port (yet
+        // can't send the exit itself while the device is transparent). Release it, let the OS free the
+        // handle, then retry the raw exit.
+        _appLogger.Information($"Releasing managed connection on {portName} to send the transparent-mode exit.");
+        try { device.Disconnect(); }
+        catch (Exception ex)
+        {
+            _appLogger.Warning($"Disconnect before transparent-mode exit failed for {portName}: {ex.Message}");
+        }
+        Thread.Sleep(500);
+        TrySendTransparentModeExit(portName);
+    }
+
+    /// <summary>
+    /// Opens <paramref name="portName"/> raw and sends the transparent-mode exit + LAN apply. Returns
+    /// false if the port can't be opened (e.g. still held by the managed connection).
+    /// </summary>
+    private bool TrySendTransparentModeExit(string portName)
     {
         try
         {
@@ -432,14 +488,81 @@ public class FirmwareUpdateCoordinator
             port.Write("SYSTem:USB:SetTransparentMode 0\n");
             Thread.Sleep(150);
             // Re-apply normal LAN config so the module returns to its operating mode.
-            port.Write("SYSTem:COMMUnicate:LAN:APPLY\n");
+            port.Write("SYSTem:COMMunicate:LAN:APPLY\n");
             Thread.Sleep(300);
             _appLogger.Information($"Sent transparent-mode exit to {portName} (raw) after WiFi flash.");
+            return true;
         }
         catch (Exception ex)
         {
             _appLogger.Warning($"Raw transparent-mode exit could not open {portName}: {ex.Message}");
+            return false;
         }
+    }
+
+    private async Task<LanChipInfo?> TryGetLanChipInfoAsync(
+        ILanChipInfoProvider lanChipProvider,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= WifiChipInfoMaxAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                var chipInfo = await lanChipProvider.GetLanChipInfoAsync(cancellationToken);
+                if (chipInfo != null)
+                {
+                    return chipInfo;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Warning(
+                    $"WiFi chip info query attempt {attempt}/{WifiChipInfoMaxAttempts} failed: {ex.Message}");
+            }
+
+            if (attempt >= WifiChipInfoMaxAttempts)
+            {
+                break;
+            }
+
+            _appLogger.Information(
+                $"WiFi chip info unavailable on attempt {attempt}/{WifiChipInfoMaxAttempts}; retrying after startup delay.");
+            _host.FirmwareUpdateStatusText = "Waiting for device to finish starting up before checking WiFi firmware version...";
+            await Task.Delay(WifiChipInfoRetryDelay, cancellationToken);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Determines whether the WiFi module firmware needs to be flashed. A null chip-info
+    /// result (GETChipInfo? failed) or a version below <see cref="MinimumWifiFirmwareVersion"/>
+    /// both require a flash.
+    /// </summary>
+    public static bool WifiFirmwareNeedsFlash(LanChipInfo? chipInfo, out string reportedVersion)
+    {
+        if (chipInfo == null || string.IsNullOrWhiteSpace(chipInfo.FwVersion))
+        {
+            reportedVersion = "Unknown";
+            return true;
+        }
+
+        reportedVersion = chipInfo.FwVersion;
+
+        if (!FirmwareVersion.TryParse(chipInfo.FwVersion, out var current) ||
+            !FirmwareVersion.TryParse(MinimumWifiFirmwareVersion, out var minimum))
+        {
+            // A version we can't trust — treat as needing a flash.
+            return true;
+        }
+
+        return current < minimum;
     }
 
     private FirmwareUpdateService CreateWifiFirmwareUpdateService(string wifiVersion, string portName)

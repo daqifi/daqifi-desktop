@@ -82,5 +82,11 @@ public interface IFirmwareUpdateHost
     /// so the coordinator stays free of WPF dependencies.
     /// </summary>
     void ShowFirmwareUpdateSucceeded();
+
+    /// <summary>
+    /// Cancels any in-flight connect-time WiFi firmware probe. Called by the coordinator before a
+    /// PIC32 flash so the probe's SCPI exchange can never overlap and corrupt the bootloader handshake.
+    /// </summary>
+    void CancelWifiFirmwareProbe();
     #endregion
 }

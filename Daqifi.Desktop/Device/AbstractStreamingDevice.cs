@@ -41,8 +41,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     [ObservableProperty]
     private int _streamingFrequency = 1;
 
-    // DeviceType property with default value of Unknown
+    // DeviceType property with default value of Unknown.
+    // HasWincWifiModule is derived from DeviceType, so notify it when DeviceType changes.
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasWincWifiModule))]
     private DeviceType _deviceType = DeviceType.Unknown;
 
     // DeviceState property for tracking device state
@@ -225,6 +227,29 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public bool IsStreaming { get; set; }
     public bool IsFirmwareOutdated { get; set; }
+
+    /// <summary>
+    /// True only for the Nyquist family, which carries a separately-flashable WINC1500 WiFi
+    /// module. ESP32-based and unrecognized devices (DeviceType.Unknown) integrate WiFi into the
+    /// SoC and expose no WINC firmware version — for those, <c>SYSTem:COMMunicate:LAN:GETChipInfo?</c>
+    /// returns non-version data (e.g. the IP address), so the WiFi-firmware check must not run.
+    /// </summary>
+    public bool HasWincWifiModule =>
+        DeviceType is DeviceType.Nyquist1 or DeviceType.Nyquist2 or DeviceType.Nyquist3;
+
+    /// <summary>
+    /// Gets or sets whether the device's WiFi module firmware needs flashing (below the minimum
+    /// supported version or unreadable). Only meaningful when <see cref="HasWincWifiModule"/> is true.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isWifiFirmwareOutdated;
+
+    /// <summary>
+    /// Gets or sets the WiFi module firmware version reported by the device, or <c>"Unknown"</c>
+    /// when the chip-info query could not be completed.
+    /// </summary>
+    [ObservableProperty]
+    private string _wifiFirmwareVersion = "Unknown";
 
     /// <summary>
     /// Gets the device's hardware timestamp clock frequency in Hz.

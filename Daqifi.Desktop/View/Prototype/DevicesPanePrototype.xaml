@@ -832,6 +832,49 @@
                                             Margin="8,0,0,0"
                                             Command="{Binding Shell.UploadFirmwareCommand}"/>
                                 </Grid>
+
+                                <!-- WiFi module firmware (Nyquist/WINC1500 devices only) -->
+                                <StackPanel Visibility="{Binding Shell.SelectedDevice.HasWincWifiModule,
+                                                         Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="WIFI MODULE VERSION" Style="{StaticResource InfoLabel}" Margin="0,16,0,3"/>
+                                    <TextBlock Text="{Binding Shell.SelectedDevice.WifiFirmwareVersion}"
+                                               Style="{StaticResource InfoValue}"/>
+
+                                    <!-- Prompt + action only when the module is out of date or unreadable -->
+                                    <StackPanel Visibility="{Binding Shell.SelectedDevice.IsWifiFirmwareOutdated,
+                                                             Converter={StaticResource BoolToVis}}">
+                                        <Border Background="#2A1A0A"
+                                                BorderBrush="{StaticResource StatusAmber}"
+                                                BorderThickness="1"
+                                                CornerRadius="3"
+                                                Padding="12,10"
+                                                Margin="0,8,0,0">
+                                            <TextBlock Text="WiFi module firmware is out of date (or could not be read) and should be updated."
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource StatusAmber}"
+                                                       TextWrapping="Wrap"/>
+                                        </Border>
+                                        <Grid Margin="0,8,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ProgressBar Grid.Column="0"
+                                                         Height="10"
+                                                         VerticalAlignment="Center"
+                                                         Minimum="0" Maximum="100"
+                                                         Background="{StaticResource Surface}"
+                                                         Foreground="{StaticResource Accent}"
+                                                         BorderBrush="{StaticResource BorderDim}"
+                                                         Value="{Binding Shell.UploadWiFiProgress}"/>
+                                            <Button Grid.Column="1"
+                                                    Style="{StaticResource AccentPillButton}"
+                                                    Content="UPDATE WIFI"
+                                                    Margin="8,0,0,0"
+                                                    Command="{Binding Shell.UpdateWifiFirmwareOnlyCommand}"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
                             </StackPanel>
 
                             <!-- WiFi: informational message -->

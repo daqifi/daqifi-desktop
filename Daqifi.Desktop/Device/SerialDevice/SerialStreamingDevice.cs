@@ -257,6 +257,34 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     internal CoreStreamingDevice ConnectedCoreStreamingDevice => CoreDevice ?? throw new InvalidOperationException(
         $"Core streaming device for {PortName} is not connected.");
 
+    /// <summary>
+    /// Powers on the WiFi module (<c>SYSTem:POWer:STATe 1</c>) so a subsequent chip-info query
+    /// reaches a live module. After a PIC32 reboot the WiFi module comes back powered off, so the
+    /// connect-time probe and the version check before a flash both call this first.
+    /// </summary>
+    public bool PowerOnWifiModule()
+    {
+        if (CoreDevice == null || !CoreDevice.IsConnected)
+        {
+            AppLogger.Warning($"Cannot power on WiFi module for {PortName}: core device is not connected.");
+            return false;
+        }
+
+        try
+        {
+            AppLogger.Information($"Powering on WiFi module for {PortName}: SYSTem:POWer:STATe 1");
+            CoreDevice.Send(ScpiMessageProducer.TurnDeviceOn);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            // A transport failure here shouldn't crash the probe/flash caller; report and let the
+            // subsequent chip-info query surface the not-ready state.
+            AppLogger.Warning(ex, $"Failed to power on WiFi module for {PortName}");
+            return false;
+        }
+    }
+
     public bool EnableLanUpdateMode()
     {
         AppLogger.Information($"Preparing {PortName} for WiFi firmware mode.");
