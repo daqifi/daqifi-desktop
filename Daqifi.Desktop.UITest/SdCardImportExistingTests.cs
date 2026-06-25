@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Daqifi.Desktop.UITest;
@@ -24,6 +25,15 @@ namespace Daqifi.Desktop.UITest;
 [TestClass]
 public class SdCardImportExistingTests : DaqifiAppFixture
 {
+    /// <summary>
+    /// Connects over USB and imports a log file already present on the device's SD card
+    /// through the real DEVICE LOGS IMPORT button, asserting the importer reports a
+    /// non-empty session (samples &gt; 0), logs a success line, and adds a logged-session
+    /// row. This exercises the download + parse + insert path on its own, independently of
+    /// SD-card WRITE health. A deterministic target is chosen (newest <c>.bin</c> device log)
+    /// so the same file imports across runs. Marks the test inconclusive when the card holds
+    /// no files to import.
+    /// </summary>
     [TestMethod]
     [TestCategory("Ui")]
     [TestCategory("RequiresDevice")]
@@ -35,15 +45,32 @@ public class SdCardImportExistingTests : DaqifiAppFixture
         var sessionsBefore = GetLoggedSessionCount();
 
         // The card must already hold a file to import. GetSdCardFileCount marks the test
-        // inconclusive if no SD card is present; assert a file exists to import.
+        // inconclusive if no SD card is present. An empty-but-present card is an environment
+        // precondition, not a product failure, so treat it as inconclusive too (mirroring the
+        // fixture's "No SD card" handling) rather than a false-negative bench failure.
         var fileCount = GetSdCardFileCount();
-        Assert.IsTrue(
-            fileCount > 0,
-            "Pre-condition failed: no files on the SD card to import. Stage at least one log file.");
+        if (fileCount == 0)
+        {
+            Assert.Inconclusive(
+                "No files on the SD card to import. Stage at least one log file and re-run.");
+        }
 
-        // Act — import the first file on the card through the real DEVICE LOGS IMPORT button.
-        // This downloads it over USB (Core DownloadSdCardFileAsync) and imports it.
-        var importedFile = ImportSdCardFile();
+        // Pick a deterministic target: the device's file list applies no stable ordering and
+        // can mix .bin/.json/.csv, so "first row" varies across firmware responses. Prefer the
+        // newest .bin (the device-native log format), falling back to the newest importable
+        // file of any kind, then to first-file selection if names can't be read.
+        var fileNames = ReadSdCardFileNames();
+        var targetFileName =
+            fileNames.Where(n => n.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                     .LastOrDefault()
+            ?? fileNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                        .LastOrDefault();
+
+        // Act — import the chosen file through the real DEVICE LOGS IMPORT button. This
+        // downloads it over USB (Core DownloadSdCardFileAsync) and imports it. A null/empty
+        // target falls back to the first file inside ImportSdCardFile.
+        var importedFile = ImportSdCardFile(targetFileName);
 
         // Assert (log) — the importer logged "Imported N samples ..." with N > 0, proving the
         // downloaded file parsed into a non-empty session. This is the assertion that the
