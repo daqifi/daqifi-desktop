@@ -905,6 +905,28 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         CloseFlyouts();
         SelectedDevice = device;
         IsFirmwareUpdatationFlyoutOpen = true;
+
+        // Read the WiFi module version now that the user is in the firmware context (device already
+        // connected and idle) — not automatically on connect, which would query a blank WINC on a
+        // fresh unit and could keep it from coming up.
+        TriggerWifiFirmwareProbe();
+    }
+
+    /// <summary>
+    /// Starts a connect-time-style WiFi version probe for the currently connected USB devices and tracks
+    /// the running task so a subsequent flash can await it draining (see
+    /// <see cref="QuiesceWifiFirmwareProbeAsync"/>). Triggered explicitly from the firmware settings,
+    /// never automatically on connect.
+    /// </summary>
+    private void TriggerWifiFirmwareProbe()
+    {
+        var probe = CheckWifiFirmwareAsync();
+        // The re-entrancy guard returns an already-completed task when a probe is in progress; only
+        // track a task that actually started so the flash's quiesce awaits the real probe.
+        if (!probe.IsCompleted)
+        {
+            _wifiProbeTask = probe;
+        }
     }
 
     [RelayCommand]
@@ -1195,19 +1217,13 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
         RaiseLoggingStateChanged();
 
-        // A newly connected device may have an out-of-date WiFi module. Fire-and-forget the probe
-        // (it powers on the WINC, runs a multi-second SCPI exchange, and flags outdated modules);
-        // the re-entrancy guard inside serializes overlapping change notifications. Track the task
-        // (only when it actually starts a probe — the re-entrancy guard returns a completed task)
-        // so a flash can await it draining before touching the device.
-        if (anyAdded)
-        {
-            var probe = CheckWifiFirmwareAsync();
-            if (!probe.IsCompleted)
-            {
-                _wifiProbeTask = probe;
-            }
-        }
+        // NOTE: the WiFi version probe is intentionally NOT fired here. It sends a WINC chip-info query
+        // (SYSTem:COMMunicate:LAN:GETChipInfo?), and a device with a blank/erased WINC — exactly a fresh
+        // manufacturing unit with no WiFi firmware yet — can choke on that query and fail to come up,
+        // so probing every device the instant it connects hides the very devices that need flashing.
+        // The probe is triggered explicitly instead, when the user opens the firmware settings for a
+        // device (OpenFirmwareUpdateSettings) — by then it is connected and the user is in the WiFi
+        // context. See TriggerWifiFirmwareProbe.
     }
 
     /// <summary>
