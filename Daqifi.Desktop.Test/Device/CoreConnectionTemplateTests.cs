@@ -264,7 +264,9 @@ public class CoreConnectionTemplateTests
     /// </summary>
     private sealed class TemplateCoreDevice(Action onInitialize) : CoreStreamingDevice("TemplateCore")
     {
-        public override Task InitializeAsync()
+        public override Task InitializeAsync(
+            TimeSpan? channelPopulationTimeout = null,
+            CancellationToken cancellationToken = default)
         {
             onInitialize();
             return Task.CompletedTask;

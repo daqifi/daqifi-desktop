@@ -1,4 +1,5 @@
 using System.Net;
+using Daqifi.Core.Channel;
 using Daqifi.Core.Communication.Messages;
 using CoreConnectionStatus = Daqifi.Core.Device.ConnectionStatus;
 using CoreDeviceStatusEventArgs = Daqifi.Core.Device.DeviceStatusEventArgs;
@@ -66,5 +67,40 @@ public sealed class BootloaderSessionStreamingDeviceAdapter : CoreStreamingDevic
     public void Send<T>(IOutboundMessage<T> message)
     {
         // No-op by design: bootloader-only flow does not use desktop serial command transport.
+    }
+
+    // Channel management and device-control members (added to Core's IStreamingDevice in 0.24.0)
+    // are intentionally no-op here: the device is already in firmware-update mode and this adapter
+    // does not configure channels, drive outputs, or reboot through the streaming command path.
+    public void EnableChannel(IChannel channel)
+    {
+    }
+
+    public void EnableChannels(IEnumerable<IChannel> channels)
+    {
+    }
+
+    public void DisableChannel(IChannel channel)
+    {
+    }
+
+    public void DisableAllChannels()
+    {
+    }
+
+    public void SetDioDirection(IChannel channel, ChannelDirection direction)
+    {
+    }
+
+    public void SetDioValue(IChannel channel, bool value)
+    {
+    }
+
+    public void SetAnalogOutput(int channelNumber, double voltage)
+    {
+    }
+
+    public void Reboot()
+    {
     }
 }
