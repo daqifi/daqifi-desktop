@@ -914,6 +914,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// </summary>
     private void TriggerWifiFirmwareProbe()
     {
+        _appLogger.Information("WiFi probe: triggered from firmware settings.");
         var probe = CheckWifiFirmwareAsync();
         // The re-entrancy guard returns an already-completed task when a probe is in progress; only
         // track a task that actually started so the flash's quiesce awaits the real probe.
@@ -1528,6 +1529,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         // the first probe. The flag is set/read on the UI thread, so no lock is needed.
         if (_wifiCheckInProgress)
         {
+            _appLogger.Information("WiFi probe: skipped — a probe pass is already in progress.");
             return;
         }
 
@@ -1561,6 +1563,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         // out of bridge mode, so a post-flash reconnect is already a safe moment to probe.)
         if (IsFirmwareUploading)
         {
+            _appLogger.Information("WiFi probe: skipped — a firmware upload is in progress (IsFirmwareUploading).");
             return;
         }
 
@@ -1588,6 +1591,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         _wifiFirmwareCheckedDevices.RemoveWhere(k => !connectedKeys.Contains(k));
 
+        _appLogger.Information($"WiFi probe: pass over {connectedDevices.Count} connected device(s).");
         foreach (var device in connectedDevices)
         {
             // WiFi firmware can only be probed/flashed over USB on a serial device, and only on
@@ -1598,6 +1602,9 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 device is not SerialStreamingDevice serialStreamingDevice ||
                 serialStreamingDevice is not ILanChipInfoProvider lanChipProvider)
             {
+                _appLogger.Information(
+                    $"WiFi probe: skipping {device.Name} — connType={device.ConnectionType}, " +
+                    $"hasWinc={device.HasWincWifiModule}, isSerial={device is SerialStreamingDevice}.");
                 continue;
             }
 
@@ -1610,6 +1617,10 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 || wifiCheckToken.IsCancellationRequested
                 || (deviceBeingUpdated != null && ReferenceEquals(deviceBeingUpdated, device)))
             {
+                _appLogger.Information(
+                    $"WiFi probe: skipping {device.Name} — isConnected={device.IsConnected}, " +
+                    $"uploading={IsFirmwareUploading}, cancelled={wifiCheckToken.IsCancellationRequested}, " +
+                    $"beingUpdated={(deviceBeingUpdated != null && ReferenceEquals(deviceBeingUpdated, device))}.");
                 continue;
             }
 
@@ -1618,6 +1629,8 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             // The synchronous Add before the first await guards against re-entrant UI refreshes.
             if (string.IsNullOrWhiteSpace(key) || !_wifiFirmwareCheckedDevices.Add(key))
             {
+                _appLogger.Information(
+                    $"WiFi probe: skipping {device.Name} — already checked this connection (key='{key}').");
                 continue;
             }
 
