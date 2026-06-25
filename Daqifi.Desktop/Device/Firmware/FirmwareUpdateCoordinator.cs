@@ -161,7 +161,8 @@ public class FirmwareUpdateCoordinator
         {
             // Quiesce inside the try so a fault here still runs the finally (which clears
             // IsFirmwareUploading and DeviceBeingUpdated); otherwise the UI could stay stuck "uploading".
-            await _host.QuiesceWifiFirmwareProbeAsync();
+            // Pass the upload token so a CancelUpload() interrupts the wait rather than blocking on it.
+            await _host.QuiesceWifiFirmwareProbeAsync(_firmwareUploadCts.Token);
 
             var coreDevice = serialStreamingDevice.ConnectedCoreStreamingDevice;
 
@@ -389,7 +390,7 @@ public class FirmwareUpdateCoordinator
         // still mid SCPI exchange. Cancelling its token (done when the flash started) does not abort a
         // POWer:STATe 1 / GETChipInfo? already on the wire — await it fully draining here, because any
         // byte that lands once the WINC is bridging corrupts the program and bricks the module.
-        await _host.QuiesceWifiFirmwareProbeAsync();
+        await _host.QuiesceWifiFirmwareProbeAsync(cancellationToken);
 
         // Preserve the legacy serial prep/reset sequence now that the firmware flow uses the
         // underlying Core device directly instead of routing through a desktop-shaped adapter.

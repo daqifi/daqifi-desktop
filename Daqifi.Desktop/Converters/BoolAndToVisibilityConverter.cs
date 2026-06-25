@@ -13,12 +13,17 @@ namespace Daqifi.Desktop.Converters;
 /// </summary>
 public class BoolAndToVisibilityConverter : IMultiValueConverter
 {
+    /// <summary>
+    /// Returns <see cref="Visibility.Visible"/> when every bound value is boolean <c>true</c>;
+    /// otherwise <see cref="Visibility.Collapsed"/>.
+    /// </summary>
     public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
     {
         var allTrue = values != null && values.Length > 0 && values.All(v => v is true);
         return allTrue ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    /// <summary>Not supported — this converter is one-way (bindings are read-only Visibility).</summary>
     public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
     {
         throw new NotSupportedException();

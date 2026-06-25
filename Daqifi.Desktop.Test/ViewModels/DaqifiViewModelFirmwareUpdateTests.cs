@@ -943,7 +943,7 @@ public class DaqifiViewModelFirmwareUpdateTests
 
         public void ShowFirmwareUpdateSucceeded() => SucceededCallCount++;
 
-        public Task QuiesceWifiFirmwareProbeAsync()
+        public Task QuiesceWifiFirmwareProbeAsync(CancellationToken cancellationToken = default)
         {
             QuiesceWifiFirmwareProbeCallCount++;
             return Task.CompletedTask;

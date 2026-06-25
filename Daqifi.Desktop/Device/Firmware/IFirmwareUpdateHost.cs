@@ -89,6 +89,6 @@ public interface IFirmwareUpdateHost
     /// (<c>POWer:STATe 1</c> / <c>GETChipInfo?</c>) can never still be on the wire when the device
     /// enters update mode — a stray byte while the WINC is bridging corrupts the program and bricks it.
     /// </summary>
-    Task QuiesceWifiFirmwareProbeAsync();
+    Task QuiesceWifiFirmwareProbeAsync(CancellationToken cancellationToken = default);
     #endregion
 }

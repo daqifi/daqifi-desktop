@@ -881,39 +881,20 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         IsLiveGraphSettingsOpen = true;
     }
 
-    [RelayCommand]
-    private void OpenFirmwareUpdateSettings(IStreamingDevice? device)
-    {
-        if (device == null)
-        {
-            return;
-        }
-
-        SelectedDeviceSupportsFirmwareUpdate = device.ConnectionType == Device.ConnectionType.Usb;
-
-        CloseFlyouts();
-        SelectedDevice = device;
-        IsFirmwareUpdatationFlyoutOpen = true;
-
-        // Re-evaluate the FLASH WIFI button now: its CanExecute reads SelectedDevice.HasWincWifiModule,
-        // which derives from DeviceType — populated asynchronously on connect, so the change-for
-        // SelectedDevice alone can leave it stale. The probe's result also re-notifies.
-        UpdateWifiFirmwareOnlyCommand.NotifyCanExecuteChanged();
-
-        // Read the WiFi module version now that the user is in the firmware context (device already
-        // connected and idle) — not automatically on connect, which would query a blank WINC on a
-        // fresh unit and could keep it from coming up.
-        TriggerWifiFirmwareProbe();
-    }
-
     /// <summary>
-    /// Starts a connect-time-style WiFi version probe for the currently connected USB devices and tracks
-    /// the running task so a subsequent flash can await it draining (see
-    /// <see cref="QuiesceWifiFirmwareProbeAsync"/>). Triggered explicitly from the firmware settings,
-    /// never automatically on connect.
+    /// Starts the WiFi version probe for the connected USB devices and tracks the running task so a
+    /// subsequent flash can await it draining (see <see cref="QuiesceWifiFirmwareProbeAsync"/>) — that
+    /// tracking is load-bearing for the "no SCPI on the bridging WINC during a flash" guarantee.
+    /// Triggered on connect and when debug mode is enabled (the probe itself is debug-gated and a no-op
+    /// otherwise). All probe-start paths must go through here, never a bare <c>CheckWifiFirmwareAsync()</c>.
     /// </summary>
     private void TriggerWifiFirmwareProbe()
     {
+        // The FLASH WIFI button's CanExecute reads SelectedDevice.HasWincWifiModule, which derives from
+        // DeviceType — populated asynchronously on connect — so refresh it here (the probe result also
+        // re-notifies once it lands).
+        UpdateWifiFirmwareOnlyCommand.NotifyCanExecuteChanged();
+
         var probe = CheckWifiFirmwareAsync();
         // The re-entrancy guard returns an already-completed task when a probe is in progress; only
         // track a task that actually started so the flash's quiesce awaits the real probe.
@@ -1335,10 +1316,11 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 // Probe the WiFi module version now that the device list (and each device's
                 // initialization) has settled — this runs AFTER UpdateConnectedDeviceUI, so it never
                 // races the connection handshake. The WiFi version is shown inline on the device pane,
-                // so it must be populated on connect (not only when a firmware panel opens). A device
-                // with a blank/erased WINC simply times out → "unknown", which is the correct display.
-                // The per-connection guard (_wifiFirmwareCheckedDevices) keeps this to one probe each.
-                _ = CheckWifiFirmwareAsync();
+                // so it must be populated on connect. A device with a blank/erased WINC simply times
+                // out → "unknown", which is the correct display. The per-connection guard
+                // (_wifiFirmwareCheckedDevices) keeps this to one probe each. Go through
+                // TriggerWifiFirmwareProbe so the task is tracked for the pre-flash quiesce.
+                TriggerWifiFirmwareProbe();
                 break;
             case "SubscribedChannels":
                 ActiveChannels.Clear();
@@ -1503,7 +1485,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// so the coordinator awaits this before the device enters WiFi update mode — otherwise a stray
     /// <c>POWer:STATe 1</c> / <c>GETChipInfo?</c> can land while the WINC is bridging and brick it.
     /// </summary>
-    public async Task QuiesceWifiFirmwareProbeAsync()
+    public async Task QuiesceWifiFirmwareProbeAsync(CancellationToken cancellationToken = default)
     {
         CancelWifiFirmwareCheck();
 
@@ -1512,7 +1494,10 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         {
             // CheckWifiFirmwareAsync already swallows cancellation/probe faults; this await just blocks
             // until the probe's last SCPI exchange has returned (or been cancelled) so nothing overlaps.
-            try { await inflight.ConfigureAwait(false); }
+            // Honor the caller's token (the firmware-upload CTS) so a user CancelUpload() can interrupt
+            // this wait instead of being stuck behind a slow probe unwind.
+            try { await inflight.WaitAsync(cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch { /* probe outcome is irrelevant here; we only need it to have stopped touching the device */ }
             _wifiProbeTask = null;
         }
@@ -1669,8 +1654,9 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 if (dispatcher != null && !dispatcher.CheckAccess())
                 {
                     // InvokeAsync (awaited) rather than a blocking Invoke — this probe runs on a
-                    // thread-pool thread and shouldn't block it waiting on the UI thread.
-                    await dispatcher.InvokeAsync(ApplyResult);
+                    // thread-pool thread and shouldn't block it waiting on the UI thread. Pass the probe
+                    // token so a pre-flash quiesce can interrupt this wait instead of blocking on the UI.
+                    await dispatcher.InvokeAsync(ApplyResult, DispatcherPriority.Normal, wifiCheckToken);
                 }
                 else
                 {
@@ -2066,7 +2052,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             DebugData.Clear();
             // WiFi firmware is debug-gated; now that it's visible, read the version for the
             // already-connected devices (the per-connection guard runs it at most once each).
-            _ = CheckWifiFirmwareAsync();
+            TriggerWifiFirmwareProbe();
         }
         else
         {
