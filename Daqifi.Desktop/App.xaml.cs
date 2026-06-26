@@ -93,7 +93,9 @@ public partial class App
         serviceCollection.AddLogging(builder =>
         {
             builder.AddProvider(new AppLoggerLoggerProvider());
-            builder.AddFilter((category, level) =>
+            // Scope the filter to this provider so it only governs what reaches the NLog file and
+            // never suppresses logs for any other provider added later.
+            builder.AddFilter<AppLoggerLoggerProvider>((category, level) =>
                 category is not null
                 && category.StartsWith("Daqifi", StringComparison.OrdinalIgnoreCase)
                 && level is >= LogLevel.Information and < LogLevel.None);
