@@ -574,16 +574,15 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         if (app != null)
         {
             // One-time host initialization: build the loggers (including the dark-themed Plotter),
-            // register commands, and wire the long-lived singleton subscriptions. The guard runs this
-            // exactly once for the lifetime of the app. It must be the FIRST construction that does the
-            // work: the live constructed view model is the one bound to the window (see
-            // MainWindow.xaml.cs), so deferring init to a hypothetical later construction leaves Plotter
-            // null and the Live Graph PlotView paints OxyPlot's default white background in the empty
-            // state. The flag is set before the body so a partial failure is never retried.
+            // register commands, and wire the long-lived singleton subscriptions. This runs on the
+            // FIRST construction — the live view model is the one bound to the window (see
+            // MainWindow.xaml.cs), so deferring init to a hypothetical later construction would leave
+            // Plotter null and the Live Graph PlotView would paint OxyPlot's default white background in
+            // the empty state. The guard flag is set only after the body completes (see end of the try),
+            // so a failed init is not marked "done": doing so would strand Plotter/DbLogger null while
+            // blocking any retry, and DbLogger is dereferenced unconditionally via ILoggingSessionListHost.
             if (!app.IsWindowInit)
             {
-                app.IsWindowInit = true;
-
                 try
                 {
                     RegisterCommands();
@@ -644,6 +643,11 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                     {
                         FirewallConfiguration.InitializeFirewallRules();
                     }
+
+                    // Mark host init complete only after every step above succeeded, so a partial
+                    // failure leaves the flag clear (retryable) instead of permanently stranding the
+                    // loggers that XAML bindings and ILoggingSessionListHost depend on.
+                    app.IsWindowInit = true;
                 }
                 catch (Exception ex)
                 {
