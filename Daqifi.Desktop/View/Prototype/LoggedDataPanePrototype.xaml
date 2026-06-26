@@ -410,6 +410,7 @@
                         <!-- Main plot -->
                         <oxy:PlotView Grid.Row="1"
                                       Model="{Binding DbLogger.PlotModel}"
+                                      Background="{StaticResource Surface}"
                                       Margin="16,8,16,0">
                             <oxy:PlotView.DefaultTrackerTemplate>
                                 <ControlTemplate>
@@ -520,6 +521,7 @@
                         <!-- Overview minimap -->
                         <oxy:PlotView Grid.Row="3"
                                       Model="{Binding DbLogger.MinimapPlotModel}"
+                                      Background="{StaticResource Surface}"
                                       Margin="16,0,16,8"
                                       Height="80">
                             <oxy:PlotView.Style>
