@@ -48,14 +48,18 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
         {
             _appLogger = appLogger;
 
+            // Categories are normally non-null, but guard anyway (the App.xaml.cs filter also
+            // anticipates null) so logger creation can never throw on a bad category.
+            var normalizedCategory = string.IsNullOrWhiteSpace(category) ? "Unknown" : category;
+
             // Our own (DAQiFi/Core) errors are worth capturing to Sentry; framework errors are not.
-            _isDaqifiCategory = category.StartsWith("Daqifi", StringComparison.OrdinalIgnoreCase);
+            _isDaqifiCategory = normalizedCategory.StartsWith("Daqifi", StringComparison.OrdinalIgnoreCase);
 
             // Tag log lines with the short type name (e.g. "FirmwareUpdateService") for context.
-            var lastDot = category.LastIndexOf('.');
-            _category = lastDot >= 0 && lastDot < category.Length - 1
-                ? category[(lastDot + 1)..]
-                : category;
+            var lastDot = normalizedCategory.LastIndexOf('.');
+            _category = lastDot >= 0 && lastDot < normalizedCategory.Length - 1
+                ? normalizedCategory[(lastDot + 1)..]
+                : normalizedCategory;
         }
 
         public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
