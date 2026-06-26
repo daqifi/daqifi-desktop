@@ -2,6 +2,7 @@ using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.Device.Firmware;
 using Daqifi.Desktop.DialogService;
@@ -85,7 +86,23 @@ public partial class App
                 .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
         );
 
-        serviceCollection.AddLogging();
+        // Route Core's Microsoft.Extensions.Logging output (e.g. the firmware update service's
+        // WiFi flash tool output / progress) into the desktop NLog file via AppLogger. Restrict
+        // forwarding to DAQiFi/Core categories at Information+ so framework noise (EF Core,
+        // HttpClient, etc.) doesn't flood DAQiFiAppLog.log and bury the flash diagnostics.
+        serviceCollection.AddLogging(builder =>
+        {
+            builder.AddProvider(new AppLoggerLoggerProvider());
+            // Scope the filter to this provider so it only governs what reaches the NLog file and
+            // never suppresses logs for any other provider added later. Always surface Error+ from
+            // any category (framework errors are worth keeping), plus DAQiFi/Core diagnostics at
+            // Information+; non-DAQiFi informational noise (EF Core, HttpClient, …) is dropped.
+            builder.AddFilter<AppLoggerLoggerProvider>((category, level) =>
+                level is >= LogLevel.Error and < LogLevel.None
+                || (category is not null
+                    && category.StartsWith("Daqifi", StringComparison.OrdinalIgnoreCase)
+                    && level is >= LogLevel.Information and < LogLevel.None));
+        });
         serviceCollection.AddHttpClient();
         serviceCollection.AddSingleton<IFirmwareDownloadService>(provider =>
         {

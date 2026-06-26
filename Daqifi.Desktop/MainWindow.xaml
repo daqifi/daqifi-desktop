@@ -226,9 +226,6 @@
             <!-- Summary Logger Flyout-->
             <flyouts:SummaryFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
 
-            <!--Firmware Updatation Flyout-->
-            <flyouts:FirmwareFlyout DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=controls:MetroWindow}}"/>
-
         </controls:FlyoutsControl>
     </controls:MetroWindow.Flyouts>
 

@@ -39,9 +39,6 @@ public class FirmwareUpdateCoordinator
     /// <summary>Production default for <see cref="_wifiUpdateModeSettleDelay"/>.</summary>
     public static readonly TimeSpan DefaultWifiUpdateModeSettleDelay = TimeSpan.FromSeconds(5);
 
-    /// <summary>Production default for <see cref="_minPlausibleWifiFlashDuration"/>.</summary>
-    public static readonly TimeSpan DefaultMinPlausibleWifiFlashDuration = TimeSpan.FromSeconds(15);
-
     // After entering LAN FW-update mode (SYSTem:COMMunicate:LAN:FWUpdate) the device needs a few
     // seconds to re-init the WINC into a state where the serial bridge is reachable. Launching the
     // WINC flash tool immediately makes the FIRST attempt exit without programming (it reports a
@@ -49,13 +46,6 @@ public class FirmwareUpdateCoordinator
     // so the first attempt is reliable. Injectable (production default DefaultWifiUpdateModeSettleDelay)
     // so unit tests can collapse the wait without weakening the production behavior.
     private readonly TimeSpan _wifiUpdateModeSettleDelay;
-
-    // A real WINC program (bridge handshake + ~765 KB write + verify) takes tens of seconds. If the
-    // flash tool returns far faster than this it never actually programmed — almost always because the
-    // device didn't hand off the serial port to the tool, so the tool couldn't open it and bailed. We
-    // treat that as a failure instead of reporting a bogus success. Injectable (production default
-    // DefaultMinPlausibleWifiFlashDuration) so unit tests can drive the guard deterministically.
-    private readonly TimeSpan _minPlausibleWifiFlashDuration;
 
     /// <summary>Minimum supported WiFi module firmware version. A device below this — or whose WiFi
     /// chip info cannot be read — is flagged as needing a WiFi-only flash.</summary>
@@ -83,10 +73,6 @@ public class FirmwareUpdateCoordinator
     /// Overrides the WiFi-update-mode settle delay. Null uses
     /// <see cref="DefaultWifiUpdateModeSettleDelay"/>; tests pass <see cref="TimeSpan.Zero"/> to skip the wait.
     /// </param>
-    /// <param name="minPlausibleWifiFlashDuration">
-    /// Overrides the minimum plausible WiFi-flash duration (the false-success guard). Null uses
-    /// <see cref="DefaultMinPlausibleWifiFlashDuration"/>; tests pass <see cref="TimeSpan.Zero"/> to disable the guard.
-    /// </param>
     public FirmwareUpdateCoordinator(
         IFirmwareUpdateHost host,
         IFirmwareUpdateService firmwareUpdateService,
@@ -95,8 +81,7 @@ public class FirmwareUpdateCoordinator
         IAppLogger appLogger,
         string firmwareDataDirectory,
         Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null,
-        TimeSpan? wifiUpdateModeSettleDelay = null,
-        TimeSpan? minPlausibleWifiFlashDuration = null)
+        TimeSpan? wifiUpdateModeSettleDelay = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _firmwareUpdateService = firmwareUpdateService ?? throw new ArgumentNullException(nameof(firmwareUpdateService));
@@ -106,7 +91,6 @@ public class FirmwareUpdateCoordinator
         _firmwareDataDirectory = firmwareDataDirectory ?? throw new ArgumentNullException(nameof(firmwareDataDirectory));
         _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
         _wifiUpdateModeSettleDelay = wifiUpdateModeSettleDelay ?? DefaultWifiUpdateModeSettleDelay;
-        _minPlausibleWifiFlashDuration = minPlausibleWifiFlashDuration ?? DefaultMinPlausibleWifiFlashDuration;
     }
     #endregion
 
@@ -427,11 +411,11 @@ public class FirmwareUpdateCoordinator
             var flashDevice = new BootloaderSessionStreamingDeviceAdapter(serialStreamingDevice.Name);
 
             var wifiUpdateService = _wifiFirmwareUpdateServiceFactory(wifiVersion, serialStreamingDevice.PortName);
-            // Monotonic clock for the duration guard below — DateTime.UtcNow can jump with a system
-            // clock adjustment and skew the pass/fail decision.
-            var flashStopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
+                // Core verifies the flash from the WINC tool's own output (it throws if the success
+                // marker never appears — e.g. the port wasn't released and the tool couldn't run),
+                // so the desktop's timed false-success guard is no longer needed.
                 await wifiUpdateService.UpdateWifiModuleAsync(
                     flashDevice,
                     extractedBasePath,
@@ -441,17 +425,6 @@ public class FirmwareUpdateCoordinator
             finally
             {
                 (wifiUpdateService as IDisposable)?.Dispose();
-            }
-
-            // False-success guard: if the tool returned implausibly fast it never programmed the WINC
-            // (typically the device didn't release the port, so the tool couldn't open it). Don't let
-            // that surface as a success — fail so the user gets the disconnect/power-cycle guidance.
-            var flashElapsed = flashStopwatch.Elapsed;
-            if (flashElapsed < _minPlausibleWifiFlashDuration)
-            {
-                throw new InvalidOperationException(
-                    $"WiFi flash returned in {flashElapsed.TotalSeconds:F1}s — the WINC programmer did not run " +
-                    "(the device likely did not release the serial port to the flash tool).");
             }
         }
         finally
@@ -655,13 +628,19 @@ public class FirmwareUpdateCoordinator
         // Give Windows a little more time to re-enumerate the UART before reconnect attempts.
         wifiOptions.PostWifiReconnectDelay = TimeSpan.FromSeconds(3);
 
+        // Core now owns the WiFi-flash lifecycle (port-release wait, WINC prompt handling +
+        // bridge activation, retry, and output-based success verification). Hand the bridge
+        // activation in as a callback and let Core's prompt responder drive it; the desktop keeps
+        // only the device-level prep (LAN update mode) and post-flash transparent-mode recovery.
+        wifiOptions.WifiBridgeActivationCallback = bridgeActivationAction;
+        wifiOptions.WincBootPromptResponseDelay = TimeSpan.FromSeconds(2);
+        // Let the OS free the COM handle after disconnect before the WINC tool opens the port.
+        wifiOptions.PostLanDisconnectPortReleaseDelay = TimeSpan.FromSeconds(1.5);
+
         return new FirmwareUpdateService(
             FirmwareUpdateServiceConfig.CreateBootloaderHidTransport(),
             _firmwareDownloadService,
-            new WifiPromptDelayProcessRunner(
-                new ProcessExternalProcessRunner(),
-                promptResponseDelay: TimeSpan.FromSeconds(2),
-                bridgeActivationAction: bridgeActivationAction),
+            new ProcessExternalProcessRunner(),
             _firmwareLogger,
             options: wifiOptions);
     }

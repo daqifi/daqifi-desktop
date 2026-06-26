@@ -736,69 +736,6 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.AreEqual(reportedFwVersion, reportedVersion);
     }
 
-    [TestMethod]
-    public async Task UploadFirmware_WifiFlashReturnsImplausiblyFast_FailsInsteadOfReportingSuccess()
-    {
-        // A real WINC program takes tens of seconds. With the false-success guard active (15 s),
-        // a WiFi update service that returns instantly must surface as a failure — not a bogus
-        // success — so the user gets the disconnect/power-cycle guidance.
-        var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
-        var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
-        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
-
-        using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
-        coreDevice.Connect();
-        coreDevice.LanChipInfoResult = null; // unreadable -> proceeds to flash
-
-        var serialDevice = CreateSerialDeviceWithCoreDevice("COM9", coreDevice);
-        var pic32FirmwarePath = CreateTempFile(".hex");
-        var wifiPackageDirectory = CreateTempDirectory();
-
-        pic32FirmwareUpdateService
-            .Setup(service => service.UpdateFirmwareAsync(
-                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
-                pic32FirmwarePath,
-                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        // Returns immediately — models the tool exiting without programming the WINC.
-        wifiFirmwareUpdateService
-            .Setup(service => service.UpdateWifiModuleAsync(
-                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
-                wifiPackageDirectory,
-                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
-                It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        firmwareDownloadService
-            .Setup(service => service.DownloadLatestFirmwareAsync(
-                It.IsAny<string>(), true, It.IsAny<IProgress<int>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(pic32FirmwarePath);
-        firmwareDownloadService
-            .Setup(service => service.DownloadWifiFirmwareAsync(
-                It.IsAny<string>(), It.IsAny<IProgress<int>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((wifiPackageDirectory, "v19.7.0"));
-
-        var host = new FakeFirmwareUpdateHost { SelectedDevice = serialDevice };
-
-        var coordinator = CreateCoordinator(
-            host,
-            pic32FirmwareUpdateService.Object,
-            firmwareDownloadService.Object,
-            (_, _) => wifiFirmwareUpdateService.Object,
-            minPlausibleWifiFlashDuration: TimeSpan.FromSeconds(15));
-
-        await coordinator.UploadFirmwareAsync();
-
-        Assert.IsTrue(host.HasErrorOccured, "An implausibly fast WiFi flash must surface as an error.");
-        Assert.IsFalse(host.IsUploadComplete, "A false-success flash must not report completion.");
-
-        // The device is still brought out of transparent mode even on failure, but that now happens via
-        // the raw ExitWifiTransparentModeRaw path (the managed connection is released before the flash),
-        // so SetTransparentMode 0 is not sent over the core device here.
-    }
-
     /// <summary>
     /// Builds a coordinator with no-op test loggers and a throwaway firmware data directory.
     /// Dialog/flyout host operations are captured by <see cref="FakeFirmwareUpdateHost"/>, so no
@@ -809,8 +746,7 @@ public class DaqifiViewModelFirmwareUpdateTests
         FakeFirmwareUpdateHost host,
         IFirmwareUpdateService firmwareUpdateService,
         IFirmwareDownloadService firmwareDownloadService,
-        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null,
-        TimeSpan? minPlausibleWifiFlashDuration = null)
+        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null)
     {
         return new FirmwareUpdateCoordinator(
             host,
@@ -820,12 +756,11 @@ public class DaqifiViewModelFirmwareUpdateTests
             Mock.Of<IAppLogger>(),
             CreateTempDirectory(),
             wifiFirmwareUpdateServiceFactory,
-            // Collapse the real-hardware timing so these unit tests stay fast and deterministic:
-            // skip the WiFi-update-mode settle wait and (by default) disable the false-success
-            // duration guard. The guard test passes a non-zero value to exercise it explicitly.
-            // (Both behaviors are exercised under their production values by the integration gate.)
-            wifiUpdateModeSettleDelay: TimeSpan.Zero,
-            minPlausibleWifiFlashDuration: minPlausibleWifiFlashDuration ?? TimeSpan.Zero);
+            // Collapse the WiFi-update-mode settle wait so these unit tests stay fast and
+            // deterministic. (Production timing is exercised by the integration gate.) Flash
+            // success/failure is now verified by Core from the tool output, so there is no
+            // desktop-side duration guard to configure here.
+            wifiUpdateModeSettleDelay: TimeSpan.Zero);
     }
 
     private static Mock<Daqifi.Desktop.Device.IStreamingDevice> CreateDeviceMock(string serialNo, string version)
