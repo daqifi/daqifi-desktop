@@ -2,6 +2,7 @@ using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.Configuration;
 using Daqifi.Desktop.Device.Firmware;
 using Daqifi.Desktop.DialogService;
@@ -85,7 +86,9 @@ public partial class App
                 .ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning))
         );
 
-        serviceCollection.AddLogging();
+        // Route Core's Microsoft.Extensions.Logging output (e.g. the firmware update service's
+        // WiFi flash tool output / progress) into the desktop NLog file via AppLogger.
+        serviceCollection.AddLogging(builder => builder.AddProvider(new AppLoggerLoggerProvider()));
         serviceCollection.AddHttpClient();
         serviceCollection.AddSingleton<IFirmwareDownloadService>(provider =>
         {
