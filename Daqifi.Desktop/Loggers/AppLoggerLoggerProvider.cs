@@ -55,11 +55,10 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
             // Our own (DAQiFi/Core) errors are worth capturing to Sentry; framework errors are not.
             _isDaqifiCategory = normalizedCategory.StartsWith("Daqifi", StringComparison.OrdinalIgnoreCase);
 
-            // Tag log lines with the short type name (e.g. "FirmwareUpdateService") for context.
-            var lastDot = normalizedCategory.LastIndexOf('.');
-            _category = lastDot >= 0 && lastDot < normalizedCategory.Length - 1
-                ? normalizedCategory[(lastDot + 1)..]
-                : normalizedCategory;
+            // Tag log lines with the full category for unambiguous attribution. (A short leaf name
+            // would read nicer but collides across namespaces — e.g. two ".Foo" types — which
+            // matters now that framework Error+ logs are forwarded here too.)
+            _category = normalizedCategory;
         }
 
         public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
