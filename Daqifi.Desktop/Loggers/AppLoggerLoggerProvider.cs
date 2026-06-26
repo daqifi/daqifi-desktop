@@ -145,7 +145,9 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
                 // AppLogger itself may be what failed.
                 try
                 {
-                    _appLogger.Warning(bridgeFailure, $"[{_category}] AppLogger logging bridge failed to forward an entry.");
+                    _appLogger.Warning(
+                        bridgeFailure,
+                        $"[{_category}] AppLogger logging bridge failed to forward an entry.");
                 }
                 catch
                 {
