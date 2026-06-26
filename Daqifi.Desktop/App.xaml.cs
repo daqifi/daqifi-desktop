@@ -87,8 +87,17 @@ public partial class App
         );
 
         // Route Core's Microsoft.Extensions.Logging output (e.g. the firmware update service's
-        // WiFi flash tool output / progress) into the desktop NLog file via AppLogger.
-        serviceCollection.AddLogging(builder => builder.AddProvider(new AppLoggerLoggerProvider()));
+        // WiFi flash tool output / progress) into the desktop NLog file via AppLogger. Restrict
+        // forwarding to DAQiFi/Core categories at Information+ so framework noise (EF Core,
+        // HttpClient, etc.) doesn't flood DAQiFiAppLog.log and bury the flash diagnostics.
+        serviceCollection.AddLogging(builder =>
+        {
+            builder.AddProvider(new AppLoggerLoggerProvider());
+            builder.AddFilter((category, level) =>
+                category is not null
+                && category.StartsWith("Daqifi", StringComparison.Ordinal)
+                && level >= LogLevel.Information);
+        });
         serviceCollection.AddHttpClient();
         serviceCollection.AddSingleton<IFirmwareDownloadService>(provider =>
         {

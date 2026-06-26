@@ -15,13 +15,25 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
 {
     private readonly IAppLogger _appLogger;
 
+    /// <summary>
+    /// Initializes the provider.
+    /// </summary>
+    /// <param name="appLogger">
+    /// Target desktop logger. Defaults to <see cref="AppLogger.Instance"/> when null.
+    /// </param>
     public AppLoggerLoggerProvider(IAppLogger? appLogger = null)
     {
         _appLogger = appLogger ?? AppLogger.Instance;
     }
 
+    /// <summary>
+    /// Creates an <see cref="ILogger"/> that forwards entries for the given category to the
+    /// desktop <see cref="AppLogger"/>.
+    /// </summary>
+    /// <param name="categoryName">The logger category (typically a fully-qualified type name).</param>
     public ILogger CreateLogger(string categoryName) => new AppLoggerBridge(_appLogger, categoryName);
 
+    /// <summary>No-op: the provider holds no disposable resources (the target logger is shared).</summary>
     public void Dispose()
     {
     }
@@ -92,7 +104,10 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
 
                     break;
                 default:
-                    _appLogger.Information(line);
+                    // IAppLogger has no Information(Exception, ...) overload, so append the
+                    // exception text to preserve the stack trace if Core ever logs one at Information
+                    // (e.g. a diagnostic/retry path) rather than silently dropping it.
+                    _appLogger.Information(exception is null ? line : $"{line}{Environment.NewLine}{exception}");
                     break;
             }
         }
