@@ -95,8 +95,8 @@ public partial class App
             builder.AddProvider(new AppLoggerLoggerProvider());
             builder.AddFilter((category, level) =>
                 category is not null
-                && category.StartsWith("Daqifi", StringComparison.Ordinal)
-                && level >= LogLevel.Information);
+                && category.StartsWith("Daqifi", StringComparison.OrdinalIgnoreCase)
+                && level is >= LogLevel.Information and < LogLevel.None);
         });
         serviceCollection.AddHttpClient();
         serviceCollection.AddSingleton<IFirmwareDownloadService>(provider =>

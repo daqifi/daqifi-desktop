@@ -56,8 +56,9 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
 
         public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
 
-        // Drop Debug/Trace so the flash log doesn't flood the desktop file; forward Information+.
-        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information;
+        // Forward Information+ (Debug/Trace are dropped to avoid flooding the file); exclude the
+        // LogLevel.None sentinel, whose integer value (6) is above Information.
+        public bool IsEnabled(LogLevel logLevel) => logLevel is >= LogLevel.Information and < LogLevel.None;
 
         public void Log<TState>(
             LogLevel logLevel,
