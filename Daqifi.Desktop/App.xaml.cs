@@ -94,11 +94,14 @@ public partial class App
         {
             builder.AddProvider(new AppLoggerLoggerProvider());
             // Scope the filter to this provider so it only governs what reaches the NLog file and
-            // never suppresses logs for any other provider added later.
+            // never suppresses logs for any other provider added later. Always surface Error+ from
+            // any category (framework errors are worth keeping), plus DAQiFi/Core diagnostics at
+            // Information+; non-DAQiFi informational noise (EF Core, HttpClient, …) is dropped.
             builder.AddFilter<AppLoggerLoggerProvider>((category, level) =>
-                category is not null
-                && category.StartsWith("Daqifi", StringComparison.OrdinalIgnoreCase)
-                && level is >= LogLevel.Information and < LogLevel.None);
+                level is >= LogLevel.Error and < LogLevel.None
+                || (category is not null
+                    && category.StartsWith("Daqifi", StringComparison.OrdinalIgnoreCase)
+                    && level is >= LogLevel.Information and < LogLevel.None));
         });
         serviceCollection.AddHttpClient();
         serviceCollection.AddSingleton<IFirmwareDownloadService>(provider =>

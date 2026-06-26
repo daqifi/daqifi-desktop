@@ -72,44 +72,54 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
                 return;
             }
 
-            var message = formatter(state, exception);
-            if (string.IsNullOrEmpty(message) && exception is null)
+            // Logging is best-effort: a failure here (formatter or sink) must never crash the
+            // operation being logged, so guard the whole forwarding path.
+            try
             {
-                return;
+                var message = formatter(state, exception);
+                if (string.IsNullOrEmpty(message) && exception is null)
+                {
+                    return;
+                }
+
+                var line = $"[{_category}] {message}";
+                switch (logLevel)
+                {
+                    case LogLevel.Critical:
+                    case LogLevel.Error:
+                        if (exception is not null)
+                        {
+                            _appLogger.Error(exception, line);
+                        }
+                        else
+                        {
+                            _appLogger.Error(line);
+                        }
+
+                        break;
+                    case LogLevel.Warning:
+                        if (exception is not null)
+                        {
+                            _appLogger.Warning(exception, line);
+                        }
+                        else
+                        {
+                            _appLogger.Warning(line);
+                        }
+
+                        break;
+                    default:
+                        // IAppLogger has no Information(Exception, ...) overload, so append the
+                        // exception text to preserve the stack trace if Core ever logs one at
+                        // Information (e.g. a diagnostic/retry path) rather than dropping it.
+                        _appLogger.Information(exception is null ? line : $"{line}{Environment.NewLine}{exception}");
+                        break;
+                }
             }
-
-            var line = $"[{_category}] {message}";
-            switch (logLevel)
+            catch
             {
-                case LogLevel.Critical:
-                case LogLevel.Error:
-                    if (exception is not null)
-                    {
-                        _appLogger.Error(exception, line);
-                    }
-                    else
-                    {
-                        _appLogger.Error(line);
-                    }
-
-                    break;
-                case LogLevel.Warning:
-                    if (exception is not null)
-                    {
-                        _appLogger.Warning(exception, line);
-                    }
-                    else
-                    {
-                        _appLogger.Warning(line);
-                    }
-
-                    break;
-                default:
-                    // IAppLogger has no Information(Exception, ...) overload, so append the
-                    // exception text to preserve the stack trace if Core ever logs one at Information
-                    // (e.g. a diagnostic/retry path) rather than silently dropping it.
-                    _appLogger.Information(exception is null ? line : $"{line}{Environment.NewLine}{exception}");
-                    break;
+                // Swallow: there is no safe channel to report a logging failure (logging is the
+                // thing that failed), and it must not propagate into the caller.
             }
         }
 
