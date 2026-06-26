@@ -52,8 +52,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     [ObservableProperty]
     private bool _isNotificationsOpen;
     [ObservableProperty]
-    private bool _isFirmwareUpdatationFlyoutOpen;
-    [ObservableProperty]
     private bool _isLogSummaryOpen;
     [ObservableProperty]
     private bool _isLoggingSessionSettingsOpen;
@@ -1193,13 +1191,12 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
         RaiseLoggingStateChanged();
 
-        // NOTE: the WiFi version probe is intentionally NOT fired here. It sends a WINC chip-info query
-        // (SYSTem:COMMunicate:LAN:GETChipInfo?), and a device with a blank/erased WINC — exactly a fresh
-        // manufacturing unit with no WiFi firmware yet — can choke on that query and fail to come up,
-        // so probing every device the instant it connects hides the very devices that need flashing.
-        // The probe is triggered explicitly instead, when the user opens the firmware settings for a
-        // device (OpenFirmwareUpdateSettings) — by then it is connected and the user is in the WiFi
-        // context. See TriggerWifiFirmwareProbe.
+        // NOTE: the WiFi version probe is not fired from this subscription handler. It is
+        // centralized in TriggerWifiFirmwareProbe, fired (debug-gated, at most once per device)
+        // after a device connects and when debug mode is enabled. The WINC chip-info query it
+        // sends (SYSTem:COMMunicate:LAN:GETChipInfo?) can choke a device with a blank/erased WINC —
+        // exactly a fresh manufacturing unit needing a flash — which is why it is gated behind
+        // debug mode rather than run unconditionally for every device.
     }
 
     /// <summary>
@@ -1402,7 +1399,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         IsLiveGraphSettingsOpen = false;
         IsLogSummaryOpen = false;
         IsNotificationsOpen = false;
-        IsFirmwareUpdatationFlyoutOpen = false;
     }
 
     #region IFirmwareUpdateHost implementation
