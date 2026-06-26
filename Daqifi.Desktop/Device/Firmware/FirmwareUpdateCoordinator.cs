@@ -39,9 +39,6 @@ public class FirmwareUpdateCoordinator
     /// <summary>Production default for <see cref="_wifiUpdateModeSettleDelay"/>.</summary>
     public static readonly TimeSpan DefaultWifiUpdateModeSettleDelay = TimeSpan.FromSeconds(5);
 
-    /// <summary>Production default for <see cref="_minPlausibleWifiFlashDuration"/>.</summary>
-    public static readonly TimeSpan DefaultMinPlausibleWifiFlashDuration = TimeSpan.FromSeconds(15);
-
     // After entering LAN FW-update mode (SYSTem:COMMunicate:LAN:FWUpdate) the device needs a few
     // seconds to re-init the WINC into a state where the serial bridge is reachable. Launching the
     // WINC flash tool immediately makes the FIRST attempt exit without programming (it reports a
@@ -49,13 +46,6 @@ public class FirmwareUpdateCoordinator
     // so the first attempt is reliable. Injectable (production default DefaultWifiUpdateModeSettleDelay)
     // so unit tests can collapse the wait without weakening the production behavior.
     private readonly TimeSpan _wifiUpdateModeSettleDelay;
-
-    // A real WINC program (bridge handshake + ~765 KB write + verify) takes tens of seconds. If the
-    // flash tool returns far faster than this it never actually programmed — almost always because the
-    // device didn't hand off the serial port to the tool, so the tool couldn't open it and bailed. We
-    // treat that as a failure instead of reporting a bogus success. Injectable (production default
-    // DefaultMinPlausibleWifiFlashDuration) so unit tests can drive the guard deterministically.
-    private readonly TimeSpan _minPlausibleWifiFlashDuration;
 
     /// <summary>Minimum supported WiFi module firmware version. A device below this — or whose WiFi
     /// chip info cannot be read — is flagged as needing a WiFi-only flash.</summary>
@@ -83,10 +73,6 @@ public class FirmwareUpdateCoordinator
     /// Overrides the WiFi-update-mode settle delay. Null uses
     /// <see cref="DefaultWifiUpdateModeSettleDelay"/>; tests pass <see cref="TimeSpan.Zero"/> to skip the wait.
     /// </param>
-    /// <param name="minPlausibleWifiFlashDuration">
-    /// Overrides the minimum plausible WiFi-flash duration (the false-success guard). Null uses
-    /// <see cref="DefaultMinPlausibleWifiFlashDuration"/>; tests pass <see cref="TimeSpan.Zero"/> to disable the guard.
-    /// </param>
     public FirmwareUpdateCoordinator(
         IFirmwareUpdateHost host,
         IFirmwareUpdateService firmwareUpdateService,
@@ -95,8 +81,7 @@ public class FirmwareUpdateCoordinator
         IAppLogger appLogger,
         string firmwareDataDirectory,
         Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null,
-        TimeSpan? wifiUpdateModeSettleDelay = null,
-        TimeSpan? minPlausibleWifiFlashDuration = null)
+        TimeSpan? wifiUpdateModeSettleDelay = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _firmwareUpdateService = firmwareUpdateService ?? throw new ArgumentNullException(nameof(firmwareUpdateService));
@@ -106,7 +91,6 @@ public class FirmwareUpdateCoordinator
         _firmwareDataDirectory = firmwareDataDirectory ?? throw new ArgumentNullException(nameof(firmwareDataDirectory));
         _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
         _wifiUpdateModeSettleDelay = wifiUpdateModeSettleDelay ?? DefaultWifiUpdateModeSettleDelay;
-        _minPlausibleWifiFlashDuration = minPlausibleWifiFlashDuration ?? DefaultMinPlausibleWifiFlashDuration;
     }
     #endregion
 

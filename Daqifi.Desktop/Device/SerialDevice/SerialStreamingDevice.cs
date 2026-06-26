@@ -296,8 +296,8 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
         // Power on the WiFi module and set the FW-update-requested flag.
         // APPLY (SYSTem:COMMunicate:LAN:APPLY) is intentionally NOT sent here.
-        // The APPLY that triggers bridge-mode initialisation is sent later — via a raw serial
-        // port write inside WifiPromptDelayProcessRunner — at the moment the flash tool shows
+        // The APPLY that triggers bridge-mode initialisation is sent later — via the raw serial
+        // bridge-activation callback Core invokes — at the moment the flash tool shows
         // its "Power cycle WINC" prompt.  Sending APPLY here (before the flash tool starts)
         // introduces a race: the WiFi deinit/reinit cycle can take several seconds, and the
         // bridge may not be ready by the time the flash tool's programming phase begins.
