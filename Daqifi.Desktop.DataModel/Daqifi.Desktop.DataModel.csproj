@@ -8,8 +8,7 @@
 	</PropertyGroup>
 	<ItemGroup>
 	  <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-        <!-- Phase-4 hardware validation: local Core build. Revert to PackageReference 0.25.0 after release. -->
-        <ProjectReference Include="..\..\daqifi-core\src\Daqifi.Core\Daqifi.Core.csproj" />
+        <PackageReference Include="Daqifi.Core" Version="0.25.0" />
 	  <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
 		<PrivateAssets>all</PrivateAssets>
 		<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
