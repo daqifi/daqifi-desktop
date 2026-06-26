@@ -630,8 +630,8 @@ public class FirmwareUpdateCoordinator
 
         // Core now owns the WiFi-flash lifecycle (port-release wait, WINC prompt handling +
         // bridge activation, retry, and output-based success verification). Hand the bridge
-        // activation in as a callback and let Core's prompt responder drive it — replacing the
-        // desktop WifiPromptDelayProcessRunner wrapper and the timed false-success guard.
+        // activation in as a callback and let Core's prompt responder drive it; the desktop keeps
+        // only the device-level prep (LAN update mode) and post-flash transparent-mode recovery.
         wifiOptions.WifiBridgeActivationCallback = bridgeActivationAction;
         wifiOptions.WincBootPromptResponseDelay = TimeSpan.FromSeconds(2);
         // Let the OS free the COM handle after disconnect before the WINC tool opens the port.
