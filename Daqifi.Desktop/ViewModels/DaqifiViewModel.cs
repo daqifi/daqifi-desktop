@@ -573,7 +573,15 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         var app = Application.Current as App;
         if (app != null)
         {
-            if (app.IsWindowInit)
+            // One-time host initialization: build the loggers (including the dark-themed Plotter),
+            // register commands, and wire the long-lived singleton subscriptions. This runs on the
+            // FIRST construction — the live view model is the one bound to the window (see
+            // MainWindow.xaml.cs), so deferring init to a hypothetical later construction would leave
+            // Plotter null and the Live Graph PlotView would paint OxyPlot's default white background in
+            // the empty state. The guard flag is set only after the body completes (see end of the try),
+            // so a failed init is not marked "done": doing so would strand Plotter/DbLogger null while
+            // blocking any retry, and DbLogger is dereferenced unconditionally via ILoggingSessionListHost.
+            if (!app.IsWindowInit)
             {
                 try
                 {
@@ -635,14 +643,17 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                     {
                         FirewallConfiguration.InitializeFirewallRules();
                     }
+
+                    // Mark host init complete only after every step above succeeded, so a partial
+                    // failure leaves the flag clear (retryable) instead of permanently stranding the
+                    // loggers that XAML bindings and ILoggingSessionListHost depend on.
+                    app.IsWindowInit = true;
                 }
                 catch (Exception ex)
                 {
                     _appLogger.Error(ex, "DaqifiViewModel");
                 }
             }
-
-            app.IsWindowInit = true;
         }
     }
 
