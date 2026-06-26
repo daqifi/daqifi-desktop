@@ -42,10 +42,14 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
     {
         private readonly IAppLogger _appLogger;
         private readonly string _category;
+        private readonly bool _isDaqifiCategory;
 
         public AppLoggerBridge(IAppLogger appLogger, string category)
         {
             _appLogger = appLogger;
+
+            // Our own (DAQiFi/Core) errors are worth capturing to Sentry; framework errors are not.
+            _isDaqifiCategory = category.StartsWith("Daqifi", StringComparison.OrdinalIgnoreCase);
 
             // Tag log lines with the short type name (e.g. "FirmwareUpdateService") for context.
             var lastDot = category.LastIndexOf('.');
@@ -87,13 +91,31 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
                 {
                     case LogLevel.Critical:
                     case LogLevel.Error:
-                        if (exception is not null)
+                        // Capture our own errors to Sentry (AppLogger.Error); route framework
+                        // errors to the file only (AppLogger.Warning does NOT hit Sentry) so routine
+                        // component Error logs don't spam Sentry. Tag the level so severity isn't lost.
+                        if (_isDaqifiCategory)
                         {
-                            _appLogger.Error(exception, line);
+                            if (exception is not null)
+                            {
+                                _appLogger.Error(exception, line);
+                            }
+                            else
+                            {
+                                _appLogger.Error(line);
+                            }
                         }
                         else
                         {
-                            _appLogger.Error(line);
+                            var framework = $"[{logLevel}] {line}";
+                            if (exception is not null)
+                            {
+                                _appLogger.Warning(exception, framework);
+                            }
+                            else
+                            {
+                                _appLogger.Warning(framework);
+                            }
                         }
 
                         break;
@@ -116,10 +138,19 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
                         break;
                 }
             }
-            catch
+            catch (Exception bridgeFailure)
             {
-                // Swallow: there is no safe channel to report a logging failure (logging is the
-                // thing that failed), and it must not propagate into the caller.
+                // The bridge must never propagate into the caller, but don't fail silently either:
+                // make a best-effort note of the failure, guarding the last-resort write too since
+                // AppLogger itself may be what failed.
+                try
+                {
+                    _appLogger.Warning(bridgeFailure, $"[{_category}] AppLogger logging bridge failed to forward an entry.");
+                }
+                catch
+                {
+                    // Nothing safe left to do — the logging sink itself is unavailable.
+                }
             }
         }
 
