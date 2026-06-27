@@ -71,7 +71,7 @@
 		     clean restore cannot drop it out from under the XAML compiler. Version tracks the one
 		     MahApps.Metro 2.4.11 currently resolves. -->
 		<PackageReference Include="Microsoft.Xaml.Behaviors.Wpf" Version="1.1.142" />
-		<PackageReference Include="NCalcSync" Version="6.1.1" />
+		<PackageReference Include="NCalcSync" Version="6.3.2" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 		<PackageReference Include="OxyPlot.Core" Version="2.2.0" />
 		<PackageReference Include="OxyPlot.Wpf" Version="2.2.0" />
