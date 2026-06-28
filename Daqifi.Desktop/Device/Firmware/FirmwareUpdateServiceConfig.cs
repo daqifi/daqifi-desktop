@@ -43,7 +43,15 @@ public static class FirmwareUpdateServiceConfig
         return new HidLibraryTransport
         {
             ReadTimeout = BootloaderHidTimeout,
-            WriteTimeout = BootloaderHidTimeout
+            WriteTimeout = BootloaderHidTimeout,
+
+            // A2 (stray-write guard): open the bootloader's HID handle exclusively and hold it for
+            // the whole flash session so no other user-mode opener — the connection dialog's own HID
+            // discovery loop, a second app instance, anything — can open or write to the device
+            // mid-flash. The PIC32 bootloader's CRC check is disabled, so a stray frame from another
+            // opener can be mis-parsed as an ERASE; the exclusive handle is the guard. Best-effort in
+            // Core: a refused exclusive open falls back to shared so a working flash is not regressed.
+            ExclusiveAccess = true
         };
     }
 

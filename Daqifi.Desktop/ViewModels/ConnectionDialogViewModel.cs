@@ -1,4 +1,5 @@
 ﻿using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Device.Firmware;
 using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Device.WiFiDevice;
 using Daqifi.Desktop.DialogService;
@@ -10,6 +11,7 @@ using System.Net;
 using System.Net.Sockets;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.DependencyInjection;
 using Daqifi.Core.Device.Discovery;
 using CoreConcreteDeviceInfo = Daqifi.Core.Device.Discovery.DeviceInfo;
 using CoreConnectionType = Daqifi.Core.Device.Discovery.ConnectionType;
@@ -30,6 +32,13 @@ public partial class ConnectionDialogViewModel : ObservableObject
     private Task? _serialDiscoveryTask;
     private Task? _hidDiscoveryTask;
     private readonly IDialogService _dialogService;
+
+    /// <summary>
+    /// Holds a detected HID bootloader's handle open so Windows USB selective-suspend can't wedge it
+    /// before the user flashes (daqifi-nyquist-firmware#568). Null only in unit tests that construct the
+    /// view model without the DI container.
+    /// </summary>
+    private readonly IBootloaderHoldService? _bootloaderHoldService;
 
     [ObservableProperty]
     private bool _hasNoWiFiDevices = true;
@@ -100,11 +109,15 @@ public partial class ConnectionDialogViewModel : ObservableObject
     }
 
     #region Constructor
-    public ConnectionDialogViewModel() : this(ServiceLocator.Resolve<IDialogService>()) { }
+    public ConnectionDialogViewModel()
+        : this(ServiceLocator.Resolve<IDialogService>(), App.ServiceProvider?.GetService<IBootloaderHoldService>()) { }
 
-    public ConnectionDialogViewModel(IDialogService dialogService)
+    public ConnectionDialogViewModel(
+        IDialogService dialogService,
+        IBootloaderHoldService? bootloaderHoldService = null)
     {
         _dialogService = dialogService;
+        _bootloaderHoldService = bootloaderHoldService;
         ConnectCommand = new AsyncRelayCommand<object>(ConnectAsync);
         ConnectSerialCommand = new AsyncRelayCommand<object>(ConnectSerialAsync);
         ConnectManualSerialCommand = new AsyncRelayCommand(ConnectManualSerialAsync);
@@ -229,6 +242,21 @@ public partial class ConnectionDialogViewModel : ObservableObject
             while (!cancellationToken.IsCancellationRequested && _hidDeviceFinder != null)
             {
                 await _hidDeviceFinder.DiscoverAsync(cancellationToken);
+
+                // Stop repolling once a HID bootloader is in the list. Each DiscoverAsync cycle opens
+                // every matching HID device to read its USB string descriptors; for a bootloader that
+                // is just sitting here waiting to be flashed, that repeated ~2s open/close churn
+                // darkens its data endpoint (daqifi-nyquist-firmware#568) before the user ever clicks
+                // Upload. One enumeration is enough to list it — after that, leave it untouched until
+                // the flash itself opens it. Re-entering the dialog restarts discovery via
+                // StartHidDiscovery, so a hot-plugged bootloader is still picked up.
+                if (AvailableHidDevices.Count > 0)
+                {
+                    Common.Loggers.AppLogger.Instance.Information(
+                        "HID bootloader found — stopping HID discovery so the sitting device is not re-opened before flashing.");
+                    break;
+                }
+
                 // HID discovery is quick, pause longer between scans
                 await Task.Delay(2000, cancellationToken);
             }
@@ -466,6 +494,15 @@ public partial class ConnectionDialogViewModel : ObservableObject
         await StopWiFiDiscoveryAsync();
         await StopSerialDiscoveryAsync();
         await StopHidDiscoveryAsync();
+
+        // Hand the held handle to the flasher: stop the keep-alive read so the flash owns the device's
+        // HID I/O, but leave the handle OPEN and warm. The flasher closes+reopens it back-to-back (no
+        // idle gap, so no #568 wedge). No-op if we were never holding (the handle wasn't grabbed).
+        if (_bootloaderHoldService != null)
+        {
+            await _bootloaderHoldService.PauseForFlashAsync();
+        }
+
         try
         {
             var firmwareDialogViewModel = new FirmwareDialogViewModel(hidDevice.Name);
@@ -473,6 +510,15 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
         finally
         {
+            // Re-grab the hold if the device is still a sitting bootloader (the user cancelled, or the
+            // flash failed). A successful flash left it in application mode, so BeginHoldAsync finds no
+            // bootloader and no-ops. This keeps the device wedge-proof across a retry without reopening
+            // the dialog.
+            if (_bootloaderHoldService != null)
+            {
+                await _bootloaderHoldService.BeginHoldAsync();
+            }
+
             // Resume discovery once the flash dialog closes so the device list stays live.
             StartWiFiDiscovery();
             StartSerialDiscovery();
@@ -585,6 +631,12 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
                 AvailableHidDevices.Add(discoveredDevice);
                 HasNoHidDevices = AvailableHidDevices.Count == 0;
+
+                // A bootloader-VID/PID device just appeared. Immediately grab and hold its HID handle
+                // (exclusive, keep-alive read pending) so Windows USB selective-suspend can't wedge it
+                // into the #568 state while it sits here waiting to be flashed. Fire-and-forget: the
+                // open + keep-alive runs off the UI thread, and the hold is idempotent.
+                _ = _bootloaderHoldService?.BeginHoldAsync();
             });
         }
         catch (Exception ex)
@@ -628,6 +680,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
         // Fire-and-forget: cancel discovery and clean up without waiting for task completion
         _ = StopSerialDiscoveryAsync();
         StopHidDiscovery();
+
+        // Release any held bootloader handle so the device is never left grabbed after the dialog
+        // closes. Fire-and-forget for the same reason as the serial drain above.
+        _ = _bootloaderHoldService?.ReleaseAsync();
     }
 
     private void StopWiFiDiscovery()

@@ -103,6 +103,7 @@ public partial class App
                     && category.StartsWith("Daqifi", StringComparison.OrdinalIgnoreCase)
                     && level is >= LogLevel.Information and < LogLevel.None));
         });
+
         serviceCollection.AddHttpClient();
         serviceCollection.AddSingleton<IFirmwareDownloadService>(provider =>
         {
@@ -119,6 +120,13 @@ public partial class App
             provider.GetRequiredService<IExternalProcessRunner>(),
             provider.GetRequiredService<ILogger<FirmwareUpdateService>>(),
             options: FirmwareUpdateServiceConfig.CreateOptions()));
+        // Holds a sitting HID bootloader's handle open (over the SAME exclusive transport the flasher
+        // uses) with a keep-alive read pending, so Windows USB selective-suspend can't wedge it before
+        // the user flashes (daqifi-nyquist-firmware#568). The connection dialog grabs the hold on
+        // detection and hands the warm handle to the flasher.
+        serviceCollection.AddSingleton<IBootloaderHoldService>(provider => new BootloaderHoldService(
+            provider.GetRequiredService<IHidTransport>(),
+            Common.Loggers.AppLogger.Instance));
 
         serviceCollection.AddSingleton<LoggingManager>();
         ServiceLocator.RegisterSingleton<IDialogService, DialogService.DialogService>();
