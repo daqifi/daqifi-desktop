@@ -495,14 +495,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
         await StopSerialDiscoveryAsync();
         await StopHidDiscoveryAsync();
 
-        // Hand the held handle to the flasher: stop the keep-alive read so the flash owns the device's
-        // HID I/O, but leave the handle OPEN and warm. The flasher closes+reopens it back-to-back (no
-        // idle gap, so no #568 wedge). No-op if we were never holding (the handle wasn't grabbed).
-        if (_bootloaderHoldService != null)
-        {
-            await _bootloaderHoldService.PauseForFlashAsync();
-        }
-
+        // Keep holding (keep-alive active) WHILE the dialog is open — the user may sit here for a while
+        // before clicking Upload, and an idle open handle alone does not stop USB selective-suspend, so
+        // pausing now would re-open the #568 wedge window. The flasher pauses the keep-alive itself at
+        // the moment the flash starts (FirmwareDialogViewModel.UploadFirmware), handing itself a warm
+        // handle with no idle gap.
         try
         {
             var firmwareDialogViewModel = new FirmwareDialogViewModel(hidDevice.Name);

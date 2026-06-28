@@ -16,6 +16,13 @@ public partial class FirmwareDialogViewModel : ObservableObject
     private readonly IFirmwareUpdateService _firmwareUpdateService;
     private readonly IFirmwareDownloadService _firmwareDownloadService;
     private readonly Daqifi.Core.Device.IStreamingDevice _coreDevice;
+
+    /// <summary>
+    /// The bootloader hold (keep-alive) that kept the device out of USB selective-suspend while the
+    /// user was deciding. Paused the instant the flash begins so the flasher owns the HID I/O. Null
+    /// only in unit tests that construct the view model without the DI container.
+    /// </summary>
+    private readonly IBootloaderHoldService? _bootloaderHoldService;
     private CancellationTokenSource? _updateCts;
 
     [ObservableProperty]
@@ -64,7 +71,8 @@ public partial class FirmwareDialogViewModel : ObservableObject
     public FirmwareDialogViewModel(
         string? hidDeviceName,
         IFirmwareUpdateService? firmwareUpdateService = null,
-        IFirmwareDownloadService? firmwareDownloadService = null)
+        IFirmwareDownloadService? firmwareDownloadService = null,
+        IBootloaderHoldService? bootloaderHoldService = null)
     {
         // Resolve from DI rather than newing up services/HttpClient here. Both are registered in
         // App.ConfigureServices and the provider is always present at runtime; the throw is a
@@ -76,6 +84,10 @@ public partial class FirmwareDialogViewModel : ObservableObject
         _firmwareDownloadService = firmwareDownloadService
             ?? App.ServiceProvider?.GetService<IFirmwareDownloadService>()
             ?? throw new InvalidOperationException("IFirmwareDownloadService is not registered.");
+
+        // Optional: the connection dialog grabs the bootloader hold and this dialog pauses it at flash
+        // start. Resolved from DI in production; null is fine (no hold to pause) for tests/standalone use.
+        _bootloaderHoldService = bootloaderHoldService ?? App.ServiceProvider?.GetService<IBootloaderHoldService>();
 
         _coreDevice = new BootloaderSessionStreamingDeviceAdapter(hidDeviceName ?? "DAQiFi Bootloader");
 
@@ -201,6 +213,15 @@ public partial class FirmwareDialogViewModel : ObservableObject
             {
                 UploadFirmwareProgress = Math.Clamp((int)Math.Round(report.PercentComplete), 0, 100);
             });
+
+            // Stop the keep-alive hold right as the flash begins so the flasher owns the device's HID
+            // I/O. The hold stayed active across the user's time in this dialog (so the device couldn't
+            // selective-suspend/wedge while they decided); pausing here hands the flasher a warm,
+            // still-open handle it reopens with no idle gap.
+            if (_bootloaderHoldService != null)
+            {
+                await _bootloaderHoldService.PauseForFlashAsync();
+            }
 
             await _firmwareUpdateService.UpdateFirmwareAsync(
                 _coreDevice,

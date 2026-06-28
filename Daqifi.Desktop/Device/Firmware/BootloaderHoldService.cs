@@ -79,7 +79,27 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
         {
             if (_holding)
             {
-                return;
+                // Already holding with a live keep-alive loop — nothing to do.
+                if (_keepAliveTask is { IsCompleted: false })
+                {
+                    return;
+                }
+
+                // The keep-alive loop exited early (device I/O error / surprise removal) but the hold
+                // state was never cleared. Tear the stale hold down here so we re-establish it below
+                // instead of no-opping and leaving the device unprotected from selective-suspend.
+                _logger.Information("HID bootloader keep-alive had stopped; re-establishing the hold.");
+                await StopKeepAliveAsync(hard: true).ConfigureAwait(false);
+                try
+                {
+                    await _transport.DisconnectAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warning(ex, "Error disconnecting a stale HID bootloader hold before re-establishing.");
+                }
+
+                _holding = false;
             }
 
             try

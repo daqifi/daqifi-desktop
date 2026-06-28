@@ -46,6 +46,13 @@ public class BootloaderHoldServiceTests
         throw new TimeoutException();
     }
 
+    private async Task<byte[]> KeepAliveReadThrows(CancellationToken ct)
+    {
+        Interlocked.Increment(ref _readCount);
+        await Task.Yield();
+        throw new IOException("device gone");
+    }
+
     private BootloaderHoldService CreateService() =>
         new(_transport.Object, _logger.Object, TimeSpan.FromMilliseconds(50));
 
@@ -133,6 +140,30 @@ public class BootloaderHoldServiceTests
 
         _transport.Verify(t => t.ConnectAsync(
             It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
+
+        await service.ReleaseAsync();
+    }
+
+    [TestMethod]
+    public async Task BeginHoldAsync_AfterKeepAliveFaults_ReEstablishesHold()
+    {
+        // Keep-alive read throws a non-timeout error → the loop exits (device I/O error / surprise removal).
+        _transport
+            .Setup(t => t.ReadAsync(It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
+            .Returns((TimeSpan? _, CancellationToken ct) => KeepAliveReadThrows(ct));
+
+        using var service = CreateService();
+        await service.BeginHoldAsync();
+
+        // Wait for the keep-alive loop to fault and exit (read attempted, then the loop task completes).
+        await WaitUntilAsync(() => Volatile.Read(ref _readCount) >= 1, TimeSpan.FromSeconds(2));
+        await Task.Delay(50);
+
+        // Re-grab must NOT no-op on the stale holding state — it must tear down and reconnect.
+        await service.BeginHoldAsync();
+
+        _transport.Verify(t => t.ConnectAsync(
+            It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
 
         await service.ReleaseAsync();
     }
