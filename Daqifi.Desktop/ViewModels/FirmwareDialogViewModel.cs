@@ -223,11 +223,26 @@ public partial class FirmwareDialogViewModel : ObservableObject
                 await _bootloaderHoldService.PauseForFlashAsync();
             }
 
-            await _firmwareUpdateService.UpdateFirmwareAsync(
-                _coreDevice,
-                FirmwareFilePath,
-                progress,
-                _updateCts.Token);
+            try
+            {
+                await _firmwareUpdateService.UpdateFirmwareAsync(
+                    _coreDevice,
+                    FirmwareFilePath,
+                    progress,
+                    _updateCts.Token);
+            }
+            catch
+            {
+                // Flash failed or was cancelled — re-establish the hold so the device stays wedge-proof
+                // if the user retries from this still-open dialog (the keep-alive was paused above). On
+                // success we skip this: the device has rebooted into the application and is gone.
+                if (_bootloaderHoldService != null)
+                {
+                    await _bootloaderHoldService.BeginHoldAsync();
+                }
+
+                throw;
+            }
 
             IsUploadComplete = true;
             AppLogger.Instance.AddBreadcrumb("firmware", "Firmware update completed");

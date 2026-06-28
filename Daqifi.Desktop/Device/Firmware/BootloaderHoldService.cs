@@ -64,7 +64,7 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
 
     #region Public Methods
     /// <inheritdoc />
-    public bool IsHolding => _holding;
+    public bool IsHolding => Volatile.Read(ref _holding);
 
     /// <inheritdoc />
     public async Task BeginHoldAsync(CancellationToken cancellationToken = default)
