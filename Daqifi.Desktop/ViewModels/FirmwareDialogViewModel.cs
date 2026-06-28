@@ -236,11 +236,10 @@ public partial class FirmwareDialogViewModel : ObservableObject
                 // Flash failed or was cancelled — re-establish the hold so the device stays wedge-proof
                 // if the user retries from this still-open dialog (the keep-alive was paused above). On
                 // success we skip this: the device has rebooted into the application and is gone.
-                if (_bootloaderHoldService != null)
-                {
-                    await _bootloaderHoldService.BeginHoldAsync();
-                }
-
+                // Fire-and-forget: do NOT await, so the rethrow and the outer finally (which clears the
+                // "uploading" state) aren't delayed by a blocking HID open. BeginHoldAsync is best-effort
+                // and logs its own failures.
+                _ = _bootloaderHoldService?.BeginHoldAsync();
                 throw;
             }
 
