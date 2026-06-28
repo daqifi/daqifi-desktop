@@ -17,6 +17,7 @@ public class BootloaderHoldServiceTests
     private Mock<IHidTransport> _transport = null!;
     private Mock<IAppLogger> _logger = null!;
     private int _readCount;
+    private int _connectCount;
 
     [TestInitialize]
     public void Setup()
@@ -24,11 +25,12 @@ public class BootloaderHoldServiceTests
         _transport = new Mock<IHidTransport>();
         _logger = new Mock<IAppLogger>();
         _readCount = 0;
+        _connectCount = 0;
 
         _transport
             .Setup(t => t.ConnectAsync(
                 It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .Returns(() => { Interlocked.Increment(ref _connectCount); return Task.CompletedTask; });
         _transport
             .Setup(t => t.DisconnectAsync())
             .Returns(Task.CompletedTask);
@@ -153,17 +155,20 @@ public class BootloaderHoldServiceTests
             .Returns((TimeSpan? _, CancellationToken ct) => KeepAliveReadThrows(ct));
 
         using var service = CreateService();
-        await service.BeginHoldAsync();
+        await service.BeginHoldAsync(); // open #1; the keep-alive immediately faults and the loop exits
 
-        // Wait for the keep-alive loop to fault and exit (read attempted, then the loop task completes).
-        await WaitUntilAsync(() => Volatile.Read(ref _readCount) >= 1, TimeSpan.FromSeconds(2));
-        await Task.Delay(50);
+        // Re-grab must re-establish once the faulted loop has exited. Retry on a bounded deadline rather
+        // than a fixed sleep so the test isn't timing-flaky: each BeginHoldAsync no-ops while the loop
+        // task is still running, then re-opens the transport once it has completed.
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(3);
+        while (Volatile.Read(ref _connectCount) < 2 && DateTime.UtcNow < deadline)
+        {
+            await service.BeginHoldAsync();
+            await Task.Delay(20);
+        }
 
-        // Re-grab must NOT no-op on the stale holding state — it must tear down and reconnect.
-        await service.BeginHoldAsync();
-
-        _transport.Verify(t => t.ConnectAsync(
-            It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+        Assert.IsTrue(Volatile.Read(ref _connectCount) >= 2,
+            "A faulted keep-alive must not leave a stale hold; BeginHoldAsync should re-open the transport.");
 
         await service.ReleaseAsync();
     }

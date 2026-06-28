@@ -244,9 +244,11 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
     private async Task StopKeepAliveAsync(bool hard)
     {
         _stopKeepAlive = true;
+
+        var cts = _keepAliveCts;
         if (hard)
         {
-            try { _keepAliveCts?.Cancel(); }
+            try { cts?.Cancel(); }
             catch (ObjectDisposedException) { /* already torn down */ }
         }
 
@@ -255,6 +257,23 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
         {
             try
             {
+                if (!hard)
+                {
+                    // Graceful: let the in-flight read drain naturally so no orphaned read IRP collides
+                    // with the flasher. Bound the wait — if the read doesn't complete within its own
+                    // timeout (+ a small margin), escalate to cancellation so PauseForFlashAsync can never
+                    // hang the flash on a wedged/stuck read.
+                    var drained = await Task
+                        .WhenAny(task, Task.Delay(_keepAliveReadTimeout + TimeSpan.FromMilliseconds(250)))
+                        .ConfigureAwait(false);
+                    if (drained != task)
+                    {
+                        _logger.Warning("HID bootloader keep-alive did not drain in time; cancelling to unblock flashing.");
+                        try { cts?.Cancel(); }
+                        catch (ObjectDisposedException) { /* already torn down */ }
+                    }
+                }
+
                 await task.ConfigureAwait(false);
             }
             catch (Exception ex)
