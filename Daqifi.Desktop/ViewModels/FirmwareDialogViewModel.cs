@@ -217,31 +217,18 @@ public partial class FirmwareDialogViewModel : ObservableObject
             // Stop the keep-alive hold right as the flash begins so the flasher owns the device's HID
             // I/O. The hold stayed active across the user's time in this dialog (so the device couldn't
             // selective-suspend/wedge while they decided); pausing here hands the flasher a warm,
-            // still-open handle it reopens with no idle gap.
+            // still-open handle it reopens with no idle gap. If the flash fails or is cancelled, the
+            // connection dialog re-grabs the hold when this dialog closes (ConnectHid's finally).
             if (_bootloaderHoldService != null)
             {
                 await _bootloaderHoldService.PauseForFlashAsync();
             }
 
-            try
-            {
-                await _firmwareUpdateService.UpdateFirmwareAsync(
-                    _coreDevice,
-                    FirmwareFilePath,
-                    progress,
-                    _updateCts.Token);
-            }
-            catch
-            {
-                // Flash failed or was cancelled — re-establish the hold so the device stays wedge-proof
-                // if the user retries from this still-open dialog (the keep-alive was paused above). On
-                // success we skip this: the device has rebooted into the application and is gone.
-                // Fire-and-forget: do NOT await, so the rethrow and the outer finally (which clears the
-                // "uploading" state) aren't delayed by a blocking HID open. BeginHoldAsync is best-effort
-                // and logs its own failures.
-                _ = _bootloaderHoldService?.BeginHoldAsync();
-                throw;
-            }
+            await _firmwareUpdateService.UpdateFirmwareAsync(
+                _coreDevice,
+                FirmwareFilePath,
+                progress,
+                _updateCts.Token);
 
             IsUploadComplete = true;
             AppLogger.Instance.AddBreadcrumb("firmware", "Firmware update completed");

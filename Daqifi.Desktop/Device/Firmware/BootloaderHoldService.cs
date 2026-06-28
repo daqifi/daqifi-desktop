@@ -255,30 +255,31 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
         var task = _keepAliveTask;
         if (task != null)
         {
-            try
-            {
-                if (!hard)
-                {
-                    // Graceful: let the in-flight read drain naturally so no orphaned read IRP collides
-                    // with the flasher. Bound the wait — if the read doesn't complete within its own
-                    // timeout (+ a small margin), escalate to cancellation so PauseForFlashAsync can never
-                    // hang the flash on a wedged/stuck read.
-                    var drained = await Task
-                        .WhenAny(task, Task.Delay(_keepAliveReadTimeout + TimeSpan.FromMilliseconds(250)))
-                        .ConfigureAwait(false);
-                    if (drained != task)
-                    {
-                        _logger.Warning("HID bootloader keep-alive did not drain in time; cancelling to unblock flashing.");
-                        try { cts?.Cancel(); }
-                        catch (ObjectDisposedException) { /* already torn down */ }
-                    }
-                }
+            var settle = _keepAliveReadTimeout + TimeSpan.FromMilliseconds(250);
 
-                await task.ConfigureAwait(false);
-            }
-            catch (Exception ex)
+            // Graceful: let the in-flight read drain naturally first (so no orphaned read IRP collides
+            // with the flasher), bounded; on timeout, escalate to cancellation.
+            if (!hard)
             {
-                _logger.Warning(ex, "Error while stopping the HID bootloader keep-alive loop.");
+                if (await Task.WhenAny(task, Task.Delay(settle)).ConfigureAwait(false) != task)
+                {
+                    _logger.Warning("HID bootloader keep-alive did not drain in time; cancelling to unblock flashing.");
+                    try { cts?.Cancel(); }
+                    catch (ObjectDisposedException) { /* already torn down */ }
+                }
+            }
+
+            // The FINAL wait is also bounded: a wedged/non-cancelable ReadAsync must never block the
+            // flash hand-off. If the loop still hasn't stopped, abandon the task (the cancelled read
+            // drains on its own later) rather than awaiting it indefinitely.
+            if (await Task.WhenAny(task, Task.Delay(settle)).ConfigureAwait(false) == task)
+            {
+                try { await task.ConfigureAwait(false); }
+                catch (Exception ex) { _logger.Warning(ex, "Error while stopping the HID bootloader keep-alive loop."); }
+            }
+            else
+            {
+                _logger.Warning("HID bootloader keep-alive loop did not stop after cancellation; abandoning it.");
             }
         }
 
