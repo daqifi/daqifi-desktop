@@ -49,12 +49,17 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
         _discovery = discovery ?? throw new ArgumentNullException(nameof(discovery));
         _holdFactory = holdFactory ?? throw new ArgumentNullException(nameof(holdFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        Bootloaders = new ReadOnlyObservableCollection<HeldBootloader>(_bootloaders);
     }
     #endregion
 
     #region IBootloaderWatcher
+    // Internal mutable backing; the public surface is a read-only view so external code (the bound
+    // dialog) can observe the list but cannot mutate the watcher's state.
+    private readonly ObservableCollection<HeldBootloader> _bootloaders = [];
+
     /// <inheritdoc />
-    public ObservableCollection<HeldBootloader> Bootloaders { get; } = [];
+    public ReadOnlyObservableCollection<HeldBootloader> Bootloaders { get; }
 
     /// <inheritdoc />
     public event EventHandler<BootloaderHoldDroppedEventArgs>? HoldDropped;
@@ -212,9 +217,10 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
             }
 
             _holds[devicePath] = created;
+            created = null; // ownership transferred to _holds BEFORE the UI marshal, so a marshal failure
+                            // can never make the finally dispose a now-tracked hold (stale-entry bug).
             var displayName = string.IsNullOrWhiteSpace(deviceName) ? "DAQiFi Bootloader" : deviceName!;
-            InvokeOnUiThread(() => Bootloaders.Add(new HeldBootloader(devicePath, displayName)));
-            created = null; // ownership transferred to _holds
+            InvokeOnUiThread(() => _bootloaders.Add(new HeldBootloader(devicePath, displayName)));
             _logger.Information($"Holding HID bootloader {devicePath} ({displayName}).");
         }
         catch (Exception ex)
@@ -269,10 +275,10 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
         hold.Dispose();
         InvokeOnUiThread(() =>
         {
-            var row = Bootloaders.FirstOrDefault(b => string.Equals(b.DevicePath, devicePath, StringComparison.Ordinal));
+            var row = _bootloaders.FirstOrDefault(b => string.Equals(b.DevicePath, devicePath, StringComparison.Ordinal));
             if (row != null)
             {
-                Bootloaders.Remove(row);
+                _bootloaders.Remove(row);
             }
         });
     }
@@ -307,7 +313,20 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
             return;
         }
 
-        dispatcher.BeginInvoke(action);
+        // Non-throwing: during app/dispatcher shutdown BeginInvoke can throw, and these calls run inside
+        // the gate-protected handlers — a marshal failure must never propagate (it would strand watcher
+        // state). If the dispatcher is gone the bound list simply won't update, which is fine at shutdown.
+        try
+        {
+            if (!dispatcher.HasShutdownStarted)
+            {
+                dispatcher.BeginInvoke(action);
+            }
+        }
+        catch (Exception)
+        {
+            // Dispatcher unavailable / shutting down — drop the UI update.
+        }
     }
     #endregion
 
@@ -322,6 +341,7 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
 
         _disposed = true;
         _discovery.BootloaderDiscovered -= OnBootloaderDiscovered;
+        _discovery.Stop();
         (_discovery as IDisposable)?.Dispose();
 
         _gate.Wait();
@@ -333,7 +353,7 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
                 hold.Dispose();
             }
             _holds.Clear();
-            InvokeOnUiThread(Bootloaders.Clear);
+            InvokeOnUiThread(_bootloaders.Clear);
         }
         finally
         {

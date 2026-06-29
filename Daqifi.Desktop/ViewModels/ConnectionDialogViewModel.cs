@@ -67,9 +67,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
     /// The sitting HID bootloaders the app-global watcher is holding, bound to the Firmware tab. The user
     /// picks one to flash. Falls back to an empty collection when no watcher is present (unit tests).
     /// </summary>
-    public ObservableCollection<HeldBootloader> AvailableHidDevices => _watcher?.Bootloaders ?? _emptyHidDevices;
+    public ReadOnlyObservableCollection<HeldBootloader> AvailableHidDevices => _watcher?.Bootloaders ?? _emptyHidDevices;
 
-    private readonly ObservableCollection<HeldBootloader> _emptyHidDevices = [];
+    private readonly ReadOnlyObservableCollection<HeldBootloader> _emptyHidDevices =
+        new(new ObservableCollection<HeldBootloader>());
 
     [ObservableProperty]
     private string? _manualPortName;
@@ -115,9 +116,13 @@ public partial class ConnectionDialogViewModel : ObservableObject
     }
 
     #region Constructor
+    /// <summary>Creates the connection dialog view model using services resolved from the app container.</summary>
     public ConnectionDialogViewModel()
         : this(ServiceLocator.Resolve<IDialogService>(), App.ServiceProvider?.GetService<IBootloaderWatcher>()) { }
 
+    /// <summary>Creates the connection dialog view model.</summary>
+    /// <param name="dialogService">Dialog service used to display modal dialogs.</param>
+    /// <param name="watcher">Optional app-global bootloader watcher (null in unit tests without the DI container).</param>
     public ConnectionDialogViewModel(
         IDialogService dialogService,
         IBootloaderWatcher? watcher = null)
@@ -131,10 +136,13 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         // The watcher holds bootloaders app-wide, so its list may already be populated before the dialog
         // opens. Reflect its current count and track changes so the "scanning…" overlay is accurate.
+        // (Bootloaders is a ReadOnlyObservableCollection — its CollectionChanged is an explicit interface
+        // member, so reach it via INotifyCollectionChanged.)
         if (_watcher != null)
         {
             HasNoHidDevices = _watcher.Bootloaders.Count == 0;
-            _watcher.Bootloaders.CollectionChanged += OnHidDevicesChanged;
+            ((System.Collections.Specialized.INotifyCollectionChanged)_watcher.Bootloaders).CollectionChanged
+                += OnHidDevicesChanged;
         }
 
         // Set up the duplicate device handler
@@ -591,11 +599,12 @@ public partial class ConnectionDialogViewModel : ObservableObject
         _ = StopSerialDiscoveryAsync();
 
         // HID bootloader holds are owned by the app-global watcher and intentionally persist after the
-        // dialog closes (so a sitting bootloader stays wedge-proof). Only stop unsubscribing this dialog
-        // from the watcher's list.
+        // dialog closes (so a sitting bootloader stays wedge-proof). Only unsubscribe this dialog from
+        // the watcher's list.
         if (_watcher != null)
         {
-            _watcher.Bootloaders.CollectionChanged -= OnHidDevicesChanged;
+            ((System.Collections.Specialized.INotifyCollectionChanged)_watcher.Bootloaders).CollectionChanged
+                -= OnHidDevicesChanged;
         }
     }
 

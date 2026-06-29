@@ -6,7 +6,9 @@ public sealed class BootloaderHoldDroppedEventArgs : EventArgs
     /// <summary>Creates the event args.</summary>
     public BootloaderHoldDroppedEventArgs(string devicePath)
     {
-        DevicePath = devicePath;
+        DevicePath = string.IsNullOrWhiteSpace(devicePath)
+            ? throw new ArgumentException("Device path cannot be empty.", nameof(devicePath))
+            : devicePath;
     }
 
     /// <summary>OS HID device path of the bootloader whose hold was dropped.</summary>

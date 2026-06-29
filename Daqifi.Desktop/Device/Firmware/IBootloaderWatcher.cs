@@ -18,10 +18,11 @@ namespace Daqifi.Desktop.Device.Firmware;
 public interface IBootloaderWatcher
 {
     /// <summary>
-    /// The bootloaders currently held, bound to the connection dialog's firmware list. Mutated on the UI
-    /// thread so it can be data-bound directly.
+    /// The bootloaders currently held, bound to the connection dialog's firmware list. A read-only view
+    /// over the watcher's internal collection (mutated on the UI thread) so callers can observe but not
+    /// mutate the watcher's state.
     /// </summary>
-    ObservableCollection<HeldBootloader> Bootloaders { get; }
+    ReadOnlyObservableCollection<HeldBootloader> Bootloaders { get; }
 
     /// <summary>Raised when a held bootloader drops off the list (device removed / surprise-detached).</summary>
     event EventHandler<BootloaderHoldDroppedEventArgs>? HoldDropped;
