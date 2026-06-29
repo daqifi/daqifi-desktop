@@ -364,7 +364,8 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
         var gateAcquired = _gate.Wait(TimeSpan.FromSeconds(2));
         if (!gateAcquired)
         {
-            _logger.Warning("Timed out acquiring the gate during bootloader watcher dispose; disposing holds best-effort.");
+            _logger.Warning(
+                "Timed out acquiring the gate during bootloader watcher dispose; disposing holds best-effort.");
         }
 
         try
