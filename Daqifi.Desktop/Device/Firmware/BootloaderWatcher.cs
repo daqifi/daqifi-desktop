@@ -220,7 +220,14 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
             created = null; // ownership transferred to _holds BEFORE the UI marshal, so a marshal failure
                             // can never make the finally dispose a now-tracked hold (stale-entry bug).
             var displayName = string.IsNullOrWhiteSpace(deviceName) ? "DAQiFi Bootloader" : deviceName!;
-            InvokeOnUiThread(() => _bootloaders.Add(new HeldBootloader(devicePath, displayName)));
+            InvokeOnUiThread(() =>
+            {
+                // Guard: a callback queued just before Dispose must not re-add a row after teardown.
+                if (!_disposed)
+                {
+                    _bootloaders.Add(new HeldBootloader(devicePath, displayName));
+                }
+            });
             _logger.Information($"Holding HID bootloader {devicePath} ({displayName}).");
         }
         catch (Exception ex)
@@ -275,6 +282,12 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
         hold.Dispose();
         InvokeOnUiThread(() =>
         {
+            // Guard: a callback queued just before Dispose must not mutate the list after teardown.
+            if (_disposed)
+            {
+                return;
+            }
+
             var row = _bootloaders.FirstOrDefault(b => string.Equals(b.DevicePath, devicePath, StringComparison.Ordinal));
             if (row != null)
             {
