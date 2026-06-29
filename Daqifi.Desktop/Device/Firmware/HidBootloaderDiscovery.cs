@@ -21,6 +21,7 @@ public sealed class HidBootloaderDiscovery : IBootloaderDiscovery, IDisposable
     #region Private Fields
     private readonly IAppLogger _logger;
     private readonly TimeSpan _pollInterval;
+    private readonly Func<HidDeviceFinder> _finderFactory;
     private readonly object _sync = new();
 
     private HidDeviceFinder? _finder;
@@ -35,10 +36,18 @@ public sealed class HidBootloaderDiscovery : IBootloaderDiscovery, IDisposable
     /// <summary>Creates the discovery source.</summary>
     /// <param name="logger">Application logger for diagnostics.</param>
     /// <param name="pollInterval">Pause between discovery cycles; null uses <see cref="DefaultPollInterval"/>.</param>
-    public HidBootloaderDiscovery(IAppLogger logger, TimeSpan? pollInterval = null)
+    /// <param name="finderFactory">
+    /// Factory for the underlying Core HID finder; a fresh one is created per Start/Stop cycle (the finder
+    /// is disposed on Stop). Null uses the production <c>HidDeviceFinder</c>; tests inject a fake.
+    /// </param>
+    public HidBootloaderDiscovery(
+        IAppLogger logger,
+        TimeSpan? pollInterval = null,
+        Func<HidDeviceFinder>? finderFactory = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _pollInterval = pollInterval ?? DefaultPollInterval;
+        _finderFactory = finderFactory ?? (() => new HidDeviceFinder());
     }
 
     /// <inheritdoc />
@@ -60,7 +69,7 @@ public sealed class HidBootloaderDiscovery : IBootloaderDiscovery, IDisposable
             }
             _cts?.Dispose();
 
-            _finder = new HidDeviceFinder();
+            _finder = _finderFactory();
             _cts = new CancellationTokenSource();
             _finder.DeviceDiscovered += OnDeviceDiscovered;
             _loopTask = RunAsync(_finder, _cts.Token);
@@ -83,8 +92,12 @@ public sealed class HidBootloaderDiscovery : IBootloaderDiscovery, IDisposable
 
             _cts?.Dispose();
             _cts = null;
-            // Do not block on the loop task — Stop() may run on the UI thread. The loop drains on
-            // cancellation; Start() tolerates a still-completing prior task via the IsCompleted check.
+
+            // Clear the task reference (without blocking on it — Stop() may run on the UI thread) so a
+            // subsequent Start() restarts discovery immediately. The abandoned loop owns its own
+            // (now-cancelled, now-disposed) finder via a parameter, so it drains and exits on its own; a
+            // fresh Start() spins up a new finder/CTS and is not gated on the old loop completing.
+            _loopTask = null;
         }
     }
 

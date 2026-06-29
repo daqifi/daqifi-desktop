@@ -2,19 +2,6 @@ using System.Collections.ObjectModel;
 
 namespace Daqifi.Desktop.Device.Firmware;
 
-/// <summary>Identifies a held bootloader that dropped out of the watcher's list.</summary>
-public sealed class BootloaderHoldDroppedEventArgs : EventArgs
-{
-    /// <summary>Creates the event args.</summary>
-    public BootloaderHoldDroppedEventArgs(string devicePath)
-    {
-        DevicePath = devicePath;
-    }
-
-    /// <summary>OS HID device path of the bootloader whose hold was dropped.</summary>
-    public string DevicePath { get; }
-}
-
 /// <summary>
 /// App-global service that discovers <em>every</em> sitting PIC32 HID bootloader and holds each one's USB
 /// handle open with a keep-alive read so Windows USB selective-suspend can't wedge it before the user

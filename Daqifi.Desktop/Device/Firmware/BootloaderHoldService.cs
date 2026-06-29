@@ -121,7 +121,8 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.Warning(ex, "Error disconnecting a stale HID bootloader hold before re-establishing.");
+                    _logger.Warning(
+                        ex, "Error disconnecting a stale HID bootloader hold before re-establishing.");
                 }
 
                 _holding = false;

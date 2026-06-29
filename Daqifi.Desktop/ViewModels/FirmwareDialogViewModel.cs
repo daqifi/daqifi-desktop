@@ -285,10 +285,18 @@ public partial class FirmwareDialogViewModel : ObservableObject
         finally
         {
             // Release the device back to the watcher (re-grab on failure / drop on success) and resume
-            // discovery, regardless of how the flash ended.
+            // discovery, regardless of how the flash ended. Best-effort: a failure resuming the watcher
+            // must not crash the command or mask the flash's own outcome (already recorded above).
             if (flashLease != null)
             {
-                await flashLease.DisposeAsync();
+                try
+                {
+                    await flashLease.DisposeAsync();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Instance.Warning(ex, "Error releasing the bootloader flash lease back to the watcher.");
+                }
             }
 
             IsFirmwareUploading = false;

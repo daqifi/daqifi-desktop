@@ -282,7 +282,10 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     private static void InvokeOnUiThread(Action action)
     {
         // No WPF dispatcher in unit tests (Application.Current is null) — run inline. In the app, marshal
-        // the bound-collection mutation onto the UI thread.
+        // the bound-collection mutation onto the UI thread. Use the NON-blocking BeginInvoke: these calls
+        // happen while _gate is held, and a blocking Dispatcher.Invoke could lock-invert with Dispose()'s
+        // synchronous _gate.Wait() (UI thread waits on the gate while a gate-holder waits on the UI
+        // thread). BeginInvoke queues the mutation in order without blocking, so no inversion is possible.
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher == null || dispatcher.CheckAccess())
         {
@@ -290,7 +293,7 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
             return;
         }
 
-        dispatcher.Invoke(action);
+        dispatcher.BeginInvoke(action);
     }
     #endregion
 
