@@ -13,7 +13,9 @@ public sealed class HeldBootloader
     /// <param name="displayName">Friendly name shown in the UI.</param>
     public HeldBootloader(string devicePath, string displayName)
     {
-        DevicePath = devicePath ?? throw new ArgumentNullException(nameof(devicePath));
+        DevicePath = string.IsNullOrWhiteSpace(devicePath)
+            ? throw new ArgumentException("Device path cannot be empty.", nameof(devicePath))
+            : devicePath;
         DisplayName = string.IsNullOrWhiteSpace(displayName)
             ? throw new ArgumentException("Display name cannot be empty.", nameof(displayName))
             : displayName;

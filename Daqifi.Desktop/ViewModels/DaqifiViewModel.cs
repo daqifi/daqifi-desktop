@@ -175,7 +175,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     // Owns the WiFi-only flash lifecycle (the PIC32 path's CTS lives in the coordinator).
     private CancellationTokenSource? _firmwareUploadCts;
     private readonly LoggingSessionListViewModel _loggingSessionList;
-    private ConnectionDialogViewModel _connectionDialogViewModel;
+    private ConnectionDialogViewModel? _connectionDialogViewModel;
     private string _selectedLoggingMode = "Stream to App";
     private bool _isLogToDeviceMode;
     private SdCardLogFormat _selectedSdCardLogFormat = SdCardLogFormat.Protobuf;
@@ -768,6 +768,11 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             catch (Exception ex)
             {
                 _appLogger.Error(ex, "Failed to close connection dialog view model after dialog attempt.");
+            }
+            finally
+            {
+                // Release the reference so the closed dialog VM can be collected before the next open.
+                _connectionDialogViewModel = null;
             }
         }
     }
