@@ -7,7 +7,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<UseWPF>true</UseWPF>
 		<UseWindowsForms>true</UseWindowsForms>
-		<Version>3.2.0</Version>
+		<Version>3.3.0</Version>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<InternalsVisibleTo>Daqifi.Desktop.Test</InternalsVisibleTo>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
