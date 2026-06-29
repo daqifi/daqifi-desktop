@@ -14,7 +14,9 @@ public sealed class HeldBootloader
     public HeldBootloader(string devicePath, string displayName)
     {
         DevicePath = devicePath ?? throw new ArgumentNullException(nameof(devicePath));
-        DisplayName = displayName;
+        DisplayName = string.IsNullOrWhiteSpace(displayName)
+            ? throw new ArgumentException("Display name cannot be empty.", nameof(displayName))
+            : displayName;
     }
 
     /// <summary>OS HID device path; the stable identity passed to the path-targeted flash.</summary>

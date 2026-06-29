@@ -184,7 +184,7 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     private void OnBootloaderDiscovered(object? sender, BootloaderDiscoveredEventArgs e)
     {
         // The discovery loop is synchronous; grabbing the hold is async, so dispatch without blocking it.
-        _ = HandleDiscoveredAsync(e.DevicePath, e.DeviceName);
+        RunDetached(HandleDiscoveredAsync(e.DevicePath, e.DeviceName), "handling a discovered bootloader");
     }
 
     private async Task HandleDiscoveredAsync(string devicePath, string? deviceName)
@@ -237,7 +237,7 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     {
         if (sender is IBootloaderHoldService hold && hold.DevicePath != null)
         {
-            _ = HandleHoldDroppedAsync(hold.DevicePath, hold);
+            RunDetached(HandleHoldDroppedAsync(hold.DevicePath, hold), "handling a dropped bootloader hold");
         }
     }
 
@@ -279,6 +279,20 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     #endregion
 
     #region Helpers
+    /// <summary>
+    /// Observes a fire-and-forget task's faults. The handlers carry their own try/catch for expected
+    /// failures; this is a backstop so an unexpected fault outside that scope (e.g. the gate already
+    /// disposed during shutdown) is logged rather than going unobserved.
+    /// </summary>
+    private void RunDetached(Task task, string context)
+    {
+        _ = task.ContinueWith(
+            t => _logger.Error(t.Exception!, $"Unhandled exception while {context}."),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
+    }
+
     private static void InvokeOnUiThread(Action action)
     {
         // No WPF dispatcher in unit tests (Application.Current is null) — run inline. In the app, marshal

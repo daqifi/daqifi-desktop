@@ -248,6 +248,7 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
         // read does. Reads carry no payload TO the device, so unlike a write they can never be mis-parsed
         // as a stray command — this is the one form of I/O that is safe to direct at a sitting bootloader.
         var droppedByError = false;
+        var stopWasRequested = false;
         while (!cancellationToken.IsCancellationRequested && !_stopKeepAlive)
         {
             try
@@ -270,6 +271,9 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
                 // flash path re-discovers and reconnects on its own.
                 _logger.Warning(ex, "HID bootloader keep-alive read failed; ending the hold.");
                 droppedByError = true;
+                // Snapshot at failure time: a concurrent PauseForFlash/Release could flip _stopKeepAlive
+                // between here and the post-loop check, which would otherwise swallow a genuine drop.
+                stopWasRequested = _stopKeepAlive;
                 break;
             }
         }
@@ -277,7 +281,7 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
         // Notify the watcher only when the device dropped out from under us — never on a requested stop
         // (PauseForFlash/Release set _stopKeepAlive). Raise off this task's thread so a HoldDropped handler
         // that disposes this hold (Dispose awaits this very task) cannot deadlock on itself.
-        if (droppedByError && !_stopKeepAlive)
+        if (droppedByError && !stopWasRequested)
         {
             var handler = HoldDropped;
             if (handler != null)

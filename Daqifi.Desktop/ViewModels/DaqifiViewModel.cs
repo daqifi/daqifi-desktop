@@ -760,8 +760,15 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             // Guarantee the dialog unsubscribes from the app-global watcher's collection even if the
             // dialog throws before its window opens — otherwise the lifetime singleton would permanently
             // root this VM. Close() is idempotent, so the normal window-Closing path that already called
-            // it is unaffected.
-            _connectionDialogViewModel.Close();
+            // it is unaffected. Best-effort so it can't mask an exception from the show attempt.
+            try
+            {
+                _connectionDialogViewModel.Close();
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Error(ex, "Failed to close connection dialog view model after dialog attempt.");
+            }
         }
     }
 

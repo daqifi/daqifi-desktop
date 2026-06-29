@@ -8,7 +8,9 @@ public sealed class BootloaderDiscoveredEventArgs : EventArgs
     /// <summary>Creates the event args.</summary>
     public BootloaderDiscoveredEventArgs(string devicePath, string? deviceName)
     {
-        DevicePath = devicePath;
+        DevicePath = string.IsNullOrWhiteSpace(devicePath)
+            ? throw new ArgumentException("Device path cannot be empty.", nameof(devicePath))
+            : devicePath;
         DeviceName = deviceName;
     }
 
