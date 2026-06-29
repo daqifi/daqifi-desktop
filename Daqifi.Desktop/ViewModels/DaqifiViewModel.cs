@@ -175,7 +175,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     // Owns the WiFi-only flash lifecycle (the PIC32 path's CTS lives in the coordinator).
     private CancellationTokenSource? _firmwareUploadCts;
     private readonly LoggingSessionListViewModel _loggingSessionList;
-    private ConnectionDialogViewModel _connectionDialogViewModel;
+    private ConnectionDialogViewModel? _connectionDialogViewModel;
     private string _selectedLoggingMode = "Stream to App";
     private bool _isLogToDeviceMode;
     private SdCardLogFormat _selectedSdCardLogFormat = SdCardLogFormat.Protobuf;
@@ -551,7 +551,10 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             resolvedFirmwareLogger,
             _appLogger,
             App.DaqifiDataDirectory,
-            wifiFirmwareUpdateServiceFactory);
+            wifiFirmwareUpdateServiceFactory,
+            // Suspend the app-global bootloader watcher's discovery during the PIC32 flash so it doesn't
+            // grab the connected device when it reboots into the bootloader mid-update.
+            watcher: App.ServiceProvider?.GetService<IBootloaderWatcher>());
 
         // Logged-data session-list actions (display/export/delete + collection plumbing) live in the
         // list view model (issue #592). The view model keeps the bound properties + thin command
@@ -746,9 +749,31 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     [RelayCommand]
     private void ShowConnectionDialog()
     {
-        _connectionDialogViewModel = new ConnectionDialogViewModel();
-        _connectionDialogViewModel.StartConnectionFinders();
-        _dialogService.ShowDialog<ConnectionDialog>(this, _connectionDialogViewModel);
+        var dialogVm = new ConnectionDialogViewModel();
+        _connectionDialogViewModel = dialogVm;
+        try
+        {
+            dialogVm.StartConnectionFinders();
+            _dialogService.ShowDialog<ConnectionDialog>(this, dialogVm);
+        }
+        finally
+        {
+            // Release the field reference before closing so the closed VM can be collected and a Close()
+            // side effect can't re-enter through the field. Guarantee the dialog unsubscribes from the
+            // app-global watcher's collection even if the dialog threw before its window opened (otherwise
+            // the lifetime singleton would permanently root the VM). Close() is idempotent, so the normal
+            // window-Closing path that already called it is unaffected; best-effort so it can't mask an
+            // exception from the show attempt.
+            _connectionDialogViewModel = null;
+            try
+            {
+                dialogVm.Close();
+            }
+            catch (Exception ex)
+            {
+                _appLogger.Error(ex, "Failed to close connection dialog view model after dialog attempt.");
+            }
+        }
     }
 
     [RelayCommand]

@@ -16,6 +16,22 @@ public partial class FirmwareDialogViewModel : ObservableObject
     private readonly IFirmwareUpdateService _firmwareUpdateService;
     private readonly IFirmwareDownloadService _firmwareDownloadService;
     private readonly Daqifi.Core.Device.IStreamingDevice _coreDevice;
+
+    /// <summary>
+    /// The app-global watcher holding the sitting bootloaders. When the flash starts, the dialog asks it
+    /// to release THIS device's hold (so the flasher can open it by path) while every other held
+    /// bootloader stays wedge-proof; disposing the flash lease re-grabs/drops it and resumes discovery.
+    /// Null only in unit tests that construct the view model without the DI container.
+    /// </summary>
+    private readonly IBootloaderWatcher? _watcher;
+
+    /// <summary>
+    /// OS HID device path of the bootloader to flash. Passed to the path-targeted
+    /// <see cref="IFirmwareUpdateService.UpdateFirmwareAsync(Daqifi.Core.Device.IStreamingDevice,string,IProgress{FirmwareUpdateProgress}?,string?,CancellationToken)"/>
+    /// overload so the right device is flashed when several identical bootloaders are present. Null in
+    /// tests / standalone use (falls back to first-match flashing).
+    /// </summary>
+    private readonly string? _targetDevicePath;
     private CancellationTokenSource? _updateCts;
 
     [ObservableProperty]
@@ -59,12 +75,16 @@ public partial class FirmwareDialogViewModel : ObservableObject
     /// loading the latest published firmware so the user can flash it without locating a .hex file.
     /// </summary>
     /// <param name="hidDeviceName">HID device name for the bootloader session (used by the flasher adapter).</param>
+    /// <param name="targetDevicePath">OS HID device path of the bootloader to flash; null falls back to first-match.</param>
     /// <param name="firmwareUpdateService">Optional override for tests; otherwise resolved from DI.</param>
     /// <param name="firmwareDownloadService">Optional override for tests; otherwise resolved from DI.</param>
+    /// <param name="watcher">Optional override for tests; otherwise resolved from DI.</param>
     public FirmwareDialogViewModel(
         string? hidDeviceName,
+        string? targetDevicePath = null,
         IFirmwareUpdateService? firmwareUpdateService = null,
-        IFirmwareDownloadService? firmwareDownloadService = null)
+        IFirmwareDownloadService? firmwareDownloadService = null,
+        IBootloaderWatcher? watcher = null)
     {
         // Resolve from DI rather than newing up services/HttpClient here. Both are registered in
         // App.ConfigureServices and the provider is always present at runtime; the throw is a
@@ -76,6 +96,11 @@ public partial class FirmwareDialogViewModel : ObservableObject
         _firmwareDownloadService = firmwareDownloadService
             ?? App.ServiceProvider?.GetService<IFirmwareDownloadService>()
             ?? throw new InvalidOperationException("IFirmwareDownloadService is not registered.");
+
+        // Optional: the app-global watcher holds the bootloaders; this dialog asks it to release the
+        // target's hold at flash start. Resolved from DI in production; null is fine for tests/standalone.
+        _watcher = watcher ?? App.ServiceProvider?.GetService<IBootloaderWatcher>();
+        _targetDevicePath = targetDevicePath;
 
         _coreDevice = new BootloaderSessionStreamingDeviceAdapter(hidDeviceName ?? "DAQiFi Bootloader");
 
@@ -175,6 +200,10 @@ public partial class FirmwareDialogViewModel : ObservableObject
         _updateCts?.Dispose();
         _updateCts = new CancellationTokenSource();
 
+        // Lease the device from the watcher for the duration of the flash. Acquired just before the flash
+        // (after any download) and released in the finally so discovery/holds always recover.
+        IAsyncDisposable? flashLease = null;
+
         try
         {
             HasErrorOccured = false;
@@ -202,11 +231,36 @@ public partial class FirmwareDialogViewModel : ObservableObject
                 UploadFirmwareProgress = Math.Clamp((int)Math.Round(report.PercentComplete), 0, 100);
             });
 
-            await _firmwareUpdateService.UpdateFirmwareAsync(
-                _coreDevice,
-                FirmwareFilePath,
-                progress,
-                _updateCts.Token);
+            // Hand this device off to the flasher right as the flash begins: the watcher pauses HID
+            // discovery and releases THIS bootloader's hold (so the flasher can open it by path) while
+            // every other held bootloader stays wedge-proof. The hold stayed active across the user's
+            // time in this dialog (so the device couldn't selective-suspend/wedge while they decided).
+            // Disposing the lease (in the finally) re-grabs the device on a failed/cancelled flash, or
+            // drops it once a successful flash leaves it in application mode — and resumes discovery.
+            if (_targetDevicePath != null)
+            {
+                if (_watcher != null)
+                {
+                    flashLease = await _watcher.PrepareFlashAsync(_targetDevicePath);
+                }
+
+                // Several identical bootloaders may be present — target this exact one by path.
+                await _firmwareUpdateService.UpdateFirmwareAsync(
+                    _coreDevice,
+                    FirmwareFilePath,
+                    progress,
+                    _targetDevicePath,
+                    _updateCts.Token);
+            }
+            else
+            {
+                // No specific target (tests / standalone) — first-match flash.
+                await _firmwareUpdateService.UpdateFirmwareAsync(
+                    _coreDevice,
+                    FirmwareFilePath,
+                    progress,
+                    _updateCts.Token);
+            }
 
             IsUploadComplete = true;
             AppLogger.Instance.AddBreadcrumb("firmware", "Firmware update completed");
@@ -230,6 +284,21 @@ public partial class FirmwareDialogViewModel : ObservableObject
         }
         finally
         {
+            // Release the device back to the watcher (re-grab on failure / drop on success) and resume
+            // discovery, regardless of how the flash ended. Best-effort: a failure resuming the watcher
+            // must not crash the command or mask the flash's own outcome (already recorded above).
+            if (flashLease != null)
+            {
+                try
+                {
+                    await flashLease.DisposeAsync();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Instance.Warning(ex, "Error releasing the bootloader flash lease back to the watcher.");
+                }
+            }
+
             IsFirmwareUploading = false;
             _updateCts?.Dispose();
             _updateCts = null;

@@ -30,6 +30,14 @@ public class FirmwareUpdateCoordinator
     private readonly IAppLogger _appLogger;
     private readonly string _firmwareDataDirectory;
     private readonly Func<string, string, IFirmwareUpdateService> _wifiFirmwareUpdateServiceFactory;
+
+    /// <summary>
+    /// App-global bootloader watcher. During an auto-update the connected device reboots into the HID
+    /// bootloader; the watcher would otherwise discover and exclusively grab it, starving the
+    /// coordinator's own flasher. The coordinator suspends the watcher's discovery for the PIC32 flash so
+    /// its flasher keeps exclusive access. Null is tolerated (tests / no watcher).
+    /// </summary>
+    private readonly IBootloaderWatcher? _watcher;
     private CancellationTokenSource? _firmwareUploadCts;
     private string _latestFirmwareVersion = string.Empty;
 
@@ -73,6 +81,10 @@ public class FirmwareUpdateCoordinator
     /// Overrides the WiFi-update-mode settle delay. Null uses
     /// <see cref="DefaultWifiUpdateModeSettleDelay"/>; tests pass <see cref="TimeSpan.Zero"/> to skip the wait.
     /// </param>
+    /// <param name="watcher">
+    /// App-global bootloader watcher whose discovery is suspended around the PIC32 flash so it doesn't
+    /// grab the rebooting device. Null is tolerated (tests / no watcher).
+    /// </param>
     public FirmwareUpdateCoordinator(
         IFirmwareUpdateHost host,
         IFirmwareUpdateService firmwareUpdateService,
@@ -81,7 +93,8 @@ public class FirmwareUpdateCoordinator
         IAppLogger appLogger,
         string firmwareDataDirectory,
         Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null,
-        TimeSpan? wifiUpdateModeSettleDelay = null)
+        TimeSpan? wifiUpdateModeSettleDelay = null,
+        IBootloaderWatcher? watcher = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _firmwareUpdateService = firmwareUpdateService ?? throw new ArgumentNullException(nameof(firmwareUpdateService));
@@ -91,6 +104,7 @@ public class FirmwareUpdateCoordinator
         _firmwareDataDirectory = firmwareDataDirectory ?? throw new ArgumentNullException(nameof(firmwareDataDirectory));
         _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
         _wifiUpdateModeSettleDelay = wifiUpdateModeSettleDelay ?? DefaultWifiUpdateModeSettleDelay;
+        _watcher = watcher;
     }
     #endregion
 
@@ -195,11 +209,20 @@ public class FirmwareUpdateCoordinator
                 }
             });
 
-            await _firmwareUpdateService.UpdateFirmwareAsync(
-                coreDevice,
-                effectiveFirmwarePath,
-                pic32Progress,
-                _firmwareUploadCts.Token);
+            // Suspend the watcher's HID discovery for just the PIC32 flash: the connected device reboots
+            // into the bootloader here, and the watcher must not grab it out from under this flasher.
+            // Existing holds on OTHER sitting bootloaders stay alive. (Known limitation: if another
+            // bootloader is held while this runs, Core's first-match enumeration could land on the held
+            // one — auto-update is fundamentally a single-device operation, so this is acceptable.)
+            var watcherLease = _watcher != null ? await _watcher.SuspendDiscoveryAsync() : null;
+            await using (watcherLease)
+            {
+                await _firmwareUpdateService.UpdateFirmwareAsync(
+                    coreDevice,
+                    effectiveFirmwarePath,
+                    pic32Progress,
+                    _firmwareUploadCts.Token);
+            }
 
             if (!isManualUpload)
             {

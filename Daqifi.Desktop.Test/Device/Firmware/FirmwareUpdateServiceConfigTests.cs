@@ -33,6 +33,18 @@ public class FirmwareUpdateServiceConfigTests
     }
 
     [TestMethod]
+    public void CreateBootloaderHidTransport_RequestsExclusiveOpen()
+    {
+        // Act
+        var transport = FirmwareUpdateServiceConfig.CreateBootloaderHidTransport();
+
+        // Assert - the flash session must hold the bootloader's HID handle exclusively so no other
+        // user-mode opener (the discovery loop, a second app instance) can write a stray frame the
+        // CRC-disabled bootloader could mis-parse as an ERASE (A2 stray-write guard).
+        Assert.IsTrue(transport.ExclusiveAccess);
+    }
+
+    [TestMethod]
     public void CreateOptions_SetsBootloaderResponseTimeout()
     {
         // Act - the service passes BootloaderResponseTimeout to every bootloader read.

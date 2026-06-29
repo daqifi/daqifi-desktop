@@ -475,7 +475,7 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                    <TextBlock Text="DAQiFi Device"
+                                                    <TextBlock Text="{Binding DisplayName}"
                                                                FontFamily="Consolas" FontSize="15" FontWeight="Medium"
                                                                Foreground="{StaticResource TextPrimary}"/>
                                                     <TextBlock Text="Firmware mode"
