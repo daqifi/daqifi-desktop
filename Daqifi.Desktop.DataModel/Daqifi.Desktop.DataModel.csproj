@@ -8,7 +8,8 @@
 	</PropertyGroup>
 	<ItemGroup>
 	  <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-        <PackageReference Include="Daqifi.Core" Version="0.26.0" />
+        <!-- DEV: local Core 0.27.0 until 0.27.0 ships to NuGet (revert to PackageReference 0.27.0 for the PR). -->
+        <ProjectReference Include="..\..\daqifi-core\src\Daqifi.Core\Daqifi.Core.csproj" />
 	  <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
 		<PrivateAssets>all</PrivateAssets>
 		<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

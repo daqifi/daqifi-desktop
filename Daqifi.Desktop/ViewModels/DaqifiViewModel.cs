@@ -551,7 +551,10 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             resolvedFirmwareLogger,
             _appLogger,
             App.DaqifiDataDirectory,
-            wifiFirmwareUpdateServiceFactory);
+            wifiFirmwareUpdateServiceFactory,
+            // Suspend the app-global bootloader watcher's discovery during the PIC32 flash so it doesn't
+            // grab the connected device when it reboots into the bootloader mid-update.
+            watcher: App.ServiceProvider?.GetService<IBootloaderWatcher>());
 
         // Logged-data session-list actions (display/export/delete + collection plumbing) live in the
         // list view model (issue #592). The view model keeps the bound properties + thin command

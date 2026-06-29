@@ -133,6 +133,66 @@ public class BootloaderHoldServiceTests
     }
 
     [TestMethod]
+    public async Task BeginHoldAsync_WithDevicePath_ConnectsByThatExactPath_NotFirstMatch()
+    {
+        const string path = @"\\?\hid#vid_04d8&pid_003c#6&abc&0&0000#{4d1e55b2}";
+        _transport
+            .Setup(t => t.ConnectByPathAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() => { Interlocked.Increment(ref _connectCount); return Task.CompletedTask; });
+
+        using var service = new BootloaderHoldService(
+            _transport.Object, _logger.Object, TimeSpan.FromMilliseconds(50), devicePath: path, deviceName: "DAQiFi Bootloader");
+
+        await service.BeginHoldAsync();
+
+        Assert.IsTrue(service.IsHolding, "Service should report holding after a successful path-based open.");
+        Assert.AreEqual(path, service.DevicePath);
+        Assert.AreEqual("DAQiFi Bootloader", service.DeviceName);
+        _transport.Verify(t => t.ConnectByPathAsync(path, It.IsAny<CancellationToken>()), Times.Once);
+        // A path-targeted hold must address that exact device — never fall back to VID/PID first-match
+        // (which could grab the wrong one of several identical bootloaders).
+        _transport.Verify(t => t.ConnectAsync(
+            It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        await service.ReleaseAsync();
+    }
+
+    [TestMethod]
+    public async Task KeepAliveFault_RaisesHoldDropped()
+    {
+        // A non-timeout read error means the device went away under us → the watcher must be told.
+        _transport
+            .Setup(t => t.ReadAsync(It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
+            .Returns((TimeSpan? _, CancellationToken ct) => KeepAliveReadThrows(ct));
+
+        using var service = CreateService();
+        var dropped = new TaskCompletionSource();
+        service.HoldDropped += (_, _) => dropped.TrySetResult();
+
+        await service.BeginHoldAsync();
+
+        var fired = await Task.WhenAny(dropped.Task, Task.Delay(TimeSpan.FromSeconds(2))) == dropped.Task;
+        Assert.IsTrue(fired, "HoldDropped must fire when the keep-alive read faults (device removed).");
+    }
+
+    [TestMethod]
+    public async Task ReleaseAsync_DoesNotRaiseHoldDropped()
+    {
+        using var service = CreateService();
+        var droppedCount = 0;
+        service.HoldDropped += (_, _) => Interlocked.Increment(ref droppedCount);
+
+        await service.BeginHoldAsync();
+        await WaitUntilAsync(() => Volatile.Read(ref _readCount) >= 1, TimeSpan.FromSeconds(2));
+
+        await service.ReleaseAsync();
+
+        await Task.Delay(100);
+        Assert.AreEqual(0, Volatile.Read(ref droppedCount),
+            "A graceful release (not a device drop) must not raise HoldDropped.");
+    }
+
+    [TestMethod]
     public async Task BeginHoldAsync_WhenAlreadyHolding_DoesNotReopen()
     {
         using var service = CreateService();

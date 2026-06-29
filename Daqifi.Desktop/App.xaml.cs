@@ -120,12 +120,20 @@ public partial class App
             provider.GetRequiredService<IExternalProcessRunner>(),
             provider.GetRequiredService<ILogger<FirmwareUpdateService>>(),
             options: FirmwareUpdateServiceConfig.CreateOptions()));
-        // Holds a sitting HID bootloader's handle open (over the SAME exclusive transport the flasher
-        // uses) with a keep-alive read pending, so Windows USB selective-suspend can't wedge it before
-        // the user flashes (daqifi-nyquist-firmware#568). The connection dialog grabs the hold on
-        // detection and hands the warm handle to the flasher.
-        serviceCollection.AddSingleton<IBootloaderHoldService>(provider => new BootloaderHoldService(
-            provider.GetRequiredService<IHidTransport>(),
+        // App-global bootloader watcher: discovers EVERY sitting HID bootloader and holds each one's
+        // handle open (its own exclusive transport, keyed by device path) with a keep-alive read so
+        // Windows USB selective-suspend can't wedge it before flashing (daqifi-nyquist-firmware#568).
+        // The connection dialog binds to its list; the firmware dialog flashes a chosen one by path while
+        // the others stay held. Each hold gets a FRESH transport (not the flasher's DI singleton) so
+        // holding N devices never contends with the flasher or with each other.
+        serviceCollection.AddSingleton<IBootloaderWatcher>(_ => new BootloaderWatcher(
+            new HidBootloaderDiscovery(Common.Loggers.AppLogger.Instance),
+            (devicePath, deviceName) => new BootloaderHoldService(
+                FirmwareUpdateServiceConfig.CreateBootloaderHidTransport(),
+                Common.Loggers.AppLogger.Instance,
+                keepAliveReadTimeout: null,
+                devicePath: devicePath,
+                deviceName: deviceName),
             Common.Loggers.AppLogger.Instance));
 
         serviceCollection.AddSingleton<LoggingManager>();
@@ -133,6 +141,11 @@ public partial class App
         ServiceLocator.RegisterSingleton<IWindowViewModelMappings, WindowViewModelMappings>();
 
         ServiceProvider = serviceCollection.BuildServiceProvider();
+
+        // Start holding any sitting HID bootloaders app-wide, right away — before the user opens the
+        // connection dialog — so a device left in bootloader mode can't selective-suspend/wedge (#568)
+        // while it waits. The watcher runs for the app's lifetime.
+        ServiceProvider.GetRequiredService<IBootloaderWatcher>().Start();
 
         // Apply database migrations before any DB access.
         // Temporarily switch to OnExplicitShutdown so closing the migration

@@ -54,7 +54,9 @@
 	</ItemGroup>
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-        <PackageReference Include="Daqifi.Core" Version="0.26.0" />
+        <!-- DEV: local Core 0.27.0 (device-path addressing) until 0.27.0 ships to NuGet.
+             Revert to <PackageReference Include="Daqifi.Core" Version="0.27.0" /> before the PR. -->
+        <ProjectReference Include="..\..\daqifi-core\src\Daqifi.Core\Daqifi.Core.csproj" />
 		<PackageReference Include="EFCore.BulkExtensions.Sqlite" Version="10.0.1" />
 		<PackageReference Include="MahApps.Metro" Version="2.4.11" />
 		<PackageReference Include="MahApps.Metro.IconPacks.Material" Version="6.2.1" />

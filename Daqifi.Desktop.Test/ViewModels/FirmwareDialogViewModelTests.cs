@@ -63,7 +63,7 @@ public class FirmwareDialogViewModelTests
         var update = new Mock<IFirmwareUpdateService>();
         var download = DownloadServiceReturning(Release(3, 6, 1, "v3.6.1"));
 
-        var vm = new FirmwareDialogViewModel("TestHid", update.Object, download.Object);
+        var vm = new FirmwareDialogViewModel("TestHid", firmwareUpdateService: update.Object, firmwareDownloadService: download.Object);
 
         WaitUntil(() => vm.AvailableFirmwares.Count > 0);
         Assert.AreEqual(1, vm.AvailableFirmwares.Count);
@@ -78,7 +78,7 @@ public class FirmwareDialogViewModelTests
         var update = new Mock<IFirmwareUpdateService>();
         var download = DownloadServiceReturning(null);
 
-        var vm = new FirmwareDialogViewModel("TestHid", update.Object, download.Object);
+        var vm = new FirmwareDialogViewModel("TestHid", firmwareUpdateService: update.Object, firmwareDownloadService: download.Object);
 
         // Nothing to select; the upload command must be disabled until the user browses a file.
         Assert.AreEqual(0, vm.AvailableFirmwares.Count);
@@ -91,7 +91,7 @@ public class FirmwareDialogViewModelTests
     {
         var update = new Mock<IFirmwareUpdateService>();
         var download = DownloadServiceReturning(null);
-        var vm = new FirmwareDialogViewModel("TestHid", update.Object, download.Object);
+        var vm = new FirmwareDialogViewModel("TestHid", firmwareUpdateService: update.Object, firmwareDownloadService: download.Object);
 
         Assert.IsFalse(vm.UploadFirmwareCommand.CanExecute(null), "Disabled with no file and no dropdown selection.");
 
@@ -118,7 +118,7 @@ public class FirmwareDialogViewModelTests
                 It.IsAny<string>(), true, It.IsAny<IProgress<int>?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(_tempHexPath);
 
-        var vm = new FirmwareDialogViewModel("TestHid", update.Object, download.Object);
+        var vm = new FirmwareDialogViewModel("TestHid", firmwareUpdateService: update.Object, firmwareDownloadService: download.Object);
         // Stand in for the async dropdown load so we exercise the no-file path deterministically.
         vm.SelectedFirmware = new Models.FirmwareOption { DeviceModel = "DAQiFi", Version = "3.6.1" };
 
@@ -147,7 +147,7 @@ public class FirmwareDialogViewModelTests
 
         var download = DownloadServiceReturning(Release(3, 6, 1, "v3.6.1"));
 
-        var vm = new FirmwareDialogViewModel("TestHid", update.Object, download.Object)
+        var vm = new FirmwareDialogViewModel("TestHid", firmwareUpdateService: update.Object, firmwareDownloadService: download.Object)
         {
             FirmwareFilePath = _tempHexPath
         };

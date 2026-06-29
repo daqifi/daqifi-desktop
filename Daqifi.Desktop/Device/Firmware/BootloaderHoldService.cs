@@ -31,6 +31,8 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
     private readonly IHidTransport _transport;
     private readonly IAppLogger _logger;
     private readonly TimeSpan _keepAliveReadTimeout;
+    private readonly string? _devicePath;
+    private readonly string? _deviceName;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
     private CancellationTokenSource? _keepAliveCts;
@@ -54,17 +56,40 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
     /// Per-read keep-alive timeout. Null uses <see cref="DefaultKeepAliveReadTimeout"/>; tests pass a
     /// small value to make the loop observable quickly.
     /// </param>
-    public BootloaderHoldService(IHidTransport transport, IAppLogger logger, TimeSpan? keepAliveReadTimeout = null)
+    /// <param name="devicePath">
+    /// OS HID device path to target. When non-null the hold opens this exact device via
+    /// <see cref="IHidTransport.ConnectByPathAsync"/> — the watcher uses this to hold one specific
+    /// bootloader among several identical ones. When null the hold opens the first VID/PID match
+    /// (the single-device behavior).
+    /// </param>
+    /// <param name="deviceName">Friendly device name surfaced in the UI; null when unknown.</param>
+    public BootloaderHoldService(
+        IHidTransport transport,
+        IAppLogger logger,
+        TimeSpan? keepAliveReadTimeout = null,
+        string? devicePath = null,
+        string? deviceName = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _keepAliveReadTimeout = keepAliveReadTimeout ?? DefaultKeepAliveReadTimeout;
+        _devicePath = devicePath;
+        _deviceName = deviceName;
     }
     #endregion
 
     #region Public Methods
     /// <inheritdoc />
     public bool IsHolding => Volatile.Read(ref _holding);
+
+    /// <inheritdoc />
+    public string? DevicePath => _devicePath;
+
+    /// <inheritdoc />
+    public string? DeviceName => _deviceName;
+
+    /// <inheritdoc />
+    public event EventHandler? HoldDropped;
 
     /// <inheritdoc />
     public async Task BeginHoldAsync(CancellationToken cancellationToken = default)
@@ -104,14 +129,25 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
 
             try
             {
-                // Grab the bootloader's HID handle. ExclusiveAccess is set on the shared transport
+                // Grab the bootloader's HID handle. ExclusiveAccess is set on the transport
                 // (FirmwareUpdateServiceConfig.CreateBootloaderHidTransport), so this also locks out
-                // every other user-mode opener for the duration of the hold. ConnectAsync returns
-                // immediately if the transport is already connected (e.g. the handle the flasher just
-                // left open), in which case we simply (re)start the keep-alive over it.
-                await _transport
-                    .ConnectAsync(BOOTLOADER_VENDOR_ID, BOOTLOADER_PRODUCT_ID, null, cancellationToken)
-                    .ConfigureAwait(false);
+                // every other user-mode opener for the duration of the hold. A connect over an
+                // already-connected transport (e.g. the handle the flasher just left open) returns
+                // immediately, in which case we simply (re)start the keep-alive over it.
+                if (_devicePath != null)
+                {
+                    // Multi-device: target this exact bootloader by path. Identical bootloaders share
+                    // VID/PID and have no serial, so the path is the only discriminator.
+                    await _transport
+                        .ConnectByPathAsync(_devicePath, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                else
+                {
+                    await _transport
+                        .ConnectAsync(BOOTLOADER_VENDOR_ID, BOOTLOADER_PRODUCT_ID, null, cancellationToken)
+                        .ConfigureAwait(false);
+                }
             }
             catch (Exception ex)
             {
@@ -210,6 +246,7 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
         // wedges the bootloader (#568). An *idle* open handle alone does NOT prevent suspend; the pending
         // read does. Reads carry no payload TO the device, so unlike a write they can never be mis-parsed
         // as a stray command — this is the one form of I/O that is safe to direct at a sitting bootloader.
+        var droppedByError = false;
         while (!cancellationToken.IsCancellationRequested && !_stopKeepAlive)
         {
             try
@@ -231,7 +268,20 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
                 // The handle went away (device detached / flashed / surprise-removed). Stop quietly; the
                 // flash path re-discovers and reconnects on its own.
                 _logger.Warning(ex, "HID bootloader keep-alive read failed; ending the hold.");
+                droppedByError = true;
                 break;
+            }
+        }
+
+        // Notify the watcher only when the device dropped out from under us — never on a requested stop
+        // (PauseForFlash/Release set _stopKeepAlive). Raise off this task's thread so a HoldDropped handler
+        // that disposes this hold (Dispose awaits this very task) cannot deadlock on itself.
+        if (droppedByError && !_stopKeepAlive)
+        {
+            var handler = HoldDropped;
+            if (handler != null)
+            {
+                _ = Task.Run(() => handler(this, EventArgs.Empty));
             }
         }
     }

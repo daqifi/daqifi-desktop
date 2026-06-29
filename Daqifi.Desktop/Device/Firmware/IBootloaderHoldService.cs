@@ -17,10 +17,28 @@ namespace Daqifi.Desktop.Device.Firmware;
 /// flash is seamless: the flasher reopens the already-warm handle with no idle gap.
 /// </para>
 /// </summary>
-public interface IBootloaderHoldService
+public interface IBootloaderHoldService : IDisposable
 {
     /// <summary>Whether a hold is currently active (handle open, keep-alive read pending).</summary>
     bool IsHolding { get; }
+
+    /// <summary>
+    /// The OS HID device path this hold targets, or null when the hold connects by VID/PID first-match
+    /// (the single-device case). The watcher uses the path to address one specific bootloader among
+    /// several identical ones (same VID/PID, no serial), and to re-grab the exact device after a flash.
+    /// </summary>
+    string? DevicePath { get; }
+
+    /// <summary>Friendly name for the held device, surfaced in the UI. Null when unknown.</summary>
+    string? DeviceName { get; }
+
+    /// <summary>
+    /// Raised when the keep-alive loop ends because the device went away (I/O error / surprise removal),
+    /// not because of a requested <see cref="PauseForFlashAsync"/>/<see cref="ReleaseAsync"/>. The watcher
+    /// subscribes to drop the device from its held-bootloader list. Raised off the keep-alive task thread
+    /// so a handler may safely dispose this hold.
+    /// </summary>
+    event EventHandler? HoldDropped;
 
     /// <summary>
     /// Opens the bootloader's HID handle and starts the keep-alive read loop. Best-effort and

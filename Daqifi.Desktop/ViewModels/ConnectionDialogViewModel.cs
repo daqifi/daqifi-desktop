@@ -24,21 +24,20 @@ public partial class ConnectionDialogViewModel : ObservableObject
     #region Private Variables
     private WiFiDeviceFinder? _wifiFinder;
     private Daqifi.Core.Device.Discovery.SerialDeviceFinder? _serialFinder;
-    private Daqifi.Core.Device.Discovery.HidDeviceFinder? _hidDeviceFinder;
     private CancellationTokenSource? _wifiDiscoveryCts;
     private CancellationTokenSource? _serialDiscoveryCts;
-    private CancellationTokenSource? _hidDiscoveryCts;
     private Task? _wifiDiscoveryTask;
     private Task? _serialDiscoveryTask;
-    private Task? _hidDiscoveryTask;
     private readonly IDialogService _dialogService;
 
     /// <summary>
-    /// Holds a detected HID bootloader's handle open so Windows USB selective-suspend can't wedge it
-    /// before the user flashes (daqifi-nyquist-firmware#568). Null only in unit tests that construct the
-    /// view model without the DI container.
+    /// App-global watcher that discovers and holds every sitting HID bootloader (keep-alive read pending)
+    /// so Windows USB selective-suspend can't wedge one before the user flashes (daqifi-nyquist-firmware#568).
+    /// The dialog binds its firmware list to <see cref="IBootloaderWatcher.Bootloaders"/> and opens the
+    /// firmware dialog for the chosen device. Null only in unit tests that construct the view model
+    /// without the DI container.
     /// </summary>
-    private readonly IBootloaderHoldService? _bootloaderHoldService;
+    private readonly IBootloaderWatcher? _watcher;
 
     [ObservableProperty]
     private bool _hasNoWiFiDevices = true;
@@ -63,7 +62,14 @@ public partial class ConnectionDialogViewModel : ObservableObject
     #region Properties
     public ObservableCollection<DaqifiStreamingDevice> AvailableWiFiDevices { get; } = [];
     public ObservableCollection<SerialStreamingDevice> AvailableSerialDevices { get; } = [];
-    public ObservableCollection<CoreDeviceInfo> AvailableHidDevices { get; } = [];
+
+    /// <summary>
+    /// The sitting HID bootloaders the app-global watcher is holding, bound to the Firmware tab. The user
+    /// picks one to flash. Falls back to an empty collection when no watcher is present (unit tests).
+    /// </summary>
+    public ObservableCollection<HeldBootloader> AvailableHidDevices => _watcher?.Bootloaders ?? _emptyHidDevices;
+
+    private readonly ObservableCollection<HeldBootloader> _emptyHidDevices = [];
 
     [ObservableProperty]
     private string? _manualPortName;
@@ -110,21 +116,34 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     #region Constructor
     public ConnectionDialogViewModel()
-        : this(ServiceLocator.Resolve<IDialogService>(), App.ServiceProvider?.GetService<IBootloaderHoldService>()) { }
+        : this(ServiceLocator.Resolve<IDialogService>(), App.ServiceProvider?.GetService<IBootloaderWatcher>()) { }
 
     public ConnectionDialogViewModel(
         IDialogService dialogService,
-        IBootloaderHoldService? bootloaderHoldService = null)
+        IBootloaderWatcher? watcher = null)
     {
         _dialogService = dialogService;
-        _bootloaderHoldService = bootloaderHoldService;
+        _watcher = watcher;
         ConnectCommand = new AsyncRelayCommand<object>(ConnectAsync);
         ConnectSerialCommand = new AsyncRelayCommand<object>(ConnectSerialAsync);
         ConnectManualSerialCommand = new AsyncRelayCommand(ConnectManualSerialAsync);
         ConnectManualWifiCommand = new AsyncRelayCommand(ConnectManualWifiAsync);
-        
+
+        // The watcher holds bootloaders app-wide, so its list may already be populated before the dialog
+        // opens. Reflect its current count and track changes so the "scanning…" overlay is accurate.
+        if (_watcher != null)
+        {
+            HasNoHidDevices = _watcher.Bootloaders.Count == 0;
+            _watcher.Bootloaders.CollectionChanged += OnHidDevicesChanged;
+        }
+
         // Set up the duplicate device handler
         ConnectionManager.Instance.DuplicateDeviceHandler = HandleDuplicateDevice;
+    }
+
+    private void OnHidDevicesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        HasNoHidDevices = AvailableHidDevices.Count == 0;
     }
 
     public void StartConnectionFinders()
@@ -133,7 +152,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         StartWiFiDiscovery();
         StartSerialDiscovery();
-        StartHidDiscovery();
+        // HID bootloader discovery + holding is the app-global watcher's job (started at app startup),
+        // not the dialog's — the dialog only binds to AvailableHidDevices.
     }
 
     private void StartWiFiDiscovery()
@@ -164,25 +184,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
         _serialDiscoveryCts = new CancellationTokenSource();
         _serialFinder.DeviceDiscovered += HandleCoreSerialDeviceDiscovered;
         _serialDiscoveryTask = RunContinuousSerialDiscoveryAsync(_serialDiscoveryCts.Token);
-    }
-
-    /// <summary>
-    /// Starts the continuous HID discovery loop. Extracted so it can be paused around a bootloader
-    /// flash: the loop opens every matching HID device each cycle (to read USB string descriptors),
-    /// which collides with the bootloader's in-progress HID I/O and corrupts the flash.
-    /// <see cref="ConnectHid"/> drains it before flashing and restarts it afterward.
-    /// </summary>
-    private void StartHidDiscovery()
-    {
-        if (_closed || _hidDiscoveryTask is { IsCompleted: false }) { return; }
-
-        if (_hidDeviceFinder != null) { _hidDeviceFinder.DeviceDiscovered -= HandleCoreHidDeviceDiscovered; _hidDeviceFinder.Dispose(); }
-        _hidDiscoveryCts?.Dispose();
-
-        _hidDeviceFinder = new Daqifi.Core.Device.Discovery.HidDeviceFinder();
-        _hidDiscoveryCts = new CancellationTokenSource();
-        _hidDeviceFinder.DeviceDiscovered += HandleCoreHidDeviceDiscovered;
-        _hidDiscoveryTask = RunContinuousHidDiscoveryAsync(_hidDiscoveryCts.Token);
     }
 
     private async Task RunContinuousWiFiDiscoveryAsync(CancellationToken cancellationToken)
@@ -235,45 +236,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
         }
     }
 
-    private async Task RunContinuousHidDiscoveryAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            while (!cancellationToken.IsCancellationRequested && _hidDeviceFinder != null)
-            {
-                await _hidDeviceFinder.DiscoverAsync(cancellationToken);
-
-                // Stop repolling once a HID bootloader is in the list. Each DiscoverAsync cycle opens
-                // every matching HID device to read its USB string descriptors; for a bootloader that
-                // is just sitting here waiting to be flashed, that repeated ~2s open/close churn
-                // darkens its data endpoint (daqifi-nyquist-firmware#568) before the user ever clicks
-                // Upload. One enumeration is enough to list it — after that, leave it untouched until
-                // the flash itself opens it. Re-entering the dialog restarts discovery via
-                // StartHidDiscovery, so a hot-plugged bootloader is still picked up.
-                if (AvailableHidDevices.Count > 0)
-                {
-                    Common.Loggers.AppLogger.Instance.Information(
-                        "HID bootloader found — stopping HID discovery so the sitting device is not re-opened before flashing.");
-                    break;
-                }
-
-                // HID discovery is quick, pause longer between scans
-                await Task.Delay(2000, cancellationToken);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected when cancelled
-        }
-        catch (ObjectDisposedException)
-        {
-            // Expected when finder is disposed during discovery
-        }
-        catch (Exception ex)
-        {
-            Common.Loggers.AppLogger.Instance.Error(ex, "Error in HID discovery loop");
-        }
-    }
     #endregion
 
     #region Commands
@@ -481,45 +443,31 @@ public partial class ConnectionDialogViewModel : ObservableObject
     {
         if (selectedItems is not IEnumerable enumerable) { return; }
 
-        var hidDevice = enumerable.Cast<CoreDeviceInfo>().FirstOrDefault();
-        if (hidDevice == null) { return; }
+        var bootloader = enumerable.Cast<HeldBootloader>().FirstOrDefault();
+        if (bootloader == null) { return; }
 
-        // Pause ALL discovery for the duration of the flash, not just HID. Each loop probes the bus
-        // every cycle: HID discovery re-opens every matching HID device (reading USB string descriptors
-        // opens the handle) and serial discovery opens/probes every COM port waiting for an identify
-        // response. Either can collide with — or starve — the bootloader's HID I/O mid-flash, producing
-        // the intermittent "Connecting"-state HID write failure / read timeout. Awaiting the drains
-        // matters: cancel/dispose does NOT abort an in-flight DiscoverAsync cycle, so a still-running
-        // probe can hold a handle when the flasher fires.
+        // Pause WiFi + serial discovery while the firmware dialog is open: their per-cycle bus probing
+        // (serial opens/probes every COM port; WiFi UDP-broadcasts) can starve the bootloader's HID I/O
+        // mid-flash. HID discovery and the per-device holds belong to the app-global watcher — it pauses
+        // HID discovery and releases the target's hold itself when the flash starts
+        // (FirmwareDialogViewModel → BootloaderWatcher.PrepareFlashAsync), while every OTHER held
+        // bootloader stays wedge-proof. Awaiting the drains matters: cancel/dispose does NOT abort an
+        // in-flight DiscoverAsync cycle, so a still-running probe could otherwise hold a handle when the
+        // flasher fires.
         await StopWiFiDiscoveryAsync();
         await StopSerialDiscoveryAsync();
-        await StopHidDiscoveryAsync();
 
-        // Keep holding (keep-alive active) WHILE the dialog is open — the user may sit here for a while
-        // before clicking Upload, and an idle open handle alone does not stop USB selective-suspend, so
-        // pausing now would re-open the #568 wedge window. The flasher pauses the keep-alive itself at
-        // the moment the flash starts (FirmwareDialogViewModel.UploadFirmware), handing itself a warm
-        // handle with no idle gap.
         try
         {
-            var firmwareDialogViewModel = new FirmwareDialogViewModel(hidDevice.Name);
+            var firmwareDialogViewModel = new FirmwareDialogViewModel(bootloader.DisplayName, bootloader.DevicePath);
             _dialogService.ShowDialog<FirmwareDialog>(this, firmwareDialogViewModel);
         }
         finally
         {
-            // Re-grab the hold if the device is still a sitting bootloader (the user cancelled, or the
-            // flash failed). A successful flash left it in application mode, so BeginHoldAsync finds no
-            // bootloader and no-ops. This keeps the device wedge-proof across a retry without reopening
-            // the dialog.
-            if (_bootloaderHoldService != null)
-            {
-                await _bootloaderHoldService.BeginHoldAsync();
-            }
-
-            // Resume discovery once the flash dialog closes so the device list stays live.
+            // Resume discovery once the flash dialog closes so the device list stays live. The watcher
+            // keeps holding the bootloader (or drops it if the flash succeeded) on its own.
             StartWiFiDiscovery();
             StartSerialDiscovery();
-            StartHidDiscovery();
         }
     }
     #endregion
@@ -612,41 +560,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
         dispatcher.Invoke(action);
     }
 
-    private void HandleCoreHidDeviceDiscovered(object? sender, DeviceDiscoveredEventArgs e)
-    {
-        try
-        {
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
-            {
-                var discoveredDevice = e.DeviceInfo;
-                var discoveredKey = BuildHidDeviceKey(discoveredDevice);
-                var alreadyTracked = AvailableHidDevices.Any(device => BuildHidDeviceKey(device) == discoveredKey);
-                if (alreadyTracked)
-                {
-                    return;
-                }
-
-                AvailableHidDevices.Add(discoveredDevice);
-                HasNoHidDevices = AvailableHidDevices.Count == 0;
-
-                // A bootloader-VID/PID device just appeared. Immediately grab and hold its HID handle
-                // (exclusive, keep-alive read pending) so Windows USB selective-suspend can't wedge it
-                // into the #568 state while it sits here waiting to be flashed. Fire-and-forget: the
-                // open + keep-alive runs off the UI thread, and the hold is idempotent.
-                _ = _bootloaderHoldService?.BeginHoldAsync();
-            });
-        }
-        catch (Exception ex)
-        {
-            Common.Loggers.AppLogger.Instance.Error(ex, "Error handling HID device discovery");
-        }
-    }
-
-    private static string BuildHidDeviceKey(CoreDeviceInfo deviceInfo)
-    {
-        return $"{deviceInfo.DevicePath}|{deviceInfo.SerialNumber}|{deviceInfo.Name}";
-    }
-
     #endregion
 
     #region Desktop Device Event Handlers
@@ -676,11 +589,14 @@ public partial class ConnectionDialogViewModel : ObservableObject
         StopWiFiDiscovery();
         // Fire-and-forget: cancel discovery and clean up without waiting for task completion
         _ = StopSerialDiscoveryAsync();
-        StopHidDiscovery();
 
-        // Release any held bootloader handle so the device is never left grabbed after the dialog
-        // closes. Fire-and-forget for the same reason as the serial drain above.
-        _ = _bootloaderHoldService?.ReleaseAsync();
+        // HID bootloader holds are owned by the app-global watcher and intentionally persist after the
+        // dialog closes (so a sitting bootloader stays wedge-proof). Only stop unsubscribing this dialog
+        // from the watcher's list.
+        if (_watcher != null)
+        {
+            _watcher.Bootloaders.CollectionChanged -= OnHidDevicesChanged;
+        }
     }
 
     private void StopWiFiDiscovery()
@@ -740,21 +656,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
     }
 
-    private void StopHidDiscovery()
-    {
-        _hidDiscoveryCts?.Cancel();
-
-        if (_hidDeviceFinder != null)
-        {
-            _hidDeviceFinder.DeviceDiscovered -= HandleCoreHidDeviceDiscovered;
-            _hidDeviceFinder.Dispose();
-            _hidDeviceFinder = null;
-        }
-
-        _hidDiscoveryCts?.Dispose();
-        _hidDiscoveryCts = null;
-    }
-
     /// <summary>
     /// Stops WiFi discovery and waits for the in-flight discovery cycle to drain before returning —
     /// the async counterpart to <see cref="StopWiFiDiscovery"/>, used before a bootloader flash so a
@@ -793,46 +694,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         _wifiDiscoveryCts?.Dispose();
         _wifiDiscoveryCts = null;
-    }
-
-    /// <summary>
-    /// Stops HID discovery and waits for the in-flight discovery cycle to finish before returning.
-    /// <see cref="StopHidDiscovery"/> alone only signals cancellation and disposes the finder, but a
-    /// running <c>DiscoverAsync</c> cycle keeps the bootloader's HID handle open until it returns;
-    /// draining the task first guarantees the flasher has exclusive access for its first write.
-    /// </summary>
-    private async Task StopHidDiscoveryAsync()
-    {
-        _hidDiscoveryCts?.Cancel();
-
-        if (_hidDiscoveryTask != null)
-        {
-            try
-            {
-                await _hidDiscoveryTask.WaitAsync(TimeSpan.FromSeconds(5));
-            }
-            catch (TimeoutException)
-            {
-                Common.Loggers.AppLogger.Instance.Warning("HID discovery task did not complete within timeout");
-            }
-            catch (OperationCanceledException) { }
-            catch (ObjectDisposedException) { }
-            catch (Exception ex)
-            {
-                Common.Loggers.AppLogger.Instance.Error(ex, "Unexpected error while stopping HID discovery");
-            }
-            _hidDiscoveryTask = null;
-        }
-
-        if (_hidDeviceFinder != null)
-        {
-            _hidDeviceFinder.DeviceDiscovered -= HandleCoreHidDeviceDiscovered;
-            _hidDeviceFinder.Dispose();
-            _hidDeviceFinder = null;
-        }
-
-        _hidDiscoveryCts?.Dispose();
-        _hidDiscoveryCts = null;
     }
 
     /// <summary>
