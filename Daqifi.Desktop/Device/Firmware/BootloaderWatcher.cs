@@ -141,10 +141,7 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
                 }
             }
 
-            if (!_disposed)
-            {
-                _discovery.Start();
-            }
+            ResumeDiscoveryIfIdle();
         }
         finally
         {
@@ -158,15 +155,27 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
         try
         {
             _grabSuppressed = false;
-            if (!_disposed)
-            {
-                _discovery.Start();
-            }
+            ResumeDiscoveryIfIdle();
             _logger.Information("Bootloader watcher discovery resumed after auto-update.");
         }
         finally
         {
             _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Restarts discovery only when no operation still needs it paused. A manual flash
+    /// (<see cref="_flashingPath"/>) and an auto-update (<see cref="_grabSuppressed"/>) can overlap on a
+    /// multi-device bench; whichever lease disposes first must NOT resume discovery while the other is
+    /// still flashing — a live finder cycle could re-open the in-flight device during the flasher's
+    /// reconnect window. Must be called under <see cref="_gate"/>.
+    /// </summary>
+    private void ResumeDiscoveryIfIdle()
+    {
+        if (!_disposed && _flashingPath == null && !_grabSuppressed)
+        {
+            _discovery.Start();
         }
     }
     #endregion

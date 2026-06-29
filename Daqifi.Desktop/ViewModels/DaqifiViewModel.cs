@@ -750,8 +750,19 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private void ShowConnectionDialog()
     {
         _connectionDialogViewModel = new ConnectionDialogViewModel();
-        _connectionDialogViewModel.StartConnectionFinders();
-        _dialogService.ShowDialog<ConnectionDialog>(this, _connectionDialogViewModel);
+        try
+        {
+            _connectionDialogViewModel.StartConnectionFinders();
+            _dialogService.ShowDialog<ConnectionDialog>(this, _connectionDialogViewModel);
+        }
+        finally
+        {
+            // Guarantee the dialog unsubscribes from the app-global watcher's collection even if the
+            // dialog throws before its window opens — otherwise the lifetime singleton would permanently
+            // root this VM. Close() is idempotent, so the normal window-Closing path that already called
+            // it is unaffected.
+            _connectionDialogViewModel.Close();
+        }
     }
 
     [RelayCommand]

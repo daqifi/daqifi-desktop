@@ -176,6 +176,20 @@ public class BootloaderHoldServiceTests
     }
 
     [TestMethod]
+    public async Task Dispose_DisposesOwnedTransport()
+    {
+        var service = CreateService();
+        await service.BeginHoldAsync();
+
+        service.Dispose();
+
+        // The hold now owns a fresh per-device transport (the watcher news one up per device), so it must
+        // dispose it to close the exclusive HID handle — otherwise a re-appearing bootloader at the same
+        // path can be locked out until GC finalization.
+        _transport.Verify(t => t.Dispose(), Times.AtLeastOnce);
+    }
+
+    [TestMethod]
     public async Task ReleaseAsync_DoesNotRaiseHoldDropped()
     {
         using var service = CreateService();

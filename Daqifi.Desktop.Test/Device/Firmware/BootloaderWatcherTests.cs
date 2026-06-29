@@ -175,6 +175,30 @@ public class BootloaderWatcherTests
         Assert.IsTrue(_discovery.IsRunning, "Discovery must resume after the suspend lease is disposed.");
     }
 
+    [TestMethod]
+    public async Task OverlappingFlashAndSuspend_DiscoveryStaysPausedUntilBothComplete()
+    {
+        using var watcher = CreateWatcher();
+        watcher.Start();
+        _discovery.Raise(PathA, "DAQiFi Bootloader");
+        await WaitUntilAsync(() => watcher.Bootloaders.Count == 1);
+
+        // A manual flash (PrepareFlashAsync → _flashingPath) and an auto-update (SuspendDiscoveryAsync →
+        // _grabSuppressed) overlap on a multi-device bench.
+        var flashLease = await watcher.PrepareFlashAsync(PathA);
+        var suspendLease = await watcher.SuspendDiscoveryAsync();
+        Assert.IsFalse(_discovery.IsRunning, "Discovery paused once either operation starts.");
+
+        // The auto-update finishes first — discovery must NOT resume while the manual flash is still live.
+        await suspendLease.DisposeAsync();
+        Assert.IsFalse(_discovery.IsRunning,
+            "Discovery must stay paused while the manual flash is still in progress.");
+
+        // The manual flash finishes — now it is safe to resume.
+        await flashLease.DisposeAsync();
+        Assert.IsTrue(_discovery.IsRunning, "Discovery must resume only once both operations complete.");
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 2000)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(timeoutMs);

@@ -330,8 +330,11 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
 
     #region IDisposable
     /// <summary>
-    /// Tears down the keep-alive loop. Does NOT dispose the transport — it is a shared DI singleton
-    /// owned by the container.
+    /// Tears down the keep-alive loop and disposes the owned transport. Each hold owns a fresh transport
+    /// (the watcher's factory news one up per device), so disposing it here is what deterministically
+    /// closes the exclusive HID handle — without it, a surprise-removal drop would leave the handle open
+    /// until GC finalization, transiently locking out a bootloader that re-appears at the same path and
+    /// defeating the very wedge protection (#568) this hold provides.
     /// </summary>
     public void Dispose()
     {
@@ -348,6 +351,11 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
 
         try { _keepAliveTask?.Wait(TimeSpan.FromSeconds(2)); }
         catch (Exception) { /* best-effort during shutdown */ }
+
+        // Dispose the owned transport (closes its exclusive HID handle) once the keep-alive read is no
+        // longer in flight against it.
+        try { _transport.Dispose(); }
+        catch (Exception ex) { _logger.Warning(ex, "Error disposing the HID bootloader transport."); }
 
         _keepAliveCts?.Dispose();
         _keepAliveCts = null;
