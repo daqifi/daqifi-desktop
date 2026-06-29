@@ -357,18 +357,19 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
         _discovery.Stop();
         (_discovery as IDisposable)?.Dispose();
 
-        // Bounded wait: never hang app shutdown if a handler is stuck holding the gate. On timeout we
-        // skip the gated teardown and dispose the gate best-effort (the process is exiting anyway).
-        if (!_gate.Wait(TimeSpan.FromSeconds(2)))
+        // Bounded wait so a stuck gate-holder can't hang app shutdown. Whether or not the gate is
+        // acquired we STILL dispose the holds (best-effort) — skipping that on timeout would leak their
+        // exclusive HID handles. Snapshot the holds first so a racing in-flight handler can't trip the
+        // enumeration; release the gate only if we actually took it.
+        var gateAcquired = _gate.Wait(TimeSpan.FromSeconds(2));
+        if (!gateAcquired)
         {
-            _logger.Warning("Timed out acquiring the gate during bootloader watcher dispose; releasing best-effort.");
-            _gate.Dispose();
-            return;
+            _logger.Warning("Timed out acquiring the gate during bootloader watcher dispose; disposing holds best-effort.");
         }
 
         try
         {
-            foreach (var hold in _holds.Values)
+            foreach (var hold in _holds.Values.ToList())
             {
                 hold.HoldDropped -= OnHoldDropped;
                 hold.Dispose();
@@ -378,7 +379,10 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
         }
         finally
         {
-            _gate.Release();
+            if (gateAcquired)
+            {
+                _gate.Release();
+            }
             _gate.Dispose();
         }
     }

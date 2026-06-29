@@ -749,30 +749,29 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     [RelayCommand]
     private void ShowConnectionDialog()
     {
-        _connectionDialogViewModel = new ConnectionDialogViewModel();
+        var dialogVm = new ConnectionDialogViewModel();
+        _connectionDialogViewModel = dialogVm;
         try
         {
-            _connectionDialogViewModel.StartConnectionFinders();
-            _dialogService.ShowDialog<ConnectionDialog>(this, _connectionDialogViewModel);
+            dialogVm.StartConnectionFinders();
+            _dialogService.ShowDialog<ConnectionDialog>(this, dialogVm);
         }
         finally
         {
-            // Guarantee the dialog unsubscribes from the app-global watcher's collection even if the
-            // dialog throws before its window opens — otherwise the lifetime singleton would permanently
-            // root this VM. Close() is idempotent, so the normal window-Closing path that already called
-            // it is unaffected. Best-effort so it can't mask an exception from the show attempt.
+            // Release the field reference before closing so the closed VM can be collected and a Close()
+            // side effect can't re-enter through the field. Guarantee the dialog unsubscribes from the
+            // app-global watcher's collection even if the dialog threw before its window opened (otherwise
+            // the lifetime singleton would permanently root the VM). Close() is idempotent, so the normal
+            // window-Closing path that already called it is unaffected; best-effort so it can't mask an
+            // exception from the show attempt.
+            _connectionDialogViewModel = null;
             try
             {
-                _connectionDialogViewModel.Close();
+                dialogVm.Close();
             }
             catch (Exception ex)
             {
                 _appLogger.Error(ex, "Failed to close connection dialog view model after dialog attempt.");
-            }
-            finally
-            {
-                // Release the reference so the closed dialog VM can be collected before the next open.
-                _connectionDialogViewModel = null;
             }
         }
     }
