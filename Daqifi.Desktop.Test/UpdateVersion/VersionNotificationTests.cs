@@ -129,6 +129,21 @@ public class VersionNotificationTests
     }
 
     [TestMethod]
+    public async Task CheckForUpdatesAsync_NewerVersionUnprefixedTag_SetsNotificationCount()
+    {
+        // Arrange — the live GitHub Releases API returns the tag with no 'v' prefix (e.g. "3.3.0").
+        // This mirrors the real published-3.3.0 / running-3.2.0 scenario end to end.
+        var sut = CreateSut(HttpStatusCode.OK, ReleaseJson("3.3.0"), currentVersion: "3.2.0.0");
+
+        // Act
+        await sut.CheckForUpdatesAsync();
+
+        // Assert
+        Assert.AreEqual(1, sut.NotificationCount);
+        Assert.AreEqual("3.3.0", sut.VersionNumber);
+    }
+
+    [TestMethod]
     public async Task CheckForUpdatesAsync_SameVersion_DoesNotSetNotificationCount()
     {
         // Arrange — 3-part tag v3.2.0 matches 4-part assembly 3.2.0.0 (same release, no notification expected)

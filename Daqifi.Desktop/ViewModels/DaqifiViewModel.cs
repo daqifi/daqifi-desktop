@@ -1127,12 +1127,23 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// <summary>
     /// Prunes notifications whose owning device is no longer connected. General-purpose
     /// (covers both app-version and firmware notifications); firmware-specific add/remove
-    /// now lives in the firmware coordinator.
+    /// now lives in the firmware coordinator. The app-update notice — the only notification with no
+    /// owning device, created with a null serial — is exempt so it survives this cleanup.
     /// </summary>
-    private void RemoveNotification()
+    internal void RemoveNotification()
     {
         foreach (var notification in NotificationList.ToList())
         {
+            // The app-update notice is the one notification with no owning device; it is created with a
+            // null serial (see the "NotificationCount" case in UpdateUi). Exempt exactly that — a null
+            // serial — or it would be removed on the same UpdateUi pass that adds it (this runs at the
+            // end of every UpdateUi) and never appear. Device-owned notifications still go through the
+            // disconnect check below, even if a device reports an empty serial.
+            if (notification.DeviceSerialNo is null)
+            {
+                continue;
+            }
+
             var deviceIsDisconnected = !ConnectionManager.Instance.ConnectedDevices
                 .Any(device => device.DeviceSerialNo == notification.DeviceSerialNo);
 
