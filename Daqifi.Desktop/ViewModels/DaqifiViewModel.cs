@@ -1127,12 +1127,22 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// <summary>
     /// Prunes notifications whose owning device is no longer connected. General-purpose
     /// (covers both app-version and firmware notifications); firmware-specific add/remove
-    /// now lives in the firmware coordinator.
+    /// now lives in the firmware coordinator. App-level notifications (null/empty serial) are
+    /// exempt — they have no owning device and must survive this cleanup.
     /// </summary>
-    private void RemoveNotification()
+    internal void RemoveNotification()
     {
         foreach (var notification in NotificationList.ToList())
         {
+            // App-level notifications (e.g. the "update available" notice) are not tied to a device and
+            // carry a null/empty serial. They must never be treated as a disconnected device and pruned
+            // here, or they would be removed on the same UpdateUi pass that adds them (this runs at the
+            // end of every UpdateUi) and never appear.
+            if (string.IsNullOrEmpty(notification.DeviceSerialNo))
+            {
+                continue;
+            }
+
             var deviceIsDisconnected = !ConnectionManager.Instance.ConnectedDevices
                 .Any(device => device.DeviceSerialNo == notification.DeviceSerialNo);
 
