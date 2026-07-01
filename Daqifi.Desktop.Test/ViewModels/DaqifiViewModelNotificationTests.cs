@@ -11,14 +11,22 @@ namespace Daqifi.Desktop.Test.ViewModels;
 /// device). <see cref="DaqifiViewModel.RemoveNotification"/> runs at the end of every UpdateUi
 /// pass, and previously pruned every notification whose serial didn't match a connected device —
 /// which silently removed the app-update notice on the same pass that added it, so it never
-/// appeared to the user. These tests lock in that app-level notifications survive while
-/// device-owned notifications for disconnected devices are still pruned.
+/// appeared to the user. These tests lock in that the app-update notice (null serial) survives
+/// while device-owned notifications for disconnected devices are still pruned.
 /// </summary>
 [TestClass]
 public class DaqifiViewModelNotificationTests
 {
+    [TestInitialize]
+    public void ResetConnectedDevices()
+    {
+        // RemoveNotification() reads the ConnectionManager singleton to decide pruning. Clear it so
+        // these tests don't depend on connected devices left behind by other test classes.
+        ConnectionManager.Instance.ConnectedDevices.Clear();
+    }
+
     [TestMethod]
-    public void RemoveNotification_KeepsAppLevelNotification_WithNullDeviceSerial()
+    public void RemoveNotification_KeepsAppUpdateNotice_WithNullDeviceSerial()
     {
         var viewModel = CreateViewModel();
         viewModel.NotificationList.Add(new Notifications
@@ -32,35 +40,38 @@ public class DaqifiViewModelNotificationTests
         viewModel.RemoveNotification();
 
         Assert.AreEqual(1, viewModel.NotificationList.Count,
-            "App-level notifications (null device serial) must not be pruned by device-disconnect cleanup.");
+            "The app-update notice (null device serial) must not be pruned by device-disconnect cleanup.");
         Assert.AreEqual(1, viewModel.NotificationCount,
-            "The badge count must reflect the surviving app-level notification.");
+            "The badge count must reflect the surviving app-update notice.");
     }
 
     [TestMethod]
-    public void RemoveNotification_KeepsAppLevelNotification_WithEmptyDeviceSerial()
+    public void RemoveNotification_PrunesDeviceNotification_WithEmptyDeviceSerial()
     {
         var viewModel = CreateViewModel();
         viewModel.NotificationList.Add(new Notifications
         {
+            // An empty serial is NOT the app-update sentinel (that is a null serial). A device-owned
+            // notification with an empty serial must still be pruned when no such device is connected,
+            // otherwise it would keep the badge count stale forever.
             DeviceSerialNo = string.Empty,
-            Message = "App-level notice"
+            Message = "Device notice with empty serial"
         });
 
         viewModel.RemoveNotification();
 
-        Assert.AreEqual(1, viewModel.NotificationList.Count,
-            "An empty (not just null) serial is also app-level and must survive pruning.");
+        Assert.AreEqual(0, viewModel.NotificationList.Count,
+            "Only a null serial is app-level; an empty-serial device notice must still be pruned.");
     }
 
     [TestMethod]
-    public void RemoveNotification_StillPrunesNotification_ForDisconnectedDevice()
+    public void RemoveNotification_PrunesNotification_ForDisconnectedDevice()
     {
         var viewModel = CreateViewModel();
         viewModel.NotificationList.Add(new Notifications
         {
-            // A serial that is not among ConnectionManager's connected devices, so this
-            // device-owned notification is "orphaned" and should still be pruned.
+            // A serial that is not among ConnectionManager's connected devices (cleared in setup), so
+            // this device-owned notification is "orphaned" and should be pruned.
             DeviceSerialNo = "SN-not-connected-regression",
             Message = "Device firmware notice"
         });
