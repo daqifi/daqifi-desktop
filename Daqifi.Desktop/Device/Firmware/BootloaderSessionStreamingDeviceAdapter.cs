@@ -69,9 +69,11 @@ public sealed class BootloaderSessionStreamingDeviceAdapter : CoreStreamingDevic
         // No-op by design: bootloader-only flow does not use desktop serial command transport.
     }
 
-    // Channel management and device-control members (added to Core's IStreamingDevice in 0.24.0)
-    // are intentionally no-op here: the device is already in firmware-update mode and this adapter
+    // Channel management and device-control members (channel/DIO/analog-output members added to
+    // Core's IStreamingDevice in 0.24.0; the PWM members and PwmFrequencyHz in 1.0.0) are
+    // intentionally no-op here: the device is already in firmware-update mode and this adapter
     // does not configure channels, drive outputs, or reboot through the streaming command path.
+    // PwmFrequencyHz => 0 matches Core's documented "none commanded this session" sentinel.
     public void EnableChannel(IChannel channel)
     {
     }
