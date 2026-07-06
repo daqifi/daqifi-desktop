@@ -261,8 +261,7 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     {
         if (tile == null) return;
         var channel = tile.Channel;
-        var device = ConnectionManager.Instance.ConnectedDevices
-            .FirstOrDefault(d => d.DeviceSerialNo == channel.DeviceSerialNo);
+        var device = FindOwningDevice(channel);
         if (device == null) return;
 
         if (channel.IsActive)
@@ -307,9 +306,19 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     {
         if (tile == null) return;
         SelectedChannel = tile.Channel;
-        SelectedDevice = ConnectionManager.Instance.ConnectedDevices
-            .FirstOrDefault(d => d.DeviceSerialNo == tile.Channel.DeviceSerialNo);
+        SelectedDevice = FindOwningDevice(tile.Channel);
         IsSettingsOpen = true;
+    }
+
+    /// <summary>
+    /// Resolves the connected device that owns <paramref name="channel"/>. Enumerates a
+    /// snapshot of the connected-device list (like <see cref="Rebuild"/>) because the
+    /// list mutates during connect/disconnect flows.
+    /// </summary>
+    private static Daqifi.Desktop.Device.IStreamingDevice? FindOwningDevice(IChannel channel)
+    {
+        return ConnectionManager.Instance.ConnectedDevices.ToList()
+            .FirstOrDefault(d => d.DeviceSerialNo == channel.DeviceSerialNo);
     }
 
     private void CloseSettings()

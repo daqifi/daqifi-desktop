@@ -809,11 +809,13 @@
                                                  CaretBrush="{StaticResource TextPrimary}"/>
                                     </DockPanel>
                                 </Border>
-                                <TextBlock Text="6–50,000 Hz. One hardware timer drives PWM, so this frequency is shared by every PWM channel on this device."
-                                           FontSize="10"
+                                <TextBlock FontSize="10"
                                            Foreground="{StaticResource TextTertiary}"
                                            TextWrapping="Wrap"
-                                           Margin="0,6,0,0"/>
+                                           Margin="0,6,0,0">
+                                    6–50,000 Hz. One hardware timer drives PWM, so this
+                                    frequency is shared by every PWM channel on this device.
+                                </TextBlock>
                             </StackPanel>
 
                             <!-- SCALING (analog only) -->
