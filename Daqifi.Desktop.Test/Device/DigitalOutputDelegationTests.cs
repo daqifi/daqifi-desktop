@@ -150,6 +150,38 @@ public class DigitalOutputDelegationTests
     }
 
     [TestMethod]
+    public void SetChannelOutputValue_WhenCoreCommandThrows_LogsAndDoesNotPropagate()
+    {
+        // Arrange — Core can throw mid-call when a disconnect races the IsConnected guard;
+        // the exception must not surface through the WPF-binding entry point (issue #619)
+        var channel = WrapCoreChannel(4);
+        channel.Direction = ChannelDirection.Output;
+        _coreDevice.SentCommands.Clear();
+        _coreDevice.ThrowOnSend = true;
+
+        // Act — must not throw
+        _device.SetChannelOutputValue(channel, 1);
+
+        // Assert
+        Assert.AreEqual(0, _coreDevice.SentCommands.Count, "A failed command must not be recorded");
+    }
+
+    [TestMethod]
+    public void SetChannelDirection_WhenCoreCommandThrows_LogsAndDoesNotPropagate()
+    {
+        // Arrange
+        var channel = WrapCoreChannel(6);
+        _coreDevice.SentCommands.Clear();
+        _coreDevice.ThrowOnSend = true;
+
+        // Act — must not throw
+        _device.SetChannelDirection(channel, ChannelDirection.Output);
+
+        // Assert
+        Assert.AreEqual(0, _coreDevice.SentCommands.Count, "A failed command must not be recorded");
+    }
+
+    [TestMethod]
     public void SetChannelOutputValue_NonDigitalChannel_IsIgnored()
     {
         // Arrange
@@ -193,8 +225,15 @@ public class DigitalOutputDelegationTests
     {
         public List<string> SentCommands { get; } = [];
 
+        public bool ThrowOnSend { get; set; }
+
         public override void Send<T>(IOutboundMessage<T> message)
         {
+            if (ThrowOnSend)
+            {
+                throw new InvalidOperationException("Simulated transport failure.");
+            }
+
             if (message is IOutboundMessage<string> stringMessage)
             {
                 SentCommands.Add(stringMessage.Data);

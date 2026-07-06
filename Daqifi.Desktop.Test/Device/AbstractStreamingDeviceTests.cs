@@ -444,6 +444,10 @@ public class AbstractStreamingDeviceTests
         analogChannel.IsVisible = false;
         analogChannel.ChannelColorBrush = Brushes.Orange;
         digitalChannel.IsActive = true;
+        // Set direction/output on the core channel directly (the desktop Direction setter
+        // would also issue a device command through the owner).
+        digitalChannel.CoreChannel.Direction = Daqifi.Core.Channel.ChannelDirection.Output;
+        digitalChannel.CoreChannel.OutputValue = true;
 
         var refreshedCoreDevice = BuildCoreDeviceSnapshot(
             firmwareVersion: "2.0.0",
@@ -463,6 +467,13 @@ public class AbstractStreamingDeviceTests
         Assert.IsFalse(refreshedAnalogChannel.IsVisible);
         Assert.AreSame(Brushes.Orange, refreshedAnalogChannel.ChannelColorBrush);
         Assert.IsTrue(refreshedDigitalChannel.IsActive, "Desktop channel activation state should be preserved.");
+        Assert.AreEqual(
+            Daqifi.Core.Channel.ChannelDirection.Output,
+            refreshedDigitalChannel.Direction,
+            "Channel direction should survive a core-channel replacement.");
+        Assert.IsTrue(
+            refreshedDigitalChannel.CoreChannel.OutputValue,
+            "Commanded output state should survive a core-channel replacement (issue #663).");
         Assert.AreEqual(2.5d, refreshedAnalogChannel.CalibrationMValue, 0.001d, "Core calibration data should refresh.");
         Assert.AreEqual("2.0.0", device.DeviceVersion);
         Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType);

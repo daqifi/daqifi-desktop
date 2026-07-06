@@ -122,8 +122,19 @@ public interface IStreamingDevice : IDevice
     /// </summary>
     void RemoveAllChannels();
 
+    /// <summary>
+    /// Drives a digital output channel's state through the Core device (values >= 0.5 drive
+    /// high). Non-digital channels are ignored. When the device is missing or disconnected the
+    /// call logs and no-ops instead of throwing — it can originate from UI property setters
+    /// racing a disconnect.
+    /// </summary>
     void SetChannelOutputValue(IChannel channel, double value);
 
+    /// <summary>
+    /// Sets a digital channel's I/O direction through the Core device. Non-digital channels
+    /// are ignored, and a missing or disconnected device logs and no-ops rather than throwing
+    /// (same rationale as <see cref="SetChannelOutputValue"/>).
+    /// </summary>
     void SetChannelDirection(IChannel channel, ChannelDirection direction);
 
     Task UpdateNetworkConfiguration();

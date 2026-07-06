@@ -82,13 +82,7 @@ public class DigitalOutputTests : DaqifiAppFixture
         CloseChannelSettingsDrawer();
 
         // Assert — the drive toggle left the pane: the tile is an input again.
-        Retry.WhileFalse(
-            () => MainWindow.FindAllDescendants(
-                      cf => cf.ByAutomationId("OutputDriveToggle")).Length == 0,
-            timeout: TimeSpan.FromSeconds(15),
-            interval: TimeSpan.FromMilliseconds(300),
-            throwOnTimeout: true,
-            timeoutMessage: "The drive toggle should disappear once the channel returns to INPUT.");
+        WaitForOutputDriveToggles(expected: 0, TimeSpan.FromSeconds(15));
 
         // Assert (black-box, negative) — every direction/state change above delegated to
         // Core against the live device without the wrapper logging a failure or an

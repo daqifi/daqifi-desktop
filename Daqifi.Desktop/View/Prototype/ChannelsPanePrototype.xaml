@@ -147,10 +147,13 @@
                                            VerticalAlignment="Center"/>
                                 <!-- Digital-output quick toggle: drives the pin immediately.
                                      Literal id (one per DO tile, targeted by position) — a
-                                     {Binding Name} id can evaluate empty at element creation. -->
+                                     {Binding Name} id can evaluate empty at element creation.
+                                     Sized down from the style's 36x20 so the value row clears
+                                     the bottom label stack when the device label is shown. -->
                                 <ToggleButton Style="{StaticResource DarkToggleSwitch}"
                                               AutomationProperties.AutomationId="OutputDriveToggle"
                                               IsChecked="{Binding Channel.IsDigitalOn}"
+                                              Width="30" Height="16"
                                               Margin="10,0,0,0"
                                               VerticalAlignment="Center"
                                               ToolTip="Drive output HIGH / LOW"
@@ -660,11 +663,13 @@
                                                      Style="{StaticResource SegmentedToggle}"/>
                                     </Grid>
                                 </Border>
-                                <TextBlock Text="Pin numbers are firmware DIO indices — the numbering SCPI and streamed data use. Board terminal labels may differ."
-                                           FontSize="10"
+                                <TextBlock FontSize="10"
                                            Foreground="{StaticResource TextTertiary}"
                                            TextWrapping="Wrap"
-                                           Margin="0,6,0,0"/>
+                                           Margin="0,6,0,0">
+                                    Pin numbers are firmware DIO indices — the numbering SCPI
+                                    and streamed data use. Board terminal labels may differ.
+                                </TextBlock>
                             </StackPanel>
 
                             <!-- DIGITAL OUTPUT STATE -->

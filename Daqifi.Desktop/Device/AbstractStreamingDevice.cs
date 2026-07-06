@@ -1194,6 +1194,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         return DataChannels.Where(channel => channel.Type == ChannelType.Analog && channel.IsActive).ToList();
     }
 
+    /// <inheritdoc />
     public void SetChannelOutputValue(IChannel channel, double value)
     {
         if (channel.Type != ChannelType.Digital)
@@ -1205,6 +1206,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             (coreDevice, coreChannel) => coreDevice.SetDioValue(coreChannel, value >= 0.5));
     }
 
+    /// <inheritdoc />
     public void SetChannelDirection(IChannel channel, ChannelDirection direction)
     {
         if (channel.Type != ChannelType.Digital)
