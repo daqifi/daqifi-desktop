@@ -182,6 +182,44 @@ public class DigitalOutputDelegationTests
     }
 
     [TestMethod]
+    public void Construction_HydratesIsDigitalOnFromCore_WithoutSendingCommands()
+    {
+        // Arrange — Core already knows the commanded state (e.g. mirrored by SetDioValue)
+        var coreChannel = _coreDevice.Channels
+            .OfType<Daqifi.Core.Channel.IDigitalChannel>()
+            .First(c => c.ChannelNumber == 7);
+        coreChannel.OutputValue = true;
+        _coreDevice.SentCommands.Clear();
+
+        // Act
+        var channel = new DigitalChannel(_device, coreChannel);
+
+        // Assert — hydration reflects Core state but must not re-drive the pin
+        Assert.IsTrue(channel.IsDigitalOn, "IsDigitalOn should hydrate from Core's OutputValue");
+        Assert.AreEqual(0, _coreDevice.SentCommands.Count, "Hydration must not issue device commands");
+    }
+
+    [TestMethod]
+    public void ReplaceCoreChannel_KeepsIsDigitalOnInLockstepWithCoreMirror()
+    {
+        // Arrange — command HIGH through the normal path, then refresh the core channel
+        var channel = WrapCoreChannel(8);
+        channel.Direction = ChannelDirection.Output;
+        channel.IsDigitalOn = true;
+        var freshCoreChannel = new Daqifi.Core.Channel.DigitalChannel(8) { Name = "DIO8" };
+        _coreDevice.SentCommands.Clear();
+
+        // Act
+        channel.ReplaceCoreChannel(freshCoreChannel);
+
+        // Assert — commanded state carried onto the fresh core channel and the desktop
+        // flag stays consistent, with no extra device command
+        Assert.IsTrue(channel.CoreChannel.OutputValue, "Core mirror should carry across the refresh");
+        Assert.IsTrue(channel.IsDigitalOn, "Desktop commanded-state flag should stay in lockstep");
+        Assert.AreEqual(0, _coreDevice.SentCommands.Count, "A core-channel refresh must not drive the pin");
+    }
+
+    [TestMethod]
     public void SetChannelOutputValue_NonDigitalChannel_IsIgnored()
     {
         // Arrange

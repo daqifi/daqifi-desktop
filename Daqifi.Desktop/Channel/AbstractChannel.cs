@@ -14,6 +14,7 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     #region Private Data
     private string _scaledExpression;
     private DataSample _activeSample;
+    private bool _suppressDigitalOutputCommand;
     protected IStreamingDevice _owner;
     #endregion
 
@@ -198,7 +199,30 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
 
     partial void OnIsDigitalOnChanged(bool value)
     {
+        if (_suppressDigitalOutputCommand)
+        {
+            return;
+        }
+
         _owner?.SetChannelOutputValue(this, value ? 1 : 0);
+    }
+
+    /// <summary>
+    /// Sets <see cref="IsDigitalOn"/> from already-known device/Core state — hydration,
+    /// not a user action — so the change notifies the UI without re-issuing the output
+    /// command that a user-driven change sends.
+    /// </summary>
+    protected void HydrateIsDigitalOn(bool value)
+    {
+        _suppressDigitalOutputCommand = true;
+        try
+        {
+            IsDigitalOn = value;
+        }
+        finally
+        {
+            _suppressDigitalOutputCommand = false;
+        }
     }
 
     #region Events/Handlers
