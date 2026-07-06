@@ -55,6 +55,7 @@ If you are building automated pipelines or integrating DAQiFi devices into your 
 | Real-time channel visualization | Analog and digital channels plotted live with a viewport-aware minimap for large datasets |
 | Start / stop logging sessions | Record data to a local SQLite database; sessions are preserved between runs |
 | Per-channel formula scaling | Apply a custom NCalc expression (e.g. `x * 0.001 + 273.15`) to convert raw values before display and logging |
+| Digital output & PWM | Drive digital pins high/low, or run PWM on capable pins (per-channel duty cycle, device-wide frequency) straight from the Channels pane |
 | CSV export with optional averaging | Export one or more sessions to `.csv`; optionally downsample by averaging N consecutive samples |
 | Named profiles | Save and restore device connections, active channels, and sampling rate — switch between setups without reconfiguring |
 | Firmware update via USB HID | Update Nyquist firmware from within the app — no separate tool needed |

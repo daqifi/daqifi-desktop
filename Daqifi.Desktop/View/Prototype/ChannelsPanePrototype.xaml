@@ -141,6 +141,7 @@
                                         Margin="0,2,0,0"
                                         Visibility="{Binding ShowValue, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{Binding Value}"
+                                           AutomationProperties.AutomationId="ChannelTileValueText"
                                            Foreground="{Binding Channel.ChannelColorBrush}"
                                            FontFamily="Consolas"
                                            FontSize="14"
@@ -149,7 +150,9 @@
                                      Literal id (one per DO tile, targeted by position) — a
                                      {Binding Name} id can evaluate empty at element creation.
                                      Sized down from the style's 36x20 so the value row clears
-                                     the bottom label stack when the device label is shown. -->
+                                     the bottom label stack when the device label is shown.
+                                     Hidden while PWM runs — the hardware ignores digital
+                                     state writes on a PWM-active channel (issue #664). -->
                                 <ToggleButton Style="{StaticResource DarkToggleSwitch}"
                                               AutomationProperties.AutomationId="OutputDriveToggle"
                                               IsChecked="{Binding Channel.IsDigitalOn}"
@@ -157,7 +160,7 @@
                                               Margin="10,0,0,0"
                                               VerticalAlignment="Center"
                                               ToolTip="Drive output HIGH / LOW"
-                                              Visibility="{Binding IsDigitalOutput,
+                                              Visibility="{Binding ShowDriveToggle,
                                                                    Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
                         </StackPanel>
@@ -634,9 +637,25 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <!-- DIRECTION (bidirectional only) -->
-                            <StackPanel Visibility="{Binding SelectedChannel.IsBidirectional,
-                                                             Converter={StaticResource BoolToVis}}">
+                            <!-- DIRECTION (bidirectional only; hidden while PWM runs — the
+                                 hardware ignores direction writes on a PWM-active channel) -->
+                            <StackPanel>
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding SelectedChannel.IsBidirectional}"
+                                                               Value="True"/>
+                                                    <Condition Binding="{Binding SelectedChannel.IsPwmEnabled}"
+                                                               Value="False"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
                                 <TextBlock Text="DIRECTION"
                                            Style="{StaticResource SectionLabel}"
                                            Margin="0,22,0,8"/>
@@ -672,7 +691,8 @@
                                 </TextBlock>
                             </StackPanel>
 
-                            <!-- DIGITAL OUTPUT STATE -->
+                            <!-- DIGITAL OUTPUT STATE (hidden while PWM runs — the hardware
+                                 ignores digital state writes on a PWM-active channel) -->
                             <StackPanel>
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
@@ -684,6 +704,8 @@
                                                                Value="True"/>
                                                     <Condition Binding="{Binding SelectedChannel.IsOutput}"
                                                                Value="True"/>
+                                                    <Condition Binding="{Binding SelectedChannel.IsPwmEnabled}"
+                                                               Value="False"/>
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </MultiDataTrigger>
@@ -716,6 +738,82 @@
                                                      Style="{StaticResource SegmentedToggle}"/>
                                     </Grid>
                                 </Border>
+                            </StackPanel>
+
+                            <!-- PWM OUTPUT (PWM-capable digital channels only, issue #664) -->
+                            <StackPanel Visibility="{Binding SelectedChannel.IsPwmCapable,
+                                                             Converter={StaticResource BoolToVis}}">
+                                <Grid Margin="0,22,0,8">
+                                    <TextBlock Text="PWM OUTPUT"
+                                               Style="{StaticResource SectionLabel}"
+                                               VerticalAlignment="Center"/>
+                                    <ToggleButton AutomationProperties.AutomationId="PwmModeToggle"
+                                                  IsChecked="{Binding SelectedChannel.IsPwmEnabled}"
+                                                  Style="{StaticResource DarkToggleSwitch}"
+                                                  HorizontalAlignment="Right"
+                                                  VerticalAlignment="Center"
+                                                  ToolTip="Toggle PWM output on this pin"/>
+                                </Grid>
+
+                                <Grid Margin="0,4,0,0">
+                                    <TextBlock Text="DUTY CYCLE"
+                                               FontSize="10"
+                                               Foreground="{StaticResource TextTertiary}"
+                                               VerticalAlignment="Center"/>
+                                    <TextBlock HorizontalAlignment="Right"
+                                               FontFamily="Consolas"
+                                               FontSize="13"
+                                               Foreground="{StaticResource TextPrimary}">
+                                        <Run Text="{Binding SelectedChannel.PwmDutyCyclePercent,
+                                                            Mode=OneWay}"/><Run Text=" %"/>
+                                    </TextBlock>
+                                </Grid>
+                                <Slider AutomationProperties.AutomationId="PwmDutyCycleSlider"
+                                        Minimum="1" Maximum="100"
+                                        IsSnapToTickEnabled="True"
+                                        TickFrequency="1"
+                                        Value="{Binding SelectedChannel.PwmDutyCyclePercent,
+                                                        Delay=500}"
+                                        Margin="0,8,0,0"/>
+                                <TextBlock Text="1–100 %. Applied live while PWM is running."
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextTertiary}"
+                                           Margin="0,6,0,0"/>
+
+                                <TextBlock Text="FREQUENCY · DEVICE-WIDE"
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextTertiary}"
+                                           Margin="0,16,0,8"/>
+                                <Border Background="{StaticResource Surface}"
+                                        BorderBrush="{StaticResource BorderDim}"
+                                        BorderThickness="1"
+                                        CornerRadius="3"
+                                        Padding="10,0">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right"
+                                                   Text="Hz"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource TextTertiary}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="8,0,0,0"/>
+                                        <TextBox AutomationProperties.AutomationId="PwmFrequencyInput"
+                                                 Text="{Binding SelectedDevice.PwmFrequencyHz,
+                                                                UpdateSourceTrigger=LostFocus}"
+                                                 Background="Transparent"
+                                                 BorderThickness="0"
+                                                 Foreground="{StaticResource TextPrimary}"
+                                                 FontFamily="Consolas"
+                                                 FontSize="14"
+                                                 Height="32"
+                                                 VerticalContentAlignment="Center"
+                                                 CaretBrush="{StaticResource TextPrimary}"/>
+                                    </DockPanel>
+                                </Border>
+                                <TextBlock Text="6–50,000 Hz. One hardware timer drives PWM, so this frequency is shared by every PWM channel on this device."
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextTertiary}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,6,0,0"/>
                             </StackPanel>
 
                             <!-- SCALING (analog only) -->

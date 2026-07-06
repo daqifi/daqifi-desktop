@@ -137,6 +137,33 @@ public interface IStreamingDevice : IDevice
     /// </summary>
     void SetChannelDirection(IChannel channel, ChannelDirection direction);
 
+    /// <summary>
+    /// Starts or stops PWM output on a digital channel through the Core device. Enabling
+    /// resends the channel's duty cycle and the device-wide frequency first (Core's
+    /// documented duty → frequency → enable order), so the device always runs exactly what
+    /// the UI shows. Non-digital channels are ignored, and a missing or disconnected device
+    /// logs and no-ops rather than throwing (same rationale as
+    /// <see cref="SetChannelOutputValue"/>).
+    /// </summary>
+    void SetChannelPwmEnabled(IChannel channel, bool enabled);
+
+    /// <summary>
+    /// Sets a digital channel's PWM duty cycle (1-100 percent) through the Core device;
+    /// takes effect immediately while the channel's PWM output is enabled. Non-digital
+    /// channels are ignored, and a missing or disconnected device logs and no-ops rather
+    /// than throwing (same rationale as <see cref="SetChannelOutputValue"/>).
+    /// </summary>
+    void SetChannelPwmDutyCycle(IChannel channel, int dutyCyclePercent);
+
+    /// <summary>
+    /// Gets or sets the device-wide PWM frequency in hertz (6-50000, coerced). All PWM
+    /// channels share one hardware timer, so there is exactly one frequency per device.
+    /// Setting it commands the device immediately (a live change rescales every enabled
+    /// PWM channel), and the value is also resent whenever a channel's PWM output is
+    /// enabled.
+    /// </summary>
+    int PwmFrequencyHz { get; set; }
+
     Task UpdateNetworkConfiguration();
 
     /// <summary>

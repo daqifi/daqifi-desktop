@@ -94,7 +94,7 @@ public class DigitalOutputTests : DaqifiAppFixture
             "The app logged a DIO command failure — Core delegation did not execute cleanly.");
         StringAssert.DoesNotMatch(
             log,
-            new System.Text.RegularExpressions.Regex("Ignored DIO"),
+            new System.Text.RegularExpressions.Regex("Ignored (set direction|drive output)"),
             "The app ignored a DIO command — the device was not connected when a command fired.");
     }
 }

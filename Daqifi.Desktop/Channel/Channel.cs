@@ -28,6 +28,9 @@ public class Channel : IChannel
     public bool IsAnalog { get; set; }
 
     public bool IsDigitalOn { get; set; }
+    public bool IsPwmCapable { get; set; }
+    public bool IsPwmEnabled { get; set; }
+    public int PwmDutyCyclePercent { get; set; }
     public bool IsScalingActive { get; set; }
     public bool HasValidExpression { get; set; }
     public DataSample ActiveSample { get; set; }

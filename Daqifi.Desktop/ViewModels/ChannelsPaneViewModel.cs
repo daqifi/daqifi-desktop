@@ -58,6 +58,14 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     [ObservableProperty] private int _totalActive;
 
     [ObservableProperty] private IChannel? _selectedChannel;
+
+    /// <summary>
+    /// The device that owns <see cref="SelectedChannel"/>, while the settings drawer is
+    /// open. Exposes device-level settings the drawer edits alongside the channel — the
+    /// device-wide PWM frequency (issue #664).
+    /// </summary>
+    [ObservableProperty] private Daqifi.Desktop.Device.IStreamingDevice? _selectedDevice;
+
     [ObservableProperty] private bool _isSettingsOpen;
 
     /// <summary>
@@ -212,8 +220,11 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
                 {
                     AnalogInputs.Add(tile);
                 }
-                else if (channel.IsDigital && channel.Direction == ChannelDirection.Output)
+                else if (channel.IsDigital &&
+                         (channel.Direction == ChannelDirection.Output || channel.IsPwmEnabled))
                 {
+                    // A PWM-active channel drives its pin regardless of the stored
+                    // direction, so it shelves with the outputs (issue #664).
                     DigitalOutputs.Add(tile);
                 }
                 else if (channel.IsDigital)
@@ -296,6 +307,8 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     {
         if (tile == null) return;
         SelectedChannel = tile.Channel;
+        SelectedDevice = ConnectionManager.Instance.ConnectedDevices
+            .FirstOrDefault(d => d.DeviceSerialNo == tile.Channel.DeviceSerialNo);
         IsSettingsOpen = true;
     }
 
@@ -303,6 +316,7 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     {
         IsSettingsOpen = false;
         SelectedChannel = null;
+        SelectedDevice = null;
     }
 
     private void SetColor(Brush? brush)
