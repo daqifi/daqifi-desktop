@@ -544,19 +544,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         var digitalCount = 0;
         var analogCount = 0;
 
-        var digitalData1 = new byte();
-        var digitalData2 = new byte();
         var hasDigitalData = message.DigitalData.Length > 0;
         // USB firmware sends pre-scaled floats (AnalogInDataFloat); WiFi sends raw ADC counts (AnalogInData).
         var hasAnalogData = message.AnalogInData.Count > 0 || message.AnalogInDataFloat.Count > 0;
-
-
-
-        if (hasDigitalData)
-        {
-            digitalData1 = message.DigitalData.ElementAtOrDefault(0);
-            digitalData2 = message.DigitalData.ElementAtOrDefault(1);
-        }
 
         // Process analog channels - device sends data in channel index order, not activation order
         if (hasAnalogData)
@@ -606,7 +596,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             }
         }
 
-        // Process digital channels - device sends data in channel index order, not activation order
+        // Process digital channels. The firmware streams the whole DIO port as a raw pin-state
+        // snapshot — bit N is pin N regardless of which channels are enabled, because the
+        // wire-level DIO enable is port-global, not per pin — so bits are indexed by channel
+        // number, not by position in the active-channel list (issue #663).
         if (hasDigitalData)
         {
             try
@@ -615,26 +608,23 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                                                        .OrderBy(c => c.Index)
                                                        .ToList();
 
-                for (var dataIndex = 0; dataIndex < activeDigitalChannels.Count; dataIndex++)
+                foreach (var channel in activeDigitalChannels)
                 {
-                    var channel = activeDigitalChannels[dataIndex];
-
-                    bool bit;
-                    if (dataIndex < 8)
+                    // Output-direction channels display the commanded state, not streamed data
+                    if (channel.Direction != ChannelDirection.Input)
                     {
-                        bit = (digitalData1 & (1 << dataIndex)) != 0;
-                    }
-                    else
-                    {
-                        bit = (digitalData2 & (1 << (dataIndex % 8))) != 0;
+                        continue;
                     }
 
-                    // Assign the sample for the digital input channel
-                    if (channel.Direction == ChannelDirection.Input)
+                    var byteIndex = channel.Index / 8;
+                    if (channel.Index < 0 || byteIndex >= message.DigitalData.Length)
                     {
-                        channel.ActiveSample = new DataSample(
-                            this, channel, messageTimestamp, Convert.ToInt32(bit), firmwareDeltaMs);
+                        continue; // pin beyond the streamed payload: no sample
                     }
+
+                    var bit = (message.DigitalData[byteIndex] & (1 << (channel.Index % 8))) != 0;
+                    channel.ActiveSample = new DataSample(
+                        this, channel, messageTimestamp, Convert.ToInt32(bit), firmwareDeltaMs);
                 }
             }
             catch (Exception ex)
@@ -1204,26 +1194,61 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         return DataChannels.Where(channel => channel.Type == ChannelType.Analog && channel.IsActive).ToList();
     }
 
+    /// <inheritdoc />
     public void SetChannelOutputValue(IChannel channel, double value)
     {
-        switch (channel.Type)
+        if (channel.Type != ChannelType.Digital)
         {
-            case ChannelType.Digital:
-                SendMessage(ScpiMessageProducer.SetDioPortState(channel.Index, value));
-                break;
+            return;
         }
+
+        ExecuteDioCommand(channel, "drive output",
+            (coreDevice, coreChannel) => coreDevice.SetDioValue(coreChannel, value >= 0.5));
     }
 
+    /// <inheritdoc />
     public void SetChannelDirection(IChannel channel, ChannelDirection direction)
     {
-        switch (direction)
+        if (channel.Type != ChannelType.Digital)
         {
-            case ChannelDirection.Input:
-                SendMessage(ScpiMessageProducer.SetDioPortDirection(channel.Index, 0));
-                break;
-            case ChannelDirection.Output:
-                SendMessage(ScpiMessageProducer.SetDioPortDirection(channel.Index, 1));
-                break;
+            return;
+        }
+
+        ExecuteDioCommand(channel, "set direction",
+            (coreDevice, coreChannel) => coreDevice.SetDioDirection(coreChannel, direction));
+    }
+
+    /// <summary>
+    /// Runs a Core DIO command against the wrapped Core channel. Core throws when the device
+    /// is disconnected, but these calls originate from UI property setters that can race a
+    /// disconnect — so unavailability is logged and swallowed to preserve the pre-delegation
+    /// no-op semantics instead of surfacing an exception through a WPF binding.
+    /// </summary>
+    private void ExecuteDioCommand(
+        IChannel channel,
+        string operation,
+        Action<CoreStreamingDevice, Daqifi.Core.Channel.IChannel> command)
+    {
+        if (channel is not DigitalChannel digitalChannel)
+        {
+            AppLogger.Warning($"Ignored DIO {operation} for {channel.Name}: not a digital channel wrapper.");
+            return;
+        }
+
+        var coreDevice = CoreDevice;
+        if (coreDevice == null || !coreDevice.IsConnected)
+        {
+            AppLogger.Warning($"Ignored DIO {operation} for {channel.Name}: device is not connected.");
+            return;
+        }
+
+        try
+        {
+            command(coreDevice, digitalChannel.CoreChannel);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error(ex, $"Failed to {operation} for digital channel {channel.Name}");
         }
     }
 

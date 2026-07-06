@@ -16,7 +16,7 @@ namespace Daqifi.Desktop.ViewModels;
 /// </summary>
 public sealed class ChannelTileViewModel : ObservableObject, IDisposable
 {
-    private readonly ChannelsPaneViewModel _parent;
+    private readonly ChannelsPaneViewModel? _parent;
     private readonly INotifyPropertyChanged? _channelNotifier;
 
     /// <summary>The underlying domain channel this tile represents.</summary>
@@ -33,6 +33,17 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
     /// <summary>Whether the channel is currently streaming samples.</summary>
     public bool IsActive => Channel.IsActive;
 
+    /// <summary>Whether this is a digital channel in output direction.</summary>
+    public bool IsDigitalOutput =>
+        Channel.IsDigital && Channel.Direction == ChannelDirection.Output;
+
+    /// <summary>
+    /// Whether the tile should render its value line. Input tiles show live
+    /// values only while streaming; output tiles always show the commanded
+    /// state, because the pin is driven regardless of streaming activation.
+    /// </summary>
+    public bool ShowValue => IsActive || IsDigitalOutput;
+
     /// <summary>Type-coded stripe color — analog, digital in, or digital out.</summary>
     public Brush StripeBrush => Channel.IsAnalog
         ? AnalogAccent
@@ -44,11 +55,15 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
     /// <summary>Border color for the tile — stripe color when active, dim otherwise.</summary>
     public Brush TileBorderBrush => IsActive ? StripeBrush : BorderDim;
 
-    /// <summary>Formatted live value, or null when the channel is inactive.</summary>
+    /// <summary>
+    /// Formatted value line: the last commanded state for digital outputs
+    /// (issue #663), the live streamed value for inputs, or null when hidden.
+    /// </summary>
     public string? Value
     {
         get
         {
+            if (IsDigitalOutput) return Channel.IsDigitalOn ? "HIGH" : "LOW";
             if (!IsActive) return null;
             var sample = Channel.ActiveSample;
             if (sample == null) return "—";
@@ -70,10 +85,13 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
     /// </summary>
     public bool ShowDeviceLabel { get; }
 
-    /// <summary>Creates a tile bound to the given channel and parent pane.</summary>
+    /// <summary>
+    /// Creates a tile bound to the given channel and parent pane. A null
+    /// parent (unit tests only) skips the shared value-refresh subscription.
+    /// </summary>
     public ChannelTileViewModel(
         IChannel channel,
-        ChannelsPaneViewModel parent,
+        ChannelsPaneViewModel? parent,
         string deviceName,
         bool showDeviceLabel)
     {
@@ -87,7 +105,10 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
         {
             _channelNotifier.PropertyChanged += OnChannelPropertyChanged;
         }
-        parent.ValueRefresh += OnValueRefresh;
+        if (_parent != null)
+        {
+            _parent.ValueRefresh += OnValueRefresh;
+        }
     }
 
     private void OnChannelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -99,11 +120,16 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(IsActive));
             OnPropertyChanged(nameof(TileBackground));
             OnPropertyChanged(nameof(TileBorderBrush));
+            OnPropertyChanged(nameof(ShowValue));
             OnPropertyChanged(nameof(Value));
         }
         else if (e.PropertyName == nameof(IChannel.Name))
         {
             OnPropertyChanged(nameof(Name));
+        }
+        else if (e.PropertyName == nameof(IChannel.IsDigitalOn))
+        {
+            OnPropertyChanged(nameof(Value));
         }
         else if (e.PropertyName == nameof(IChannel.Direction) ||
                  e.PropertyName == nameof(IChannel.IsOutput))
@@ -111,7 +137,10 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(TypeLabel));
             OnPropertyChanged(nameof(StripeBrush));
             OnPropertyChanged(nameof(TileBorderBrush));
-            _parent.RequestSectionReshuffle();
+            OnPropertyChanged(nameof(IsDigitalOutput));
+            OnPropertyChanged(nameof(ShowValue));
+            OnPropertyChanged(nameof(Value));
+            _parent?.RequestSectionReshuffle();
         }
     }
 
@@ -127,7 +156,10 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
         {
             _channelNotifier.PropertyChanged -= OnChannelPropertyChanged;
         }
-        _parent.ValueRefresh -= OnValueRefresh;
+        if (_parent != null)
+        {
+            _parent.ValueRefresh -= OnValueRefresh;
+        }
     }
 
     private static readonly Brush SurfaceRaised = MakeBrush("#171A20");

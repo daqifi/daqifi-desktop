@@ -110,6 +110,7 @@ public class DigitalChannel : AbstractChannel
 
         // Initialize derived desktop state based on core
         IsOutput = coreChannel.Direction == ChannelDirection.Output;
+        HydrateIsDigitalOn(coreChannel.OutputValue);
     }
 
     internal void ReplaceCoreChannel(Daqifi.Core.Channel.IDigitalChannel coreChannel)
@@ -118,10 +119,16 @@ public class DigitalChannel : AbstractChannel
 
         var wasEnabled = _coreChannel.IsEnabled;
         var direction = _coreChannel.Direction;
+        var outputValue = _coreChannel.OutputValue;
 
         _coreChannel = coreChannel;
         _coreChannel.IsEnabled = wasEnabled;
         _coreChannel.Direction = direction;
+        _coreChannel.OutputValue = outputValue;
+
+        // Keep the desktop commanded-state flag in lockstep with Core's mirror so the
+        // tile/toggle cannot desync after a refresh (no device command is re-issued).
+        HydrateIsDigitalOn(outputValue);
 
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(Direction));
