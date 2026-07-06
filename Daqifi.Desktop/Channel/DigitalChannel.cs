@@ -118,10 +118,12 @@ public class DigitalChannel : AbstractChannel
 
         var wasEnabled = _coreChannel.IsEnabled;
         var direction = _coreChannel.Direction;
+        var outputValue = _coreChannel.OutputValue;
 
         _coreChannel = coreChannel;
         _coreChannel.IsEnabled = wasEnabled;
         _coreChannel.Direction = direction;
+        _coreChannel.OutputValue = outputValue;
 
         OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(Direction));

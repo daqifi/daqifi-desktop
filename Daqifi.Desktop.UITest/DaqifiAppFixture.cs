@@ -58,6 +58,27 @@ public abstract class DaqifiAppFixture
     private const string CHANNEL_LIST_ID = "ChannelList";
     private const string SELECT_ALL_ANALOG_ID = "SelectAllAnalogChannels";
 
+    /// <summary>
+    /// Per-tile channel settings gear (one per tile, shared literal id — target by position,
+    /// cf. <c>ExportSessionButton</c>) and the settings-drawer controls for digital direction
+    /// and output-state (issue #663). The drawer radios are IsChecked-driven (no bound
+    /// Command), so SelectionItem.Select() works from a background host (gotcha #12).
+    /// </summary>
+    private const string CHANNEL_SETTINGS_BUTTON_ID = "ChannelSettingsButton";
+    private const string CHANNEL_SETTINGS_NAME_ID = "ChannelSettingsName";
+    private const string CLOSE_CHANNEL_SETTINGS_BUTTON_ID = "CloseChannelSettingsButton";
+    private const string DIRECTION_INPUT_RADIO_ID = "DirectionInputRadio";
+    private const string DIRECTION_OUTPUT_RADIO_ID = "DirectionOutputRadio";
+    private const string OUTPUT_STATE_LOW_RADIO_ID = "OutputStateLowRadio";
+    private const string OUTPUT_STATE_HIGH_RADIO_ID = "OutputStateHighRadio";
+
+    /// <summary>
+    /// The HIGH/LOW drive switch rendered on every digital-output tile (issue #663).
+    /// One per DO tile, shared literal id; its IsChecked binds the commanded state, so the
+    /// TogglePattern both reads and drives it (gotcha #12).
+    /// </summary>
+    private const string OUTPUT_DRIVE_TOGGLE_ID = "OutputDriveToggle";
+
     // AutomationIds for the logging-session controls (StartLoggingToggle/LoggingStatusText
     // from Step 2; LoggedSessionList added in Step 5 on the Logged Data pane).
     private const string START_LOGGING_TOGGLE_ID = "StartLoggingToggle";
@@ -1084,6 +1105,120 @@ public abstract class DaqifiAppFixture
             timeoutMessage:
                 $"Analog active channel count did not reach {expected} (last read " +
                 $"{ReadActiveAnalogCount()}). Expected the activated profile to re-apply its channels.");
+    }
+    #endregion
+
+    #region Channel Settings Drawer Helpers (Digital Output, issue #663)
+    /// <summary>
+    /// Opens the channel-settings drawer of the LAST channel tile on the Channels pane and
+    /// returns the channel name shown in the drawer header. Sections render AI → DI → DO, so
+    /// with every digital channel in its factory input direction the last tile is the
+    /// highest-numbered digital channel. Tiles expose only their buttons to UIA (gotcha #15),
+    /// so the gear is targeted by position via its shared literal id.
+    /// </summary>
+    protected string OpenLastChannelSettingsDrawer()
+    {
+        NavigateToTab(CHANNELS_TAB_TEXT);
+
+        var gears = Retry.WhileEmpty(
+            () => MainWindow.FindAllDescendants(cf => cf.ByAutomationId(CHANNEL_SETTINGS_BUTTON_ID)),
+            timeout: TimeSpan.FromSeconds(30),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage:
+                "No channel-settings gear buttons appeared on the Channels pane. " +
+                "Ensure a DAQiFi device is connected and reporting channels.").Result!;
+
+        gears[^1].AsButton().Invoke();
+
+        var header = FindByAutomationId(CHANNEL_SETTINGS_NAME_ID, timeoutSeconds: 10);
+        return Retry.WhileEmpty(
+            () => header.Name,
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: "The channel-settings drawer header never reported a channel name.").Result!;
+    }
+
+    /// <summary>
+    /// Sets the selected channel's direction via the drawer's INPUT/OUTPUT segmented toggle.
+    /// The radios drive the model through IsChecked (no bound Command), so the
+    /// SelectionItem pattern is sufficient (gotcha #12).
+    /// </summary>
+    protected void SetChannelDirectionInDrawer(bool output)
+    {
+        var radio = FindByAutomationId(
+            output ? DIRECTION_OUTPUT_RADIO_ID : DIRECTION_INPUT_RADIO_ID,
+            timeoutSeconds: 10).AsRadioButton();
+        radio.IsChecked = true;
+
+        Retry.WhileFalse(
+            () => radio.IsChecked,
+            timeout: TimeSpan.FromSeconds(5),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: "The direction radio did not report checked after selection.");
+    }
+
+    /// <summary>
+    /// Commands the selected output channel HIGH or LOW via the drawer's OUTPUT STATE
+    /// segmented toggle. The section only renders for digital channels in output direction,
+    /// so a successful lookup doubles as the visibility assertion.
+    /// </summary>
+    protected void SetOutputStateInDrawer(bool high)
+    {
+        var radio = FindByAutomationId(
+            high ? OUTPUT_STATE_HIGH_RADIO_ID : OUTPUT_STATE_LOW_RADIO_ID,
+            timeoutSeconds: 10).AsRadioButton();
+        radio.IsChecked = true;
+
+        Retry.WhileFalse(
+            () => radio.IsChecked,
+            timeout: TimeSpan.FromSeconds(5),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: "The output-state radio did not report checked after selection.");
+    }
+
+    /// <summary>
+    /// Closes the channel-settings drawer and waits for it to leave the UIA tree so its
+    /// scrim no longer blocks later interaction.
+    /// </summary>
+    protected void CloseChannelSettingsDrawer()
+    {
+        FindByAutomationId(CLOSE_CHANNEL_SETTINGS_BUTTON_ID, timeoutSeconds: 10).AsButton().Invoke();
+
+        Retry.WhileFalse(
+            () => MainWindow.FindFirstDescendant(
+                      cf => cf.ByAutomationId(CHANNEL_SETTINGS_NAME_ID)) == null,
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: "The channel-settings drawer did not close.");
+    }
+
+    /// <summary>
+    /// Waits until exactly <paramref name="expected"/> digital-output drive toggles are on
+    /// the Channels pane (one per DO tile) and returns them. Direction flips re-shelve the
+    /// tile on a deferred dispatcher pass, hence the retry.
+    /// </summary>
+    protected AutomationElement[] WaitForOutputDriveToggles(int expected, TimeSpan timeout)
+    {
+        AutomationElement[] toggles = [];
+        Retry.WhileFalse(
+            () =>
+            {
+                toggles = MainWindow.FindAllDescendants(cf => cf.ByAutomationId(OUTPUT_DRIVE_TOGGLE_ID));
+                return toggles.Length == expected;
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"Expected {expected} digital-output drive toggle(s) on the Channels pane, " +
+                $"but found {toggles.Length}.");
+        return toggles;
     }
     #endregion
 
