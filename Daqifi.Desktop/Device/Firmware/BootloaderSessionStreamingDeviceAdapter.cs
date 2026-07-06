@@ -96,6 +96,20 @@ public sealed class BootloaderSessionStreamingDeviceAdapter : CoreStreamingDevic
     {
     }
 
+    public void SetPwmEnabled(IChannel channel, bool enabled)
+    {
+    }
+
+    public void SetPwmDutyCycle(IChannel channel, int dutyCyclePercent)
+    {
+    }
+
+    public void SetPwmFrequency(int frequencyHz)
+    {
+    }
+
+    public int PwmFrequencyHz => 0;
+
     public void SetAnalogOutput(int channelNumber, double voltage)
     {
     }
