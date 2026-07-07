@@ -28,14 +28,27 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
     /// <summary>Human-readable type label ("ANALOG IN", "DIGITAL IN", "DIGITAL OUT").</summary>
     public string TypeLabel => Channel.IsAnalog
         ? "ANALOG IN"
-        : Channel.Direction == ChannelDirection.Output ? "DIGITAL OUT" : "DIGITAL IN";
+        : IsDigitalOutput ? "DIGITAL OUT" : "DIGITAL IN";
 
     /// <summary>Whether the channel is currently streaming samples.</summary>
     public bool IsActive => Channel.IsActive;
 
-    /// <summary>Whether this is a digital channel in output direction.</summary>
+    /// <summary>Whether PWM output is currently enabled on this channel.</summary>
+    public bool IsPwmActive => Channel.IsDigital && Channel.IsPwmEnabled;
+
+    /// <summary>
+    /// Whether this tile shelves as a digital output: a digital channel in output
+    /// direction, or one with PWM enabled — a PWM channel drives its pin regardless
+    /// of the stored direction (issue #664).
+    /// </summary>
     public bool IsDigitalOutput =>
-        Channel.IsDigital && Channel.Direction == ChannelDirection.Output;
+        Channel.IsDigital && (Channel.Direction == ChannelDirection.Output || IsPwmActive);
+
+    /// <summary>
+    /// Whether the tile renders its quick drive toggle. Hidden while PWM runs —
+    /// the hardware ignores digital state writes on a PWM-active channel.
+    /// </summary>
+    public bool ShowDriveToggle => IsDigitalOutput && !IsPwmActive;
 
     /// <summary>
     /// Whether the tile should render its value line. Input tiles show live
@@ -47,7 +60,7 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
     /// <summary>Type-coded stripe color — analog, digital in, or digital out.</summary>
     public Brush StripeBrush => Channel.IsAnalog
         ? AnalogAccent
-        : Channel.Direction == ChannelDirection.Output ? DigitalOutAccent : DigitalInAccent;
+        : IsDigitalOutput ? DigitalOutAccent : DigitalInAccent;
 
     /// <summary>Background color for the tile, depending on active state.</summary>
     public Brush TileBackground => IsActive ? SurfaceActive : SurfaceRaised;
@@ -56,13 +69,15 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
     public Brush TileBorderBrush => IsActive ? StripeBrush : BorderDim;
 
     /// <summary>
-    /// Formatted value line: the last commanded state for digital outputs
-    /// (issue #663), the live streamed value for inputs, or null when hidden.
+    /// Formatted value line: the commanded duty for PWM-active channels (issue #664),
+    /// the last commanded state for digital outputs (issue #663), the live streamed
+    /// value for inputs, or null when hidden.
     /// </summary>
     public string? Value
     {
         get
         {
+            if (IsPwmActive) return $"PWM {Channel.PwmDutyCyclePercent}%";
             if (IsDigitalOutput) return Channel.IsDigitalOn ? "HIGH" : "LOW";
             if (!IsActive) return null;
             var sample = Channel.ActiveSample;
@@ -127,17 +142,21 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
         {
             OnPropertyChanged(nameof(Name));
         }
-        else if (e.PropertyName == nameof(IChannel.IsDigitalOn))
+        else if (e.PropertyName == nameof(IChannel.IsDigitalOn) ||
+                 e.PropertyName == nameof(IChannel.PwmDutyCyclePercent))
         {
             OnPropertyChanged(nameof(Value));
         }
         else if (e.PropertyName == nameof(IChannel.Direction) ||
-                 e.PropertyName == nameof(IChannel.IsOutput))
+                 e.PropertyName == nameof(IChannel.IsOutput) ||
+                 e.PropertyName == nameof(IChannel.IsPwmEnabled))
         {
             OnPropertyChanged(nameof(TypeLabel));
             OnPropertyChanged(nameof(StripeBrush));
             OnPropertyChanged(nameof(TileBorderBrush));
+            OnPropertyChanged(nameof(IsPwmActive));
             OnPropertyChanged(nameof(IsDigitalOutput));
+            OnPropertyChanged(nameof(ShowDriveToggle));
             OnPropertyChanged(nameof(ShowValue));
             OnPropertyChanged(nameof(Value));
             _parent?.RequestSectionReshuffle();
