@@ -78,6 +78,15 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private const string STREAMING_UNAVAILABLE_MESSAGE = "Core live streaming operations are not available for this device.";
     private const string NOT_CONNECTED_MESSAGE = "Device is not connected.";
 
+    /// <summary>
+    /// Device-wide PWM frequency shown (and commanded on the first enable) before the user
+    /// picks one. The device does not report its frequency usefully — readback echoes the
+    /// last request — so the session starts from a mid-range default.
+    /// </summary>
+    private const int DEFAULT_PWM_FREQUENCY_HZ = 1000;
+
+    private int _pwmFrequencyHz = DEFAULT_PWM_FREQUENCY_HZ;
+
     private readonly ITimestampProcessor _timestampProcessor = new TimestampProcessor();
     private List<SdCardFile> _sdCardFiles = [];
 
@@ -1218,11 +1227,71 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             (coreDevice, coreChannel) => coreDevice.SetDioDirection(coreChannel, direction));
     }
 
+    /// <inheritdoc />
+    public void SetChannelPwmEnabled(IChannel channel, bool enabled)
+    {
+        if (channel.Type != ChannelType.Digital)
+        {
+            return;
+        }
+
+        var dutyCyclePercent = channel.PwmDutyCyclePercent;
+        var frequencyHz = PwmFrequencyHz;
+
+        ExecuteDioCommand(channel, enabled ? "enable PWM" : "disable PWM", (coreDevice, coreChannel) =>
+        {
+            if (enabled)
+            {
+                // Core-documented call order: duty, then the shared frequency, then enable
+                // (issue #664). Duty and frequency are resent on every enable so the device
+                // runs exactly what the UI shows — a device keeps its PWM state across host
+                // disconnects, so the session bookkeeping alone cannot be trusted.
+                coreDevice.SetPwmDutyCycle(coreChannel, dutyCyclePercent);
+                coreDevice.SetPwmFrequency(frequencyHz);
+                coreDevice.SetPwmEnabled(coreChannel, true);
+            }
+            else
+            {
+                coreDevice.SetPwmEnabled(coreChannel, false);
+            }
+        });
+    }
+
+    /// <inheritdoc />
+    public void SetChannelPwmDutyCycle(IChannel channel, int dutyCyclePercent)
+    {
+        if (channel.Type != ChannelType.Digital)
+        {
+            return;
+        }
+
+        ExecuteDioCommand(channel, "set PWM duty cycle",
+            (coreDevice, coreChannel) => coreDevice.SetPwmDutyCycle(coreChannel, dutyCyclePercent));
+    }
+
+    /// <inheritdoc />
+    public int PwmFrequencyHz
+    {
+        get => _pwmFrequencyHz;
+        set
+        {
+            var clamped = Math.Clamp(
+                value, CoreStreamingDevice.MinPwmFrequencyHz, CoreStreamingDevice.MaxPwmFrequencyHz);
+            if (_pwmFrequencyHz != clamped)
+            {
+                _pwmFrequencyHz = clamped;
+                ExecuteDeviceCommand("set PWM frequency",
+                    coreDevice => coreDevice.SetPwmFrequency(clamped));
+            }
+
+            // Always notify so an out-of-range edit snaps the bound control back.
+            OnPropertyChanged();
+        }
+    }
+
     /// <summary>
-    /// Runs a Core DIO command against the wrapped Core channel. Core throws when the device
-    /// is disconnected, but these calls originate from UI property setters that can race a
-    /// disconnect — so unavailability is logged and swallowed to preserve the pre-delegation
-    /// no-op semantics instead of surfacing an exception through a WPF binding.
+    /// Runs a Core DIO command against the wrapped Core channel, with the same
+    /// log-and-no-op-when-unavailable semantics as <see cref="ExecuteDeviceCommand"/>.
     /// </summary>
     private void ExecuteDioCommand(
         IChannel channel,
@@ -1231,25 +1300,46 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         if (channel is not DigitalChannel digitalChannel)
         {
-            AppLogger.Warning($"Ignored DIO {operation} for {channel.Name}: not a digital channel wrapper.");
+            AppLogger.Warning($"Ignored {operation} for {channel.Name}: not a digital channel wrapper.");
             return;
         }
 
+        ExecuteDeviceCommand(operation, $"digital channel {channel.Name}",
+            coreDevice => command(coreDevice, digitalChannel.CoreChannel));
+    }
+
+    /// <summary>
+    /// Runs a Core device command. Core throws when the device is disconnected, but these
+    /// calls originate from UI property setters that can race a disconnect — so
+    /// unavailability is logged and swallowed to preserve the pre-delegation no-op
+    /// semantics instead of surfacing an exception through a WPF binding.
+    /// </summary>
+    private void ExecuteDeviceCommand(string operation, string target, Action<CoreStreamingDevice> command)
+    {
         var coreDevice = CoreDevice;
         if (coreDevice == null || !coreDevice.IsConnected)
         {
-            AppLogger.Warning($"Ignored DIO {operation} for {channel.Name}: device is not connected.");
+            AppLogger.Warning($"Ignored {operation} for {target}: device is not connected.");
             return;
         }
 
         try
         {
-            command(coreDevice, digitalChannel.CoreChannel);
+            command(coreDevice);
         }
         catch (Exception ex)
         {
-            AppLogger.Error(ex, $"Failed to {operation} for digital channel {channel.Name}");
+            AppLogger.Error(ex, $"Failed to {operation} for {target}");
         }
+    }
+
+    /// <summary>
+    /// Runs a device-level Core command (no channel involved), logging against this
+    /// device's display name.
+    /// </summary>
+    private void ExecuteDeviceCommand(string operation, Action<CoreStreamingDevice> command)
+    {
+        ExecuteDeviceCommand(operation, $"device {DeviceDisplayName}", command);
     }
 
     /// <summary>

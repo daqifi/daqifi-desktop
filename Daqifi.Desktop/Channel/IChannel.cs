@@ -27,6 +27,26 @@ public interface IChannel : IColorable
     bool IsDigital { get; }
     bool IsAnalog { get; }
     bool IsDigitalOn { get; set; }
+
+    /// <summary>
+    /// Gets whether this channel's hardware supports PWM output. Populated from the
+    /// firmware board mask via Core; false for analog channels.
+    /// </summary>
+    bool IsPwmCapable { get; }
+
+    /// <summary>
+    /// Gets or sets whether PWM output is enabled on this channel. Setting it commands
+    /// the device through Core (duty → shared frequency → enable on the way up).
+    /// </summary>
+    bool IsPwmEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the PWM duty cycle in whole percent (1-100). While PWM is enabled the
+    /// change is commanded to the device immediately; otherwise it is stored and applied
+    /// on the next enable.
+    /// </summary>
+    int PwmDutyCyclePercent { get; set; }
+
     bool IsScalingActive { get; set; }
     bool HasValidExpression { get; set; }
     DataSample ActiveSample { get; set; }

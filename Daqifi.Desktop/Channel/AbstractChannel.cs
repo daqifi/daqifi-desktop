@@ -46,6 +46,32 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     [ObservableProperty]
     private bool _isDigitalOn;
 
+    /// <summary>
+    /// Whether this channel's hardware supports PWM output. Only digital channels can be
+    /// PWM-capable; <see cref="DigitalChannel"/> overrides with Core's board-mask answer.
+    /// </summary>
+    public virtual bool IsPwmCapable => false;
+
+    /// <summary>
+    /// Whether PWM output is enabled. No-op on channel types without PWM support;
+    /// <see cref="DigitalChannel"/> overrides to command the device through Core.
+    /// </summary>
+    public virtual bool IsPwmEnabled
+    {
+        get => false;
+        set { }
+    }
+
+    /// <summary>
+    /// The PWM duty cycle in whole percent. No-op on channel types without PWM support;
+    /// <see cref="DigitalChannel"/> overrides with Core-backed bookkeeping.
+    /// </summary>
+    public virtual int PwmDutyCyclePercent
+    {
+        get => 0;
+        set { }
+    }
+
     [ObservableProperty]
     private bool _isScalingActive;
 

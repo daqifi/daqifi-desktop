@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
+using System.Threading;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
@@ -78,6 +80,24 @@ public abstract class DaqifiAppFixture
     /// TogglePattern both reads and drives it (gotcha #12).
     /// </summary>
     private const string OUTPUT_DRIVE_TOGGLE_ID = "OutputDriveToggle";
+
+    /// <summary>
+    /// The settings-drawer PWM controls (issue #664). The section renders only for
+    /// PWM-capable channels, so a null lookup on the mode toggle doubles as the capability
+    /// gating assertion. The mode toggle is IsChecked-driven (gotcha #12-safe); the duty
+    /// slider exposes RangeValue; the frequency box commits on focus loss (shift focus to
+    /// another drawer control to commit from a background host).
+    /// </summary>
+    private const string PWM_MODE_TOGGLE_ID = "PwmModeToggle";
+    private const string PWM_DUTY_SLIDER_ID = "PwmDutyCycleSlider";
+    private const string PWM_FREQUENCY_INPUT_ID = "PwmFrequencyInput";
+
+    /// <summary>
+    /// The value line rendered on every tile that shows one (shared literal id). Lets the
+    /// harness read what a tile displays — e.g. "PWM 45%" on a PWM-active tile — without
+    /// relying on the tile Border's {Binding Name} id, which can evaluate empty.
+    /// </summary>
+    private const string CHANNEL_TILE_VALUE_TEXT_ID = "ChannelTileValueText";
 
     // AutomationIds for the logging-session controls (StartLoggingToggle/LoggingStatusText
     // from Step 2; LoggedSessionList added in Step 5 on the Logged Data pane).
@@ -1219,6 +1239,195 @@ public abstract class DaqifiAppFixture
                 $"Expected {expected} digital-output drive toggle(s) on the Channels pane, " +
                 $"but found {toggles.Length}.");
         return toggles;
+    }
+    #endregion
+
+    #region Channel Settings Drawer Helpers (PWM, issue #664)
+    /// <summary>
+    /// Opens the channel-settings drawer of the tile named <paramref name="channelName"/>,
+    /// scanning gear buttons from the END of the pane (digital channels render after analog,
+    /// so a digital target is found in a few opens). Tiles expose only their buttons to UIA
+    /// (gotcha #15), so each candidate drawer is opened and its header read. Fails the test
+    /// if the channel is not found.
+    /// </summary>
+    protected void OpenChannelSettingsDrawerFor(string channelName)
+    {
+        NavigateToTab(CHANNELS_TAB_TEXT);
+
+        var gearCount = Retry.WhileEmpty(
+            () => MainWindow.FindAllDescendants(cf => cf.ByAutomationId(CHANNEL_SETTINGS_BUTTON_ID)),
+            timeout: TimeSpan.FromSeconds(30),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage:
+                "No channel-settings gear buttons appeared on the Channels pane. " +
+                "Ensure a DAQiFi device is connected and reporting channels.").Result!.Length;
+
+        for (var fromEnd = 1; fromEnd <= gearCount; fromEnd++)
+        {
+            // Re-resolve the gears every iteration: opening/closing the drawer (and any
+            // section reshuffle) can recreate the tiles, invalidating cached elements.
+            var gears = MainWindow.FindAllDescendants(cf => cf.ByAutomationId(CHANNEL_SETTINGS_BUTTON_ID));
+            if (gears.Length < fromEnd)
+            {
+                break;
+            }
+
+            gears[^fromEnd].AsButton().Invoke();
+
+            var header = FindByAutomationId(CHANNEL_SETTINGS_NAME_ID, timeoutSeconds: 10);
+            var name = Retry.WhileEmpty(
+                () => header.Name,
+                timeout: TimeSpan.FromSeconds(10),
+                interval: TimeSpan.FromMilliseconds(200),
+                throwOnTimeout: true,
+                timeoutMessage: "The channel-settings drawer header never reported a channel name.").Result!;
+
+            if (string.Equals(name, channelName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            CloseChannelSettingsDrawer();
+        }
+
+        Assert.Fail(
+            $"No channel tile named '{channelName}' was found scanning {gearCount} settings gears " +
+            "from the end of the Channels pane. Does the attached device report that channel?");
+    }
+
+    /// <summary>
+    /// Returns the drawer's PWM mode toggle, or null when the open drawer has no PWM
+    /// section — the section renders only for PWM-capable channels, so a null result IS
+    /// the capability-gating signal (no retry: the drawer is already realized).
+    /// </summary>
+    protected AutomationElement? FindPwmModeToggleOrNull() =>
+        MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(PWM_MODE_TOGGLE_ID));
+
+    /// <summary>
+    /// Switches PWM output on or off via the drawer's mode toggle. The toggle is
+    /// IsChecked-driven (gotcha #12), so the TogglePattern drives the model; the readback
+    /// asserts against Core's bookkeeping-backed state, which only flips when the command
+    /// path accepted the change.
+    /// </summary>
+    protected void SetPwmModeInDrawer(bool enabled)
+    {
+        var toggle = FindByAutomationId(PWM_MODE_TOGGLE_ID, timeoutSeconds: 10).AsToggleButton();
+        var target = enabled ? ToggleState.On : ToggleState.Off;
+        if (toggle.Patterns.Toggle.Pattern.ToggleState.Value != target)
+        {
+            toggle.Patterns.Toggle.Pattern.Toggle();
+        }
+
+        Retry.WhileFalse(
+            () => toggle.Patterns.Toggle.Pattern.ToggleState.Value == target,
+            timeout: TimeSpan.FromSeconds(5),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: $"The PWM mode toggle did not report {(enabled ? "On" : "Off")}.");
+    }
+
+    /// <summary>
+    /// Sets the duty-cycle slider in the drawer via the RangeValue pattern, then waits out
+    /// the slider binding's 500 ms Delay (a deliberate, documented sleep — the commit is
+    /// time-based, cf. the sampling-frequency slider).
+    /// </summary>
+    protected void SetPwmDutyInDrawer(int dutyPercent)
+    {
+        var slider = FindByAutomationId(PWM_DUTY_SLIDER_ID, timeoutSeconds: 10);
+        slider.Patterns.RangeValue.Pattern.SetValue(dutyPercent);
+        Thread.Sleep(700);
+    }
+
+    /// <summary>
+    /// Sets the device-wide PWM frequency field in the drawer. The field commits on focus
+    /// loss (deliberate: a keystroke-triggered binding would command half-typed values to
+    /// the device), so the helper focuses the box, sets its value, and then moves focus to
+    /// the duty slider to trigger the commit.
+    /// </summary>
+    protected void SetPwmFrequencyInDrawer(int frequencyHz)
+    {
+        var box = FindByAutomationId(PWM_FREQUENCY_INPUT_ID, timeoutSeconds: 10).AsTextBox();
+        box.Focus();
+        box.Patterns.Value.Pattern.SetValue(frequencyHz.ToString(CultureInfo.InvariantCulture));
+
+        // Shift focus inside the drawer to raise LostFocus on the field.
+        FindByAutomationId(PWM_DUTY_SLIDER_ID, timeoutSeconds: 10).Focus();
+
+        Retry.WhileFalse(
+            () => box.Text == frequencyHz.ToString(CultureInfo.InvariantCulture),
+            timeout: TimeSpan.FromSeconds(5),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage:
+                $"The PWM frequency field did not keep '{frequencyHz}' after the focus-loss " +
+                $"commit (it reads '{box.Text}') — the value may have been coerced.");
+    }
+
+    /// <summary>
+    /// Waits until the element with <paramref name="automationId"/> leaves the UIA tree —
+    /// a Collapsed subtree is pruned from the tree, so absence proves the control is no
+    /// longer rendered (e.g. the digital controls suppressed while PWM runs).
+    /// </summary>
+    protected void WaitForDrawerElementGone(string automationId, string timeoutMessage)
+    {
+        Retry.WhileFalse(
+            () => MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(automationId)) == null,
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: timeoutMessage);
+    }
+
+    /// <summary>
+    /// Waits until some tile's value line reads exactly <paramref name="expected"/> —
+    /// e.g. "PWM 45%" on a PWM-active tile (issue #664).
+    /// </summary>
+    protected void WaitForTileValue(string expected, TimeSpan timeout)
+    {
+        var lastSeen = Array.Empty<string>();
+        Retry.WhileFalse(
+            () =>
+            {
+                lastSeen = MainWindow
+                    .FindAllDescendants(cf => cf.ByAutomationId(CHANNEL_TILE_VALUE_TEXT_ID))
+                    .Select(e => e.Name)
+                    .ToArray();
+                return lastSeen.Contains(expected, StringComparer.Ordinal);
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"No channel tile showed the value '{expected}'. " +
+                $"Values seen: [{string.Join(", ", lastSeen)}]");
+    }
+
+    /// <summary>
+    /// Waits until no tile's value line starts with <paramref name="forbiddenPrefix"/> —
+    /// used to assert the PWM duty readout left the pane after disabling.
+    /// </summary>
+    protected void WaitForNoTileValueStartingWith(string forbiddenPrefix, TimeSpan timeout)
+    {
+        var lastSeen = Array.Empty<string>();
+        Retry.WhileFalse(
+            () =>
+            {
+                lastSeen = MainWindow
+                    .FindAllDescendants(cf => cf.ByAutomationId(CHANNEL_TILE_VALUE_TEXT_ID))
+                    .Select(e => e.Name)
+                    .ToArray();
+                return lastSeen.All(v => !v.StartsWith(forbiddenPrefix, StringComparison.Ordinal));
+            },
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"A channel tile still shows a value starting with '{forbiddenPrefix}'. " +
+                $"Values seen: [{string.Join(", ", lastSeen)}]");
     }
     #endregion
 
