@@ -20,8 +20,7 @@ The application follows MVVM (Model-View-ViewModel) pattern. `DAQiFi Desktop.sln
 - **Daqifi.Desktop** - Main project containing the UI (bootloader/firmware-update code lives here, under
   `Device/Firmware/`)
 - **Daqifi.Desktop.Common** - Shared components
-- **Daqifi.Desktop.IO** - Device messaging
-- **Daqifi.Desktop.Test / Daqifi.Desktop.IO.Test** - Unit test projects
+- **Daqifi.Desktop.Test** - Unit test project
 - **Daqifi.Desktop.UITest** - FlaUI UI-automation integration tests
   (see [Daqifi.Desktop.UITest/README.md](Daqifi.Desktop.UITest/README.md))
 
@@ -129,19 +128,12 @@ DAQiFi Desktop is a Windows WPF application, but only part of the solution requi
 
 - **`net10.0-windows`** — Daqifi.Desktop, Daqifi.Desktop.Test, Daqifi.Desktop.UITest. These set
   `EnableWindowsTargeting`, so they *compile* on macOS, but they can only *run* (app and tests) on Windows.
-- **`net10.0`** — Daqifi.Desktop.Common, Daqifi.Desktop.IO (+ .Test). These build and test anywhere, including
-  macOS.
+- **`net10.0`** — Daqifi.Desktop.Common. Builds anywhere, including macOS; it has no test project of its own.
 
 Consequences on macOS:
 - `dotnet build` on the solution **works** — everything compiles, WPF included.
-- `dotnet test` on the solution **fails** (exit code 1) — the two `net10.0-windows` test projects abort at run time
+- `dotnet test` on the solution **fails** (exit code 1) — the `net10.0-windows` test projects abort at run time
   because their assemblies cannot execute on macOS.
-
-Run the cross-platform test project individually instead:
-
-```bash
-dotnet test Daqifi.Desktop.IO.Test/Daqifi.Desktop.IO.Test.csproj
-```
 
 Running the app and the full test suite — including `Daqifi.Desktop.Test` — requires Windows or CI
 ([.github/workflows/build.yaml](.github/workflows/build.yaml), which runs on `windows-latest`).

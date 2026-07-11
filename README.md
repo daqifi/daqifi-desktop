@@ -123,10 +123,7 @@ dotnet test --filter "TestCategory!=Ui&FullyQualifiedName!~WindowsFirewallWrappe
 
 On macOS/Linux the solution compiles (the Windows-targeted projects set `EnableWindowsTargeting`),
 but the app and the Windows-only test projects cannot run there, so solution-wide `dotnet test`
-fails. The cross-platform `net10.0` library projects (Common, IO) build and test on any
-OS — run their test projects individually, e.g.
-`dotnet test Daqifi.Desktop.IO.Test/Daqifi.Desktop.IO.Test.csproj`. See the "Cross-Platform
-Development (macOS)" section in [CLAUDE.md](CLAUDE.md) for details.
+fails. See the "Cross-Platform Development (macOS)" section in [CLAUDE.md](CLAUDE.md) for details.
 
 The `DAQifiDesktop_Setup.msi` installer is built from the `Daqifi.Desktop.Setup` project (WiX Toolset)
 and is normally produced by CI on release. The WiX project harvests the app's **published** output, so
