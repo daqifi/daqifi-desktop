@@ -5,17 +5,11 @@ VisualStudioVersion = 17.2.32630.192
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop", "Daqifi.Desktop\Daqifi.Desktop.csproj", "{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.DataModel", "Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj", "{8E553D17-C0B1-447F-B4A2-0F11903CAA49}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.Test", "Daqifi.Desktop.Test\Daqifi.Desktop.Test.csproj", "{4FB2B70A-A69A-465E-ADB5-5369E5E2C015}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.IO", "Daqifi.Desktop.IO\Daqifi.Desktop.IO.csproj", "{EC3CD2DE-4816-4568-98B8-9CC258DF7CA1}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.Common", "Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj", "{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.Common.Test", "Daqifi.Desktop.Common.Test\Daqifi.Desktop.Common.Test.csproj", "{DF1457A3-FE50-4260-8F0D-A30099514470}"
-EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.DataModel.Test", "Daqifi.Desktop.DataModel.Test\Daqifi.Desktop.DataModel.Test.csproj", "{51BC8A31-1E5D-4C31-9E5B-8D956FCA41C7}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.IO.Test", "Daqifi.Desktop.IO.Test\Daqifi.Desktop.IO.Test.csproj", "{25E8B88D-35BB-4A3D-8F32-B913D7887B0C}"
 EndProject
@@ -31,10 +25,6 @@ Global
 		{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Any CPU.Build.0 = Release|Any CPU
 		{4FB2B70A-A69A-465E-ADB5-5369E5E2C015}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{4FB2B70A-A69A-465E-ADB5-5369E5E2C015}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4FB2B70A-A69A-465E-ADB5-5369E5E2C015}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -47,14 +37,6 @@ Global
 		{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}.Release|Any CPU.Build.0 = Release|Any CPU
-		{DF1457A3-FE50-4260-8F0D-A30099514470}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{DF1457A3-FE50-4260-8F0D-A30099514470}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{DF1457A3-FE50-4260-8F0D-A30099514470}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{DF1457A3-FE50-4260-8F0D-A30099514470}.Release|Any CPU.Build.0 = Release|Any CPU
-		{51BC8A31-1E5D-4C31-9E5B-8D956FCA41C7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{51BC8A31-1E5D-4C31-9E5B-8D956FCA41C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{51BC8A31-1E5D-4C31-9E5B-8D956FCA41C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{51BC8A31-1E5D-4C31-9E5B-8D956FCA41C7}.Release|Any CPU.Build.0 = Release|Any CPU
 		{25E8B88D-35BB-4A3D-8F32-B913D7887B0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{25E8B88D-35BB-4A3D-8F32-B913D7887B0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{25E8B88D-35BB-4A3D-8F32-B913D7887B0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
