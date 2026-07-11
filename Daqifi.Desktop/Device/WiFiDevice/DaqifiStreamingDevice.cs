@@ -1,4 +1,5 @@
-﻿using System.Net.Sockets;
+﻿using System.Net;
+using System.Net.Sockets;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Device;
@@ -52,6 +53,28 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         Metadata.FirmwareVersion = deviceInfo.FirmwareVersion;
         Port = deviceInfo.Port.Value;
         IsPowerOn = deviceInfo.IsPowerOn;
+        IsStreaming = false;
+    }
+
+    /// <summary>
+    /// Creates a WiFi device wrapper for a manual (user-entered) IP connection, where no
+    /// discovery metadata exists — only the address, TCP data port, and a display name are known.
+    /// The shared <see cref="AbstractStreamingDevice.Connect"/> template drives the actual
+    /// connection through Core's <see cref="DaqifiDeviceFactory"/> (see <see cref="CreateCoreDevice"/>),
+    /// so there is no need to fabricate a discovery-shaped <c>IDeviceInfo</c> (issue #620).
+    /// </summary>
+    /// <param name="ipAddress">The device IP address.</param>
+    /// <param name="port">The TCP data port to connect to.</param>
+    /// <param name="name">Display name for the device.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="ipAddress"/> is null.</exception>
+    public DaqifiStreamingDevice(IPAddress ipAddress, int port, string name)
+    {
+        ArgumentNullException.ThrowIfNull(ipAddress);
+
+        Name = string.IsNullOrWhiteSpace(name) ? "DAQiFi Device" : name;
+        Metadata.IpAddress = ipAddress.ToString();
+        Port = port;
+        IsPowerOn = true;
         IsStreaming = false;
     }
 

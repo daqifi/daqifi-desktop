@@ -109,6 +109,38 @@ public class DaqifiStreamingDeviceTests
         Assert.IsTrue(ex.Message.Contains("TCP port"), $"Expected TCP port error, got: {ex.Message}");
     }
 
+    [TestMethod]
+    public void Constructor_ManualEndpoint_ShouldSetPropertiesFromAddressAndPort()
+    {
+        // Act
+        var device = new DaqifiStreamingDevice(IPAddress.Parse("10.0.0.42"), 9760, "Manual IP Device");
+
+        // Assert
+        Assert.AreEqual("Manual IP Device", device.Name);
+        Assert.AreEqual("10.0.0.42", device.IpAddress);
+        Assert.AreEqual(9760, device.Port);
+        Assert.IsTrue(device.IsPowerOn);
+        Assert.IsFalse(device.IsStreaming);
+    }
+
+    [TestMethod]
+    public void Constructor_ManualEndpoint_NullIpAddress_ShouldThrowArgumentNullException()
+    {
+        // Act & Assert
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            new DaqifiStreamingDevice((IPAddress)null!, 9760, "Manual IP Device"));
+    }
+
+    [TestMethod]
+    public void Constructor_ManualEndpoint_BlankName_ShouldFallBackToDefaultName()
+    {
+        // Act
+        var device = new DaqifiStreamingDevice(IPAddress.Parse("10.0.0.42"), 9760, "  ");
+
+        // Assert
+        Assert.AreEqual("DAQiFi Device", device.Name);
+    }
+
     #endregion
 
     #region Property Tests
