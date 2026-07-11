@@ -1,7 +1,7 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Core.Communication.Messages;
-using Daqifi.Desktop.IO.Messages;
+using Daqifi.Core.Device;
 using Google.Protobuf;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using CoreDigitalChannel = Daqifi.Core.Channel.DigitalChannel;
@@ -178,7 +178,7 @@ public class DigitalChannelStreamDecodeTests
         public void RouteInboundMessage(DaqifiOutMessage message)
         {
             HandleInboundMessage(
-                new MessageEventArgs<object>(
+                new MessageReceivedEventArgs(
                     new GenericInboundMessage<object>(message)));
         }
     }

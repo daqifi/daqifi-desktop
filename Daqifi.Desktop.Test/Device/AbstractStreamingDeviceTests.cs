@@ -4,7 +4,6 @@ using Daqifi.Core.Device.Network;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Communication.Producers;
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector from Core
-using Daqifi.Desktop.IO.Messages;
 using System.Windows.Media;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
@@ -781,7 +780,7 @@ public class AbstractStreamingDeviceTests
         public void RouteInboundMessage(DaqifiOutMessage message)
         {
             HandleInboundMessage(
-                new MessageEventArgs<object>(
+                new MessageReceivedEventArgs(
                     new GenericInboundMessage<object>(message)));
         }
     }

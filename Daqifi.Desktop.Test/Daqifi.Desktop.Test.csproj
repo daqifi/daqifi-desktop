@@ -19,7 +19,6 @@
 	</ItemGroup>
 	<ItemGroup>
 		<ProjectReference Include="..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj" />
-		<ProjectReference Include="..\Daqifi.Desktop.IO\Daqifi.Desktop.IO.csproj" />
 		<ProjectReference Include="..\Daqifi.Desktop\Daqifi.Desktop.csproj" />
 	</ItemGroup>
 </Project>

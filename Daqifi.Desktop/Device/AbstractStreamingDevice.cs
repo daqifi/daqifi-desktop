@@ -4,7 +4,6 @@ using Daqifi.Core.Communication;
 using Daqifi.Core.Device.Network;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
-using Daqifi.Desktop.IO.Messages;
 using Daqifi.Desktop.Models;
 using System.Globalization;
 using System.IO;
@@ -454,8 +453,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
-        var args = new MessageEventArgs<object>(e.Message);
-        HandleInboundMessage(args);
+        HandleInboundMessage(e);
     }
     #endregion
 
@@ -479,10 +477,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// Routes incoming messages through the protocol handler.
     /// This method is called by the message consumer for each received message.
     /// </summary>
-    private void OnInboundMessageReceived(object sender, MessageEventArgs<object> e)
+    private void OnInboundMessageReceived(object sender, MessageReceivedEventArgs e)
     {
-        // Convert Desktop's message format to Core's format
-        var inboundMessage = new GenericInboundMessage<object>(e.Message.Data);
+        var inboundMessage = e.Message;
 
         // Route through protocol handler if available and it can handle this message
         if (_protocolHandler != null && _protocolHandler.CanHandle(inboundMessage))
@@ -760,7 +757,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// Called by derived classes (e.g., WiFi devices) that receive messages directly from Core's DaqifiDevice.
     /// </summary>
     /// <param name="e">The message event args containing the protobuf message.</param>
-    protected void HandleInboundMessage(MessageEventArgs<object> e)
+    protected void HandleInboundMessage(MessageReceivedEventArgs e)
     {
         OnInboundMessageReceived(this, e);
     }

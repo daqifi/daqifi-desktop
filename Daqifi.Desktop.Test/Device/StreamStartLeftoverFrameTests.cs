@@ -1,7 +1,7 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Core.Communication.Messages;
-using Daqifi.Desktop.IO.Messages;
+using Daqifi.Core.Device;
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Test.Device;
@@ -347,7 +347,7 @@ public class StreamStartLeftoverFrameTests
             };
 
             HandleInboundMessage(
-                new MessageEventArgs<object>(
+                new MessageReceivedEventArgs(
                     new GenericInboundMessage<object>(message)));
         }
     }
