@@ -1,5 +1,4 @@
-﻿using Daqifi.Desktop.DataModel.Channel;
-using System.Windows.Media;
+﻿using System.Windows.Media;
 
 namespace Daqifi.Desktop.Channel;
 

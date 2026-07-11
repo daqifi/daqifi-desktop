@@ -5,8 +5,6 @@ VisualStudioVersion = 17.3.32811.315
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop", "..\Daqifi.Desktop\Daqifi.Desktop.csproj", "{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.DataModel", "..\Daqifi.Desktop.DataModel\Daqifi.Desktop.DataModel.csproj", "{8E553D17-C0B1-447F-B4A2-0F11903CAA49}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Daqifi.Desktop.Common", "..\Daqifi.Desktop.Common\Daqifi.Desktop.Common.csproj", "{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}"
 EndProject
 Project("{930C7802-8A8C-48F9-8165-68863BCCD9DD}") = "DAQifiDesktop_Setup", "DAQifiDesktopSetup\DAQifiDesktop_Setup.wixproj", "{CD91730F-E4A6-4BB1-9D13-8F2E67F69D7C}"
@@ -33,18 +31,6 @@ Global
 		{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}.Release|x86.ActiveCfg = Release|Any CPU
 		{757CB4D9-9B2E-4E6C-A6AA-50F113589C12}.Release|x86.Build.0 = Release|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Debug|x86.Build.0 = Debug|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Any CPU.Build.0 = Release|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|Mixed Platforms.Build.0 = Release|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|x86.ActiveCfg = Release|Any CPU
-		{8E553D17-C0B1-447F-B4A2-0F11903CAA49}.Release|x86.Build.0 = Release|Any CPU
 		{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{70415FC8-2F9F-4DA1-9DC5-93F6392381C3}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU

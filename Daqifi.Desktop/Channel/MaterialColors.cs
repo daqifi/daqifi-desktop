@@ -1,4 +1,4 @@
-﻿namespace Daqifi.Desktop.DataModel.Channel;
+﻿namespace Daqifi.Desktop.Channel;
 
 public static class MaterialColors
 {
