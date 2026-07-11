@@ -109,6 +109,62 @@ public class DaqifiStreamingDeviceTests
         Assert.IsTrue(ex.Message.Contains("TCP port"), $"Expected TCP port error, got: {ex.Message}");
     }
 
+    [TestMethod]
+    public void Constructor_ManualEndpoint_ShouldSetPropertiesFromAddressAndPort()
+    {
+        // Arrange
+        var ipAddress = IPAddress.Parse("10.0.0.42");
+        const int port = 9760;
+
+        // Act
+        var device = new DaqifiStreamingDevice(ipAddress, port, "Manual IP Device");
+
+        // Assert
+        Assert.AreEqual("Manual IP Device", device.Name);
+        Assert.AreEqual("10.0.0.42", device.IpAddress);
+        Assert.AreEqual(9760, device.Port);
+        Assert.IsTrue(device.IsPowerOn);
+        Assert.IsFalse(device.IsStreaming);
+    }
+
+    [TestMethod]
+    public void Constructor_ManualEndpoint_NullIpAddress_ShouldThrowArgumentNullException()
+    {
+        // Arrange
+        IPAddress? ipAddress = null;
+
+        // Act & Assert
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            new DaqifiStreamingDevice(ipAddress!, 9760, "Manual IP Device"));
+    }
+
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(-1)]
+    [DataRow(70000)]
+    public void Constructor_ManualEndpoint_InvalidPort_ShouldThrowArgumentOutOfRangeException(int port)
+    {
+        // Arrange
+        var ipAddress = IPAddress.Parse("10.0.0.42");
+
+        // Act & Assert
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
+            new DaqifiStreamingDevice(ipAddress, port, "Manual IP Device"));
+    }
+
+    [TestMethod]
+    public void Constructor_ManualEndpoint_BlankName_ShouldFallBackToDefaultName()
+    {
+        // Arrange
+        var ipAddress = IPAddress.Parse("10.0.0.42");
+
+        // Act
+        var device = new DaqifiStreamingDevice(ipAddress, 9760, "  ");
+
+        // Assert
+        Assert.AreEqual("DAQiFi Device", device.Name);
+    }
+
     #endregion
 
     #region Property Tests
