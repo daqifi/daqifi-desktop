@@ -13,8 +13,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using Daqifi.Core.Device.Discovery;
-using CoreConcreteDeviceInfo = Daqifi.Core.Device.Discovery.DeviceInfo;
-using CoreConnectionType = Daqifi.Core.Device.Discovery.ConnectionType;
 using CoreDeviceInfo = Daqifi.Core.Device.Discovery.IDeviceInfo;
 
 namespace Daqifi.Desktop.ViewModels;
@@ -396,16 +394,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
             return;
         }
 
-        var deviceInfo = new CoreConcreteDeviceInfo
-        {
-            Name = "Manual IP Device",
-            IPAddress = ipAddress,
-            Port = 9760, // Common DAQiFi TCP data port - TODO: make configurable or discover dynamically
-            IsPowerOn = true,
-            ConnectionType = CoreConnectionType.WiFi
-        };
-
-        var device = new DaqifiStreamingDevice(deviceInfo);
+        // Connect directly with the resolved endpoint instead of fabricating a discovery-shaped
+        // IDeviceInfo — the device wrapper drives the connection through Core's DaqifiDeviceFactory
+        // (issue #620). The hardcoded 9760 data port is tracked separately in issue #615.
+        const int MANUAL_WIFI_DATA_PORT = 9760;
+        var device = new DaqifiStreamingDevice(ipAddress, MANUAL_WIFI_DATA_PORT, "Manual IP Device");
         await ConnectionManager.Instance.Connect(device);
 
         // Post-connect status check mirrors the manual-serial path: an unreachable device
@@ -581,6 +574,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         InvokeOnUiThread(() =>
         {
+            // Dedup by MAC across discovery restarts: Core's WiFiDeviceFinder only dedups within a
+            // single DiscoverAsync session (its discoveredDevices set is per-call), but the dialog
+            // restarts the finder — e.g. the firmware-flash resume path — while AvailableWiFiDevices
+            // persists and is never cleared. Without this guard a rediscovered device is added twice.
+            // Mirrors the serial path's FindSerialDeviceByPortName dedup. (issue #621)
             if (AvailableWiFiDevices.Any(d => d.MacAddress == wifiDevice.MacAddress)) return;
             AvailableWiFiDevices.Add(wifiDevice);
             if (HasNoWiFiDevices) { HasNoWiFiDevices = false; }
