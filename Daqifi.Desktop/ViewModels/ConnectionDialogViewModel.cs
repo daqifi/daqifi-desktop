@@ -397,8 +397,8 @@ public partial class ConnectionDialogViewModel : ObservableObject
         // Connect directly with the resolved endpoint instead of fabricating a discovery-shaped
         // IDeviceInfo — the device wrapper drives the connection through Core's DaqifiDeviceFactory
         // (issue #620). The hardcoded 9760 data port is tracked separately in issue #615.
-        const int manualWifiDataPort = 9760;
-        var device = new DaqifiStreamingDevice(ipAddress, manualWifiDataPort, "Manual IP Device");
+        const int MANUAL_WIFI_DATA_PORT = 9760;
+        var device = new DaqifiStreamingDevice(ipAddress, MANUAL_WIFI_DATA_PORT, "Manual IP Device");
         await ConnectionManager.Instance.Connect(device);
 
         // Post-connect status check mirrors the manual-serial path: an unreachable device

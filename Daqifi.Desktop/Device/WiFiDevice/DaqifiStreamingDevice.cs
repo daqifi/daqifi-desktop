@@ -64,12 +64,17 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     /// so there is no need to fabricate a discovery-shaped <c>IDeviceInfo</c> (issue #620).
     /// </summary>
     /// <param name="ipAddress">The device IP address.</param>
-    /// <param name="port">The TCP data port to connect to.</param>
+    /// <param name="port">The TCP data port to connect to. Must be in the valid TCP range (1–65535).</param>
     /// <param name="name">Display name for the device.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="ipAddress"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// Thrown when <paramref name="port"/> is not a valid TCP port (1–65535).
+    /// </exception>
     public DaqifiStreamingDevice(IPAddress ipAddress, int port, string name)
     {
         ArgumentNullException.ThrowIfNull(ipAddress);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(port);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
 
         Name = string.IsNullOrWhiteSpace(name) ? "DAQiFi Device" : name;
         Metadata.IpAddress = ipAddress.ToString();
