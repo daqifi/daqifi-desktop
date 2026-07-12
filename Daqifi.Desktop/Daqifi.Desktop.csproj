@@ -28,7 +28,6 @@
 		<Prefer32Bit>false</Prefer32Bit>
 	</PropertyGroup>
 	<ItemGroup>
-		<Compile Remove="Loggers\CsvLogger.cs" />
 		<Compile Remove="ViewModels\PlottingViewModel.cs" />
 		<Compile Remove="ViewModels\PlotViewModel.cs" />
 		<Compile Remove="ViewModels\ViewModelLocator.cs" />
