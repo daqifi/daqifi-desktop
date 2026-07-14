@@ -39,12 +39,6 @@ public class LoggingContext : DbContext
                 .HasDatabaseName("IX_Samples_SessionTime");
         });
 
-        modelBuilder.Entity<Channel.Channel>(entity =>
-        {
-            entity.ToTable("Channel");
-            entity.Ignore(c => c.ChannelColorBrush);
-        });
-
         base.OnModelCreating(modelBuilder);
     }
 
