@@ -10,12 +10,12 @@ public partial class DropChannelTable : Migration
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropTable(
-            name: "Channel");
+        // Raw SQL with IF EXISTS guards: existing user databases from older app versions are
+        // expected to have this table, but some may have been hand-modified or already partially
+        // migrated, so the drop must not fail if the table/index is already gone.
+        migrationBuilder.Sql("DROP TABLE IF EXISTS \"Channel\";");
 
-        migrationBuilder.DropIndex(
-            name: "IX_Samples_LoggingSessionID",
-            table: "Samples");
+        migrationBuilder.Sql("DROP INDEX IF EXISTS \"IX_Samples_LoggingSessionID\";");
 
         migrationBuilder.RenameIndex(
             name: "IX_Samples_LoggingSessionID_TimestampTicks",
