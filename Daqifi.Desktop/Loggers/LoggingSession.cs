@@ -37,7 +37,6 @@ public class LoggingSession : ObservableObject
             }
         }
     }
-    public virtual ICollection<Channel.Channel> Channels { get; set; } = new List<Channel.Channel>();
     public virtual ICollection<DataSample> DataSamples { get; set; } = new List<DataSample>();
     public virtual ICollection<SessionDeviceMetadata> DeviceMetadata { get; set; } = new List<SessionDeviceMetadata>();
 

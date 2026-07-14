@@ -14,20 +14,12 @@ public class OptimizedLoggingSessionExporterTests
     private readonly DateTime _firstTime = new(2018, 2, 9, 1, 3, 30);
     private readonly DateTime _secondTime = new(2018, 2, 9, 1, 3, 31);
 
-    private List<Channel.Channel> _channels;
     private List<DataSample> _dataSamples;
 
     [TestInitialize]
     public void Initialize()
     {
         Directory.CreateDirectory(TestDirectoryPath);
-
-        _channels =
-        [
-            new Channel.Channel { ID = 1, Name = "Channel 1" },
-            new Channel.Channel { ID = 2, Name = "Channel 2" },
-            new Channel.Channel { ID = 2, Name = "Channel 3" }
-        ];
 
         _dataSamples =
         [
@@ -70,7 +62,6 @@ public class OptimizedLoggingSessionExporterTests
         var loggingSession = new LoggingSession
         {
             ID = 1,
-            Channels = _channels,
             DataSamples = _dataSamples
         };
 
@@ -97,7 +88,6 @@ public class OptimizedLoggingSessionExporterTests
         var loggingSession = new LoggingSession
         {
             ID = 1,
-            Channels = _channels,
             DataSamples = _dataSamples
         };
 
@@ -122,7 +112,6 @@ public class OptimizedLoggingSessionExporterTests
         var loggingSession = new LoggingSession
         {
             ID = 1,
-            Channels = _channels,
             DataSamples = new List<DataSample>()
         };
 
@@ -141,7 +130,6 @@ public class OptimizedLoggingSessionExporterTests
         var loggingSession = new LoggingSession
         {
             ID = 1,
-            Channels = _channels,
             DataSamples = _dataSamples
         };
 
@@ -169,7 +157,6 @@ public class OptimizedLoggingSessionExporterTests
         var loggingSession = new LoggingSession
         {
             ID = 1,
-            Channels = _channels,
             DataSamples = largeDataSamples
         };
 
@@ -202,7 +189,6 @@ public class OptimizedLoggingSessionExporterTests
         var loggingSession = new LoggingSession
         {
             ID = 1,
-            Channels = _channels,
             DataSamples = performanceDataSamples
         };
 
@@ -254,7 +240,6 @@ public class OptimizedLoggingSessionExporterTests
         var loggingSession = new LoggingSession
         {
             ID = 1,
-            Channels = _channels,
             DataSamples = multiDeviceDataSamples
         };
 
