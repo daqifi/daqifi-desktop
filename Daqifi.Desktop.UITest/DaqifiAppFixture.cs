@@ -118,6 +118,12 @@ public abstract class DaqifiAppFixture
     // rendering — to assert the plot shows believable data while streaming (issue #560).
     private const string PLOT_STATS_TEXT_ID = "PlotStatsText";
 
+    // The Live Graph header's RATE chip value (stream mode only — collapsed while SD-card
+    // logging is active). Reads DaqifiViewModel.SelectedStreamingFrequency; the chip itself is
+    // only in the UIA tree while IsLogging is true (it lives in the status-chips StackPanel
+    // gated on that binding), so a caller must be actively streaming before reading it.
+    private const string STREAM_RATE_TEXT_ID = "StreamRateText";
+
     // Per-row DELETE button (one per session row, like ExportSessionButton — it is in the item
     // template, so a row-scoped search targets that one row) and the affirmative button of the
     // app's in-pane confirm overlay. That overlay is the dark, in-window card the app shows for
@@ -981,6 +987,20 @@ public abstract class DaqifiAppFixture
     {
         var slider = OpenDeviceSettingsFrequencySlider();
         return slider.Patterns.RangeValue.Pattern.Value.Value;
+    }
+
+    /// <summary>
+    /// Reads the Live Graph header's RATE chip text (e.g. "1 Hz") via the invisible-until-logging
+    /// <c>StreamRateText</c> element's UIA Name (issue #686 — verifies the chip is seeded from the
+    /// device's real streaming frequency, not stuck at "0 Hz", the moment streaming starts).
+    /// Navigates to the Live Graph tab first. Only meaningful while <c>IsLogging</c> is true — the
+    /// chip's containing StackPanel is absent from the UIA tree otherwise.
+    /// </summary>
+    protected string GetStreamRateText()
+    {
+        NavigateToTab(LIVE_GRAPH_TAB_TEXT);
+        var rate = FindByAutomationId(STREAM_RATE_TEXT_ID);
+        return rate.Name;
     }
 
     /// <summary>
