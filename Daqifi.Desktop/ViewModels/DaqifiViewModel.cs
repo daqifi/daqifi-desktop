@@ -1259,6 +1259,18 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         {
             streamingDevice.DebugDataReceived += OnDebugDataReceived;
         }
+
+        // Seed the RATE chip from the device's actual streaming frequency the first time a
+        // device connects. SelectedStreamingFrequency's setter is only ever driven by the
+        // Devices pane FREQUENCY slider, so without this the chip shows a stale "0 Hz" until
+        // the user touches the slider even though the device is already streaming at its
+        // default rate (issue #686). This is a read-back, not a user-initiated change, so it
+        // intentionally bypasses the setter's logging-lock guard and device write-through.
+        if (_selectedStreamingFrequency < 1)
+        {
+            _selectedStreamingFrequency = device.StreamingFrequency;
+            OnPropertyChanged(nameof(SelectedStreamingFrequency));
+        }
     }
 
     /// <summary>
