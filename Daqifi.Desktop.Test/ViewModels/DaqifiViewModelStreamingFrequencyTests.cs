@@ -23,6 +23,20 @@ public class DaqifiViewModelStreamingFrequencyTests
     }
 
     [TestMethod]
+    public void SelectedStreamingFrequency_ClampedToOne_WhenDeviceReportsZero()
+    {
+        var viewModel = CreateViewModel();
+        var device = new Mock<IStreamingDevice>();
+        device.SetupGet(d => d.StreamingFrequency).Returns(0);
+
+        viewModel.ConnectedDevices.Add(device.Object);
+
+        Assert.AreEqual(1, viewModel.SelectedStreamingFrequency,
+            "Seeding must apply the same >=1 floor as the public setter, so an uninitialized/invalid " +
+            "device value can't surface as 0 Hz on the chip.");
+    }
+
+    [TestMethod]
     public void SelectedStreamingFrequency_NotOverwritten_ByLaterConnectingDevice()
     {
         var viewModel = CreateViewModel();

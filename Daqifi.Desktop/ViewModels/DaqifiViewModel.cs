@@ -1268,7 +1268,9 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         // intentionally bypasses the setter's logging-lock guard and device write-through.
         if (_selectedStreamingFrequency < 1)
         {
-            _selectedStreamingFrequency = device.StreamingFrequency;
+            // Clamp to the same >=1 floor the public setter enforces, so an out-of-range device
+            // value (e.g. an uninitialized 0) can't surface as "0 Hz" on the chip.
+            _selectedStreamingFrequency = Math.Max(1, device.StreamingFrequency);
             OnPropertyChanged(nameof(SelectedStreamingFrequency));
         }
     }
