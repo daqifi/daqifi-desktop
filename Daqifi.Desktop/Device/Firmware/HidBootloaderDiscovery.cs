@@ -16,6 +16,11 @@ public sealed class HidBootloaderDiscovery : IBootloaderDiscovery, IDisposable
     #region Constants
     /// <summary>Default pause between discovery passes.</summary>
     public static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(2);
+
+    // Bound for Stop()'s wait on the scan loop's exit. Matches ContinuousDiscoveryOptions' default
+    // PassTimeout — the longest a single in-flight pass is ever allowed to run — plus slack for the
+    // loop to observe cancellation and unwind.
+    private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(5);
     #endregion
 
     #region Private Fields
@@ -86,16 +91,17 @@ public sealed class HidBootloaderDiscovery : IBootloaderDiscovery, IDisposable
         finder.DeviceDiscovered -= OnDeviceDiscovered;
         finder.ScanError -= OnScanError;
 
-        // Stop without blocking the caller (Stop() may run on the UI thread). The finder's own StopAsync
-        // cancels the in-flight pass and awaits the loop's exit before we dispose it.
-        _ = StopAndDisposeAsync(finder);
-    }
-
-    private async Task StopAndDisposeAsync(ContinuousDeviceFinder finder)
-    {
+        // Block (bounded by the finder's own pass timeout) until the scan loop has actually exited — not
+        // just cancellation requested — so BootloaderWatcher's use of Stop() to pause discovery around a
+        // flash can rely on discovery being fully quiesced before handing HID I/O to the flasher.
+        // StopAsync is ConfigureAwait(false) throughout, so waiting on it here cannot deadlock even when
+        // Stop() runs on the UI thread.
         try
         {
-            await finder.StopAsync().ConfigureAwait(false);
+            if (!finder.StopAsync().Wait(StopTimeout))
+            {
+                _logger.Warning("Timed out waiting for bootloader discovery to stop.");
+            }
         }
         catch (Exception ex)
         {
@@ -133,7 +139,20 @@ public sealed class HidBootloaderDiscovery : IBootloaderDiscovery, IDisposable
     /// <summary>Stops discovery and releases the finder.</summary>
     public void Dispose()
     {
+        // Mark disposed atomically with the same lock Start() gates on, before tearing down the finder.
+        // Setting _disposed after Stop() (as opposed to before) would leave a window where a concurrent
+        // Start() could observe _disposed == false and _finder == null and spin up a new finder that
+        // outlives this Dispose() call.
+        lock (_sync)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+        }
+
         Stop();
-        _disposed = true;
     }
 }
