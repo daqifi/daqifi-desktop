@@ -198,7 +198,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
         {
             while (!cancellationToken.IsCancellationRequested && _wifiFinder != null)
             {
-                await _wifiFinder.DiscoverAsync(cancellationToken);
+                // Core's finder does synchronous work (socket setup) before its first await, so
+                // run it via Task.Run to keep that prefix off the UI thread (issue #685).
+                var finder = _wifiFinder;
+                await Task.Run(() => finder.DiscoverAsync(cancellationToken), cancellationToken);
                 // Brief pause before next discovery cycle
                 await Task.Delay(3000, cancellationToken);
             }
@@ -223,7 +226,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
         {
             while (!cancellationToken.IsCancellationRequested && _serialFinder != null)
             {
-                await _serialFinder.DiscoverAsync(cancellationToken);
+                // Core's SerialDeviceFinder opens SerialPort synchronously before its first await, so a
+                // wedged/zombie COM port can block indefinitely. Run it via Task.Run to keep that
+                // synchronous prefix off the UI thread — otherwise the whole app freezes (issue #685).
+                var finder = _serialFinder;
+                await Task.Run(() => finder.DiscoverAsync(cancellationToken), cancellationToken);
                 // Serial discovery is quick, pause longer between scans
                 await Task.Delay(2000, cancellationToken);
             }
