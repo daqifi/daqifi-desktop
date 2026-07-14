@@ -211,16 +211,20 @@ public class FirmwareUpdateCoordinator
 
             // Suspend the watcher's HID discovery for just the PIC32 flash: the connected device reboots
             // into the bootloader here, and the watcher must not grab it out from under this flasher.
-            // Existing holds on OTHER sitting bootloaders stay alive. (Known limitation: if another
-            // bootloader is held while this runs, Core's first-match enumeration could land on the held
-            // one — auto-update is fundamentally a single-device operation, so this is acceptable.)
+            // Existing holds on OTHER sitting bootloaders stay alive.
             var watcherLease = _watcher != null ? await _watcher.SuspendDiscoveryAsync() : null;
             await using (watcherLease)
             {
+                // Resolve the connected device's location BEFORE it reboots into the bootloader — its
+                // future HID device path doesn't exist yet, but its physical USB location is stable
+                // across the mode transition (issue #655). Passing it lets Core's post-reboot bootloader
+                // search target the exact physical device even if another bootloader is sitting held.
                 await _firmwareUpdateService.UpdateFirmwareAsync(
                     coreDevice,
                     effectiveFirmwarePath,
                     pic32Progress,
+                    targetDevicePath: null,
+                    targetLocationKey: serialStreamingDevice.LocationKey,
                     _firmwareUploadCts.Token);
             }
 

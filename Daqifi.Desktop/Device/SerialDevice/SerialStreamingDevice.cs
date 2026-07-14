@@ -40,6 +40,15 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     /// </summary>
     public string PortName => Port?.PortName ?? Name;
 
+    /// <summary>
+    /// USB physical-location key resolved by Core discovery for this device's port, or null if it
+    /// couldn't be resolved (non-Windows, or the port couldn't be matched to a PnP instance). Stable
+    /// across serial ⇄ HID-bootloader mode transitions on the same physical device, so it can target an
+    /// auto-update's reboot-triggered bootloader search without racing the device path (which only
+    /// exists once the device has already re-enumerated into bootloader mode).
+    /// </summary>
+    public string? LocationKey { get; set; }
+
     public override ConnectionType ConnectionType => ConnectionType.Usb;
 
     protected override CoreStreamingDevice? CoreDeviceForSd => CoreDevice;

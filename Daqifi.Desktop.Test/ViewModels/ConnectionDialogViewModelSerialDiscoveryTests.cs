@@ -53,6 +53,59 @@ public class ConnectionDialogViewModelSerialDiscoveryTests
     }
 
     [TestMethod]
+    public void AddSerialDeviceFromDiscovery_CapturesLocationKey()
+    {
+        // issue #655: the USB physical-location key must be captured at discovery time so the
+        // firmware coordinator can target an auto-update's post-reboot bootloader search with it.
+        var viewModel = CreateViewModel();
+        var deviceInfo = new DeviceInfo
+        {
+            Name = "NQ1-USB",
+            SerialNumber = "DAQ-12345",
+            FirmwareVersion = "1.2.3",
+            ConnectionType = ConnectionType.Serial,
+            PortName = "COM7",
+            LocationKey = "Port_#0001.Hub_#0001"
+        };
+
+        InvokeAddSerialDeviceFromDiscovery(viewModel, deviceInfo);
+
+        Assert.AreEqual("Port_#0001.Hub_#0001", viewModel.AvailableSerialDevices[0].LocationKey);
+    }
+
+    [TestMethod]
+    public void AddSerialDeviceFromDiscovery_RefreshesLocationKeyInPlace()
+    {
+        var viewModel = CreateViewModel();
+        var initialDevice = new DeviceInfo
+        {
+            Name = "NQ1-USB",
+            SerialNumber = "DAQ-12345",
+            FirmwareVersion = "1.2.3",
+            ConnectionType = ConnectionType.Serial,
+            PortName = "COM7",
+            LocationKey = null
+        };
+        var refreshedDevice = new DeviceInfo
+        {
+            Name = "NQ1-USB",
+            SerialNumber = "DAQ-12345",
+            FirmwareVersion = "1.2.3",
+            ConnectionType = ConnectionType.Serial,
+            PortName = "COM7",
+            LocationKey = "Port_#0001.Hub_#0001"
+        };
+
+        InvokeAddSerialDeviceFromDiscovery(viewModel, initialDevice);
+        Assert.IsNull(viewModel.AvailableSerialDevices[0].LocationKey);
+
+        InvokeAddSerialDeviceFromDiscovery(viewModel, refreshedDevice);
+
+        Assert.AreEqual(1, viewModel.AvailableSerialDevices.Count);
+        Assert.AreEqual("Port_#0001.Hub_#0001", viewModel.AvailableSerialDevices[0].LocationKey);
+    }
+
+    [TestMethod]
     public void AddSerialDeviceFromDiscovery_DoesNotAddDuplicatePorts()
     {
         // Arrange

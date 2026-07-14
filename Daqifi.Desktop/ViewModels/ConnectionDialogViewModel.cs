@@ -546,7 +546,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
                     portName,
                     deviceInfo.Name,
                     deviceInfo.SerialNumber,
-                    deviceInfo.FirmwareVersion);
+                    deviceInfo.FirmwareVersion)
+                {
+                    LocationKey = deviceInfo.LocationKey
+                };
                 AvailableSerialDevices.Add(serialDevice);
                 if (HasNoSerialDevices) { HasNoSerialDevices = false; }
                 Common.Loggers.AppLogger.Instance.Information(
@@ -574,6 +577,7 @@ public partial class ConnectionDialogViewModel : ObservableObject
             : portName;
         serialDevice.DeviceSerialNo = deviceInfo.SerialNumber;
         serialDevice.DeviceVersion = deviceInfo.FirmwareVersion;
+        serialDevice.LocationKey = deviceInfo.LocationKey;
     }
 
     private static void InvokeOnUiThread(Action action)
