@@ -176,7 +176,17 @@ public partial class ConnectionDialogViewModel : ObservableObject
         _wifiFinder = new WiFiDeviceFinder(30303);
         _wifiDiscoveryCts = new CancellationTokenSource();
         _wifiFinder.DeviceDiscovered += HandleCoreWifiDeviceDiscovered;
-        _wifiDiscoveryTask = RunContinuousWiFiDiscoveryAsync(_wifiDiscoveryCts.Token);
+
+        var wifiTask = RunContinuousWiFiDiscoveryAsync(_wifiDiscoveryCts.Token);
+        _wifiDiscoveryTask = wifiTask;
+        // Clear the tracked task only once it has actually finished — not merely after
+        // StopWiFiDiscoveryAsync's drain timeout — so a cycle still blocked in the finder's
+        // synchronous prefix (issue #685) can't be raced by a subsequent StartWiFiDiscovery
+        // while it may still be using the finder/socket.
+        _ = wifiTask.ContinueWith(_ =>
+        {
+            if (ReferenceEquals(_wifiDiscoveryTask, wifiTask)) { _wifiDiscoveryTask = null; }
+        }, TaskScheduler.Default);
     }
 
     private void StartSerialDiscovery()
@@ -189,7 +199,17 @@ public partial class ConnectionDialogViewModel : ObservableObject
         _serialFinder = new Daqifi.Core.Device.Discovery.SerialDeviceFinder();
         _serialDiscoveryCts = new CancellationTokenSource();
         _serialFinder.DeviceDiscovered += HandleCoreSerialDeviceDiscovered;
-        _serialDiscoveryTask = RunContinuousSerialDiscoveryAsync(_serialDiscoveryCts.Token);
+
+        var serialTask = RunContinuousSerialDiscoveryAsync(_serialDiscoveryCts.Token);
+        _serialDiscoveryTask = serialTask;
+        // Same reasoning as StartWiFiDiscovery above: only the task's own completion clears the
+        // tracked reference, so a discovery cycle still blocked on a wedged COM port can't be
+        // raced by a subsequent StartSerialDiscovery (e.g. the firmware flash resume path) while
+        // it may still hold the port.
+        _ = serialTask.ContinueWith(_ =>
+        {
+            if (ReferenceEquals(_serialDiscoveryTask, serialTask)) { _serialDiscoveryTask = null; }
+        }, TaskScheduler.Default);
     }
 
     private async Task RunContinuousWiFiDiscoveryAsync(CancellationToken cancellationToken)
@@ -198,7 +218,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
         {
             while (!cancellationToken.IsCancellationRequested && _wifiFinder != null)
             {
-                await _wifiFinder.DiscoverAsync(cancellationToken);
+                // Core's finder does synchronous work (socket setup) before its first await, so
+                // run it via Task.Run to keep that prefix off the UI thread (issue #685).
+                var finder = _wifiFinder;
+                await Task.Run(() => finder.DiscoverAsync(cancellationToken), cancellationToken);
                 // Brief pause before next discovery cycle
                 await Task.Delay(3000, cancellationToken);
             }
@@ -223,7 +246,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
         {
             while (!cancellationToken.IsCancellationRequested && _serialFinder != null)
             {
-                await _serialFinder.DiscoverAsync(cancellationToken);
+                // Core's SerialDeviceFinder opens SerialPort synchronously before its first await, so a
+                // wedged/zombie COM port can block indefinitely. Run it via Task.Run to keep that
+                // synchronous prefix off the UI thread — otherwise the whole app freezes (issue #685).
+                var finder = _serialFinder;
+                await Task.Run(() => finder.DiscoverAsync(cancellationToken), cancellationToken);
                 // Serial discovery is quick, pause longer between scans
                 await Task.Delay(2000, cancellationToken);
             }
@@ -634,7 +661,14 @@ public partial class ConnectionDialogViewModel : ObservableObject
             }
             catch (TimeoutException)
             {
+                // The loop's Task.Run may still be blocked in the finder's synchronous prefix (a
+                // wedged COM port, issue #685). Leave _serialDiscoveryTask set — its own
+                // continuation (see StartSerialDiscovery) clears it once it truly finishes — so
+                // Start*Discovery's guard keeps refusing a competing discovery generation against
+                // the same port, and skip disposing the finder/CTS below since the still-running
+                // call may be using them.
                 Common.Loggers.AppLogger.Instance.Warning("Serial discovery task did not complete within timeout");
+                return;
             }
             catch (OperationCanceledException)
             {
@@ -648,7 +682,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
             {
                 Common.Loggers.AppLogger.Instance.Error(ex, "Unexpected error while stopping serial discovery");
             }
-            _serialDiscoveryTask = null;
         }
 
         if (_serialFinder != null)
@@ -681,7 +714,11 @@ public partial class ConnectionDialogViewModel : ObservableObject
             }
             catch (TimeoutException)
             {
+                // Same reasoning as StopSerialDiscoveryAsync above: leave _wifiDiscoveryTask set
+                // (its StartWiFiDiscovery continuation clears it once it truly finishes) and skip
+                // disposing the finder/CTS below, since the still-running Task.Run may be using them.
                 Common.Loggers.AppLogger.Instance.Warning("WiFi discovery task did not complete within timeout");
+                return;
             }
             catch (OperationCanceledException) { }
             catch (ObjectDisposedException) { }
@@ -689,7 +726,6 @@ public partial class ConnectionDialogViewModel : ObservableObject
             {
                 Common.Loggers.AppLogger.Instance.Error(ex, "Unexpected error while stopping WiFi discovery");
             }
-            _wifiDiscoveryTask = null;
         }
 
         if (_wifiFinder != null)
