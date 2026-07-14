@@ -1189,7 +1189,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             var latestFirmwareVersion = _firmwareCoordinator.LatestFirmwareVersion;
             if (!string.IsNullOrEmpty(latestFirmwareVersion))
             {
-                connectedDevice.IsFirmwareOutdated = VersionHelper.Compare(DeviceVersion, latestFirmwareVersion) < 0;
+                connectedDevice.IsFirmwareOutdated = FirmwareVersion.Compare(DeviceVersion, latestFirmwareVersion) < 0;
             }
 
             ConnectedDevices.Add(connectedDevice);
