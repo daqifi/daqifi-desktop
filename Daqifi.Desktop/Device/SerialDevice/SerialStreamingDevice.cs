@@ -112,6 +112,14 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
                 // already holds the port open. Same classification as above.
                 AppLogger.Warning(ex, $"Cannot connect on {PortName}: port is in use by another process");
                 break;
+            case TimeoutException:
+                // OnCoreDeviceInitialized throws this when the device never reports its initial
+                // status within InitialStatusTimeout. A newly-enumerated COM port whose driver/
+                // firmware hasn't settled yet, or a device that's unplugged/powered off/stuck in
+                // a non-responsive state, is a user/environmental condition, not an app bug — same
+                // classification as the WiFi connect-timeout case (issue #517, #632).
+                AppLogger.Warning(ex, $"Device on {PortName} did not respond within the connection timeout");
+                break;
             default:
                 AppLogger.Error(ex, $"Failed to connect on {PortName}");
                 break;
