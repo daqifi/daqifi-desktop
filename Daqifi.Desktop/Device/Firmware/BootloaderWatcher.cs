@@ -189,10 +189,12 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     private void OnBootloaderDiscovered(object? sender, BootloaderDiscoveredEventArgs e)
     {
         // The discovery loop is synchronous; grabbing the hold is async, so dispatch without blocking it.
-        RunDetached(HandleDiscoveredAsync(e.DevicePath, e.DeviceName), "handling a discovered bootloader");
+        RunDetached(
+            HandleDiscoveredAsync(e.DevicePath, e.DeviceName, e.LocationKey),
+            "handling a discovered bootloader");
     }
 
-    private async Task HandleDiscoveredAsync(string devicePath, string? deviceName)
+    private async Task HandleDiscoveredAsync(string devicePath, string? deviceName, string? locationKey)
     {
         await _gate.WaitAsync().ConfigureAwait(false);
         IBootloaderHoldService? created = null;
@@ -219,13 +221,13 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
             _holds[devicePath] = created;
             created = null; // ownership transferred to _holds BEFORE the UI marshal, so a marshal failure
                             // can never make the finally dispose a now-tracked hold (stale-entry bug).
-            var displayName = string.IsNullOrWhiteSpace(deviceName) ? "DAQiFi Bootloader" : deviceName!;
+            var displayName = ResolveDisplayName(deviceName, locationKey);
             InvokeOnUiThread(() =>
             {
                 // Guard: a callback queued just before Dispose must not re-add a row after teardown.
                 if (!_disposed)
                 {
-                    _bootloaders.Add(new HeldBootloader(devicePath, displayName));
+                    _bootloaders.Add(new HeldBootloader(devicePath, displayName, locationKey));
                 }
             });
             _logger.Information($"Holding HID bootloader {devicePath} ({displayName}).");
@@ -298,6 +300,24 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     #endregion
 
     #region Helpers
+    /// <summary>
+    /// Picks the label shown for a held bootloader: the friendly device name when discovery could read
+    /// one, else the USB physical location when that's available, else a generic fallback. Identical
+    /// bootloaders share VID/PID and have no serial (see <see cref="HeldBootloader"/>), so without a
+    /// name the location key is the most useful thing to show a user with more than one connected.
+    /// </summary>
+    private static string ResolveDisplayName(string? deviceName, string? locationKey)
+    {
+        if (!string.IsNullOrWhiteSpace(deviceName))
+        {
+            return deviceName!;
+        }
+
+        return string.IsNullOrWhiteSpace(locationKey)
+            ? "DAQiFi Bootloader"
+            : $"Bootloader on USB port {locationKey}";
+    }
+
     /// <summary>
     /// Observes a fire-and-forget task's faults. The handlers carry their own try/catch for expected
     /// failures; this is a backstop so an unexpected fault outside that scope (e.g. the gate already

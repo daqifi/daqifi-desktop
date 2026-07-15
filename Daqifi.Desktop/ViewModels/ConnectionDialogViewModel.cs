@@ -546,7 +546,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
                     portName,
                     deviceInfo.Name,
                     deviceInfo.SerialNumber,
-                    deviceInfo.FirmwareVersion);
+                    deviceInfo.FirmwareVersion)
+                {
+                    LocationKey = deviceInfo.LocationKey
+                };
                 AvailableSerialDevices.Add(serialDevice);
                 if (HasNoSerialDevices) { HasNoSerialDevices = false; }
                 Common.Loggers.AppLogger.Instance.Information(
@@ -574,6 +577,14 @@ public partial class ConnectionDialogViewModel : ObservableObject
             : portName;
         serialDevice.DeviceSerialNo = deviceInfo.SerialNumber;
         serialDevice.DeviceVersion = deviceInfo.FirmwareVersion;
+
+        // Only overwrite with a resolved value: a refresh pass that couldn't resolve a location
+        // (deviceInfo.LocationKey null) must not erase a previously-captured one, or an auto-update
+        // triggered afterward would lose its firmware-targeting key.
+        if (!string.IsNullOrWhiteSpace(deviceInfo.LocationKey))
+        {
+            serialDevice.LocationKey = deviceInfo.LocationKey;
+        }
     }
 
     private static void InvokeOnUiThread(Action action)

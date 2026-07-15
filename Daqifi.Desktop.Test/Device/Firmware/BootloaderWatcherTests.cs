@@ -57,6 +57,48 @@ public class BootloaderWatcherTests
     }
 
     [TestMethod]
+    public async Task Discover_WithDeviceName_UsesDeviceNameOverLocationKey()
+    {
+        using var watcher = CreateWatcher();
+        watcher.Start();
+
+        _discovery.Raise(PathA, "DAQiFi Bootloader", "Port_#0001.Hub_#0001");
+        await WaitUntilAsync(() => watcher.Bootloaders.Count == 1);
+
+        var bootloader = watcher.Bootloaders.Single();
+        Assert.AreEqual("DAQiFi Bootloader", bootloader.DisplayName);
+        Assert.AreEqual("Port_#0001.Hub_#0001", bootloader.LocationKey);
+    }
+
+    [TestMethod]
+    public async Task Discover_NoDeviceNameWithLocationKey_LabelsByLocation()
+    {
+        using var watcher = CreateWatcher();
+        watcher.Start();
+
+        _discovery.Raise(PathA, deviceName: null, locationKey: "Port_#0001.Hub_#0001");
+        await WaitUntilAsync(() => watcher.Bootloaders.Count == 1);
+
+        var bootloader = watcher.Bootloaders.Single();
+        Assert.AreEqual("Bootloader on USB port Port_#0001.Hub_#0001", bootloader.DisplayName);
+        Assert.AreEqual("Port_#0001.Hub_#0001", bootloader.LocationKey);
+    }
+
+    [TestMethod]
+    public async Task Discover_NoDeviceNameNoLocationKey_UsesGenericFallback()
+    {
+        using var watcher = CreateWatcher();
+        watcher.Start();
+
+        _discovery.Raise(PathA, deviceName: null, locationKey: null);
+        await WaitUntilAsync(() => watcher.Bootloaders.Count == 1);
+
+        var bootloader = watcher.Bootloaders.Single();
+        Assert.AreEqual("DAQiFi Bootloader", bootloader.DisplayName);
+        Assert.IsNull(bootloader.LocationKey);
+    }
+
+    [TestMethod]
     public async Task Discover_SamePathTwice_HoldsOnce()
     {
         using var watcher = CreateWatcher();
@@ -224,8 +266,8 @@ public class BootloaderWatcherTests
 
         // Simulate a discovery cycle surfacing a device — fired regardless of running state so tests can
         // also exercise the "suppressed while paused" guard.
-        public void Raise(string devicePath, string? deviceName) =>
-            BootloaderDiscovered?.Invoke(this, new BootloaderDiscoveredEventArgs(devicePath, deviceName));
+        public void Raise(string devicePath, string? deviceName, string? locationKey = null) =>
+            BootloaderDiscovered?.Invoke(this, new BootloaderDiscoveredEventArgs(devicePath, deviceName, locationKey));
     }
 
     private sealed class FakeHold : IBootloaderHoldService

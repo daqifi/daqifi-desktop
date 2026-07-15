@@ -123,7 +123,7 @@ public sealed class HidBootloaderDiscovery : IBootloaderDiscovery, IDisposable
                 return;
             }
 
-            BootloaderDiscovered?.Invoke(this, new BootloaderDiscoveredEventArgs(info.DevicePath, info.Name));
+            BootloaderDiscovered?.Invoke(this, new BootloaderDiscoveredEventArgs(info.DevicePath, info.Name, info.LocationKey));
         }
         catch (Exception ex)
         {
