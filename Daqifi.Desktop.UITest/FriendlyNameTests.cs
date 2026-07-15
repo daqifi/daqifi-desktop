@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Daqifi.Desktop.UITest;
@@ -48,6 +49,7 @@ public class FriendlyNameTests : DaqifiAppFixture
         Assert.AreEqual(
             targetName, GetFriendlyNameInDrawer(),
             "The NAME field did not show the value just saved (optimistic local update).");
+        CaptureScreenshot("FriendlyName_AfterSave");
 
         // Act — disconnect and reconnect the SAME physical device. A fresh connection has no
         // in-session FriendlyName state, so any value the drawer shows after this must have come
@@ -78,7 +80,28 @@ public class FriendlyNameTests : DaqifiAppFixture
             "The friendly name did not survive a disconnect/reconnect — it did not persist to " +
             "the device's NVM (SYSTem:DEVice:NAME:SAVE), or was not read back correctly. " +
             $"Device-reported firmware version: '{firmwareVersion}' (requires >= 3.7.1 for #14).");
+        CaptureScreenshot("FriendlyName_AfterReconnect");
 
         // Per-test independence: the base fixture's [TestCleanup] disconnects and closes the app.
+    }
+
+    /// <summary>
+    /// Saves a screenshot of the main window into the test results directory and registers it as
+    /// a result file. Best-effort; never throws into the test (mirrors ConnectionLifecycleTests).
+    /// </summary>
+    private void CaptureScreenshot(string name)
+    {
+        try
+        {
+            var outDir = TestContext?.TestResultsDirectory ?? AppContext.BaseDirectory;
+            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", System.Globalization.CultureInfo.InvariantCulture);
+            var path = Path.Combine(outDir, $"{name}_{stamp}.png");
+            FlaUI.Core.Capturing.Capture.Element(MainWindow).ToFile(path);
+            TestContext?.AddResultFile(path);
+        }
+        catch
+        {
+            // Screenshot capture must not affect the test outcome.
+        }
     }
 }
