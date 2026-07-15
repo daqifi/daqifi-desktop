@@ -3,6 +3,7 @@ using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.ViewModels;
 using Moq;
 using System.Net;
+using System.Reflection;
 
 namespace Daqifi.Desktop.Test.ViewModels;
 
@@ -59,9 +60,64 @@ public class ConnectionDialogViewModelWifiDiscoveryTests
         Assert.IsTrue(wifiDevice.IsPowerOn);
     }
 
+    [TestMethod]
+    public void StartWiFiDiscovery_ClearsAvailableWiFiDevicesFromPriorSession()
+    {
+        // Arrange: populate the list as if a device was found before a discovery restart
+        // (e.g. the firmware-flash resume path recreates the finder).
+        var viewModel = CreateViewModel();
+        var deviceInfo = new DeviceInfo
+        {
+            Name = "NQ1-WiFi",
+            MacAddress = "00:11:22:33:44:55",
+            IPAddress = IPAddress.Parse("192.168.1.100"),
+            Port = 9760,
+            ConnectionType = ConnectionType.WiFi
+        };
+        viewModel.HandleCoreWifiDeviceDiscovered(null, new DeviceDiscoveredEventArgs(deviceInfo));
+        Assert.HasCount(1, viewModel.AvailableWiFiDevices);
+        Assert.IsFalse(viewModel.HasNoWiFiDevices);
+
+        try
+        {
+            // Act: restart discovery (simulates the firmware-flash resume path recreating the finder)
+            InvokeStartWiFiDiscovery(viewModel);
+
+            // Assert: the list is reset synchronously so a rediscovery under the new finder's own
+            // per-session MAC dedup can't be re-added as a duplicate.
+            Assert.IsEmpty(viewModel.AvailableWiFiDevices);
+            Assert.IsTrue(viewModel.HasNoWiFiDevices);
+        }
+        finally
+        {
+            // Stop the discovery loop kicked off above before the test ends.
+            InvokeStopWiFiDiscovery(viewModel);
+        }
+    }
+
     private static ConnectionDialogViewModel CreateViewModel()
     {
         var dialogService = new Mock<IDialogService>();
         return new ConnectionDialogViewModel(dialogService.Object);
+    }
+
+    private static void InvokeStartWiFiDiscovery(ConnectionDialogViewModel viewModel)
+    {
+        var method = typeof(ConnectionDialogViewModel).GetMethod(
+            "StartWiFiDiscovery",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.IsNotNull(method);
+        method.Invoke(viewModel, null);
+    }
+
+    private static void InvokeStopWiFiDiscovery(ConnectionDialogViewModel viewModel)
+    {
+        var method = typeof(ConnectionDialogViewModel).GetMethod(
+            "StopWiFiDiscovery",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.IsNotNull(method);
+        method.Invoke(viewModel, null);
     }
 }

@@ -173,6 +173,14 @@ public partial class ConnectionDialogViewModel : ObservableObject
         if (_wifiFinder != null) { _wifiFinder.DeviceDiscovered -= HandleCoreWifiDeviceDiscovered; _wifiFinder.Dispose(); }
         _wifiDiscoveryCts?.Dispose();
 
+        // Reset the bound list to match the new finder's dedup set: WiFiDeviceFinder's MAC dedup is
+        // per-DiscoverAsync-call (a fresh finder means a fresh, empty dedup set), so a list that
+        // outlives the finder it was populated from (e.g. the firmware-flash resume path, which tears
+        // down and recreates the finder) would let a rediscovered device be re-added as a duplicate.
+        // Clearing here keeps Core's per-session dedup sufficient on its own. (issue #621)
+        AvailableWiFiDevices.Clear();
+        HasNoWiFiDevices = true;
+
         _wifiFinder = new WiFiDeviceFinder(30303);
         _wifiDiscoveryCts = new CancellationTokenSource();
         _wifiFinder.DeviceDiscovered += HandleCoreWifiDeviceDiscovered;
@@ -612,12 +620,10 @@ public partial class ConnectionDialogViewModel : ObservableObject
 
         InvokeOnUiThread(() =>
         {
-            // Dedup by MAC across discovery restarts: Core's WiFiDeviceFinder only dedups within a
-            // single DiscoverAsync session (its discoveredDevices set is per-call), but the dialog
-            // restarts the finder — e.g. the firmware-flash resume path — while AvailableWiFiDevices
-            // persists and is never cleared. Without this guard a rediscovered device is added twice.
-            // Mirrors the serial path's FindSerialDeviceByPortName dedup. (issue #621)
-            if (AvailableWiFiDevices.Any(d => d.MacAddress == wifiDevice.MacAddress)) return;
+            // No MAC dedup guard here: StartWiFiDiscovery clears AvailableWiFiDevices whenever the
+            // finder is (re)created, so the list never outlives the finder's own per-session dedup
+            // set — Core's WiFiDeviceFinder dedup (by MAC, within a DiscoverAsync session) is
+            // sufficient on its own. (issue #621)
             AvailableWiFiDevices.Add(wifiDevice);
             if (HasNoWiFiDevices) { HasNoWiFiDevices = false; }
         });
