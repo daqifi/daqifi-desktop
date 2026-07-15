@@ -207,10 +207,70 @@ public class ConnectionDialogViewModelSerialDiscoveryTests
         Assert.AreEqual("1.2.3", existingDevice.DeviceVersion);
     }
 
+    [TestMethod]
+    public void HandleCoreSerialDeviceLost_RemovesMatchingDeviceByPortName()
+    {
+        // issue #616: the continuous finder raises DeviceLost once a device has been absent for its
+        // configured miss threshold, replacing the dialog's own stale-device removal logic.
+        var viewModel = CreateViewModel();
+        var deviceInfo = new DeviceInfo
+        {
+            Name = "NQ1-USB",
+            SerialNumber = "DAQ-12345",
+            FirmwareVersion = "1.2.3",
+            ConnectionType = ConnectionType.Serial,
+            PortName = "COM7"
+        };
+        InvokeAddSerialDeviceFromDiscovery(viewModel, deviceInfo);
+        Assert.AreEqual(1, viewModel.AvailableSerialDevices.Count);
+
+        InvokeHandleCoreSerialDeviceLost(viewModel, new DeviceLostEventArgs(deviceInfo));
+
+        Assert.AreEqual(0, viewModel.AvailableSerialDevices.Count);
+        Assert.IsTrue(viewModel.HasNoSerialDevices);
+    }
+
+    [TestMethod]
+    public void HandleCoreSerialDeviceLost_UnknownPort_DoesNotThrowOrRemoveOthers()
+    {
+        var viewModel = CreateViewModel();
+        var deviceInfo = new DeviceInfo
+        {
+            Name = "NQ1-USB",
+            SerialNumber = "DAQ-12345",
+            FirmwareVersion = "1.2.3",
+            ConnectionType = ConnectionType.Serial,
+            PortName = "COM7"
+        };
+        InvokeAddSerialDeviceFromDiscovery(viewModel, deviceInfo);
+
+        var otherDeviceInfo = new DeviceInfo
+        {
+            Name = "Other",
+            ConnectionType = ConnectionType.Serial,
+            PortName = "COM9"
+        };
+
+        InvokeHandleCoreSerialDeviceLost(viewModel, new DeviceLostEventArgs(otherDeviceInfo));
+
+        Assert.AreEqual(1, viewModel.AvailableSerialDevices.Count);
+        Assert.IsFalse(viewModel.HasNoSerialDevices);
+    }
+
     private static ConnectionDialogViewModel CreateViewModel()
     {
         var dialogService = new Mock<IDialogService>();
         return new ConnectionDialogViewModel(dialogService.Object);
+    }
+
+    private static void InvokeHandleCoreSerialDeviceLost(ConnectionDialogViewModel viewModel, DeviceLostEventArgs args)
+    {
+        var method = typeof(ConnectionDialogViewModel).GetMethod(
+            "HandleCoreSerialDeviceLost",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.IsNotNull(method);
+        method.Invoke(viewModel, [null, args]);
     }
 
     private static void InvokeAddSerialDeviceFromDiscovery(

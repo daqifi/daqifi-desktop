@@ -97,10 +97,72 @@ public class ConnectionDialogViewModelWifiDiscoveryTests
         }
     }
 
+    [TestMethod]
+    public void HandleCoreWifiDeviceLost_RemovesMatchingDeviceByMacAddress()
+    {
+        // issue #616: the continuous finder raises DeviceLost once a device has been absent for its
+        // configured miss threshold, replacing the dialog's own stale-device removal logic.
+        var viewModel = CreateViewModel();
+        var deviceInfo = new DeviceInfo
+        {
+            Name = "NQ1-WiFi",
+            MacAddress = "00:11:22:33:44:55",
+            IPAddress = IPAddress.Parse("192.168.1.100"),
+            Port = 9760,
+            ConnectionType = ConnectionType.WiFi
+        };
+        viewModel.HandleCoreWifiDeviceDiscovered(null, new DeviceDiscoveredEventArgs(deviceInfo));
+        Assert.HasCount(1, viewModel.AvailableWiFiDevices);
+
+        InvokeHandleCoreWifiDeviceLost(viewModel, new DeviceLostEventArgs(deviceInfo));
+
+        Assert.IsEmpty(viewModel.AvailableWiFiDevices);
+        Assert.IsTrue(viewModel.HasNoWiFiDevices);
+    }
+
+    [TestMethod]
+    public void HandleCoreWifiDeviceLost_UnknownDevice_DoesNotThrowOrRemoveOthers()
+    {
+        var viewModel = CreateViewModel();
+        var deviceInfo = new DeviceInfo
+        {
+            Name = "NQ1-WiFi",
+            MacAddress = "00:11:22:33:44:55",
+            IPAddress = IPAddress.Parse("192.168.1.100"),
+            Port = 9760,
+            ConnectionType = ConnectionType.WiFi
+        };
+        viewModel.HandleCoreWifiDeviceDiscovered(null, new DeviceDiscoveredEventArgs(deviceInfo));
+
+        var unrelatedDeviceInfo = new DeviceInfo
+        {
+            Name = "Other",
+            MacAddress = "AA:BB:CC:DD:EE:FF",
+            IPAddress = IPAddress.Parse("192.168.1.200"),
+            Port = 9760,
+            ConnectionType = ConnectionType.WiFi
+        };
+
+        InvokeHandleCoreWifiDeviceLost(viewModel, new DeviceLostEventArgs(unrelatedDeviceInfo));
+
+        Assert.HasCount(1, viewModel.AvailableWiFiDevices);
+        Assert.IsFalse(viewModel.HasNoWiFiDevices);
+    }
+
     private static ConnectionDialogViewModel CreateViewModel()
     {
         var dialogService = new Mock<IDialogService>();
         return new ConnectionDialogViewModel(dialogService.Object);
+    }
+
+    private static void InvokeHandleCoreWifiDeviceLost(ConnectionDialogViewModel viewModel, DeviceLostEventArgs args)
+    {
+        var method = typeof(ConnectionDialogViewModel).GetMethod(
+            "HandleCoreWifiDeviceLost",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.IsNotNull(method);
+        method.Invoke(viewModel, [null, args]);
     }
 
     private static void InvokeStartWiFiDiscovery(ConnectionDialogViewModel viewModel)
