@@ -61,6 +61,15 @@ public abstract class DaqifiAppFixture
     private const string SELECT_ALL_ANALOG_ID = "SelectAllAnalogChannels";
 
     /// <summary>
+    /// The NAME field + SAVE button in the device settings drawer (issue #83), and the drawer's
+    /// SERIAL info-card value, used to prove the friendly name round-trips to the device and
+    /// persists to NVM (survives a disconnect/reconnect).
+    /// </summary>
+    private const string FRIENDLY_NAME_INPUT_ID = "FriendlyNameInput";
+    private const string SAVE_FRIENDLY_NAME_BUTTON_ID = "SaveFriendlyNameButton";
+    private const string FIRMWARE_VERSION_ID = "FirmwareVersion";
+
+    /// <summary>
     /// Per-tile channel settings gear (one per tile, shared literal id — target by position,
     /// cf. <c>ExportSessionButton</c>) and the settings-drawer controls for digital direction
     /// and output-state (issue #663). The drawer radios are IsChecked-driven (no bound
@@ -1032,6 +1041,97 @@ public abstract class DaqifiAppFixture
             throwOnTimeout: true,
             ignoreException: true,
             timeoutMessage: "Sampling frequency slider did not appear in the device settings flyout.").Result!;
+    }
+
+    /// <summary>
+    /// Sets the device's friendly name (issue #83) through the settings drawer's NAME field and
+    /// SAVE NAME button, then waits for the "Name saved" confirmation to appear. The field binds
+    /// <c>UpdateSourceTrigger=PropertyChanged</c> (no focus-loss commit needed, unlike
+    /// <see cref="SetPwmFrequencyInDrawer"/>); SAVE NAME is a plain Button, so InvokePattern
+    /// raises a real click and the bound <c>SetFriendlyNameCommand</c> runs (gotcha #12 only
+    /// bites bound Commands on check controls).
+    /// </summary>
+    protected void SetFriendlyNameInDrawer(string name)
+    {
+        var input = OpenDeviceSettingsDrawer(FRIENDLY_NAME_INPUT_ID).AsTextBox();
+        input.Patterns.Value.Pattern.SetValue(name);
+
+        var save = FindByAutomationId(SAVE_FRIENDLY_NAME_BUTTON_ID, timeoutSeconds: 10);
+        save.AsButton().Invoke();
+
+        // "Name saved" is a transient status row (fades after 3s) — its appearance is the signal
+        // that SetFriendlyNameCommand ran the SCPI set+save without hitting FriendlyNameError.
+        Retry.WhileTrue(
+            () => MainWindow.FindFirstDescendant(cf => cf.ByName("Name saved")) == null,
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                "The \"Name saved\" confirmation did not appear after SAVE NAME — " +
+                "SetFriendlyNameCommand may not have run, or it hit FriendlyNameError.");
+    }
+
+    /// <summary>
+    /// Reads the current value of the drawer's NAME field.
+    /// </summary>
+    protected string GetFriendlyNameInDrawer()
+    {
+        return OpenDeviceSettingsDrawer(FRIENDLY_NAME_INPUT_ID).AsTextBox().Text;
+    }
+
+    /// <summary>
+    /// Reads the drawer's SERIAL info-card value (issue #83 — "show device SN under device
+    /// settings").
+    /// </summary>
+    protected string GetSerialNumberInDrawer()
+    {
+        OpenDeviceSettingsDrawer(SAMPLING_FREQUENCY_INPUT_ID);
+        return MainWindow.FindFirstDescendant(cf => cf.ByAutomationId("SerialNumber"))?.Name
+            ?? throw new InvalidOperationException("The drawer's SERIAL value was not found.");
+    }
+
+    /// <summary>
+    /// Reads the drawer's FIRMWARE info-card value (the device's reported <c>DeviceFwRev</c>).
+    /// </summary>
+    protected string GetFirmwareVersionInDrawer()
+    {
+        OpenDeviceSettingsDrawer(SAMPLING_FREQUENCY_INPUT_ID);
+        return MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(FIRMWARE_VERSION_ID))?.Name
+            ?? throw new InvalidOperationException("The drawer's FIRMWARE value was not found.");
+    }
+
+    /// <summary>
+    /// Navigates to the Devices pane and ensures the per-device settings drawer is open (clicking
+    /// the tile gear if needed), then returns the descendant identified by
+    /// <paramref name="probeAutomationId"/> once it is present and on-screen. Generalizes
+    /// <see cref="OpenDeviceSettingsFrequencySlider"/>'s open-if-needed pattern to other drawer
+    /// controls (e.g. the NAME field), since any control that is only present while the drawer is
+    /// open works as the "is it open" probe.
+    /// </summary>
+    private AutomationElement OpenDeviceSettingsDrawer(string probeAutomationId)
+    {
+        NavigateToTab(DEVICES_TAB_TEXT);
+
+        var probe = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(probeAutomationId));
+        if (probe == null || probe.IsOffscreen)
+        {
+            var gear = FindByAutomationId(DEVICE_SETTINGS_BUTTON_ID);
+            gear.WaitUntilEnabled(TimeSpan.FromSeconds(10));
+            gear.AsButton().Invoke();
+        }
+
+        return Retry.WhileNull(
+            () =>
+            {
+                var p = MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(probeAutomationId));
+                return p != null && !p.IsOffscreen ? p : null;
+            },
+            timeout: TimeSpan.FromSeconds(15),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage: $"'{probeAutomationId}' did not appear in the device settings drawer.").Result!;
     }
 
     /// <summary>

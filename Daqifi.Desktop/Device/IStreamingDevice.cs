@@ -88,9 +88,30 @@ public interface IStreamingDevice : IDevice
 
     /// <summary>
     /// Gets the best available human-readable name for this device.
-    /// Returns the serial number when populated, otherwise falls back to DisplayIdentifier.
+    /// Returns the user-defined friendly name when set, then the serial number,
+    /// otherwise falls back to DisplayIdentifier.
     /// </summary>
     string DeviceDisplayName { get; }
+
+    /// <summary>
+    /// Gets the device's user-defined friendly name (<c>friendly_device_name</c> in the
+    /// protobuf message), or an empty string when none is set. Populated from the device's
+    /// <c>SYSTem:SYSInfoPB?</c> info response, which Core requests once during connect — not
+    /// available until shortly after the device connects.
+    /// </summary>
+    string FriendlyName { get; }
+
+    /// <summary>
+    /// Sets and persists a user-defined friendly name to the device's NVM via the
+    /// <c>SYSTem:DEVice:NAME</c> / <c>SYSTem:DEVice:NAME:SAVE</c> SCPI commands. A missing
+    /// or disconnected device logs and no-ops rather than throwing (same rationale as
+    /// <see cref="SetChannelOutputValue"/>).
+    /// </summary>
+    /// <param name="name">
+    /// 1-31 printable ASCII characters (0x20-0x7E); cannot contain <c>"</c> or <c>\</c>.
+    /// </param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> fails validation.</exception>
+    void SetFriendlyName(string name);
 
     List<IChannel> DataChannels { get; set; }
 

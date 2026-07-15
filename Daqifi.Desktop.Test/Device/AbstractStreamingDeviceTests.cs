@@ -89,6 +89,186 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
+    public void FriendlyName_Property_ShouldDefaultToEmpty()
+    {
+        // Arrange & Act
+        var device = new TestStreamingDevice();
+
+        // Assert
+        Assert.AreEqual(string.Empty, device.FriendlyName);
+    }
+
+    [TestMethod]
+    public void RouteInboundMessage_StatusMessageWithFriendlyDeviceName_UpdatesFriendlyName()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        device.InitializeDeviceState(); // wires the protocol handler that classifies/routes inbound messages
+
+        // Act — firmware's fast streaming-frame encoder (Nanopb_EncodeStreamingFast) hardcodes
+        // only msg_time_stamp/analog_in_data/digital_data/digital_port_dir; friendly_device_name
+        // is only ever populated on "info" responses like SYSTem:SYSInfoPB? (Core sends this once
+        // during InitializeAsync). Core's ProtobufProtocolHandler classifies a message with no
+        // analog/digital sample data but a nonzero port-count field as "Status", routed to
+        // OnStatusMessageReceived — not OnStreamMessageReceived (see ProtobufProtocolHandler.
+        // IsStatusMessage/IsStreamMessage).
+        device.RouteInboundMessage(new DaqifiOutMessage
+        {
+            AnalogInPortNum = 1,
+            DeviceSn = 12345,
+            DeviceFwRev = "3.7.2",
+            FriendlyDeviceName = "Bench Rig 3"
+        });
+
+        // Assert
+        Assert.AreEqual("Bench Rig 3", device.FriendlyName);
+    }
+
+    [TestMethod]
+    public void RouteInboundMessage_StreamMessageWithFriendlyDeviceName_UpdatesFriendlyName()
+    {
+        // Arrange — belt-and-suspenders: a real Stream-classified frame never carries this field
+        // (see the Status-message test above), but the desktop code captures it there too in
+        // case firmware's streaming field set ever changes.
+        var device = new TestStreamingDevice();
+        device.InitializeDeviceState();
+
+        // Act
+        device.RouteInboundMessage(new DaqifiOutMessage
+        {
+            MsgTimeStamp = 1000,
+            DeviceSn = 12345,
+            FriendlyDeviceName = "Bench Rig 3",
+            AnalogInDataFloat = { 1.25f }
+        });
+
+        // Assert
+        Assert.AreEqual("Bench Rig 3", device.FriendlyName);
+    }
+
+    [TestMethod]
+    public void RouteInboundMessage_WithoutFriendlyDeviceName_LeavesFriendlyNameUnchanged()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        device.InitializeDeviceState();
+        device.RouteInboundMessage(new DaqifiOutMessage
+        {
+            AnalogInPortNum = 1,
+            DeviceSn = 12345,
+            FriendlyDeviceName = "Bench Rig 3"
+        });
+
+        // Act — a later status message with no friendly_device_name field must not clear a name
+        // already known (empty is the protobuf3 default for an absent string field).
+        device.RouteInboundMessage(new DaqifiOutMessage
+        {
+            AnalogInPortNum = 1,
+            DeviceSn = 12345
+        });
+
+        // Assert
+        Assert.AreEqual("Bench Rig 3", device.FriendlyName);
+    }
+
+    [TestMethod]
+    public void DeviceDisplayName_PrefersFriendlyNameOverSerialNumber()
+    {
+        // Arrange
+        var device = new TestStreamingDevice
+        {
+            DeviceSerialNo = "12345"
+        };
+        device.InitializeDeviceState();
+        device.RouteInboundMessage(new DaqifiOutMessage
+        {
+            AnalogInPortNum = 1,
+            DeviceSn = 12345,
+            FriendlyDeviceName = "Bench Rig 3"
+        });
+
+        // Act & Assert
+        Assert.AreEqual("Bench Rig 3", device.DeviceDisplayName);
+    }
+
+    [TestMethod]
+    public void DeviceDisplayName_FallsBackToSerialNumber_WhenNoFriendlyName()
+    {
+        // Arrange
+        var device = new TestStreamingDevice
+        {
+            DeviceSerialNo = "12345"
+        };
+
+        // Act & Assert
+        Assert.AreEqual("12345", device.DeviceDisplayName);
+    }
+
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("this name is way too long to fit in the 31-char firmware NVM buffer")]
+    [DataRow("Has a \"quote\"")]
+    [DataRow("Has a \\backslash")]
+    [DataRow("Has a \u0007bell")]
+    public void SetFriendlyName_WithInvalidName_ThrowsArgumentException(string invalidName)
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        device.SetCoreDeviceConnected(true);
+
+        // Act & Assert
+        Assert.ThrowsExactly<ArgumentException>(() => device.SetFriendlyName(invalidName));
+        Assert.AreEqual(0, device.SentCommands.Count, "No SCPI command should be sent for an invalid name.");
+    }
+
+    [TestMethod]
+    public void SetFriendlyName_WithValidName_SendsSetThenSaveAndUpdatesProperty()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        device.SetCoreDeviceConnected(true);
+
+        // Act
+        device.SetFriendlyName("Bench Rig 3");
+
+        // Assert
+        CollectionAssert.AreEqual(
+            new[] { "SYSTem:DEVice:NAME \"Bench Rig 3\"", "SYSTem:DEVice:NAME:SAVE" },
+            device.SentCommands);
+        Assert.AreEqual("Bench Rig 3", device.FriendlyName, "FriendlyName should update optimistically.");
+    }
+
+    [TestMethod]
+    public void SetFriendlyName_AtMaxLength_Succeeds()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        device.SetCoreDeviceConnected(true);
+        var maxLengthName = new string('A', 31);
+
+        // Act
+        device.SetFriendlyName(maxLengthName);
+
+        // Assert
+        Assert.AreEqual(maxLengthName, device.FriendlyName);
+    }
+
+    [TestMethod]
+    public void SetFriendlyName_WhenDisconnected_NoOpsWithoutThrowing()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        device.SetCoreDeviceConnected(false);
+
+        // Act
+        device.SetFriendlyName("Bench Rig 3");
+
+        // Assert
+        Assert.AreEqual(0, device.SentCommands.Count);
+        Assert.AreEqual(string.Empty, device.FriendlyName, "A disconnected no-op must not update the local property.");
+    }
+
+    [TestMethod]
     public void DeviceType_Property_ShouldDefaultToUnknown()
     {
         // Arrange & Act
@@ -782,6 +962,24 @@ public class AbstractStreamingDeviceTests
             HandleInboundMessage(
                 new MessageReceivedEventArgs(
                     new GenericInboundMessage<object>(message)));
+        }
+
+        /// <summary>
+        /// Fakes a connected Core device (transport-less, mirrors <see cref="RecordingCoreStreamingDevice"/>)
+        /// so <see cref="IStreamingDevice.IsConnected"/>-gated commands can be exercised without a real
+        /// connect flow. Pass <c>null</c> to simulate a disconnected/missing Core device.
+        /// </summary>
+        public void SetCoreDeviceConnected(bool connected)
+        {
+            if (!connected)
+            {
+                CoreDevice = null;
+                return;
+            }
+
+            var coreDevice = new CoreStreamingDevice("TestDevice");
+            coreDevice.Connect();
+            CoreDevice = coreDevice;
         }
     }
 

@@ -68,6 +68,28 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// Used to toggle visibility of the inline error row in the Devices drawer.
     /// </summary>
     public bool HasNetworkSettingsError => !string.IsNullOrEmpty(NetworkSettingsError);
+
+    /// <summary>
+    /// Staged edit buffer for the NAME field in the Devices drawer, seeded from the selected
+    /// device's current <see cref="IStreamingDevice.FriendlyName"/> when the drawer opens
+    /// (see <c>DevicesPaneViewModel.OpenSettings</c>). Only written to the device when
+    /// <see cref="SetFriendlyName"/> is invoked.
+    /// </summary>
+    [ObservableProperty]
+    private string? _pendingFriendlyName;
+
+    [ObservableProperty]
+    private bool _friendlyNameApplied;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasFriendlyNameError))]
+    private string? _friendlyNameError;
+
+    /// <summary>
+    /// True when <see cref="FriendlyNameError"/> has a message to display.
+    /// Used to toggle visibility of the inline error row in the Devices drawer.
+    /// </summary>
+    public bool HasFriendlyNameError => !string.IsNullOrEmpty(FriendlyNameError);
     [ObservableProperty]
     private bool _isAppSettingsOpen;
 
@@ -185,6 +207,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     // construction paths, so callers null-check it exactly as the previous monitor field was.
     private DiskSpaceMonitorCoordinator? _diskSpaceCoordinator;
     private CancellationTokenSource? _networkSettingsAppliedCts;
+    private CancellationTokenSource? _friendlyNameAppliedCts;
     private DispatcherTimer? _sdLoggingElapsedTimer;
     private DateTime? _sdLoggingStartedAt;
 
@@ -876,6 +899,76 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             NetworkSettingsApplied = false;
         }
         catch (TaskCanceledException) { }
+    }
+
+    /// <summary>
+    /// Sets and persists the selected device's friendly name from <see cref="PendingFriendlyName"/>.
+    /// Mirrors <see cref="UpdateNetworkConfiguration"/>'s guard/status-feedback shape.
+    /// </summary>
+    [RelayCommand]
+    public void SetFriendlyName()
+    {
+        FriendlyNameApplied = false;
+        FriendlyNameError = null;
+
+        var device = SelectedDevice;
+        if (device == null)
+        {
+            FriendlyNameError = "Select a device before setting a name.";
+            return;
+        }
+        if (!device.IsConnected)
+        {
+            FriendlyNameError = "Cannot set the device name — the device is not connected.";
+            return;
+        }
+
+        try
+        {
+            var name = PendingFriendlyName?.Trim() ?? string.Empty;
+            device.SetFriendlyName(name);
+            // Show the committed value rather than clearing the field — a blank box after a
+            // successful save reads as "it didn't take" even though the device now has the name.
+            PendingFriendlyName = name;
+            _ = ShowFriendlyNameAppliedStatusAsync();
+        }
+        catch (ArgumentException ex)
+        {
+            FriendlyNameError = ex.Message;
+        }
+    }
+
+    private async Task ShowFriendlyNameAppliedStatusAsync()
+    {
+        CancelAndDisposeFriendlyNameAppliedCts();
+        _friendlyNameAppliedCts = new CancellationTokenSource();
+        var token = _friendlyNameAppliedCts.Token;
+
+        FriendlyNameApplied = true;
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3), token);
+            FriendlyNameApplied = false;
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private void CancelAndDisposeFriendlyNameAppliedCts()
+    {
+        var cts = _friendlyNameAppliedCts;
+        if (cts == null)
+        {
+            return;
+        }
+        _friendlyNameAppliedCts = null;
+        try
+        {
+            cts.Cancel();
+        }
+        finally
+        {
+            cts.Dispose();
+        }
     }
 
     private void CancelAndDisposeNetworkSettingsCts()
@@ -2265,6 +2358,9 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
         // Transient WiFi-settings "applied" status timer.
         CancelAndDisposeNetworkSettingsCts();
+
+        // Transient device-name "applied" status timer.
+        CancelAndDisposeFriendlyNameAppliedCts();
 
         // SD-card elapsed-time DispatcherTimer.
         if (_sdLoggingElapsedTimer != null)

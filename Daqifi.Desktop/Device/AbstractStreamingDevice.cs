@@ -78,6 +78,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private const string NOT_CONNECTED_MESSAGE = "Device is not connected.";
 
     /// <summary>
+    /// Max length for a friendly device name, matching firmware's
+    /// <c>FRIENDLY_DEVICE_NAME_SIZE</c> (32-byte NVM buffer, NUL-terminated).
+    /// </summary>
+    private const int MAX_FRIENDLY_NAME_LENGTH = 31;
+
+    /// <summary>
     /// Device-wide PWM frequency shown (and commanded on the first enable) before the user
     /// picks one. The device does not report its frequency usefully — readback echoes the
     /// last request — so the session starts from a mid-range default.
@@ -207,10 +213,21 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     };
 
     /// <summary>
+    /// Gets the device's user-defined friendly name, or an empty string when none is set.
+    /// Captured from the <c>friendly_device_name</c> field of streaming/status frames — see
+    /// <see cref="OnStreamMessageReceived"/>.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DeviceDisplayName))]
+    private string _friendlyName = string.Empty;
+
+    /// <summary>
     /// Gets the best available human-readable name for this device.
-    /// Returns the serial number when populated, otherwise falls back to DisplayIdentifier.
+    /// Returns the friendly name when set, then the serial number when populated,
+    /// otherwise falls back to DisplayIdentifier.
     /// </summary>
     public string DeviceDisplayName =>
+        !string.IsNullOrWhiteSpace(FriendlyName) ? FriendlyName :
         !string.IsNullOrWhiteSpace(DeviceSerialNo) ? DeviceSerialNo : DisplayIdentifier;
 
     /// <summary>
@@ -466,6 +483,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private void InitializeProtocolHandler()
     {
         _protocolHandler = new ProtobufProtocolHandler(
+            statusMessageHandler: OnStatusMessageReceived,
             streamMessageHandler: OnStreamMessageReceived,
             sdCardMessageHandler: _ => { } // SD card messages are text-based, handled separately; empty handler prevents NullReferenceException
         );
@@ -490,11 +508,46 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
+    /// Handles status/info messages received from the device (e.g. the <c>SYSTem:SYSInfoPB?</c>
+    /// response Core sends during <c>InitializeAsync</c>). Called automatically by
+    /// ProtobufProtocolHandler when a status-shaped message is detected — see
+    /// <see cref="CaptureFriendlyDeviceName"/> for why this is the message type that actually
+    /// carries <c>friendly_device_name</c>.
+    /// </summary>
+    private void OnStatusMessageReceived(DaqifiOutMessage message)
+    {
+        CaptureFriendlyDeviceName(message);
+    }
+
+    /// <summary>
+    /// Updates <see cref="FriendlyName"/> from a message's <c>friendly_device_name</c> field, when
+    /// present. Firmware only populates that field on <c>SYSTem:SYSInfoPB?</c>-style "info"
+    /// responses (<c>Nanopb_Encode</c> with the <c>fields_info</c>/<c>fields_all</c> field masks) —
+    /// <b>not</b> on periodic sample-streaming frames, which use a separate hardcoded-field fast
+    /// encoder (<c>Nanopb_EncodeStreamingFast</c>) that omits it entirely. Core sends that info
+    /// query once during <c>InitializeAsync</c>, so the name is populated shortly after connect.
+    /// </summary>
+    private void CaptureFriendlyDeviceName(DaqifiOutMessage message)
+    {
+        if (!string.IsNullOrEmpty(message.FriendlyDeviceName))
+        {
+            FriendlyName = message.FriendlyDeviceName;
+        }
+    }
+
+    /// <summary>
     /// Handles streaming messages received from the device.
     /// Called automatically by ProtobufProtocolHandler when a streaming message is detected.
     /// </summary>
     private void OnStreamMessageReceived(DaqifiOutMessage message)
     {
+        // Belt-and-suspenders: firmware's fast streaming-frame encoder (Nanopb_EncodeStreamingFast)
+        // hardcodes only msg_time_stamp/analog_in_data/digital_data/digital_port_dir — it never
+        // includes friendly_device_name — so in practice this never fires from a real Stream
+        // message. The name arrives via OnStatusMessageReceived instead. Capturing here too is
+        // free and correct if firmware ever changes the streaming field set.
+        CaptureFriendlyDeviceName(message);
+
         if (!IsStreaming || Mode != DeviceMode.StreamToApp)
         {
             // Track the counter even while not streaming: the device can emit a final frame
@@ -1559,6 +1612,68 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         SendMessage(ScpiMessageProducer.RebootDevice);
         Disconnect();
+    }
+
+    /// <summary>
+    /// Sets and persists a user-defined friendly name to the device's NVM.
+    /// </summary>
+    /// <remarks>
+    /// No producer helper exists in <c>Daqifi.Core.Communication.Producers.ScpiMessageProducer</c>
+    /// for this firmware command yet, so the SCPI text is built directly here (mirrors the
+    /// quoted-string pattern <c>ScpiMessageProducer</c> already uses for SSID/password).
+    /// Commands: <c>SYSTem:DEVice:NAME "name"</c> then <c>SYSTem:DEVice:NAME:SAVE</c>.
+    /// </remarks>
+    /// <param name="name">
+    /// 1-31 printable ASCII characters (0x20-0x7E); cannot contain <c>"</c> or <c>\</c> — matches
+    /// firmware's <c>daqifi_settings_FriendlyNameIsValid</c> validation exactly, so a name that
+    /// passes here will not be rejected by the device.
+    /// </param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> fails validation.</exception>
+    public void SetFriendlyName(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        if (!IsFriendlyNameValid(name))
+        {
+            throw new ArgumentException(
+                "Device name must be 1-31 printable ASCII characters and cannot contain '\"' or '\\'.",
+                nameof(name));
+        }
+
+        if (CoreDevice is not { IsConnected: true })
+        {
+            AppLogger.Warning($"Ignored SetFriendlyName for device {DeviceDisplayName}: device is not connected.");
+            return;
+        }
+
+        SendMessage(new ScpiMessage($"SYSTem:DEVice:NAME \"{name}\""));
+        SendMessage(new ScpiMessage("SYSTem:DEVice:NAME:SAVE"));
+
+        // Optimistic local update: the device does not echo the new name back synchronously,
+        // and it may not stream another status frame for a while (e.g. StreamToApp is idle).
+        FriendlyName = name;
+    }
+
+    /// <summary>
+    /// Validates a candidate friendly name against firmware's acceptance rule: printable ASCII
+    /// (0x20-0x7E) only, excluding <c>"</c> and <c>\</c> (which would break the SCPI string
+    /// literal and the JSON info-message encoding), within <see cref="MAX_FRIENDLY_NAME_LENGTH"/>.
+    /// </summary>
+    private static bool IsFriendlyNameValid(string name)
+    {
+        if (name.Length is 0 or > MAX_FRIENDLY_NAME_LENGTH)
+        {
+            return false;
+        }
+
+        foreach (var c in name)
+        {
+            if (c is < (char)0x20 or > (char)0x7E or '"' or '\\')
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // SD and LAN share one SPI bus and can't both be enabled (hardware limitation).
