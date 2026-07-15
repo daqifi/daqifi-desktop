@@ -1201,6 +1201,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     #endregion
 
     #region Channel Methods
+    /// <summary>
+    /// Enables a single channel on the device.
+    /// </summary>
+    /// <param name="channelToAdd">The channel to enable. Must belong to this device's <see cref="DataChannels"/>.</param>
     public void AddChannel(IChannel channelToAdd)
     {
         var channel = DataChannels.FirstOrDefault(c => Equals(c, channelToAdd));
@@ -1220,12 +1224,23 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         // Set locally first so the desktop wrapper's change-notification fires — Core's
         // EnableChannel mutates the same underlying IsEnabled directly and would otherwise
-        // leave this a no-op transition (true -> true) that never notifies bound UI.
+        // leave this a no-op transition (true -> true) that never notifies bound UI. Rolled
+        // back below if the device command didn't actually run, so IsActive never lies about
+        // what the device is doing.
+        var wasActive = channel.IsActive;
         channel.IsActive = true;
-        ExecuteDeviceCommand("enable channel", $"channel {channel.Name}",
+        var succeeded = ExecuteDeviceCommand("enable channel", $"channel {channel.Name}",
             coreDevice => coreDevice.EnableChannel(coreChannel));
+        if (!succeeded)
+        {
+            channel.IsActive = wasActive;
+        }
     }
 
+    /// <summary>
+    /// Disables a single channel on the device.
+    /// </summary>
+    /// <param name="channelToRemove">The channel to disable. Must belong to this device's <see cref="DataChannels"/>.</param>
     public void RemoveChannel(IChannel channelToRemove)
     {
         var channel = DataChannels.FirstOrDefault(c => Equals(c, channelToRemove));
@@ -1242,17 +1257,23 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return;
         }
 
+        var wasActive = channel.IsActive;
         channel.IsActive = false;
-        ExecuteDeviceCommand("disable channel", $"channel {channel.Name}",
+        var succeeded = ExecuteDeviceCommand("disable channel", $"channel {channel.Name}",
             coreDevice => coreDevice.DisableChannel(coreChannel));
+        if (!succeeded)
+        {
+            channel.IsActive = wasActive;
+        }
     }
 
     /// <summary>
-    /// Enables multiple channels on the device with a single SCPI command per channel type.
+    /// Enables multiple channels on the device with a single Core command per affected channel type.
     /// </summary>
     public void AddChannels(IEnumerable<IChannel> channelsToAdd)
     {
         var coreChannels = new List<Daqifi.Core.Channel.IChannel>();
+        var affectedChannels = new List<(IChannel Channel, bool WasActive)>();
 
         foreach (var channelToAdd in channelsToAdd)
         {
@@ -1266,6 +1287,14 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 continue;
             }
 
+            // Skip channels already queued this call (e.g. duplicate entries from a profile)
+            // so the device command and its logged count reflect distinct channels only.
+            if (coreChannels.Contains(coreChannel))
+            {
+                continue;
+            }
+
+            affectedChannels.Add((channel, channel.IsActive));
             channel.IsActive = true;
             coreChannels.Add(coreChannel);
         }
@@ -1275,8 +1304,15 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return;
         }
 
-        ExecuteDeviceCommand("enable channels", $"{coreChannels.Count} channel(s)",
+        var succeeded = ExecuteDeviceCommand("enable channels", $"{coreChannels.Count} channel(s)",
             coreDevice => coreDevice.EnableChannels(coreChannels));
+        if (!succeeded)
+        {
+            foreach (var (channel, wasActive) in affectedChannels)
+            {
+                channel.IsActive = wasActive;
+            }
+        }
     }
 
     /// <summary>
@@ -1284,12 +1320,20 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     public void RemoveAllChannels()
     {
+        var affectedChannels = DataChannels.Select(c => (Channel: c, WasActive: c.IsActive)).ToList();
         foreach (var channel in DataChannels)
         {
             channel.IsActive = false;
         }
 
-        ExecuteDeviceCommand("disable all channels", coreDevice => coreDevice.DisableAllChannels());
+        var succeeded = ExecuteDeviceCommand("disable all channels", coreDevice => coreDevice.DisableAllChannels());
+        if (!succeeded)
+        {
+            foreach (var (channel, wasActive) in affectedChannels)
+            {
+                channel.IsActive = wasActive;
+            }
+        }
     }
 
     /// <summary>
@@ -1417,22 +1461,25 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// unavailability is logged and swallowed to preserve the pre-delegation no-op
     /// semantics instead of surfacing an exception through a WPF binding.
     /// </summary>
-    private void ExecuteDeviceCommand(string operation, string target, Action<CoreStreamingDevice> command)
+    /// <returns><c>true</c> if the command ran without being skipped or throwing.</returns>
+    private bool ExecuteDeviceCommand(string operation, string target, Action<CoreStreamingDevice> command)
     {
         var coreDevice = CoreDevice;
         if (coreDevice == null || !coreDevice.IsConnected)
         {
             AppLogger.Warning($"Ignored {operation} for {target}: device is not connected.");
-            return;
+            return false;
         }
 
         try
         {
             command(coreDevice);
+            return true;
         }
         catch (Exception ex)
         {
             AppLogger.Error(ex, $"Failed to {operation} for {target}");
+            return false;
         }
     }
 
@@ -1440,9 +1487,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// Runs a device-level Core command (no channel involved), logging against this
     /// device's display name.
     /// </summary>
-    private void ExecuteDeviceCommand(string operation, Action<CoreStreamingDevice> command)
+    /// <returns><c>true</c> if the command ran without being skipped or throwing.</returns>
+    private bool ExecuteDeviceCommand(string operation, Action<CoreStreamingDevice> command)
     {
-        ExecuteDeviceCommand(operation, $"device {DeviceDisplayName}", command);
+        return ExecuteDeviceCommand(operation, $"device {DeviceDisplayName}", command);
     }
 
     /// <summary>
