@@ -121,7 +121,8 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// below. Keyed by the desktop channel wrapper (stable across <c>ReplaceCoreChannel</c> calls)
     /// so the handler on the previous Core channel instance can be found and removed.
     /// </summary>
-    private readonly Dictionary<IChannel, EventHandler<Daqifi.Core.Channel.SampleReceivedEventArgs>> _channelSampleHandlers = new();
+    private readonly Dictionary<IChannel, EventHandler<Daqifi.Core.Channel.SampleReceivedEventArgs>>
+        _channelSampleHandlers = new();
 
     /// <summary>
     /// Gate for <see cref="OnCoreChannelSampleReceived"/>: true only while the raw frame Core is
