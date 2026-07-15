@@ -28,6 +28,14 @@ public partial class ConnectionManager : ObservableObject
     [ObservableProperty]
     private bool _notifyConnection;
 
+    /// <summary>
+    /// Human-readable description of the most recent unexpected disconnect, set just before
+    /// <see cref="NotifyConnection"/> flips to <c>true</c> so subscribers can build a message
+    /// naming the device and the reason (issue #638).
+    /// </summary>
+    [ObservableProperty]
+    private string _lastDisconnectReason = string.Empty;
+
     public string ConnectionStatusString { get; set; } = "Disconnected";
 
     /// <summary>
@@ -129,6 +137,7 @@ public partial class ConnectionManager : ObservableObject
             }
             
             ConnectedDevices.Add(device);
+            device.ConnectionLost += OnDeviceConnectionLost;
             await Task.Delay(1000);
             OnPropertyChanged("ConnectedDevices");
             ConnectionStatus = DAQiFiConnectionStatus.Connected;
@@ -154,6 +163,7 @@ public partial class ConnectionManager : ObservableObject
         var connectionType = device.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
         try
         {
+            device.ConnectionLost -= OnDeviceConnectionLost;
             device.Disconnect();
             ConnectedDevices.Remove(device);
             OnPropertyChanged("ConnectedDevices");
@@ -187,6 +197,7 @@ public partial class ConnectionManager : ObservableObject
     {
         try
         {
+            device.ConnectionLost -= OnDeviceConnectionLost;
             device.Reboot();
             ConnectedDevices.Remove(device);
             OnPropertyChanged("ConnectedDevices");
@@ -208,6 +219,76 @@ public partial class ConnectionManager : ObservableObject
             DAQiFiConnectionStatus.AlreadyConnected => "AlreadyConnected",
             _ => "Error"
         };
+    }
+
+    /// <summary>
+    /// Handles a device's <see cref="IDevice.ConnectionLost"/> event — Core detected a
+    /// spontaneous transport drop (reboot, unplug, WiFi/TCP timeout, HID disconnect) that this
+    /// class would otherwise never learn about (issue #638). Mirrors the existing
+    /// <see cref="CheckIfSerialDeviceWasRemoved"/> teardown: unsubscribe the device's channels,
+    /// tear the connection down via <see cref="Disconnect(IStreamingDevice)"/> (which always
+    /// re-runs a fresh Core device + <c>InitializeAsync</c> on the next connect), and surface a
+    /// notification naming the device and the reason.
+    /// </summary>
+    private void OnDeviceConnectionLost(object? sender, ConnectionLostEventArgs e)
+    {
+        if (sender is not IStreamingDevice device)
+        {
+            return;
+        }
+
+        InvokeOnUiThread(() =>
+        {
+            // Already torn down via another path (e.g. explicit user disconnect raced this event).
+            if (!ConnectedDevices.Contains(device))
+            {
+                return;
+            }
+
+            foreach (var channel in device.DataChannels)
+            {
+                LoggingManager.Instance.Unsubscribe(channel);
+            }
+
+            Disconnect(device);
+
+            // Only notify if this isn't an intentional disconnect during firmware update.
+            if (DeviceBeingUpdated == null || DeviceBeingUpdated.Name != device.Name)
+            {
+                LastDisconnectReason = $"{device.DeviceDisplayName} disconnected ({e.Reason}).";
+                NotifyConnection = true;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> on the WPF UI thread — required here because
+    /// <see cref="IDevice.ConnectionLost"/> can fire from a background/transport thread and this
+    /// handler mutates the UI-bound <see cref="ConnectedDevices"/> collection. Runs inline when
+    /// there is no dispatcher (unit tests) or the caller is already on it; uses the non-blocking
+    /// <c>BeginInvoke</c> so teardown can never freeze the UI thread, and swallows failures during
+    /// app/dispatcher shutdown since there is nothing left to update.
+    /// </summary>
+    private static void InvokeOnUiThread(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        try
+        {
+            if (!dispatcher.HasShutdownStarted)
+            {
+                dispatcher.BeginInvoke(action);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Instance.Warning(ex, "Dispatcher unavailable while handling ConnectionLost; UI update dropped.");
+        }
     }
 
     private void CheckIfSerialDeviceWasRemoved()
@@ -252,6 +333,9 @@ public partial class ConnectionManager : ObservableObject
                     if (!NotifyConnection &&
                         (DeviceBeingUpdated == null || DeviceBeingUpdated.Name != serialDevice.Name))
                     {
+                        // Scoped to this device so a later notification never shows a stale
+                        // reason string left over from a previous, unrelated disconnect.
+                        LastDisconnectReason = $"{serialDevice.DeviceDisplayName} disconnected (port removed).";
                         NotifyConnection = true;
                     }
                 });

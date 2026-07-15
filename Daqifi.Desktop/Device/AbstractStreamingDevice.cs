@@ -287,6 +287,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     // Debug mode properties
     public bool IsDebugModeEnabled { get; private set; }
     public event Action<DebugDataModel>? DebugDataReceived;
+
+    /// <inheritdoc />
+    public event EventHandler<ConnectionLostEventArgs>? ConnectionLost;
     #endregion
 
     #region Abstract Methods
@@ -332,6 +335,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             coreDevice.ChannelsPopulated += OnCoreChannelsPopulated;
             coreDevice.MessageReceived += OnCoreMessageReceived;
+            coreDevice.StatusChanged += OnCoreStatusChanged;
 
             InitializeDeviceState();
 
@@ -461,6 +465,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
         coreDevice.MessageReceived -= OnCoreMessageReceived;
+        coreDevice.StatusChanged -= OnCoreStatusChanged;
     }
 
     /// <summary>
@@ -471,6 +476,71 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
         HandleInboundMessage(e);
+    }
+
+    /// <summary>
+    /// Handles Core's <see cref="IDevice.StatusChanged"/> event (issue #638). Core is the only
+    /// party that observes a spontaneous transport drop (reboot, unplug, WiFi/TCP timeout, HID
+    /// disconnect) — before this, the desktop never subscribed at all, so <see cref="IsConnected"/>
+    /// (a plain <c>CoreDevice?.IsConnected</c> passthrough) never raised a change notification and
+    /// the UI kept showing a dead device as connected. A desktop-initiated <see cref="Disconnect"/>
+    /// always unsubscribes this handler (via <see cref="UnsubscribeCoreDeviceEvents"/>) before
+    /// touching the Core device, so only genuinely unexpected transitions reach here.
+    /// </summary>
+    protected virtual void OnCoreStatusChanged(object? sender, DeviceStatusEventArgs e)
+    {
+        if (e.Status is not (ConnectionStatus.Lost or ConnectionStatus.Failed or ConnectionStatus.Disconnected))
+        {
+            return;
+        }
+
+        var reason = e.Status switch
+        {
+            ConnectionStatus.Lost => "connection lost",
+            ConnectionStatus.Failed => "connection failed",
+            _ => "disconnected"
+        };
+        AppLogger.Warning($"DAQiFi device {DisplayIdentifier} {reason} unexpectedly.");
+
+        // Core can raise StatusChanged from a transport/background thread — DeviceState and
+        // IsConnected are WPF-bound, so the mutation and its change notification must be
+        // marshalled onto the UI thread (issue #638 code review).
+        InvokeOnUiThread(() =>
+        {
+            DeviceState = DeviceState.Disconnected;
+            OnPropertyChanged(nameof(IsConnected));
+        });
+
+        ConnectionLost?.Invoke(this, new ConnectionLostEventArgs(reason));
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> on the WPF UI thread. Runs inline when there is no
+    /// dispatcher (unit tests — <c>Application.Current</c> is null) or the caller is already on
+    /// it. Uses the non-blocking <c>BeginInvoke</c> so a background-thread caller (e.g. Core's
+    /// <c>StatusChanged</c>) can never block on the UI thread; failures during app/dispatcher
+    /// shutdown are swallowed since there is nothing left to update.
+    /// </summary>
+    private static void InvokeOnUiThread(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        try
+        {
+            if (!dispatcher.HasShutdownStarted)
+            {
+                dispatcher.BeginInvoke(action);
+            }
+        }
+        catch (Exception)
+        {
+            // Dispatcher unavailable / shutting down — drop the UI update.
+        }
     }
     #endregion
 

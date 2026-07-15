@@ -1601,9 +1601,15 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 var deviceConnection = ConnectionManager.Instance.NotifyConnection;
                 if (deviceConnection)
                 {
-                    var errorDialogViewModel = new ErrorDialogViewModel("Device disconnected unexpectedly.");
+                    var message = string.IsNullOrWhiteSpace(ConnectionManager.Instance.LastDisconnectReason)
+                        ? "Device disconnected unexpectedly."
+                        : ConnectionManager.Instance.LastDisconnectReason;
+                    var errorDialogViewModel = new ErrorDialogViewModel(message);
                     _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
                     ConnectionManager.Instance.NotifyConnection = false;
+                    // Clear so a later notification that doesn't set its own reason (if any)
+                    // never shows this one's stale device/reason text.
+                    ConnectionManager.Instance.LastDisconnectReason = string.Empty;
                 }
                 break;
         }
