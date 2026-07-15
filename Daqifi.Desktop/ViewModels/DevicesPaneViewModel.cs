@@ -170,6 +170,8 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
             _shell.SelectedDevice = tile.Device;
             _shell.SelectedDeviceSupportsFirmwareUpdate =
                 tile.Device.ConnectionType == ConnectionType.Usb;
+            _shell.SeedPendingFriendlyName(tile.Device.FriendlyName);
+            _shell.FriendlyNameError = null;
         }
         IsSettingsOpen = true;
     }

@@ -24,4 +24,13 @@ public interface IDevice : INotifyPropertyChanged
     /// Reboots the streamingDevice
     /// </summary>
     void Reboot();
+
+    /// <summary>
+    /// Raised when the device's connection drops unexpectedly (not via an explicit
+    /// <see cref="Disconnect"/> call) — e.g. reboot, unplug, WiFi/TCP drop, or
+    /// firmware-flash re-enumeration. Subscribers should tear down their reference to this
+    /// device and inform the user; the wrapper's own state is already updated by the time
+    /// this fires.
+    /// </summary>
+    event EventHandler<ConnectionLostEventArgs>? ConnectionLost;
 }

@@ -78,6 +78,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private const string NOT_CONNECTED_MESSAGE = "Device is not connected.";
 
     /// <summary>
+    /// Max length for a friendly device name, matching firmware's
+    /// <c>FRIENDLY_DEVICE_NAME_SIZE</c> (32-byte NVM buffer, NUL-terminated).
+    /// </summary>
+    private const int MAX_FRIENDLY_NAME_LENGTH = 31;
+
+    /// <summary>
     /// Device-wide PWM frequency shown (and commanded on the first enable) before the user
     /// picks one. The device does not report its frequency usefully — readback echoes the
     /// last request — so the session starts from a mid-range default.
@@ -207,10 +213,21 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     };
 
     /// <summary>
+    /// Gets the device's user-defined friendly name, or an empty string when none is set.
+    /// Captured from the <c>friendly_device_name</c> field of streaming/status frames — see
+    /// <see cref="OnStreamMessageReceived"/>.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DeviceDisplayName))]
+    private string _friendlyName = string.Empty;
+
+    /// <summary>
     /// Gets the best available human-readable name for this device.
-    /// Returns the serial number when populated, otherwise falls back to DisplayIdentifier.
+    /// Returns the friendly name when set, then the serial number when populated,
+    /// otherwise falls back to DisplayIdentifier.
     /// </summary>
     public string DeviceDisplayName =>
+        !string.IsNullOrWhiteSpace(FriendlyName) ? FriendlyName :
         !string.IsNullOrWhiteSpace(DeviceSerialNo) ? DeviceSerialNo : DisplayIdentifier;
 
     /// <summary>
@@ -270,6 +287,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     // Debug mode properties
     public bool IsDebugModeEnabled { get; private set; }
     public event Action<DebugDataModel>? DebugDataReceived;
+
+    /// <inheritdoc />
+    public event EventHandler<ConnectionLostEventArgs>? ConnectionLost;
     #endregion
 
     #region Abstract Methods
@@ -315,6 +335,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             coreDevice.ChannelsPopulated += OnCoreChannelsPopulated;
             coreDevice.MessageReceived += OnCoreMessageReceived;
+            coreDevice.StatusChanged += OnCoreStatusChanged;
 
             InitializeDeviceState();
 
@@ -444,6 +465,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
         coreDevice.MessageReceived -= OnCoreMessageReceived;
+        coreDevice.StatusChanged -= OnCoreStatusChanged;
     }
 
     /// <summary>
@@ -454,6 +476,71 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
         HandleInboundMessage(e);
+    }
+
+    /// <summary>
+    /// Handles Core's <see cref="IDevice.StatusChanged"/> event (issue #638). Core is the only
+    /// party that observes a spontaneous transport drop (reboot, unplug, WiFi/TCP timeout, HID
+    /// disconnect) — before this, the desktop never subscribed at all, so <see cref="IsConnected"/>
+    /// (a plain <c>CoreDevice?.IsConnected</c> passthrough) never raised a change notification and
+    /// the UI kept showing a dead device as connected. A desktop-initiated <see cref="Disconnect"/>
+    /// always unsubscribes this handler (via <see cref="UnsubscribeCoreDeviceEvents"/>) before
+    /// touching the Core device, so only genuinely unexpected transitions reach here.
+    /// </summary>
+    protected virtual void OnCoreStatusChanged(object? sender, DeviceStatusEventArgs e)
+    {
+        if (e.Status is not (ConnectionStatus.Lost or ConnectionStatus.Failed or ConnectionStatus.Disconnected))
+        {
+            return;
+        }
+
+        var reason = e.Status switch
+        {
+            ConnectionStatus.Lost => "connection lost",
+            ConnectionStatus.Failed => "connection failed",
+            _ => "disconnected"
+        };
+        AppLogger.Warning($"DAQiFi device {DisplayIdentifier} {reason} unexpectedly.");
+
+        // Core can raise StatusChanged from a transport/background thread — DeviceState and
+        // IsConnected are WPF-bound, so the mutation and its change notification must be
+        // marshalled onto the UI thread (issue #638 code review).
+        InvokeOnUiThread(() =>
+        {
+            DeviceState = DeviceState.Disconnected;
+            OnPropertyChanged(nameof(IsConnected));
+        });
+
+        ConnectionLost?.Invoke(this, new ConnectionLostEventArgs(reason));
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> on the WPF UI thread. Runs inline when there is no
+    /// dispatcher (unit tests — <c>Application.Current</c> is null) or the caller is already on
+    /// it. Uses the non-blocking <c>BeginInvoke</c> so a background-thread caller (e.g. Core's
+    /// <c>StatusChanged</c>) can never block on the UI thread; failures during app/dispatcher
+    /// shutdown are swallowed since there is nothing left to update.
+    /// </summary>
+    private static void InvokeOnUiThread(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        try
+        {
+            if (!dispatcher.HasShutdownStarted)
+            {
+                dispatcher.BeginInvoke(action);
+            }
+        }
+        catch (Exception)
+        {
+            // Dispatcher unavailable / shutting down — drop the UI update.
+        }
     }
     #endregion
 
@@ -466,6 +553,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private void InitializeProtocolHandler()
     {
         _protocolHandler = new ProtobufProtocolHandler(
+            statusMessageHandler: OnStatusMessageReceived,
             streamMessageHandler: OnStreamMessageReceived,
             sdCardMessageHandler: _ => { } // SD card messages are text-based, handled separately; empty handler prevents NullReferenceException
         );
@@ -490,11 +578,55 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
+    /// Handles status/info messages received from the device (e.g. the <c>SYSTem:SYSInfoPB?</c>
+    /// response Core sends during <c>InitializeAsync</c>). Called automatically by
+    /// ProtobufProtocolHandler when a status-shaped message is detected.
+    /// </summary>
+    /// <remarks>
+    /// Firmware always includes <c>friendly_device_name</c> in this response — empty when unset —
+    /// so it is the authoritative source and is assigned unconditionally (including clearing to
+    /// empty). This matters because transport instances like <c>SerialStreamingDevice</c> are
+    /// reused across reconnects on the same COM port: without an unconditional overwrite here, a
+    /// name left over from a previously connected device (or a name the user just cleared) would
+    /// never be cleared, since firmware's fast streaming-frame encoder never re-sends the field at
+    /// all (see <see cref="CaptureFriendlyDeviceNameIfPresent"/>).
+    /// </remarks>
+    private void OnStatusMessageReceived(DaqifiOutMessage message)
+    {
+        FriendlyName = message.FriendlyDeviceName ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Updates <see cref="FriendlyName"/> from a message's <c>friendly_device_name</c> field, but
+    /// only when it is non-empty. Firmware's fast streaming-frame encoder
+    /// (<c>Nanopb_EncodeStreamingFast</c>) hardcodes only 4 fields (timestamp, analog/digital
+    /// data) and never includes <c>friendly_device_name</c> — so on a real Stream message this
+    /// field always reads as the proto3 default (empty), and unconditionally assigning it here
+    /// would immediately clobber the value <see cref="OnStatusMessageReceived"/> just captured
+    /// from the connect-time info response. Kept as a defensive no-op today; would only start
+    /// doing something if firmware ever added the field to the streaming encoder.
+    /// </summary>
+    private void CaptureFriendlyDeviceNameIfPresent(DaqifiOutMessage message)
+    {
+        if (!string.IsNullOrEmpty(message.FriendlyDeviceName))
+        {
+            FriendlyName = message.FriendlyDeviceName;
+        }
+    }
+
+    /// <summary>
     /// Handles streaming messages received from the device.
     /// Called automatically by ProtobufProtocolHandler when a streaming message is detected.
     /// </summary>
     private void OnStreamMessageReceived(DaqifiOutMessage message)
     {
+        // Belt-and-suspenders: firmware's fast streaming-frame encoder (Nanopb_EncodeStreamingFast)
+        // hardcodes only msg_time_stamp/analog_in_data/digital_data/digital_port_dir — it never
+        // includes friendly_device_name — so in practice this never fires from a real Stream
+        // message. The name arrives via OnStatusMessageReceived instead. Capturing here too is
+        // free and correct if firmware ever changes the streaming field set.
+        CaptureFriendlyDeviceNameIfPresent(message);
+
         if (!IsStreaming || Mode != DeviceMode.StreamToApp)
         {
             // Track the counter even while not streaming: the device can emit a final frame
@@ -1559,6 +1691,68 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         SendMessage(ScpiMessageProducer.RebootDevice);
         Disconnect();
+    }
+
+    /// <summary>
+    /// Sets and persists a user-defined friendly name to the device's NVM.
+    /// </summary>
+    /// <remarks>
+    /// No producer helper exists in <c>Daqifi.Core.Communication.Producers.ScpiMessageProducer</c>
+    /// for this firmware command yet, so the SCPI text is built directly here (mirrors the
+    /// quoted-string pattern <c>ScpiMessageProducer</c> already uses for SSID/password).
+    /// Commands: <c>SYSTem:DEVice:NAME "name"</c> then <c>SYSTem:DEVice:NAME:SAVE</c>.
+    /// </remarks>
+    /// <param name="name">
+    /// 1-31 printable ASCII characters (0x20-0x7E); cannot contain <c>"</c> or <c>\</c> — matches
+    /// firmware's <c>daqifi_settings_FriendlyNameIsValid</c> validation exactly, so a name that
+    /// passes here will not be rejected by the device.
+    /// </param>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> fails validation.</exception>
+    public void SetFriendlyName(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        if (!IsFriendlyNameValid(name))
+        {
+            throw new ArgumentException(
+                "Device name must be 1-31 printable ASCII characters and cannot contain '\"' or '\\'.",
+                nameof(name));
+        }
+
+        if (CoreDevice is not { IsConnected: true })
+        {
+            AppLogger.Warning($"Ignored SetFriendlyName for device {DeviceDisplayName}: device is not connected.");
+            return;
+        }
+
+        SendMessage(new ScpiMessage($"SYSTem:DEVice:NAME \"{name}\""));
+        SendMessage(new ScpiMessage("SYSTem:DEVice:NAME:SAVE"));
+
+        // Optimistic local update: the device does not echo the new name back synchronously,
+        // and it may not stream another status frame for a while (e.g. StreamToApp is idle).
+        FriendlyName = name;
+    }
+
+    /// <summary>
+    /// Validates a candidate friendly name against firmware's acceptance rule: printable ASCII
+    /// (0x20-0x7E) only, excluding <c>"</c> and <c>\</c> (which would break the SCPI string
+    /// literal and the JSON info-message encoding), within <see cref="MAX_FRIENDLY_NAME_LENGTH"/>.
+    /// </summary>
+    private static bool IsFriendlyNameValid(string name)
+    {
+        if (name.Length is 0 or > MAX_FRIENDLY_NAME_LENGTH)
+        {
+            return false;
+        }
+
+        foreach (var c in name)
+        {
+            if (c is < (char)0x20 or > (char)0x7E or '"' or '\\')
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // SD and LAN share one SPI bus and can't both be enabled (hardware limitation).
