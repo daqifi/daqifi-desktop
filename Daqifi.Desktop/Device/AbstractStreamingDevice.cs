@@ -1211,69 +1211,40 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return;
         }
 
-        switch (channel.Type)
+        var coreChannel = GetCoreChannel(channel);
+        if (coreChannel == null)
         {
-            case ChannelType.Analog:
-                var activeAnalogChannels = GetActiveAnalogChannels();
-                var channelSetByte = 0u; // Use unsigned int to handle higher channel numbers
-
-                // Get Exsiting Channel Set Byte
-                foreach (var activeChannel in activeAnalogChannels)
-                {
-                    channelSetByte = channelSetByte | (1u << activeChannel.Index);
-                }
-
-                // Add Channel Bit to the Channel Set Byte
-                channelSetByte = channelSetByte | (1u << channel.Index);
-
-                // Convert to a string
-                var channelSetString = Convert.ToString(channelSetByte);
-
-                // Send the command to add the channel
-                SendMessage(ScpiMessageProducer.EnableAdcChannels(channelSetString));
-                break;
-            case ChannelType.Digital:
-                SendMessage(ScpiMessageProducer.EnableDioPorts());
-                break;
+            AppLogger.Warning($"Ignored add channel for {channel.Name}: not a Core-backed channel wrapper.");
+            return;
         }
 
+        // Set locally first so the desktop wrapper's change-notification fires — Core's
+        // EnableChannel mutates the same underlying IsEnabled directly and would otherwise
+        // leave this a no-op transition (true -> true) that never notifies bound UI.
         channel.IsActive = true;
+        ExecuteDeviceCommand("enable channel", $"channel {channel.Name}",
+            coreDevice => coreDevice.EnableChannel(coreChannel));
     }
 
     public void RemoveChannel(IChannel channelToRemove)
     {
-        switch (channelToRemove.Type)
-        {
-            case ChannelType.Analog:
-                var activeAnalogChannels = GetActiveAnalogChannels();
-                var channelSetByte = 0u; // Use unsigned int to handle higher channel numbers
-
-                //Get Exsiting Channel Set Byte
-                foreach (var activeChannel in activeAnalogChannels)
-                {
-                    channelSetByte = channelSetByte | (1u << activeChannel.Index);
-                }
-
-                //Remove Channel Bit from the Channel Set Byte
-                channelSetByte = channelSetByte & ~(1u << channelToRemove.Index);
-
-                //Convert to a string
-                var channelSetString = Convert.ToString(channelSetByte);
-
-                //Send the command to remove the channel
-                SendMessage(ScpiMessageProducer.EnableAdcChannels(channelSetString));
-                break;
-        }
-
         var channel = DataChannels.FirstOrDefault(c => Equals(c, channelToRemove));
         if (channel == null)
         {
             AppLogger.Error($"There was a problem removing channel: {channelToRemove.Name}");
+            return;
         }
-        else
+
+        var coreChannel = GetCoreChannel(channel);
+        if (coreChannel == null)
         {
-            channel.IsActive = false;
+            AppLogger.Warning($"Ignored remove channel for {channel.Name}: not a Core-backed channel wrapper.");
+            return;
         }
+
+        channel.IsActive = false;
+        ExecuteDeviceCommand("disable channel", $"channel {channel.Name}",
+            coreDevice => coreDevice.DisableChannel(coreChannel));
     }
 
     /// <summary>
@@ -1281,37 +1252,31 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     public void AddChannels(IEnumerable<IChannel> channelsToAdd)
     {
-        var channelSetByte = 0u;
-        var hasAnalog = false;
-        var hasDigital = false;
+        var coreChannels = new List<Daqifi.Core.Channel.IChannel>();
 
         foreach (var channelToAdd in channelsToAdd)
         {
             var channel = DataChannels.FirstOrDefault(c => Equals(c, channelToAdd));
             if (channel == null) continue;
 
-            switch (channel.Type)
+            var coreChannel = GetCoreChannel(channel);
+            if (coreChannel == null)
             {
-                case ChannelType.Analog:
-                    channelSetByte |= (1u << channel.Index);
-                    channel.IsActive = true;
-                    hasAnalog = true;
-                    break;
-                case ChannelType.Digital:
-                    channel.IsActive = true;
-                    hasDigital = true;
-                    break;
+                AppLogger.Warning($"Ignored add channel for {channel.Name}: not a Core-backed channel wrapper.");
+                continue;
             }
+
+            channel.IsActive = true;
+            coreChannels.Add(coreChannel);
         }
 
-        if (hasAnalog)
+        if (coreChannels.Count == 0)
         {
-            SendMessage(ScpiMessageProducer.EnableAdcChannels(Convert.ToString(channelSetByte)));
+            return;
         }
-        if (hasDigital)
-        {
-            SendMessage(ScpiMessageProducer.EnableDioPorts());
-        }
+
+        ExecuteDeviceCommand("enable channels", $"{coreChannels.Count} channel(s)",
+            coreDevice => coreDevice.EnableChannels(coreChannels));
     }
 
     /// <summary>
@@ -1319,17 +1284,26 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     public void RemoveAllChannels()
     {
-        SendMessage(ScpiMessageProducer.EnableAdcChannels("0"));
-        SendMessage(ScpiMessageProducer.DisableDioPorts());
         foreach (var channel in DataChannels)
         {
             channel.IsActive = false;
         }
+
+        ExecuteDeviceCommand("disable all channels", coreDevice => coreDevice.DisableAllChannels());
     }
 
-    private IEnumerable<IChannel> GetActiveAnalogChannels()
+    /// <summary>
+    /// Resolves the Core channel wrapped by a desktop <see cref="IChannel"/>, or <c>null</c>
+    /// if it isn't one of the known Core-backed wrapper types.
+    /// </summary>
+    private static Daqifi.Core.Channel.IChannel? GetCoreChannel(IChannel channel)
     {
-        return DataChannels.Where(channel => channel.Type == ChannelType.Analog && channel.IsActive).ToList();
+        return channel switch
+        {
+            AnalogChannel analogChannel => analogChannel.CoreChannel,
+            DigitalChannel digitalChannel => digitalChannel.CoreChannel,
+            _ => null
+        };
     }
 
     /// <inheritdoc />
