@@ -510,24 +510,33 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// <summary>
     /// Handles status/info messages received from the device (e.g. the <c>SYSTem:SYSInfoPB?</c>
     /// response Core sends during <c>InitializeAsync</c>). Called automatically by
-    /// ProtobufProtocolHandler when a status-shaped message is detected — see
-    /// <see cref="CaptureFriendlyDeviceName"/> for why this is the message type that actually
-    /// carries <c>friendly_device_name</c>.
+    /// ProtobufProtocolHandler when a status-shaped message is detected.
     /// </summary>
+    /// <remarks>
+    /// Firmware always includes <c>friendly_device_name</c> in this response — empty when unset —
+    /// so it is the authoritative source and is assigned unconditionally (including clearing to
+    /// empty). This matters because transport instances like <c>SerialStreamingDevice</c> are
+    /// reused across reconnects on the same COM port: without an unconditional overwrite here, a
+    /// name left over from a previously connected device (or a name the user just cleared) would
+    /// never be cleared, since firmware's fast streaming-frame encoder never re-sends the field at
+    /// all (see <see cref="CaptureFriendlyDeviceNameIfPresent"/>).
+    /// </remarks>
     private void OnStatusMessageReceived(DaqifiOutMessage message)
     {
-        CaptureFriendlyDeviceName(message);
+        FriendlyName = message.FriendlyDeviceName ?? string.Empty;
     }
 
     /// <summary>
-    /// Updates <see cref="FriendlyName"/> from a message's <c>friendly_device_name</c> field, when
-    /// present. Firmware only populates that field on <c>SYSTem:SYSInfoPB?</c>-style "info"
-    /// responses (<c>Nanopb_Encode</c> with the <c>fields_info</c>/<c>fields_all</c> field masks) —
-    /// <b>not</b> on periodic sample-streaming frames, which use a separate hardcoded-field fast
-    /// encoder (<c>Nanopb_EncodeStreamingFast</c>) that omits it entirely. Core sends that info
-    /// query once during <c>InitializeAsync</c>, so the name is populated shortly after connect.
+    /// Updates <see cref="FriendlyName"/> from a message's <c>friendly_device_name</c> field, but
+    /// only when it is non-empty. Firmware's fast streaming-frame encoder
+    /// (<c>Nanopb_EncodeStreamingFast</c>) hardcodes only 4 fields (timestamp, analog/digital
+    /// data) and never includes <c>friendly_device_name</c> — so on a real Stream message this
+    /// field always reads as the proto3 default (empty), and unconditionally assigning it here
+    /// would immediately clobber the value <see cref="OnStatusMessageReceived"/> just captured
+    /// from the connect-time info response. Kept as a defensive no-op today; would only start
+    /// doing something if firmware ever added the field to the streaming encoder.
     /// </summary>
-    private void CaptureFriendlyDeviceName(DaqifiOutMessage message)
+    private void CaptureFriendlyDeviceNameIfPresent(DaqifiOutMessage message)
     {
         if (!string.IsNullOrEmpty(message.FriendlyDeviceName))
         {
@@ -546,7 +555,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // includes friendly_device_name — so in practice this never fires from a real Stream
         // message. The name arrives via OnStatusMessageReceived instead. Capturing here too is
         // free and correct if firmware ever changes the streaming field set.
-        CaptureFriendlyDeviceName(message);
+        CaptureFriendlyDeviceNameIfPresent(message);
 
         if (!IsStreaming || Mode != DeviceMode.StreamToApp)
         {

@@ -147,9 +147,40 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
-    public void RouteInboundMessage_WithoutFriendlyDeviceName_LeavesFriendlyNameUnchanged()
+    public void RouteInboundMessage_StatusMessageWithoutFriendlyDeviceName_ClearsStaleFriendlyName()
     {
-        // Arrange
+        // Arrange — e.g. SerialStreamingDevice instances are reused across reconnects on the same
+        // COM port (ConnectionDialogViewModel dedups discovery by port), so a name captured from a
+        // previously connected device must not leak onto a different/renamed device that reports
+        // no name (issue #83 Qodo review: "stale friendlyname leaks").
+        var device = new TestStreamingDevice();
+        device.InitializeDeviceState();
+        device.RouteInboundMessage(new DaqifiOutMessage
+        {
+            AnalogInPortNum = 1,
+            DeviceSn = 12345,
+            FriendlyDeviceName = "Bench Rig 3"
+        });
+        Assert.AreEqual("Bench Rig 3", device.FriendlyName, "Precondition: name captured from the first status message.");
+
+        // Act — a fresh connect's status response with no name (firmware always includes the
+        // field, empty when unset) is authoritative and must clear the stale value.
+        device.RouteInboundMessage(new DaqifiOutMessage
+        {
+            AnalogInPortNum = 1,
+            DeviceSn = 67890
+        });
+
+        // Assert
+        Assert.AreEqual(string.Empty, device.FriendlyName);
+    }
+
+    [TestMethod]
+    public void RouteInboundMessage_StreamMessageWithoutFriendlyDeviceName_LeavesFriendlyNameUnchanged()
+    {
+        // Arrange — a Stream-classified frame never carries this field at all (firmware's fast
+        // streaming encoder omits it), so it must not clobber the value the status response
+        // already captured — unlike the status-message case above, which is authoritative.
         var device = new TestStreamingDevice();
         device.InitializeDeviceState();
         device.RouteInboundMessage(new DaqifiOutMessage
@@ -159,12 +190,12 @@ public class AbstractStreamingDeviceTests
             FriendlyDeviceName = "Bench Rig 3"
         });
 
-        // Act — a later status message with no friendly_device_name field must not clear a name
-        // already known (empty is the protobuf3 default for an absent string field).
+        // Act
         device.RouteInboundMessage(new DaqifiOutMessage
         {
-            AnalogInPortNum = 1,
-            DeviceSn = 12345
+            MsgTimeStamp = 1000,
+            DeviceSn = 12345,
+            AnalogInDataFloat = { 1.30f }
         });
 
         // Assert
