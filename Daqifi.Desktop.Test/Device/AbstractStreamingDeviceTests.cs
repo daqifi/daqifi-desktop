@@ -779,6 +779,56 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
+    [DataRow(ConnectionStatus.Lost)]
+    [DataRow(ConnectionStatus.Failed)]
+    [DataRow(ConnectionStatus.Disconnected)]
+    public void OnCoreStatusChanged_UnexpectedDrop_NotifiesIsConnectedAndRaisesConnectionLost(ConnectionStatus status)
+    {
+        // Arrange — issue #638: the desktop never subscribed to Core's StatusChanged at all, so
+        // IsConnected never raised a change notification when Core detected a spontaneous drop.
+        var device = new CoreSynchronizationTestDevice();
+        var coreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "1.0.0", calibrationM: 1.0f);
+        device.SimulateChannelsPopulated(coreDevice);
+
+        var raisedPropertyNames = new List<string?>();
+        device.PropertyChanged += (_, e) => raisedPropertyNames.Add(e.PropertyName);
+
+        ConnectionLostEventArgs? capturedArgs = null;
+        device.ConnectionLost += (_, e) => capturedArgs = e;
+
+        // Act
+        device.SimulateStatusChanged(coreDevice, status);
+
+        // Assert
+        Assert.IsTrue(
+            raisedPropertyNames.Contains(nameof(Daqifi.Desktop.Device.IStreamingDevice.IsConnected)),
+            "IsConnected must raise a PropertyChanged notification so bound UI (e.g. the device tile) refreshes.");
+        Assert.AreEqual(DeviceState.Disconnected, device.DeviceState);
+        Assert.IsNotNull(capturedArgs, "ConnectionLost should fire so ConnectionManager can tear down and notify the user.");
+    }
+
+    [TestMethod]
+    [DataRow(ConnectionStatus.Connecting)]
+    [DataRow(ConnectionStatus.Connected)]
+    [DataRow(ConnectionStatus.Retrying)]
+    public void OnCoreStatusChanged_NonDropStatus_DoesNotRaiseConnectionLost(ConnectionStatus status)
+    {
+        // Arrange
+        var device = new CoreSynchronizationTestDevice();
+        var coreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "1.0.0", calibrationM: 1.0f);
+        device.SimulateChannelsPopulated(coreDevice);
+
+        var connectionLostRaised = false;
+        device.ConnectionLost += (_, _) => connectionLostRaised = true;
+
+        // Act
+        device.SimulateStatusChanged(coreDevice, status);
+
+        // Assert
+        Assert.IsFalse(connectionLostRaised, $"{status} is not an unexpected drop and must not raise ConnectionLost.");
+    }
+
+    [TestMethod]
     public void StartSdCardLogging_WhenSynchronizationContextIsBlocked_CompletesWithoutDeadlock()
     {
         // Arrange
@@ -1101,6 +1151,15 @@ public class AbstractStreamingDeviceTests
         public void SimulateChannelsPopulatedFromSender(object? sender, ChannelsPopulatedEventArgs args)
         {
             OnCoreChannelsPopulated(sender, args);
+        }
+
+        /// <summary>
+        /// Simulates Core's <see cref="Daqifi.Core.Device.IDevice.StatusChanged"/> event
+        /// (issue #638) without a real transport.
+        /// </summary>
+        public void SimulateStatusChanged(DaqifiDevice coreDevice, ConnectionStatus status)
+        {
+            OnCoreStatusChanged(coreDevice, new DeviceStatusEventArgs(status));
         }
 
         protected override void SendMessage(IOutboundMessage<string> message)

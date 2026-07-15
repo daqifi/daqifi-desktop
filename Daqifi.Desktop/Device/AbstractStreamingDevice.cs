@@ -287,6 +287,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     // Debug mode properties
     public bool IsDebugModeEnabled { get; private set; }
     public event Action<DebugDataModel>? DebugDataReceived;
+
+    /// <inheritdoc />
+    public event EventHandler<ConnectionLostEventArgs>? ConnectionLost;
     #endregion
 
     #region Abstract Methods
@@ -332,6 +335,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             coreDevice.ChannelsPopulated += OnCoreChannelsPopulated;
             coreDevice.MessageReceived += OnCoreMessageReceived;
+            coreDevice.StatusChanged += OnCoreStatusChanged;
 
             InitializeDeviceState();
 
@@ -461,6 +465,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
         coreDevice.MessageReceived -= OnCoreMessageReceived;
+        coreDevice.StatusChanged -= OnCoreStatusChanged;
     }
 
     /// <summary>
@@ -471,6 +476,35 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
     {
         HandleInboundMessage(e);
+    }
+
+    /// <summary>
+    /// Handles Core's <see cref="IDevice.StatusChanged"/> event (issue #638). Core is the only
+    /// party that observes a spontaneous transport drop (reboot, unplug, WiFi/TCP timeout, HID
+    /// disconnect) — before this, the desktop never subscribed at all, so <see cref="IsConnected"/>
+    /// (a plain <c>CoreDevice?.IsConnected</c> passthrough) never raised a change notification and
+    /// the UI kept showing a dead device as connected. A desktop-initiated <see cref="Disconnect"/>
+    /// always unsubscribes this handler (via <see cref="UnsubscribeCoreDeviceEvents"/>) before
+    /// touching the Core device, so only genuinely unexpected transitions reach here.
+    /// </summary>
+    protected virtual void OnCoreStatusChanged(object? sender, DeviceStatusEventArgs e)
+    {
+        if (e.Status is not (ConnectionStatus.Lost or ConnectionStatus.Failed or ConnectionStatus.Disconnected))
+        {
+            return;
+        }
+
+        DeviceState = DeviceState.Disconnected;
+        OnPropertyChanged(nameof(IsConnected));
+
+        var reason = e.Status switch
+        {
+            ConnectionStatus.Lost => "connection lost",
+            ConnectionStatus.Failed => "connection failed",
+            _ => "disconnected"
+        };
+        AppLogger.Warning($"DAQiFi device {DisplayIdentifier} {reason} unexpectedly.");
+        ConnectionLost?.Invoke(this, new ConnectionLostEventArgs(reason));
     }
     #endregion
 

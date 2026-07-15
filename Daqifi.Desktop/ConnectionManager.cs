@@ -28,6 +28,14 @@ public partial class ConnectionManager : ObservableObject
     [ObservableProperty]
     private bool _notifyConnection;
 
+    /// <summary>
+    /// Human-readable description of the most recent unexpected disconnect, set just before
+    /// <see cref="NotifyConnection"/> flips to <c>true</c> so subscribers can build a message
+    /// naming the device and the reason (issue #638).
+    /// </summary>
+    [ObservableProperty]
+    private string _lastDisconnectReason = string.Empty;
+
     public string ConnectionStatusString { get; set; } = "Disconnected";
 
     /// <summary>
@@ -129,6 +137,7 @@ public partial class ConnectionManager : ObservableObject
             }
             
             ConnectedDevices.Add(device);
+            device.ConnectionLost += OnDeviceConnectionLost;
             await Task.Delay(1000);
             OnPropertyChanged("ConnectedDevices");
             ConnectionStatus = DAQiFiConnectionStatus.Connected;
@@ -154,6 +163,7 @@ public partial class ConnectionManager : ObservableObject
         var connectionType = device.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
         try
         {
+            device.ConnectionLost -= OnDeviceConnectionLost;
             device.Disconnect();
             ConnectedDevices.Remove(device);
             OnPropertyChanged("ConnectedDevices");
@@ -187,6 +197,7 @@ public partial class ConnectionManager : ObservableObject
     {
         try
         {
+            device.ConnectionLost -= OnDeviceConnectionLost;
             device.Reboot();
             ConnectedDevices.Remove(device);
             OnPropertyChanged("ConnectedDevices");
@@ -208,6 +219,46 @@ public partial class ConnectionManager : ObservableObject
             DAQiFiConnectionStatus.AlreadyConnected => "AlreadyConnected",
             _ => "Error"
         };
+    }
+
+    /// <summary>
+    /// Handles a device's <see cref="IDevice.ConnectionLost"/> event — Core detected a
+    /// spontaneous transport drop (reboot, unplug, WiFi/TCP timeout, HID disconnect) that this
+    /// class would otherwise never learn about (issue #638). Mirrors the existing
+    /// <see cref="CheckIfSerialDeviceWasRemoved"/> teardown: unsubscribe the device's channels,
+    /// tear the connection down via <see cref="Disconnect(IStreamingDevice)"/> (which always
+    /// re-runs a fresh Core device + <c>InitializeAsync</c> on the next connect), and surface a
+    /// notification naming the device and the reason.
+    /// </summary>
+    private void OnDeviceConnectionLost(object? sender, ConnectionLostEventArgs e)
+    {
+        if (sender is not IStreamingDevice device)
+        {
+            return;
+        }
+
+        System.Windows.Application.Current.Dispatcher.Invoke(delegate
+        {
+            // Already torn down via another path (e.g. explicit user disconnect raced this event).
+            if (!ConnectedDevices.Contains(device))
+            {
+                return;
+            }
+
+            foreach (var channel in device.DataChannels)
+            {
+                LoggingManager.Instance.Unsubscribe(channel);
+            }
+
+            Disconnect(device);
+
+            // Only notify if this isn't an intentional disconnect during firmware update.
+            if (DeviceBeingUpdated == null || DeviceBeingUpdated.Name != device.Name)
+            {
+                LastDisconnectReason = $"{device.DeviceDisplayName} disconnected ({e.Reason}).";
+                NotifyConnection = true;
+            }
+        });
     }
 
     private void CheckIfSerialDeviceWasRemoved()
