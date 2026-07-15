@@ -178,8 +178,14 @@ public partial class ConnectionDialogViewModel : ObservableObject
         // outlives the finder it was populated from (e.g. the firmware-flash resume path, which tears
         // down and recreates the finder) would let a rediscovered device be re-added as a duplicate.
         // Clearing here keeps Core's per-session dedup sufficient on its own. (issue #621)
-        AvailableWiFiDevices.Clear();
-        HasNoWiFiDevices = true;
+        // Routed through InvokeOnUiThread like every other AvailableWiFiDevices mutation (see
+        // HandleWifiDeviceFound) so this stays safe even if a future caller invokes
+        // StartWiFiDiscovery off the UI thread.
+        InvokeOnUiThread(() =>
+        {
+            AvailableWiFiDevices.Clear();
+            HasNoWiFiDevices = true;
+        });
 
         _wifiFinder = new WiFiDeviceFinder(30303);
         _wifiDiscoveryCts = new CancellationTokenSource();

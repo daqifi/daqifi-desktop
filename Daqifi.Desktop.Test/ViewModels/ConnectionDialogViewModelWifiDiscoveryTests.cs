@@ -61,7 +61,7 @@ public class ConnectionDialogViewModelWifiDiscoveryTests
     }
 
     [TestMethod]
-    public void StartWiFiDiscovery_ClearsAvailableWiFiDevicesFromPriorSession()
+    public async Task StartWiFiDiscovery_ClearsAvailableWiFiDevicesFromPriorSession()
     {
         // Arrange: populate the list as if a device was found before a discovery restart
         // (e.g. the firmware-flash resume path recreates the finder).
@@ -90,8 +90,10 @@ public class ConnectionDialogViewModelWifiDiscoveryTests
         }
         finally
         {
-            // Stop the discovery loop kicked off above before the test ends.
-            InvokeStopWiFiDiscovery(viewModel);
+            // Drain the discovery loop kicked off above (rather than the non-async stop, which
+            // cancels/disposes without awaiting the running task) so no background discovery work
+            // is still in flight once the test completes.
+            await InvokeStopWiFiDiscoveryAsync(viewModel);
         }
     }
 
@@ -111,13 +113,13 @@ public class ConnectionDialogViewModelWifiDiscoveryTests
         method.Invoke(viewModel, null);
     }
 
-    private static void InvokeStopWiFiDiscovery(ConnectionDialogViewModel viewModel)
+    private static Task InvokeStopWiFiDiscoveryAsync(ConnectionDialogViewModel viewModel)
     {
         var method = typeof(ConnectionDialogViewModel).GetMethod(
-            "StopWiFiDiscovery",
+            "StopWiFiDiscoveryAsync",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
         Assert.IsNotNull(method);
-        method.Invoke(viewModel, null);
+        return (Task)method.Invoke(viewModel, null)!;
     }
 }
