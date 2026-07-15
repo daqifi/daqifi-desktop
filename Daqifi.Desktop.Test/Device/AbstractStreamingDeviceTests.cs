@@ -802,9 +802,12 @@ public class AbstractStreamingDeviceTests
         // Assert
         Assert.IsTrue(
             raisedPropertyNames.Contains(nameof(Daqifi.Desktop.Device.IStreamingDevice.IsConnected)),
-            "IsConnected must raise a PropertyChanged notification so bound UI (e.g. the device tile) refreshes.");
+            "IsConnected must raise a PropertyChanged notification so bound UI " +
+            "(e.g. the device tile) refreshes.");
         Assert.AreEqual(DeviceState.Disconnected, device.DeviceState);
-        Assert.IsNotNull(capturedArgs, "ConnectionLost should fire so ConnectionManager can tear down and notify the user.");
+        Assert.IsNotNull(
+            capturedArgs,
+            "ConnectionLost should fire so ConnectionManager can tear down and notify the user.");
     }
 
     [TestMethod]
@@ -825,7 +828,9 @@ public class AbstractStreamingDeviceTests
         device.SimulateStatusChanged(coreDevice, status);
 
         // Assert
-        Assert.IsFalse(connectionLostRaised, $"{status} is not an unexpected drop and must not raise ConnectionLost.");
+        Assert.IsFalse(
+            connectionLostRaised,
+            $"{status} is not an unexpected drop and must not raise ConnectionLost.");
     }
 
     [TestMethod]

@@ -237,7 +237,7 @@ public partial class ConnectionManager : ObservableObject
             return;
         }
 
-        System.Windows.Application.Current.Dispatcher.Invoke(delegate
+        InvokeOnUiThread(() =>
         {
             // Already torn down via another path (e.g. explicit user disconnect raced this event).
             if (!ConnectedDevices.Contains(device))
@@ -259,6 +259,36 @@ public partial class ConnectionManager : ObservableObject
                 NotifyConnection = true;
             }
         });
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> on the WPF UI thread — required here because
+    /// <see cref="IDevice.ConnectionLost"/> can fire from a background/transport thread and this
+    /// handler mutates the UI-bound <see cref="ConnectedDevices"/> collection. Runs inline when
+    /// there is no dispatcher (unit tests) or the caller is already on it; uses the non-blocking
+    /// <c>BeginInvoke</c> so teardown can never freeze the UI thread, and swallows failures during
+    /// app/dispatcher shutdown since there is nothing left to update.
+    /// </summary>
+    private static void InvokeOnUiThread(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        try
+        {
+            if (!dispatcher.HasShutdownStarted)
+            {
+                dispatcher.BeginInvoke(action);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Instance.Warning(ex, "Dispatcher unavailable while handling ConnectionLost; UI update dropped.");
+        }
     }
 
     private void CheckIfSerialDeviceWasRemoved()
@@ -303,6 +333,9 @@ public partial class ConnectionManager : ObservableObject
                     if (!NotifyConnection &&
                         (DeviceBeingUpdated == null || DeviceBeingUpdated.Name != serialDevice.Name))
                     {
+                        // Scoped to this device so a later notification never shows a stale
+                        // reason string left over from a previous, unrelated disconnect.
+                        LastDisconnectReason = $"{serialDevice.DeviceDisplayName} disconnected (port removed).";
                         NotifyConnection = true;
                     }
                 });

@@ -494,9 +494,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return;
         }
 
-        DeviceState = DeviceState.Disconnected;
-        OnPropertyChanged(nameof(IsConnected));
-
         var reason = e.Status switch
         {
             ConnectionStatus.Lost => "connection lost",
@@ -504,7 +501,46 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             _ => "disconnected"
         };
         AppLogger.Warning($"DAQiFi device {DisplayIdentifier} {reason} unexpectedly.");
+
+        // Core can raise StatusChanged from a transport/background thread — DeviceState and
+        // IsConnected are WPF-bound, so the mutation and its change notification must be
+        // marshalled onto the UI thread (issue #638 code review).
+        InvokeOnUiThread(() =>
+        {
+            DeviceState = DeviceState.Disconnected;
+            OnPropertyChanged(nameof(IsConnected));
+        });
+
         ConnectionLost?.Invoke(this, new ConnectionLostEventArgs(reason));
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> on the WPF UI thread. Runs inline when there is no
+    /// dispatcher (unit tests — <c>Application.Current</c> is null) or the caller is already on
+    /// it. Uses the non-blocking <c>BeginInvoke</c> so a background-thread caller (e.g. Core's
+    /// <c>StatusChanged</c>) can never block on the UI thread; failures during app/dispatcher
+    /// shutdown are swallowed since there is nothing left to update.
+    /// </summary>
+    private static void InvokeOnUiThread(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        try
+        {
+            if (!dispatcher.HasShutdownStarted)
+            {
+                dispatcher.BeginInvoke(action);
+            }
+        }
+        catch (Exception)
+        {
+            // Dispatcher unavailable / shutting down — drop the UI update.
+        }
     }
     #endregion
 
