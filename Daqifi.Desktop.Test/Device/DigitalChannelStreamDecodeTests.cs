@@ -1,10 +1,12 @@
+using System.Linq;
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Device;
 using Google.Protobuf;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
-using CoreDigitalChannel = Daqifi.Core.Channel.DigitalChannel;
+using ChannelType = Daqifi.Core.Channel.ChannelType;
+using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Test.Device;
 
@@ -13,39 +15,38 @@ namespace Daqifi.Desktop.Test.Device;
 /// active-channel list (issue #663). The firmware streams the whole DIO port as a raw
 /// pin-state snapshot — bit N is pin N regardless of which channels are enabled — so
 /// enabling a subset of digital channels must still read the correct pins.
-/// These tests route messages through the real inbound pipeline, not a copy of the logic.
+/// Channel decoding itself is delegated to Core's <c>DaqifiStreamingDevice</c> (issue #613), so
+/// these tests route frames through both the real desktop gating pipeline
+/// (<see cref="DecodeTestDevice.RouteStreamFrame"/> calls <c>HandleInboundMessage</c>) and Core's
+/// real decode step (via <see cref="TestCoreStreamingDevice.SimulateStreamFrame"/>), exactly
+/// mirroring the synchronous order Core's actual message pump uses in production.
 /// </summary>
 [TestClass]
 public class DigitalChannelStreamDecodeTests
 {
+    // Large enough to cover every digital channel index exercised below (up to DIO9).
+    private const int DIGITAL_PORT_COUNT = 16;
+
     private DecodeTestDevice _device;
 
     [TestInitialize]
     public void Setup()
     {
-        _device = new DecodeTestDevice();
-        _device.InitializeDeviceState();
-        _device.IsStreaming = true;
+        _device = new DecodeTestDevice(DIGITAL_PORT_COUNT);
     }
 
-    private DigitalChannel AddDigitalChannel(int index, ChannelDirection direction, bool isActive = true)
+    private DigitalChannel ConfigureDigitalChannel(int index, ChannelDirection direction, bool isActive = true)
     {
-        var coreChannel = new CoreDigitalChannel(index)
-        {
-            Name = $"DIO{index}",
-            Direction = direction
-        };
-        var channel = new DigitalChannel(_device, coreChannel)
-        {
-            IsActive = isActive
-        };
-        _device.DataChannels.Add(channel);
+        var channel = (DigitalChannel)_device.DataChannels.Single(
+            c => c.Type == ChannelType.Digital && c.Index == index);
+        channel.Direction = direction;
+        channel.IsActive = isActive;
         return channel;
     }
 
     private void RouteDigitalData(params byte[] portSnapshot)
     {
-        _device.RouteInboundMessage(new DaqifiOutMessage
+        _device.RouteStreamFrame(new DaqifiOutMessage
         {
             MsgTimeStamp = 1000,
             DeviceSn = 12345,
@@ -58,7 +59,7 @@ public class DigitalChannelStreamDecodeTests
     public void SubsetChannel_DIO4_ReadsItsOwnPinBit()
     {
         // Arrange — only DIO4 enabled. Positional mapping would read bit 0.
-        var dio4 = AddDigitalChannel(4, ChannelDirection.Input);
+        var dio4 = ConfigureDigitalChannel(4, ChannelDirection.Input);
 
         // Act — pin 4 high, pin 0 low
         RouteDigitalData(0b0001_0000);
@@ -72,7 +73,7 @@ public class DigitalChannelStreamDecodeTests
     public void SubsetChannel_DIO4_DoesNotReadPin0State()
     {
         // Arrange — only DIO4 enabled. The old positional decode read bit 0 here.
-        var dio4 = AddDigitalChannel(4, ChannelDirection.Input);
+        var dio4 = ConfigureDigitalChannel(4, ChannelDirection.Input);
 
         // Act — pin 0 high, pin 4 low
         RouteDigitalData(0b0000_0001);
@@ -86,8 +87,8 @@ public class DigitalChannelStreamDecodeTests
     public void NonConsecutiveSubset_EachChannelReadsItsOwnPin()
     {
         // Arrange
-        var dio1 = AddDigitalChannel(1, ChannelDirection.Input);
-        var dio3 = AddDigitalChannel(3, ChannelDirection.Input);
+        var dio1 = ConfigureDigitalChannel(1, ChannelDirection.Input);
+        var dio3 = ConfigureDigitalChannel(3, ChannelDirection.Input);
 
         // Act — pin 1 low, pin 3 high
         RouteDigitalData(0b0000_1000);
@@ -103,7 +104,7 @@ public class DigitalChannelStreamDecodeTests
     public void HighChannel_DIO9_ReadsSecondPayloadByte()
     {
         // Arrange — a channel above pin 7 alone; its bit lives in payload byte 1
-        var dio9 = AddDigitalChannel(9, ChannelDirection.Input);
+        var dio9 = ConfigureDigitalChannel(9, ChannelDirection.Input);
 
         // Act — pin 9 high (byte 1, bit 1)
         RouteDigitalData(0b0000_0000, 0b0000_0010);
@@ -117,7 +118,7 @@ public class DigitalChannelStreamDecodeTests
     public void ChannelBeyondPayload_GetsNoSample()
     {
         // Arrange — DIO9 needs payload byte 1, but the device only streamed one byte
-        var dio9 = AddDigitalChannel(9, ChannelDirection.Input);
+        var dio9 = ConfigureDigitalChannel(9, ChannelDirection.Input);
 
         // Act
         RouteDigitalData(0b1111_1111);
@@ -130,7 +131,7 @@ public class DigitalChannelStreamDecodeTests
     public void OutputDirectionChannel_GetsNoStreamedSample()
     {
         // Arrange — output channels display the commanded state, not streamed data
-        var dio0 = AddDigitalChannel(0, ChannelDirection.Output);
+        var dio0 = ConfigureDigitalChannel(0, ChannelDirection.Output);
 
         // Act
         RouteDigitalData(0b0000_0001);
@@ -143,7 +144,7 @@ public class DigitalChannelStreamDecodeTests
     public void InactiveChannel_GetsNoSample()
     {
         // Arrange
-        var dio2 = AddDigitalChannel(2, ChannelDirection.Input, isActive: false);
+        var dio2 = ConfigureDigitalChannel(2, ChannelDirection.Input, isActive: false);
 
         // Act — pin 2 high, but the channel is not enabled
         RouteDigitalData(0b0000_0100);
@@ -153,12 +154,42 @@ public class DigitalChannelStreamDecodeTests
     }
 
     /// <summary>
-    /// Test device exposing the real inbound-message pipeline
-    /// (protocol handler → stream routing → decode).
+    /// Test device exposing the real inbound-message pipeline (protocol handler → stream
+    /// routing → Core decode → per-channel SampleReceived → desktop DataSample mapping).
     /// </summary>
     private sealed class DecodeTestDevice : AbstractStreamingDevice
     {
+        private readonly TestCoreStreamingDevice _coreDevice;
+
+        public DecodeTestDevice(int digitalPortCount)
+        {
+            _coreDevice = new TestCoreStreamingDevice();
+            _coreDevice.Connect();
+
+            var statusMessage = new DaqifiOutMessage
+            {
+                DevicePn = "Nq1",
+                DeviceSn = 12345,
+                DeviceFwRev = "1.0.0",
+                DigitalPortNum = (uint)digitalPortCount
+            };
+            _coreDevice.Metadata.UpdateFromProtobuf(statusMessage);
+            _coreDevice.PopulateChannelsFromStatus(statusMessage);
+
+            // Wires the desktop DigitalChannel wrappers around Core's actual channel instances
+            // (including the SampleReceived subscription installed by SyncChannelsFromCore).
+            SyncFromCoreDevice(_coreDevice);
+
+            InitializeDeviceState();
+
+            _coreDevice.StreamingFrequency = 1;
+            _coreDevice.StartStreaming();
+            IsStreaming = true;
+        }
+
         public override ConnectionType ConnectionType => ConnectionType.Usb;
+
+        protected override CoreStreamingDevice? CoreDeviceForStreaming => _coreDevice;
 
         public override bool Connect() => true;
 
@@ -175,11 +206,28 @@ public class DigitalChannelStreamDecodeTests
             // The logging pipeline needs the application service provider, which unit tests don't have.
         }
 
-        public void RouteInboundMessage(DaqifiOutMessage message)
+        /// <summary>
+        /// Routes a raw frame through both halves of the real production pipeline: the desktop's
+        /// own gating/dispatch (<c>HandleInboundMessage</c>) and Core's decode step
+        /// (<see cref="TestCoreStreamingDevice.SimulateStreamFrame"/>) — in that order, exactly as
+        /// Core's actual <c>DaqifiStreamingDevice.OnStreamMessageReceived</c> sequences them in
+        /// production (base call raises <c>MessageReceived</c> before Core decodes).
+        /// </summary>
+        public void RouteStreamFrame(DaqifiOutMessage message)
         {
             HandleInboundMessage(
                 new MessageReceivedEventArgs(
                     new GenericInboundMessage<object>(message)));
+            _coreDevice.SimulateStreamFrame(message);
         }
+    }
+
+    private sealed class TestCoreStreamingDevice() : CoreStreamingDevice("TestDevice")
+    {
+        public override void Send<T>(IOutboundMessage<T> message)
+        {
+        }
+
+        public void SimulateStreamFrame(DaqifiOutMessage message) => OnStreamMessageReceived(message);
     }
 }

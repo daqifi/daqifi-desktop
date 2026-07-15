@@ -114,6 +114,30 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private IProtocolHandler? _protocolHandler;
 
     /// <summary>
+    /// Per-channel subscriptions onto Core's decode pipeline (issue #613). Core's
+    /// <c>DaqifiStreamingDevice</c> decodes every raw stream frame into per-channel samples and
+    /// raises <see cref="Daqifi.Core.Channel.IChannel.SampleReceived"/> automatically whenever its
+    /// own <c>IsStreaming</c> flag is set — independent of the leftover-frame/first-frame gating
+    /// below. Keyed by the desktop channel wrapper (stable across <c>ReplaceCoreChannel</c> calls)
+    /// so the handler on the previous Core channel instance can be found and removed.
+    /// </summary>
+    private readonly Dictionary<IChannel, EventHandler<Daqifi.Core.Channel.SampleReceivedEventArgs>> _channelSampleHandlers = new();
+
+    /// <summary>
+    /// Gate for <see cref="OnCoreChannelSampleReceived"/>: true only while the raw frame Core is
+    /// currently decoding is one <see cref="ProcessStreamMessage"/> just accepted. Core calls its
+    /// decode step synchronously, immediately after the <c>MessageReceived</c> event that reaches
+    /// <see cref="OnStreamMessageReceived"/> returns — so setting this at the end of
+    /// <see cref="ProcessStreamMessage"/> reliably covers Core's decode of that same frame.
+    /// Frames rejected by leftover-frame/first-frame validation never call
+    /// <see cref="ProcessStreamMessage"/>, so Core still decodes and broadcasts their samples, but
+    /// this gate keeps them from reaching the desktop's channels.
+    /// </summary>
+    private bool _acceptChannelSamples;
+    private DateTime _currentFrameTimestamp;
+    private double? _currentFrameFirmwareDeltaMs;
+
+    /// <summary>
     /// The Core streaming device created by the shared <see cref="Connect"/> template,
     /// or null while disconnected.
     /// </summary>
@@ -382,6 +406,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             // Clear channels to prevent ghost channels on reconnect (Issue #29)
             AppLogger.Information($"Cleared {DataChannels.Count} channels for device {DeviceSerialNo}");
+            UnsubscribeAllChannelSamples();
             DataChannels.Clear();
 
             CleanupConnection();
@@ -620,6 +645,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     private void OnStreamMessageReceived(DaqifiOutMessage message)
     {
+        // Closed by default for every frame; only ProcessStreamMessage (reached below when this
+        // frame is accepted) opens it for Core's immediately-following decode of this same frame.
+        _acceptChannelSamples = false;
+
         // Belt-and-suspenders: firmware's fast streaming-frame encoder (Nanopb_EncodeStreamingFast)
         // hardcodes only msg_time_stamp/analog_in_data/digital_data/digital_port_dir — it never
         // includes friendly_device_name — so in practice this never fires from a real Stream
@@ -657,9 +686,17 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
-    /// Processes a validated streaming frame: computes its timestamp, updates channel samples,
-    /// and dispatches the device message to the logging pipeline.
+    /// Processes a validated streaming frame: computes its timestamp, opens the gate that lets
+    /// Core's per-channel decode of this same frame reach the desktop's channels (see
+    /// <see cref="_acceptChannelSamples"/>), and dispatches the device message to the logging
+    /// pipeline.
     /// </summary>
+    /// <remarks>
+    /// Channel decoding itself — active-channel ordering, the USB-float-vs-WiFi-raw branch, and
+    /// digital bit unpacking — is delegated to Core's <c>DaqifiStreamingDevice</c> (issue #613):
+    /// <see cref="OnCoreChannelSampleReceived"/> maps its decoded <c>IDataSample</c> into the
+    /// desktop's richer <see cref="DataSample"/> using this frame's timestamp/delta.
+    /// </remarks>
     /// <param name="message">The streaming protobuf message to process.</param>
     private void ProcessStreamMessage(DaqifiOutMessage message)
     {
@@ -679,105 +716,28 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             ? (double?)null
             : timestampResult.SecondsBetweenMessages * 1000.0;
 
-        var digitalCount = 0;
-        var analogCount = 0;
+        // Open the gate for Core's decode of this exact frame, which runs synchronously right
+        // after this method returns (see _acceptChannelSamples).
+        _currentFrameTimestamp = messageTimestamp;
+        _currentFrameFirmwareDeltaMs = firmwareDeltaMs;
+        _acceptChannelSamples = true;
 
-        var hasDigitalData = message.DigitalData.Length > 0;
-        // USB firmware sends pre-scaled floats (AnalogInDataFloat); WiFi sends raw ADC counts (AnalogInData).
-        var hasAnalogData = message.AnalogInData.Count > 0 || message.AnalogInDataFloat.Count > 0;
-
-        // Process analog channels - device sends data in channel index order, not activation order
-        if (hasAnalogData)
+        if (IsDebugModeEnabled && (message.AnalogInData.Count > 0 || message.AnalogInDataFloat.Count > 0))
         {
-            try
-            {
-                var activeAnalogChannels = DataChannels.Where(c => c.IsActive && c.Type == ChannelType.Analog)
-                                                      .Cast<AnalogChannel>()
-                                                      .OrderBy(c => c.Index)
-                                                      .ToList();
-
-                // USB firmware sends pre-scaled float values (already in volts); use them directly.
-                // WiFi firmware sends raw integer ADC counts; apply channel calibration scaling.
-                var hasFloatData = message.AnalogInDataFloat.Count > 0;
-                var dataCount = hasFloatData ? message.AnalogInDataFloat.Count : message.AnalogInData.Count;
-
-                for (var dataIndex = 0; dataIndex < dataCount && dataIndex < activeAnalogChannels.Count; dataIndex++)
-                {
-                    var channel = activeAnalogChannels[dataIndex];
-                    double scaledValue;
-                    if (hasFloatData)
-                    {
-                        // Float values are already voltage-scaled by the firmware — no calibration needed
-                        scaledValue = message.AnalogInDataFloat[dataIndex];
-                    }
-                    else
-                    {
-                        // Raw ADC count — apply channel calibration/scaling via Core
-                        scaledValue = channel.GetScaledValue((int)message.AnalogInData[dataIndex]);
-                    }
-
-                    var sample = new DataSample(this, channel, messageTimestamp, scaledValue, firmwareDeltaMs);
-                    channel.ActiveSample = sample;
-                }
-
-                if (dataCount != activeAnalogChannels.Count)
-                {
-                    AppLogger.Warning($"[CHANNEL_MAPPING] Analog data count mismatch: received {dataCount} data points for {activeAnalogChannels.Count} active channels");
-                }
-
-                // Send debug data if debug mode is enabled
-                SendDebugData(message, activeAnalogChannels, messageTimestamp);
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Error($"[CHANNEL_MAPPING] Error processing analog channel data: {ex.Message}");
-            }
-        }
-
-        // Process digital channels. The firmware streams the whole DIO port as a raw pin-state
-        // snapshot — bit N is pin N regardless of which channels are enabled, because the
-        // wire-level DIO enable is port-global, not per pin — so bits are indexed by channel
-        // number, not by position in the active-channel list (issue #663).
-        if (hasDigitalData)
-        {
-            try
-            {
-                var activeDigitalChannels = DataChannels.Where(c => c.IsActive && c.Type == ChannelType.Digital)
-                                                       .OrderBy(c => c.Index)
-                                                       .ToList();
-
-                foreach (var channel in activeDigitalChannels)
-                {
-                    // Output-direction channels display the commanded state, not streamed data
-                    if (channel.Direction != ChannelDirection.Input)
-                    {
-                        continue;
-                    }
-
-                    var byteIndex = channel.Index / 8;
-                    if (channel.Index < 0 || byteIndex >= message.DigitalData.Length)
-                    {
-                        continue; // pin beyond the streamed payload: no sample
-                    }
-
-                    var bit = (message.DigitalData[byteIndex] & (1 << (channel.Index % 8))) != 0;
-                    channel.ActiveSample = new DataSample(
-                        this, channel, messageTimestamp, Convert.ToInt32(bit), firmwareDeltaMs);
-                }
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Error($"Error processing digital channel data: {ex.Message}");
-            }
+            var activeAnalogChannels = DataChannels.Where(c => c.IsActive && c.Type == ChannelType.Analog)
+                                                    .Cast<AnalogChannel>()
+                                                    .OrderBy(c => c.Index)
+                                                    .ToList();
+            SendDebugData(message, activeAnalogChannels, messageTimestamp);
         }
 
         var deviceMessage = new DeviceMessage
         {
             DeviceName = Name,
-            AnalogChannelCount = analogCount,
+            AnalogChannelCount = 0,
             DeviceSerialNo = message.DeviceSn.ToString(CultureInfo.InvariantCulture),
             DeviceVersion = message.DeviceFwRev,
-            DigitalChannelCount = digitalCount,
+            DigitalChannelCount = 0,
             TimestampTicks = messageTimestamp.Ticks,
             AppTicks = DateTime.Now.Ticks,
             DeviceStatus = (int)message.DeviceStatus,
@@ -789,6 +749,54 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         };
 
         DispatchDeviceMessage(deviceMessage);
+    }
+
+    /// <summary>
+    /// Maps a sample Core's <c>DaqifiStreamingDevice</c> decoded from the current stream frame
+    /// into the desktop's richer <see cref="DataSample"/> (issue #613). Fires synchronously,
+    /// immediately after <see cref="ProcessStreamMessage"/> returns, for every enabled channel —
+    /// gated by <see cref="_acceptChannelSamples"/> so leftover/held frames (which Core still
+    /// decodes, since Core has no notion of the desktop's leftover-frame heuristics) never reach
+    /// desktop channels.
+    /// </summary>
+    private void OnCoreChannelSampleReceived(IChannel desktopChannel, Daqifi.Core.Channel.IDataSample coreSample)
+    {
+        if (!_acceptChannelSamples)
+        {
+            return;
+        }
+
+        desktopChannel.ActiveSample = new DataSample(
+            this, desktopChannel, _currentFrameTimestamp, coreSample.Value, _currentFrameFirmwareDeltaMs);
+    }
+
+    /// <summary>
+    /// Subscribes to a Core channel's <see cref="Daqifi.Core.Channel.IChannel.SampleReceived"/>,
+    /// routing decoded samples through <see cref="OnCoreChannelSampleReceived"/> for the given
+    /// desktop channel wrapper. Tracks the handler by desktop channel so
+    /// <see cref="UnsubscribeChannelSamples"/> can remove it later even after
+    /// <c>ReplaceCoreChannel</c> has swapped in a different Core channel instance.
+    /// </summary>
+    private void SubscribeChannelSamples(IChannel desktopChannel, Daqifi.Core.Channel.IChannel coreChannel)
+    {
+        EventHandler<Daqifi.Core.Channel.SampleReceivedEventArgs> handler =
+            (_, e) => OnCoreChannelSampleReceived(desktopChannel, e.Sample);
+        coreChannel.SampleReceived += handler;
+        _channelSampleHandlers[desktopChannel] = handler;
+    }
+
+    /// <summary>
+    /// Removes the subscription <see cref="SubscribeChannelSamples"/> installed for
+    /// <paramref name="desktopChannel"/> from <paramref name="coreChannel"/>. Must be called with
+    /// the same Core channel instance that was subscribed — callers replacing a channel's Core
+    /// backing must unsubscribe the old instance before rewiring the new one.
+    /// </summary>
+    private void UnsubscribeChannelSamples(IChannel desktopChannel, Daqifi.Core.Channel.IChannel coreChannel)
+    {
+        if (_channelSampleHandlers.Remove(desktopChannel, out var handler))
+        {
+            coreChannel.SampleReceived -= handler;
+        }
     }
 
     /// <summary>
@@ -1541,6 +1549,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         var existingChannels = DataChannels.ToDictionary(GetChannelKey);
         var updatedChannels = new List<IChannel>(coreChannels.Count);
+        var handledExistingKeys = new HashSet<string>();
 
         foreach (var coreChannel in coreChannels)
         {
@@ -1548,21 +1557,26 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             if (existingChannels.TryGetValue(channelKey, out var existingChannel))
             {
+                handledExistingKeys.Add(channelKey);
                 switch (existingChannel)
                 {
                     case AnalogChannel desktopAnalogChannel
                         when coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel:
+                        UnsubscribeChannelSamples(desktopAnalogChannel, desktopAnalogChannel.CoreChannel);
                         desktopAnalogChannel.ReplaceCoreChannel(coreAnalogChannel);
                         desktopAnalogChannel.DeviceName = DevicePartNumber;
                         desktopAnalogChannel.DeviceSerialNo = DeviceSerialNo;
+                        SubscribeChannelSamples(desktopAnalogChannel, coreAnalogChannel);
                         updatedChannels.Add(desktopAnalogChannel);
                         continue;
 
                     case DigitalChannel desktopDigitalChannel
                         when coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel:
+                        UnsubscribeChannelSamples(desktopDigitalChannel, desktopDigitalChannel.CoreChannel);
                         desktopDigitalChannel.ReplaceCoreChannel(coreDigitalChannel);
                         desktopDigitalChannel.DeviceName = DevicePartNumber;
                         desktopDigitalChannel.DeviceSerialNo = DeviceSerialNo;
+                        SubscribeChannelSamples(desktopDigitalChannel, coreDigitalChannel);
                         updatedChannels.Add(desktopDigitalChannel);
                         continue;
                 }
@@ -1571,12 +1585,47 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             var desktopChannel = CreateDesktopChannel(coreChannel);
             if (desktopChannel != null)
             {
+                SubscribeChannelSamples(desktopChannel, coreChannel);
                 updatedChannels.Add(desktopChannel);
+            }
+        }
+
+        // A channel present before this sync but absent from the new Core snapshot (e.g. a
+        // reconfigured channel count) still holds a subscription onto its old Core channel —
+        // remove it so a stale handler can't fire against a channel no longer in DataChannels.
+        foreach (var (key, oldChannel) in existingChannels)
+        {
+            if (handledExistingKeys.Contains(key))
+            {
+                continue;
+            }
+
+            var oldCoreChannel = GetCoreChannel(oldChannel);
+            if (oldCoreChannel != null)
+            {
+                UnsubscribeChannelSamples(oldChannel, oldCoreChannel);
             }
         }
 
         DataChannels.Clear();
         DataChannels.AddRange(updatedChannels);
+    }
+
+    /// <summary>
+    /// Unsubscribes every channel's Core-sample handler installed by
+    /// <see cref="SubscribeChannelSamples"/>. Called before <see cref="DataChannels"/> is cleared
+    /// so no stale handler outlives the channel it was wired to.
+    /// </summary>
+    private void UnsubscribeAllChannelSamples()
+    {
+        foreach (var channel in DataChannels)
+        {
+            var coreChannel = GetCoreChannel(channel);
+            if (coreChannel != null)
+            {
+                UnsubscribeChannelSamples(channel, coreChannel);
+            }
+        }
     }
 
     private IChannel? CreateDesktopChannel(Daqifi.Core.Channel.IChannel coreChannel)
