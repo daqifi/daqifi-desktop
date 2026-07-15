@@ -69,7 +69,9 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
-            .Callback<Daqifi.Core.Device.IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?, string?, string?, CancellationToken>(
+            .Callback<
+                Daqifi.Core.Device.IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?,
+                string?, string?, CancellationToken>(
                 (device, _, _, _, _, _) => pic32Device = device)
             .Returns(Task.CompletedTask);
 
@@ -192,7 +194,9 @@ public class DaqifiViewModelFirmwareUpdateTests
                 It.IsAny<string>(),
                 It.IsAny<string>(),
                 It.IsAny<CancellationToken>()))
-            .Callback<Daqifi.Core.Device.IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?, string?, string?, CancellationToken>(
+            .Callback<
+                Daqifi.Core.Device.IStreamingDevice, string, IProgress<FirmwareUpdateProgress>?,
+                string?, string?, CancellationToken>(
                 (device, _, _, _, _, _) => pic32Device = device)
             .Returns(Task.CompletedTask);
 

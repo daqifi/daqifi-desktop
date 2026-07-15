@@ -189,7 +189,9 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     private void OnBootloaderDiscovered(object? sender, BootloaderDiscoveredEventArgs e)
     {
         // The discovery loop is synchronous; grabbing the hold is async, so dispatch without blocking it.
-        RunDetached(HandleDiscoveredAsync(e.DevicePath, e.DeviceName, e.LocationKey), "handling a discovered bootloader");
+        RunDetached(
+            HandleDiscoveredAsync(e.DevicePath, e.DeviceName, e.LocationKey),
+            "handling a discovered bootloader");
     }
 
     private async Task HandleDiscoveredAsync(string devicePath, string? deviceName, string? locationKey)

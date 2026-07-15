@@ -6,6 +6,9 @@ namespace Daqifi.Desktop.Device.Firmware;
 public sealed class BootloaderDiscoveredEventArgs : EventArgs
 {
     /// <summary>Creates the event args.</summary>
+    /// <param name="devicePath">OS HID device path of the discovered bootloader.</param>
+    /// <param name="deviceName">Friendly device name, when discovery could read it; otherwise null.</param>
+    /// <param name="locationKey">USB physical-location key, when discovery could resolve one; otherwise null.</param>
     public BootloaderDiscoveredEventArgs(string devicePath, string? deviceName, string? locationKey = null)
     {
         DevicePath = string.IsNullOrWhiteSpace(devicePath)
