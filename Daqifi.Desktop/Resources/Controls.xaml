@@ -244,12 +244,17 @@
                             </ToggleButton.Template>
                         </ToggleButton>
 
+                        <!-- PlacementTarget is explicit: without it the popup anchors to whatever
+                             ends up as its placement context, which is not guaranteed to be the
+                             ComboBox. This template is app-wide, so an unanchored dropdown would
+                             be a systemic bug. -->
                         <Popup x:Name="PART_Popup"
                                IsOpen="{TemplateBinding IsDropDownOpen}"
                                AllowsTransparency="True"
                                Focusable="False"
                                PopupAnimation="Slide"
-                               Placement="Bottom">
+                               Placement="Bottom"
+                               PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}">
                             <Border Background="{DynamicResource SurfaceRaised}"
                                     BorderBrush="{DynamicResource BorderDim}"
                                     BorderThickness="1"
