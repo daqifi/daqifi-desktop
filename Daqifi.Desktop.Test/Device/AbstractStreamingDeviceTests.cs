@@ -723,31 +723,21 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
-    public void StartSdCardLogging_UsesCombinedAnalogMaskAndConfiguresDigitalPortsOnce()
+    public void StartSdCardLogging_NoLongerHandRollsChannelConfiguration()
     {
+        // Core's StartSdCardLoggingAsync(channelMask: null) now computes the ADC enable mask and
+        // DIO enable state itself from its own channel configuration (issue #706) — the desktop
+        // no longer builds an analog mask or sends EnableDioPorts/DisableDioPorts directly. The
+        // mask/DIO computation itself is Core's responsibility and is covered by Core's own tests.
         var device = new SdCardLoggingTestDevice();
-        device.DataChannels.Add(new AnalogChannel(device, BuildAnalogInputCoreChannel(0)) { IsActive = true });
-        device.DataChannels.Add(new AnalogChannel(device, BuildAnalogInputCoreChannel(2)) { IsActive = true });
-        device.DataChannels.Add(new AnalogChannel(device, BuildAnalogInputCoreChannel(4)) { IsActive = true });
-        device.DataChannels.Add(new DigitalChannel(device, BuildDigitalInputCoreChannel(0)) { IsActive = true });
-        device.DataChannels.Add(new DigitalChannel(device, BuildDigitalInputCoreChannel(1)) { IsActive = true });
         device.SwitchMode(DeviceMode.LogToDevice);
 
         device.StartSdCardLogging();
 
-        Assert.AreEqual(
-            1,
-            device.SentCommands.Count(command => command == $"desktop:{ScpiMessageProducer.EnableDioPorts().Data}"),
-            "Desktop should enable digital ports once before starting SD logging.");
         Assert.IsFalse(
-            device.SentCommands.Any(c =>
-                c.StartsWith("desktop:") && c.Contains("ENAble:VOLTage:DC")),
-            "Desktop should not send any EnableAdcChannels commands — " +
-            "Core handles this via the channelMask parameter.");
-        CollectionAssert.Contains(
-            device.SentCommands,
-            $"core:{ScpiMessageProducer.EnableAdcChannels("21").Data}",
-            "Core should receive a decimal channel mask for the active SD logging channels.");
+            device.SentCommands.Any(c => c.StartsWith("desktop:", StringComparison.Ordinal)),
+            "The desktop should not send any SCPI commands directly for SD logging start — " +
+            "channel configuration now flows entirely through Core's channelMask: null path.");
     }
 
     [TestMethod]
@@ -866,28 +856,6 @@ public class AbstractStreamingDeviceTests
         coreDevice.Metadata.UpdateFromProtobuf(statusMessage);
         coreDevice.PopulateChannelsFromStatus(statusMessage);
         return coreDevice;
-    }
-
-    private static Daqifi.Core.Channel.AnalogChannel BuildAnalogInputCoreChannel(int index)
-    {
-        return new Daqifi.Core.Channel.AnalogChannel(index, 4096)
-        {
-            Name = $"AI{index}",
-            Direction = Daqifi.Core.Channel.ChannelDirection.Input,
-            CalibrationB = 0,
-            CalibrationM = 1,
-            InternalScaleM = 1,
-            PortRange = 5
-        };
-    }
-
-    private static Daqifi.Core.Channel.DigitalChannel BuildDigitalInputCoreChannel(int index)
-    {
-        return new Daqifi.Core.Channel.DigitalChannel(index)
-        {
-            Name = $"DIO{index}",
-            Direction = Daqifi.Core.Channel.ChannelDirection.Input
-        };
     }
 
     private static DaqifiOutMessage BuildStatusMessage(string firmwareVersion, float calibrationM)
