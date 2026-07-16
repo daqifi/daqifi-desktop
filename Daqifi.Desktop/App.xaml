@@ -17,37 +17,12 @@
                 <ResourceDictionary Source="/Resources/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <Style x:Key="FadeButton" TargetType="{x:Type Button}">
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="Button">
-                            <Grid Background="{TemplateBinding Background}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="5"/>
-                            </Grid>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-                <Setter Property="Background" Value="White"/>
-                <Style.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True">
-                        <Setter Property="RenderTransformOrigin" Value="0.5, 0.5"/>
-                        <Setter Property="RenderTransform">
-                            <Setter.Value>
-                                <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
-                            </Setter.Value>
-                        </Setter>
-                    </Trigger>
-                </Style.Triggers>
-            </Style>
-
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
             <converters:BoolAndToVisibilityConverter x:Key="BoolAndToVis"/>
             <helpers:BooleanToVisibilityConverter x:Key="InvertedBoolToVis" True="Collapsed" False="Visible" />
             <helpers:IntToVisibilityConverter x:Key="IntToVisibility"/>
             <helpers:EnumDescriptionConverter x:Key="EnumDescription"/>
             <helpers:BooleanToInverseBoolConverter x:Key="BooleanToInverse"/>
-            <converters:BoolToActiveStatusConverter x:Key="BoolToActiveStatus"/>
-            <converters:BoolToStatusColorConverter x:Key="BoolToStatusColor"/>
             <converters:ListToStringConverter x:Key="ListToStringConverter"/>
             <converters:BrushColorMatchConverter x:Key="BrushColorMatch"/>
             <converters:OxyColorToBrushConverter x:Key="OxyColorToBrushConverter"/>

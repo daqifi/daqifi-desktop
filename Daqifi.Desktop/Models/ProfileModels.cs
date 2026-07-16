@@ -1,12 +1,7 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.Models;
-
-public class AddProfileModel : ObservableObject
-{
-    public List<Profile> ProfileList { get; init; }
-}
 
 public partial class Profile : ObservableObject
 {
