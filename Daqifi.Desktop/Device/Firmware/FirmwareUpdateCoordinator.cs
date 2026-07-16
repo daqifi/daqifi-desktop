@@ -612,24 +612,7 @@ public class FirmwareUpdateCoordinator
             _appLogger.Information($"Opening {portName} to send bridge activation commands.");
             try
             {
-                // USB CDC virtual ports ignore the baud rate; match the Core transport defaults.
-                using var port = new SerialPort(portName, 9600, Parity.None, 8, StopBits.One)
-                {
-                    DtrEnable = true,
-                    RtsEnable = false,
-                    WriteTimeout = 2000
-                };
-                port.Open();
-                // Brief pause to allow the DTR signal to be recognised by the firmware
-                // before we send commands (firmware checks isCdcHostConnected via DTR).
-                Thread.Sleep(200);
-                // Re-assert the FW-update-requested flag (idempotent; belt-and-suspenders).
-                port.Write("SYSTem:COMMUnicate:LAN:FWUpdate\n");
-                Thread.Sleep(100);
-                // Trigger the WiFi manager REINIT → bridge-mode state machine.
-                port.Write("SYSTem:COMMUnicate:LAN:APPLY\n");
-                // Give the firmware a moment to enqueue the APPLY before we close the port.
-                Thread.Sleep(300);
+                WifiBridgeActivator.Activate(portName);
                 _appLogger.Information("Bridge activation commands sent successfully.");
             }
             catch (Exception ex)
