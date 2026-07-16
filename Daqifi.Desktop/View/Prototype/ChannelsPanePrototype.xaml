@@ -796,7 +796,8 @@
                                     <TextBlock Text="SCALING"
                                                Style="{StaticResource SectionLabel}"
                                                VerticalAlignment="Center"/>
-                                    <ToggleButton IsChecked="{Binding SelectedChannel.IsScalingActive}"
+                                    <ToggleButton AutomationProperties.AutomationId="ScalingActiveToggle"
+                                                  IsChecked="{Binding SelectedChannel.IsScalingActive}"
                                                   Style="{StaticResource DarkToggleSwitch}"
                                                   HorizontalAlignment="Right"
                                                   VerticalAlignment="Center"/>
@@ -807,7 +808,8 @@
                                         CornerRadius="3"
                                         Padding="10,0"
                                         IsEnabled="{Binding SelectedChannel.IsScalingActive}">
-                                    <TextBox Text="{Binding SelectedChannel.ScaleExpression,
+                                    <TextBox AutomationProperties.AutomationId="ScaleExpressionInput"
+                                             Text="{Binding SelectedChannel.ScaleExpression,
                                                                     UpdateSourceTrigger=PropertyChanged,
                                                                     Delay=300}"
                                              Background="Transparent"
@@ -823,7 +825,8 @@
                                            FontSize="10"
                                            Foreground="{StaticResource TextTertiary}"
                                            Margin="0,6,0,0"/>
-                                <TextBlock Text="INVALID EXPRESSION"
+                                <TextBlock AutomationProperties.AutomationId="InvalidExpressionText"
+                                           Text="INVALID EXPRESSION"
                                            FontSize="10"
                                            FontWeight="SemiBold"
                                            Foreground="#F43F5E"
