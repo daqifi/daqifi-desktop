@@ -1636,10 +1636,32 @@ public abstract class DaqifiAppFixture
         MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(INVALID_EXPRESSION_TEXT_ID)) != null;
 
     /// <summary>
+    /// Waits (polling) until <see cref="IsInvalidExpressionWarningShown"/> matches
+    /// <paramref name="shown"/> — the expression box's binding commits on a 300 ms
+    /// <c>Delay</c>, so a one-shot check right after setting it can race the commit/re-render.
+    /// </summary>
+    protected void WaitForInvalidExpressionWarning(bool shown, TimeSpan timeout)
+    {
+        Retry.WhileFalse(
+            () => IsInvalidExpressionWarningShown() == shown,
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"The INVALID EXPRESSION warning did not become {(shown ? "visible" : "hidden")} " +
+                $"within {timeout.TotalSeconds}s.");
+    }
+
+    /// <summary>
     /// Reads every analog channel tile's displayed value (e.g. "1.234 V") on the Channels pane,
     /// in tile order, parsed as a double. Filters out non-analog tile values (e.g. "HIGH"/"LOW"
     /// on a digital-output tile), so index 0 is always the first active analog channel —
-    /// consistent with <see cref="OpenFirstChannelSettingsDrawer"/>'s target.
+    /// consistent with <see cref="OpenFirstChannelSettingsDrawer"/>'s target. Parses with
+    /// <see cref="CultureInfo.CurrentCulture"/> to match the formatting the UI actually used
+    /// (<c>ChannelTileViewModel.Value</c> interpolates <c>{sample.Value:F3}</c>, which formats
+    /// under the process's current culture, not invariant) — otherwise a non-"." decimal
+    /// separator locale would throw or silently misparse.
     /// </summary>
     protected double[] ReadAnalogChannelTileValues()
     {
@@ -1648,7 +1670,7 @@ public abstract class DaqifiAppFixture
             .Select(e => e.Name)
             .Where(n => n.EndsWith(" V", StringComparison.Ordinal))
             .Select(n => double.Parse(
-                n[..^2], NumberStyles.Float, CultureInfo.InvariantCulture))
+                n[..^2], NumberStyles.Float, CultureInfo.CurrentCulture))
             .ToArray();
     }
 

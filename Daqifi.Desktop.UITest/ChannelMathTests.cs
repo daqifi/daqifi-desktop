@@ -17,40 +17,51 @@ namespace Daqifi.Desktop.UITest;
 [TestClass]
 public class ChannelMathTests : DaqifiAppFixture
 {
+    /// <summary>
+    /// Sets <c>x * 10</c> on an enabled analog channel while it streams and asserts the
+    /// displayed tile value scales to ~10x its pre-scaling baseline, with no INVALID EXPRESSION
+    /// warning.
+    /// </summary>
     [TestMethod]
     [TestCategory("Ui")]
     [TestCategory("RequiresDevice")]
     public void ChannelMath_AppliesXTimes10Scaling_ScalesDisplayedValue()
     {
-        // Arrange — connect, enable the analog channels, and start a brief logging session so
-        // the device actually streams samples (tile values are otherwise frozen/empty).
+        // Arrange — connect and enable the analog channels.
         var transport = ResolveTransport();
         ConnectFirstDevice(transport);
         var activeCount = EnableAllAnalogChannels();
         Assert.IsTrue(activeCount > 0, "Expected at least one active analog channel to test scaling on.");
-        StartLogging();
 
-        var channelName = OpenFirstChannelSettingsDrawer();
-
+        // Cleanup flags: only undo what actually started, so a failure partway through setup
+        // doesn't skip cleanup for the steps that DID run (and doesn't attempt to undo ones that
+        // didn't).
+        var loggingStarted = false;
+        var drawerOpened = false;
         try
         {
-            // Act — capture the raw (unscaled) baseline before touching scaling. Averaged over
-            // several readings to smooth single-sample ADC noise.
-            var baseline = SampleFirstAnalogChannelValue();
+            // Arrange (cont'd) — start a brief logging session so the device actually streams
+            // samples (tile values are otherwise frozen/empty), then open the first analog
+            // channel's settings drawer.
+            StartLogging();
+            loggingStarted = true;
+            var channelName = OpenFirstChannelSettingsDrawer();
+            drawerOpened = true;
 
-            // Act — apply x * 10 scaling. The expression box is disabled until scaling is
-            // switched on (IsEnabled binds to IsScalingActive), so the toggle must go first.
+            // Act — capture the raw (unscaled) baseline, apply x * 10 scaling (the expression box
+            // is disabled until scaling is switched on — IsEnabled binds to IsScalingActive, so
+            // the toggle must go first), and capture the scaled reading the same way.
+            var baseline = SampleFirstAnalogChannelValue();
             SetScalingActiveInDrawer(true);
             SetScaleExpressionInDrawer("x * 10");
+            WaitForInvalidExpressionWarning(shown: false, TimeSpan.FromSeconds(5));
+            var scaled = SampleFirstAnalogChannelValue();
 
             // Assert — the expression is valid; no "INVALID EXPRESSION" warning.
             Assert.IsFalse(
                 IsInvalidExpressionWarningShown(),
                 $"'x * 10' should be a valid expression for channel '{channelName}', but the drawer " +
                 "shows INVALID EXPRESSION.");
-
-            // Act — capture the scaled reading the same way.
-            var scaled = SampleFirstAnalogChannelValue();
 
             // Assert — the displayed value scaled ~10x. Tolerance is the larger of a fixed floor
             // (covers a near-zero baseline, where x*10 noise is still small in absolute terms)
@@ -67,43 +78,61 @@ public class ChannelMathTests : DaqifiAppFixture
         }
         finally
         {
-            CloseChannelSettingsDrawer();
-            StopLogging();
-            DeleteNewestLoggedSession();
+            if (drawerOpened)
+            {
+                CloseChannelSettingsDrawer();
+            }
+
+            if (loggingStarted)
+            {
+                StopLogging();
+                DeleteNewestLoggedSession();
+            }
         }
     }
 
+    /// <summary>
+    /// Sets a deliberately invalid expression on an enabled analog channel while it streams and
+    /// asserts the drawer surfaces the INVALID EXPRESSION warning while the displayed value keeps
+    /// tracking raw (unscaled) samples — proving <c>HasValidExpression == false</c> disables
+    /// scaling without freezing or corrupting the tile.
+    /// </summary>
     [TestMethod]
     [TestCategory("Ui")]
     [TestCategory("RequiresDevice")]
     public void ChannelMath_InvalidExpression_DisablesScaling_RawValuesFlow()
     {
-        // Arrange — connect, enable the analog channels, and start a brief logging session.
+        // Arrange — connect and enable the analog channels.
         var transport = ResolveTransport();
         ConnectFirstDevice(transport);
         var activeCount = EnableAllAnalogChannels();
         Assert.IsTrue(activeCount > 0, "Expected at least one active analog channel to test scaling on.");
-        StartLogging();
 
-        var channelName = OpenFirstChannelSettingsDrawer();
-
+        // Cleanup flags: only undo what actually started (cf. the sibling test above).
+        var loggingStarted = false;
+        var drawerOpened = false;
         try
         {
-            // Act — capture the raw baseline before scaling is touched.
-            var baseline = SampleFirstAnalogChannelValue();
+            // Arrange (cont'd) — start a brief logging session and open the drawer.
+            StartLogging();
+            loggingStarted = true;
+            var channelName = OpenFirstChannelSettingsDrawer();
+            drawerOpened = true;
 
-            // Act — turn scaling on with a deliberately invalid expression.
+            // Act — capture the raw baseline, then turn scaling on with a deliberately invalid
+            // expression and capture the reading again while it is active.
+            var baseline = SampleFirstAnalogChannelValue();
             SetScalingActiveInDrawer(true);
             SetScaleExpressionInDrawer("x *");
+            WaitForInvalidExpressionWarning(shown: true, TimeSpan.FromSeconds(5));
+            var whileInvalid = SampleFirstAnalogChannelValue();
 
-            // Assert — the drawer surfaces the invalid-expression warning (HasValidExpression false).
+            // Assert — the drawer surfaced the invalid-expression warning (HasValidExpression
+            // false).
             Assert.IsTrue(
                 IsInvalidExpressionWarningShown(),
                 $"Channel '{channelName}' with an invalid expression ('x *') should show " +
                 "INVALID EXPRESSION, but the warning is not present.");
-
-            // Act — capture the reading again while the invalid expression is active.
-            var whileInvalid = SampleFirstAnalogChannelValue();
 
             // Assert — raw (unscaled) values are still flowing: the reading tracks the original
             // baseline (ratio ~1x), not a 10x-or-error transform, and scaling did not freeze the
@@ -119,9 +148,16 @@ public class ChannelMathTests : DaqifiAppFixture
         }
         finally
         {
-            CloseChannelSettingsDrawer();
-            StopLogging();
-            DeleteNewestLoggedSession();
+            if (drawerOpened)
+            {
+                CloseChannelSettingsDrawer();
+            }
+
+            if (loggingStarted)
+            {
+                StopLogging();
+                DeleteNewestLoggedSession();
+            }
         }
     }
 }
