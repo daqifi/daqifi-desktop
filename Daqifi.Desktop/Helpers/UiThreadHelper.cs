@@ -28,12 +28,18 @@ internal static class UiThreadHelper
             return;
         }
 
+        if (dispatcher.HasShutdownStarted)
+        {
+            if (failureLogMessage != null)
+            {
+                AppLogger.Instance.Warning(failureLogMessage);
+            }
+            return;
+        }
+
         try
         {
-            if (!dispatcher.HasShutdownStarted)
-            {
-                dispatcher.BeginInvoke(action);
-            }
+            dispatcher.BeginInvoke(action);
         }
         catch (Exception ex)
         {
