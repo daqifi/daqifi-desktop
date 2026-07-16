@@ -1054,6 +1054,17 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         OnPropertyChanged(nameof(SdCardFiles));
     }
 
+    /// <inheritdoc />
+    public SdCardDeviceConfiguration? GetSdCardParseConfiguration()
+    {
+        if (ConnectionType != ConnectionType.Usb || CoreDeviceForSd is null)
+        {
+            return null;
+        }
+
+        return SdCardDeviceConfiguration.FromDevice(CoreDeviceForSd);
+    }
+
     /// <summary>
     /// Returns the given Core device, or throws <see cref="InvalidOperationException"/> with
     /// <paramref name="unavailableMessage"/> when the operation is not available.

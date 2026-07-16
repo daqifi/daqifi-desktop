@@ -103,7 +103,7 @@ public class SdCardSessionImporter
             // Build a ConfigurationOverride from the connected device's channels
             // so the parser has calibration, resolution, and port range data for
             // scaling raw ADC values to real voltage.
-            var deviceConfig = BuildDeviceConfiguration(device);
+            var deviceConfig = device.GetSdCardParseConfiguration();
             var parseOptions = new SdCardParseOptions
             {
                 ConfigurationOverride = deviceConfig
@@ -368,40 +368,6 @@ public class SdCardSessionImporter
         using var transaction = context.Database.BeginTransaction();
         context.BulkInsert(batch);
         transaction.Commit();
-    }
-
-    /// <summary>
-    /// Builds an <see cref="SdCardDeviceConfiguration"/> from the connected device's channel data.
-    /// This provides calibration, resolution, port range, and internal scale values so the
-    /// SD card parser can convert raw ADC counts to real voltage values.
-    /// </summary>
-    private static SdCardDeviceConfiguration? BuildDeviceConfiguration(IStreamingDevice device)
-    {
-        var analogChannels = device.DataChannels
-            .OfType<AnalogChannel>()
-            .ToList();
-
-        if (analogChannels.Count == 0)
-        {
-            return null;
-        }
-
-        var digitalCount = device.DataChannels
-            .Count(ch => ch.Type == Daqifi.Core.Channel.ChannelType.Digital);
-
-        return new SdCardDeviceConfiguration(
-            AnalogPortCount: analogChannels.Count,
-            DigitalPortCount: digitalCount,
-            TimestampFrequency: 0, // Let the parser use file-embedded or fallback frequency
-            DeviceSerialNumber: device.DeviceSerialNo,
-            DevicePartNumber: device.DevicePartNumber,
-            FirmwareRevision: device.DeviceVersion,
-            CalibrationValues: analogChannels
-                .Select(ch => (ch.CalibrationMValue, ch.CalibrationBValue))
-                .ToArray(),
-            Resolution: analogChannels[0].Resolution,
-            PortRange: analogChannels.Select(ch => ch.PortRange).ToArray(),
-            InternalScaleM: analogChannels.Select(ch => ch.InternalScaleMValue).ToArray());
     }
 
     private static void AssignChannelColors(

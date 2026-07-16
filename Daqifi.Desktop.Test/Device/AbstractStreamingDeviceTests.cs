@@ -751,6 +751,43 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
+    public void GetSdCardParseConfiguration_WithAnalogChannels_ReturnsCoreConfiguration()
+    {
+        var device = new SdCardLoggingTestDevice();
+        device.PopulateCoreChannels(BuildStatusMessage("1.0.0", 1.5f));
+
+        var config = device.GetSdCardParseConfiguration();
+
+        Assert.IsNotNull(config, "A device with analog channels should produce a configuration.");
+        Assert.AreEqual(1, config.AnalogPortCount);
+        Assert.AreEqual(1, config.DigitalPortCount);
+        Assert.AreEqual(1.5d, config.CalibrationValues![0].Slope, 0.001d);
+        Assert.AreEqual(0u, config.TimestampFrequency,
+            "TimestampFrequency should be 0 so the parser falls back to file-embedded/device frequency.");
+    }
+
+    [TestMethod]
+    public void GetSdCardParseConfiguration_WithoutCoreDevice_ReturnsNull()
+    {
+        var device = new TestStreamingDevice();
+
+        Assert.IsNull(device.GetSdCardParseConfiguration(),
+            "A device with no Core device for SD operations should return null.");
+    }
+
+    [TestMethod]
+    public void GetSdCardParseConfiguration_WhenNotUsbConnected_ReturnsNull()
+    {
+        // A Core SD device could theoretically still be set on a non-USB connection type;
+        // the USB gate must be explicit rather than relying on that being impossible.
+        var device = new NonUsbSdCoreTestDevice();
+        device.PopulateCoreChannels(BuildStatusMessage("1.0.0", 1.5f));
+
+        Assert.IsNull(device.GetSdCardParseConfiguration(),
+            "SD parse configuration should only be available over a USB connection.");
+    }
+
+    [TestMethod]
     public void SwitchMode_WhenEnteringLogToDevice_DoesNotSendInterfaceCommands()
     {
         // Core's StartSdCardLoggingAsync now handles SD interface setup,
@@ -1044,9 +1081,49 @@ public class AbstractStreamingDeviceTests
 
         public override bool Write(string command) => true;
 
+        public void PopulateCoreChannels(DaqifiOutMessage message)
+        {
+            _coreDevice.PopulateChannelsFromStatus(message);
+        }
+
         protected override void SendMessage(IOutboundMessage<string> message)
         {
             SentCommands.Add($"desktop:{message.Data}");
+        }
+    }
+
+    /// <summary>
+    /// A non-USB-connected device that still has a Core device wired up for SD operations,
+    /// so tests can prove <see cref="AbstractStreamingDevice.GetSdCardParseConfiguration"/>
+    /// gates on <see cref="ConnectionType"/> rather than only on <c>CoreDeviceForSd</c>.
+    /// </summary>
+    private sealed class NonUsbSdCoreTestDevice : AbstractStreamingDevice
+    {
+        private readonly RecordingCoreStreamingDevice _coreDevice;
+
+        public NonUsbSdCoreTestDevice()
+        {
+            _coreDevice = new RecordingCoreStreamingDevice([], throwOnCommandData: null);
+            _coreDevice.Connect();
+        }
+
+        public override ConnectionType ConnectionType => ConnectionType.Wifi;
+
+        protected override CoreStreamingDevice? CoreDeviceForSd => _coreDevice;
+
+        public override bool Connect() => true;
+
+        public override bool Disconnect() => true;
+
+        public override bool Write(string command) => true;
+
+        public void PopulateCoreChannels(DaqifiOutMessage message)
+        {
+            _coreDevice.PopulateChannelsFromStatus(message);
+        }
+
+        protected override void SendMessage(IOutboundMessage<string> message)
+        {
         }
     }
 

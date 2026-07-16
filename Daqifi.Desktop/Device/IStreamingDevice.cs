@@ -199,4 +199,12 @@ public interface IStreamingDevice : IDevice
     /// Deletes a file from the device's SD card.
     /// </summary>
     Task DeleteSdCardFileAsync(string fileName, CancellationToken ct = default);
+
+    /// <summary>
+    /// Builds an <see cref="SdCardDeviceConfiguration"/> from this device's channel
+    /// configuration — calibration, resolution, port range, and internal scale — so the
+    /// SD card parser can convert raw ADC counts to real voltage values. Returns <c>null</c>
+    /// when the device has no analog channels or is not connected via USB.
+    /// </summary>
+    SdCardDeviceConfiguration? GetSdCardParseConfiguration();
 }
