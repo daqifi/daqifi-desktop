@@ -267,24 +267,26 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
 
         await StopSerialDiscoveryAsync();
 
+        // Check status after each device rather than only once at the end: ConnectionStatus is a
+        // single shared field on ConnectionManager, so with multi-select (Extended) a later
+        // device's success would otherwise overwrite an earlier device's failure and the dialog
+        // would close despite a failed connect. A discovered device can still fail here (e.g. one
+        // left streaming over WiFi returns a SCPI error when told to switch to USB — issue #589),
+        // and without this check the dialog would close silently with no feedback to the user.
         foreach (var device in selectedDevices)
         {
             await ConnectionManager.Instance.Connect(device);
-        }
 
-        // Post-connect status check mirrors the manual-serial path: a discovered device can
-        // still fail to connect (e.g. a device left streaming over WiFi returns a SCPI error
-        // when told to switch to USB — issue #589). Without this the dialog would close
-        // silently and the user would have no idea the connection failed.
-        if (ConnectionManager.Instance.ConnectionStatus == DAQiFiConnectionStatus.Error)
-        {
-            var deviceLabel = selectedDevices.Count == 1 ? $"'{selectedDevices[0].Name}'" : "the selected device(s)";
-            SerialConnectError =
-                $"Could not connect to {deviceLabel}. " +
-                "The device may be in use by another application or not responding.";
-            // Restart discovery so the dialog keeps finding devices after a failed connect attempt.
-            StartSerialDiscovery();
-            return;
+            var status = ConnectionManager.Instance.ConnectionStatus;
+            if (status != DAQiFiConnectionStatus.Connected && status != DAQiFiConnectionStatus.AlreadyConnected)
+            {
+                SerialConnectError =
+                    $"Could not connect to '{device.Name}'. " +
+                    "The device may be in use by another application or not responding.";
+                // Restart discovery so the dialog keeps finding devices after a failed connect attempt.
+                StartSerialDiscovery();
+                return;
+            }
         }
 
         RaiseCloseRequested();

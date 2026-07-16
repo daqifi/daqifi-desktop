@@ -45,12 +45,30 @@ public class SerialStreamingDeviceLogConnectFailureTests
     }
 
     [TestMethod]
+    public void IsScpiInitializationError_DoesNotMatchUnrelatedScpiErrorMention()
+    {
+        // Regression guard: the predicate matches Core's full known prefix, not the bare
+        // substring "SCPI error" — an unrelated failure that happens to mention a SCPI error in
+        // some other context must not be misclassified as the initialization error.
+        var ex = new InvalidOperationException("SCPI error while doing something unrelated to initialization.");
+
+        Assert.IsFalse(SerialStreamingDevice.IsScpiInitializationError(ex));
+    }
+
+    [TestMethod]
     public void LogConnectFailure_WithScpiInitializationError_DoesNotThrow()
     {
         var device = new TestableSerialStreamingDevice("COM_TEST_589");
         var ex = new InvalidOperationException(CORE_SCPI_INIT_ERROR_MESSAGE);
 
-        device.ExposedLogConnectFailure(ex);
+        try
+        {
+            device.ExposedLogConnectFailure(ex);
+        }
+        catch (Exception caught)
+        {
+            Assert.Fail($"LogConnectFailure must not throw for the SCPI-init-error case, but threw: {caught}");
+        }
     }
 
     [TestMethod]
@@ -58,7 +76,14 @@ public class SerialStreamingDeviceLogConnectFailureTests
     {
         var device = new TestableSerialStreamingDevice("COM_TEST_589");
 
-        device.ExposedLogConnectFailure(new InvalidOperationException("Transport exploded."));
+        try
+        {
+            device.ExposedLogConnectFailure(new InvalidOperationException("Transport exploded."));
+        }
+        catch (Exception caught)
+        {
+            Assert.Fail($"LogConnectFailure must not throw for the default case, but threw: {caught}");
+        }
     }
 
     private sealed class TestableSerialStreamingDevice(string portName) : SerialStreamingDevice(portName)

@@ -69,15 +69,25 @@ public class ConnectionDialogViewModelCloseTests
     public async Task ConnectSerialCommand_WhenConnectFails_SetsSerialConnectErrorAndDoesNotRaiseCloseRequested()
     {
         var viewModel = CreateViewModel();
-        var device = new SerialStreamingDevice(NONEXISTENT_PORT_NAME);
-        var closeRaised = SubscribeToClose(viewModel);
+        try
+        {
+            var device = new SerialStreamingDevice(NONEXISTENT_PORT_NAME);
+            var closeRaised = SubscribeToClose(viewModel);
 
-        await viewModel.ConnectSerialCommand.ExecuteAsync(new[] { device });
+            await viewModel.ConnectSerialCommand.ExecuteAsync(new[] { device });
 
-        Assert.IsFalse(closeRaised(),
-            "CloseRequested should not fire when the selected device fails to connect.");
-        Assert.IsNotNull(viewModel.SerialConnectError,
-            "SerialConnectError should be set when the selected device fails to connect.");
+            Assert.IsFalse(closeRaised(),
+                "CloseRequested should not fire when the selected device fails to connect.");
+            Assert.IsNotNull(viewModel.SerialConnectError,
+                "SerialConnectError should be set when the selected device fails to connect.");
+        }
+        finally
+        {
+            // The error path restarts serial discovery (ContinuousDeviceFinder) so the dialog
+            // keeps finding devices after a failed attempt — tear it down or it keeps running
+            // across tests and can cause flakiness/resource contention on CI.
+            viewModel.Close();
+        }
     }
 
     [TestMethod]

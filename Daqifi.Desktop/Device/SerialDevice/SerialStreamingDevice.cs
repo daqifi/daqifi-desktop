@@ -144,11 +144,13 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
 
     /// <summary>
     /// True when <paramref name="ex"/> is Core's SCPI-error-during-initialization
-    /// <see cref="InvalidOperationException"/> (issue #589). Extracted as a pure predicate so
-    /// the classification is unit-testable without exercising the logger.
+    /// <see cref="InvalidOperationException"/> (issue #589). Matched on Core's full known prefix
+    /// rather than the bare substring "SCPI error" so an unrelated InvalidOperationException that
+    /// happens to mention a SCPI error elsewhere in its message isn't misclassified. Extracted as
+    /// a pure predicate so the classification is unit-testable without exercising the logger.
     /// </summary>
     internal static bool IsScpiInitializationError(Exception ex) =>
-        ex.Message.Contains("SCPI error", StringComparison.OrdinalIgnoreCase);
+        ex.Message.Contains("SCPI error during initialization", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Sends a message to the device using Core's DaqifiDevice.
