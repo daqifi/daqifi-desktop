@@ -122,11 +122,35 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
                 // #517, #632).
                 AppLogger.Warning(ex, $"Device on {PortName} did not respond within the connection timeout");
                 break;
+            case InvalidOperationException when IsScpiInitializationError(ex):
+                // Core's InitializeAsync throws a bare InvalidOperationException, message
+                // "Device returned a SCPI error during initialization: ...", when any command in
+                // its init sequence (echo/stop/power/stream-format/sysinfo, including
+                // "SYSTem:STReam:INTerface 0" which sets the stream interface to USB) gets a SCPI
+                // -200 execution error back. Firmware persists the last stream interface across
+                // sessions, so a device previously left streaming over WiFi is a common trigger on
+                // the very next USB connect, but any command in the sequence can hit this
+                // transient/timing condition. Matched by message substring (Core doesn't yet throw
+                // a typed exception for this — daqifi-core issue tracks that) so other
+                // InvalidOperationException bugs still hit Error. Device/environmental condition,
+                // not an app bug (issue #589).
+                AppLogger.Warning(ex, $"Device on {PortName} returned a SCPI error during initialization");
+                break;
             default:
                 AppLogger.Error(ex, $"Failed to connect on {PortName}");
                 break;
         }
     }
+
+    /// <summary>
+    /// True when <paramref name="ex"/> is Core's SCPI-error-during-initialization
+    /// <see cref="InvalidOperationException"/> (issue #589). Matched on Core's full known prefix
+    /// rather than the bare substring "SCPI error" so an unrelated InvalidOperationException that
+    /// happens to mention a SCPI error elsewhere in its message isn't misclassified. Extracted as
+    /// a pure predicate so the classification is unit-testable without exercising the logger.
+    /// </summary>
+    internal static bool IsScpiInitializationError(Exception ex) =>
+        ex.Message.Contains("SCPI error during initialization", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Sends a message to the device using Core's DaqifiDevice.
