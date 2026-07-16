@@ -1057,7 +1057,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// <inheritdoc />
     public SdCardDeviceConfiguration? GetSdCardParseConfiguration()
     {
-        return CoreDeviceForSd is null ? null : SdCardDeviceConfiguration.FromDevice(CoreDeviceForSd);
+        if (ConnectionType != ConnectionType.Usb || CoreDeviceForSd is null)
+        {
+            return null;
+        }
+
+        return SdCardDeviceConfiguration.FromDevice(CoreDeviceForSd);
     }
 
     /// <summary>
