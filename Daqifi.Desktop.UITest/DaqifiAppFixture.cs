@@ -102,6 +102,17 @@ public abstract class DaqifiAppFixture
     private const string PWM_FREQUENCY_INPUT_ID = "PwmFrequencyInput";
 
     /// <summary>
+    /// The settings-drawer channel-math (scaling) controls (issue #556), analog-only. The
+    /// toggle is IsChecked-driven (gotcha #12-safe); the expression box commits after a 300 ms
+    /// Delay (like the sampling-frequency slider's 500 ms, but on a TextBox rather than
+    /// focus-loss); the "INVALID EXPRESSION" text is a Collapsed-when-hidden TextBlock (gotcha
+    /// #19), so a null lookup means the expression is currently valid (or scaling is off).
+    /// </summary>
+    private const string SCALING_ACTIVE_TOGGLE_ID = "ScalingActiveToggle";
+    private const string SCALE_EXPRESSION_INPUT_ID = "ScaleExpressionInput";
+    private const string INVALID_EXPRESSION_TEXT_ID = "InvalidExpressionText";
+
+    /// <summary>
     /// The value line rendered on every tile that shows one (shared literal id). Lets the
     /// harness read what a tile displays — e.g. "PWM 45%" on a PWM-active tile — without
     /// relying on the tile Border's {Binding Name} id, which can evaluate empty.
@@ -1548,6 +1559,146 @@ public abstract class DaqifiAppFixture
             timeoutMessage:
                 $"A channel tile still shows a value starting with '{forbiddenPrefix}'. " +
                 $"Values seen: [{string.Join(", ", lastSeen)}]");
+    }
+    #endregion
+
+    #region Channel Settings Drawer Helpers (Channel Math, issue #556)
+    /// <summary>
+    /// Opens the channel-settings drawer of the FIRST channel tile on the Channels pane and
+    /// returns the channel name shown in the drawer header. Sections render AI → DI → DO, so
+    /// with <see cref="EnableAllAnalogChannels"/> having been called first, the first tile is
+    /// an active analog channel — the SCALING section (analog-only) is therefore present.
+    /// </summary>
+    protected string OpenFirstChannelSettingsDrawer()
+    {
+        NavigateToTab(CHANNELS_TAB_TEXT);
+
+        var gears = Retry.WhileEmpty(
+            () => MainWindow.FindAllDescendants(cf => cf.ByAutomationId(CHANNEL_SETTINGS_BUTTON_ID)),
+            timeout: TimeSpan.FromSeconds(30),
+            interval: TimeSpan.FromMilliseconds(300),
+            throwOnTimeout: true,
+            timeoutMessage:
+                "No channel-settings gear buttons appeared on the Channels pane. " +
+                "Ensure a DAQiFi device is connected and reporting channels.").Result!;
+
+        gears[0].AsButton().Invoke();
+
+        var header = FindByAutomationId(CHANNEL_SETTINGS_NAME_ID, timeoutSeconds: 10);
+        return Retry.WhileEmpty(
+            () => header.Name,
+            timeout: TimeSpan.FromSeconds(10),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: "The channel-settings drawer header never reported a channel name.").Result!;
+    }
+
+    /// <summary>
+    /// Switches channel math (scaling) on or off via the drawer's SCALING toggle. The toggle is
+    /// IsChecked-driven (no bound Command), so the TogglePattern is sufficient (gotcha #12).
+    /// </summary>
+    protected void SetScalingActiveInDrawer(bool enabled)
+    {
+        var toggle = FindByAutomationId(SCALING_ACTIVE_TOGGLE_ID, timeoutSeconds: 10).AsToggleButton();
+        var target = enabled ? ToggleState.On : ToggleState.Off;
+        if (toggle.Patterns.Toggle.Pattern.ToggleState.Value != target)
+        {
+            toggle.Patterns.Toggle.Pattern.Toggle();
+        }
+
+        Retry.WhileFalse(
+            () => toggle.Patterns.Toggle.Pattern.ToggleState.Value == target,
+            timeout: TimeSpan.FromSeconds(5),
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            timeoutMessage: $"The SCALING toggle did not report {(enabled ? "On" : "Off")}.");
+    }
+
+    /// <summary>
+    /// Sets the drawer's scaling-expression box via the ValuePattern, then waits out the
+    /// TextBox binding's 300 ms Delay (a deliberate, documented sleep — the commit is
+    /// time-based, cf. the PWM duty slider's 500 ms Delay).
+    /// </summary>
+    protected void SetScaleExpressionInDrawer(string expression)
+    {
+        var box = FindByAutomationId(SCALE_EXPRESSION_INPUT_ID, timeoutSeconds: 10).AsTextBox();
+        box.Patterns.Value.Pattern.SetValue(expression);
+        Thread.Sleep(600);
+    }
+
+    /// <summary>
+    /// Reads whether the drawer's "INVALID EXPRESSION" warning is currently shown. The
+    /// TextBlock's Visibility is driven by a MultiDataTrigger (scaling on + invalid expression);
+    /// a Collapsed element is pruned from the UIA tree (gotcha #19), so a null lookup means the
+    /// warning is not shown (either the expression is valid, or scaling is off).
+    /// </summary>
+    protected bool IsInvalidExpressionWarningShown() =>
+        MainWindow.FindFirstDescendant(cf => cf.ByAutomationId(INVALID_EXPRESSION_TEXT_ID)) != null;
+
+    /// <summary>
+    /// Waits (polling) until <see cref="IsInvalidExpressionWarningShown"/> matches
+    /// <paramref name="shown"/> — the expression box's binding commits on a 300 ms
+    /// <c>Delay</c>, so a one-shot check right after setting it can race the commit/re-render.
+    /// </summary>
+    protected void WaitForInvalidExpressionWarning(bool shown, TimeSpan timeout)
+    {
+        Retry.WhileFalse(
+            () => IsInvalidExpressionWarningShown() == shown,
+            timeout: timeout,
+            interval: TimeSpan.FromMilliseconds(200),
+            throwOnTimeout: true,
+            ignoreException: true,
+            timeoutMessage:
+                $"The INVALID EXPRESSION warning did not become {(shown ? "visible" : "hidden")} " +
+                $"within {timeout.TotalSeconds}s.");
+    }
+
+    /// <summary>
+    /// Reads every analog channel tile's displayed value (e.g. "1.234 V") on the Channels pane,
+    /// in tile order, parsed as a double. Filters out non-analog tile values (e.g. "HIGH"/"LOW"
+    /// on a digital-output tile), so index 0 is always the first active analog channel —
+    /// consistent with <see cref="OpenFirstChannelSettingsDrawer"/>'s target. Parses with
+    /// <see cref="CultureInfo.CurrentCulture"/> to match the formatting the UI actually used
+    /// (<c>ChannelTileViewModel.Value</c> interpolates <c>{sample.Value:F3}</c>, which formats
+    /// under the process's current culture, not invariant) — otherwise a non-"." decimal
+    /// separator locale would throw or silently misparse.
+    /// </summary>
+    protected double[] ReadAnalogChannelTileValues()
+    {
+        return MainWindow
+            .FindAllDescendants(cf => cf.ByAutomationId(CHANNEL_TILE_VALUE_TEXT_ID))
+            .Select(e => e.Name)
+            .Where(n => n.EndsWith(" V", StringComparison.Ordinal))
+            .Select(n => double.Parse(
+                n[..^2], NumberStyles.Float, CultureInfo.CurrentCulture))
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Samples the first active analog channel tile's displayed value <paramref name="samples"/>
+    /// times, <paramref name="interval"/> apart, and returns the mean — smoothing single-reading
+    /// ADC noise so a scaling assertion compares like-for-like windows rather than two instants.
+    /// </summary>
+    protected double SampleFirstAnalogChannelValue(int samples = 5, int intervalMs = 250)
+    {
+        var readings = new List<double>(samples);
+        for (var i = 0; i < samples; i++)
+        {
+            var values = ReadAnalogChannelTileValues();
+            if (values.Length > 0)
+            {
+                readings.Add(values[0]);
+            }
+
+            Thread.Sleep(intervalMs);
+        }
+
+        Assert.IsTrue(
+            readings.Count > 0,
+            "No analog channel tile reported a value while sampling — expected at least one " +
+            "active analog channel with the device streaming.");
+
+        return readings.Average();
     }
     #endregion
 
