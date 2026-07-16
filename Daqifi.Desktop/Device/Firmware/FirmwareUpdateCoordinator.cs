@@ -166,7 +166,7 @@ public class FirmwareUpdateCoordinator
 
             if (!coreDevice.IsConnected)
             {
-                _appLogger.Error($"Device {serialStreamingDevice.Name} is not connected. Cannot update firmware on a disconnected device.");
+                _appLogger.Warning($"Device {serialStreamingDevice.Name} is not connected. Cannot update firmware on a disconnected device.");
                 _host.Notifications.Add(new Notifications
                 {
                     Message = $"Please connect device {serialStreamingDevice.Name} before attempting firmware update.",
