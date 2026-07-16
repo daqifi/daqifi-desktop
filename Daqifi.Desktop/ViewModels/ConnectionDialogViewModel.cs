@@ -86,6 +86,14 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
 
     public SerialStreamingDevice ManualSerialDevice { get; set; }
 
+    /// <summary>
+    /// User-facing error message for the discovered-device USB tab. Non-null when a selected
+    /// device failed to connect (e.g. it returns a SCPI error while switching its stream
+    /// interface to USB — issue #589). Cleared automatically at the start of the next attempt.
+    /// </summary>
+    [ObservableProperty]
+    private string? _serialConnectError;
+
     [ObservableProperty]
     private string? _manualIpAddress;
 
@@ -255,11 +263,30 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
         var selectedDevices = ToStreamingDevices(selectedItems);
         if (selectedDevices.Count == 0) { return; }
 
+        SerialConnectError = null;
+
         await StopSerialDiscoveryAsync();
 
+        // Check status after each device rather than only once at the end: ConnectionStatus is a
+        // single shared field on ConnectionManager, so with multi-select (Extended) a later
+        // device's success would otherwise overwrite an earlier device's failure and the dialog
+        // would close despite a failed connect. A discovered device can still fail here (e.g. one
+        // left streaming over WiFi returns a SCPI error when told to switch to USB — issue #589),
+        // and without this check the dialog would close silently with no feedback to the user.
         foreach (var device in selectedDevices)
         {
             await ConnectionManager.Instance.Connect(device);
+
+            var status = ConnectionManager.Instance.ConnectionStatus;
+            if (status != DAQiFiConnectionStatus.Connected && status != DAQiFiConnectionStatus.AlreadyConnected)
+            {
+                SerialConnectError =
+                    $"Could not connect to '{device.Name}'. " +
+                    "The device may be in use by another application or not responding.";
+                // Restart discovery so the dialog keeps finding devices after a failed connect attempt.
+                StartSerialDiscovery();
+                return;
+            }
         }
 
         RaiseCloseRequested();
