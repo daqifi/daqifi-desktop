@@ -2,6 +2,8 @@
 
 This is the north star for DAQiFi Desktop's visual and interaction design. It is not a style guide — there are no hex codes, widths, or control specs here. It is the set of principles that decisions should be measured against. When something feels off, come back to this document.
 
+For the concrete counterpart — which style key to use, what a button or field actually measures, the hex value behind each token — see **[style-guide.md](style-guide.md)**. This document says why; that one says what. If the two ever disagree, this one wins and the style guide is the bug.
+
 The application is an instrument. People use it to watch signals from hardware, not to admire an interface. Everything that follows flows from that.
 
 ## Principles

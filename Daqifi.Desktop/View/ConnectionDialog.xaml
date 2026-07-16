@@ -138,39 +138,8 @@
             </Setter>
         </Style>
 
-        <!-- ── Accent pill button ─────────────────────────────────────── -->
-        <Style x:Key="AccentPillButton" TargetType="Button">
-            <Setter Property="Background"       Value="{StaticResource Accent}"/>
-            <Setter Property="BorderBrush"      Value="{StaticResource Accent}"/>
-            <Setter Property="BorderThickness"  Value="1"/>
-            <Setter Property="Foreground"       Value="White"/>
-            <Setter Property="Padding"          Value="24,8"/>
-            <Setter Property="FontSize"         Value="11"/>
-            <Setter Property="FontWeight"       Value="SemiBold"/>
-            <Setter Property="Cursor"           Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="14"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background"  Value="#1EB3F0"/>
-                    <Setter Property="BorderBrush" Value="#1EB3F0"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.4"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+        <!-- This dialog's action buttons use DialogAccentPillButton from
+             /Resources/Controls.xaml (it was the source for that spec). See docs/style-guide.md. -->
 
         <!-- ── Field label ────────────────────────────────────────────── -->
         <Style x:Key="FieldLabel" TargetType="TextBlock">
@@ -180,7 +149,11 @@
             <Setter Property="Margin"       Value="0,0,0,6"/>
         </Style>
 
-        <!-- ── Dark text field ────────────────────────────────────────── -->
+        <!-- ── Dark text field ──────────────────────────────────────────
+             A two-part composite: this Border carries the field's border/background/padding,
+             and DarkTextFieldInput below is the borderless TextBox that sits inside it. The
+             pair adds up to the canonical field in /Resources/Controls.xaml — it is NOT that
+             style, so it must not reuse the DarkTextBox key (see docs/style-guide.md). -->
         <Style x:Key="DarkTextField" TargetType="Border">
             <Setter Property="Background"       Value="{StaticResource Surface}"/>
             <Setter Property="BorderBrush"      Value="{StaticResource BorderDim}"/>
@@ -189,7 +162,7 @@
             <Setter Property="Padding"          Value="10,0"/>
         </Style>
 
-        <Style x:Key="DarkTextBox" TargetType="TextBox">
+        <Style x:Key="DarkTextFieldInput" TargetType="TextBox">
             <Setter Property="Background"               Value="Transparent"/>
             <Setter Property="BorderThickness"          Value="0"/>
             <Setter Property="Foreground"               Value="{StaticResource TextPrimary}"/>
@@ -281,7 +254,7 @@
                             Padding="0,12,0,0" Margin="0,12,0,0">
                         <Button HorizontalAlignment="Right"
                                 AutomationProperties.AutomationId="ConnectButton_Wifi"
-                                Style="{StaticResource AccentPillButton}"
+                                Style="{StaticResource DialogAccentPillButton}"
                                 CommandParameter="{Binding ElementName=DeviceList, Path=SelectedItems}"
                                 Command="{Binding ConnectCommand}"
                                 Content="Connect"/>
@@ -303,7 +276,7 @@
                         <Border Style="{StaticResource DarkTextField}">
                             <TextBox Text="{Binding ManualIpAddress, UpdateSourceTrigger=PropertyChanged}"
                                      AutomationProperties.AutomationId="ManualIpInput"
-                                     Style="{StaticResource DarkTextBox}"/>
+                                     Style="{StaticResource DarkTextFieldInput}"/>
                         </Border>
                         <TextBlock Text="Enter the IP address or hostname of the DAQiFi device."
                                    FontSize="10" Foreground="{StaticResource TextTertiary}"
@@ -320,7 +293,7 @@
                             Padding="0,12,0,0" Margin="0,12,0,0">
                         <Button HorizontalAlignment="Right"
                                 AutomationProperties.AutomationId="ConnectButton_Manual"
-                                Style="{StaticResource AccentPillButton}"
+                                Style="{StaticResource DialogAccentPillButton}"
                                 Command="{Binding ConnectManualWifiCommand}"
                                 Content="Connect"/>
                     </Border>
@@ -401,7 +374,7 @@
                             Padding="0,12,0,0" Margin="0,12,0,0">
                         <Button HorizontalAlignment="Right"
                                 AutomationProperties.AutomationId="ConnectButton_Serial"
-                                Style="{StaticResource AccentPillButton}"
+                                Style="{StaticResource DialogAccentPillButton}"
                                 CommandParameter="{Binding ElementName=SerialList, Path=SelectedItems}"
                                 Command="{Binding ConnectSerialCommand}"
                                 Content="Connect"/>
@@ -423,7 +396,7 @@
                         <Border Style="{StaticResource DarkTextField}">
                             <TextBox Text="{Binding ManualPortName, UpdateSourceTrigger=PropertyChanged}"
                                      AutomationProperties.AutomationId="ManualPortInput"
-                                     Style="{StaticResource DarkTextBox}"/>
+                                     Style="{StaticResource DarkTextFieldInput}"/>
                         </Border>
                         <TextBlock Text="Enter the COM port name of the DAQiFi device (e.g. COM3)."
                                    FontSize="10" Foreground="{StaticResource TextTertiary}"
@@ -440,7 +413,7 @@
                             Padding="0,12,0,0" Margin="0,12,0,0">
                         <Button HorizontalAlignment="Right"
                                 AutomationProperties.AutomationId="ConnectButton_ManualSerial"
-                                Style="{StaticResource AccentPillButton}"
+                                Style="{StaticResource DialogAccentPillButton}"
                                 Command="{Binding ConnectManualSerialCommand}"
                                 Content="Connect"/>
                     </Border>
@@ -513,7 +486,7 @@
                             BorderBrush="{StaticResource BorderDim}" BorderThickness="0,1,0,0"
                             Padding="0,12,0,0" Margin="0,12,0,0">
                         <Button HorizontalAlignment="Right"
-                                Style="{StaticResource AccentPillButton}"
+                                Style="{StaticResource DialogAccentPillButton}"
                                 CommandParameter="{Binding ElementName=HidList, Path=SelectedItems}"
                                 Command="{Binding ConnectHidCommand}"
                                 Content="Open Firmware"/>

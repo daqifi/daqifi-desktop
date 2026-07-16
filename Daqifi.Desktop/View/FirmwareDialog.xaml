@@ -19,7 +19,7 @@
         </ResourceDictionary>
     </controls:MetroWindow.Resources>
 
-    <Grid Background="{StaticResource Surface}" TextElement.Foreground="{StaticResource TextPrimary}">
+    <Grid Margin="16" Background="{StaticResource Surface}" TextElement.Foreground="{StaticResource TextPrimary}">
         
         <!-- Before Upload -->
         <Grid Visibility="{Binding IsUploadComplete, Converter={StaticResource InvertedBoolToVis}}">
@@ -46,23 +46,33 @@
 
                     <!-- Or browse for a specific .hex file -->
                     <TextBlock Text="Or browse for a firmware file" Foreground="{StaticResource TextTertiary}" FontSize="11" Margin="2,12,2,4"/>
+                    <!-- Field-adjacent button: no explicit height, so it stretches to the
+                         field's 32px rather than needing to be kept in sync with it. -->
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="85"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBox Grid.Column="0" Height="34" VerticalAlignment="Top" Margin="0,0,5,0" Text="{Binding FirmwareFilePath, Mode=OneWay}"/>
-                        <Button Grid.Column="1" Content="Browse" Width="75" Height="34" VerticalAlignment="Top" Style="{StaticResource DarkSecondaryButton}" controls:ControlsHelper.ContentCharacterCasing="Normal" Command="{Binding BrowseFirmwarePathCommand}"/>
+                        <TextBox Grid.Column="0" Text="{Binding FirmwareFilePath, Mode=OneWay}"/>
+                        <Button Grid.Column="1" Content="Browse" Margin="8,0,0,0"
+                                Style="{StaticResource PillButton}"
+                                controls:ControlsHelper.ContentCharacterCasing="Normal"
+                                Command="{Binding BrowseFirmwarePathCommand}"/>
                     </Grid>
                 </StackPanel>
             </GroupBox>
 
             <Label Visibility="{Binding HasErrorOccured, Converter={StaticResource BoolToVis}}" Grid.Row="2" Content="Sorry, something went wrong uploading the firmware.  :(" HorizontalContentAlignment="Center" Foreground="{StaticResource StatusRed}"/>
 
-            <DockPanel Grid.Row="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" LastChildFill="True" Margin="5">
-                <Button Click="btnCancel_Click" Content="Cancel" Width="100" Height="30" Margin="0,0,10,0" Style="{StaticResource DarkSecondaryButton}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
-                <Button DockPanel.Dock="Bottom" Content="Upload" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal" Command="{Binding UploadFirmwareCommand}"/>
-            </DockPanel>
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,16,0,0">
+                <Button Click="btnCancel_Click" Content="Cancel" Margin="0,0,8,0"
+                        Style="{StaticResource DialogPillButton}"
+                        controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                <Button Content="Upload"
+                        Style="{StaticResource DialogAccentPillButton}"
+                        controls:ControlsHelper.ContentCharacterCasing="Normal"
+                        Command="{Binding UploadFirmwareCommand}"/>
+            </StackPanel>
 
             <Grid Grid.RowSpan="4" Background="{StaticResource Scrim}" Visibility="{Binding IsFirmwareUploading, Converter={StaticResource BoolToVis}}" >
                 <Grid.RowDefinitions>
@@ -92,9 +102,11 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <Label Grid.Row="2" Content="Upload Complete"  HorizontalAlignment="Center" />
-                <DockPanel Grid.Row="3" HorizontalAlignment="Right" VerticalAlignment="Bottom" LastChildFill="True" Margin="5">
-                    <Button Click="btnOk_Click" Content="OK"  DockPanel.Dock="Bottom" Width="100" Height="30" HorizontalAlignment="Right" Style="{StaticResource MahApps.Styles.Button.Square.Accent }" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
-                </DockPanel>
+                <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,16,0,0">
+                    <Button Click="btnOk_Click" Content="OK"
+                            Style="{StaticResource DialogAccentPillButton}"
+                            controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                </StackPanel>
             </Grid>
         </Grid>
     </Grid>

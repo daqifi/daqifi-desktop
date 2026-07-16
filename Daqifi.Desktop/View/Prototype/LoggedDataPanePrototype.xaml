@@ -38,66 +38,8 @@
             <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
         </Style>
 
-        <Style x:Key="PillButton" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderDim}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
-            <Setter Property="Padding" Value="12,4"/>
-            <Setter Property="Margin" Value="0,0,6,0"/>
-            <Setter Property="FontSize" Value="10"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="14"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="{StaticResource BorderBright}"/>
-                    <Setter Property="Background" Value="#141821"/>
-                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.35"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="DangerPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
-            <Setter Property="BorderBrush" Value="#4A1F28"/>
-            <Setter Property="Foreground" Value="{StaticResource StatusRed}"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#2A0F14"/>
-                    <Setter Property="BorderBrush" Value="{StaticResource StatusRed}"/>
-                    <Setter Property="Foreground" Value="{StaticResource StatusRed}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="AccentPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
-            <Setter Property="Background" Value="{StaticResource Accent}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="16,6"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1EB3F0"/>
-                    <Setter Property="BorderBrush" Value="#1EB3F0"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
+        <!-- The PillButton / AccentPillButton / DangerPillButton family comes from
+             /Resources/Controls.xaml via App.xaml. See docs/style-guide.md. -->
 
         <Style x:Key="SegmentedToggle" TargetType="RadioButton">
             <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
@@ -899,6 +841,7 @@
                             <Button Style="{StaticResource PillButton}"
                                     AutomationProperties.AutomationId="ExportAllSessionsButton"
                                     Content="EXPORT ALL"
+                                    Margin="0,0,8,0"
                                     Command="{Binding ExportAllLoggingSessionCommand}"
                                     ToolTip="Export all sessions"/>
                             <Button Style="{StaticResource DangerPillButton}"
@@ -1054,6 +997,7 @@
                             <StackPanel Orientation="Horizontal">
                                 <Button Style="{StaticResource PillButton}"
                                         Content="EXPORT"
+                                        Margin="0,0,8,0"
                                         Command="{Binding ExportLoggingSessionCommand}"
                                         CommandParameter="{Binding SelectedLoggingSession}"/>
                                 <Button Style="{StaticResource DangerPillButton}"
@@ -1133,14 +1077,14 @@
                         <Button Content="{Binding ConfirmOverlay.AffirmativeLabel}"
                                 AutomationProperties.AutomationId="ConfirmAffirmativeButton"
                                 Style="{StaticResource AccentPillButton}"
-                                Margin="10,0,0,0"
+                                Margin="8,0,0,0"
                                 Command="{Binding ConfirmOverlay.AffirmativeCommand}"
                                 Visibility="{Binding ConfirmOverlay.AffirmativeIsDestructive,
                                              Converter={StaticResource InvertedBoolToVis}}"/>
                         <Button Content="{Binding ConfirmOverlay.AffirmativeLabel}"
                                 AutomationProperties.AutomationId="ConfirmAffirmativeButton"
                                 Style="{StaticResource DangerPillButton}"
-                                Margin="10,0,0,0"
+                                Margin="8,0,0,0"
                                 Command="{Binding ConfirmOverlay.AffirmativeCommand}"
                                 Visibility="{Binding ConfirmOverlay.AffirmativeIsDestructive,
                                              Converter={StaticResource BoolToVis}}"/>

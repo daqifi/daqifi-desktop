@@ -15,167 +15,8 @@
         <converters:NotNullToVisibilityConverter x:Key="NotNullToVisibilityConverter"/>
         <converters:InvertedBoolToVisibilityConverter x:Key="InvertedBoolToVis"/>
 
-        <!-- Pill button (matches LoggedDataPanePrototype / DevicesPanePrototype) -->
-        <Style x:Key="PillButton" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderDim}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
-            <Setter Property="Padding" Value="12,4"/>
-            <Setter Property="Margin" Value="0,0,6,0"/>
-            <Setter Property="FontSize" Value="10"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="14"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="{StaticResource BorderBright}"/>
-                    <Setter Property="Background" Value="#141821"/>
-                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.35"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="AccentPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
-            <Setter Property="Background" Value="{StaticResource Accent}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="16,6"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1EB3F0"/>
-                    <Setter Property="BorderBrush" Value="#1EB3F0"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Dark ComboBox (MahApps Light.Blue forces a white toggle, so replace the template) -->
-        <Style x:Key="DarkComboBoxItem" TargetType="ComboBoxItem">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBoxItem">
-                        <Border x:Name="Bg"
-                                Background="{TemplateBinding Background}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource SurfaceActive}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DarkComboBox" TargetType="ComboBox">
-            <Setter Property="Background" Value="{StaticResource Surface}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderDim}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontFamily" Value="Consolas"/>
-            <Setter Property="Padding" Value="10,0"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
-            <Setter Property="ItemContainerStyle" Value="{StaticResource DarkComboBoxItem}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="28"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Border x:Name="Bg"
-                                    Grid.ColumnSpan="2"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="3"/>
-
-                            <ContentPresenter Grid.Column="0"
-                                              Margin="{TemplateBinding Padding}"
-                                              VerticalAlignment="Center"
-                                              HorizontalAlignment="Left"
-                                              IsHitTestVisible="False"
-                                              Content="{TemplateBinding SelectionBoxItem}"
-                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
-                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
-
-                            <ToggleButton Grid.Column="1"
-                                          Background="Transparent"
-                                          BorderThickness="0"
-                                          Focusable="False"
-                                          ClickMode="Press"
-                                          IsChecked="{Binding Path=IsDropDownOpen,
-                                                      Mode=TwoWay,
-                                                      RelativeSource={RelativeSource TemplatedParent}}">
-                                <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border Background="Transparent">
-                                            <Path HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"
-                                                  Data="M 0 0 L 4 4 L 8 0 Z"
-                                                  Fill="{StaticResource TextSecondary}"/>
-                                        </Border>
-                                    </ControlTemplate>
-                                </ToggleButton.Template>
-                            </ToggleButton>
-
-                            <Popup x:Name="Popup"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                   AllowsTransparency="True"
-                                   Focusable="False"
-                                   PopupAnimation="Slide"
-                                   Placement="Bottom">
-                                <Border Background="{StaticResource SurfaceRaised}"
-                                        BorderBrush="{StaticResource BorderDim}"
-                                        BorderThickness="1"
-                                        CornerRadius="3"
-                                        MinWidth="{TemplateBinding ActualWidth}"
-                                        MaxHeight="{TemplateBinding MaxDropDownHeight}">
-                                    <ScrollViewer>
-                                        <ItemsPresenter/>
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bg" Property="BorderBrush" Value="{StaticResource BorderBright}"/>
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                                <Setter TargetName="Bg" Property="BorderBrush" Value="{StaticResource Accent}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <!-- The PillButton / AccentPillButton family and the DarkComboBox / DarkComboBoxItem
+             styles come from /Resources/Controls.xaml via App.xaml. See docs/style-guide.md. -->
 
         <!-- Dark list row -->
         <Style x:Key="DarkListViewItem" TargetType="ListViewItem">
@@ -256,8 +97,11 @@
                        VerticalAlignment="Center"
                        Margin="0,0,12,0"/>
 
+            <!-- Monospace here is deliberate: device display names read as identifiers
+                 alongside the serial/firmware readouts below. -->
             <ComboBox Grid.Column="1"
                       Style="{StaticResource DarkComboBox}"
+                      FontFamily="Consolas"
                       ItemsSource="{Binding ConnectedDevices}"
                       SelectedItem="{Binding SelectedDevice}"
                       DisplayMemberPath="DeviceDisplayName"
@@ -267,6 +111,7 @@
                     Style="{StaticResource PillButton}"
                     AutomationProperties.AutomationId="RefreshSdCardFilesButton"
                     Command="{Binding RefreshFilesCommand}"
+                    Margin="0,0,8,0"
                     ToolTip="{Binding ConnectionTypeMessage}"
                     IsEnabled="{Binding CanAccessSdCard}">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -416,8 +261,7 @@
                            Margin="0,0,0,16"/>
                 <Button Style="{StaticResource PillButton}"
                         Command="{Binding CopyDiagnosticInfoCommand}"
-                        HorizontalAlignment="Center"
-                        Margin="0">
+                        HorizontalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
                         <iconPacks:PackIconMaterial Kind="ContentCopy"
                                                    Width="10" Height="10"
@@ -476,8 +320,7 @@
                            Margin="0,0,0,16"/>
                 <Button Style="{StaticResource PillButton}"
                         Command="{Binding CopyDiagnosticInfoCommand}"
-                        HorizontalAlignment="Center"
-                        Margin="0">
+                        HorizontalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
                         <iconPacks:PackIconMaterial Kind="ContentCopy"
                                                    Width="10" Height="10"

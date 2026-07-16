@@ -1,0 +1,285 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Canonical control styles for the dark visual system — the single home for the
+        button, field and dropdown specs shared by every pane and dialog.
+
+        This dictionary is merged into App.xaml (after DesignTokens.xaml), so every key here
+        resolves from any view via {StaticResource}. Before this existed, PillButton and
+        friends were copy-pasted into five views and had drifted apart (DAQiFi#627); add new
+        shared control specs here rather than re-declaring them in a view.
+
+        Rules for this file:
+        - Keyed styles only. An implicit (unkeyed) style here would apply to every control in
+          the app; window-scoped implicit skins belong in /Resources/DarkDialog.xaml.
+        - Tokens are referenced via DynamicResource. DesignTokens.xaml is a sibling merged
+          dictionary, so its keys are not in this file's static lookup scope.
+        - No layout properties (Margin, Width, Height on buttons). Spacing between controls is
+          the call site's business — see docs/style-guide.md.
+
+        Concrete values and usage rules: docs/style-guide.md
+        Principles behind them:       docs/design-philosophy.md
+    -->
+
+    <!-- ══════════════════════════════ Buttons ══════════════════════════════
+         One family, three intents (neutral / primary / destructive) and two sizes
+         (compact for pane toolbars and drawers, dialog for dialog action rows).
+         Geometry is shared: 14px corner radius, 1px border, SemiBold. -->
+
+    <!-- Neutral action. The default: use it unless the action is THE primary one. -->
+    <Style x:Key="PillButton" TargetType="Button">
+        <Setter Property="Background"      Value="Transparent"/>
+        <Setter Property="BorderBrush"     Value="{DynamicResource BorderDim}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Foreground"      Value="{DynamicResource TextSecondary}"/>
+        <Setter Property="Padding"         Value="12,4"/>
+        <Setter Property="FontSize"        Value="10"/>
+        <Setter Property="FontWeight"      Value="SemiBold"/>
+        <Setter Property="Cursor"          Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="14"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderBright}"/>
+                <Setter Property="Background"  Value="#141821"/>
+                <Setter Property="Foreground"  Value="{DynamicResource TextPrimary}"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.35"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Primary action. At most one per surface — it is the emphasis, so two accents
+         side by side means neither reads as the default. Slightly roomier than neutral. -->
+    <Style x:Key="AccentPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
+        <Setter Property="Background"  Value="{DynamicResource Accent}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
+        <Setter Property="Foreground"  Value="White"/>
+        <Setter Property="Padding"     Value="16,6"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background"  Value="#1EB3F0"/>
+                <Setter Property="BorderBrush" Value="#1EB3F0"/>
+                <Setter Property="Foreground"  Value="White"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.35"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Destructive action (delete, disconnect). Outline-only at rest: the red is a warning,
+         not an invitation, so it never competes with the accent for the eye. -->
+    <Style x:Key="DangerPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
+        <Setter Property="BorderBrush" Value="#4A1F28"/>
+        <Setter Property="Foreground"  Value="{DynamicResource StatusRed}"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background"  Value="#2A0F14"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource StatusRed}"/>
+                <Setter Property="Foreground"  Value="{DynamicResource StatusRed}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- ── Dialog-scale variants ────────────────────────────────────────────
+         A dialog's action row carries more weight than a pane toolbar: bigger hit target,
+         readable label casing, and a MinWidth so "OK" and "Cancel" match width. -->
+    <Style x:Key="DialogPillButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Padding"  Value="24,8"/>
+        <Setter Property="MinWidth" Value="96"/>
+    </Style>
+
+    <Style x:Key="DialogAccentPillButton" TargetType="Button" BasedOn="{StaticResource AccentPillButton}">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Padding"  Value="24,8"/>
+        <Setter Property="MinWidth" Value="96"/>
+    </Style>
+
+    <!-- No DialogDangerPillButton: no dialog currently has a destructive action (the
+         destructive confirms are in-pane overlays, which use the compact DangerPillButton).
+         Add it here, BasedOn DangerPillButton with the sizing above, when one needs it. -->
+
+    <!-- ══════════════════════════════ Fields ══════════════════════════════
+         The standard bordered input. 32px tall: 30 clipped descenders (DAQiFi#627). -->
+    <Style x:Key="DarkTextBox" TargetType="TextBox">
+        <Setter Property="Foreground"               Value="{DynamicResource TextPrimary}"/>
+        <Setter Property="CaretBrush"               Value="{DynamicResource TextPrimary}"/>
+        <Setter Property="Background"               Value="{DynamicResource Surface}"/>
+        <Setter Property="BorderBrush"              Value="{DynamicResource BorderDim}"/>
+        <Setter Property="BorderThickness"          Value="1"/>
+        <Setter Property="Padding"                  Value="10,0"/>
+        <Setter Property="MinHeight"                Value="32"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="3">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource BorderBright}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ════════════════════════════ Dropdown ════════════════════════════
+         Self-contained dark template. The app runs on the MahApps Light.Blue theme, whose
+         combo brings a white toggle and popup that swallow light text, so we own the whole
+         visual rather than re-skinning parts of theirs. -->
+    <Style x:Key="DarkComboBoxItem" TargetType="ComboBoxItem">
+        <Setter Property="Background"          Value="Transparent"/>
+        <Setter Property="Foreground"          Value="{DynamicResource TextPrimary}"/>
+        <Setter Property="Padding"             Value="10,6"/>
+        <Setter Property="FontSize"            Value="12"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="Bg"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SurfaceActive}"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource SurfaceActive}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DarkComboBox" TargetType="ComboBox">
+        <Setter Property="Background"          Value="{DynamicResource Surface}"/>
+        <Setter Property="Foreground"          Value="{DynamicResource TextPrimary}"/>
+        <Setter Property="BorderBrush"         Value="{DynamicResource BorderDim}"/>
+        <Setter Property="BorderThickness"     Value="1"/>
+        <Setter Property="MinHeight"           Value="32"/>
+        <Setter Property="FontSize"            Value="12"/>
+        <Setter Property="Padding"             Value="10,0"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <!-- This template has no editable text part, so keep the control non-editable. -->
+        <Setter Property="IsEditable"          Value="False"/>
+        <Setter Property="ItemContainerStyle"  Value="{StaticResource DarkComboBoxItem}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="28"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border x:Name="Bg"
+                                Grid.ColumnSpan="2"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3"/>
+
+                        <ContentPresenter Grid.Column="0"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center"
+                                          HorizontalAlignment="Left"
+                                          IsHitTestVisible="False"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"/>
+
+                        <ToggleButton Grid.Column="1"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      Focusable="False"
+                                      ClickMode="Press"
+                                      IsChecked="{Binding Path=IsDropDownOpen,
+                                                  Mode=TwoWay,
+                                                  RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border Background="Transparent">
+                                        <Path HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Data="M 0 0 L 4 4 L 8 0 Z"
+                                              Fill="{DynamicResource TextSecondary}"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+
+                        <Popup x:Name="PART_Popup"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               PopupAnimation="Slide"
+                               Placement="Bottom">
+                            <Border Background="{DynamicResource SurfaceRaised}"
+                                    BorderBrush="{DynamicResource BorderDim}"
+                                    BorderThickness="1"
+                                    CornerRadius="3"
+                                    Margin="0,2,0,0"
+                                    MinWidth="{TemplateBinding ActualWidth}"
+                                    MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <ScrollViewer SnapsToDevicePixels="True"
+                                              CanContentScroll="True"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource BorderBright}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

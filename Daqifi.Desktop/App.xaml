@@ -12,6 +12,9 @@
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/Light.Blue.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.FlatSlider.xaml" />
                 <ResourceDictionary Source="/Resources/DesignTokens.xaml" />
+                <!-- Canonical control specs (buttons/fields/dropdowns). Must follow
+                     DesignTokens: Controls.xaml resolves tokens via DynamicResource. -->
+                <ResourceDictionary Source="/Resources/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <Style x:Key="FadeButton" TargetType="{x:Type Button}">
