@@ -751,6 +751,31 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
+    public void GetSdCardParseConfiguration_WithAnalogChannels_ReturnsCoreConfiguration()
+    {
+        var device = new SdCardLoggingTestDevice();
+        device.PopulateCoreChannels(BuildStatusMessage("1.0.0", 1.5f));
+
+        var config = device.GetSdCardParseConfiguration();
+
+        Assert.IsNotNull(config, "A device with analog channels should produce a configuration.");
+        Assert.AreEqual(1, config.AnalogPortCount);
+        Assert.AreEqual(1, config.DigitalPortCount);
+        Assert.AreEqual(1.5d, config.CalibrationValues![0].Slope, 0.001d);
+        Assert.AreEqual(0u, config.TimestampFrequency,
+            "TimestampFrequency should be 0 so the parser falls back to file-embedded/device frequency.");
+    }
+
+    [TestMethod]
+    public void GetSdCardParseConfiguration_WithoutCoreDevice_ReturnsNull()
+    {
+        var device = new TestStreamingDevice();
+
+        Assert.IsNull(device.GetSdCardParseConfiguration(),
+            "A device with no Core device for SD operations should return null.");
+    }
+
+    [TestMethod]
     public void SwitchMode_WhenEnteringLogToDevice_DoesNotSendInterfaceCommands()
     {
         // Core's StartSdCardLoggingAsync now handles SD interface setup,
@@ -1043,6 +1068,11 @@ public class AbstractStreamingDeviceTests
         public override bool Disconnect() => true;
 
         public override bool Write(string command) => true;
+
+        public void PopulateCoreChannels(DaqifiOutMessage message)
+        {
+            _coreDevice.PopulateChannelsFromStatus(message);
+        }
 
         protected override void SendMessage(IOutboundMessage<string> message)
         {
