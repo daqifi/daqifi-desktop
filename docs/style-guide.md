@@ -139,24 +139,29 @@ Faces: **Segoe UI** (inherited default) for everything, **Consolas** for numeric
 values, serial numbers, timestamps. Monospace is a signal that the text is data, not chrome; don't use it
 for labels or prose.
 
-The intended scale — per design-philosophy §6, the vocabulary is small on purpose:
+Per design-philosophy §6 the vocabulary is small on purpose. Sizes are not arbitrary — each one is a
+**role**, and the app already applies them consistently across surfaces. Pick the role, not the number:
 
-| Size | Weight | Use |
+| Size | Weight | Role |
 | --- | --- | --- |
-| 9–10 | `Bold` / `SemiBold`, uppercase | Section labels, pill buttons, column headers, status chips |
-| 11 | `SemiBold` | Dialog action buttons, secondary labels |
-| 12–13 | normal | Body text, list rows, readouts |
+| 9 | `Bold`, uppercase | Status chips (`LOGGING · LOCKED`), the smallest annotations |
+| 10 | `SemiBold` / `Bold`, uppercase | Section labels, compact pill buttons, column headers |
+| 11 | `SemiBold` (or normal) | Dialog action buttons, secondary labels, field hints |
+| 12–13 | normal (`Consolas` for values) | Body text, list rows, numeric readouts |
 | 14 | normal | Dialog message text |
-| 16+ | normal / `Light` | Headline numbers and empty-state titles only |
+| 15 | `Light` | Empty-state body copy ("Connect a DAQiFi device to get started.") |
+| 20 | `Medium` + `Consolas` | Drawer header — the selected channel/device name |
+| 24 | `Light` | Headline: empty-state titles, hero numbers |
 
 Hierarchy comes from **size and opacity** (`TextPrimary` → `TextSecondary` → `TextTertiary`), not from
 bold/italic. There are no typography tokens in `DesignTokens.xaml` — it holds brushes only — so these are
 set per control.
 
-> **Honest status:** the codebase does not fully conform to this scale yet. A sweep at the time of writing
-> found 13 distinct font sizes and 4 weights in `View/`. The table above is the target for new work and the
-> direction to converge on when touching an existing surface — not a description of what's there today.
-> Narrowing the existing usage is worth its own ticket.
+> **Honest status:** a handful of call sites sit outside this table — a lone `8`, a lone `22`, two `18`s,
+> and some `16`s that are doing the job of `15` or `20`. They are leftovers, not a competing scale: fold
+> them into the nearest role when you next touch that surface. Note the legacy flyouts
+> (`View/Flyouts/`) are uniformly `16`/`Bold` throughout; they are a transition state per
+> design-philosophy §9 and get the table above when they're redesigned, not a find-and-replace.
 
 ## Color
 
