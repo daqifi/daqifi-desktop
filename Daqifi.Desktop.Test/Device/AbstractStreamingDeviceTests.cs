@@ -12,11 +12,6 @@ namespace Daqifi.Desktop.Test.Device;
 [TestClass]
 public class AbstractStreamingDeviceTests
 {
-    /// <summary>
-    /// These tests focus on the bit manipulation logic used in channel operations
-    /// to identify the root cause of channels 8-15 showing 0V
-    /// </summary>
-
     [TestMethod]
     public void FriendlyName_Property_ShouldDefaultToEmpty()
     {
