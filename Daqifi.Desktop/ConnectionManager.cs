@@ -1,6 +1,7 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Device.SerialDevice;
+using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using System.ComponentModel;
 using System.IO.Ports;
@@ -237,7 +238,7 @@ public partial class ConnectionManager : ObservableObject
             return;
         }
 
-        InvokeOnUiThread(() =>
+        UiThreadHelper.InvokeOnUiThread(() =>
         {
             // Already torn down via another path (e.g. explicit user disconnect raced this event).
             if (!ConnectedDevices.Contains(device))
@@ -258,37 +259,7 @@ public partial class ConnectionManager : ObservableObject
                 LastDisconnectReason = $"{device.DeviceDisplayName} disconnected ({e.Reason}).";
                 NotifyConnection = true;
             }
-        });
-    }
-
-    /// <summary>
-    /// Runs <paramref name="action"/> on the WPF UI thread — required here because
-    /// <see cref="IDevice.ConnectionLost"/> can fire from a background/transport thread and this
-    /// handler mutates the UI-bound <see cref="ConnectedDevices"/> collection. Runs inline when
-    /// there is no dispatcher (unit tests) or the caller is already on it; uses the non-blocking
-    /// <c>BeginInvoke</c> so teardown can never freeze the UI thread, and swallows failures during
-    /// app/dispatcher shutdown since there is nothing left to update.
-    /// </summary>
-    private static void InvokeOnUiThread(Action action)
-    {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher == null || dispatcher.CheckAccess())
-        {
-            action();
-            return;
-        }
-
-        try
-        {
-            if (!dispatcher.HasShutdownStarted)
-            {
-                dispatcher.BeginInvoke(action);
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Instance.Warning(ex, "Dispatcher unavailable while handling ConnectionLost; UI update dropped.");
-        }
+        }, failureLogMessage: "Dispatcher unavailable while handling ConnectionLost; UI update dropped.");
     }
 
     private void CheckIfSerialDeviceWasRemoved()

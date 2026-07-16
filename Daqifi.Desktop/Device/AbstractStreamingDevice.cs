@@ -1,5 +1,6 @@
 ﻿using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Helpers;
 using Daqifi.Core.Communication;
 using Daqifi.Core.Device.Network;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
@@ -67,12 +68,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     private const int MAX_DISCARDED_LEFTOVER_FRAMES = 5;
 
-    /// <summary>
-    /// Fallback device counter frequency in Hz when the device has not reported one.
-    /// Matches the 20 ns tick period assumed by Core's <see cref="TimestampProcessor"/>.
-    /// </summary>
-    private const uint DEFAULT_TIMESTAMP_FREQUENCY = 50_000_000;
-
     private const string SD_UNAVAILABLE_MESSAGE = "Core SD card operations are not available for this device.";
     private const string STREAMING_UNAVAILABLE_MESSAGE = "Core live streaming operations are not available for this device.";
     private const string NOT_CONNECTED_MESSAGE = "Device is not connected.";
@@ -135,7 +130,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// this gate keeps them from reaching the desktop's channels.
     /// </summary>
     private bool _acceptChannelSamples;
-    private DateTime _currentFrameTimestamp;
     private double? _currentFrameFirmwareDeltaMs;
 
     /// <summary>
@@ -531,42 +525,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // Core can raise StatusChanged from a transport/background thread — DeviceState and
         // IsConnected are WPF-bound, so the mutation and its change notification must be
         // marshalled onto the UI thread (issue #638 code review).
-        InvokeOnUiThread(() =>
+        UiThreadHelper.InvokeOnUiThread(() =>
         {
             DeviceState = DeviceState.Disconnected;
             OnPropertyChanged(nameof(IsConnected));
         });
 
         ConnectionLost?.Invoke(this, new ConnectionLostEventArgs(reason));
-    }
-
-    /// <summary>
-    /// Runs <paramref name="action"/> on the WPF UI thread. Runs inline when there is no
-    /// dispatcher (unit tests — <c>Application.Current</c> is null) or the caller is already on
-    /// it. Uses the non-blocking <c>BeginInvoke</c> so a background-thread caller (e.g. Core's
-    /// <c>StatusChanged</c>) can never block on the UI thread; failures during app/dispatcher
-    /// shutdown are swallowed since there is nothing left to update.
-    /// </summary>
-    private static void InvokeOnUiThread(Action action)
-    {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher == null || dispatcher.CheckAccess())
-        {
-            action();
-            return;
-        }
-
-        try
-        {
-            if (!dispatcher.HasShutdownStarted)
-            {
-                dispatcher.BeginInvoke(action);
-            }
-        }
-        catch (Exception)
-        {
-            // Dispatcher unavailable / shutting down — drop the UI update.
-        }
     }
     #endregion
 
@@ -719,7 +684,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         // Open the gate for Core's decode of this exact frame, which runs synchronously right
         // after this method returns (see _acceptChannelSamples).
-        _currentFrameTimestamp = messageTimestamp;
         _currentFrameFirmwareDeltaMs = firmwareDeltaMs;
         _acceptChannelSamples = true;
 
@@ -758,7 +722,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// immediately after <see cref="ProcessStreamMessage"/> returns, for every enabled channel —
     /// gated by <see cref="_acceptChannelSamples"/> so leftover/held frames (which Core still
     /// decodes, since Core has no notion of the desktop's leftover-frame heuristics) never reach
-    /// desktop channels.
+    /// desktop channels. Uses <c>coreSample.Timestamp</c> — the same rollover-aware reconstruction
+    /// <see cref="ProcessStreamMessage"/> computed for this frame via <see cref="_timestampProcessor"/> —
+    /// rather than recomputing it, so the two can never diverge.
     /// </summary>
     private void OnCoreChannelSampleReceived(IChannel desktopChannel, Daqifi.Core.Channel.IDataSample coreSample)
     {
@@ -768,7 +734,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         desktopChannel.ActiveSample = new DataSample(
-            this, desktopChannel, _currentFrameTimestamp, coreSample.Value, _currentFrameFirmwareDeltaMs);
+            this, desktopChannel, coreSample.Timestamp, coreSample.Value, _currentFrameFirmwareDeltaMs);
     }
 
     /// <summary>
@@ -836,7 +802,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return false;
         }
 
-        var timestampFrequency = TimestampFrequency != 0 ? TimestampFrequency : DEFAULT_TIMESTAMP_FREQUENCY;
+        var timestampFrequency = TimestampFrequency != 0 ? TimestampFrequency : TimestampProcessor.DefaultTimestampFrequency;
         var elapsedSeconds = unchecked(deviceTimestamp - _lastSeenDeviceTimestamp) / (double)timestampFrequency;
         if (elapsedSeconds >= STALE_FRAME_WINDOW_SECONDS)
         {
@@ -872,7 +838,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return;
         }
 
-        var timestampFrequency = TimestampFrequency != 0 ? TimestampFrequency : DEFAULT_TIMESTAMP_FREQUENCY;
+        var timestampFrequency = TimestampFrequency != 0 ? TimestampFrequency : TimestampProcessor.DefaultTimestampFrequency;
         var elapsedSeconds = unchecked(message.MsgTimeStamp - heldFrame.MsgTimeStamp) / (double)timestampFrequency;
         if (elapsedSeconds >= STALE_FRAME_WINDOW_SECONDS
             && _discardedLeftoverFrameCount < MAX_DISCARDED_LEFTOVER_FRAMES)
@@ -960,34 +926,15 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         try
         {
-            // Build channel bitmask — Core's StartSdCardLoggingAsync sends EnableAdcChannels
-            var analogChannelMask = 0u;
-            var hasDigitalChannels = false;
-
-            foreach (var channel in DataChannels.Where(c => c.IsActive))
-            {
-                if (channel.Type == ChannelType.Analog)
-                {
-                    analogChannelMask |= 1u << channel.Index;
-                }
-                else if (channel.Type == ChannelType.Digital)
-                {
-                    hasDigitalChannels = true;
-                }
-            }
-
-            // Core doesn't handle DIO enable yet, so desktop still sends this directly
-            SendMessage(hasDigitalChannels
-                ? ScpiMessageProducer.EnableDioPorts()
-                : ScpiMessageProducer.DisableDioPorts());
-
             var coreDevice = GetCoreDevice(CoreDeviceForSd, SD_UNAVAILABLE_MESSAGE);
             coreDevice.StreamingFrequency = StreamingFrequency;
 
+            // channelMask: null makes Core use the current device channel configuration — already
+            // in sync at this point via AddChannel(s), which enables/disables both the ADC mask and
+            // the global DIO state on Core's channels as they're added.
             // The Core package resumes StartSdCardLoggingAsync continuations on the caller's
             // synchronization context. Running it on the thread pool prevents UI deadlocks.
-            var channelMaskString = analogChannelMask.ToString(CultureInfo.InvariantCulture);
-            Task.Run(() => coreDevice.StartSdCardLoggingAsync(channelMask: channelMaskString, format: SdCardLogFormat)).GetAwaiter().GetResult();
+            Task.Run(() => coreDevice.StartSdCardLoggingAsync(channelMask: null, format: SdCardLogFormat)).GetAwaiter().GetResult();
 
             IsLoggingToSdCard = coreDevice.IsLoggingToSdCard;
             IsStreaming = true; // We're streaming to SD card
@@ -1772,7 +1719,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     public void Reboot()
     {
-        SendMessage(ScpiMessageProducer.RebootDevice);
+        CoreDevice?.Reboot();
         Disconnect();
     }
 
