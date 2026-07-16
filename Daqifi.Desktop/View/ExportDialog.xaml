@@ -38,7 +38,7 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBox Grid.Column="0" HorizontalAlignment="Stretch" Text="{Binding ExportFilePath, Mode=OneWay}" IsEnabled="False"/>
-                    <Button Grid.Column="1" Content="Browse" Command="{Binding BrowseCommand}" Margin="8,0,0,0" Style="{StaticResource DarkSecondaryButton}"/>
+                    <Button Grid.Column="1" Content="Browse" Command="{Binding BrowseCommand}" Margin="8,0,0,0" Style="{StaticResource PillButton}"/>
                 </Grid>
             </GroupBox>
 
@@ -68,10 +68,14 @@
             </GroupBox>
 
             <!-- Actions -->
-            <DockPanel Grid.Row="4" HorizontalAlignment="Right" Margin="0,8,0,0">
-                <Button Click="btnCancel_Click" Content="Cancel" Width="100" Height="32" Margin="0,0,10,0" Style="{StaticResource DarkSecondaryButton}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
-                <Button Content="Export" Command="{Binding ExportLoggingSessionsCommand}" Width="100" Height="32" Style="{StaticResource MahApps.Styles.Button.Square.Accent}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
-            </DockPanel>
+            <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                <Button Click="btnCancel_Click" Content="Cancel" Margin="0,0,8,0"
+                        Style="{StaticResource DialogPillButton}"
+                        controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                <Button Content="Export" Command="{Binding ExportLoggingSessionsCommand}"
+                        Style="{StaticResource DialogAccentPillButton}"
+                        controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+            </StackPanel>
         </Grid>
 
         <!-- ══════════════════════════════ Exporting ══════════════════════════════ -->
@@ -80,7 +84,7 @@
             <TextBlock Text="Exporting…" FontSize="16" HorizontalAlignment="Center" Foreground="{StaticResource TextPrimary}"/>
             <controls:MetroProgressBar Minimum="0" Maximum="100" Value="{Binding ExportProgress}" Height="6" Margin="0,18,0,0"/>
             <TextBlock Text="{Binding ExportProgress, StringFormat={}{0}%}" HorizontalAlignment="Center" Foreground="{StaticResource TextSecondary}" Margin="0,12,0,22"/>
-            <Button Content="Cancel" Command="{Binding CancelExportCommand}" Width="120" Height="32" HorizontalAlignment="Center" Style="{StaticResource DarkSecondaryButton}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+            <Button Content="Cancel" Command="{Binding CancelExportCommand}" HorizontalAlignment="Center" Style="{StaticResource DialogPillButton}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
         </StackPanel>
 
         <!-- ════════════════════════════════ Result ═══════════════════════════════ -->
@@ -97,11 +101,11 @@
                        Foreground="{StaticResource TextSecondary}" Margin="0,0,0,22"
                        Visibility="{Binding ExportSucceeded, Converter={StaticResource BoolToVis}}"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                <Button Content="Open Folder" Command="{Binding OpenExportLocationCommand}" Width="120" Height="32" Margin="0,0,10,0"
-                        Style="{StaticResource DarkSecondaryButton}" controls:ControlsHelper.ContentCharacterCasing="Normal"
+                <Button Content="Open Folder" Command="{Binding OpenExportLocationCommand}" Margin="0,0,8,0"
+                        Style="{StaticResource DialogPillButton}" controls:ControlsHelper.ContentCharacterCasing="Normal"
                         Visibility="{Binding ExportSucceeded, Converter={StaticResource BoolToVis}}"/>
-                <Button Content="Done" Click="btnDone_Click" Width="120" Height="32"
-                        Style="{StaticResource MahApps.Styles.Button.Square.Accent}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
+                <Button Content="Done" Click="btnDone_Click"
+                        Style="{StaticResource DialogAccentPillButton}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
             </StackPanel>
         </StackPanel>
 

@@ -2,23 +2,36 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
-        Dark-mode control skins for the app's legacy MahApps dialogs (Export, Firmware,
-        DuplicateDevice). The application runs on the MahApps "Light.Blue" theme, so a plain
-        MetroWindow and its standard controls render light; these styles re-skin GroupBox,
-        TextBox, Label and a secondary Button onto the dark design tokens so older dialogs
-        match the rest of the app (see /Resources/DesignTokens.xaml and
-        docs/design-philosophy.md §2 dark by default, §9 one visual system).
+        Window-scoped dark skins for the app's MahApps dialogs (Export, Firmware,
+        DuplicateDevice, Debug). The application runs on the MahApps "Light.Blue" theme, so a plain
+        MetroWindow and its standard controls render light; the styles here re-skin the
+        controls a dialog gets by default — GroupBox, TextBox, Label, RadioButton — onto the
+        dark design tokens (see docs/design-philosophy.md §2 dark by default, §9 one visual
+        system).
+
+        This file holds ONLY implicit (unkeyed) styles. They must stay window-scoped, because
+        an implicit style in App.xaml would restyle every control in the app. Anything keyed
+        and shared — the button family, the canonical field, the dropdown — lives in
+        /Resources/Controls.xaml, which is merged below so these implicit styles can inherit
+        from it via BasedOn.
 
         Usage: merge this dictionary into a dialog's Window.Resources and set the root
-        container Background to {StaticResource Surface}. The GroupBox/TextBox/Label styles
-        are implicit (no x:Key) so they apply automatically within that window only.
+        container Background to {StaticResource Surface}.
 
         Tokens are referenced via DynamicResource so they resolve against the
         application-scope DesignTokens dictionary at runtime — this file is merged into a
         window, not into App.xaml, so the tokens are not in its own static scope. The
         templates intentionally reference only DesignTokens keys (never MahApps-internal
         brush/style keys) so there are no load-time resolution surprises.
+
+        Concrete values and usage rules: docs/style-guide.md
     -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <!-- Brings the canonical control specs into this dictionary's static scope so the
+             implicit styles below can BasedOn them (BasedOn cannot use DynamicResource). -->
+        <ResourceDictionary Source="/Resources/Controls.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
 
     <!-- ── Content labels ──────────────────────────────────────────────── -->
     <Style TargetType="Label">
@@ -74,161 +87,13 @@
         </Setter>
     </Style>
 
-    <!-- ── Dark input field ────────────────────────────────────────────── -->
-    <Style TargetType="TextBox">
-        <Setter Property="Foreground"               Value="{DynamicResource TextPrimary}"/>
-        <Setter Property="CaretBrush"               Value="{DynamicResource TextPrimary}"/>
-        <Setter Property="Background"               Value="{DynamicResource Surface}"/>
-        <Setter Property="BorderBrush"              Value="{DynamicResource BorderDim}"/>
-        <Setter Property="BorderThickness"          Value="1"/>
-        <Setter Property="Padding"                  Value="8,4"/>
-        <Setter Property="MinHeight"                Value="28"/>
-        <Setter Property="VerticalContentAlignment" Value="Center"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="TextBox">
-                    <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="3">
-                        <ScrollViewer x:Name="PART_ContentHost"
-                                      Margin="{TemplateBinding Padding}"
-                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter Property="BorderBrush" Value="{DynamicResource Accent}"/>
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.5"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
+    <!-- ── Dark input field ──────────────────────────────────────────────
+         A dialog's TextBoxes default to the canonical field spec; no local overrides. -->
+    <Style TargetType="TextBox" BasedOn="{StaticResource DarkTextBox}"/>
 
-    <!-- ── Dark dropdown ────────────────────────────────────────────────────
-         Self-contained dark template. The MahApps light-theme combo brings a white
-         toggle/popup background that swallows light text, so we own the whole visual:
-         a bordered field with a chevron, over a dark popup of dark items. Keyed (opt-in)
-         and wired together via ItemContainerStyle so it never implicitly overrides other
-         ComboBoxes in dialogs that merge this dictionary. -->
-    <Style x:Key="DarkComboBoxItem" TargetType="ComboBoxItem">
-        <Setter Property="Foreground"          Value="{DynamicResource TextPrimary}"/>
-        <Setter Property="Background"           Value="Transparent"/>
-        <Setter Property="Padding"              Value="8,5"/>
-        <Setter Property="SnapsToDevicePixels"  Value="True"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ComboBoxItem">
-                    <Border x:Name="Bd"
-                            Background="{TemplateBinding Background}"
-                            Padding="{TemplateBinding Padding}"
-                            SnapsToDevicePixels="True">
-                        <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}"/>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceActive}"/>
-                        </Trigger>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceActive}"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <Style x:Key="DarkComboBox" TargetType="ComboBox">
-        <Setter Property="Foreground"               Value="{DynamicResource TextPrimary}"/>
-        <Setter Property="Background"               Value="{DynamicResource Surface}"/>
-        <Setter Property="BorderBrush"              Value="{DynamicResource BorderDim}"/>
-        <Setter Property="BorderThickness"          Value="1"/>
-        <Setter Property="Padding"                  Value="8,4"/>
-        <Setter Property="MinHeight"                Value="28"/>
-        <Setter Property="VerticalContentAlignment" Value="Center"/>
-        <!-- This template has no editable text part, so keep the control non-editable. -->
-        <Setter Property="IsEditable"               Value="False"/>
-        <Setter Property="ItemContainerStyle"       Value="{StaticResource DarkComboBoxItem}"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ComboBox">
-                    <Grid>
-                        <ToggleButton x:Name="ToggleButton"
-                                      Focusable="False"
-                                      ClickMode="Press"
-                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
-                            <ToggleButton.Template>
-                                <ControlTemplate TargetType="ToggleButton">
-                                    <Border x:Name="Bd"
-                                            Background="{DynamicResource Surface}"
-                                            BorderBrush="{DynamicResource BorderDim}"
-                                            BorderThickness="1"
-                                            CornerRadius="3">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="22"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Path Grid.Column="1"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"
-                                                  Data="M 0 0 L 4 4 L 8 0 Z"
-                                                  Fill="{DynamicResource TextSecondary}"/>
-                                        </Grid>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource Accent}"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </ToggleButton.Template>
-                        </ToggleButton>
-                        <ContentPresenter x:Name="ContentSite"
-                                          IsHitTestVisible="False"
-                                          Content="{TemplateBinding SelectionBoxItem}"
-                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
-                                          Margin="{TemplateBinding Padding}"
-                                          VerticalAlignment="Center"
-                                          HorizontalAlignment="Left"
-                                          TextElement.Foreground="{DynamicResource TextPrimary}"/>
-                        <Popup x:Name="PART_Popup"
-                               Placement="Bottom"
-                               PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
-                               IsOpen="{TemplateBinding IsDropDownOpen}"
-                               AllowsTransparency="True"
-                               Focusable="False"
-                               PopupAnimation="Slide">
-                            <Border x:Name="DropDownBorder"
-                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
-                                    MaxHeight="200"
-                                    Margin="0,2,0,0"
-                                    Background="{DynamicResource SurfaceRaised}"
-                                    BorderBrush="{DynamicResource BorderDim}"
-                                    BorderThickness="1"
-                                    CornerRadius="3">
-                                <ScrollViewer SnapsToDevicePixels="True"
-                                              CanContentScroll="True"
-                                              VerticalScrollBarVisibility="Auto"
-                                              HorizontalScrollBarVisibility="Disabled">
-                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                </ScrollViewer>
-                            </Border>
-                        </Popup>
-                    </Grid>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.5"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
+    <!-- The dark dropdown (DarkComboBox / DarkComboBoxItem) is keyed and lives in
+         /Resources/Controls.xaml, merged above. It stays opt-in rather than implicit so it
+         never silently overrides other ComboBoxes in a dialog that merges this dictionary. -->
 
     <!-- ── Grouping container: small header label over a raised panel ──── -->
     <Style TargetType="GroupBox">
@@ -259,41 +124,6 @@
                             <ContentPresenter/>
                         </Border>
                     </Grid>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
-    <!-- ── Secondary (non-accent) button ───────────────────────────────────
-         SurfaceActive (the lightest surface token) so the button reads as a control
-         on both the root Surface and the raised SurfaceRaised GroupBox panels. -->
-    <Style x:Key="DarkSecondaryButton" TargetType="Button">
-        <Setter Property="Background"      Value="{DynamicResource SurfaceActive}"/>
-        <Setter Property="BorderBrush"     Value="{DynamicResource BorderBright}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Foreground"      Value="{DynamicResource TextPrimary}"/>
-        <Setter Property="Padding"         Value="16,6"/>
-        <Setter Property="FontSize"        Value="12"/>
-        <Setter Property="Cursor"          Value="Hand"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bg"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="3">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bg" Property="Background"  Value="#283143"/>
-                            <Setter TargetName="Bg" Property="BorderBrush" Value="{DynamicResource Accent}"/>
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.4"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

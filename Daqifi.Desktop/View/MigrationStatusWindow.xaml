@@ -9,6 +9,14 @@
         Background="{StaticResource Surface}"
         Topmost="True"
         AllowsTransparency="True">
+    <!--
+        Chromeless splash, not a dialog: this is shown during startup DB migration, before the
+        main window exists, and has no title bar to hang chrome off. It is therefore the one
+        documented exception to the dialog chrome convention (border 0 + accent glow) — a
+        plain Window cannot use MetroWindow's GlowBrush, and giving a startup splash a title
+        bar just to conform would be worse. The 1px border below is what separates it from the
+        desktop behind it, so it stays. See docs/style-guide.md "Window chrome".
+    -->
     <Border Background="{StaticResource Surface}"
             BorderBrush="{StaticResource BorderDim}"
             BorderThickness="1"

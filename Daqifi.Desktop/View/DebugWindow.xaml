@@ -3,53 +3,130 @@
                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                   xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
                   xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
-                  Title="DAQiFi Debug Console" 
-                  Height="600" 
+                  Title="DAQiFi Debug Console"
+                  Height="600"
                   Width="1000"
                   WindowStartupLocation="CenterOwner"
                   ShowInTaskbar="False"
-                  ResizeMode="CanResize">
+                  ResizeMode="CanResize"
+                  BorderThickness="0"
+                  Background="{StaticResource Surface}"
+                  GlowBrush="{DynamicResource AccentColorBrush}">
 
-    <Grid>
+    <mah:MetroWindow.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Resources/DarkDialog.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Dark DataGrid. The app runs on the MahApps Light.Blue theme, whose DataGrid
+                 renders white-on-white against our dark surface, so the grid, its rows, cells
+                 and headers are re-skinned onto the design tokens here. View-scoped because
+                 this is the only DataGrid in the app. -->
+            <Style TargetType="DataGrid">
+                <Setter Property="Background"           Value="{StaticResource Surface}"/>
+                <Setter Property="Foreground"           Value="{StaticResource TextPrimary}"/>
+                <Setter Property="BorderThickness"      Value="0"/>
+                <Setter Property="RowBackground"        Value="Transparent"/>
+                <Setter Property="AlternatingRowBackground" Value="Transparent"/>
+                <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource BorderDim}"/>
+                <Setter Property="VerticalGridLinesBrush"   Value="Transparent"/>
+                <Setter Property="RowHeaderWidth"       Value="0"/>
+                <Setter Property="FontFamily"           Value="Consolas"/>
+                <Setter Property="FontSize"             Value="11"/>
+            </Style>
+
+            <Style TargetType="DataGridColumnHeader">
+                <Setter Property="Background"      Value="{StaticResource SurfaceRaised}"/>
+                <Setter Property="Foreground"      Value="{StaticResource TextTertiary}"/>
+                <Setter Property="BorderBrush"     Value="{StaticResource BorderDim}"/>
+                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                <Setter Property="Padding"         Value="8,8"/>
+                <Setter Property="FontFamily"      Value="Segoe UI"/>
+                <Setter Property="FontSize"        Value="10"/>
+                <Setter Property="FontWeight"      Value="Bold"/>
+                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            </Style>
+
+            <Style TargetType="DataGridCell">
+                <Setter Property="Background"      Value="Transparent"/>
+                <Setter Property="Foreground"      Value="{StaticResource TextPrimary}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding"         Value="8,4"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="DataGridCell">
+                            <Border Background="{TemplateBinding Background}"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{StaticResource SurfaceActive}"/>
+                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style TargetType="DataGridRow">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{StaticResource SurfaceHover}"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </mah:MetroWindow.Resources>
+
+    <Grid Background="{StaticResource Surface}" TextElement.Foreground="{StaticResource TextPrimary}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <Border Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Accent}" Padding="10">
+        <!-- Header. A raised strip rather than the old full-width accent banner: accent is
+             reserved for the primary action, not decoration (design-philosophy §1, §3). -->
+        <Border Grid.Row="0"
+                Background="{StaticResource SurfaceRaised}"
+                BorderBrush="{StaticResource BorderDim}"
+                BorderThickness="0,0,0,1"
+                Padding="16,10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                
+
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <iconPacks:PackIconMaterial Kind="Bug" 
-                                              Foreground="White" 
-                                              Width="24" 
-                                              Height="24" 
+                    <iconPacks:PackIconMaterial Kind="Bug"
+                                              Foreground="{StaticResource TextSecondary}"
+                                              Width="16"
+                                              Height="16"
                                               VerticalAlignment="Center"/>
-                    <TextBlock Text="Real-time Device Data Flow Debug Console" 
-                             Foreground="White" 
-                             FontSize="16" 
-                             FontWeight="Bold" 
+                    <TextBlock Text="Real-time Device Data Flow Debug Console"
+                             Foreground="{StaticResource TextPrimary}"
+                             FontSize="13"
                              Margin="10,0,0,0"
                              VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <Button Grid.Column="1" 
-                        Content="Clear" 
+                <Button Grid.Column="1"
+                        Content="CLEAR"
                         Command="{Binding ClearDebugDataCommand}"
-                        Style="{DynamicResource MahApps.Styles.Button.Dialogs.Accent}"
-                        Margin="0,0,10,0"/>
-                
-                <Button Grid.Column="2" 
-                        Content="Close" 
+                        Style="{StaticResource PillButton}"
+                        Margin="0,0,8,0"/>
+
+                <Button Grid.Column="2"
+                        Content="CLOSE"
                         Click="CloseButton_Click"
-                        Style="{DynamicResource MahApps.Styles.Button.Dialogs.Accent}"/>
+                        Style="{StaticResource PillButton}"/>
             </Grid>
         </Border>
 
@@ -62,14 +139,14 @@
             </Grid.ColumnDefinitions>
 
             <!-- Left Panel - Latest Data -->
-            <Border Grid.Column="0" BorderBrush="{DynamicResource MahApps.Brushes.Accent}" BorderThickness="1">
+            <Border Grid.Column="0" BorderBrush="{StaticResource BorderDim}" BorderThickness="1">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <Border Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Gray10}" Padding="10">
+                    <Border Grid.Row="0" Background="{StaticResource SurfaceRaised}" Padding="10">
                         <TextBlock Text="Latest Data Packet" FontWeight="Bold" FontSize="14"/>
                     </Border>
 
@@ -104,7 +181,7 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="{DynamicResource MahApps.Brushes.Gray9}" 
+                                        <Border Background="{StaticResource SurfaceActive}" 
                                               Padding="5" Margin="2">
                                             <TextBlock Text="{Binding}" FontFamily="Consolas"/>
                                         </Border>
@@ -115,7 +192,7 @@
                             <TextBlock Text="Data Flow Visualization:" FontWeight="Bold" Margin="0,10,0,5"/>
                             <TextBlock Text="{Binding DataFlowVisualization}" 
                                      FontFamily="Consolas" 
-                                     Background="{DynamicResource MahApps.Brushes.Gray9}"
+                                     Background="{StaticResource SurfaceActive}"
                                      Padding="10"
                                      TextWrapping="Wrap"/>
                         </StackPanel>
@@ -125,17 +202,17 @@
 
             <GridSplitter Grid.Column="1" 
                         HorizontalAlignment="Stretch" 
-                        Background="{DynamicResource MahApps.Brushes.Gray7}"/>
+                        Background="{StaticResource BorderDim}"/>
 
             <!-- Right Panel - History -->
-            <Border Grid.Column="2" BorderBrush="{DynamicResource MahApps.Brushes.Accent}" BorderThickness="1">
+            <Border Grid.Column="2" BorderBrush="{StaticResource BorderDim}" BorderThickness="1">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <Border Grid.Row="0" Background="{DynamicResource MahApps.Brushes.Gray10}" Padding="10">
+                    <Border Grid.Row="0" Background="{StaticResource SurfaceRaised}" Padding="10">
                         <TextBlock Text="Debug History (Last 100 packets)" FontWeight="Bold" FontSize="14"/>
                     </Border>
 
@@ -174,7 +251,7 @@
         </Grid>
 
         <!-- Status Bar -->
-        <Border Grid.Row="2" Background="{DynamicResource MahApps.Brushes.Gray10}" Padding="10">
+        <Border Grid.Row="2" Background="{StaticResource SurfaceRaised}" Padding="10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>

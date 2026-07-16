@@ -305,7 +305,7 @@ When working on:
   [daqifi-core](https://github.com/daqifi/daqifi-core) SDK (consumed as the `Daqifi.Core` NuGet package). Prefer
   using or extending Core implementations over re-implementing protocol logic here; remaining gaps are tracked as
   GitHub issues in the two repos
-- **UI changes**: Update both View and ViewModel following MVVM. For new or redesigned surfaces, read [docs/design-philosophy.md](docs/design-philosophy.md) first — the Channels pane is the current exemplar
+- **UI changes**: Update both View and ViewModel following MVVM. For new or redesigned surfaces, read [docs/design-philosophy.md](docs/design-philosophy.md) (principles) and [docs/style-guide.md](docs/style-guide.md) (concrete control specs) first — the Channels pane is the current exemplar. Shared button/field/dropdown styles live in `Daqifi.Desktop/Resources/Controls.xaml`; never redeclare them in a view
 - **Data persistence**: Use Entity Framework patterns
 - **Protocol changes**: Update `.proto` files and regenerate
 - **Firewall/Network**: Ensure admin privileges handled properly, verify ports match
