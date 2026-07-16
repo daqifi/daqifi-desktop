@@ -307,6 +307,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <Grid Grid.Row="0">
@@ -369,7 +370,14 @@
                         </StackPanel>
                     </Grid>
 
-                    <Border Grid.Row="1"
+                    <TextBlock Grid.Row="1"
+                               Text="{Binding SerialConnectError}"
+                               AutomationProperties.AutomationId="SerialConnectError"
+                               FontSize="11" Foreground="{StaticResource StatusRed}"
+                               Margin="0,8,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding SerialConnectError, Converter={StaticResource NotNullToVis}}"/>
+
+                    <Border Grid.Row="2"
                             BorderBrush="{StaticResource BorderDim}" BorderThickness="0,1,0,0"
                             Padding="0,12,0,0" Margin="0,12,0,0">
                         <Button HorizontalAlignment="Right"

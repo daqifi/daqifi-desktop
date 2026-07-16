@@ -86,6 +86,14 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
 
     public SerialStreamingDevice ManualSerialDevice { get; set; }
 
+    /// <summary>
+    /// User-facing error message for the discovered-device USB tab. Non-null when a selected
+    /// device failed to connect (e.g. it returns a SCPI error while switching its stream
+    /// interface to USB — issue #589). Cleared automatically at the start of the next attempt.
+    /// </summary>
+    [ObservableProperty]
+    private string? _serialConnectError;
+
     [ObservableProperty]
     private string? _manualIpAddress;
 
@@ -255,11 +263,28 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
         var selectedDevices = ToStreamingDevices(selectedItems);
         if (selectedDevices.Count == 0) { return; }
 
+        SerialConnectError = null;
+
         await StopSerialDiscoveryAsync();
 
         foreach (var device in selectedDevices)
         {
             await ConnectionManager.Instance.Connect(device);
+        }
+
+        // Post-connect status check mirrors the manual-serial path: a discovered device can
+        // still fail to connect (e.g. a device left streaming over WiFi returns a SCPI error
+        // when told to switch to USB — issue #589). Without this the dialog would close
+        // silently and the user would have no idea the connection failed.
+        if (ConnectionManager.Instance.ConnectionStatus == DAQiFiConnectionStatus.Error)
+        {
+            var deviceLabel = selectedDevices.Count == 1 ? $"'{selectedDevices[0].Name}'" : "the selected device(s)";
+            SerialConnectError =
+                $"Could not connect to {deviceLabel}. " +
+                "The device may be in use by another application or not responding.";
+            // Restart discovery so the dialog keeps finding devices after a failed connect attempt.
+            StartSerialDiscovery();
+            return;
         }
 
         RaiseCloseRequested();
