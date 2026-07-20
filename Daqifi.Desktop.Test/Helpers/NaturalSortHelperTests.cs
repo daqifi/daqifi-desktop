@@ -185,31 +185,6 @@ public class NaturalSortHelperTests
 
     #endregion
 
-    #region CreateNaturalComparer Tests
-
-    [TestMethod]
-    public void CreateNaturalComparer_WithKeySelector_SortsCorrectly()
-    {
-        // Arrange
-        var channels = new[]
-        {
-            new TestChannel { Name = "AI10" },
-            new TestChannel { Name = "AI1" },
-            new TestChannel { Name = "AI2" }
-        };
-
-        // Act
-        var comparer = NaturalSortHelper.CreateNaturalComparer<TestChannel>(c => c.Name);
-        Array.Sort(channels, comparer);
-
-        // Assert
-        Assert.AreEqual("AI1", channels[0].Name);
-        Assert.AreEqual("AI2", channels[1].Name);
-        Assert.AreEqual("AI10", channels[2].Name);
-    }
-
-    #endregion
-
     #region Helper Classes
 
     private class TestChannel

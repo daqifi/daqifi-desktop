@@ -35,18 +35,6 @@ public partial class DebugDataModel : ObservableObject
     [ObservableProperty]
     private List<int> _activeChannelIndices = new();
 
-    [ObservableProperty]
-    private List<string> _dataFlowMapping = new();
-
-    [ObservableProperty]
-    private bool _hasDigitalData;
-
-    [ObservableProperty]
-    private string _messageType = string.Empty;
-
-    [ObservableProperty]
-    private string _deviceResponse = string.Empty;
-
     /// <summary>
     /// Creates a formatted string showing the data flow visualization
     /// </summary>
