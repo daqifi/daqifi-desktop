@@ -604,6 +604,12 @@
                                         <TextBlock Text="{Binding SelectedTile.WifiVersion}"
                                                    Style="{StaticResource InfoValue}"/>
                                     </StackPanel>
+                                    <StackPanel Grid.Column="1" Grid.Row="2" Margin="0,10,0,0">
+                                        <TextBlock Text="TYPE" Style="{StaticResource InfoLabel}"/>
+                                        <TextBlock Text="{Binding SelectedTile.DeviceTypeDisplay}"
+                                                   AutomationProperties.AutomationId="DeviceType"
+                                                   Style="{StaticResource InfoValue}"/>
+                                    </StackPanel>
                                 </Grid>
                             </Border>
 
