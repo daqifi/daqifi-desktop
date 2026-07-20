@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Helpers;
 using Brush = System.Windows.Media.Brush;
+using DeviceType = Daqifi.Core.Device.DeviceType;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -29,6 +30,18 @@ public sealed class DeviceTileViewModel : ObservableObject, IDisposable
 
     /// <summary>Firmware version as shown on the tile.</summary>
     public string Version => Device.DeviceVersion;
+
+    /// <summary>
+    /// User-friendly detected device type — "Nyquist 1/2/3" for the recognized family,
+    /// "Unknown" before detection completes or for unrecognized hardware.
+    /// </summary>
+    public string DeviceTypeDisplay => Device.DeviceType switch
+    {
+        DeviceType.Nyquist1 => "Nyquist 1",
+        DeviceType.Nyquist2 => "Nyquist 2",
+        DeviceType.Nyquist3 => "Nyquist 3",
+        _ => "Unknown"
+    };
 
     /// <summary>COM port (USB) or IP address (WiFi).</summary>
     public string Identifier => Device.DisplayIdentifier;
@@ -109,6 +122,9 @@ public sealed class DeviceTileViewModel : ObservableObject, IDisposable
                 break;
             case nameof(IStreamingDevice.DeviceVersion):
                 OnPropertyChanged(nameof(Version));
+                break;
+            case nameof(IStreamingDevice.DeviceType):
+                OnPropertyChanged(nameof(DeviceTypeDisplay));
                 break;
             case nameof(IStreamingDevice.IpAddress):
             case nameof(IStreamingDevice.DisplayIdentifier):
