@@ -1,5 +1,4 @@
-﻿using System.Collections.ObjectModel;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Windows;
 using Daqifi.Desktop.WindowViewModelMapping;
 
@@ -18,12 +17,6 @@ public class DialogService : IDialogService
 
 
     #region IDialogService Members
-
-    /// <summary>
-    /// Gets the registered views.
-    /// </summary>
-    public ReadOnlyCollection<FrameworkElement> Views => new(_views.ToList());
-
 
     /// <summary>
     /// Registers a View.
@@ -62,26 +55,6 @@ public class DialogService : IDialogService
     /// <summary>
     /// Shows a dialog.
     /// </summary>
-    /// <remarks>
-    /// The dialog used to represent the ViewModel is retrieved from the registered mappings.
-    /// </remarks>
-    /// <param name="ownerViewModel">
-    /// A ViewModel that represents the owner window of the dialog.
-    /// </param>
-    /// <param name="viewModel">The ViewModel of the new dialog.</param>
-    /// <returns>
-    /// A nullable value of type bool that signifies how a window was closed by the user.
-    /// </returns>
-    public bool? ShowDialog(object ownerViewModel, object viewModel)
-    {
-        var dialogType = _windowViewModelMappings.GetWindowTypeFromViewModelType(viewModel.GetType());
-        return ShowDialog(ownerViewModel, viewModel, dialogType);
-    }
-
-
-    /// <summary>
-    /// Shows a dialog.
-    /// </summary>
     /// <param name="ownerViewModel">
     /// A ViewModel that represents the owner window of the dialog.
     /// </param>
@@ -93,32 +66,6 @@ public class DialogService : IDialogService
     public bool? ShowDialog<T>(object ownerViewModel, object viewModel) where T : Window
     {
         return ShowDialog(ownerViewModel, viewModel, typeof(T));
-    }
-
-
-    /// <summary>
-    /// Shows a message box.
-    /// </summary>
-    /// <param name="ownerViewModel">
-    /// A ViewModel that represents the owner window of the message box.
-    /// </param>
-    /// <param name="messageBoxText">A string that specifies the text to display.</param>
-    /// <param name="caption">A string that specifies the title bar caption to display.</param>
-    /// <param name="button">
-    /// A MessageBoxButton value that specifies which button or buttons to display.
-    /// </param>
-    /// <param name="icon">A MessageBoxImage value that specifies the icon to display.</param>
-    /// <returns>
-    /// A MessageBoxResult value that specifies which message box button is clicked by the user.
-    /// </returns>
-    public MessageBoxResult ShowMessageBox(
-        object ownerViewModel,
-        string messageBoxText,
-        string caption,
-        MessageBoxButton button,
-        MessageBoxImage icon)
-    {
-        return System.Windows.MessageBox.Show(FindOwnerWindow(ownerViewModel), messageBoxText, caption, button, icon);
     }
     #endregion
 

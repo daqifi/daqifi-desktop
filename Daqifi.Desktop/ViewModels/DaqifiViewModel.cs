@@ -739,9 +739,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         DeleteAllLoggingSessionCommand = new AsyncRelayCommand(_loggingSessionList.DeleteAllSessionsAsync, CanDeleteAllLoggingSession);
         ToggleChannelVisibilityCommand = new RelayCommand<IChannel>(ToggleChannelVisibility);
         ToggleLoggedSeriesVisibilityCommand = new RelayCommand<LoggedSeriesLegendItem>(ToggleLoggedSeriesVisibility);
-
-        // Keep registration for external commands if necessary
-        // HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand); // This would need adjustment if ShutdownCommand is generated
     }
     #endregion
 
@@ -815,18 +812,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
     [RelayCommand]
     private void CloseAppSettings() => IsAppSettingsOpen = false;
-
-    [RelayCommand]
-    private void RemoveChannel(IChannel channelToRemove)
-    {
-        var device = ConnectionManager.Instance.ConnectedDevices.FirstOrDefault(x => x.DeviceSerialNo == channelToRemove.DeviceSerialNo);
-        var channel = device.DataChannels.FirstOrDefault(x => x.DeviceSerialNo == channelToRemove.DeviceSerialNo && x.Name == channelToRemove.Name);
-        if (device != null && channel != null)
-        {
-            LoggingManager.Instance.Unsubscribe(channel);
-            device.RemoveChannel(channel);
-        }
-    }
 
     [RelayCommand]
     private void DisconnectDevice(IStreamingDevice? deviceToDisconnect)
@@ -1337,17 +1322,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private void OpenNotifications()
     {
         IsNotificationsOpen = true;
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    private bool EnsureAnyDeviceConnected()
-    {
-        if (ConnectionManager.Instance.ConnectedDevices.Count > 0) return true;
-        _dialogService.ShowDialog<ErrorDialog>(this, new ErrorDialogViewModel("Please connect a device before creating a profile."));
-        return false;
     }
 
     #endregion
@@ -2314,15 +2288,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 streamingDevice.SetDebugMode(value);
             }
         }
-    }
-
-    /// <summary>
-    /// Command to toggle debug mode
-    /// </summary>
-    [RelayCommand]
-    private void ToggleDebugMode()
-    {
-        IsDebugModeEnabled = !IsDebugModeEnabled;
     }
 
     /// <summary>

@@ -1,11 +1,8 @@
-﻿using System.Diagnostics.Contracts;
-
-namespace Daqifi.Desktop.WindowViewModelMapping;
+﻿namespace Daqifi.Desktop.WindowViewModelMapping;
 
 /// <summary>
 /// Descripes Window-ViewModel mappings used by the dialog service
 /// </summary>
-[ContractClass(typeof(IWindowViewModelMappingsContract))]
 public interface IWindowViewModelMappings
 {
     /// <summary>

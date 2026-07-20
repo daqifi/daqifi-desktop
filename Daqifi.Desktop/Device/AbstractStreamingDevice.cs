@@ -1838,8 +1838,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 DeviceId = DeviceSerialNo,
                 AnalogDataCount = message.AnalogInData.Count,
                 RawAnalogValues = message.AnalogInData.ToList(),
-                HasDigitalData = message.DigitalData.Length > 0,
-                MessageType = "AnalogData",
                 ActiveChannelNames = activeChannels.Select(c => c.Name).ToList(),
                 ActiveChannelIndices = activeChannels.Select(c => c.Index).ToList()
             };
@@ -1862,16 +1860,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 // Use core's scaling implementation for correct formula and thread-safety
                 var scaledValue = channel.GetScaledValue((int)rawValue);
                 debugData.ScaledAnalogValues.Add(scaledValue);
-            }
-
-            // Create data flow mapping
-            debugData.DataFlowMapping = new List<string>();
-            for (var i = 0; i < Math.Min(message.AnalogInData.Count, activeChannels.Count); i++)
-            {
-                var channel = activeChannels[i];
-                var rawValue = message.AnalogInData[i];
-                var scaledValue = debugData.ScaledAnalogValues[i];
-                debugData.DataFlowMapping.Add($"data[{i}]={rawValue} → {channel.Name}(idx:{channel.Index})={scaledValue:F3}V");
             }
 
             // Log the debug information
