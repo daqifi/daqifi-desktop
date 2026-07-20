@@ -71,7 +71,11 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     /// removing subscribed channels mid-session would corrupt the
     /// per-session device metadata captured at session start.
     /// </summary>
-    [ObservableProperty] private bool _isLoggingActive;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ToggleChannelCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SelectAllCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ClearAllCommand))]
+    private bool _isLoggingActive;
 
     private static readonly Brush[] ColorPaletteBrushes = BuildPalette(
     [
@@ -95,34 +99,9 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         return result;
     }
 
-    /// <summary>Toggles the clicked channel between active and inactive.</summary>
-    public IRelayCommand<ChannelTileViewModel> ToggleChannelCommand { get; }
-
-    /// <summary>Activates every channel in a section ("AI", "DI", or "DO").</summary>
-    public IRelayCommand<string> SelectAllCommand { get; }
-
-    /// <summary>Deactivates every channel across all sections.</summary>
-    public IRelayCommand ClearAllCommand { get; }
-
-    /// <summary>Opens the inline settings drawer for a channel.</summary>
-    public IRelayCommand<ChannelTileViewModel> OpenSettingsCommand { get; }
-
-    /// <summary>Closes the inline settings drawer.</summary>
-    public IRelayCommand CloseSettingsCommand { get; }
-
-    /// <summary>Sets the selected channel's plot color.</summary>
-    public IRelayCommand<Brush> SetColorCommand { get; }
-
     /// <summary>Creates the view-model and begins watching for connected devices.</summary>
     public ChannelsPaneViewModel()
     {
-        ToggleChannelCommand = new RelayCommand<ChannelTileViewModel>(ToggleChannel, _ => !IsLoggingActive);
-        SelectAllCommand = new RelayCommand<string>(SelectAll, _ => !IsLoggingActive);
-        ClearAllCommand = new RelayCommand(ClearAll, () => !IsLoggingActive);
-        OpenSettingsCommand = new RelayCommand<ChannelTileViewModel>(OpenSettings);
-        CloseSettingsCommand = new RelayCommand(CloseSettings);
-        SetColorCommand = new RelayCommand<Brush>(SetColor);
-
         _valueRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _valueRefreshTimer.Tick += OnValueRefreshTick;
         _valueRefreshTimer.Start();
@@ -133,12 +112,11 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         Rebuild();
     }
 
-    partial void OnIsLoggingActiveChanged(bool value)
-    {
-        ToggleChannelCommand.NotifyCanExecuteChanged();
-        SelectAllCommand.NotifyCanExecuteChanged();
-        ClearAllCommand.NotifyCanExecuteChanged();
-    }
+    /// <summary>
+    /// Gates channel activation, select-all, and clear-all: disabled while a
+    /// logging session is active. Re-queried when <see cref="IsLoggingActive"/> changes.
+    /// </summary>
+    private bool CanModifyChannels() => !IsLoggingActive;
 
     private void OnLoggingManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -251,6 +229,8 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         TotalActive = ActiveAnalogCount + ActiveDigitalInCount + ActiveDigitalOutCount;
     }
 
+    /// <summary>Toggles the clicked channel between active and inactive.</summary>
+    [RelayCommand(CanExecute = nameof(CanModifyChannels))]
     private void ToggleChannel(ChannelTileViewModel? tile)
     {
         if (tile == null) return;
@@ -271,6 +251,8 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         RecomputeCounts();
     }
 
+    /// <summary>Activates every channel in a section ("AI", "DI", or "DO").</summary>
+    [RelayCommand(CanExecute = nameof(CanModifyChannels))]
     private void SelectAll(string? section)
     {
         IEnumerable<ChannelTileViewModel> tiles = section switch
@@ -286,6 +268,8 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Deactivates every channel across all sections.</summary>
+    [RelayCommand(CanExecute = nameof(CanModifyChannels))]
     private void ClearAll()
     {
         var active = AnalogInputs
@@ -296,6 +280,8 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         foreach (var tile in active) ToggleChannel(tile);
     }
 
+    /// <summary>Opens the inline settings drawer for a channel.</summary>
+    [RelayCommand]
     private void OpenSettings(ChannelTileViewModel? tile)
     {
         if (tile == null) return;
@@ -315,6 +301,8 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
             .FirstOrDefault(d => d.DeviceSerialNo == channel.DeviceSerialNo);
     }
 
+    /// <summary>Closes the inline settings drawer.</summary>
+    [RelayCommand]
     private void CloseSettings()
     {
         IsSettingsOpen = false;
@@ -322,6 +310,8 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         SelectedDevice = null;
     }
 
+    /// <summary>Sets the selected channel's plot color.</summary>
+    [RelayCommand]
     private void SetColor(Brush? brush)
     {
         if (SelectedChannel == null || brush == null) return;
