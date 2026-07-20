@@ -285,7 +285,10 @@ public partial class ProfilesPaneViewModel : ObservableObject
     /// </summary>
     private static Dictionary<ProfileDevice, IStreamingDevice> MatchProfileToConnected(Profile profile)
     {
-        var claimed = new HashSet<IStreamingDevice>();
+        // Reference identity: claim specific connected-device *instances* at most once. Value equality
+        // (DaqifiStreamingDevice hashes mutable Name/IP/MAC) could wrongly treat two distinct instances as
+        // the same claim, so track instances by reference.
+        var claimed = new HashSet<IStreamingDevice>(ReferenceComparer<IStreamingDevice>.Instance);
         var result = new Dictionary<ProfileDevice, IStreamingDevice>();
         var connected = ConnectionManager.Instance.ConnectedDevices.ToList();
 
