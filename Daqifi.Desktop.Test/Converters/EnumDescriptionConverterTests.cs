@@ -33,6 +33,20 @@ public class EnumDescriptionConverterTests
         Value3
     }
 
+    // Test enum whose members carry a non-Description attribute (with and without a Description).
+    private enum AttributedEnum
+    {
+        // Only a non-Description attribute -> should fall back to the member name.
+        [System.ComponentModel.Browsable(false)]
+        NonDescriptionOnly,
+
+        // A non-Description attribute alongside a Description -> the Description must still win,
+        // regardless of attribute ordering returned by reflection.
+        [System.ComponentModel.Browsable(false)]
+        [System.ComponentModel.Description("Mixed Description")]
+        MixedAttributes
+    }
+
     [TestInitialize]
     public void Setup()
     {
@@ -128,6 +142,45 @@ public class EnumDescriptionConverterTests
             // Assert
             Assert.AreEqual(enumValue.ToString(), result, $"Failed for enum value: {enumValue}");
         }
+    }
+
+    [TestMethod]
+    public void Convert_UndefinedEnumValue_ReturnsNumericString()
+    {
+        // Arrange - a value with no corresponding named member (previously threw NullReferenceException).
+        var undefinedValue = (TestEnum)999;
+
+        // Act
+        var result = _converter.Convert(undefinedValue, typeof(string), null, CultureInfo.InvariantCulture);
+
+        // Assert
+        Assert.AreEqual("999", result);
+    }
+
+    [TestMethod]
+    public void Convert_MemberWithOnlyNonDescriptionAttribute_ReturnsEnumName()
+    {
+        // Arrange - member carries a [Browsable] attribute but no [Description] (previously threw NRE).
+        var enumValue = AttributedEnum.NonDescriptionOnly;
+
+        // Act
+        var result = _converter.Convert(enumValue, typeof(string), null, CultureInfo.InvariantCulture);
+
+        // Assert
+        Assert.AreEqual("NonDescriptionOnly", result);
+    }
+
+    [TestMethod]
+    public void Convert_MemberWithMixedAttributes_ReturnsDescription()
+    {
+        // Arrange - Description must be found even when another attribute is also present.
+        var enumValue = AttributedEnum.MixedAttributes;
+
+        // Act
+        var result = _converter.Convert(enumValue, typeof(string), null, CultureInfo.InvariantCulture);
+
+        // Assert
+        Assert.AreEqual("Mixed Description", result);
     }
 
     [TestMethod]

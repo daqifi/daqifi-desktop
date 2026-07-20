@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.Globalization;
+using System.Linq;
 using System.Windows.Data;
 
 namespace Daqifi.Desktop.Helpers;
@@ -8,18 +9,22 @@ public class EnumDescriptionConverter : IValueConverter
 {
     private string GetEnumDescription(Enum enumObj)
     {
+        // Undefined/out-of-range enum values are not named members, so GetField returns null.
+        // Fall back to the value's string form (its numeric representation) rather than crashing.
         var fieldInfo = enumObj.GetType().GetField(enumObj.ToString());
-
-        var attribArray = fieldInfo.GetCustomAttributes(false);
-
-        if (attribArray.Length == 0)
+        if (fieldInfo == null)
         {
             return enumObj.ToString();
         }
 
-        var attrib = attribArray[0] as DescriptionAttribute;
-        return attrib.Description;
+        // Select the DescriptionAttribute specifically: a member may carry other attributes,
+        // and GetCustomAttributes order is not guaranteed. Fall back to the member name when absent.
+        var descriptionAttribute = fieldInfo
+            .GetCustomAttributes(typeof(DescriptionAttribute), false)
+            .OfType<DescriptionAttribute>()
+            .FirstOrDefault();
 
+        return descriptionAttribute?.Description ?? enumObj.ToString();
     }
 
     object IValueConverter.Convert(object value, Type targetType, object parameter, CultureInfo culture)
