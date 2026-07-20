@@ -10,6 +10,9 @@ using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
+/// <summary>
+/// Streaming device that communicates with DAQiFi hardware over a serial (USB CDC / UART) port.
+/// </summary>
 public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvider
 {
     #region Properties

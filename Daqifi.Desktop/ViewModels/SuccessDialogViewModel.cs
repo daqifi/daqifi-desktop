@@ -3,6 +3,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.ViewModels;
 
+/// <summary>
+/// View model backing the success dialog; exposes the success message shown to the user.
+/// </summary>
 public partial class SuccessDialogViewModel : ObservableObject
 {
     #region Properties
