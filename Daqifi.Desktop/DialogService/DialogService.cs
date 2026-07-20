@@ -1,17 +1,14 @@
 ﻿using System.ComponentModel;
 using System.Windows;
-using Daqifi.Desktop.WindowViewModelMapping;
 
 namespace Daqifi.Desktop.DialogService;
 
 public class DialogService : IDialogService
 {
     private readonly HashSet<FrameworkElement> _views;
-    private readonly IWindowViewModelMappings _windowViewModelMappings;
 
-    public DialogService(IWindowViewModelMappings windowViewModelMappings = null)
+    public DialogService()
     {
-        _windowViewModelMappings = windowViewModelMappings;
         _views = [];
     }
 
