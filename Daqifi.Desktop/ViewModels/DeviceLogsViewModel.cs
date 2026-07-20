@@ -121,16 +121,11 @@ public partial class DeviceLogsViewModel : ObservableObject
         _ => string.Empty
     };
 
-    /// <summary>Refreshes the SD card file list from the selected device.</summary>
-    public IAsyncRelayCommand RefreshFilesCommand { get; }
-
     public DeviceLogsViewModel()
     {
         ConnectedDevices = new ObservableCollection<IStreamingDevice>();
         DeviceFiles = new ObservableCollection<SdCardFile>();
         DeviceFiles.CollectionChanged += OnDeviceFilesCollectionChanged;
-
-        RefreshFilesCommand = new AsyncRelayCommand(RefreshFilesAsync, () => CanAccessSdCard);
 
         ConnectionManager.Instance.PropertyChanged += (s, e) =>
         {
@@ -207,6 +202,11 @@ public partial class DeviceLogsViewModel : ObservableObject
         RefreshFilesCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>
+    /// Refreshes the SD card file list from the selected device. Backs the generated
+    /// <c>RefreshFilesCommand</c>, which is enabled only while <see cref="CanAccessSdCard"/> is true.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanAccessSdCard))]
     internal async Task RefreshFilesAsync()
     {
         var device = SelectedDevice;
