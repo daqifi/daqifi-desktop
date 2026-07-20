@@ -3,10 +3,11 @@ using Daqifi.Desktop.Device.SerialDevice;
 namespace Daqifi.Desktop.Test.Device;
 
 /// <summary>
-/// Tests for <see cref="SerialStreamingDevice"/>'s connect-failure classification (issue #589):
-/// Core's SCPI-error-during-initialization InvalidOperationException is a device/environmental
-/// condition, not an app bug, so it must be downgraded to a Warning (no Sentry capture) rather
-/// than the default Error path.
+/// Tests for <see cref="SerialStreamingDevice"/>'s connect-failure classification. Certain
+/// InvalidOperationExceptions raised during connect are device/environmental conditions, not app
+/// bugs, so they must be downgraded to a Warning (no Sentry capture) rather than the default Error
+/// path: Core's SCPI-error-during-initialization message (issue #589) and the serial transport
+/// reporting the COM port closed mid-initialization (issue #588).
 /// </summary>
 [TestClass]
 public class SerialStreamingDeviceLogConnectFailureTests
@@ -53,6 +54,59 @@ public class SerialStreamingDeviceLogConnectFailureTests
         var ex = new InvalidOperationException("SCPI error while doing something unrelated to initialization.");
 
         Assert.IsFalse(SerialStreamingDevice.IsScpiInitializationError(ex));
+    }
+
+    [TestMethod]
+    public void IsTransportClosedError_MatchesDotNetBaseStreamMessage()
+    {
+        // Exact wording .NET's SerialPort.BaseStream getter throws when the port has closed —
+        // the message captured in Sentry issue #588.
+        var ex = new InvalidOperationException("The BaseStream is only available when the port is open.");
+
+        Assert.IsTrue(SerialStreamingDevice.IsTransportClosedError(ex));
+    }
+
+    [TestMethod]
+    public void IsTransportClosedError_MatchesCoreTransportNotConnectedMessage()
+    {
+        // Wording Core's SerialStreamTransport throws when its SerialPort reference is null.
+        var ex = new InvalidOperationException("Transport is not connected.");
+
+        Assert.IsTrue(SerialStreamingDevice.IsTransportClosedError(ex));
+    }
+
+    [TestMethod]
+    public void IsTransportClosedError_IsCaseInsensitive()
+    {
+        var ex = new InvalidOperationException("the basestream is only available when the port is open");
+
+        Assert.IsTrue(SerialStreamingDevice.IsTransportClosedError(ex));
+    }
+
+    [TestMethod]
+    public void IsTransportClosedError_DoesNotMatchUnrelatedInvalidOperationException()
+    {
+        // Regression guard: an unrelated InvalidOperationException bug must still hit the
+        // default Error path instead of being silently downgraded.
+        var ex = new InvalidOperationException("Transport exploded.");
+
+        Assert.IsFalse(SerialStreamingDevice.IsTransportClosedError(ex));
+    }
+
+    [TestMethod]
+    public void LogConnectFailure_WithTransportClosedError_DoesNotThrow()
+    {
+        var device = new TestableSerialStreamingDevice("COM_TEST_588");
+        var ex = new InvalidOperationException("The BaseStream is only available when the port is open.");
+
+        try
+        {
+            device.ExposedLogConnectFailure(ex);
+        }
+        catch (Exception caught)
+        {
+            Assert.Fail($"LogConnectFailure must not throw for the transport-closed case, but threw: {caught}");
+        }
     }
 
     [TestMethod]

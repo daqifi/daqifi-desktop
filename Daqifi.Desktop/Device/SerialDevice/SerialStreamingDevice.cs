@@ -136,6 +136,18 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
                 // not an app bug (issue #589).
                 AppLogger.Warning(ex, $"Device on {PortName} returned a SCPI error during initialization");
                 break;
+            case InvalidOperationException when IsTransportClosedError(ex):
+                // The serial transport opens the COM port during CreateCoreDevice, then Core's
+                // InitializeAsync reads/writes it. If the port closes in that window — the device
+                // is unplugged, powered off, or the USB driver drops the port mid-connect —
+                // accessing the transport stream throws an InvalidOperationException: .NET's
+                // SerialPort.BaseStream getter throws "The BaseStream is only available when the
+                // port is open." and Core's transport throws "Transport is not connected." Both
+                // mean the same thing: the port vanished mid-initialization. That's a
+                // user/environmental condition, not an app bug — same classification as the
+                // connect-timeout and SCPI-init cases above (issue #588).
+                AppLogger.Warning(ex, $"Device on {PortName} disconnected during initialization");
+                break;
             default:
                 AppLogger.Error(ex, $"Failed to connect on {PortName}");
                 break;
@@ -151,6 +163,20 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     /// </summary>
     internal static bool IsScpiInitializationError(Exception ex) =>
         ex.Message.Contains("SCPI error during initialization", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// True when <paramref name="ex"/> is the serial transport reporting that the COM port closed
+    /// mid-initialization (issue #588): .NET's <c>SerialPort.BaseStream</c> getter
+    /// ("The BaseStream is only available when the port is open.") or Core's transport
+    /// ("Transport is not connected."). Both indicate the device was unplugged/powered off or the
+    /// USB driver dropped the port during connect — a device/environmental condition, not an app
+    /// bug. Matched on the specific known phrases (not the bare word "port") so unrelated
+    /// <see cref="InvalidOperationException"/> bugs still hit the default Error path. Extracted as
+    /// a pure predicate so the classification is unit-testable without exercising the logger.
+    /// </summary>
+    internal static bool IsTransportClosedError(Exception ex) =>
+        ex.Message.Contains("BaseStream is only available when the port is open", StringComparison.OrdinalIgnoreCase)
+        || ex.Message.Contains("Transport is not connected", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Sends a message to the device using Core's DaqifiDevice.
