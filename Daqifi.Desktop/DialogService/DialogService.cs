@@ -7,6 +7,10 @@ public class DialogService : IDialogService
 {
     private readonly HashSet<FrameworkElement> _views;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DialogService"/> class
+    /// with an empty registry of tracked views.
+    /// </summary>
     public DialogService()
     {
         _views = [];
