@@ -179,6 +179,14 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
         return Name;
     }
 
+    /// <summary>
+    /// Determines value equality between two <see cref="DaqifiStreamingDevice"/> instances by comparing
+    /// their identity fields (<see cref="AbstractStreamingDevice.Name"/>, <c>IpAddress</c>, <c>MacAddress</c>).
+    /// Used for list-based dedup in <c>ConnectionManager.ConnectedDevices</c>. Note that instance-tracking
+    /// hash sets (e.g. subscription/claim bookkeeping) deliberately use reference identity instead.
+    /// </summary>
+    /// <param name="obj">The object to compare against.</param>
+    /// <returns><c>true</c> when <paramref name="obj"/> is a device with the same name, IP, and MAC; otherwise <c>false</c>.</returns>
     public override bool Equals(object? obj)
     {
         if (obj is not DaqifiStreamingDevice other) { return false; }
@@ -189,11 +197,12 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     }
 
     /// <summary>
-    /// Returns a hash code consistent with <see cref="Equals(object?)"/>, combining the same
-    /// identity fields (<see cref="AbstractStreamingDevice.Name"/>, <c>IpAddress</c>, <c>MacAddress</c>).
-    /// Required so value-equal instances hash equally — the app tracks devices in
-    /// <c>HashSet&lt;IStreamingDevice&gt;</c> (DaqifiViewModel), which buckets by this hash before
-    /// consulting <see cref="Equals(object?)"/>.
+    /// Returns a hash code consistent with <see cref="Equals(object?)"/>, combining the same identity
+    /// fields (<see cref="AbstractStreamingDevice.Name"/>, <c>IpAddress</c>, <c>MacAddress</c>) so the
+    /// <see cref="object.Equals(object?)"/>/<see cref="object.GetHashCode"/> contract holds.
+    /// These fields are mutable, so this device must never be stored in a value-hashed set that outlives a
+    /// field change; instance-tracking sets in the view models use <see cref="ReferenceEqualityComparer"/>
+    /// to stay stable across metadata hydration.
     /// </summary>
     /// <returns>A hash code derived from the device's name, IP address, and MAC address.</returns>
     public override int GetHashCode()

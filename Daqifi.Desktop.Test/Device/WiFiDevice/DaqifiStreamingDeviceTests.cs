@@ -289,11 +289,15 @@ public class DaqifiStreamingDeviceTests
         var a = new DaqifiStreamingDevice(CreateTestDeviceInfo());
         var b = new DaqifiStreamingDevice(CreateTestDeviceInfo());
 
-        // Act & Assert
-        // Guards the Equals/GetHashCode contract: value-equal instances must hash equally so the
-        // HashSet<IStreamingDevice> tracking in DaqifiViewModel behaves per the Equals override.
+        // Act
+        var hashA = a.GetHashCode();
+        var hashB = b.GetHashCode();
+
+        // Assert
+        // Guards the Equals/GetHashCode contract: value-equal instances must hash equally so value-based
+        // dedup (e.g. ConnectionManager.ConnectedDevices) behaves consistently with the Equals override.
         Assert.AreEqual(a, b);
-        Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+        Assert.AreEqual(hashA, hashB);
     }
 
     [TestMethod]
@@ -302,8 +306,12 @@ public class DaqifiStreamingDeviceTests
         // Arrange
         var device = new DaqifiStreamingDevice(CreateTestDeviceInfo());
 
-        // Act & Assert
-        Assert.AreEqual(device.GetHashCode(), device.GetHashCode());
+        // Act
+        var firstHash = device.GetHashCode();
+        var secondHash = device.GetHashCode();
+
+        // Assert
+        Assert.AreEqual(firstHash, secondHash);
     }
 
     #endregion

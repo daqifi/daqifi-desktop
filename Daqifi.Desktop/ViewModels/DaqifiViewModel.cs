@@ -1389,23 +1389,29 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     // Devices we've wired per-VM event handlers onto — both the logging-state PropertyChanged handler
     // and (for streaming devices) the DebugDataReceived handler. Tracked as one set so subscribe and
     // unsubscribe stay symmetric across Reset/Replace/add/remove and so Dispose can tear them all down.
-    private readonly HashSet<IStreamingDevice> _subscribedDevices = [];
+    // Reference identity, not value equality: this set tracks the specific device *instances* we wired
+    // handlers onto. DaqifiStreamingDevice overrides Equals/GetHashCode on mutable fields (Name/IP/MAC),
+    // so a value-hashed set could lose track of an instance once metadata hydration mutates those fields.
+    private readonly HashSet<IStreamingDevice> _subscribedDevices = new(ReferenceComparer<IStreamingDevice>.Instance);
 
     private void OnConnectedDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         // ObservableCollection.Clear() raises a Reset with OldItems == null, so we
         // can't rely on the args alone — diff against our tracked-subscription set
         // to handle Reset, Replace, and per-item adds/removes uniformly.
-        var current = new HashSet<IStreamingDevice>(ConnectedDevices);
+        // Reference identity throughout: the snapshot set and both Except() diffs must use the same
+        // reference comparer as _subscribedDevices, otherwise LINQ's default value comparer would defeat
+        // instance tracking (see _subscribedDevices declaration).
+        var current = new HashSet<IStreamingDevice>(ConnectedDevices, ReferenceComparer<IStreamingDevice>.Instance);
 
-        foreach (var stale in _subscribedDevices.Except(current).ToList())
+        foreach (var stale in _subscribedDevices.Except(current, ReferenceComparer<IStreamingDevice>.Instance).ToList())
         {
             UnsubscribeDeviceEvents(stale);
             _subscribedDevices.Remove(stale);
         }
 
         var anyAdded = false;
-        foreach (var added in current.Except(_subscribedDevices).ToList())
+        foreach (var added in current.Except(_subscribedDevices, ReferenceComparer<IStreamingDevice>.Instance).ToList())
         {
             SubscribeDeviceEvents(added);
             _subscribedDevices.Add(added);
