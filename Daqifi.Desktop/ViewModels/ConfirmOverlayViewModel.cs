@@ -49,24 +49,17 @@ public partial class ConfirmOverlayViewModel : ObservableObject
     #region Commands
     /// <summary>
     /// Resolves the pending <see cref="ShowAsync"/> task with <c>true</c>.
-    /// Bound to the affirmative button.
+    /// Bound to the affirmative button via the generated <c>AffirmativeCommand</c>.
     /// </summary>
-    public IRelayCommand AffirmativeCommand { get; }
+    [RelayCommand]
+    private void Affirmative() => Complete(true);
 
     /// <summary>
     /// Resolves the pending <see cref="ShowAsync"/> task with <c>false</c>.
-    /// Bound to the cancel button and the scrim.
+    /// Bound to the cancel button and the scrim via the generated <c>NegativeCommand</c>.
     /// </summary>
-    public IRelayCommand NegativeCommand { get; }
-    #endregion
-
-    #region Constructor
-    /// <summary>Initializes the overlay view model and wires the affirmative/negative commands.</summary>
-    public ConfirmOverlayViewModel()
-    {
-        AffirmativeCommand = new RelayCommand(() => Complete(true));
-        NegativeCommand = new RelayCommand(() => Complete(false));
-    }
+    [RelayCommand]
+    private void Negative() => Complete(false);
     #endregion
 
     #region Public Methods
