@@ -244,21 +244,27 @@ public class DeviceLogsViewModelTests
     [TestMethod]
     public void RefreshFilesCommand_CanExecute_WhenUsbConnected_IsTrue()
     {
-        // Arrange & Act: USB device is selected in Setup, so SD-card access is available.
+        // Arrange: USB device is selected in Setup, so SD-card access is available.
+
+        // Act
+        var canExecute = _viewModel.RefreshFilesCommand.CanExecute(null);
 
         // Assert
-        Assert.IsTrue(_viewModel.RefreshFilesCommand.CanExecute(null));
+        Assert.IsTrue(canExecute);
     }
 
     [TestMethod]
     public void RefreshFilesCommand_CanExecute_WhenWifiConnected_IsFalse()
     {
-        // Arrange & Act: a WiFi device cannot access the SD card.
+        // Arrange: a WiFi device cannot access the SD card.
         _mockDevice.Setup(d => d.ConnectionType).Returns(ConnectionType.Wifi);
         _viewModel.SelectedDevice = _mockDevice.Object;
 
+        // Act
+        var canExecute = _viewModel.RefreshFilesCommand.CanExecute(null);
+
         // Assert
-        Assert.IsFalse(_viewModel.RefreshFilesCommand.CanExecute(null));
+        Assert.IsFalse(canExecute);
     }
 
     [TestMethod]
