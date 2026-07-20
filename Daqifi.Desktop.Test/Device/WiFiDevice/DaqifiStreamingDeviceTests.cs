@@ -282,6 +282,30 @@ public class DaqifiStreamingDeviceTests
         Assert.AreNotEqual(a, b);
     }
 
+    [TestMethod]
+    public void GetHashCode_EqualInstances_ShouldProduceEqualHashCodes()
+    {
+        // Arrange
+        var a = new DaqifiStreamingDevice(CreateTestDeviceInfo());
+        var b = new DaqifiStreamingDevice(CreateTestDeviceInfo());
+
+        // Act & Assert
+        // Guards the Equals/GetHashCode contract: value-equal instances must hash equally so the
+        // HashSet<IStreamingDevice> tracking in DaqifiViewModel behaves per the Equals override.
+        Assert.AreEqual(a, b);
+        Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
+    }
+
+    [TestMethod]
+    public void GetHashCode_SameInstance_ShouldBeStable()
+    {
+        // Arrange
+        var device = new DaqifiStreamingDevice(CreateTestDeviceInfo());
+
+        // Act & Assert
+        Assert.AreEqual(device.GetHashCode(), device.GetHashCode());
+    }
+
     #endregion
 
     #region ToString Tests
