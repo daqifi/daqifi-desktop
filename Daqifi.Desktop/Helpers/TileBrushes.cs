@@ -16,6 +16,7 @@ internal static class TileBrushes
     /// brush can be shared across threads and never triggers change tracking.
     /// </summary>
     /// <param name="hex">A hex color string (e.g. <c>"#171A20"</c>).</param>
+    /// <returns>A frozen <see cref="SolidColorBrush"/> for the parsed color.</returns>
     public static SolidColorBrush Frozen(string hex)
     {
         var color = (Color)ColorConverter.ConvertFromString(hex)!;
