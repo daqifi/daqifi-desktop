@@ -449,10 +449,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// <see cref="InvalidOperationException"/> (issue #589). Core's <c>InitializeAsync()</c> throws
     /// this from the shared <see cref="Connect"/> template regardless of transport, so both serial
     /// and WiFi devices classify it here as a device/environmental condition (a Warning, not a
-    /// Sentry-captured bug). Matched on Core's full known prefix rather than the bare substring
-    /// "SCPI error" so an unrelated <see cref="InvalidOperationException"/> that happens to mention a
-    /// SCPI error elsewhere in its message isn't misclassified. Extracted as a pure predicate so the
-    /// classification is unit-testable without exercising the logger.
+    /// Sentry-captured bug). Matched on Core's full distinctive phrase ("SCPI error during
+    /// initialization") rather than the bare substring "SCPI error" so an unrelated
+    /// <see cref="InvalidOperationException"/> that happens to mention a SCPI error elsewhere in its
+    /// message isn't misclassified. A <see cref="string.Contains(string, StringComparison)"/> (not a
+    /// prefix/<c>StartsWith</c>) match is deliberate: Core embeds the phrase mid-message ("Device
+    /// returned a SCPI error during initialization: ..."), so it never sits at the start. Extracted
+    /// as a pure predicate so the classification is unit-testable without exercising the logger.
     /// </summary>
     internal static bool IsScpiInitializationError(Exception ex) =>
         ex.Message.Contains("SCPI error during initialization", StringComparison.OrdinalIgnoreCase);

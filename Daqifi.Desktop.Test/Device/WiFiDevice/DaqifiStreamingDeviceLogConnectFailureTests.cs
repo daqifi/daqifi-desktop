@@ -20,6 +20,33 @@ public class DaqifiStreamingDeviceLogConnectFailureTests
         "Device returned a SCPI error during initialization: -200,\"Execution error\"";
 
     [TestMethod]
+    public void IsScpiInitializationError_MatchesCoresWiFiInitializationErrorMessage()
+    {
+        // Arrange
+        var ex = new InvalidOperationException(CORE_SCPI_INIT_ERROR_MESSAGE);
+
+        // Act
+        var isEnvironmental = DaqifiStreamingDevice.IsScpiInitializationError(ex);
+
+        // Assert — proves the WiFi-surfaced message classifies as environmental (Warning, not
+        // the default Error/Sentry path); guards against a regression that drops the downgrade.
+        Assert.IsTrue(isEnvironmental);
+    }
+
+    [TestMethod]
+    public void IsScpiInitializationError_DoesNotMatchWiFiAppBugInvalidOperationException()
+    {
+        // Arrange — WiFi's own app-bug InvalidOperationException must NOT be downgraded.
+        var ex = new InvalidOperationException("Connected Core device does not support streaming operations.");
+
+        // Act
+        var isEnvironmental = DaqifiStreamingDevice.IsScpiInitializationError(ex);
+
+        // Assert
+        Assert.IsFalse(isEnvironmental);
+    }
+
+    [TestMethod]
     public void LogConnectFailure_WithScpiInitializationError_DoesNotThrow()
     {
         var device = CreateTestableDevice();
