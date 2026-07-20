@@ -3,23 +3,14 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public class SuccessDialogViewModel : ObservableObject
+/// <summary>
+/// View model backing the success dialog; exposes the success message shown to the user.
+/// </summary>
+public partial class SuccessDialogViewModel : ObservableObject
 {
-    #region Private Variables
-    private string _successMessage;
-    #endregion
-
     #region Properties
-
-    public string SuccessMessage
-    {
-        get => _successMessage;
-        set
-        {
-            _successMessage = value;
-            OnPropertyChanged();
-        }
-    }
+    [ObservableProperty]
+    private string _successMessage;
     #endregion
 
     public SuccessDialogViewModel(string successmessage)

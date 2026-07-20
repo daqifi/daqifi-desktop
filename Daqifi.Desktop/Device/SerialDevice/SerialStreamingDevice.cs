@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.IO.Ports;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Daqifi.Core.Device;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Messages;
@@ -9,25 +10,17 @@ using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
-public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvider
+/// <summary>
+/// Streaming device that communicates with DAQiFi hardware over a serial (USB CDC / UART) port.
+/// </summary>
+public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvider
 {
     #region Properties
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayIdentifier))]
     private SerialPort? _port;
-    private SerialStreamTransport? _transport;
 
-    public SerialPort? Port
-    {
-        get => _port;
-        set
-        {
-            if (_port != value)
-            {
-                _port = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(DisplayIdentifier));
-            }
-        }
-    }
+    private SerialStreamTransport? _transport;
 
     /// <summary>
     /// Gets the actual COM port name for UART communication
