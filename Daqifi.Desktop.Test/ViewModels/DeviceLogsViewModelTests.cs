@@ -22,8 +22,21 @@ public class DeviceLogsViewModelTests
         _mockDevice.Setup(d => d.SdCardFiles).Returns(new List<SdCardFile>().AsReadOnly());
         _mockDevice.Setup(d => d.DeviceDisplayName).Returns("DAQ-TEST-001");
 
+        // DeviceLogsViewModel's constructor reads the process-wide ConnectionManager.Instance
+        // singleton and auto-selects its first connected device. Other tests (e.g.
+        // DuplicateDeviceDetectionTests) Connect() mock devices onto that singleton and only
+        // clear it in their own setup, so reset it here to keep this test order-independent.
+        ConnectionManager.Instance.ConnectedDevices.Clear();
+
         _viewModel = new DeviceLogsViewModel();
         _viewModel.SelectedDevice = _mockDevice.Object;
+    }
+
+    [TestCleanup]
+    public void Cleanup()
+    {
+        // Leave the shared singleton clean for whatever test runs next.
+        ConnectionManager.Instance.ConnectedDevices.Clear();
     }
 
     [TestMethod]
