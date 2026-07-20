@@ -1,10 +1,8 @@
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Helpers;
 using Brush = System.Windows.Media.Brush;
-using Color = System.Windows.Media.Color;
-using ColorConverter = System.Windows.Media.ColorConverter;
-using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -67,10 +65,10 @@ public sealed class DeviceTileViewModel : ObservableObject, IDisposable
     public Brush StripeBrush => IsUsb ? UsbAccent : WifiAccent;
 
     /// <summary>Background color for the tile.</summary>
-    public Brush TileBackground => SurfaceRaised;
+    public Brush TileBackground => TileBrushes.SurfaceRaised;
 
     /// <summary>Border color — stripe color when connected, dim otherwise.</summary>
-    public Brush TileBorderBrush => IsConnected ? StripeBrush : BorderDim;
+    public Brush TileBorderBrush => IsConnected ? StripeBrush : TileBrushes.BorderDim;
 
     /// <summary>Creates a tile bound to the given device.</summary>
     public DeviceTileViewModel(IStreamingDevice device)
@@ -128,16 +126,6 @@ public sealed class DeviceTileViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static readonly Brush SurfaceRaised = MakeBrush("#171A20");
-    private static readonly Brush BorderDim = MakeBrush("#2A2F38");
-    private static readonly Brush UsbAccent = MakeBrush("#06B6D4");
-    private static readonly Brush WifiAccent = MakeBrush("#A855F7");
-
-    private static SolidColorBrush MakeBrush(string hex)
-    {
-        var color = (Color)ColorConverter.ConvertFromString(hex)!;
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
-    }
+    private static readonly Brush UsbAccent = TileBrushes.Frozen("#06B6D4");
+    private static readonly Brush WifiAccent = TileBrushes.Frozen("#A855F7");
 }

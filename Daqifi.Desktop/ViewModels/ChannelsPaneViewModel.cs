@@ -7,9 +7,6 @@ using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using Brush = System.Windows.Media.Brush;
-using Color = System.Windows.Media.Color;
-using ColorConverter = System.Windows.Media.ColorConverter;
-using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 
 namespace Daqifi.Desktop.ViewModels;
@@ -93,10 +90,7 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         var result = new Brush[hexes.Length];
         for (var i = 0; i < hexes.Length; i++)
         {
-            var color = (Color)ColorConverter.ConvertFromString(hexes[i])!;
-            var brush = new SolidColorBrush(color);
-            brush.Freeze();
-            result[i] = brush;
+            result[i] = TileBrushes.Frozen(hexes[i]);
         }
         return result;
     }
