@@ -1,7 +1,8 @@
 using System.Collections.Generic;
-using Daqifi.Core.Communication.Messages;
+using System.ComponentModel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.ViewModels;
+using Moq;
 using DeviceType = Daqifi.Core.Device.DeviceType;
 
 namespace Daqifi.Desktop.Test.ViewModels;
@@ -21,48 +22,51 @@ public class DeviceTileViewModelTests
     [DataRow(DeviceType.Unknown, "Unknown")]
     public void DeviceTypeDisplay_MapsEachTypeToFriendlyName(DeviceType type, string expected)
     {
-        var device = new TileTestDevice { DeviceType = type };
-        using var tile = new DeviceTileViewModel(device);
+        // Arrange
+        var deviceMock = new Mock<IStreamingDevice>();
+        deviceMock.SetupGet(d => d.DeviceType).Returns(type);
 
-        Assert.AreEqual(expected, tile.DeviceTypeDisplay);
+        // Act
+        using var tile = new DeviceTileViewModel(deviceMock.Object);
+        var actual = tile.DeviceTypeDisplay;
+
+        // Assert
+        Assert.AreEqual(expected, actual);
     }
 
     [TestMethod]
     public void DeviceTypeDisplay_DefaultsToUnknown_BeforeDetection()
     {
-        var device = new TileTestDevice();
-        using var tile = new DeviceTileViewModel(device);
+        // Arrange
+        var deviceMock = new Mock<IStreamingDevice>();
+        deviceMock.SetupGet(d => d.DeviceType).Returns(DeviceType.Unknown);
 
-        Assert.AreEqual("Unknown", tile.DeviceTypeDisplay);
+        // Act
+        using var tile = new DeviceTileViewModel(deviceMock.Object);
+        var actual = tile.DeviceTypeDisplay;
+
+        // Assert
+        Assert.AreEqual("Unknown", actual);
     }
 
     [TestMethod]
     public void DeviceType_Change_RaisesDeviceTypeDisplayPropertyChanged_AndUpdatesValue()
     {
-        var device = new TileTestDevice();
-        using var tile = new DeviceTileViewModel(device);
+        // Arrange
+        var deviceMock = new Mock<IStreamingDevice>();
+        deviceMock.SetupGet(d => d.DeviceType).Returns(DeviceType.Unknown);
+        using var tile = new DeviceTileViewModel(deviceMock.Object);
         var changed = new List<string>();
         tile.PropertyChanged += (_, e) => changed.Add(e.PropertyName!);
 
-        device.DeviceType = DeviceType.Nyquist3;
+        // Act
+        deviceMock.SetupGet(d => d.DeviceType).Returns(DeviceType.Nyquist3);
+        deviceMock.Raise(d => d.PropertyChanged += null,
+            new PropertyChangedEventArgs(nameof(IStreamingDevice.DeviceType)));
 
+        // Assert
         CollectionAssert.Contains(changed, nameof(DeviceTileViewModel.DeviceTypeDisplay),
             "Tile must refresh DeviceTypeDisplay when the device reports a new type");
         Assert.AreEqual("Nyquist 3", tile.DeviceTypeDisplay);
-    }
-
-    private sealed class TileTestDevice : AbstractStreamingDevice
-    {
-        public override ConnectionType ConnectionType => ConnectionType.Usb;
-
-        public override bool Connect() => true;
-
-        public override bool Disconnect() => true;
-
-        public override bool Write(string command) => true;
-
-        protected override void SendMessage(IOutboundMessage<string> message)
-        {
-        }
     }
 }
