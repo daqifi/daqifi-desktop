@@ -17,7 +17,9 @@ public sealed class ReferenceComparer<T> : IEqualityComparer<T> where T : class
     /// <summary>The shared, stateless instance.</summary>
     public static readonly ReferenceComparer<T> Instance = new();
 
-    private ReferenceComparer() { }
+    private ReferenceComparer()
+    {
+    }
 
     /// <inheritdoc />
     public bool Equals(T? x, T? y) => ReferenceEquals(x, y);

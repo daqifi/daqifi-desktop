@@ -204,8 +204,8 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     /// fields (<see cref="AbstractStreamingDevice.Name"/>, <c>IpAddress</c>, <c>MacAddress</c>) so the
     /// <see cref="object.Equals(object?)"/>/<see cref="object.GetHashCode"/> contract holds.
     /// These fields are mutable, so this device must never be stored in a value-hashed set that outlives a
-    /// field change; instance-tracking sets in the view models use <see cref="ReferenceEqualityComparer"/>
-    /// to stay stable across metadata hydration.
+    /// field change; instance-tracking sets in the view models use
+    /// <see cref="Daqifi.Desktop.Helpers.ReferenceComparer{T}"/> to stay stable across metadata hydration.
     /// </summary>
     /// <returns>A hash code derived from the device's name, IP address, and MAC address.</returns>
     public override int GetHashCode()
