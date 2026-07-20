@@ -48,7 +48,9 @@ public partial class ProfilesPaneViewModel : ObservableObject
     // New-profile form fields (active only when IsNewProfile = true)
 
     /// <summary>Name bound to the new-profile form.</summary>
-    [ObservableProperty] private string _newProfileName = string.Empty;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveNewProfileCommand))]
+    private string _newProfileName = string.Empty;
 
     /// <summary>Sampling frequency (Hz) bound to the new-profile form. Capped at 1000Hz in the UI.</summary>
     [ObservableProperty] private int _newProfileFrequency = 1000;
@@ -76,45 +78,14 @@ public partial class ProfilesPaneViewModel : ObservableObject
     public ConfirmOverlayViewModel ConfirmOverlay { get; } = new();
     #endregion
 
-    #region Commands
-    /// <summary>Opens the drawer to edit the supplied profile.</summary>
-    public IRelayCommand<Profile> OpenEditDrawerCommand { get; }
-
-    /// <summary>Opens the drawer in new-profile mode with the device list pre-populated.</summary>
-    public IRelayCommand OpenNewDrawerCommand { get; }
-
-    /// <summary>Closes the drawer, persisting edits to the selected profile.</summary>
-    public IRelayCommand CloseDrawerCommand { get; }
-
-    /// <summary>Toggles the supplied profile on/off with a user confirmation when switching.</summary>
-    public IAsyncRelayCommand<Profile> ActivateProfileCommand { get; }
-
-    /// <summary>Deletes the supplied profile when it is not currently active.</summary>
-    public IRelayCommand<Profile> DeleteProfileCommand { get; }
-
-    /// <summary>Saves the new-profile form as a new <see cref="Profile"/>.</summary>
-    public IRelayCommand SaveNewProfileCommand { get; }
-
-    /// <summary>Snapshots the current device configuration into a new profile.</summary>
-    public IRelayCommand SaveCurrentSettingsCommand { get; }
-    #endregion
-
     #region Constructor
     /// <summary>
-    /// Wires up commands, subscribes to <see cref="LoggingManager"/> and profile
-    /// collection events, and seeds the initial <see cref="HasProfiles"/> /
-    /// <see cref="ActiveProfileName"/> state.
+    /// Subscribes to <see cref="LoggingManager"/> and profile collection events,
+    /// and seeds the initial <see cref="HasProfiles"/> / <see cref="ActiveProfileName"/>
+    /// state. Commands are generated from <c>[RelayCommand]</c>-annotated methods.
     /// </summary>
     public ProfilesPaneViewModel()
     {
-        OpenEditDrawerCommand = new RelayCommand<Profile>(OpenEditDrawer);
-        OpenNewDrawerCommand = new RelayCommand(OpenNewDrawer);
-        CloseDrawerCommand = new RelayCommand(CloseDrawer);
-        ActivateProfileCommand = new AsyncRelayCommand<Profile>(ActivateProfile);
-        DeleteProfileCommand = new RelayCommand<Profile>(DeleteProfile);
-        SaveNewProfileCommand = new RelayCommand(SaveNewProfile, CanSaveNewProfile);
-        SaveCurrentSettingsCommand = new RelayCommand(SaveCurrentSettings);
-
         LoggingManager.Instance.PropertyChanged += OnLoggingManagerPropertyChanged;
         IsLoggingActive = LoggingManager.Instance.Active;
         HasProfiles = Profiles.Count > 0;
@@ -148,9 +119,6 @@ public partial class ProfilesPaneViewModel : ObservableObject
             IsLoggingActive = LoggingManager.Instance.Active;
     }
 
-    partial void OnNewProfileNameChanged(string value) =>
-        SaveNewProfileCommand.NotifyCanExecuteChanged();
-
     private void OnNewDeviceItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (sender is not NewProfileDeviceItem deviceItem ||
@@ -172,6 +140,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
     #endregion
 
     #region Drawer Lifecycle
+    /// <summary>Opens the drawer to edit the supplied profile.</summary>
+    [RelayCommand]
     private void OpenEditDrawer(Profile? profile)
     {
         if (profile == null) return;
@@ -186,6 +156,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
         IsDrawerOpen = true;
     }
 
+    /// <summary>Opens the drawer in new-profile mode with the device list pre-populated.</summary>
+    [RelayCommand]
     private void OpenNewDrawer()
     {
         if (LoggingManager.Instance.Active)
@@ -213,6 +185,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
         IsDrawerOpen = true;
     }
 
+    /// <summary>Closes the drawer, persisting edits to the selected profile.</summary>
+    [RelayCommand]
     private void CloseDrawer()
     {
         if (!IsNewProfile && SelectedProfile != null &&
@@ -228,6 +202,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
     #endregion
 
     #region Activation
+    /// <summary>Toggles the supplied profile on/off with a user confirmation when switching.</summary>
+    [RelayCommand]
     private async Task ActivateProfile(Profile? profile)
     {
         if (profile == null) return;
@@ -389,6 +365,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
         DrawerError = message;
     }
 
+    /// <summary>Deletes the supplied profile when it is not currently active.</summary>
+    [RelayCommand]
     private void DeleteProfile(Profile? profile)
     {
         if (profile == null) return;
@@ -409,6 +387,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
         LoggingManager.Instance.UnsubscribeProfile(profile);
     }
 
+    /// <summary>Saves the new-profile form as a new <see cref="Profile"/>.</summary>
+    [RelayCommand(CanExecute = nameof(CanSaveNewProfile))]
     private void SaveNewProfile()
     {
         if (!CanSaveNewProfile()) return;
@@ -453,6 +433,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
         CloseDrawer();
     }
 
+    /// <summary>Snapshots the current device configuration into a new profile.</summary>
+    [RelayCommand]
     private void SaveCurrentSettings()
     {
         var connected = ConnectionManager.Instance.ConnectedDevices.ToList();

@@ -35,6 +35,8 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(SelectedDevice))]
     [NotifyPropertyChangedFor(nameof(SelectedDeviceSupportsFirmwareUpdate))]
     [NotifyPropertyChangedFor(nameof(FrequencyHz))]
+    [NotifyCanExecuteChangedFor(nameof(DisconnectSelectedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RebootSelectedCommand))]
     private DeviceTileViewModel? _selectedTile;
 
     [ObservableProperty] private bool _isSettingsOpen;
@@ -64,53 +66,18 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Opens the inline settings drawer for a device tile.</summary>
-    public IRelayCommand<DeviceTileViewModel> OpenSettingsCommand { get; }
-
-    /// <summary>Closes the inline settings drawer.</summary>
-    public IRelayCommand CloseSettingsCommand { get; }
-
-    /// <summary>Shows the Add-Device dialog via the shell view-model.</summary>
-    public IRelayCommand AddDeviceCommand { get; }
-
-    /// <summary>Disconnects the currently selected device and closes the drawer.</summary>
-    public IRelayCommand DisconnectSelectedCommand { get; }
-
-    /// <summary>Reboots the currently selected device.</summary>
-    public IRelayCommand RebootSelectedCommand { get; }
-
-    /// <summary>
-    /// Writes the chosen logging-mode label ("Stream to App" or "Log to
-    /// Device") to the shell. Parameterized so the XAML can wire both
-    /// segmented-toggle RadioButtons to the same command.
-    /// </summary>
-    public IRelayCommand<string> SetLoggingModeCommand { get; }
-
     /// <summary>Creates the view-model bound to the shell view-model.</summary>
     public DevicesPaneViewModel(DaqifiViewModel? shell)
     {
         _shell = shell;
         _dispatcher = Dispatcher.CurrentDispatcher;
 
-        OpenSettingsCommand = new RelayCommand<DeviceTileViewModel>(OpenSettings);
-        CloseSettingsCommand = new RelayCommand(CloseSettings);
-        AddDeviceCommand = new RelayCommand(AddDevice);
-        DisconnectSelectedCommand = new RelayCommand(DisconnectSelected, () => SelectedDevice != null);
-        RebootSelectedCommand = new RelayCommand(RebootSelected, () => SelectedDevice != null);
-        SetLoggingModeCommand = new RelayCommand<string>(SetLoggingMode);
-
         ConnectionManager.Instance.PropertyChanged += OnConnectionManagerPropertyChanged;
         Rebuild();
     }
 
-    partial void OnSelectedTileChanged(DeviceTileViewModel? value)
-    {
-        // Derived-property change notifications are declared via
-        // [NotifyPropertyChangedFor] attributes above; the partial is only
-        // for imperative work the source generator can't do.
-        DisconnectSelectedCommand.NotifyCanExecuteChanged();
-        RebootSelectedCommand.NotifyCanExecuteChanged();
-    }
+    /// <summary>Gates the selected-device commands; re-queried when the drawer selection changes.</summary>
+    private bool HasSelectedDevice() => SelectedDevice != null;
 
     private void OnConnectionManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -158,6 +125,8 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Opens the inline settings drawer for a device tile.</summary>
+    [RelayCommand]
     private void OpenSettings(DeviceTileViewModel? tile)
     {
         if (tile == null) return;
@@ -176,12 +145,16 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
         IsSettingsOpen = true;
     }
 
+    /// <summary>Closes the inline settings drawer.</summary>
+    [RelayCommand]
     private void CloseSettings()
     {
         IsSettingsOpen = false;
         SelectedTile = null;
     }
 
+    /// <summary>Shows the Add-Device dialog via the shell view-model.</summary>
+    [RelayCommand]
     private void AddDevice()
     {
         if (_shell?.ShowConnectionDialogCommand.CanExecute(null) == true)
@@ -190,6 +163,8 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>Disconnects the currently selected device and closes the drawer.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelectedDevice))]
     private void DisconnectSelected()
     {
         var device = SelectedDevice;
@@ -201,6 +176,12 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
         CloseSettings();
     }
 
+    /// <summary>
+    /// Writes the chosen logging-mode label ("Stream to App" or "Log to
+    /// Device") to the shell. Parameterized so the XAML can wire both
+    /// segmented-toggle RadioButtons to the same command.
+    /// </summary>
+    [RelayCommand]
     private void SetLoggingMode(string? mode)
     {
         // The shell setter takes the label, drives device SwitchMode, and
@@ -209,6 +190,8 @@ public partial class DevicesPaneViewModel : ObservableObject, IDisposable
         _shell.SelectedLoggingMode = mode;
     }
 
+    /// <summary>Reboots the currently selected device.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelectedDevice))]
     private void RebootSelected()
     {
         var device = SelectedDevice;
