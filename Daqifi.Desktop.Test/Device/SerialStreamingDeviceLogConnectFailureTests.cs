@@ -19,12 +19,34 @@ public class SerialStreamingDeviceLogConnectFailureTests
     private const string CORE_SCPI_INIT_ERROR_MESSAGE =
         "Device returned a SCPI error during initialization: -200,\"Execution error\"";
 
+    // The exact message Core throws from DaqifiStreamingDevice.OnDeviceInitializingAsync when the
+    // "SYSTem:STReam:INTerface 0" (stream-interface -> USB) switch is rejected. This is the message
+    // issue #589 and its Sentry alert DAQIFI-DESKTOP-Y are filed for; the original #589 fix only
+    // matched CORE_SCPI_INIT_ERROR_MESSAGE, so this variant was still hitting the Error path.
+    private const string CORE_SCPI_STREAM_INTERFACE_ERROR_MESSAGE =
+        "Device returned a SCPI error while setting stream interface to USB.";
+
     [TestMethod]
     public void IsScpiInitializationError_MatchesCoresInitializationErrorMessage()
     {
         var ex = new InvalidOperationException(CORE_SCPI_INIT_ERROR_MESSAGE);
 
         Assert.IsTrue(SerialStreamingDevice.IsScpiInitializationError(ex));
+    }
+
+    [TestMethod]
+    public void IsScpiInitializationError_MatchesCoresStreamInterfaceErrorMessage()
+    {
+        // Arrange — regression guard for #589: the actual reported message (Sentry
+        // DAQIFI-DESKTOP-Y) must be classified as the environmental SCPI-init error, not fall
+        // through to the Error path.
+        var ex = new InvalidOperationException(CORE_SCPI_STREAM_INTERFACE_ERROR_MESSAGE);
+
+        // Act
+        var isScpiInitError = SerialStreamingDevice.IsScpiInitializationError(ex);
+
+        // Assert
+        Assert.IsTrue(isScpiInitError);
     }
 
     [TestMethod]
@@ -122,6 +144,24 @@ public class SerialStreamingDeviceLogConnectFailureTests
         catch (Exception caught)
         {
             Assert.Fail($"LogConnectFailure must not throw for the SCPI-init-error case, but threw: {caught}");
+        }
+    }
+
+    [TestMethod]
+    public void LogConnectFailure_WithScpiStreamInterfaceError_DoesNotThrow()
+    {
+        // Arrange
+        var device = new TestableSerialStreamingDevice("COM_TEST_589");
+        var ex = new InvalidOperationException(CORE_SCPI_STREAM_INTERFACE_ERROR_MESSAGE);
+
+        // Act & Assert — classifying + logging the stream-interface variant must not throw.
+        try
+        {
+            device.ExposedLogConnectFailure(ex);
+        }
+        catch (Exception caught)
+        {
+            Assert.Fail($"LogConnectFailure must not throw for the SCPI stream-interface case, but threw: {caught}");
         }
     }
 
