@@ -18,11 +18,13 @@ namespace Daqifi.Desktop.Logger;
 public partial class PlotLogger : ObservableObject, ILogger
 {
     #region Private Data
+    [ObservableProperty]
     private PlotModel _plotModel;
     private readonly Stopwatch _stopwatch = new();
     private long _lastUpdateMilliSeconds;
     private int _precision = 4;
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _loggedPoints = [];
+    [ObservableProperty]
     private Dictionary<(string deviceSerial, string channelName), LineSeries> _loggedChannels = [];
     private readonly TimestampGapDetector _gapDetector = new();
     private string _plotStatsSummary = EMPTY_PLOT_STATS_SUMMARY;
@@ -56,28 +58,15 @@ public partial class PlotLogger : ObservableObject, ILogger
     #endregion
 
     #region Properties
-    public PlotModel PlotModel
-    {
-        get => _plotModel;
-        set
-        {
-            _plotModel = value;
-            OnPropertyChanged();
-        }
-    }
-
     public DateTime? FirstTime { get; set; }
 
+    // LoggedPoints keeps its explicit setter because it is intentionally private-set;
+    // [ObservableProperty] would widen it to a public setter (the source generator
+    // can't preserve setter accessibility).
     public Dictionary<(string deviceSerial, string channelName), List<DataPoint>> LoggedPoints
     {
         get => _loggedPoints;
         private set { _loggedPoints = value; OnPropertyChanged(); }
-    }
-
-    public Dictionary<(string deviceSerial, string channelName), LineSeries> LoggedChannels
-    {
-        get => _loggedChannels;
-        set { _loggedChannels = value; OnPropertyChanged(); }
     }
 
     public int Precision
