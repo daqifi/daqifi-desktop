@@ -29,13 +29,17 @@ public class TileBrushesTests
     [TestMethod]
     public void SharedSurfaceBrushes_AreFrozenWithExpectedColors()
     {
-        // Arrange & Act & Assert
-        Assert.IsTrue(TileBrushes.SurfaceRaised.IsFrozen);
-        Assert.IsTrue(TileBrushes.SurfaceActive.IsFrozen);
-        Assert.IsTrue(TileBrushes.BorderDim.IsFrozen);
+        // Arrange & Act
+        var raised = TileBrushes.SurfaceRaised;
+        var active = TileBrushes.SurfaceActive;
+        var borderDim = TileBrushes.BorderDim;
 
-        Assert.AreEqual(Color.FromRgb(0x17, 0x1A, 0x20), TileBrushes.SurfaceRaised.Color);
-        Assert.AreEqual(Color.FromRgb(0x1E, 0x25, 0x30), TileBrushes.SurfaceActive.Color);
-        Assert.AreEqual(Color.FromRgb(0x2A, 0x2F, 0x38), TileBrushes.BorderDim.Color);
+        // Assert
+        Assert.IsTrue(raised.IsFrozen);
+        Assert.IsTrue(active.IsFrozen);
+        Assert.IsTrue(borderDim.IsFrozen);
+        Assert.AreEqual(Color.FromRgb(0x17, 0x1A, 0x20), raised.Color);
+        Assert.AreEqual(Color.FromRgb(0x1E, 0x25, 0x30), active.Color);
+        Assert.AreEqual(Color.FromRgb(0x2A, 0x2F, 0x38), borderDim.Color);
     }
 }
