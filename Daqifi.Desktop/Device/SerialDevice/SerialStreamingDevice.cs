@@ -159,12 +159,15 @@ public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipIn
     /// ("Transport is not connected."). Both indicate the device was unplugged/powered off or the
     /// USB driver dropped the port during connect — a device/environmental condition, not an app
     /// bug. Matched on the specific known phrases (not the bare word "port") so unrelated
-    /// <see cref="InvalidOperationException"/> bugs still hit the default Error path. Extracted as
-    /// a pure predicate so the classification is unit-testable without exercising the logger.
+    /// <see cref="InvalidOperationException"/> bugs still hit the default Error path. The
+    /// transport-agnostic "Transport is not connected" half is shared with the WiFi path via
+    /// <see cref="AbstractStreamingDevice.IsTransportDisconnectedError"/> (issue #740); the
+    /// <c>BaseStream</c> phrase is .NET <c>SerialPort</c>-specific and stays serial-only. Extracted
+    /// as a pure predicate so the classification is unit-testable without exercising the logger.
     /// </summary>
     internal static bool IsTransportClosedError(Exception ex) =>
         ex.Message.Contains("BaseStream is only available when the port is open", StringComparison.OrdinalIgnoreCase)
-        || ex.Message.Contains("Transport is not connected", StringComparison.OrdinalIgnoreCase);
+        || IsTransportDisconnectedError(ex);
 
     /// <summary>
     /// Sends a message to the device using Core's DaqifiDevice.
