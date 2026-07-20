@@ -465,6 +465,22 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         ex.Message.Contains("SCPI error while setting stream interface to USB", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// True when <paramref name="ex"/> is Core's transport reporting that the connection closed
+    /// mid-initialization: <c>InvalidOperationException("Transport is not connected.")</c>. Core's
+    /// <c>InitializeAsync()</c> runs from the shared <see cref="Connect"/> template over both the TCP
+    /// (WiFi) and serial transports, so if the connection drops in that window — device powered off,
+    /// WiFi/AP drop, USB unplug — the same transport-agnostic message surfaces regardless of
+    /// transport. That is a device/environmental condition, not an app bug (WiFi: issue #740; serial:
+    /// issue #588), so both connect paths classify it as a Warning rather than the default Error/Sentry
+    /// path. Matched on Core's distinctive phrase (via
+    /// <see cref="string.Contains(string, StringComparison)"/>) so unrelated
+    /// <see cref="InvalidOperationException"/> bugs still hit the default Error path. Extracted as a
+    /// pure predicate so the classification is unit-testable without exercising the logger.
+    /// </summary>
+    internal static bool IsTransportDisconnectedError(Exception ex) =>
+        ex.Message.Contains("Transport is not connected", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Tears down the Core device created by <see cref="Connect"/>: unsubscribes Core
     /// events, disconnects, and disposes. Safe to call when no Core device is set.
     /// Transports override to also tear down transport-specific state and must call the

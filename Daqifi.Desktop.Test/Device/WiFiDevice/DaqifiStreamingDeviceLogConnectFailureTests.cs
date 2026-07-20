@@ -4,11 +4,12 @@ using System.Net;
 namespace Daqifi.Desktop.Test.Device.WiFiDevice;
 
 /// <summary>
-/// Tests for <see cref="DaqifiStreamingDevice"/>'s connect-failure classification (issue #732):
-/// Core's SCPI-error-during-initialization InvalidOperationException surfaces on the WiFi connect
-/// path too (the shared Connect template runs Core's InitializeAsync after ConnectTcp), so it is a
-/// device/environmental condition that must be downgraded to a Warning (no Sentry capture) rather
-/// than the default Error path — mirroring the serial classification (issues #589, #709).
+/// Tests for <see cref="DaqifiStreamingDevice"/>'s connect-failure classification. The shared Connect
+/// template runs Core's InitializeAsync after ConnectTcp, so device/environmental InvalidOperation
+/// exceptions raised during connect must be downgraded to a Warning (no Sentry capture) rather than
+/// the default Error path — mirroring the serial classification: Core's SCPI-error-during-init
+/// message (issue #732, #589, #709) and Core's transport reporting the connection dropped
+/// mid-initialization ("Transport is not connected.", issue #740; serial equivalent #588).
 /// </summary>
 [TestClass]
 public class DaqifiStreamingDeviceLogConnectFailureTests
@@ -59,6 +60,66 @@ public class DaqifiStreamingDeviceLogConnectFailureTests
         catch (Exception caught)
         {
             Assert.Fail($"LogConnectFailure must not throw for the SCPI-init-error case, but threw: {caught}");
+        }
+    }
+
+    [TestMethod]
+    public void IsTransportDisconnectedError_MatchesCoreTransportNotConnectedMessage()
+    {
+        // Arrange — wording Core's transport throws when the connection dropped mid-initialization.
+        // It is transport-agnostic (surfaces over TCP and serial), so the WiFi path must classify it
+        // as the environmental transport-disconnect condition (issue #740), not the default Error path.
+        var ex = new InvalidOperationException("Transport is not connected.");
+
+        // Act
+        var isEnvironmental = DaqifiStreamingDevice.IsTransportDisconnectedError(ex);
+
+        // Assert
+        Assert.IsTrue(isEnvironmental);
+    }
+
+    [TestMethod]
+    public void IsTransportDisconnectedError_IsCaseInsensitive()
+    {
+        // Arrange
+        var ex = new InvalidOperationException("transport is not connected");
+
+        // Act
+        var isEnvironmental = DaqifiStreamingDevice.IsTransportDisconnectedError(ex);
+
+        // Assert
+        Assert.IsTrue(isEnvironmental);
+    }
+
+    [TestMethod]
+    public void IsTransportDisconnectedError_DoesNotMatchWiFiAppBugInvalidOperationException()
+    {
+        // Arrange — WiFi's own app-bug InvalidOperationException must NOT be downgraded as a
+        // transport-disconnect; it has to keep hitting the default Error path.
+        var ex = new InvalidOperationException("Connected Core device does not support streaming operations.");
+
+        // Act
+        var isEnvironmental = DaqifiStreamingDevice.IsTransportDisconnectedError(ex);
+
+        // Assert
+        Assert.IsFalse(isEnvironmental);
+    }
+
+    [TestMethod]
+    public void LogConnectFailure_WithTransportDisconnectedError_DoesNotThrow()
+    {
+        // Arrange
+        var device = CreateTestableDevice();
+        var ex = new InvalidOperationException("Transport is not connected.");
+
+        // Act & Assert — the transport-disconnect case must be classified and logged without throwing.
+        try
+        {
+            device.ExposedLogConnectFailure(ex);
+        }
+        catch (Exception caught)
+        {
+            Assert.Fail($"LogConnectFailure must not throw for the transport-disconnect case, but threw: {caught}");
         }
     }
 

@@ -143,6 +143,16 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 // Error/Sentry path, mirroring the serial classification (issues #589, #709).
                 AppLogger.Warning(ex, $"Device at {IpAddress}:{Port} returned a SCPI error during initialization");
                 break;
+            case InvalidOperationException when IsTransportDisconnectedError(ex):
+                // Core opens the TCP transport in CreateCoreDevice, then the shared Connect template
+                // runs InitializeAsync over it. If the connection drops in that window — device
+                // powered off, WiFi/AP drop, host roams networks — Core throws an
+                // InvalidOperationException "Transport is not connected." That's the same
+                // device/environmental condition the serial path already downgrades for a port that
+                // vanishes mid-init (issue #588); the message is transport-agnostic, so classify it
+                // as a Warning here rather than the default Error/Sentry path (issue #740).
+                AppLogger.Warning(ex, $"Device at {IpAddress}:{Port} disconnected during initialization");
+                break;
             default:
                 AppLogger.Error(ex, $"Problem with connecting to DAQiFi Device at {IpAddress}:{Port}");
                 break;
