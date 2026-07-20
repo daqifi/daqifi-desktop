@@ -208,13 +208,7 @@ public partial class LoggingManager : ObservableObject
     private Profile _selectedProfile;
 
     [ObservableProperty]
-    private bool _flag;
-
-    [ObservableProperty]
     private ObservableCollection<ProfileChannel> _selectedProfileChannels = [];
-
-    [ObservableProperty]
-    private ObservableCollection<ProfileDevice> _selectedProfileDevices = [];
     #endregion
 
     public void SubscribeProfile(Profile profile)

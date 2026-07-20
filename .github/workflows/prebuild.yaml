@@ -3,20 +3,25 @@ name: Prebuild
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
+  merge_group:
 
 jobs:
   validate-pr-title:
     runs-on: ubuntu-latest
     steps:
+      # There is no PR title on a merge_group (queue) build, so the validation
+      # steps below are gated to pull_request events. On merge_group the job
+      # still runs and reports success, satisfying the required check without hanging.
       - name: PR Conventional Commit Validation
         id: check_title
+        if: ${{ github.event_name == 'pull_request' }}
         uses: ytanikin/PRConventionalCommits@1.3.0
         with:
           task_types: '["feat","fix","docs", "deps", "chore"]'
           add_label: 'false'
 
       - name: Leave a comment if PR title is invalid
-        if: ${{ failure() }}
+        if: ${{ failure() && github.event_name == 'pull_request' }}
         uses: actions/github-script@v9
         with:
           script: |
@@ -56,7 +61,7 @@ jobs:
             }
 
       - name: Remove comment if PR title is valid
-        if: ${{ success() }}
+        if: ${{ success() && github.event_name == 'pull_request' }}
         uses: actions/github-script@v9
         with:
           script: |

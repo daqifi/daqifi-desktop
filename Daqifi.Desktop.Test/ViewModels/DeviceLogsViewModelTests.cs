@@ -22,8 +22,21 @@ public class DeviceLogsViewModelTests
         _mockDevice.Setup(d => d.SdCardFiles).Returns(new List<SdCardFile>().AsReadOnly());
         _mockDevice.Setup(d => d.DeviceDisplayName).Returns("DAQ-TEST-001");
 
+        // DeviceLogsViewModel's constructor reads the process-wide ConnectionManager.Instance
+        // singleton and auto-selects its first connected device. Other tests (e.g.
+        // DuplicateDeviceDetectionTests) Connect() mock devices onto that singleton and only
+        // clear it in their own setup, so reset it here to keep this test order-independent.
+        ConnectionManager.Instance.ConnectedDevices.Clear();
+
         _viewModel = new DeviceLogsViewModel();
         _viewModel.SelectedDevice = _mockDevice.Object;
+    }
+
+    [TestCleanup]
+    public void Cleanup()
+    {
+        // Leave the shared singleton clean for whatever test runs next.
+        ConnectionManager.Instance.ConnectedDevices.Clear();
     }
 
     [TestMethod]
@@ -226,5 +239,45 @@ public class DeviceLogsViewModelTests
         _viewModel.SelectedDevice = _mockDevice.Object;
 
         Assert.IsFalse(_viewModel.CanAccessSdCard);
+    }
+
+    [TestMethod]
+    public void RefreshFilesCommand_CanExecute_WhenUsbConnected_IsTrue()
+    {
+        // Arrange: USB device is selected in Setup, so SD-card access is available.
+
+        // Act
+        var canExecute = _viewModel.RefreshFilesCommand.CanExecute(null);
+
+        // Assert
+        Assert.IsTrue(canExecute);
+    }
+
+    [TestMethod]
+    public void RefreshFilesCommand_CanExecute_WhenWifiConnected_IsFalse()
+    {
+        // Arrange: a WiFi device cannot access the SD card.
+        _mockDevice.Setup(d => d.ConnectionType).Returns(ConnectionType.Wifi);
+        _viewModel.SelectedDevice = _mockDevice.Object;
+
+        // Act
+        var canExecute = _viewModel.RefreshFilesCommand.CanExecute(null);
+
+        // Assert
+        Assert.IsFalse(canExecute);
+    }
+
+    [TestMethod]
+    public void RefreshFilesCommand_RaisesCanExecuteChanged_WhenSelectedDeviceChanges()
+    {
+        // Arrange
+        var raised = false;
+        _viewModel.RefreshFilesCommand.CanExecuteChanged += (_, _) => raised = true;
+
+        // Act
+        _viewModel.SelectedDevice = null;
+
+        // Assert
+        Assert.IsTrue(raised, "Changing the selected device must re-evaluate the command's CanExecute.");
     }
 }

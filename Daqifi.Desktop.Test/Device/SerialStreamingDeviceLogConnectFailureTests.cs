@@ -3,10 +3,11 @@ using Daqifi.Desktop.Device.SerialDevice;
 namespace Daqifi.Desktop.Test.Device;
 
 /// <summary>
-/// Tests for <see cref="SerialStreamingDevice"/>'s connect-failure classification (issue #589):
-/// Core's SCPI-error-during-initialization InvalidOperationException is a device/environmental
-/// condition, not an app bug, so it must be downgraded to a Warning (no Sentry capture) rather
-/// than the default Error path.
+/// Tests for <see cref="SerialStreamingDevice"/>'s connect-failure classification. Certain
+/// InvalidOperationExceptions raised during connect are device/environmental conditions, not app
+/// bugs, so they must be downgraded to a Warning (no Sentry capture) rather than the default Error
+/// path: Core's SCPI-error-during-initialization message (issue #589) and the serial transport
+/// reporting the COM port closed mid-initialization (issue #588).
 /// </summary>
 [TestClass]
 public class SerialStreamingDeviceLogConnectFailureTests
@@ -18,12 +19,34 @@ public class SerialStreamingDeviceLogConnectFailureTests
     private const string CORE_SCPI_INIT_ERROR_MESSAGE =
         "Device returned a SCPI error during initialization: -200,\"Execution error\"";
 
+    // The exact message Core throws from DaqifiStreamingDevice.OnDeviceInitializingAsync when the
+    // "SYSTem:STReam:INTerface 0" (stream-interface -> USB) switch is rejected. This is the message
+    // issue #589 and its Sentry alert DAQIFI-DESKTOP-Y are filed for; the original #589 fix only
+    // matched CORE_SCPI_INIT_ERROR_MESSAGE, so this variant was still hitting the Error path.
+    private const string CORE_SCPI_STREAM_INTERFACE_ERROR_MESSAGE =
+        "Device returned a SCPI error while setting stream interface to USB.";
+
     [TestMethod]
     public void IsScpiInitializationError_MatchesCoresInitializationErrorMessage()
     {
         var ex = new InvalidOperationException(CORE_SCPI_INIT_ERROR_MESSAGE);
 
         Assert.IsTrue(SerialStreamingDevice.IsScpiInitializationError(ex));
+    }
+
+    [TestMethod]
+    public void IsScpiInitializationError_MatchesCoresStreamInterfaceErrorMessage()
+    {
+        // Arrange — regression guard for #589: the actual reported message (Sentry
+        // DAQIFI-DESKTOP-Y) must be classified as the environmental SCPI-init error, not fall
+        // through to the Error path.
+        var ex = new InvalidOperationException(CORE_SCPI_STREAM_INTERFACE_ERROR_MESSAGE);
+
+        // Act
+        var isScpiInitError = SerialStreamingDevice.IsScpiInitializationError(ex);
+
+        // Assert
+        Assert.IsTrue(isScpiInitError);
     }
 
     [TestMethod]
@@ -56,6 +79,59 @@ public class SerialStreamingDeviceLogConnectFailureTests
     }
 
     [TestMethod]
+    public void IsTransportClosedError_MatchesDotNetBaseStreamMessage()
+    {
+        // Exact wording .NET's SerialPort.BaseStream getter throws when the port has closed —
+        // the message captured in Sentry issue #588.
+        var ex = new InvalidOperationException("The BaseStream is only available when the port is open.");
+
+        Assert.IsTrue(SerialStreamingDevice.IsTransportClosedError(ex));
+    }
+
+    [TestMethod]
+    public void IsTransportClosedError_MatchesCoreTransportNotConnectedMessage()
+    {
+        // Wording Core's SerialStreamTransport throws when its SerialPort reference is null.
+        var ex = new InvalidOperationException("Transport is not connected.");
+
+        Assert.IsTrue(SerialStreamingDevice.IsTransportClosedError(ex));
+    }
+
+    [TestMethod]
+    public void IsTransportClosedError_IsCaseInsensitive()
+    {
+        var ex = new InvalidOperationException("the basestream is only available when the port is open");
+
+        Assert.IsTrue(SerialStreamingDevice.IsTransportClosedError(ex));
+    }
+
+    [TestMethod]
+    public void IsTransportClosedError_DoesNotMatchUnrelatedInvalidOperationException()
+    {
+        // Regression guard: an unrelated InvalidOperationException bug must still hit the
+        // default Error path instead of being silently downgraded.
+        var ex = new InvalidOperationException("Transport exploded.");
+
+        Assert.IsFalse(SerialStreamingDevice.IsTransportClosedError(ex));
+    }
+
+    [TestMethod]
+    public void LogConnectFailure_WithTransportClosedError_DoesNotThrow()
+    {
+        var device = new TestableSerialStreamingDevice("COM_TEST_588");
+        var ex = new InvalidOperationException("The BaseStream is only available when the port is open.");
+
+        try
+        {
+            device.ExposedLogConnectFailure(ex);
+        }
+        catch (Exception caught)
+        {
+            Assert.Fail($"LogConnectFailure must not throw for the transport-closed case, but threw: {caught}");
+        }
+    }
+
+    [TestMethod]
     public void LogConnectFailure_WithScpiInitializationError_DoesNotThrow()
     {
         var device = new TestableSerialStreamingDevice("COM_TEST_589");
@@ -68,6 +144,24 @@ public class SerialStreamingDeviceLogConnectFailureTests
         catch (Exception caught)
         {
             Assert.Fail($"LogConnectFailure must not throw for the SCPI-init-error case, but threw: {caught}");
+        }
+    }
+
+    [TestMethod]
+    public void LogConnectFailure_WithScpiStreamInterfaceError_DoesNotThrow()
+    {
+        // Arrange
+        var device = new TestableSerialStreamingDevice("COM_TEST_589");
+        var ex = new InvalidOperationException(CORE_SCPI_STREAM_INTERFACE_ERROR_MESSAGE);
+
+        // Act & Assert — classifying + logging the stream-interface variant must not throw.
+        try
+        {
+            device.ExposedLogConnectFailure(ex);
+        }
+        catch (Exception caught)
+        {
+            Assert.Fail($"LogConnectFailure must not throw for the SCPI stream-interface case, but threw: {caught}");
         }
     }
 

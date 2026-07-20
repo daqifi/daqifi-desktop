@@ -445,20 +445,24 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
-    /// True when <paramref name="ex"/> is Core's SCPI-error-during-initialization
-    /// <see cref="InvalidOperationException"/> (issue #589). Core's <c>InitializeAsync()</c> throws
-    /// this from the shared <see cref="Connect"/> template regardless of transport, so both serial
-    /// and WiFi devices classify it here as a device/environmental condition (a Warning, not a
-    /// Sentry-captured bug). Matched on Core's full distinctive phrase ("SCPI error during
-    /// initialization") rather than the bare substring "SCPI error" so an unrelated
-    /// <see cref="InvalidOperationException"/> that happens to mention a SCPI error elsewhere in its
-    /// message isn't misclassified. A <see cref="string.Contains(string, StringComparison)"/> (not a
-    /// prefix/<c>StartsWith</c>) match is deliberate: Core embeds the phrase mid-message ("Device
-    /// returned a SCPI error during initialization: ..."), so it never sits at the start. Extracted
-    /// as a pure predicate so the classification is unit-testable without exercising the logger.
+    /// True when <paramref name="ex"/> is one of Core's SCPI-error-during-initialization
+    /// <see cref="InvalidOperationException"/>s (issue #589, Sentry DAQIFI-DESKTOP-Y). Core's
+    /// <c>InitializeAsync()</c> throws these from the shared <see cref="Connect"/> template
+    /// regardless of transport, so both serial and WiFi devices classify them here as a
+    /// device/environmental condition (a Warning, not a Sentry-captured bug). Two sibling sites throw
+    /// with distinct wording: <c>"...SCPI error during initialization..."</c> (a command in the init
+    /// sequence returned -200) and <c>"...SCPI error while setting stream interface to USB..."</c>
+    /// (the stream-interface switch specifically — the exact message #589/DAQIFI-DESKTOP-Y is filed
+    /// for). Matched on each site's full distinctive phrase (via
+    /// <see cref="string.Contains(string, StringComparison)"/>, not a prefix/<c>StartsWith</c> — Core
+    /// embeds the phrase mid-message) rather than the bare substring "SCPI error" so an unrelated
+    /// <see cref="InvalidOperationException"/> that merely mentions a SCPI error elsewhere isn't
+    /// misclassified. Extracted as a pure predicate so the classification is unit-testable without
+    /// exercising the logger.
     /// </summary>
     internal static bool IsScpiInitializationError(Exception ex) =>
-        ex.Message.Contains("SCPI error during initialization", StringComparison.OrdinalIgnoreCase);
+        ex.Message.Contains("SCPI error during initialization", StringComparison.OrdinalIgnoreCase) ||
+        ex.Message.Contains("SCPI error while setting stream interface to USB", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Tears down the Core device created by <see cref="Connect"/>: unsubscribes Core
@@ -1854,8 +1858,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 DeviceId = DeviceSerialNo,
                 AnalogDataCount = message.AnalogInData.Count,
                 RawAnalogValues = message.AnalogInData.ToList(),
-                HasDigitalData = message.DigitalData.Length > 0,
-                MessageType = "AnalogData",
                 ActiveChannelNames = activeChannels.Select(c => c.Name).ToList(),
                 ActiveChannelIndices = activeChannels.Select(c => c.Index).ToList()
             };
@@ -1878,16 +1880,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 // Use core's scaling implementation for correct formula and thread-safety
                 var scaledValue = channel.GetScaledValue((int)rawValue);
                 debugData.ScaledAnalogValues.Add(scaledValue);
-            }
-
-            // Create data flow mapping
-            debugData.DataFlowMapping = new List<string>();
-            for (var i = 0; i < Math.Min(message.AnalogInData.Count, activeChannels.Count); i++)
-            {
-                var channel = activeChannels[i];
-                var rawValue = message.AnalogInData[i];
-                var scaledValue = debugData.ScaledAnalogValues[i];
-                debugData.DataFlowMapping.Add($"data[{i}]={rawValue} → {channel.Name}(idx:{channel.Index})={scaledValue:F3}V");
             }
 
             // Log the debug information

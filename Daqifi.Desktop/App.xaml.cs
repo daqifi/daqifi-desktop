@@ -9,7 +9,6 @@ using Daqifi.Desktop.DialogService;
 using Daqifi.Desktop.Services;
 using Daqifi.Desktop.Logger;
 using Daqifi.Desktop.View;
-using Daqifi.Desktop.WindowViewModelMapping;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -138,7 +137,6 @@ public partial class App
 
         serviceCollection.AddSingleton<LoggingManager>();
         ServiceLocator.RegisterSingleton<IDialogService, DialogService.DialogService>();
-        ServiceLocator.RegisterSingleton<IWindowViewModelMappings, WindowViewModelMappings>();
 
         ServiceProvider = serviceCollection.BuildServiceProvider();
 

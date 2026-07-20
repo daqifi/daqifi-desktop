@@ -457,7 +457,10 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
                 var isLogToDeviceMode = mode == "Log to Device";
                 var deviceMode = isLogToDeviceMode ? DeviceMode.LogToDevice : DeviceMode.StreamToApp;
-                var originalDeviceModes = ConnectedDevices.ToDictionary(device => device, device => device.Mode);
+                // Key by reference identity: DaqifiStreamingDevice now has value-based Equals/GetHashCode,
+                // so a default-comparer dictionary would throw on transient value-equal duplicate entries.
+                var originalDeviceModes = ConnectedDevices.ToDictionary(
+                    device => device, device => device.Mode, ReferenceComparer<IStreamingDevice>.Instance);
 
                 try
                 {
@@ -739,9 +742,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         DeleteAllLoggingSessionCommand = new AsyncRelayCommand(_loggingSessionList.DeleteAllSessionsAsync, CanDeleteAllLoggingSession);
         ToggleChannelVisibilityCommand = new RelayCommand<IChannel>(ToggleChannelVisibility);
         ToggleLoggedSeriesVisibilityCommand = new RelayCommand<LoggedSeriesLegendItem>(ToggleLoggedSeriesVisibility);
-
-        // Keep registration for external commands if necessary
-        // HostCommands.ShutdownCommand.RegisterCommand(ShutdownCommand); // This would need adjustment if ShutdownCommand is generated
     }
     #endregion
 
@@ -815,18 +815,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
     [RelayCommand]
     private void CloseAppSettings() => IsAppSettingsOpen = false;
-
-    [RelayCommand]
-    private void RemoveChannel(IChannel channelToRemove)
-    {
-        var device = ConnectionManager.Instance.ConnectedDevices.FirstOrDefault(x => x.DeviceSerialNo == channelToRemove.DeviceSerialNo);
-        var channel = device.DataChannels.FirstOrDefault(x => x.DeviceSerialNo == channelToRemove.DeviceSerialNo && x.Name == channelToRemove.Name);
-        if (device != null && channel != null)
-        {
-            LoggingManager.Instance.Unsubscribe(channel);
-            device.RemoveChannel(channel);
-        }
-    }
 
     [RelayCommand]
     private void DisconnectDevice(IStreamingDevice? deviceToDisconnect)
@@ -1341,17 +1329,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
     #endregion
 
-    #region Helper Methods
-
-    private bool EnsureAnyDeviceConnected()
-    {
-        if (ConnectionManager.Instance.ConnectedDevices.Count > 0) return true;
-        _dialogService.ShowDialog<ErrorDialog>(this, new ErrorDialogViewModel("Please connect a device before creating a profile."));
-        return false;
-    }
-
-    #endregion
-
     #region Methods
     public Task UpdateConnectedDeviceUI()
     {
@@ -1389,23 +1366,29 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     // Devices we've wired per-VM event handlers onto — both the logging-state PropertyChanged handler
     // and (for streaming devices) the DebugDataReceived handler. Tracked as one set so subscribe and
     // unsubscribe stay symmetric across Reset/Replace/add/remove and so Dispose can tear them all down.
-    private readonly HashSet<IStreamingDevice> _subscribedDevices = [];
+    // Reference identity, not value equality: this set tracks the specific device *instances* we wired
+    // handlers onto. DaqifiStreamingDevice overrides Equals/GetHashCode on mutable fields (Name/IP/MAC),
+    // so a value-hashed set could lose track of an instance once metadata hydration mutates those fields.
+    private readonly HashSet<IStreamingDevice> _subscribedDevices = new(ReferenceComparer<IStreamingDevice>.Instance);
 
     private void OnConnectedDevicesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         // ObservableCollection.Clear() raises a Reset with OldItems == null, so we
         // can't rely on the args alone — diff against our tracked-subscription set
         // to handle Reset, Replace, and per-item adds/removes uniformly.
-        var current = new HashSet<IStreamingDevice>(ConnectedDevices);
+        // Reference identity throughout: the snapshot set and both Except() diffs must use the same
+        // reference comparer as _subscribedDevices, otherwise LINQ's default value comparer would defeat
+        // instance tracking (see _subscribedDevices declaration).
+        var current = new HashSet<IStreamingDevice>(ConnectedDevices, ReferenceComparer<IStreamingDevice>.Instance);
 
-        foreach (var stale in _subscribedDevices.Except(current).ToList())
+        foreach (var stale in _subscribedDevices.Except(current, ReferenceComparer<IStreamingDevice>.Instance).ToList())
         {
             UnsubscribeDeviceEvents(stale);
             _subscribedDevices.Remove(stale);
         }
 
         var anyAdded = false;
-        foreach (var added in current.Except(_subscribedDevices).ToList())
+        foreach (var added in current.Except(_subscribedDevices, ReferenceComparer<IStreamingDevice>.Instance).ToList())
         {
             SubscribeDeviceEvents(added);
             _subscribedDevices.Add(added);
@@ -2314,15 +2297,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 streamingDevice.SetDebugMode(value);
             }
         }
-    }
-
-    /// <summary>
-    /// Command to toggle debug mode
-    /// </summary>
-    [RelayCommand]
-    private void ToggleDebugMode()
-    {
-        IsDebugModeEnabled = !IsDebugModeEnabled;
     }
 
     /// <summary>

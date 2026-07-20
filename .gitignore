@@ -60,3 +60,6 @@ thumbs.db
 
 # Code Coverage Reports
 CoverageReport/
+
+# Autonomous work-loop local state (machine-specific notes; never commit)
+SESSION_LOG.md

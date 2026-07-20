@@ -8,14 +8,6 @@ static class ServiceLocator
     private static readonly Dictionary<Type, ServiceInfo> services = [];
 
     /// <summary>
-    /// Registers a service.
-    /// </summary>
-    public static void Register<TInterface, TImplemention>() where TImplemention : TInterface
-    {
-        Register<TInterface, TImplemention>(false);
-    }
-
-    /// <summary>
     /// Registers a service as a singleton.
     /// </summary>
     public static void RegisterSingleton<TInterface, TImplemention>() where TImplemention : TInterface

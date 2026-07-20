@@ -53,17 +53,6 @@ public static class NaturalSortHelper
     }
 
     /// <summary>
-    /// Creates a comparer function that can be used with LINQ OrderBy methods for natural sorting.
-    /// </summary>
-    /// <typeparam name="T">The type of objects to compare</typeparam>
-    /// <param name="keySelector">Function to extract the string key from each object</param>
-    /// <returns>A comparison function suitable for sorting</returns>
-    public static Comparison<T> CreateNaturalComparer<T>(Func<T, string> keySelector)
-    {
-        return (x, y) => NaturalCompare(keySelector(x), keySelector(y));
-    }
-
-    /// <summary>
     /// Sorts an enumerable collection using natural sorting on the specified key.
     /// </summary>
     /// <typeparam name="T">The type of elements in the collection</typeparam>

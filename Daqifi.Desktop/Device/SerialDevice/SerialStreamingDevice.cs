@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.IO.Ports;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Daqifi.Core.Device;
 using Daqifi.Core.Communication.Transport;
 using Daqifi.Core.Communication.Messages;
@@ -9,25 +10,17 @@ using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 
 namespace Daqifi.Desktop.Device.SerialDevice;
 
-public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvider
+/// <summary>
+/// Streaming device that communicates with DAQiFi hardware over a serial (USB CDC / UART) port.
+/// </summary>
+public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvider
 {
     #region Properties
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayIdentifier))]
     private SerialPort? _port;
-    private SerialStreamTransport? _transport;
 
-    public SerialPort? Port
-    {
-        get => _port;
-        set
-        {
-            if (_port != value)
-            {
-                _port = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(DisplayIdentifier));
-            }
-        }
-    }
+    private SerialStreamTransport? _transport;
 
     /// <summary>
     /// Gets the actual COM port name for UART communication
@@ -123,24 +116,55 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
                 AppLogger.Warning(ex, $"Device on {PortName} did not respond within the connection timeout");
                 break;
             case InvalidOperationException when IsScpiInitializationError(ex):
-                // Core's InitializeAsync throws a bare InvalidOperationException, message
-                // "Device returned a SCPI error during initialization: ...", when any command in
-                // its init sequence (echo/stop/power/stream-format/sysinfo, including
-                // "SYSTem:STReam:INTerface 0" which sets the stream interface to USB) gets a SCPI
-                // -200 execution error back. Firmware persists the last stream interface across
-                // sessions, so a device previously left streaming over WiFi is a common trigger on
-                // the very next USB connect, but any command in the sequence can hit this
-                // transient/timing condition. Matched by message substring (Core doesn't yet throw
-                // a typed exception for this — daqifi-core issue tracks that) so other
-                // InvalidOperationException bugs still hit Error. Device/environmental condition,
-                // not an app bug (issue #589).
-                AppLogger.Warning(ex, $"Device on {PortName} returned a SCPI error during initialization");
+                // Core's init sequence throws a bare InvalidOperationException when a command gets
+                // a SCPI -200 execution error back, from two sibling sites with distinct wording:
+                //   * "Device returned a SCPI error during initialization: ..." (a command in the
+                //     echo/stop/power/stream-format/sysinfo sequence), and
+                //   * "Device returned a SCPI error while setting stream interface to USB." (the
+                //     "SYSTem:STReam:INTerface 0" switch specifically, thrown from Core's
+                //     DaqifiStreamingDevice.OnDeviceInitializingAsync — the message this device's
+                //     Sentry issue DAQIFI-DESKTOP-Y actually reports).
+                // Firmware persists the last stream interface across sessions, so a device
+                // previously left streaming over WiFi is a common trigger on the very next USB
+                // connect, but any command in the sequence can hit this transient/timing condition.
+                // Matched by message substring (Core doesn't yet throw a typed exception for this —
+                // daqifi-core issue tracks that) so other InvalidOperationException bugs still hit
+                // Error. Device/environmental condition, not an app bug (issue #589).
+                AppLogger.Warning(ex,
+                    $"Device on {PortName} returned a SCPI error during initialization " +
+                    "(including stream-interface setup)");
+                break;
+            case InvalidOperationException when IsTransportClosedError(ex):
+                // The serial transport opens the COM port during CreateCoreDevice, then Core's
+                // InitializeAsync reads/writes it. If the port closes in that window — the device
+                // is unplugged, powered off, or the USB driver drops the port mid-connect —
+                // accessing the transport stream throws an InvalidOperationException: .NET's
+                // SerialPort.BaseStream getter throws "The BaseStream is only available when the
+                // port is open." and Core's transport throws "Transport is not connected." Both
+                // mean the same thing: the port vanished mid-initialization. That's a
+                // user/environmental condition, not an app bug — same classification as the
+                // connect-timeout and SCPI-init cases above (issue #588).
+                AppLogger.Warning(ex, $"Device on {PortName} disconnected during initialization");
                 break;
             default:
                 AppLogger.Error(ex, $"Failed to connect on {PortName}");
                 break;
         }
     }
+
+    /// <summary>
+    /// True when <paramref name="ex"/> is the serial transport reporting that the COM port closed
+    /// mid-initialization (issue #588): .NET's <c>SerialPort.BaseStream</c> getter
+    /// ("The BaseStream is only available when the port is open.") or Core's transport
+    /// ("Transport is not connected."). Both indicate the device was unplugged/powered off or the
+    /// USB driver dropped the port during connect — a device/environmental condition, not an app
+    /// bug. Matched on the specific known phrases (not the bare word "port") so unrelated
+    /// <see cref="InvalidOperationException"/> bugs still hit the default Error path. Extracted as
+    /// a pure predicate so the classification is unit-testable without exercising the logger.
+    /// </summary>
+    internal static bool IsTransportClosedError(Exception ex) =>
+        ex.Message.Contains("BaseStream is only available when the port is open", StringComparison.OrdinalIgnoreCase)
+        || ex.Message.Contains("Transport is not connected", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Sends a message to the device using Core's DaqifiDevice.
