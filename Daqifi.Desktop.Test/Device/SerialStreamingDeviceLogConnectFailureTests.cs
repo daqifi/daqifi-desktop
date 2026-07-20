@@ -36,11 +36,16 @@ public class SerialStreamingDeviceLogConnectFailureTests
     [TestMethod]
     public void IsScpiInitializationError_MatchesCoresStreamInterfaceErrorMessage()
     {
-        // Regression guard for #589: the actual reported message (Sentry DAQIFI-DESKTOP-Y) must be
-        // classified as the environmental SCPI-init error, not fall through to the Error path.
+        // Arrange — regression guard for #589: the actual reported message (Sentry
+        // DAQIFI-DESKTOP-Y) must be classified as the environmental SCPI-init error, not fall
+        // through to the Error path.
         var ex = new InvalidOperationException(CORE_SCPI_STREAM_INTERFACE_ERROR_MESSAGE);
 
-        Assert.IsTrue(SerialStreamingDevice.IsScpiInitializationError(ex));
+        // Act
+        var isScpiInitError = SerialStreamingDevice.IsScpiInitializationError(ex);
+
+        // Assert
+        Assert.IsTrue(isScpiInitError);
     }
 
     [TestMethod]
@@ -91,9 +96,11 @@ public class SerialStreamingDeviceLogConnectFailureTests
     [TestMethod]
     public void LogConnectFailure_WithScpiStreamInterfaceError_DoesNotThrow()
     {
+        // Arrange
         var device = new TestableSerialStreamingDevice("COM_TEST_589");
         var ex = new InvalidOperationException(CORE_SCPI_STREAM_INTERFACE_ERROR_MESSAGE);
 
+        // Act & Assert — classifying + logging the stream-interface variant must not throw.
         try
         {
             device.ExposedLogConnectFailure(ex);

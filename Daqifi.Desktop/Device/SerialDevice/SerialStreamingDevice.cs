@@ -137,7 +137,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
                 // Matched by message substring (Core doesn't yet throw a typed exception for this —
                 // daqifi-core issue tracks that) so other InvalidOperationException bugs still hit
                 // Error. Device/environmental condition, not an app bug (issue #589).
-                AppLogger.Warning(ex, $"Device on {PortName} returned a SCPI error during initialization");
+                AppLogger.Warning(ex, $"Device on {PortName} returned a SCPI error during initialization (including stream-interface setup)");
                 break;
             default:
                 AppLogger.Error(ex, $"Failed to connect on {PortName}");
@@ -159,7 +159,7 @@ public class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvid
     /// </summary>
     internal static bool IsScpiInitializationError(Exception ex) =>
         ex.Message.Contains("SCPI error during initialization", StringComparison.OrdinalIgnoreCase) ||
-        ex.Message.Contains("SCPI error while setting stream interface", StringComparison.OrdinalIgnoreCase);
+        ex.Message.Contains("SCPI error while setting stream interface to USB", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Sends a message to the device using Core's DaqifiDevice.
