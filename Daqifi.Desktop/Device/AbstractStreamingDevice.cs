@@ -445,6 +445,26 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
+    /// True when <paramref name="ex"/> is one of Core's SCPI-error-during-initialization
+    /// <see cref="InvalidOperationException"/>s (issue #589, Sentry DAQIFI-DESKTOP-Y). Core's
+    /// <c>InitializeAsync()</c> throws these from the shared <see cref="Connect"/> template
+    /// regardless of transport, so both serial and WiFi devices classify them here as a
+    /// device/environmental condition (a Warning, not a Sentry-captured bug). Two sibling sites throw
+    /// with distinct wording: <c>"...SCPI error during initialization..."</c> (a command in the init
+    /// sequence returned -200) and <c>"...SCPI error while setting stream interface to USB..."</c>
+    /// (the stream-interface switch specifically — the exact message #589/DAQIFI-DESKTOP-Y is filed
+    /// for). Matched on each site's full distinctive phrase (via
+    /// <see cref="string.Contains(string, StringComparison)"/>, not a prefix/<c>StartsWith</c> — Core
+    /// embeds the phrase mid-message) rather than the bare substring "SCPI error" so an unrelated
+    /// <see cref="InvalidOperationException"/> that merely mentions a SCPI error elsewhere isn't
+    /// misclassified. Extracted as a pure predicate so the classification is unit-testable without
+    /// exercising the logger.
+    /// </summary>
+    internal static bool IsScpiInitializationError(Exception ex) =>
+        ex.Message.Contains("SCPI error during initialization", StringComparison.OrdinalIgnoreCase) ||
+        ex.Message.Contains("SCPI error while setting stream interface to USB", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Tears down the Core device created by <see cref="Connect"/>: unsubscribes Core
     /// events, disconnects, and disposes. Safe to call when no Core device is set.
     /// Transports override to also tear down transport-specific state and must call the

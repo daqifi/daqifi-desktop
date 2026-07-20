@@ -153,22 +153,6 @@ public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipIn
     }
 
     /// <summary>
-    /// True when <paramref name="ex"/> is one of Core's SCPI-error-during-initialization
-    /// <see cref="InvalidOperationException"/>s (issue #589, Sentry DAQIFI-DESKTOP-Y). Core's init
-    /// path throws this from two sibling sites with distinct wording:
-    /// <c>"...SCPI error during initialization..."</c> (a command in the init sequence returned
-    /// -200) and <c>"...SCPI error while setting stream interface to USB..."</c> (the stream-
-    /// interface switch specifically — the exact message #589/DAQIFI-DESKTOP-Y is filed for).
-    /// Matched on each site's full known phrase rather than the bare substring "SCPI error" so an
-    /// unrelated InvalidOperationException that merely mentions a SCPI error elsewhere in its
-    /// message isn't misclassified. Extracted as a pure predicate so the classification is
-    /// unit-testable without exercising the logger.
-    /// </summary>
-    internal static bool IsScpiInitializationError(Exception ex) =>
-        ex.Message.Contains("SCPI error during initialization", StringComparison.OrdinalIgnoreCase) ||
-        ex.Message.Contains("SCPI error while setting stream interface to USB", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
     /// True when <paramref name="ex"/> is the serial transport reporting that the COM port closed
     /// mid-initialization (issue #588): .NET's <c>SerialPort.BaseStream</c> getter
     /// ("The BaseStream is only available when the port is open.") or Core's transport

@@ -132,6 +132,17 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 // Connection refused / host unreachable. Same classification as above.
                 AppLogger.Warning(ex, $"Cannot reach device at {IpAddress}:{Port}: {socketEx.SocketErrorCode}");
                 break;
+            case InvalidOperationException when IsScpiInitializationError(ex):
+                // Core's InitializeAsync throws a bare InvalidOperationException, message
+                // "Device returned a SCPI error during initialization: ...", when any command in
+                // its init sequence gets a SCPI -200 execution error back. The WiFi transport runs
+                // the identical Core init sequence as serial (the shared Connect template calls
+                // InitializeAsync after ConnectTcp, since CreateCoreDevice sets InitializeDevice
+                // = false), so a device left in a bad state is the same device/environmental
+                // condition here, not an app bug — downgrade to a Warning instead of the default
+                // Error/Sentry path, mirroring the serial classification (issues #589, #709).
+                AppLogger.Warning(ex, $"Device at {IpAddress}:{Port} returned a SCPI error during initialization");
+                break;
             default:
                 AppLogger.Error(ex, $"Problem with connecting to DAQiFi Device at {IpAddress}:{Port}");
                 break;
