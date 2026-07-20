@@ -445,6 +445,19 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
+    /// True when <paramref name="ex"/> is Core's SCPI-error-during-initialization
+    /// <see cref="InvalidOperationException"/> (issue #589). Core's <c>InitializeAsync()</c> throws
+    /// this from the shared <see cref="Connect"/> template regardless of transport, so both serial
+    /// and WiFi devices classify it here as a device/environmental condition (a Warning, not a
+    /// Sentry-captured bug). Matched on Core's full known prefix rather than the bare substring
+    /// "SCPI error" so an unrelated <see cref="InvalidOperationException"/> that happens to mention a
+    /// SCPI error elsewhere in its message isn't misclassified. Extracted as a pure predicate so the
+    /// classification is unit-testable without exercising the logger.
+    /// </summary>
+    internal static bool IsScpiInitializationError(Exception ex) =>
+        ex.Message.Contains("SCPI error during initialization", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Tears down the Core device created by <see cref="Connect"/>: unsubscribes Core
     /// events, disconnects, and disposes. Safe to call when no Core device is set.
     /// Transports override to also tear down transport-specific state and must call the
