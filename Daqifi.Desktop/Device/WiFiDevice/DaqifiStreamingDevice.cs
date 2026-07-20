@@ -186,7 +186,10 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
     /// hash sets (e.g. subscription/claim bookkeeping) deliberately use reference identity instead.
     /// </summary>
     /// <param name="obj">The object to compare against.</param>
-    /// <returns><c>true</c> when <paramref name="obj"/> is a device with the same name, IP, and MAC; otherwise <c>false</c>.</returns>
+    /// <returns>
+    /// <c>true</c> when <paramref name="obj"/> is a device with the same name, IP, and MAC;
+    /// otherwise <c>false</c>.
+    /// </returns>
     public override bool Equals(object? obj)
     {
         if (obj is not DaqifiStreamingDevice other) { return false; }

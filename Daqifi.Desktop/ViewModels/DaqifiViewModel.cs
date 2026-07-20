@@ -457,7 +457,10 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
                 var isLogToDeviceMode = mode == "Log to Device";
                 var deviceMode = isLogToDeviceMode ? DeviceMode.LogToDevice : DeviceMode.StreamToApp;
-                var originalDeviceModes = ConnectedDevices.ToDictionary(device => device, device => device.Mode);
+                // Key by reference identity: DaqifiStreamingDevice now has value-based Equals/GetHashCode,
+                // so a default-comparer dictionary would throw on transient value-equal duplicate entries.
+                var originalDeviceModes = ConnectedDevices.ToDictionary(
+                    device => device, device => device.Mode, ReferenceComparer<IStreamingDevice>.Instance);
 
                 try
                 {
