@@ -61,8 +61,9 @@ var projects = Directory.EnumerateFiles(repoRoot, "*.csproj", SearchOption.AllDi
 
 if (projects.Count == 0)
 {
-    Console.Error.WriteLine($"No .csproj files found under '{repoRoot}'.");
-    return 2;
+    // Nothing to analyze is not a build error -- stay non-blocking and just flag it.
+    Console.WriteLine($"::warning::[unused-package-check] No .csproj files found under '{repoRoot}'.");
+    return 0;
 }
 
 Console.WriteLine($"Unused-PackageReference check over {projects.Count} project(s) in {repoRoot}");
@@ -87,81 +88,112 @@ foreach (var proj in projects)
         continue;
     }
 
-    using var doc = JsonDocument.Parse(File.ReadAllText(assetsPath));
-    var root = doc.RootElement;
-    var folders = root.GetProperty("packageFolders").EnumerateObject().Select(p => p.Name).ToList();
-    var target = root.GetProperty("targets").EnumerateObject().First().Value;
-    var libraries = root.GetProperty("libraries");
-
-    var (csText, xamlText) = LoadCorpus(projDir);
-
-    foreach (var pkg in declared.OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+    // Any per-project failure (malformed/partial assets, IO, unexpected schema) must not
+    // sink the whole check: emit a diagnostic ::warning and move on. The run only exits
+    // non-zero when --fail-on-unused is set AND a genuine unused package is found.
+    try
     {
-        if (allowlist.Contains(pkg))
+        using var doc = JsonDocument.Parse(File.ReadAllText(assetsPath));
+        var root = doc.RootElement;
+        var folders = root.GetProperty("packageFolders").EnumerateObject().Select(p => p.Name).ToList();
+        var libraries = root.GetProperty("libraries");
+
+        // A restore can emit several target graphs (e.g. a TFM-only graph plus RID-specific
+        // ones). Search every graph and union each package's compile assets rather than
+        // trusting an arbitrary "first" entry, which could be the wrong (or an empty) graph.
+        var targetGraphs = new List<JsonElement>();
+        if (root.TryGetProperty("targets", out var targetsEl) && targetsEl.ValueKind == JsonValueKind.Object)
         {
+            targetGraphs.AddRange(targetsEl.EnumerateObject().Select(t => t.Value));
+        }
+        if (targetGraphs.Count == 0)
+        {
+            Console.WriteLine($"  {projName}: project.assets.json has no target graphs -- skipped");
             continue;
         }
 
-        // Locate the "<id>/<version>" entry for this package in the target graph.
-        JsonElement entry = default;
-        string? libKey = null;
-        foreach (var t in target.EnumerateObject())
-        {
-            var slash = t.Name.IndexOf('/');
-            if (slash > 0 && string.Equals(t.Name[..slash], pkg, StringComparison.OrdinalIgnoreCase))
-            {
-                entry = t.Value;
-                libKey = t.Name;
-                break;
-            }
-        }
-        if (libKey is null)
-        {
-            continue; // Unresolved (e.g. a project reference dressed as a package) -- ignore.
-        }
+        var (csText, xamlText) = LoadCorpus(projDir);
 
-        if (!entry.TryGetProperty("compile", out var compile))
+        foreach (var pkg in declared.OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
         {
-            continue; // No compile-time surface -> not detectable, auto-skip.
-        }
-        var compileKeys = compile.EnumerateObject()
-            .Select(c => c.Name)
-            .Where(k => !k.EndsWith("_._", StringComparison.Ordinal))
-            .ToList();
-        if (compileKeys.Count == 0)
-        {
-            continue; // Placeholder / native / analyzer package -> auto-skip.
-        }
-
-        var libPath = libraries.GetProperty(libKey).GetProperty("path").GetString() ?? "";
-        var namespaces = new HashSet<string>(StringComparer.Ordinal);
-        var xmlnsUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var asmNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var ck in compileKeys)
-        {
-            var dll = ResolveDll(folders, libPath, ck);
-            if (dll is null)
+            if (allowlist.Contains(pkg))
             {
                 continue;
             }
-            asmNames.Add(Path.GetFileNameWithoutExtension(ck));
-            CollectFromAssembly(dll, namespaces, xmlnsUrls);
-        }
 
-        if (namespaces.Count == 0 && xmlnsUrls.Count == 0)
-        {
-            continue; // Could not read any public surface -> avoid a false positive.
-        }
+            // Locate the "<id>/<version>" entry for this package across every target graph
+            // and union the compile assets. libKey is identical across graphs (it keys the
+            // shared "libraries" table), so the last non-null wins harmlessly.
+            string? libKey = null;
+            var compileKeys = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var graph in targetGraphs)
+            {
+                foreach (var t in graph.EnumerateObject())
+                {
+                    var slash = t.Name.IndexOf('/');
+                    if (slash <= 0 || !string.Equals(t.Name[..slash], pkg, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                    libKey = t.Name;
+                    if (t.Value.TryGetProperty("compile", out var compile))
+                    {
+                        foreach (var c in compile.EnumerateObject())
+                        {
+                            if (!c.Name.EndsWith("_._", StringComparison.Ordinal))
+                            {
+                                compileKeys.Add(c.Name);
+                            }
+                        }
+                    }
+                    break; // At most one entry per package per graph.
+                }
+            }
+            if (libKey is null)
+            {
+                continue; // Unresolved (e.g. a project reference dressed as a package) -- ignore.
+            }
+            if (compileKeys.Count == 0)
+            {
+                continue; // No compile surface (placeholder / native / analyzer) -> auto-skip.
+            }
 
-        if (!IsUsed(namespaces, xmlnsUrls, asmNames, csText, xamlText))
-        {
-            var rel = Path.GetRelativePath(repoRoot, proj).Replace('\\', '/');
-            Console.WriteLine(
-                $"::warning file={rel}::[unused-package] '{pkg}' is declared in {projName} " +
-                $"but no C# or XAML usage was detected. If this is intentional (used only via a " +
-                $"channel the checker cannot see), add it to the allowlist in eng/CheckUnusedPackages.cs.");
-            totalUnused++;
+            var libPath = libraries.GetProperty(libKey).GetProperty("path").GetString() ?? "";
+            var namespaces = new HashSet<string>(StringComparer.Ordinal);
+            var xmlnsUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var asmNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ck in compileKeys)
+            {
+                var dll = ResolveDll(folders, libPath, ck);
+                if (dll is null)
+                {
+                    continue;
+                }
+                asmNames.Add(Path.GetFileNameWithoutExtension(ck));
+                CollectFromAssembly(dll, namespaces, xmlnsUrls);
+            }
+
+            if (namespaces.Count == 0 && xmlnsUrls.Count == 0)
+            {
+                continue; // Could not read any public surface -> avoid a false positive.
+            }
+
+            if (!IsUsed(namespaces, xmlnsUrls, asmNames, csText, xamlText))
+            {
+                var rel = Path.GetRelativePath(repoRoot, proj).Replace('\\', '/');
+                Console.WriteLine(
+                    $"::warning file={rel}::[unused-package] '{pkg}' is declared in {projName} " +
+                    $"but no C# or XAML usage was detected. If this is intentional (used only via a " +
+                    $"channel the checker cannot see), add it to the allowlist in eng/CheckUnusedPackages.cs.");
+                totalUnused++;
+            }
         }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine(
+            $"::warning file={Path.GetRelativePath(repoRoot, proj).Replace('\\', '/')}::" +
+            $"[unused-package-check-skipped] {projName} could not be analyzed ({ex.GetType().Name}: {ex.Message}).");
     }
 }
 
