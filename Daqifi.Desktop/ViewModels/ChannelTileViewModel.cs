@@ -1,10 +1,8 @@
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Helpers;
 using Brush = System.Windows.Media.Brush;
-using Color = System.Windows.Media.Color;
-using ColorConverter = System.Windows.Media.ColorConverter;
-using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 
 namespace Daqifi.Desktop.ViewModels;
@@ -63,10 +61,10 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
         : IsDigitalOutput ? DigitalOutAccent : DigitalInAccent;
 
     /// <summary>Background color for the tile, depending on active state.</summary>
-    public Brush TileBackground => IsActive ? SurfaceActive : SurfaceRaised;
+    public Brush TileBackground => IsActive ? TileBrushes.SurfaceActive : TileBrushes.SurfaceRaised;
 
     /// <summary>Border color for the tile — stripe color when active, dim otherwise.</summary>
-    public Brush TileBorderBrush => IsActive ? StripeBrush : BorderDim;
+    public Brush TileBorderBrush => IsActive ? StripeBrush : TileBrushes.BorderDim;
 
     /// <summary>
     /// Formatted value line: the commanded duty for PWM-active channels (issue #664),
@@ -181,18 +179,7 @@ public sealed class ChannelTileViewModel : ObservableObject, IDisposable
         }
     }
 
-    private static readonly Brush SurfaceRaised = MakeBrush("#171A20");
-    private static readonly Brush SurfaceActive = MakeBrush("#1E2530");
-    private static readonly Brush BorderDim = MakeBrush("#2A2F38");
-    private static readonly Brush AnalogAccent = MakeBrush("#4A9EFF");
-    private static readonly Brush DigitalInAccent = MakeBrush("#4ADE80");
-    private static readonly Brush DigitalOutAccent = MakeBrush("#F59E0B");
-
-    private static SolidColorBrush MakeBrush(string hex)
-    {
-        var color = (Color)ColorConverter.ConvertFromString(hex)!;
-        var brush = new SolidColorBrush(color);
-        brush.Freeze();
-        return brush;
-    }
+    private static readonly Brush AnalogAccent = TileBrushes.Frozen("#4A9EFF");
+    private static readonly Brush DigitalInAccent = TileBrushes.Frozen("#4ADE80");
+    private static readonly Brush DigitalOutAccent = TileBrushes.Frozen("#F59E0B");
 }
