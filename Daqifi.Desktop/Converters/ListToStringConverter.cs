@@ -23,7 +23,7 @@ public class ListToStringConverter : IValueConverter
             // Handle different formatting based on parameter
             var format = parameter?.ToString() ?? "default";
 
-            switch (format.ToLower())
+            switch (format.ToLowerInvariant())
             {
                 case "brackets":
                     return $"[{string.Join(", ", items)}]";

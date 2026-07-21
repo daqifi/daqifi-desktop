@@ -11,12 +11,16 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public partial class ExportDialogViewModel : ObservableObject
+public partial class ExportDialogViewModel : ObservableObject, IDisposable
 {
     #region Private Variables
     private readonly List<int> _sessionsIds;
-    private string _exportFilePath;
-    private CancellationTokenSource _cts;
+    private string _exportFilePath = string.Empty;
+
+    /// <summary>
+    /// Cancellation source for the in-flight export; null whenever no export is running.
+    /// </summary>
+    private CancellationTokenSource? _cts;
 
     // When true, every session is written as a separate "{session}.csv" file inside the
     // directory named by <see cref="ExportFilePath"/>, regardless of how many sessions are
@@ -38,11 +42,11 @@ public partial class ExportDialogViewModel : ObservableObject
     [ObservableProperty]
     private bool _exportSucceeded;
     [ObservableProperty]
-    private string _exportResultMessage;
+    private string? _exportResultMessage;
     [ObservableProperty]
     private int _averageQuantity = 2;
     [ObservableProperty]
-    private string _exportProgressText;
+    private string _exportProgressText = string.Empty;
     [ObservableProperty]
     private bool _exportRelativeTime;
     private int _exportProgress;
@@ -169,7 +173,7 @@ public partial class ExportDialogViewModel : ObservableObject
 
         // Non-null once we can tell the user *why* the export failed (a locked or unwritable
         // destination). Everything else falls back to the generic message.
-        string failureReason = null;
+        string? failureReason = null;
 
         // The destination currently being written, so the catch below can name the offending
         // file even though the exception surfaces from deep inside the exporter.
@@ -208,7 +212,9 @@ public partial class ExportDialogViewModel : ObservableObject
 
                     currentFilepath = filepath;
                     failureReason = reason;
-                    AppLogger.Instance.Warning(probeError, $"Export aborted: {reason}");
+                    // DescribeUnwritableDestination only returns a reason when it caught an exception,
+                    // so probeError is non-null on this path.
+                    AppLogger.Instance.Warning(probeError!, $"Export aborted: {reason}");
                     return;
                 }
 
@@ -219,11 +225,11 @@ public partial class ExportDialogViewModel : ObservableObject
 
                     if (ExportAllSelected)
                     {
-                        ExportAllSamples(live[i].Session, currentFilepath, progress, cancellationToken, i, live.Count);
+                        ExportAllSamples(live[i].Session, currentFilepath, progress, i, live.Count, cancellationToken);
                     }
                     else if (ExportAverageSelected)
                     {
-                        ExportAverageSamples(live[i].Session, currentFilepath, progress, cancellationToken, i, live.Count);
+                        ExportAverageSamples(live[i].Session, currentFilepath, progress, i, live.Count, cancellationToken);
                     }
                 }
             }, cancellationToken);
@@ -270,7 +276,7 @@ public partial class ExportDialogViewModel : ObservableObject
         }
         finally
         {
-            _cts.Dispose();
+            _cts?.Dispose();
             _cts = null;
 
             // A cancel returns to the configuration form; a success or failure shows the
@@ -337,13 +343,13 @@ public partial class ExportDialogViewModel : ObservableObject
         }
     }
 
-    private void ExportAllSamples(LoggingSession session, string filepath, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
+    private void ExportAllSamples(LoggingSession session, string filepath, IProgress<int> progress, int sessionIndex, int totalSessions, CancellationToken cancellationToken)
     {
         var loggingSessionExporter = new OptimizedLoggingSessionExporter(_loggingContext);
         loggingSessionExporter.ExportLoggingSession(session, filepath, ExportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
     }
 
-    private void ExportAverageSamples(LoggingSession session, string filepath, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
+    private void ExportAverageSamples(LoggingSession session, string filepath, IProgress<int> progress, int sessionIndex, int totalSessions, CancellationToken cancellationToken)
     {
         var loggingSessionExporter = new OptimizedLoggingSessionExporter(_loggingContext);
         loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
@@ -395,7 +401,7 @@ public partial class ExportDialogViewModel : ObservableObject
     /// <param name="filepath">Destination to probe.</param>
     /// <param name="error">The exception the probe caught, so the caller can log it with its stack
     /// trace; null when the destination looks writable.</param>
-    private static string DescribeUnwritableDestination(string filepath, out Exception error)
+    private static string? DescribeUnwritableDestination(string filepath, out Exception? error)
     {
         error = null;
 
@@ -478,7 +484,7 @@ public partial class ExportDialogViewModel : ObservableObject
         return name;
     }
 
-    private async Task<LoggingSession> GetLoggingSessionFromId(int sessionId)
+    private async Task<LoggingSession?> GetLoggingSessionFromId(int sessionId)
     {
         await using var context = _loggingContext.CreateDbContext();
         var loggingSession = await context.Sessions
@@ -508,6 +514,34 @@ public partial class ExportDialogViewModel : ObservableObject
         _forceDirectoryLayout = true;
         ExportFilePath = directory;
         return ExportLoggingSessionsCommand.ExecuteAsync(null);
+    }
+    #endregion
+
+    #region IDisposable
+    /// <summary>
+    /// Cancels and releases the export cancellation source. Called by <c>ExportDialog</c> when the
+    /// dialog window closes, so a dialog dismissed mid-export does not leak the token source (and its
+    /// registrations) for the lifetime of the process.
+    /// </summary>
+    public void Dispose()
+    {
+        var cts = _cts;
+        _cts = null;
+        if (cts != null)
+        {
+            try
+            {
+                cts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Already disposed by the export's finally block — nothing left to cancel.
+            }
+
+            cts.Dispose();
+        }
+
+        GC.SuppressFinalize(this);
     }
     #endregion
 }

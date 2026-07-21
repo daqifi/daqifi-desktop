@@ -136,7 +136,7 @@ public sealed class PlotModelFactory
     /// <returns>The configured series and its legend item.</returns>
     public (LineSeries series, LoggedSeriesLegendItem legendItem) CreateChannelSeries(
         string channelName,
-        string deviceSerialNo,
+        string? deviceSerialNo,
         ChannelType type,
         string color,
         PlotModel plotModel,

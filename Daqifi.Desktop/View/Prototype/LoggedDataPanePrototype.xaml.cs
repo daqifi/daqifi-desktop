@@ -64,8 +64,9 @@ public partial class LoggedDataPanePrototype
 
         // Treat blank input as "reset to default" so the DB and the Name getter
         // (which renders whitespace as "Session {ID}") stay consistent on reload.
-        var trimmed = textBox.Text?.Trim();
-        var newName = string.IsNullOrEmpty(trimmed) ? null : trimmed;
+        // An empty string is the reset sentinel: LoggingSession.Name renders null-or-whitespace as
+        // "Session {ID}", so storing "" behaves exactly like storing NULL did.
+        var newName = textBox.Text?.Trim() ?? string.Empty;
         session.Name = newName;
 
         _renameSessionCts?.Cancel();
