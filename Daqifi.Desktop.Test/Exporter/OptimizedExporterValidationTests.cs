@@ -208,6 +208,27 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
         Assert.Contains("INVALID(", content, "Invalid timestamps should be labelled rather than throwing");
     }
 
+    /// <summary>
+    /// Issue #747: a destination held by another process used to be swallowed here, which left the
+    /// export dialog reporting "Export complete" over a file that was never written. The failure
+    /// must reach the caller.
+    /// </summary>
+    [TestMethod]
+    public void OptimizedExporter_LockedDestination_PropagatesFailure()
+    {
+        var samples = GenerateTestDataset(1, 5);
+        var loggingSession = new LoggingSession { ID = 1, DataSamples = samples };
+        var exportPath = Path.Combine(TestDirectoryPath, "locked_test.csv");
+        File.WriteAllText(exportPath, "held by another program");
+
+        var exporter = new OptimizedLoggingSessionExporter();
+
+        using var holder = new FileStream(exportPath, FileMode.Open, FileAccess.Write, FileShare.Read);
+
+        Assert.ThrowsExactly<IOException>(() => exporter.ExportLoggingSession(
+            loggingSession, exportPath, false, new Progress<int>(), CancellationToken.None, 0, 1));
+    }
+
     [TestCleanup]
     public void CleanUp()
     {

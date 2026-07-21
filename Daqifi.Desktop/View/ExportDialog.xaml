@@ -96,14 +96,17 @@
             <iconPacks:PackIconMaterial Kind="AlertCircleOutline" Width="46" Height="46" HorizontalAlignment="Center"
                                         Foreground="{StaticResource StatusRed}"
                                         Visibility="{Binding ExportSucceeded, Converter={StaticResource InvertedBoolToVis}}"/>
-            <TextBlock Text="{Binding ExportResultMessage}" FontSize="16" HorizontalAlignment="Center" Margin="0,14,0,4" Foreground="{StaticResource TextPrimary}"/>
+            <TextBlock Text="{Binding ExportResultMessage}" FontSize="16" HorizontalAlignment="Center" TextAlignment="Center"
+                       TextWrapping="Wrap" Margin="0,14,0,4" Foreground="{StaticResource TextPrimary}"/>
             <TextBlock Text="{Binding ExportFilePath}" FontSize="11" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
-                       Foreground="{StaticResource TextSecondary}" Margin="0,0,0,22"
-                       Visibility="{Binding ExportSucceeded, Converter={StaticResource BoolToVis}}"/>
+                       Foreground="{StaticResource TextSecondary}" Margin="0,0,0,22"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                 <Button Content="Open Folder" Command="{Binding OpenExportLocationCommand}" Margin="0,0,8,0"
                         Style="{StaticResource DialogPillButton}" controls:ControlsHelper.ContentCharacterCasing="Normal"
                         Visibility="{Binding ExportSucceeded, Converter={StaticResource BoolToVis}}"/>
+                <Button Content="Try Again" Command="{Binding RetryExportCommand}" Margin="0,0,8,0"
+                        Style="{StaticResource DialogPillButton}" controls:ControlsHelper.ContentCharacterCasing="Normal"
+                        Visibility="{Binding ExportSucceeded, Converter={StaticResource InvertedBoolToVis}}"/>
                 <Button Content="Done" Click="btnDone_Click"
                         Style="{StaticResource DialogAccentPillButton}" controls:ControlsHelper.ContentCharacterCasing="Normal"/>
             </StackPanel>

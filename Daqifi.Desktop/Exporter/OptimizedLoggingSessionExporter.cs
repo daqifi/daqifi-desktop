@@ -69,35 +69,27 @@ public class OptimizedLoggingSessionExporter
     /// <param name="cancellationToken">Token that aborts the export.</param>
     /// <param name="sessionIndex">Zero-based index of this session within a multi-session export.</param>
     /// <param name="totalSessions">Total number of sessions in this export run.</param>
+    /// <exception cref="IOException">The destination file could not be written — most commonly
+    /// because it is open in another program (issue #747).</exception>
+    /// <remarks>Failures propagate to the caller: <see cref="ViewModels.ExportDialogViewModel"/> is the
+    /// single place that classifies them, logs them once, and tells the user. Swallowing them here
+    /// used to leave the dialog reporting "Export complete" over a file that was never written.</remarks>
     public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool exportRelativeTime,
         IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
-        try
+        var source = TryBuildSource(loggingSession);
+        if (source == null)
         {
-            var source = TryBuildSource(loggingSession);
-            if (source == null)
-            {
-                return;
-            }
+            return;
+        }
 
-            var options = new CsvExportOptions
-            {
-                Delimiter = _delimiter,
-                UseRelativeTime = exportRelativeTime,
-            };
+        var options = new CsvExportOptions
+        {
+            Delimiter = _delimiter,
+            UseRelativeTime = exportRelativeTime,
+        };
 
-            RunExport(source, filepath, options, progress, cancellationToken, sessionIndex, totalSessions);
-        }
-        catch (OperationCanceledException)
-        {
-            // Let the viewmodel's cancellation handler record the breadcrumb.
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _appLogger.Error(ex,
-                $"Exception in OptimizedExportLoggingSession (sessionId={loggingSession?.ID}, filepath={filepath}, relativeTime={exportRelativeTime})");
-        }
+        RunExport(source, filepath, options, progress, cancellationToken, sessionIndex, totalSessions);
     }
 
     /// <summary>
@@ -113,44 +105,34 @@ public class OptimizedLoggingSessionExporter
     /// <param name="cancellationToken">Token that aborts the export.</param>
     /// <param name="sessionIndex">Zero-based index of this session within a multi-session export.</param>
     /// <param name="totalSessions">Total number of sessions in this export run.</param>
+    /// <exception cref="IOException">The destination file could not be written — most commonly
+    /// because it is open in another program (issue #747).</exception>
+    /// <remarks>Failures propagate to the caller; see <see cref="ExportLoggingSession"/>.</remarks>
     public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity,
         bool exportRelativeTime, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
     {
-        try
+        var window = (int)averageQuantity;
+        if (window <= 0)
         {
-            var window = (int)averageQuantity;
-            if (window <= 0)
-            {
-                _appLogger.Warning(
-                    $"Skipping average export: AverageWindow must be positive (was {averageQuantity}, sessionId={session?.ID}, filepath={filepath}).");
-                return;
-            }
-
-            var source = TryBuildSource(session);
-            if (source == null)
-            {
-                return;
-            }
-
-            var options = new CsvExportOptions
-            {
-                Delimiter = _delimiter,
-                UseRelativeTime = exportRelativeTime,
-                AverageWindow = window,
-            };
-
-            RunExport(source, filepath, options, progress, cancellationToken, sessionIndex, totalSessions);
+            _appLogger.Warning(
+                $"Skipping average export: AverageWindow must be positive (was {averageQuantity}, sessionId={session?.ID}, filepath={filepath}).");
+            return;
         }
-        catch (OperationCanceledException)
+
+        var source = TryBuildSource(session);
+        if (source == null)
         {
-            // Let the viewmodel's cancellation handler record the breadcrumb.
-            throw;
+            return;
         }
-        catch (Exception ex)
+
+        var options = new CsvExportOptions
         {
-            _appLogger.Error(ex,
-                $"Failed in OptimizedExportAverageSamples (sessionId={session?.ID}, filepath={filepath}, averageWindow={averageQuantity}, relativeTime={exportRelativeTime})");
-        }
+            Delimiter = _delimiter,
+            UseRelativeTime = exportRelativeTime,
+            AverageWindow = window,
+        };
+
+        RunExport(source, filepath, options, progress, cancellationToken, sessionIndex, totalSessions);
     }
     #endregion
 
