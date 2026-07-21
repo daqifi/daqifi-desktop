@@ -37,7 +37,7 @@ public class ConnectionDialogViewModelFirmwareGateTests
     [TestMethod]
     public void StartSerialDiscovery_DoesNotStartFinder_WhileFirmwareUpdateInProgress()
     {
-        var viewModel = CreateViewModel();
+        using var viewModel = CreateViewModel();
         ConnectionManager.Instance.DeviceBeingUpdated = CreateUsbDevice();
 
         InvokePrivate(viewModel, "StartSerialDiscovery");
@@ -50,7 +50,7 @@ public class ConnectionDialogViewModelFirmwareGateTests
     [TestMethod]
     public void StartWiFiDiscovery_DoesNotStartFinder_WhileFirmwareUpdateInProgress()
     {
-        var viewModel = CreateViewModel();
+        using var viewModel = CreateViewModel();
         ConnectionManager.Instance.DeviceBeingUpdated = CreateUsbDevice();
 
         InvokePrivate(viewModel, "StartWiFiDiscovery");
@@ -64,7 +64,7 @@ public class ConnectionDialogViewModelFirmwareGateTests
     {
         // The user opens the connection dialog mid-flash (the issue #738 breadcrumb sequence): the
         // public entry point that kicks off discovery must create neither finder.
-        var viewModel = CreateViewModel();
+        using var viewModel = CreateViewModel();
         ConnectionManager.Instance.DeviceBeingUpdated = CreateUsbDevice();
 
         viewModel.StartConnectionFinders();

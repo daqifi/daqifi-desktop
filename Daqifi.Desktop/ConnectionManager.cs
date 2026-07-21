@@ -60,6 +60,7 @@ public partial class ConnectionManager : ObservableObject
         {
             if (ReferenceEquals(_deviceBeingUpdated, value)) { return; }
 
+            var previous = _deviceBeingUpdated;
             var wasInProgress = _deviceBeingUpdated != null;
             _deviceBeingUpdated = value;
 
@@ -69,7 +70,47 @@ public partial class ConnectionManager : ObservableObject
             {
                 FirmwareUpdateInProgressChanged?.Invoke(this, EventArgs.Empty);
             }
+
+            // When the update ends, reconcile the device whose teardown we suppressed during the flash.
+            // On a successful flash Core reconnected it (IsConnected == true) and there's nothing to do;
+            // but on a failed reconnect (e.g. a JumpingToApp timeout) it is still in ConnectedDevices with
+            // a dead transport, so without this it would show as connected forever and block a clean
+            // reconnect. Tear it down now, matching the normal disconnect path (issue #738 follow-up).
+            if (previous != null && value == null)
+            {
+                ReconcileDeviceAfterUpdate(previous);
+            }
         }
+    }
+
+    /// <summary>
+    /// After a firmware update ends, tears down the just-updated device iff Core's post-flash reconnect
+    /// left it disconnected. A successful update reconnects the device (no-op here); a failed one leaves
+    /// a stale entry the desktop's teardown paths deliberately skipped during the flash, so reconcile it
+    /// exactly as a normal disconnect would (unsubscribe channels, Disconnect, surface a reason).
+    /// </summary>
+    private void ReconcileDeviceAfterUpdate(IStreamingDevice device)
+    {
+        UiThreadHelper.InvokeOnUiThread(() =>
+        {
+            // Reconnected cleanly, or already removed by another path — nothing to reconcile.
+            if (!ConnectedDevices.Contains(device) || device.IsConnected)
+            {
+                return;
+            }
+
+            foreach (var channel in device.DataChannels)
+            {
+                LoggingManager.Instance.Unsubscribe(channel);
+            }
+
+            Disconnect(device);
+
+            LastDisconnectReason =
+                $"{device.DeviceDisplayName} did not reconnect after the firmware update. " +
+                "Power-cycle the device and reconnect.";
+            NotifyConnection = true;
+        }, failureLogMessage: "Dispatcher unavailable while reconciling device after firmware update.");
     }
 
     private IStreamingDevice? _deviceBeingUpdated;
@@ -332,14 +373,28 @@ public partial class ConnectionManager : ObservableObject
     /// an update the device's serial transport drops and re-enumerates as an expected part of the flash,
     /// and Core owns the reconnect — so the desktop's disconnect-detection paths must leave that device's
     /// connection untouched rather than disposing the Core device Core is reconnecting (issue #738).
-    /// Matches by reference (the update is driven on the exact connected instance) with a name fallback.
     /// </summary>
+    /// <remarks>
+    /// The firmware flow always drives the exact connected instance, so reference equality is the primary
+    /// (and normally sufficient) match. The fallback compares the serial number — a stable hardware
+    /// identity — never the display <c>Name</c>, which is a mutable, non-unique user label and could make
+    /// an unrelated same-named device's disconnect be wrongly skipped, leaving a zombie connection.
+    /// </remarks>
     private bool IsDeviceBeingUpdated(IStreamingDevice device)
     {
         var updating = DeviceBeingUpdated;
-        return updating != null
-            && (ReferenceEquals(updating, device)
-                || string.Equals(updating.Name, device.Name, StringComparison.Ordinal));
+        if (updating == null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(updating, device))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(updating.DeviceSerialNo)
+            && string.Equals(updating.DeviceSerialNo, device.DeviceSerialNo, StringComparison.OrdinalIgnoreCase);
     }
 
     private void CheckIfSerialDeviceWasRemoved()

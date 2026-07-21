@@ -179,11 +179,35 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
             }
             else
             {
-                // Flash finished — bring discovery back so the dialog keeps listing devices.
-                StartWiFiDiscovery();
-                StartSerialDiscovery();
+                // Flash finished — bring discovery back so the dialog keeps listing devices. The stop we
+                // issued at flash start may still be draining (a wedged port can hold StopSerialDiscoveryAsync
+                // past its timeout, leaving _serialStopTask incomplete), and Start*Discovery refuses to
+                // start while that drain is in flight. So retry the start once the drain completes rather
+                // than dropping it — otherwise discovery could stay stopped for the rest of the dialog.
+                RestartDiscoveryWhenDrained(_wifiStopTask, StartWiFiDiscovery);
+                RestartDiscoveryWhenDrained(_serialStopTask, StartSerialDiscovery);
             }
         });
+    }
+
+    /// <summary>
+    /// Starts a discovery transport, deferring the start until any in-flight stop/drain for that
+    /// transport completes. <paramref name="start"/> carries its own idempotency and firmware-in-progress
+    /// guards, so a redundant or now-invalid call is a harmless no-op.
+    /// </summary>
+    private void RestartDiscoveryWhenDrained(Task? stopTask, Action start)
+    {
+        if (stopTask is { IsCompleted: false })
+        {
+            stopTask.ContinueWith(
+                _ => InvokeOnUiThread(start),
+                CancellationToken.None,
+                TaskContinuationOptions.None,
+                TaskScheduler.Default);
+            return;
+        }
+
+        start();
     }
 
     private void OnHidDevicesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)

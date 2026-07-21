@@ -129,6 +129,40 @@ public class ConnectionManagerFirmwareGateTests
         other.Verify(d => d.Disconnect(), Times.Once);
     }
 
+    [TestMethod]
+    public void ClearingDeviceBeingUpdated_TearsDownDeviceThatFailedToReconnect()
+    {
+        // Follow-up to the teardown-skip: when the update ends, a device Core failed to reconnect (e.g.
+        // a JumpingToApp timeout) is still in ConnectedDevices with a dead transport. Clearing
+        // DeviceBeingUpdated must reconcile it — otherwise it shows as connected forever (Qodo #738).
+        var device = CreateDevice(ConnectionType.Usb);
+        device.SetupGet(d => d.IsConnected).Returns(false);
+        device.SetupGet(d => d.DataChannels).Returns(new List<Daqifi.Desktop.Channel.IChannel>());
+        ConnectionManager.Instance.ConnectedDevices.Add(device.Object);
+        ConnectionManager.Instance.DeviceBeingUpdated = device.Object;
+
+        ConnectionManager.Instance.DeviceBeingUpdated = null;
+
+        device.Verify(d => d.Disconnect(), Times.Once);
+        Assert.IsFalse(ConnectionManager.Instance.ConnectedDevices.Contains(device.Object));
+    }
+
+    [TestMethod]
+    public void ClearingDeviceBeingUpdated_LeavesReconnectedDeviceConnected()
+    {
+        // On a successful flash Core reconnected the device (IsConnected == true); the reconciliation
+        // must be a no-op so it stays connected.
+        var device = CreateDevice(ConnectionType.Usb);
+        device.SetupGet(d => d.IsConnected).Returns(true);
+        ConnectionManager.Instance.ConnectedDevices.Add(device.Object);
+        ConnectionManager.Instance.DeviceBeingUpdated = device.Object;
+
+        ConnectionManager.Instance.DeviceBeingUpdated = null;
+
+        device.Verify(d => d.Disconnect(), Times.Never);
+        Assert.IsTrue(ConnectionManager.Instance.ConnectedDevices.Contains(device.Object));
+    }
+
     private static void InvokePrivate(string methodName, params object[] args)
     {
         var method = typeof(ConnectionManager).GetMethod(
