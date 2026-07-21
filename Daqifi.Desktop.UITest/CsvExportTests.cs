@@ -119,6 +119,59 @@ public class CsvExportTests : DaqifiAppFixture
             TryDeleteExportDir();
         }
     }
+    /// <summary>
+    /// Issue #747 — the destination CSV is still open in another program (Excel, Spyder) when the
+    /// user exports. Runs a real session against the attached device, holds the exact file the
+    /// export will target the way Excel does (write access, readers allowed), and proves the app
+    /// (a) refuses the export instead of reporting success, (b) classifies it as an environmental
+    /// warning rather than a Sentry-worthy error, (c) leaves the existing file byte-for-byte
+    /// intact, and (d) stays alive and usable.
+    /// </summary>
+    [TestMethod]
+    [TestCategory("Ui")]
+    [TestCategory("RequiresDevice")]
+    public void ExportLoggedSession_DestinationOpenInAnotherProgram_FailsCleanlyWithoutOverwriting()
+    {
+        const string SENTINEL = "previous export - must not be overwritten";
+
+        try
+        {
+            var (sessionName, _, _, _) = RunShortLoggingSession();
+
+            // Arrange — pre-create the exact file the export hook will write and hold it open.
+            Directory.CreateDirectory(_exportDir);
+            var target = Path.Combine(_exportDir, sessionName + ".csv");
+            File.WriteAllText(target, SENTINEL);
+
+            bool warned;
+            using (new FileStream(target, FileMode.Open, FileAccess.Write, FileShare.Read))
+            {
+                // Act — export while the file is locked.
+                ExportNewestLoggedSession();
+
+                warned = WaitForLogContains("Export aborted: Could not write", TimeSpan.FromSeconds(30));
+            }
+
+            // Assert
+            Assert.IsTrue(
+                warned,
+                "The app did not log the environmental warning for a locked destination. Either the " +
+                "export silently 'succeeded' (issue #747) or it was logged as an Error, which would " +
+                "raise a Sentry event for a user-side condition.");
+
+            Assert.AreEqual(
+                SENTINEL, File.ReadAllText(target),
+                "The blocked export must leave the existing file untouched — the pre-flight probe " +
+                "opens it read/write but must never truncate or rewrite it.");
+
+            Assert.IsFalse(App.HasExited, "The app must survive a blocked export.");
+            Assert.IsTrue(MainWindow.IsAvailable, "The main window must still be usable after a blocked export.");
+        }
+        finally
+        {
+            TryDeleteExportDir();
+        }
+    }
     #endregion
 
     #region Scenario Helpers

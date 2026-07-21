@@ -200,6 +200,83 @@ public class ExportDialogViewModelTests
         Assert.IsTrue(File.Exists(exportPath), "A successful export should have written the file.");
     }
 
+    /// <summary>
+    /// Issue #747: the destination CSV is still open in Excel/Spyder. The export must not claim
+    /// success, must name the file and say what to do, and must leave the existing file untouched.
+    /// </summary>
+    [TestMethod]
+    public async Task Export_WhenDestinationIsOpenInAnotherProgram_ReportsActionableFailure()
+    {
+        // Arrange
+        using var factory = new TempSqliteLoggingContextFactory();
+        SeedSession(factory, sessionId: 1);
+        var exportPath = Path.Combine(TestDirectoryPath, $"locked_{Guid.NewGuid():N}.csv");
+        await File.WriteAllTextAsync(exportPath, "previous export");
+        var vm = new ExportDialogViewModel(factory, sessionId: 1) { ExportFilePath = exportPath };
+
+        // Hold the file the way Excel does: write access, readers allowed.
+        using (new FileStream(exportPath, FileMode.Open, FileAccess.Write, FileShare.Read))
+        {
+            // Act
+            await vm.ExportLoggingSessionsCommand.ExecuteAsync(null);
+        }
+
+        // Assert
+        Assert.IsTrue(vm.IsExportComplete);
+        Assert.IsFalse(vm.ExportSucceeded, "A locked destination must not report success.");
+        Assert.Contains(Path.GetFileName(exportPath), vm.ExportResultMessage,
+            "The message should name the file the user has to close.");
+        Assert.Contains("open in another program", vm.ExportResultMessage);
+        Assert.AreEqual("previous export", await File.ReadAllTextAsync(exportPath),
+            "The pre-flight probe must not truncate the file it could not write.");
+    }
+
+    /// <summary>
+    /// A session that no longer exists is skipped by the export, so its destination must not be
+    /// pre-flighted either — a locked file for a stale id must never block the run.
+    /// </summary>
+    [TestMethod]
+    public async Task Export_WhenSessionIsMissing_LockedDestinationDoesNotBlockTheRun()
+    {
+        // Arrange — an empty database, so session 1 is never found.
+        using var factory = new TempSqliteLoggingContextFactory();
+        var exportPath = Path.Combine(TestDirectoryPath, $"stale_{Guid.NewGuid():N}.csv");
+        await File.WriteAllTextAsync(exportPath, "held open");
+        var vm = new ExportDialogViewModel(factory, sessionId: 1) { ExportFilePath = exportPath };
+
+        using (new FileStream(exportPath, FileMode.Open, FileAccess.Write, FileShare.Read))
+        {
+            // Act
+            await vm.ExportLoggingSessionsCommand.ExecuteAsync(null);
+        }
+
+        // Assert
+        Assert.IsTrue(vm.ExportSucceeded,
+            "A locked destination belonging to a skipped session must not fail the export.");
+        Assert.AreEqual("Export complete", vm.ExportResultMessage);
+    }
+
+    [TestMethod]
+    public async Task Export_AfterFailure_RetryReturnsToConfigureState()
+    {
+        // Arrange
+        var factory = new Mock<IDbContextFactory<LoggingContext>>();
+        factory.Setup(f => f.CreateDbContext()).Throws(new InvalidOperationException("boom"));
+        var vm = new ExportDialogViewModel(factory.Object, sessionId: 1)
+        {
+            ExportFilePath = Path.Combine(TestDirectoryPath, "retry.csv")
+        };
+        await vm.ExportLoggingSessionsCommand.ExecuteAsync(null);
+
+        // Act
+        vm.RetryExportCommand.Execute(null);
+
+        // Assert
+        Assert.IsTrue(vm.IsConfiguring, "Try Again should bring back the configuration form.");
+        Assert.IsFalse(vm.IsExportComplete);
+        Assert.IsTrue(vm.ExportLoggingSessionsCommand.CanExecute(null), "Export should be runnable again.");
+    }
+
     #endregion
 
     #region Helpers

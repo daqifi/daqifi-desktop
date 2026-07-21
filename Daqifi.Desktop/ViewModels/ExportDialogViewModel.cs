@@ -160,63 +160,107 @@ public partial class ExportDialogViewModel : ObservableObject
         var progress = new Progress<int>(progressValue => ExportProgress = progressValue);
         AppLogger.Instance.AddBreadcrumb("export", $"Data export started ({_sessionsIds.Count} session(s))");
 
+        // Resolved here rather than on the worker below because it reads LoggingManager's
+        // UI-bound session collection. It touches no file system, so it cannot block.
+        var targets = ResolveExportTargets();
+
         var cancelled = false;
         var failed = false;
+
+        // Non-null once we can tell the user *why* the export failed (a locked or unwritable
+        // destination). Everything else falls back to the generic message.
+        string failureReason = null;
+
+        // The destination currently being written, so the catch below can name the offending
+        // file even though the exception surfaces from deep inside the exporter.
+        var currentFilepath = ExportFilePath;
         try
         {
             await Task.Run(async () =>
             {
-                var totalSessions = _sessionsIds.Count;
-                for (var i = 0; i < totalSessions; i++)
+                // Resolve the sessions that still exist first. Only their destinations are
+                // pre-flighted below, so a stale id whose row has since been deleted — which the
+                // export would skip anyway — can never block the whole run.
+                var live = new List<(LoggingSession Session, string Filepath)>(targets.Count);
+                foreach (var target in targets)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var sessionId = _sessionsIds[i];
-                    var loggingSession = await GetLoggingSessionFromId(sessionId);
+                    var loggingSession = await GetLoggingSessionFromId(target.SessionId);
                     if (loggingSession == null)
                     {
                         AppLogger.Instance.Warning(
-                            $"Skipping export for session {sessionId}: it was not found in the database.");
+                            $"Skipping export for session {target.SessionId}: it was not found in the database.");
                         continue;
                     }
 
-                    // Per-session file naming only applies when writing into a directory (multi-session
-                    // export, or the directory-layout test hook). Resolve the display name lazily so a
-                    // plain single-file export doesn't depend on LoggingManager — falling back to the
-                    // default "Session_{id}" form when the session is no longer in the in-memory list.
-                    string filepath;
-                    if (_forceDirectoryLayout || totalSessions > 1)
-                    {
-                        var sessionName = LoggingManager.Instance.LoggingSessions
-                            .FirstOrDefault(s => s.ID == sessionId)?.Name ?? $"Session_{sessionId}";
-                        filepath = Path.Combine(ExportFilePath, $"{MakeSafeFileName(sessionName)}.csv");
-                    }
-                    else
-                    {
-                        filepath = ExportFilePath;
-                    }
+                    live.Add((loggingSession, target.Filepath));
+                }
+
+                // Pre-flight: the overwhelmingly common failure is a destination CSV still open in
+                // Excel/Spyder (issue #747). Checking every target before writing anything means the
+                // user gets an actionable message immediately instead of a partial export. This is
+                // inherently racy, so the catch below still handles a lock taken after the check.
+                foreach (var (_, filepath) in live)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var reason = DescribeUnwritableDestination(filepath, out var probeError);
+                    if (reason == null) { continue; }
+
+                    currentFilepath = filepath;
+                    failureReason = reason;
+                    AppLogger.Instance.Warning(probeError, $"Export aborted: {reason}");
+                    return;
+                }
+
+                for (var i = 0; i < live.Count; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    currentFilepath = live[i].Filepath;
 
                     if (ExportAllSelected)
                     {
-                        ExportAllSamples(loggingSession, filepath, progress, cancellationToken, i, totalSessions);
+                        ExportAllSamples(live[i].Session, currentFilepath, progress, cancellationToken, i, live.Count);
                     }
                     else if (ExportAverageSelected)
                     {
-                        ExportAverageSamples(loggingSession, filepath, progress, cancellationToken, i, totalSessions);
+                        ExportAverageSamples(live[i].Session, currentFilepath, progress, cancellationToken, i, live.Count);
                     }
                 }
             }, cancellationToken);
 
-            // Reaching here means the loop ran to completion without a cancellation being
-            // observed at a checkpoint — a Cancel click that lands after the work is done no
-            // longer suppresses the result state. Cancellation is signalled only by the
-            // OperationCanceledException path below.
-            AppLogger.Instance.AddBreadcrumb("export", "Data export completed");
+            if (failureReason != null)
+            {
+                failed = true;
+                AppLogger.Instance.AddBreadcrumb("export", "Data export blocked by destination file",
+                    Common.Loggers.BreadcrumbLevel.Warning);
+            }
+            else
+            {
+                // Reaching here means the loop ran to completion without a cancellation being
+                // observed at a checkpoint — a Cancel click that lands after the work is done no
+                // longer suppresses the result state. Cancellation is signalled only by the
+                // OperationCanceledException path below.
+                AppLogger.Instance.AddBreadcrumb("export", "Data export completed");
+            }
         }
         catch (OperationCanceledException)
         {
             cancelled = true;
             AppLogger.Instance.Information("Export operation was cancelled by user.");
             AppLogger.Instance.AddBreadcrumb("export", "Data export cancelled", Common.Loggers.BreadcrumbLevel.Warning);
+        }
+        catch (Exception ex) when (IsDestinationBlocked(ex))
+        {
+            // A destination that cannot be written — locked by another program, read-only, denied,
+            // or on a folder that disappeared — is a user/environmental condition, not an app bug.
+            // Log it as a warning (stack trace stays in the local log, no Sentry event) the same way
+            // the device layer classifies an unreachable device (issues #517 / #740). Anything else,
+            // including a database-level I/O error, still takes the Error/Sentry path below.
+            failed = true;
+            failureReason = DescribeFileFailure(ex, currentFilepath);
+            AppLogger.Instance.Warning(ex, $"Export failed writing '{currentFilepath}'.");
+            AppLogger.Instance.AddBreadcrumb("export", "Data export blocked by destination file",
+                Common.Loggers.BreadcrumbLevel.Warning);
         }
         catch (Exception ex)
         {
@@ -235,12 +279,26 @@ public partial class ExportDialogViewModel : ObservableObject
             if (!cancelled)
             {
                 ExportSucceeded = !failed;
-                ExportResultMessage = failed ? "Export failed. Please try again." : "Export complete";
+                ExportResultMessage = failed
+                    ? failureReason ?? "Export failed. Please try again."
+                    : "Export complete";
                 IsExportComplete = true;
             }
 
             IsExporting = false;
         }
+    }
+
+    /// <summary>
+    /// Returns the dialog to its configuration form after a failure so the user can close the
+    /// program holding the file (or pick a different destination) and export again.
+    /// </summary>
+    [RelayCommand]
+    private void RetryExport()
+    {
+        IsExportComplete = false;
+        ExportProgress = 0;
+        ExportResultMessage = null;
     }
 
     private bool CanExport => !string.IsNullOrWhiteSpace(ExportFilePath);
@@ -289,6 +347,121 @@ public partial class ExportDialogViewModel : ObservableObject
     {
         var loggingSessionExporter = new OptimizedLoggingSessionExporter(_loggingContext);
         loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
+    }
+
+    /// <summary>
+    /// One session mapped to the file it will be written to.
+    /// </summary>
+    private sealed record ExportTarget(int SessionId, string Filepath);
+
+    /// <summary>
+    /// Resolves the destination file for every selected session up front, so the export can be
+    /// pre-flighted before any data is written. Per-session file naming only applies when writing
+    /// into a directory (multi-session export, or the directory-layout test hook); a plain
+    /// single-file export writes straight to <see cref="ExportFilePath"/> and so doesn't depend on
+    /// LoggingManager. Sessions no longer in the in-memory list fall back to "Session_{id}".
+    /// </summary>
+    private List<ExportTarget> ResolveExportTargets()
+    {
+        var targets = new List<ExportTarget>(_sessionsIds.Count);
+        var perSessionFiles = _forceDirectoryLayout || _sessionsIds.Count > 1;
+
+        foreach (var sessionId in _sessionsIds)
+        {
+            string filepath;
+            if (perSessionFiles)
+            {
+                var sessionName = LoggingManager.Instance.LoggingSessions
+                    .FirstOrDefault(s => s.ID == sessionId)?.Name ?? $"Session_{sessionId}";
+                filepath = Path.Combine(ExportFilePath, $"{MakeSafeFileName(sessionName)}.csv");
+            }
+            else
+            {
+                filepath = ExportFilePath;
+            }
+
+            targets.Add(new ExportTarget(sessionId, filepath));
+        }
+
+        return targets;
+    }
+
+    /// <summary>
+    /// Returns a user-facing reason why <paramref name="filepath"/> cannot be written, or null when
+    /// it looks writable. Only an existing file is probed — opening it for writing with no sharing
+    /// fails exactly when another program holds it — and the probe never truncates or creates
+    /// anything, so a blocked export leaves the destination untouched.
+    /// </summary>
+    /// <param name="filepath">Destination to probe.</param>
+    /// <param name="error">The exception the probe caught, so the caller can log it with its stack
+    /// trace; null when the destination looks writable.</param>
+    private static string DescribeUnwritableDestination(string filepath, out Exception error)
+    {
+        error = null;
+
+        try
+        {
+            if (!File.Exists(filepath)) { return null; }
+
+            using var probe = new FileStream(filepath, FileMode.Open, FileAccess.Write, FileShare.None);
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            error = ex;
+            return DescribeFileFailure(ex, filepath);
+        }
+    }
+
+    /// <summary>
+    /// True when an export failure is the destination's fault — denied, gone, or held by another
+    /// program. Deliberately narrow: a generic <see cref="IOException"/> (a full disk, a failing
+    /// drive, an EF/SQLite read error) keeps the default Error/Sentry treatment so real problems
+    /// stay visible.
+    /// </summary>
+    private static bool IsDestinationBlocked(Exception ex) => ex switch
+    {
+        UnauthorizedAccessException => true,
+        DirectoryNotFoundException => true,
+        IOException io => IsSharingViolation(io),
+        _ => false,
+    };
+
+    /// <summary>
+    /// Turns a file-access failure into a message that tells the user what to do about it.
+    /// </summary>
+    private static string DescribeFileFailure(Exception ex, string filepath)
+    {
+        var name = string.IsNullOrWhiteSpace(filepath) ? "the export file" : $"'{Path.GetFileName(filepath)}'";
+
+        return ex switch
+        {
+            UnauthorizedAccessException =>
+                $"Could not write {name} — access was denied. Choose a different folder, or check that the file is not read-only.",
+            DirectoryNotFoundException =>
+                $"Could not write {name} — that folder no longer exists. Choose a different location and try again.",
+            IOException io when IsSharingViolation(io) =>
+                $"Could not write {name} — it is open in another program. Close it and try again.",
+            _ =>
+                $"Could not write {name}. {ex.Message}",
+        };
+    }
+
+    /// <summary>
+    /// True when the OS refused the handle because someone else already holds the file
+    /// (ERROR_SHARING_VIOLATION / ERROR_LOCK_VIOLATION) — the "it's still open in Excel" case,
+    /// as opposed to a full disk or an I/O error, which deserve a different message.
+    /// </summary>
+    private static bool IsSharingViolation(IOException ex)
+    {
+        const int FACILITY_WIN32 = unchecked((int)0x80070000);
+        const int ERROR_SHARING_VIOLATION = 32;
+        const int ERROR_LOCK_VIOLATION = 33;
+
+        if ((ex.HResult & unchecked((int)0xFFFF0000)) != FACILITY_WIN32) { return false; }
+
+        var win32Error = ex.HResult & 0xFFFF;
+        return win32Error is ERROR_SHARING_VIOLATION or ERROR_LOCK_VIOLATION;
     }
 
     /// <summary>
