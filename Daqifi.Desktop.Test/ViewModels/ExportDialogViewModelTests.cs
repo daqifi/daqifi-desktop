@@ -231,6 +231,31 @@ public class ExportDialogViewModelTests
             "The pre-flight probe must not truncate the file it could not write.");
     }
 
+    /// <summary>
+    /// A session that no longer exists is skipped by the export, so its destination must not be
+    /// pre-flighted either — a locked file for a stale id must never block the run.
+    /// </summary>
+    [TestMethod]
+    public async Task Export_WhenSessionIsMissing_LockedDestinationDoesNotBlockTheRun()
+    {
+        // Arrange — an empty database, so session 1 is never found.
+        using var factory = new TempSqliteLoggingContextFactory();
+        var exportPath = Path.Combine(TestDirectoryPath, $"stale_{Guid.NewGuid():N}.csv");
+        await File.WriteAllTextAsync(exportPath, "held open");
+        var vm = new ExportDialogViewModel(factory, sessionId: 1) { ExportFilePath = exportPath };
+
+        using (new FileStream(exportPath, FileMode.Open, FileAccess.Write, FileShare.Read))
+        {
+            // Act
+            await vm.ExportLoggingSessionsCommand.ExecuteAsync(null);
+        }
+
+        // Assert
+        Assert.IsTrue(vm.ExportSucceeded,
+            "A locked destination belonging to a skipped session must not fail the export.");
+        Assert.AreEqual("Export complete", vm.ExportResultMessage);
+    }
+
     [TestMethod]
     public async Task Export_AfterFailure_RetryReturnsToConfigureState()
     {

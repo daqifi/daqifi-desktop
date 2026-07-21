@@ -160,6 +160,10 @@ public partial class ExportDialogViewModel : ObservableObject
         var progress = new Progress<int>(progressValue => ExportProgress = progressValue);
         AppLogger.Instance.AddBreadcrumb("export", $"Data export started ({_sessionsIds.Count} session(s))");
 
+        // Resolved here rather than on the worker below because it reads LoggingManager's
+        // UI-bound session collection. It touches no file system, so it cannot block.
+        var targets = ResolveExportTargets();
+
         var cancelled = false;
         var failed = false;
 
@@ -172,58 +176,66 @@ public partial class ExportDialogViewModel : ObservableObject
         var currentFilepath = ExportFilePath;
         try
         {
-            var targets = ResolveExportTargets();
-
-            // Pre-flight: the overwhelmingly common failure is a destination CSV still open in
-            // Excel/Spyder (issue #747). Checking every target before writing anything means the
-            // user gets an actionable message immediately instead of a partial export. This is
-            // inherently racy, so the catch below still handles a lock taken after the check.
-            foreach (var target in targets)
+            await Task.Run(async () =>
             {
-                failureReason = DescribeUnwritableDestination(target.Filepath);
-                if (failureReason == null) { continue; }
+                // Resolve the sessions that still exist first. Only their destinations are
+                // pre-flighted below, so a stale id whose row has since been deleted — which the
+                // export would skip anyway — can never block the whole run.
+                var live = new List<(LoggingSession Session, string Filepath)>(targets.Count);
+                foreach (var target in targets)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var loggingSession = await GetLoggingSessionFromId(target.SessionId);
+                    if (loggingSession == null)
+                    {
+                        AppLogger.Instance.Warning(
+                            $"Skipping export for session {target.SessionId}: it was not found in the database.");
+                        continue;
+                    }
 
-                currentFilepath = target.Filepath;
-                break;
-            }
+                    live.Add((loggingSession, target.Filepath));
+                }
+
+                // Pre-flight: the overwhelmingly common failure is a destination CSV still open in
+                // Excel/Spyder (issue #747). Checking every target before writing anything means the
+                // user gets an actionable message immediately instead of a partial export. This is
+                // inherently racy, so the catch below still handles a lock taken after the check.
+                foreach (var (_, filepath) in live)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var reason = DescribeUnwritableDestination(filepath, out var probeError);
+                    if (reason == null) { continue; }
+
+                    currentFilepath = filepath;
+                    failureReason = reason;
+                    AppLogger.Instance.Warning(probeError, $"Export aborted: {reason}");
+                    return;
+                }
+
+                for (var i = 0; i < live.Count; i++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    currentFilepath = live[i].Filepath;
+
+                    if (ExportAllSelected)
+                    {
+                        ExportAllSamples(live[i].Session, currentFilepath, progress, cancellationToken, i, live.Count);
+                    }
+                    else if (ExportAverageSelected)
+                    {
+                        ExportAverageSamples(live[i].Session, currentFilepath, progress, cancellationToken, i, live.Count);
+                    }
+                }
+            }, cancellationToken);
 
             if (failureReason != null)
             {
                 failed = true;
-                AppLogger.Instance.Warning($"Export aborted: {failureReason}");
                 AppLogger.Instance.AddBreadcrumb("export", "Data export blocked by destination file",
                     Common.Loggers.BreadcrumbLevel.Warning);
             }
             else
             {
-                await Task.Run(async () =>
-                {
-                    var totalSessions = targets.Count;
-                    for (var i = 0; i < totalSessions; i++)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        var sessionId = targets[i].SessionId;
-                        var loggingSession = await GetLoggingSessionFromId(sessionId);
-                        if (loggingSession == null)
-                        {
-                            AppLogger.Instance.Warning(
-                                $"Skipping export for session {sessionId}: it was not found in the database.");
-                            continue;
-                        }
-
-                        currentFilepath = targets[i].Filepath;
-
-                        if (ExportAllSelected)
-                        {
-                            ExportAllSamples(loggingSession, currentFilepath, progress, cancellationToken, i, totalSessions);
-                        }
-                        else if (ExportAverageSelected)
-                        {
-                            ExportAverageSamples(loggingSession, currentFilepath, progress, cancellationToken, i, totalSessions);
-                        }
-                    }
-                }, cancellationToken);
-
                 // Reaching here means the loop ran to completion without a cancellation being
                 // observed at a checkpoint — a Cancel click that lands after the work is done no
                 // longer suppresses the result state. Cancellation is signalled only by the
@@ -380,8 +392,13 @@ public partial class ExportDialogViewModel : ObservableObject
     /// fails exactly when another program holds it — and the probe never truncates or creates
     /// anything, so a blocked export leaves the destination untouched.
     /// </summary>
-    private static string DescribeUnwritableDestination(string filepath)
+    /// <param name="filepath">Destination to probe.</param>
+    /// <param name="error">The exception the probe caught, so the caller can log it with its stack
+    /// trace; null when the destination looks writable.</param>
+    private static string DescribeUnwritableDestination(string filepath, out Exception error)
     {
+        error = null;
+
         try
         {
             if (!File.Exists(filepath)) { return null; }
@@ -391,6 +408,7 @@ public partial class ExportDialogViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            error = ex;
             return DescribeFileFailure(ex, filepath);
         }
     }
