@@ -7,13 +7,15 @@ namespace Daqifi.Desktop.Migrations;
 /// <inheritdoc />
 public partial class AddSamplesSessionTimeIndex : Migration
 {
+    private static readonly string[] SessionTimeIndexColumns = ["LoggingSessionID", "TimestampTicks"];
+
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
         migrationBuilder.CreateIndex(
             name: "IX_Samples_LoggingSessionID_TimestampTicks",
             table: "Samples",
-            columns: new[] { "LoggingSessionID", "TimestampTicks" });
+            columns: SessionTimeIndexColumns);
     }
 
     /// <inheritdoc />

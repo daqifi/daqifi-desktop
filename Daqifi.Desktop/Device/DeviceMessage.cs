@@ -5,10 +5,10 @@ public class DeviceMessage
     public int LoggingSessionID { get; set; }
     public long TimestampTicks { get; init; }
     public long AppTicks { get; init; }
-    public string DeviceName { get; set; }
-    public string DeviceSerialNo { get; set; }
+    public string DeviceName { get; set; } = string.Empty;
+    public string DeviceSerialNo { get; set; } = string.Empty;
 
-    public string DeviceVersion { get; set; }
+    public string DeviceVersion { get; set; } = string.Empty;
 
     public int DigitalChannelCount { get; set; }
     public int AnalogChannelCount { get; set; }

@@ -31,7 +31,11 @@ public class OptimizedLoggingSessionExporter
     #region Private Fields
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly string _delimiter = DaqifiSettings.Instance.CsvDelimiter;
-    private readonly IDbContextFactory<LoggingContext> _loggingContext;
+    /// <summary>
+    /// EF context factory used for the database-backed export path. Null when the parameterless
+    /// constructor ran before DI was wired up (<see cref="App.ServiceProvider"/> unset).
+    /// </summary>
+    private readonly IDbContextFactory<LoggingContext>? _loggingContext;
     #endregion
 
     #region Constructors
@@ -89,7 +93,7 @@ public class OptimizedLoggingSessionExporter
             UseRelativeTime = exportRelativeTime,
         };
 
-        RunExport(source, filepath, options, progress, cancellationToken, sessionIndex, totalSessions);
+        RunExport(source, filepath, options, progress, sessionIndex, totalSessions, cancellationToken);
     }
 
     /// <summary>
@@ -132,7 +136,7 @@ public class OptimizedLoggingSessionExporter
             AverageWindow = window,
         };
 
-        RunExport(source, filepath, options, progress, cancellationToken, sessionIndex, totalSessions);
+        RunExport(source, filepath, options, progress, sessionIndex, totalSessions, cancellationToken);
     }
     #endregion
 
@@ -143,10 +147,10 @@ public class OptimizedLoggingSessionExporter
     /// "no file when there are no channels" behavior so empty sessions don't
     /// produce empty CSVs.
     /// </summary>
-    private ISampleSource TryBuildSource(LoggingSession loggingSession)
+    private LoggingSessionSampleSource? TryBuildSource(LoggingSession loggingSession)
     {
-        ISampleSource source;
-        if (loggingSession.DataSamples?.Any() == true)
+        LoggingSessionSampleSource source;
+        if (loggingSession.DataSamples?.Count > 0)
         {
             source = new LoggingSessionSampleSource(loggingSession, loggingSession.DataSamples);
         }
@@ -169,12 +173,12 @@ public class OptimizedLoggingSessionExporter
     }
 
     private static void RunExport(ISampleSource source, string filepath, CsvExportOptions options,
-        IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
+        IProgress<int> progress, int sessionIndex, int totalSessions, CancellationToken cancellationToken)
     {
         // Fold the [0..100] per-session progress that core reports into the
         // overall (sessionIndex + p/100) * (100/totalSessions) shape the dialog
         // already binds to. Match the legacy ceiling so we never exceed 100.
-        IProgress<int> wrappedProgress = null;
+        IProgress<int>? wrappedProgress = null;
         if (progress != null && totalSessions > 0)
         {
             wrappedProgress = new Progress<int>(p =>

@@ -22,7 +22,7 @@ public partial class VersionNotification : ObservableObject, IDisposable
     private int _notificationCount;
 
     [ObservableProperty]
-    private string _versionNumber;
+    private string _versionNumber = string.Empty;
     #endregion
 
     #region Constructor
@@ -53,6 +53,8 @@ public partial class VersionNotification : ObservableObject, IDisposable
     {
         if (_ownsHandler && _httpMessageHandler is IDisposable disposable)
             disposable.Dispose();
+
+        GC.SuppressFinalize(this);
     }
     #endregion
 

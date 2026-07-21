@@ -1,4 +1,4 @@
-﻿using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Device;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 
@@ -55,7 +55,7 @@ public class AnalogChannel : AbstractChannel
                 HasAdc = !IsOutput;
 
                 // Notify owner of direction change
-                _owner?.SetChannelDirection(this, value);
+                Owner?.SetChannelDirection(this, value);
             }
         }
     }
@@ -126,7 +126,7 @@ public class AnalogChannel : AbstractChannel
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(coreChannel);
 
-        _owner = owner;
+        Owner = owner;
         _coreChannel = coreChannel;
 
         // Set desktop-specific properties (not in core)

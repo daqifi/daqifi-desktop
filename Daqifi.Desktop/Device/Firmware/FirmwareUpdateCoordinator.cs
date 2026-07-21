@@ -20,7 +20,7 @@ namespace Daqifi.Desktop.Device.Firmware;
 /// unit-testable in isolation.
 /// </para>
 /// </summary>
-public class FirmwareUpdateCoordinator
+public class FirmwareUpdateCoordinator : IDisposable
 {
     #region Private Fields
     private readonly IFirmwareUpdateHost _host;
@@ -186,9 +186,11 @@ public class FirmwareUpdateCoordinator
             {
                 _host.FirmwareUpdateStatusText = "Downloading latest firmware package...";
                 effectiveFirmwarePath = await _firmwareDownloadService.DownloadLatestFirmwareAsync(
-                    GetFirmwareDownloadDirectory(),
-                    includePreRelease: true,
-                    cancellationToken: _firmwareUploadCts.Token);
+                                            GetFirmwareDownloadDirectory(),
+                                            includePreRelease: true,
+                                            cancellationToken: _firmwareUploadCts.Token)
+                                        ?? throw new InvalidOperationException(
+                                            "Firmware download did not produce a firmware package path.");
             }
             else
             {
@@ -805,6 +807,20 @@ public class FirmwareUpdateCoordinator
             _host.Notifications.Remove(notificationsToRemove);
             _host.RefreshNotificationCount();
         }
+    }
+    #endregion
+
+    #region IDisposable
+    /// <summary>
+    /// Releases the cancellation source backing an in-flight firmware upload. A completed run
+    /// already disposes and clears it in its own <c>finally</c>; this covers teardown while an
+    /// upload is still running.
+    /// </summary>
+    public void Dispose()
+    {
+        _firmwareUploadCts?.Dispose();
+        _firmwareUploadCts = null;
+        GC.SuppressFinalize(this);
     }
     #endregion
 }

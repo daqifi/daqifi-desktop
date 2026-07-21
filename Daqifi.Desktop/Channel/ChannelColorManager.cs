@@ -1,4 +1,4 @@
-﻿using System.Windows.Media;
+using System.Windows.Media;
 
 namespace Daqifi.Desktop.Channel;
 
@@ -56,6 +56,21 @@ public class ChannelColorManager
         FromHex(MaterialColors.BlueGrey500),
         FromHex(MaterialColors.Grey500)
     ];
+
+    #endregion
+
+    #region Private Methods
+
+    /// <summary>
+    /// Creates a <see cref="SolidColorBrush"/> from a hex color string.
+    /// </summary>
+    /// <param name="hex">A hex color literal from <see cref="MaterialColors"/>.</param>
+    private static SolidColorBrush FromHex(string hex)
+    {
+        // ColorConverter is declared to return object? because it accepts arbitrary input, but every
+        // caller here passes a compile-time constant from MaterialColors, so the conversion cannot fail.
+        return new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex)!);
+    }
 
     #endregion
 
