@@ -85,10 +85,10 @@ injected dependency in a plain service class, not an observable ViewModel proper
 ### Build and Test
 ```bash
 # Build the solution
-dotnet build
+dotnet build -tl:on
 
 # Run all tests
-dotnet test
+dotnet test -tl:on
 
 # Run with code coverage (80% minimum required)
 dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
@@ -97,10 +97,23 @@ dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 dotnet test Daqifi.Desktop.Test/Daqifi.Desktop.Test.csproj
 ```
 
+**Always pass `-tl:on`.** `dotnet build` defaults to `-tl:auto`, which turns the terminal
+logger *off* whenever stdout is redirected — i.e. always, for CI, scripts, and AI agents. The
+fallback console logger prints every warning twice (once live, once again in the trailing
+`Warnings:` summary block), doubling the log for zero added signal. `-tl:on` prints each
+warning once.
+
+A second duplication source is already handled in [Directory.Build.targets](Directory.Build.targets):
+WPF's markup-compile pass 1 shadow-builds a generated `Daqifi.Desktop_<hash>_wpftmp.csproj`
+that would otherwise re-report every warning in the project a third and fourth time. Do not
+remove that file, and note it must stay in `.targets` rather than `.props` — the generated
+clone carries the original csproj's own `<Nullable>`/`<NoWarn>`, which beats anything set
+in `.props`.
+
 ### Two-gate test loop
 - **Fast inner gate (every edit, no hardware):** unit tests with Moq.
   ```bash
-  dotnet test --filter "TestCategory!=Ui&FullyQualifiedName!~WindowsFirewallWrapperTests"
+  dotnet test --filter "TestCategory!=Ui&FullyQualifiedName!~WindowsFirewallWrapperTests" -tl:on
   ```
 - **Integration gate (device attached, on demand):** the FlaUI UI-automation harness drives
   the real GUI against a physically connected device. Used when asked to validate a PR
