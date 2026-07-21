@@ -8,7 +8,7 @@ namespace Daqifi.Desktop.Test.Helpers;
 [TestClass]
 public class BooleanToVisibilityConverterTests
 {
-    private BooleanToVisibilityConverter _converter = null!;
+    private IValueConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()
@@ -89,7 +89,7 @@ public class BooleanToVisibilityConverterTests
     {
         // Arrange — mirrors the App.xaml "InvertedBoolToVis" resource
         // (True="Collapsed" False="Visible").
-        var inverted = new BooleanToVisibilityConverter
+        IValueConverter inverted = new BooleanToVisibilityConverter
         {
             True = Visibility.Collapsed,
             False = Visibility.Visible

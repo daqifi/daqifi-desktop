@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.Test.Helpers;
 [TestClass]
 public class BooleanToInverseBoolConverterTests
 {
-    private BooleanToInverseBoolConverter _converter = null!;
+    private IValueConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()

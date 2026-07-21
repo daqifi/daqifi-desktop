@@ -19,3 +19,11 @@ dotnet_diagnostic.CA1707.severity = none
 # (IAppLogger.Error, IBootloaderDiscovery.Stop -> VB). This is a C#-only, application-level
 # codebase with no cross-language consumers, so the rule has nothing to protect.
 dotnet_diagnostic.CA1716.severity = none
+
+[{Daqifi.Desktop.Test,Daqifi.Desktop.UITest}/**/*.cs]
+
+# CA1859 ("use concrete types for improved performance") is a hot-path perf rule with nothing to
+# gain in a test project, and here it actively costs fidelity: the converter fixtures hold their
+# subject as IValueConverter precisely because that is the interface WPF invokes at runtime.
+# Complying would test the converters through a type WPF never uses.
+dotnet_diagnostic.CA1859.severity = none
