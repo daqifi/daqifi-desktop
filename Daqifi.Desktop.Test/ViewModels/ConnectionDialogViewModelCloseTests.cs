@@ -13,6 +13,7 @@ public class ConnectionDialogViewModelCloseTests
     private const string NONEXISTENT_PORT_NAME = "COM_DOES_NOT_EXIST_524";
 
     private Func<DuplicateDeviceCheckResult, DuplicateDeviceAction>? _originalDuplicateDeviceHandler;
+    private readonly List<ConnectionDialogViewModel> _viewModels = [];
 
     [TestInitialize]
     public void TestInitialize()
@@ -24,6 +25,15 @@ public class ConnectionDialogViewModelCloseTests
     [TestCleanup]
     public void TestCleanup()
     {
+        // Dispose every VM (idempotent with Close()) so its FirmwareUpdateInProgressChanged subscription
+        // leaves the ConnectionManager singleton (issue #738 gating); a leaked handler would fire in
+        // later tests that flip DeviceBeingUpdated.
+        foreach (var viewModel in _viewModels)
+        {
+            viewModel.Dispose();
+        }
+        _viewModels.Clear();
+
         ConnectionManager.Instance.DuplicateDeviceHandler = _originalDuplicateDeviceHandler;
     }
 
@@ -195,10 +205,12 @@ public class ConnectionDialogViewModelCloseTests
         // Must not throw — discovery finders are only disposed once.
     }
 
-    private static ConnectionDialogViewModel CreateViewModel()
+    private ConnectionDialogViewModel CreateViewModel()
     {
         var dialogService = new Mock<IDialogService>();
-        return new ConnectionDialogViewModel(dialogService.Object);
+        var viewModel = new ConnectionDialogViewModel(dialogService.Object);
+        _viewModels.Add(viewModel);
+        return viewModel;
     }
 
     private static Func<bool> SubscribeToClose(ConnectionDialogViewModel viewModel)

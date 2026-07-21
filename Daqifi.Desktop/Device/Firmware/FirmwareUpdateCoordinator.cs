@@ -245,7 +245,6 @@ public class FirmwareUpdateCoordinator
         }
         catch (FirmwareUpdateException ex)
         {
-            _appLogger.AddBreadcrumb("firmware", $"Firmware update failed: {ex.FailedState}", Common.Loggers.BreadcrumbLevel.Error);
             HandleFirmwareUpdateException(ex);
         }
         catch (Exception ex)
@@ -681,6 +680,36 @@ public class FirmwareUpdateCoordinator
     private void HandleFirmwareUpdateException(FirmwareUpdateException exception)
     {
         _host.HasErrorOccured = true;
+
+        // A JumpingToApp failure is categorically different from a mid-flash failure: it is the LAST
+        // PIC32 step and only runs after erase + program + CRC-verify all succeeded, so the firmware is
+        // already installed and verified — the device just didn't re-open its serial port in time. Treat
+        // it as an expected device/environmental condition (a power-cycle finishes the job), not an app
+        // bug: log at Warning (no Sentry capture) and tell the user their firmware installed rather than
+        // claiming it failed. Mirrors the serial/WiFi connect classification (issues #589 / #740) and
+        // stops this from filing Sentry issues like DAQIFI-DESKTOP-1N (issue #738).
+        if (exception.FailedState == FirmwareUpdateState.JumpingToApp)
+        {
+            _appLogger.AddBreadcrumb(
+                "firmware",
+                $"Firmware installed but device did not reconnect: {exception.FailedState}",
+                Common.Loggers.BreadcrumbLevel.Warning);
+            _appLogger.Warning(
+                exception,
+                "Firmware was installed and verified, but the device did not automatically return to " +
+                "application mode after the flash. This is a device/environmental condition (power-cycle " +
+                "recovers it), not an app failure.");
+
+            _host.ShowFirmwareError(
+                "Firmware was installed successfully, but the device did not return to normal mode on its " +
+                "own. Please power-cycle the device (unplug and replug its USB cable), then reconnect.");
+            return;
+        }
+
+        _appLogger.AddBreadcrumb(
+            "firmware",
+            $"Firmware update failed: {exception.FailedState}",
+            Common.Loggers.BreadcrumbLevel.Error);
 
         var summary = $"Firmware update failed during '{exception.Operation}' ({exception.FailedState}).";
         _appLogger.Error(exception, summary);

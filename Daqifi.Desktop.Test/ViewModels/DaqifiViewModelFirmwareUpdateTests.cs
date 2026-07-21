@@ -814,6 +814,101 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.AreEqual(reportedFwVersion, reportedVersion);
     }
 
+    [TestMethod]
+    public async Task UploadFirmware_JumpingToAppFailure_ReportedAsInstalledWarningNotError()
+    {
+        // A JumpingToApp failure is the LAST PIC32 step, reached only after erase + program + verify
+        // succeed — the firmware is installed and verified, the device just didn't re-open its serial
+        // port in time. It must be classified as an expected device/environmental condition: logged at
+        // Warning (no Sentry capture) and reported to the user as installed, not failed (issue #738).
+        var firmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
+        var appLogger = new Mock<IAppLogger>();
+
+        using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
+        coreDevice.Connect();
+        var serialDevice = CreateSerialDeviceWithCoreDevice("COM7", coreDevice);
+        var firmwareFilePath = CreateTempFile(".hex");
+
+        firmwareUpdateService
+            .Setup(service => service.UpdateFirmwareAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                firmwareFilePath,
+                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new FirmwareUpdateException(
+                FirmwareUpdateState.JumpingToApp,
+                "jump to application and reconnect serial transport",
+                "State 'JumpingToApp' timed out.",
+                recoveryGuidance: "Power-cycle the device and reconnect."));
+
+        var host = new FakeFirmwareUpdateHost
+        {
+            SelectedDevice = serialDevice,
+            FirmwareFilePath = firmwareFilePath
+        };
+
+        var coordinator = CreateCoordinator(
+            host, firmwareUpdateService.Object, firmwareDownloadService.Object, appLogger: appLogger.Object);
+
+        await coordinator.UploadFirmwareAsync();
+
+        // User is told the firmware installed and to power-cycle — not that it failed.
+        Assert.AreEqual(1, host.FirmwareErrors.Count);
+        StringAssert.Contains(host.FirmwareErrors[0], "installed successfully");
+        StringAssert.Contains(host.FirmwareErrors[0], "power-cycle");
+
+        // Logged at Warning (no Sentry), never at Error.
+        appLogger.Verify(l => l.Warning(It.IsAny<Exception>(), It.IsAny<string>()), Times.AtLeastOnce);
+        appLogger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task UploadFirmware_MidFlashFailure_StillReportedAsErrorToSentry()
+    {
+        // Control case: a failure in a flash-touching state (e.g. ErasingFlash) is a genuine failure —
+        // it must still be logged at Error (Sentry-captured) and reported as a failure, so the #738
+        // reclassification is scoped to JumpingToApp only and doesn't swallow real flash faults.
+        var firmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
+        var appLogger = new Mock<IAppLogger>();
+
+        using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
+        coreDevice.Connect();
+        var serialDevice = CreateSerialDeviceWithCoreDevice("COM7", coreDevice);
+        var firmwareFilePath = CreateTempFile(".hex");
+
+        firmwareUpdateService
+            .Setup(service => service.UpdateFirmwareAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                firmwareFilePath,
+                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new FirmwareUpdateException(
+                FirmwareUpdateState.ErasingFlash,
+                "erase flash",
+                "Flash erase failed."));
+
+        var host = new FakeFirmwareUpdateHost
+        {
+            SelectedDevice = serialDevice,
+            FirmwareFilePath = firmwareFilePath
+        };
+
+        var coordinator = CreateCoordinator(
+            host, firmwareUpdateService.Object, firmwareDownloadService.Object, appLogger: appLogger.Object);
+
+        await coordinator.UploadFirmwareAsync();
+
+        Assert.AreEqual(1, host.FirmwareErrors.Count);
+        StringAssert.Contains(host.FirmwareErrors[0], "ErasingFlash");
+        appLogger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.AtLeastOnce);
+    }
+
     /// <summary>
     /// Builds a coordinator with no-op test loggers and a throwaway firmware data directory.
     /// Dialog/flyout host operations are captured by <see cref="FakeFirmwareUpdateHost"/>, so no
@@ -824,14 +919,15 @@ public class DaqifiViewModelFirmwareUpdateTests
         FakeFirmwareUpdateHost host,
         IFirmwareUpdateService firmwareUpdateService,
         IFirmwareDownloadService firmwareDownloadService,
-        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null)
+        Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null,
+        IAppLogger? appLogger = null)
     {
         return new FirmwareUpdateCoordinator(
             host,
             firmwareUpdateService,
             firmwareDownloadService,
             NullLogger<FirmwareUpdateService>.Instance,
-            Mock.Of<IAppLogger>(),
+            appLogger ?? Mock.Of<IAppLogger>(),
             CreateTempDirectory(),
             wifiFirmwareUpdateServiceFactory,
             // Collapse the WiFi-update-mode settle wait so these unit tests stay fast and
