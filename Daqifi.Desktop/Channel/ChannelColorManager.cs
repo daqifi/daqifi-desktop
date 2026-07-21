@@ -16,45 +16,45 @@ public class ChannelColorManager
     public List<System.Windows.Media.Brush> Brushes { get; } =
     [
         // 700-shade set — interleaved warm/cool for maximum perceptual separation
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Red700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Blue700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Green700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Orange700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Purple700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Teal700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.DeepOranage700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Indigo700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Pink700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.LightGreen700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Cyan700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Amber700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.DeepPurple700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.LightBlue700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Lime700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Yellow700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Brown700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.BlueGrey700),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Grey700),
+        FromHex(MaterialColors.Red700),
+        FromHex(MaterialColors.Blue700),
+        FromHex(MaterialColors.Green700),
+        FromHex(MaterialColors.Orange700),
+        FromHex(MaterialColors.Purple700),
+        FromHex(MaterialColors.Teal700),
+        FromHex(MaterialColors.DeepOranage700),
+        FromHex(MaterialColors.Indigo700),
+        FromHex(MaterialColors.Pink700),
+        FromHex(MaterialColors.LightGreen700),
+        FromHex(MaterialColors.Cyan700),
+        FromHex(MaterialColors.Amber700),
+        FromHex(MaterialColors.DeepPurple700),
+        FromHex(MaterialColors.LightBlue700),
+        FromHex(MaterialColors.Lime700),
+        FromHex(MaterialColors.Yellow700),
+        FromHex(MaterialColors.Brown700),
+        FromHex(MaterialColors.BlueGrey700),
+        FromHex(MaterialColors.Grey700),
         // 500-shade set — same interleaved order
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Red500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Blue500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Green500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Orange500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Purple500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Teal500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.DeepOranage500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Indigo500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Pink500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.LightGreen500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Cyan500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Amber500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.DeepPurple500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.LightBlue500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Lime500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Yellow500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Brown500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.BlueGrey500),
-        (SolidColorBrush)new BrushConverter().ConvertFrom(MaterialColors.Grey500)
+        FromHex(MaterialColors.Red500),
+        FromHex(MaterialColors.Blue500),
+        FromHex(MaterialColors.Green500),
+        FromHex(MaterialColors.Orange500),
+        FromHex(MaterialColors.Purple500),
+        FromHex(MaterialColors.Teal500),
+        FromHex(MaterialColors.DeepOranage500),
+        FromHex(MaterialColors.Indigo500),
+        FromHex(MaterialColors.Pink500),
+        FromHex(MaterialColors.LightGreen500),
+        FromHex(MaterialColors.Cyan500),
+        FromHex(MaterialColors.Amber500),
+        FromHex(MaterialColors.DeepPurple500),
+        FromHex(MaterialColors.LightBlue500),
+        FromHex(MaterialColors.Lime500),
+        FromHex(MaterialColors.Yellow500),
+        FromHex(MaterialColors.Brown500),
+        FromHex(MaterialColors.BlueGrey500),
+        FromHex(MaterialColors.Grey500)
     ];
 
     #endregion
@@ -76,6 +76,17 @@ public class ChannelColorManager
     public static ChannelColorManager Instance => _instance;
 
     #endregion
+
+    /// <summary>
+    /// Parses a <see cref="MaterialColors"/> hex string into a frozen-capable brush.
+    /// </summary>
+    /// <remarks>
+    /// The inputs are compile-time constants that <see cref="BrushConverter"/> always parses,
+    /// so the null-forgiving operator is safe here and keeps the palette free of 76 spurious
+    /// nullability warnings.
+    /// </remarks>
+    private static SolidColorBrush FromHex(string hex) =>
+        (SolidColorBrush)new BrushConverter().ConvertFrom(hex)!;
 
     public System.Windows.Media.Brush NewColor()
     {
