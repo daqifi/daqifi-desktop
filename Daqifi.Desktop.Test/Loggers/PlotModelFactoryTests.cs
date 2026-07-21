@@ -31,11 +31,19 @@ public class PlotModelFactoryTests
     {
         // The logger's viewport code and the minimap controller find axes by these exact strings, so the
         // constants are a shared contract the factory must not drift from.
-        Assert.AreEqual("Analog", PlotModelFactory.ANALOG_AXIS_KEY);
-        Assert.AreEqual("Digital", PlotModelFactory.DIGITAL_AXIS_KEY);
-        Assert.AreEqual("Time", PlotModelFactory.TIME_AXIS_KEY);
-        Assert.AreEqual("MinimapTime", PlotModelFactory.MINIMAP_TIME_AXIS_KEY);
-        Assert.AreEqual("MinimapY", PlotModelFactory.MINIMAP_Y_AXIS_KEY);
+        // Read through locals so the comparisons happen at run time: comparing two compile-time
+        // constants folds away and the assertions would no longer pin anything (MSTEST0032).
+        string analog = PlotModelFactory.ANALOG_AXIS_KEY;
+        string digital = PlotModelFactory.DIGITAL_AXIS_KEY;
+        string time = PlotModelFactory.TIME_AXIS_KEY;
+        string minimapTime = PlotModelFactory.MINIMAP_TIME_AXIS_KEY;
+        string minimapY = PlotModelFactory.MINIMAP_Y_AXIS_KEY;
+
+        Assert.AreEqual("Analog", analog);
+        Assert.AreEqual("Digital", digital);
+        Assert.AreEqual("Time", time);
+        Assert.AreEqual("MinimapTime", minimapTime);
+        Assert.AreEqual("MinimapY", minimapY);
     }
 
     #endregion
@@ -50,20 +58,20 @@ public class PlotModelFactoryTests
         Assert.AreEqual(3, model.Axes.Count, "Main plot has exactly the analog, digital, and time axes.");
 
         var analog = GetAxis(model, PlotModelFactory.ANALOG_AXIS_KEY);
-        Assert.IsInstanceOfType(analog, typeof(LinearAxis));
+        Assert.IsInstanceOfType<LinearAxis>(analog);
         Assert.AreEqual(AxisPosition.Left, analog.Position);
         Assert.AreEqual("Analog (V)", analog.Title);
         Assert.AreEqual("0.###", analog.StringFormat);
 
         var digital = GetAxis(model, PlotModelFactory.DIGITAL_AXIS_KEY);
-        Assert.IsInstanceOfType(digital, typeof(LinearAxis));
+        Assert.IsInstanceOfType<LinearAxis>(digital);
         Assert.AreEqual(AxisPosition.Right, digital.Position);
         Assert.AreEqual("Digital", digital.Title);
         Assert.AreEqual(-0.1, digital.Minimum, "Digital axis is pinned to a fixed 0..1 range with padding.");
         Assert.AreEqual(1.1, digital.Maximum);
 
         var time = GetAxis(model, PlotModelFactory.TIME_AXIS_KEY);
-        Assert.IsInstanceOfType(time, typeof(LinearAxis));
+        Assert.IsInstanceOfType<LinearAxis>(time);
         Assert.AreEqual(AxisPosition.Bottom, time.Position);
         Assert.AreEqual("Time (ms)", time.Title);
     }

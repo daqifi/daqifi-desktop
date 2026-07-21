@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.Test.Converters;
 [TestClass]
 public class BoolAndToVisibilityConverterTests
 {
-    private BoolAndToVisibilityConverter _converter;
+    private BoolAndToVisibilityConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()
@@ -22,7 +22,7 @@ public class BoolAndToVisibilityConverterTests
         var values = new object[] { true, true, true };
 
         // Act
-        var result = _converter.Convert(values, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(values, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Visible, result);
@@ -35,7 +35,7 @@ public class BoolAndToVisibilityConverterTests
         var values = new object[] { true, false, true };
 
         // Act
-        var result = _converter.Convert(values, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(values, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Collapsed, result);
@@ -48,7 +48,7 @@ public class BoolAndToVisibilityConverterTests
         var values = new object[] { true, "true", true };
 
         // Act
-        var result = _converter.Convert(values, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(values, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Collapsed, result);
@@ -61,7 +61,7 @@ public class BoolAndToVisibilityConverterTests
         var values = Array.Empty<object>();
 
         // Act
-        var result = _converter.Convert(values, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(values, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Collapsed, result);
@@ -71,10 +71,10 @@ public class BoolAndToVisibilityConverterTests
     public void Convert_NullValues_ReturnsCollapsed()
     {
         // Arrange
-        object[] values = null;
+        object[] values = null!;
 
         // Act
-        var result = _converter.Convert(values, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(values, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Collapsed, result);
@@ -88,6 +88,6 @@ public class BoolAndToVisibilityConverterTests
 
         // Act & Assert
         Assert.ThrowsExactly<NotSupportedException>(() =>
-            _converter.ConvertBack(value, new[] { typeof(bool) }, null, CultureInfo.InvariantCulture));
+            _converter.ConvertBack(value, new[] { typeof(bool) }, null!, CultureInfo.InvariantCulture));
     }
 }

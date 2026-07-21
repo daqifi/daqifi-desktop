@@ -40,9 +40,9 @@ public class NaturalSortHelperTests
     public void NaturalCompare_NullValues_HandlesCorrectly()
     {
         // Arrange & Act & Assert
-        Assert.AreEqual(0, NaturalSortHelper.NaturalCompare(null, null));
-        Assert.IsTrue(NaturalSortHelper.NaturalCompare(null, "AI0") < 0);
-        Assert.IsTrue(NaturalSortHelper.NaturalCompare("AI0", null) > 0);
+        Assert.AreEqual(0, NaturalSortHelper.NaturalCompare(null!, null!));
+        Assert.IsTrue(NaturalSortHelper.NaturalCompare(null!, "AI0") < 0);
+        Assert.IsTrue(NaturalSortHelper.NaturalCompare("AI0", null!) > 0);
     }
 
     [TestMethod]
@@ -138,7 +138,7 @@ public class NaturalSortHelperTests
     public void NaturalOrderBy_EmptyCollection_ReturnsEmpty()
     {
         // Arrange
-        var empty = new string[0];
+        var empty = Array.Empty<string>();
 
         // Act
         var sorted = empty.NaturalOrderBy(name => name).ToArray();
@@ -187,7 +187,7 @@ public class NaturalSortHelperTests
 
     #region Helper Classes
 
-    private class TestChannel
+    private sealed class TestChannel
     {
         public string Name { get; set; } = string.Empty;
     }

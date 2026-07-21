@@ -15,13 +15,15 @@ public class ConnectionDialogViewModelSerialDiscoveryTests
     public void TestInitialize()
     {
         _originalDuplicateDeviceHandler = ConnectionManager.Instance.DuplicateDeviceHandler;
-        ConnectionManager.Instance.DuplicateDeviceHandler = null;
+        ConnectionManager.Instance.DuplicateDeviceHandler = null!;
     }
 
     [TestCleanup]
     public void TestCleanup()
     {
-        ConnectionManager.Instance.DuplicateDeviceHandler = _originalDuplicateDeviceHandler;
+        // ConnectionManager.DuplicateDeviceHandler is declared non-nullable but is genuinely unset (null)
+        // until a dialog wires it up, so restoring the captured original can legitimately restore null.
+        ConnectionManager.Instance.DuplicateDeviceHandler = _originalDuplicateDeviceHandler!;
     }
 
     [TestMethod]

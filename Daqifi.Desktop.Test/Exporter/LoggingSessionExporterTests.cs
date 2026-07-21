@@ -14,7 +14,7 @@ public class OptimizedLoggingSessionExporterTests
     private readonly DateTime _firstTime = new(2018, 2, 9, 1, 3, 30);
     private readonly DateTime _secondTime = new(2018, 2, 9, 1, 3, 31);
 
-    private List<DataSample> _dataSamples;
+    private List<DataSample> _dataSamples = null!;
 
     [TestInitialize]
     public void Initialize()

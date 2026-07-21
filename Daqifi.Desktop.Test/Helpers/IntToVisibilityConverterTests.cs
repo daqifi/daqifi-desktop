@@ -8,7 +8,7 @@ namespace Daqifi.Desktop.Test.Helpers;
 [TestClass]
 public class IntToVisibilityConverterTests
 {
-    private IValueConverter _converter;
+    private IntToVisibilityConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()
@@ -25,7 +25,7 @@ public class IntToVisibilityConverterTests
         foreach (var value in positiveCounts)
         {
             // Act
-            var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+            var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
             // Assert
             Assert.AreEqual(Visibility.Visible, result, $"Failed for value: {value}");
@@ -39,7 +39,7 @@ public class IntToVisibilityConverterTests
         object value = 0;
 
         // Act
-        var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Collapsed, result);
@@ -54,7 +54,7 @@ public class IntToVisibilityConverterTests
         foreach (var value in negativeCounts)
         {
             // Act
-            var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+            var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
             // Assert
             Assert.AreEqual(Visibility.Collapsed, result, $"Failed for value: {value}");
@@ -65,12 +65,12 @@ public class IntToVisibilityConverterTests
     public void Convert_NonInteger_ReturnsCollapsed()
     {
         // Arrange — anything not boxed as int (including null and other numeric types).
-        var nonIntegers = new object[] { null, "5", 5.0, 5L, true };
+        var nonIntegers = new object[] { null!, "5", 5.0, 5L, true };
 
         foreach (var value in nonIntegers)
         {
             // Act
-            var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+            var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
             // Assert
             Assert.AreEqual(Visibility.Collapsed, result, $"Failed for value: {value ?? "null"}");
@@ -85,6 +85,6 @@ public class IntToVisibilityConverterTests
 
         // Act & Assert
         Assert.ThrowsExactly<NotImplementedException>(() =>
-            _converter.ConvertBack(value, typeof(int), null, CultureInfo.InvariantCulture));
+            _converter.ConvertBack(value, typeof(int), null!, CultureInfo.InvariantCulture));
     }
 }

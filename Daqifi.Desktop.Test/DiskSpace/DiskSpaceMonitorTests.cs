@@ -335,9 +335,15 @@ public class DiskSpaceMonitorTests
     [TestMethod]
     public void ThresholdConstants_HaveCorrectValues()
     {
-        Assert.AreEqual(500 * MB, DiskSpaceMonitor.PRE_SESSION_WARNING_BYTES);
-        Assert.AreEqual(100 * MB, DiskSpaceMonitor.WARNING_THRESHOLD_BYTES);
-        Assert.AreEqual(50 * MB, DiskSpaceMonitor.CRITICAL_THRESHOLD_BYTES);
+        // Read through locals so the comparisons are made at run time: comparing two compile-time
+        // constants folds away and the assertions would no longer pin anything (MSTEST0032).
+        long preSessionWarning = DiskSpaceMonitor.PRE_SESSION_WARNING_BYTES;
+        long warning = DiskSpaceMonitor.WARNING_THRESHOLD_BYTES;
+        long critical = DiskSpaceMonitor.CRITICAL_THRESHOLD_BYTES;
+
+        Assert.AreEqual(500 * MB, preSessionWarning);
+        Assert.AreEqual(100 * MB, warning);
+        Assert.AreEqual(50 * MB, critical);
     }
 
     #endregion

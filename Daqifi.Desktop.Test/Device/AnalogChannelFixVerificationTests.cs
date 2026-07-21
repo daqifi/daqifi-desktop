@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Daqifi.Desktop.Test.Device;
 
 [TestClass]
@@ -19,7 +21,7 @@ public class AnalogChannelFixVerificationTests
         
         // Act
         var bitMask = 1u << channelIndex;
-        var bitMaskString = Convert.ToString(bitMask);
+        var bitMaskString = Convert.ToString(bitMask, CultureInfo.InvariantCulture);
         
         // Assert
         Assert.AreEqual(256u, bitMask, "Channel 8 should produce bit mask 256");
@@ -37,7 +39,7 @@ public class AnalogChannelFixVerificationTests
         
         // Act
         var bitMask = 1u << channelIndex;
-        var bitMaskString = Convert.ToString(bitMask);
+        var bitMaskString = Convert.ToString(bitMask, CultureInfo.InvariantCulture);
         
         // Assert
         Assert.AreEqual(32768u, bitMask, "Channel 15 should produce bit mask 32768");
@@ -107,7 +109,7 @@ public class AnalogChannelFixVerificationTests
         Assert.IsTrue(channel31Mask > 0, "Channel 31 mask should be positive with unsigned int");
         
         // Verify string conversion works correctly
-        var maskString = Convert.ToString(channel31Mask);
+        var maskString = Convert.ToString(channel31Mask, CultureInfo.InvariantCulture);
         Assert.AreEqual("2147483648", maskString, "Channel 31 mask should convert to correct string");
     }
 
@@ -138,7 +140,7 @@ public class AnalogChannelFixVerificationTests
             Assert.AreEqual(1u, bitCount, $"Channel {channelIndex} mask should have exactly one bit set");
             
             // Test string conversion
-            var maskString = Convert.ToString(individualMask);
+            var maskString = Convert.ToString(individualMask, CultureInfo.InvariantCulture);
             Assert.IsFalse(string.IsNullOrEmpty(maskString), $"Channel {channelIndex} mask string should not be empty");
             Assert.IsTrue(uint.TryParse(maskString, out var parsedValue), $"Channel {channelIndex} mask string should be parseable");
             Assert.AreEqual(individualMask, parsedValue, $"Channel {channelIndex} mask should round-trip through string conversion");
