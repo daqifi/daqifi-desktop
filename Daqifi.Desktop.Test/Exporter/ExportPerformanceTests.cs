@@ -147,9 +147,9 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
             exportFilePath,
             exportRelativeTime: false,
             progress,
-            cts.Token,
             sessionIndex: 0,
-            totalSessions: 1);
+            totalSessions: 1,
+            cts.Token);
 
         stopwatch.Stop();
         var memoryUsedMb = Math.Max(0, GC.GetTotalMemory(false) - initialMemory) / 1024 / 1024;
@@ -270,7 +270,7 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
         var stopwatch = Stopwatch.StartNew();
 
         var optimizedExporter = new OptimizedLoggingSessionExporter();
-        optimizedExporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 1);
+        optimizedExporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 1, CancellationToken.None);
 
         stopwatch.Stop();
         var finalMemory = GC.GetTotalMemory(false);
@@ -350,7 +350,7 @@ memoryUsed, $"Production optimized exporter should use <100MB for 48K samples. A
         var initialMemory = GC.GetTotalMemory(false);
         var stopwatch = Stopwatch.StartNew();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
 
         stopwatch.Stop();
         var finalMemory = GC.GetTotalMemory(false);

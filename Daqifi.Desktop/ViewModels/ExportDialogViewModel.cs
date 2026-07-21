@@ -346,13 +346,13 @@ public partial class ExportDialogViewModel : ObservableObject, IDisposable
     private void ExportAllSamples(LoggingSession session, string filepath, IProgress<int> progress, int sessionIndex, int totalSessions, CancellationToken cancellationToken)
     {
         var loggingSessionExporter = new OptimizedLoggingSessionExporter(_loggingContext);
-        loggingSessionExporter.ExportLoggingSession(session, filepath, ExportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
+        loggingSessionExporter.ExportLoggingSession(session, filepath, ExportRelativeTime, progress, sessionIndex, totalSessions, cancellationToken);
     }
 
     private void ExportAverageSamples(LoggingSession session, string filepath, IProgress<int> progress, int sessionIndex, int totalSessions, CancellationToken cancellationToken)
     {
         var loggingSessionExporter = new OptimizedLoggingSessionExporter(_loggingContext);
-        loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime, progress, cancellationToken, sessionIndex, totalSessions);
+        loggingSessionExporter.ExportAverageSamples(session, filepath, AverageQuantity, ExportRelativeTime, progress, sessionIndex, totalSessions, cancellationToken);
     }
 
     /// <summary>

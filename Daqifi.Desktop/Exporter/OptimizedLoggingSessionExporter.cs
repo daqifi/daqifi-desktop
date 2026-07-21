@@ -79,7 +79,7 @@ public class OptimizedLoggingSessionExporter
     /// single place that classifies them, logs them once, and tells the user. Swallowing them here
     /// used to leave the dialog reporting "Export complete" over a file that was never written.</remarks>
     public void ExportLoggingSession(LoggingSession loggingSession, string filepath, bool exportRelativeTime,
-        IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
+        IProgress<int> progress, int sessionIndex, int totalSessions, CancellationToken cancellationToken)
     {
         var source = TryBuildSource(loggingSession);
         if (source == null)
@@ -113,7 +113,7 @@ public class OptimizedLoggingSessionExporter
     /// because it is open in another program (issue #747).</exception>
     /// <remarks>Failures propagate to the caller; see <see cref="ExportLoggingSession"/>.</remarks>
     public void ExportAverageSamples(LoggingSession session, string filepath, double averageQuantity,
-        bool exportRelativeTime, IProgress<int> progress, CancellationToken cancellationToken, int sessionIndex, int totalSessions)
+        bool exportRelativeTime, IProgress<int> progress, int sessionIndex, int totalSessions, CancellationToken cancellationToken)
     {
         var window = (int)averageQuantity;
         if (window <= 0)

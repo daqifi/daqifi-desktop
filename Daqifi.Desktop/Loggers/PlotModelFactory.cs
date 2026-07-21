@@ -24,7 +24,7 @@ namespace Daqifi.Desktop.Logger;
 /// to itself.
 /// </para>
 /// </summary>
-public sealed class PlotModelFactory
+public static class PlotModelFactory
 {
     #region Axis Keys
     /// <summary>Key of the left-hand analog (volts) Y axis on the main plot.</summary>
@@ -52,7 +52,7 @@ public sealed class PlotModelFactory
     /// <see cref="DatabaseLogger"/>.
     /// </summary>
     /// <returns>A configured main <see cref="PlotModel"/> with its three axes added.</returns>
-    public PlotModel CreateMainPlotModel()
+    public static PlotModel CreateMainPlotModel()
     {
         var plotModel = new PlotModel();
 
@@ -134,7 +134,7 @@ public sealed class PlotModelFactory
     /// <param name="plotModel">The live main plot model the legend item invalidates on visibility changes.</param>
     /// <param name="databaseLogger">Logger the legend item uses to sync minimap series visibility, or null to skip that sync.</param>
     /// <returns>The configured series and its legend item.</returns>
-    public (LineSeries series, LoggedSeriesLegendItem legendItem) CreateChannelSeries(
+    public static (LineSeries series, LoggedSeriesLegendItem legendItem) CreateChannelSeries(
         string channelName,
         string? deviceSerialNo,
         ChannelType type,
@@ -186,7 +186,7 @@ public sealed class PlotModelFactory
     /// <see cref="DatabaseLogger"/>.
     /// </summary>
     /// <returns>The minimap model with the selection and dim annotation handles.</returns>
-    public MinimapPlotComponents CreateMinimapPlotModel()
+    public static MinimapPlotComponents CreateMinimapPlotModel()
     {
         var minimapPlotModel = new PlotModel
         {
@@ -284,7 +284,7 @@ public sealed class PlotModelFactory
     /// <param name="color">The series color, matched to its main-plot counterpart.</param>
     /// <param name="downsampled">The downsampled overview points to render.</param>
     /// <returns>A minimap line series bound to the <see cref="MINIMAP_TIME_AXIS_KEY"/>/<see cref="MINIMAP_Y_AXIS_KEY"/> axes.</returns>
-    public LineSeries CreateMinimapSeries(OxyColor color, List<DataPoint> downsampled)
+    public static LineSeries CreateMinimapSeries(OxyColor color, List<DataPoint> downsampled)
     {
         return new LineSeries
         {

@@ -22,8 +22,6 @@ public class PlotModelFactoryTests
     private const string Serial = "9090684023231015079";
     private const string Color = "#FFD32F2F";
 
-    private readonly PlotModelFactory _factory = new();
-
     #region Axis key contract
 
     [TestMethod]
@@ -53,7 +51,7 @@ public class PlotModelFactoryTests
     [TestMethod]
     public void CreateMainPlotModel_AddsAnalogDigitalTimeAxes_WithExpectedKeysAndPositions()
     {
-        var model = _factory.CreateMainPlotModel();
+        var model = PlotModelFactory.CreateMainPlotModel();
 
         Assert.AreEqual(3, model.Axes.Count, "Main plot has exactly the analog, digital, and time axes.");
 
@@ -80,7 +78,7 @@ public class PlotModelFactoryTests
     public void CreateMainPlotModel_DisablesBuiltInLegend()
     {
         // The legend is rendered by the WPF panel, not OxyPlot's built-in legend.
-        var model = _factory.CreateMainPlotModel();
+        var model = PlotModelFactory.CreateMainPlotModel();
 
         Assert.IsFalse(model.IsLegendVisible);
     }
@@ -88,7 +86,7 @@ public class PlotModelFactoryTests
     [TestMethod]
     public void CreateMainPlotModel_AppliesDarkTheme()
     {
-        var model = _factory.CreateMainPlotModel();
+        var model = PlotModelFactory.CreateMainPlotModel();
 
         Assert.AreEqual(OxyPlotDarkTheme.Surface, model.Background, "Dark theme is applied to the model.");
         Assert.AreEqual(OxyPlotDarkTheme.TextSecondary, model.TextColor);
@@ -105,8 +103,8 @@ public class PlotModelFactoryTests
     [TestMethod]
     public void CreateChannelSeries_AnalogChannel_UsesAnalogYAxis()
     {
-        var (series, _) = _factory.CreateChannelSeries(
-            "AI0", Serial, ChannelType.Analog, Color, _factory.CreateMainPlotModel(), null);
+        var (series, _) = PlotModelFactory.CreateChannelSeries(
+            "AI0", Serial, ChannelType.Analog, Color, PlotModelFactory.CreateMainPlotModel(), null);
 
         Assert.AreEqual(PlotModelFactory.ANALOG_AXIS_KEY, series.YAxisKey);
     }
@@ -114,8 +112,8 @@ public class PlotModelFactoryTests
     [TestMethod]
     public void CreateChannelSeries_DigitalChannel_UsesDigitalYAxis()
     {
-        var (series, _) = _factory.CreateChannelSeries(
-            "DIO0", Serial, ChannelType.Digital, Color, _factory.CreateMainPlotModel(), null);
+        var (series, _) = PlotModelFactory.CreateChannelSeries(
+            "DIO0", Serial, ChannelType.Digital, Color, PlotModelFactory.CreateMainPlotModel(), null);
 
         Assert.AreEqual(PlotModelFactory.DIGITAL_AXIS_KEY, series.YAxisKey);
     }
@@ -123,8 +121,8 @@ public class PlotModelFactoryTests
     [TestMethod]
     public void CreateChannelSeries_ParsesColor_AndSetsTitleTagAndVisibility()
     {
-        var (series, _) = _factory.CreateChannelSeries(
-            "AI0", Serial, ChannelType.Analog, Color, _factory.CreateMainPlotModel(), null);
+        var (series, _) = PlotModelFactory.CreateChannelSeries(
+            "AI0", Serial, ChannelType.Analog, Color, PlotModelFactory.CreateMainPlotModel(), null);
 
         Assert.AreEqual("AI0", series.Title);
         Assert.AreEqual(OxyColor.Parse(Color), series.Color, "Series color is parsed from the stored hex string.");
@@ -137,9 +135,9 @@ public class PlotModelFactoryTests
     [TestMethod]
     public void CreateChannelSeries_BuildsLegendItem_MirroringTheSeries()
     {
-        var plotModel = _factory.CreateMainPlotModel();
+        var plotModel = PlotModelFactory.CreateMainPlotModel();
 
-        var (series, legendItem) = _factory.CreateChannelSeries(
+        var (series, legendItem) = PlotModelFactory.CreateChannelSeries(
             "AI0", Serial, ChannelType.Analog, Color, plotModel, null);
 
         Assert.AreSame(series, legendItem.ActualSeries, "Legend item controls the series it was built with.");
@@ -158,8 +156,8 @@ public class PlotModelFactoryTests
         // WPF-runtime-free test host Application.Current is null, so the setter must run its work inline
         // rather than dereferencing a null dispatcher. Proves the construction seam stays exercisable
         // headless (a null databaseLogger means no minimap sync is attempted).
-        var (series, legendItem) = _factory.CreateChannelSeries(
-            "AI0", Serial, ChannelType.Analog, Color, _factory.CreateMainPlotModel(), null);
+        var (series, legendItem) = PlotModelFactory.CreateChannelSeries(
+            "AI0", Serial, ChannelType.Analog, Color, PlotModelFactory.CreateMainPlotModel(), null);
 
         legendItem.IsVisible = false;
         Assert.IsFalse(series.IsVisible, "Toggling the legend item flips the underlying series visibility.");
@@ -175,7 +173,7 @@ public class PlotModelFactoryTests
     [TestMethod]
     public void CreateMinimapPlotModel_AddsTwoNonInteractiveAxes()
     {
-        var minimap = _factory.CreateMinimapPlotModel();
+        var minimap = PlotModelFactory.CreateMinimapPlotModel();
 
         Assert.AreEqual(2, minimap.Model.Axes.Count);
 
@@ -193,7 +191,7 @@ public class PlotModelFactoryTests
     [TestMethod]
     public void CreateMinimapPlotModel_AddsTheThreeAnnotations_AndReturnsTheSameHandles()
     {
-        var minimap = _factory.CreateMinimapPlotModel();
+        var minimap = PlotModelFactory.CreateMinimapPlotModel();
 
         // The logger keeps the returned handles to mutate selection/dim bounds as the viewport moves,
         // so the returned objects must be exactly the ones added to the model.
@@ -206,7 +204,7 @@ public class PlotModelFactoryTests
     [TestMethod]
     public void CreateMinimapPlotModel_ConfiguresSelectionAndDimAnnotations()
     {
-        var minimap = _factory.CreateMinimapPlotModel();
+        var minimap = PlotModelFactory.CreateMinimapPlotModel();
 
         Assert.AreEqual(OxyPlotDarkTheme.Accent, minimap.SelectionRect.Stroke, "Selection rectangle uses the accent border.");
         Assert.AreEqual(2d, minimap.SelectionRect.StrokeThickness);
@@ -227,7 +225,7 @@ public class PlotModelFactoryTests
     [TestMethod]
     public void CreateMinimapPlotModel_DisablesLegend_AndAppliesTheme()
     {
-        var minimap = _factory.CreateMinimapPlotModel();
+        var minimap = PlotModelFactory.CreateMinimapPlotModel();
 
         Assert.IsFalse(minimap.Model.IsLegendVisible);
         Assert.AreEqual(OxyPlotDarkTheme.Surface, minimap.Model.Background);
@@ -243,7 +241,7 @@ public class PlotModelFactoryTests
         var color = OxyColor.Parse(Color);
         var points = new List<DataPoint> { new(0, 1), new(1, 2) };
 
-        var series = _factory.CreateMinimapSeries(color, points);
+        var series = PlotModelFactory.CreateMinimapSeries(color, points);
 
         Assert.AreEqual(color, series.Color);
         Assert.AreEqual(1d, series.StrokeThickness);

@@ -69,7 +69,7 @@ public class OptimizedLoggingSessionExporterTests
         var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
         var progress = new Progress<int>();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
 
         var expectedOutput = "Time,device1:123:Channel 1,device1:123:Channel 2,device1:123:Channel 3\r\n";
         expectedOutput += "2018-02-09T01:03:30.0000000,0.01,0.02,0.03\r\n";
@@ -96,7 +96,7 @@ public class OptimizedLoggingSessionExporterTests
         var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
         var progress = new Progress<int>();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
 
         var expectedOutput = "Time,device1:123:Channel 1,device1:123:Channel 2,device1:123:Channel 3\r\n";
         expectedOutput += "2018-02-09T01:03:30.0000000,0.01,0.02,0.03\r\n";
@@ -119,7 +119,7 @@ public class OptimizedLoggingSessionExporterTests
         var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
         var progress = new Progress<int>();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
 
         Assert.IsFalse(File.Exists(exportFilePath));
     }
@@ -137,7 +137,7 @@ public class OptimizedLoggingSessionExporterTests
         var exportFilePath = Path.Combine(TestDirectoryPath, "relative_" + ExportFileName);
         var progress = new Progress<int>();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, true, progress, CancellationToken.None, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, true, progress, 0, 0, CancellationToken.None);
 
         var expectedOutput = "Relative Time (s),device1:123:Channel 1,device1:123:Channel 2,device1:123:Channel 3\r\n";
         expectedOutput += "0.000,0.01,0.02,0.03\r\n";
@@ -164,7 +164,7 @@ public class OptimizedLoggingSessionExporterTests
         var exportFilePath = Path.Combine(TestDirectoryPath, "large_" + ExportFileName);
         var progress = new Progress<int>();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
 
         // Verify file exists and has correct structure
         Assert.IsTrue(File.Exists(exportFilePath));
@@ -200,7 +200,7 @@ public class OptimizedLoggingSessionExporterTests
         var initialMemory = GC.GetTotalMemory(true);
         var stopwatch = Stopwatch.StartNew();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
 
         stopwatch.Stop();
         var finalMemory = GC.GetTotalMemory(false);
@@ -247,7 +247,7 @@ public class OptimizedLoggingSessionExporterTests
         var exportFilePath = Path.Combine(TestDirectoryPath, "multidevice_" + ExportFileName);
         var progress = new Progress<int>();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
 
         var actualOutput = File.ReadAllText(exportFilePath);
 

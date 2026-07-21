@@ -92,17 +92,6 @@ public class ChannelColorManager
 
     #endregion
 
-    /// <summary>
-    /// Parses a <see cref="MaterialColors"/> hex string into a frozen-capable brush.
-    /// </summary>
-    /// <remarks>
-    /// The inputs are compile-time constants that <see cref="BrushConverter"/> always parses,
-    /// so the null-forgiving operator is safe here and keeps the palette free of 76 spurious
-    /// nullability warnings.
-    /// </remarks>
-    private static SolidColorBrush FromHex(string hex) =>
-        (SolidColorBrush)new BrushConverter().ConvertFrom(hex)!;
-
     public System.Windows.Media.Brush NewColor()
     {
         var newColor = Brushes[_colorCount++ % Brushes.Count];

@@ -37,7 +37,6 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private DateTime? _firstTime;
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
-    private readonly PlotModelFactory _plotModelFactory;
     private readonly SessionSampleWriter _sampleWriter;
     private readonly SessionDataRepository _sessionDataRepository;
     // Assigned by InitializeMinimapPlotModel(), which the constructor always calls; the
@@ -137,9 +136,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         // Pure OxyPlot construction (axes, theme, minimap model + annotations, series) lives in
         // PlotModelFactory (issue #592). The logger keeps every live mutation: the axis subscription
         // below and all viewport/minimap-sync machinery.
-        _plotModelFactory = new PlotModelFactory();
-
-        PlotModel = _plotModelFactory.CreateMainPlotModel();
+        PlotModel = PlotModelFactory.CreateMainPlotModel();
 
         // Subscribe to main time axis changes for minimap sync. The axis is built by the factory; the
         // subscription — like every other viewport mutation — stays here.
@@ -192,7 +189,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         // The minimap model, its axes, and the three annotations are pure construction (PlotModelFactory).
         // The logger keeps the annotation field references so the viewport machinery can mutate their
         // bounds, and wires the live interaction controller below.
-        var minimap = _plotModelFactory.CreateMinimapPlotModel();
+        var minimap = PlotModelFactory.CreateMinimapPlotModel();
         MinimapPlotModel = minimap.Model;
         _minimapSelectionRect = minimap.SelectionRect;
         _minimapDimLeft = minimap.DimLeft;
@@ -319,7 +316,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
             foreach (var chInfo in initial.Channels)
             {
-                var (series, legendItem) = _plotModelFactory.CreateChannelSeries(
+                var (series, legendItem) = PlotModelFactory.CreateChannelSeries(
                     chInfo.ChannelName, chInfo.DeviceSerialNo, chInfo.Type, chInfo.Color, PlotModel, this);
                 tempSeriesList.Add(series);
                 tempLegendItemsList.Add(legendItem);
@@ -542,7 +539,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         {
             // Series construction is pure (PlotModelFactory); adding it to the live model, tracking it
             // for visibility sync, and the axis/annotation/invalidate work below all stay here.
-            var minimapLine = _plotModelFactory.CreateMinimapSeries(color, downsampled);
+            var minimapLine = PlotModelFactory.CreateMinimapSeries(color, downsampled);
             MinimapPlotModel.Series.Add(minimapLine);
             _minimapSeries[(deviceSerial, channelName)] = minimapLine;
         }

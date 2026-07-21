@@ -224,6 +224,7 @@ public class ExportDialogViewModelTests
         // Assert
         Assert.IsTrue(vm.IsExportComplete);
         Assert.IsFalse(vm.ExportSucceeded, "A locked destination must not report success.");
+        Assert.IsNotNull(vm.ExportResultMessage, "A failed export must explain itself to the user.");
         Assert.Contains(Path.GetFileName(exportPath), vm.ExportResultMessage,
             "The message should name the file the user has to close.");
         Assert.Contains("open in another program", vm.ExportResultMessage);

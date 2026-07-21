@@ -842,6 +842,17 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
     /// </summary>
     private DuplicateDeviceAction HandleDuplicateDevice(DuplicateDeviceCheckResult duplicateResult)
     {
+        // ConnectionManager only invokes this inside its `if (duplicateResult.IsDuplicate)` branch, so
+        // this guard is defensive. It also satisfies [MemberNotNullWhen(true, ...)] on IsDuplicate, which
+        // is what makes ExistingDevice/NewDevice non-null for the dialog below. Cancel is the safe
+        // default: KeepExisting and SwitchToNew both act on ExistingDevice, which is null here.
+        if (!duplicateResult.IsDuplicate)
+        {
+            Daqifi.Desktop.Common.Loggers.AppLogger.Instance.Warning(
+                "Duplicate device handler invoked for a result that is not a duplicate; cancelling.");
+            return DuplicateDeviceAction.Cancel;
+        }
+
         try
         {
             // Create dialog manually since we need access to the Result property
