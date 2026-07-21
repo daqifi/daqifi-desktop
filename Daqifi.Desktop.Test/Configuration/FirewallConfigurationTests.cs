@@ -8,9 +8,9 @@ namespace Daqifi.Desktop.Test.Configuration;
 [TestClass]
 public class FirewallConfigurationTests
 {
-    private Mock<IFirewallHelper> _mockFirewallHelper;
-    private Mock<IMessageBoxService> _mockMessageBoxService;
-    private Mock<IAdminChecker> _mockAdminChecker;
+    private Mock<IFirewallHelper> _mockFirewallHelper = null!;
+    private Mock<IMessageBoxService> _mockMessageBoxService = null!;
+    private Mock<IAdminChecker> _mockAdminChecker = null!;
 
     [TestInitialize]
     public void Initialize()
@@ -99,9 +99,9 @@ public class FirewallConfigurationTests
 [TestClass]
 public class WindowsFirewallWrapperTests
 {
-    private IFirewallHelper _firewallWrapper;
-    private string _validRuleName;
-    private string _validAppPath;
+    private WindowsFirewallWrapper _firewallWrapper = null!;
+    private string _validRuleName = null!;
+    private string _validAppPath = null!;
 
     [TestInitialize]
     public void Initialize()
@@ -124,7 +124,7 @@ public class WindowsFirewallWrapperTests
     public void RuleExists_WithInvalidRuleName_ReturnsFalse()
     {
         // Test null
-        Assert.IsFalse(_firewallWrapper.RuleExists(null));
+        Assert.IsFalse(_firewallWrapper.RuleExists(null!));
         
         // Test empty
         Assert.IsFalse(_firewallWrapper.RuleExists(""));
@@ -143,7 +143,7 @@ public class WindowsFirewallWrapperTests
     {
         // Test null rule name
         Assert.ThrowsExactly<ArgumentException>(() => 
-            _firewallWrapper.CreateUdpRule(null, _validAppPath));
+            _firewallWrapper.CreateUdpRule(null!, _validAppPath));
         
         // Test empty rule name
         Assert.ThrowsExactly<ArgumentException>(() => 
@@ -159,7 +159,7 @@ public class WindowsFirewallWrapperTests
     {
         // Test null app path
         Assert.ThrowsExactly<ArgumentException>(() => 
-            _firewallWrapper.CreateUdpRule(_validRuleName, null));
+            _firewallWrapper.CreateUdpRule(_validRuleName, null!));
         
         // Test empty app path
         Assert.ThrowsExactly<ArgumentException>(() => 
@@ -191,8 +191,9 @@ public class WindowsFirewallWrapperTests
         {
             _firewallWrapper.CreateUdpRule(_validRuleName, _validAppPath, -1);
             _firewallWrapper.CreateUdpRule(_validRuleName + "2", _validAppPath, 70000);
-            // If we get here without exceptions, the test passes
-            Assert.IsTrue(true);
+            // Reaching this point is the assertion: neither out-of-range port threw. Any exception
+            // (including InvalidOperationException, which the filter below deliberately lets escape)
+            // fails the test.
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
         {

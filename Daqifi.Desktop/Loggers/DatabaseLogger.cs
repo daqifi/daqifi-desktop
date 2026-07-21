@@ -8,6 +8,7 @@ using OxyPlot.Annotations;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using Exception = System.Exception;
 using Microsoft.EntityFrameworkCore;
 using EFCore.BulkExtensions;
@@ -31,14 +32,15 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private Dictionary<string, int> _sessionDeviceFrequencyHz = new();
     private Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _allSessionPoints = new();
     private readonly Dictionary<(string deviceSerial, string channelName), List<DataPoint>> _downsampledCache = new();
-    private readonly Dictionary<(string deviceSerial, string channelName), LineSeries> _minimapSeries = new();
+    private readonly Dictionary<(string? deviceSerial, string channelName), LineSeries> _minimapSeries = new();
 
     private DateTime? _firstTime;
     private readonly AppLogger _appLogger = AppLogger.Instance;
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
-    private readonly PlotModelFactory _plotModelFactory;
     private readonly SessionSampleWriter _sampleWriter;
     private readonly SessionDataRepository _sessionDataRepository;
+    // Assigned by InitializeMinimapPlotModel(), which the constructor always calls; the
+    // [MemberNotNull] attribute on that method is what proves it to the compiler.
     private RectangleAnnotation _minimapSelectionRect;
     private RectangleAnnotation _minimapDimLeft;
     private RectangleAnnotation _minimapDimRight;
@@ -50,16 +52,19 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     private DispatcherTimer _viewportThrottleTimer;
     private DispatcherTimer _settleTimer;
     private int? _currentSessionId;
-    private CancellationTokenSource _fetchCts;
+    private CancellationTokenSource? _fetchCts;
 
     [ObservableProperty]
     private PlotModel _plotModel;
 
     /// <summary>
     /// PlotModel for the overview minimap showing downsampled data and a selection rectangle.
+    /// Always assigned during construction by <c>InitializeMinimapPlotModel()</c> (null! documents the
+    /// guarantee; [MemberNotNull] cannot be used here because the assignment goes through the
+    /// generated observable property).
     /// </summary>
     [ObservableProperty]
-    private PlotModel _minimapPlotModel;
+    private PlotModel _minimapPlotModel = null!;
 
     /// <summary>
     /// Controls visibility of the channel legend panel.
@@ -73,7 +78,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// chart. Null when no session is loaded.
     /// </summary>
     [ObservableProperty]
-    private LoggingSession _currentSession;
+    private LoggingSession? _currentSession;
 
     /// <summary>
     /// Total number of samples in the currently displayed session. Surfaced
@@ -131,14 +136,17 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         // Pure OxyPlot construction (axes, theme, minimap model + annotations, series) lives in
         // PlotModelFactory (issue #592). The logger keeps every live mutation: the axis subscription
         // below and all viewport/minimap-sync machinery.
-        _plotModelFactory = new PlotModelFactory();
-
-        PlotModel = _plotModelFactory.CreateMainPlotModel();
+        PlotModel = PlotModelFactory.CreateMainPlotModel();
 
         // Subscribe to main time axis changes for minimap sync. The axis is built by the factory; the
         // subscription — like every other viewport mutation — stays here.
         var timeAxis = PlotModel.Axes.First(a => a.Key == PlotModelFactory.TIME_AXIS_KEY);
+        // CS0618: OxyPlot marks Axis.AxisChanged "may be removed in v4.0". OxyPlot 3.x offers no
+        // replacement for observing a completed axis transform, and the minimap sync (guard flag +
+        // explicit Zoom) is deliberately driven off this event. Revisit if/when OxyPlot v4 ships.
+#pragma warning disable CS0618
         timeAxis.AxisChanged += OnMainTimeAxisChanged;
+#pragma warning restore CS0618
 
         // Throttle viewport updates from main plot interaction to 60fps
         _viewportThrottleTimer = new DispatcherTimer(DispatcherPriority.Render)
@@ -171,12 +179,17 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     #endregion
 
     #region Minimap Initialization
+    [MemberNotNull(
+        nameof(_minimapSelectionRect),
+        nameof(_minimapDimLeft),
+        nameof(_minimapDimRight),
+        nameof(_minimapInteraction))]
     private void InitializeMinimapPlotModel()
     {
         // The minimap model, its axes, and the three annotations are pure construction (PlotModelFactory).
         // The logger keeps the annotation field references so the viewport machinery can mutate their
         // bounds, and wires the live interaction controller below.
-        var minimap = _plotModelFactory.CreateMinimapPlotModel();
+        var minimap = PlotModelFactory.CreateMinimapPlotModel();
         MinimapPlotModel = minimap.Model;
         _minimapSelectionRect = minimap.SelectionRect;
         _minimapDimLeft = minimap.DimLeft;
@@ -303,7 +316,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
 
             foreach (var chInfo in initial.Channels)
             {
-                var (series, legendItem) = _plotModelFactory.CreateChannelSeries(
+                var (series, legendItem) = PlotModelFactory.CreateChannelSeries(
                     chInfo.ChannelName, chInfo.DeviceSerialNo, chInfo.Type, chInfo.Color, PlotModel, this);
                 tempSeriesList.Add(series);
                 tempLegendItemsList.Add(legendItem);
@@ -437,7 +450,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// <summary>
     /// Prepares downsampled minimap series data from the given point dictionary on the background thread.
     /// </summary>
-    private List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)>
+    private static List<(string channelName, string deviceSerial, OxyColor color, List<DataPoint> downsampled)>
         PrepareMinimapData(
             List<LineSeries> seriesList,
             Dictionary<(string deviceSerial, string channelName), List<DataPoint>> pointData)
@@ -470,14 +483,17 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         var groupDict = new Dictionary<string, DeviceLegendGroup>();
         foreach (var legendItem in legendItems)
         {
-            if (!groupDict.TryGetValue(legendItem.DeviceSerialNo, out var group))
+            // A legend item's serial can be absent for data that carried none; group those together
+            // under an empty key rather than throwing on a null dictionary key.
+            var serialKey = legendItem.DeviceSerialNo ?? string.Empty;
+            if (!groupDict.TryGetValue(serialKey, out var group))
             {
-                group = new DeviceLegendGroup(legendItem.DeviceSerialNo);
-                if (_sessionDeviceFrequencyHz.TryGetValue(legendItem.DeviceSerialNo, out var freqHz) && freqHz > 0)
+                group = new DeviceLegendGroup(serialKey);
+                if (_sessionDeviceFrequencyHz.TryGetValue(serialKey, out var freqHz) && freqHz > 0)
                 {
                     group.SamplingFrequencyHz = freqHz;
                 }
-                groupDict[legendItem.DeviceSerialNo] = group;
+                groupDict[serialKey] = group;
                 DeviceLegendGroups.Add(group);
             }
             group.Channels.Add(legendItem);
@@ -523,7 +539,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         {
             // Series construction is pure (PlotModelFactory); adding it to the live model, tracking it
             // for visibility sync, and the axis/annotation/invalidate work below all stay here.
-            var minimapLine = _plotModelFactory.CreateMinimapSeries(color, downsampled);
+            var minimapLine = PlotModelFactory.CreateMinimapSeries(color, downsampled);
             MinimapPlotModel.Series.Add(minimapLine);
             _minimapSeries[(deviceSerial, channelName)] = minimapLine;
         }
@@ -991,7 +1007,7 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
     /// <summary>
     /// Updates the visibility of a minimap series to match its main plot counterpart.
     /// </summary>
-    public void SetMinimapSeriesVisibility(string deviceSerialNo, string channelName, bool visible)
+    public void SetMinimapSeriesVisibility(string? deviceSerialNo, string channelName, bool visible)
     {
         if (_minimapSeries.TryGetValue((deviceSerialNo, channelName), out var series))
         {
@@ -1110,11 +1126,16 @@ public partial class DatabaseLogger : ObservableObject, ILogger, IDisposable
         var timeAxis = PlotModel.Axes.FirstOrDefault(a => a.Key == PlotModelFactory.TIME_AXIS_KEY);
         if (timeAxis != null)
         {
+            // CS0618: see the matching subscription in the constructor.
+#pragma warning disable CS0618
             timeAxis.AxisChanged -= OnMainTimeAxisChanged;
+#pragma warning restore CS0618
         }
 
         _minimapInteraction?.Dispose();
         _sampleWriter.Dispose();
+
+        GC.SuppressFinalize(this);
     }
     #endregion
 }

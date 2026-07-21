@@ -161,7 +161,9 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
 
             _stopKeepAlive = false;
             _keepAliveCts = new CancellationTokenSource();
-            _keepAliveTask = Task.Run(() => KeepAliveLoopAsync(_keepAliveCts.Token));
+            // CancellationToken.None deliberately: the hold outlives this call, so the keep-alive loop
+            // is governed by its own _keepAliveCts, never by the caller's BeginHoldAsync token.
+            _keepAliveTask = Task.Run(() => KeepAliveLoopAsync(_keepAliveCts.Token), CancellationToken.None);
             _holding = true;
 
             _logger.Information(
@@ -286,7 +288,9 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
             var handler = HoldDropped;
             if (handler != null)
             {
-                _ = Task.Run(() => handler(this, EventArgs.Empty));
+                // CancellationToken.None deliberately: the loop's token is already cancelled/ending here,
+                // and the drop notification must still reach the watcher.
+                _ = Task.Run(() => handler(this, EventArgs.Empty), CancellationToken.None);
             }
         }
     }
@@ -354,8 +358,11 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
         try { _keepAliveCts?.Cancel(); }
         catch (ObjectDisposedException) { /* already torn down */ }
 
+        // Best-effort during shutdown: the keep-alive read is expected to fault or be cancelled here.
+        // Logged (not swallowed) at warning level so a wedged bootloader teardown is still diagnosable
+        // in DAQiFiAppLog.log without escalating a routine shutdown race to Sentry.
         try { _keepAliveTask?.Wait(TimeSpan.FromSeconds(2)); }
-        catch (Exception) { /* best-effort during shutdown */ }
+        catch (Exception ex) { _logger.Warning(ex, "Keep-alive task did not stop cleanly during hold disposal."); }
 
         // Dispose the owned transport (closes its exclusive HID handle) once the keep-alive read is no
         // longer in flight against it.

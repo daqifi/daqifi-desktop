@@ -14,10 +14,10 @@ public class DataSample
     public int LoggingSessionID { get; set; }
     public double Value { get; set; }
     public long TimestampTicks { get; init; }
-    public string DeviceName { get; init; }
-    public string ChannelName { get; init; }
-    public string DeviceSerialNo { get; init; }
-    public string Color { get; init; }
+    public string DeviceName { get; init; } = string.Empty;
+    public string ChannelName { get; init; } = string.Empty;
+    public string DeviceSerialNo { get; init; } = string.Empty;
+    public string Color { get; init; } = string.Empty;
     public ChannelType Type { get; init; }
 
     /// <summary>
@@ -29,8 +29,10 @@ public class DataSample
     [NotMapped]
     public double? FirmwareDeltaMs { get; init; }
 
+    // EF Core required navigation property: populated by the change tracker on materialization
+    // and by the relationship fixup when a sample is attached to a session.
     [Required]
-    public LoggingSession LoggingSession { get; set; }
+    public LoggingSession LoggingSession { get; set; } = null!;
     #endregion
 
     #region Constructors

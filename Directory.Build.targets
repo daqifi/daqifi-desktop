@@ -1,0 +1,24 @@
+<Project>
+
+  <!--
+    WPF's markup compile (pass 1) shadow-compiles the whole project through a generated
+    <Name>_<hash>_wpftmp.csproj, which is a literal clone of Daqifi.Desktop.csproj. That
+    throwaway pass re-reports every compiler and analyzer warning in the project, doubling
+    the build log for zero added signal.
+
+    This must live in Directory.Build.targets, not .props: the clone carries the original
+    project's own <Nullable>/<NoWarn> in its body, which would win over anything set in
+    .props (imported before the body). .targets is imported after, so it wins.
+
+    Only diagnostics are suppressed - the shadow assembly is a throwaway input to the XAML
+    markup compiler and is never shipped. The real project still reports everything.
+  -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('_wpftmp'))">
+    <RunAnalyzers>false</RunAnalyzers>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <Nullable>annotations</Nullable>
+    <NoWarn>$(NoWarn);CS0618;CS0219;CS0067;CS4014</NoWarn>
+  </PropertyGroup>
+
+</Project>

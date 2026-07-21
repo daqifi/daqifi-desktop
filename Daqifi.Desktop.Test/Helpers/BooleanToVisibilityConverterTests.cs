@@ -8,7 +8,7 @@ namespace Daqifi.Desktop.Test.Helpers;
 [TestClass]
 public class BooleanToVisibilityConverterTests
 {
-    private IValueConverter _converter;
+    private IValueConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()
@@ -23,7 +23,7 @@ public class BooleanToVisibilityConverterTests
         object value = true;
 
         // Act
-        var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Visible, result);
@@ -36,7 +36,7 @@ public class BooleanToVisibilityConverterTests
         object value = false;
 
         // Act
-        var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Collapsed, result);
@@ -46,12 +46,12 @@ public class BooleanToVisibilityConverterTests
     public void Convert_NonBoolean_ReturnsCollapsed()
     {
         // Arrange
-        var nonBooleanValues = new object[] { null, "true", 1 };
+        var nonBooleanValues = new object[] { null!, "true", 1 };
 
         foreach (var value in nonBooleanValues)
         {
             // Act
-            var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+            var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
             // Assert
             Assert.AreEqual(Visibility.Collapsed, result, $"Failed for value: {value ?? "null"}");
@@ -65,7 +65,7 @@ public class BooleanToVisibilityConverterTests
         object value = Visibility.Visible;
 
         // Act
-        var result = _converter.ConvertBack(value, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.ConvertBack(value, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(true, result);
@@ -78,7 +78,7 @@ public class BooleanToVisibilityConverterTests
         object value = Visibility.Collapsed;
 
         // Act
-        var result = _converter.ConvertBack(value, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.ConvertBack(value, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(false, result);
@@ -96,8 +96,8 @@ public class BooleanToVisibilityConverterTests
         };
 
         // Act
-        var whenTrue = inverted.Convert(true, typeof(Visibility), null, CultureInfo.InvariantCulture);
-        var whenFalse = inverted.Convert(false, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var whenTrue = inverted.Convert(true, typeof(Visibility), null!, CultureInfo.InvariantCulture);
+        var whenFalse = inverted.Convert(false, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Collapsed, whenTrue);

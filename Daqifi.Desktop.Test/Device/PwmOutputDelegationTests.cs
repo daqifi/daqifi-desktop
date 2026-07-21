@@ -14,10 +14,19 @@ namespace Daqifi.Desktop.Test.Device;
 /// disconnected; the desktop wrapper must not, see issue #619).
 /// </summary>
 [TestClass]
-public class PwmOutputDelegationTests
+public class PwmOutputDelegationTests : IDisposable
 {
-    private PwmTestDevice _device;
-    private RecordingCoreDevice _coreDevice;
+    private static readonly string[] ExpectedEnableSequence =
+        ["PWM:CHannel:DUTY 4,30", "PWM:CHannel:FREQuency 0,1000", "PWM:CHannel:ENable 4,1"];
+
+    private static readonly string[] ExpectedDisableCommands = ["PWM:CHannel:ENable 4,0"];
+
+    private static readonly string[] ExpectedDutyChangeCommands = ["PWM:CHannel:DUTY 4,80"];
+
+    private static readonly string[] ExpectedFrequencyChangeCommands = ["PWM:CHannel:FREQuency 0,100"];
+
+    private PwmTestDevice _device = null!;
+    private RecordingCoreDevice _coreDevice = null!;
 
     [TestInitialize]
     public void Setup()
@@ -33,6 +42,14 @@ public class PwmOutputDelegationTests
         });
         _coreDevice.Connect();
         _device.SetCoreDevice(_coreDevice);
+    }
+
+    // MSTest disposes the test-class instance after each test, releasing the Core device this
+    // fixture connects in Setup instead of leaking one per test (CA1001).
+    public void Dispose()
+    {
+        _coreDevice.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     private DigitalChannel WrapCoreChannel(int index)
@@ -71,12 +88,7 @@ public class PwmOutputDelegationTests
 
         // Assert — Core-documented call order (issue #664)
         CollectionAssert.AreEqual(
-            new[]
-            {
-                "PWM:CHannel:DUTY 4,30",
-                "PWM:CHannel:FREQuency 0,1000",
-                "PWM:CHannel:ENable 4,1"
-            },
+            ExpectedEnableSequence,
             _coreDevice.SentCommands,
             $"Expected duty → frequency → enable, got: {string.Join(" | ", _coreDevice.SentCommands)}");
         Assert.IsTrue(channel.IsPwmEnabled, "Core should mirror the enabled state into its bookkeeping");
@@ -115,7 +127,7 @@ public class PwmOutputDelegationTests
         // (the pin goes high-impedance) and the desktop flag must follow without
         // re-driving the pin
         CollectionAssert.AreEqual(
-            new[] { "PWM:CHannel:ENable 4,0" },
+            ExpectedDisableCommands,
             _coreDevice.SentCommands);
         Assert.IsFalse(channel.IsPwmEnabled);
         Assert.IsFalse(channel.IsDigitalOn, "Desktop drive flag should follow Core's zeroed output mirror");
@@ -152,7 +164,7 @@ public class PwmOutputDelegationTests
 
         // Assert
         CollectionAssert.AreEqual(
-            new[] { "PWM:CHannel:DUTY 4,80" },
+            ExpectedDutyChangeCommands,
             _coreDevice.SentCommands);
         Assert.AreEqual(80, channel.PwmDutyCyclePercent, "Core should mirror the live duty change");
     }
@@ -183,7 +195,7 @@ public class PwmOutputDelegationTests
 
         // Assert — commanded immediately (a live change rescales enabled channels)
         CollectionAssert.AreEqual(
-            new[] { "PWM:CHannel:FREQuency 0,100" },
+            ExpectedFrequencyChangeCommands,
             _coreDevice.SentCommands);
         Assert.AreEqual(100, _device.PwmFrequencyHz);
 

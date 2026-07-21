@@ -17,9 +17,11 @@ public sealed class LoggingSessionSampleSource : ISampleSource
 {
     #region Private Fields
     private readonly LoggingSession _session;
-    private readonly IDbContextFactory<LoggingContext> _contextFactory;
-    private readonly ICollection<DataSample> _inMemorySamples;
-    private IReadOnlyList<ChannelDescriptor> _channelsCache;
+    /// <summary>EF path only: null when this source was built over an in-memory collection.</summary>
+    private readonly IDbContextFactory<LoggingContext>? _contextFactory;
+    /// <summary>In-memory path only: null when this source was built over the EF store.</summary>
+    private readonly ICollection<DataSample>? _inMemorySamples;
+    private IReadOnlyList<ChannelDescriptor>? _channelsCache;
     private int? _countCache;
     #endregion
 
@@ -45,6 +47,24 @@ public sealed class LoggingSessionSampleSource : ISampleSource
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         _inMemorySamples = inMemorySamples ?? throw new ArgumentNullException(nameof(inMemorySamples));
+    }
+    #endregion
+
+    #region Private Helpers
+    /// <summary>
+    /// Creates a short-lived <see cref="LoggingContext"/> for the EF-backed path. The two
+    /// constructors are mutually exclusive, so every caller reaches here only after finding
+    /// <c>_inMemorySamples</c> null — which means the EF constructor ran and set the factory.
+    /// </summary>
+    private LoggingContext CreateContext()
+    {
+        if (_contextFactory == null)
+        {
+            throw new InvalidOperationException(
+                "This sample source was built over an in-memory collection and has no EF context factory.");
+        }
+
+        return _contextFactory.CreateDbContext();
     }
     #endregion
 
@@ -78,7 +98,7 @@ public sealed class LoggingSessionSampleSource : ISampleSource
             return _channelsCache;
         }
 
-        using var context = _contextFactory.CreateDbContext();
+        using var context = CreateContext();
         context.ChangeTracker.AutoDetectChangesEnabled = false;
 
         // DISTINCT over the four columns instead of GROUP BY + MIN aggregate: SQLite executes
@@ -123,7 +143,7 @@ public sealed class LoggingSessionSampleSource : ISampleSource
             return _countCache.Value;
         }
 
-        await using var context = _contextFactory.CreateDbContext();
+        await using var context = CreateContext();
         context.ChangeTracker.AutoDetectChangesEnabled = false;
         _countCache = await context.Samples
             .AsNoTracking()
@@ -154,7 +174,7 @@ public sealed class LoggingSessionSampleSource : ISampleSource
             yield break;
         }
 
-        await using var context = _contextFactory.CreateDbContext();
+        await using var context = CreateContext();
         context.ChangeTracker.AutoDetectChangesEnabled = false;
 
         var query = context.Samples

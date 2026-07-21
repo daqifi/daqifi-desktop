@@ -19,17 +19,25 @@ namespace Daqifi.Desktop.Test.Device;
 /// production.
 /// </summary>
 [TestClass]
-public class ChannelDataMappingTests
+public class ChannelDataMappingTests : IDisposable
 {
     // Large enough to cover every analog channel index exercised below.
     private const int ANALOG_PORT_COUNT = 3;
 
-    private ChannelMappingTestDevice _device;
+    private ChannelMappingTestDevice _device = null!;
 
     [TestInitialize]
     public void Setup()
     {
         _device = new ChannelMappingTestDevice(ANALOG_PORT_COUNT);
+    }
+
+    // MSTest disposes the test-class instance after each test, releasing the device's Core
+    // connection instead of leaking one per test (CA1001).
+    public void Dispose()
+    {
+        _device.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     private AnalogChannel ConfigureAnalogChannel(int index, bool isActive = true)
@@ -239,9 +247,13 @@ public class ChannelDataMappingTests
     /// Test device exposing the real inbound-message pipeline (protocol handler → stream
     /// routing → Core decode → per-channel SampleReceived → desktop DataSample mapping).
     /// </summary>
-    private sealed class ChannelMappingTestDevice : AbstractStreamingDevice
+    private sealed class ChannelMappingTestDevice : AbstractStreamingDevice, IDisposable
     {
         private readonly TestCoreStreamingDevice _coreDevice;
+
+        // The Core device connected in the constructor is owned by this fixture; disposing it
+        // keeps the suite from leaking one connected device per test (CA1001).
+        public void Dispose() => _coreDevice.Dispose();
 
         public ChannelMappingTestDevice(int analogPortCount)
         {

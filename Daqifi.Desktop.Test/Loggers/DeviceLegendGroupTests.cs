@@ -102,7 +102,7 @@ public class DeviceLegendGroupTests
     [TestMethod]
     public void TruncatedSerialNo_NullSerial_ReturnsEmpty()
     {
-        var group = new DeviceLegendGroup(null);
+        var group = new DeviceLegendGroup(null!);
         Assert.AreEqual(string.Empty, group.TruncatedSerialNo);
     }
     #endregion

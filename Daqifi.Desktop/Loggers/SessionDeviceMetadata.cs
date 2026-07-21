@@ -23,12 +23,12 @@ public class SessionDeviceMetadata
     /// Device serial number. Part of the composite primary key so that
     /// multi-device sessions get one row per device.
     /// </summary>
-    public string DeviceSerialNo { get; set; }
+    public string DeviceSerialNo { get; set; } = string.Empty;
 
     /// <summary>
     /// Friendly device name captured at log start (e.g., "Nyquist 1").
     /// </summary>
-    public string DeviceName { get; set; }
+    public string DeviceName { get; set; } = string.Empty;
 
     /// <summary>
     /// Configured sampling frequency in Hz at the time logging started.
@@ -38,6 +38,8 @@ public class SessionDeviceMetadata
     /// <summary>
     /// Navigation property to the parent session.
     /// </summary>
-    public LoggingSession LoggingSession { get; set; }
+    // EF Core populates this navigation property when the entity is materialized or when the FK is
+    // set on a tracked graph; null! documents that EF owns the assignment.
+    public LoggingSession LoggingSession { get; set; } = null!;
     #endregion
 }

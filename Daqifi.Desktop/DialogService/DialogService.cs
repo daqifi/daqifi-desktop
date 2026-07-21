@@ -148,7 +148,8 @@ public class DialogService : IDialogService
     private bool? ShowDialog(object ownerViewModel, object viewModel, Type dialogType)
     {
         // Create dialog and set properties
-        var dialog = (Window)Activator.CreateInstance(dialogType);
+        var dialog = (Window?)Activator.CreateInstance(dialogType)
+                     ?? throw new InvalidOperationException($"Could not create dialog of type '{dialogType.FullName}'.");
         dialog.Owner = FindOwnerWindow(ownerViewModel);
         dialog.DataContext = viewModel;
         dialog.WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -203,7 +204,7 @@ public class DialogService : IDialogService
     /// Handles owner window closed, View service should then unregister all Views acting
     /// within the closed window.
     /// </summary>
-    private void OwnerClosed(object sender, EventArgs e)
+    private void OwnerClosed(object? sender, EventArgs e)
     {
         var owner = sender as Window;
         if (owner != null)
@@ -228,7 +229,7 @@ public class DialogService : IDialogService
     /// </summary>
     /// <param name="view">The view.</param>
     /// <returns>The owning Window if found; otherwise null.</returns>
-    private Window GetOwner(FrameworkElement view)
+    private static Window? GetOwner(FrameworkElement view)
     {
         return view as Window ?? Window.GetWindow(view);
     }

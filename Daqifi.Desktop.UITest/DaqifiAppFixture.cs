@@ -20,7 +20,7 @@ namespace Daqifi.Desktop.UITest;
 /// resolves the main window, and tails the NLog log file for assertions.
 /// Captures a screenshot and copies the log on failure during teardown.
 /// </summary>
-public abstract class DaqifiAppFixture
+public abstract class DaqifiAppFixture : IDisposable
 {
     #region Constants
     private const string TEST_MODE_ENV_VAR = "DAQIFI_TEST_MODE";
@@ -256,9 +256,9 @@ public abstract class DaqifiAppFixture
     #endregion
 
     #region Protected Fields
-    protected Application App = null!;
-    protected UIA3Automation Automation = null!;
-    protected Window MainWindow = null!;
+    protected Application App { get; set; } = null!;
+    protected UIA3Automation Automation { get; set; } = null!;
+    protected Window MainWindow { get; set; } = null!;
 
     /// <summary>
     /// When non-null, the child app is launched with <c>DAQIFI_TEST_EXPORT_PATH</c> set to this
@@ -356,8 +356,14 @@ public abstract class DaqifiAppFixture
         }
 
         CloseApp();
+    }
 
+    // MSTest disposes the fixture instance after [TestCleanup]; owning the UIA3Automation
+    // handle through IDisposable is what keeps it from leaking across the run (CA1001).
+    public void Dispose()
+    {
         Automation?.Dispose();
+        GC.SuppressFinalize(this);
     }
     #endregion
 
@@ -403,7 +409,7 @@ public abstract class DaqifiAppFixture
     /// active logging. Overridden behavior is intentionally minimal here; concrete
     /// scenario teardown happens in the test bodies themselves.
     /// </summary>
-    private void DisconnectAnyDevice()
+    private static void DisconnectAnyDevice()
     {
         // The app is closed immediately after; device disconnect is handled by the
         // app's own shutdown path. This hook exists for future explicit cleanup.
@@ -691,7 +697,7 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>Types <paramref name="portName"/> into the Manual USB tab's COM PORT field via the ValuePattern.</summary>
-    protected void SetManualPortName(Window dialog, string portName)
+    protected static void SetManualPortName(Window dialog, string portName)
     {
         var input = Retry.WhileNull(
             () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(MANUAL_PORT_INPUT_ID)),
@@ -704,7 +710,7 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>Invokes the Manual USB tab's Connect button (runs <c>ConnectManualSerialCommand</c>).</summary>
-    protected void InvokeManualSerialConnect(Window dialog)
+    protected static void InvokeManualSerialConnect(Window dialog)
     {
         var button = Retry.WhileNull(
             () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(CONNECT_BUTTON_MANUAL_SERIAL_ID)),
@@ -724,7 +730,7 @@ public abstract class DaqifiAppFixture
     /// collapses it out of the UIA tree (absent == no error); when shown, a TextBlock surfaces its
     /// text as its UIA Name.
     /// </summary>
-    protected string? ReadManualPortError(Window dialog)
+    protected static string? ReadManualPortError(Window dialog)
     {
         var error = dialog.FindFirstDescendant(cf => cf.ByAutomationId(MANUAL_PORT_ERROR_ID));
         return string.IsNullOrEmpty(error?.Name) ? null : error!.Name;
@@ -788,7 +794,7 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>Types <paramref name="ipAddress"/> into the Manual WiFi tab's IP ADDRESS field via the ValuePattern.</summary>
-    protected void SetManualIpAddress(Window dialog, string ipAddress)
+    protected static void SetManualIpAddress(Window dialog, string ipAddress)
     {
         var input = Retry.WhileNull(
             () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(MANUAL_IP_INPUT_ID)),
@@ -801,7 +807,7 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>Invokes the Manual WiFi tab's Connect button (runs <c>ConnectManualWifiCommand</c>).</summary>
-    protected void InvokeManualWifiConnect(Window dialog)
+    protected static void InvokeManualWifiConnect(Window dialog)
     {
         var button = Retry.WhileNull(
             () => dialog.FindFirstDescendant(cf => cf.ByAutomationId(CONNECT_BUTTON_MANUAL_WIFI_ID)),
@@ -821,7 +827,7 @@ public abstract class DaqifiAppFixture
     /// collapses it out of the UIA tree (absent == no error); when shown, a TextBlock surfaces its
     /// text as its UIA Name.
     /// </summary>
-    protected string? ReadManualWifiError(Window dialog)
+    protected static string? ReadManualWifiError(Window dialog)
     {
         var error = dialog.FindFirstDescendant(cf => cf.ByAutomationId(MANUAL_WIFI_ERROR_ID));
         return string.IsNullOrEmpty(error?.Name) ? null : error!.Name;
@@ -2196,7 +2202,7 @@ public abstract class DaqifiAppFixture
     }
 
     /// <summary>Parses a required invariant-culture integer field; false if missing or malformed.</summary>
-    private static bool TryParseLong(IReadOnlyDictionary<string, string> fields, string key, out long value)
+    private static bool TryParseLong(Dictionary<string, string> fields, string key, out long value)
     {
         value = 0;
         return fields.TryGetValue(key, out var text)
@@ -2211,7 +2217,7 @@ public abstract class DaqifiAppFixture
     /// Parses a required invariant-culture double field, tolerating the "NaN" sentinel; false if the
     /// field is missing (a truncated read should retry, not be read as NaN) or malformed.
     /// </summary>
-    private static bool TryParseStat(IReadOnlyDictionary<string, string> fields, string key, out double value)
+    private static bool TryParseStat(Dictionary<string, string> fields, string key, out double value)
     {
         value = double.NaN;
         return fields.TryGetValue(key, out var text)
@@ -3292,7 +3298,7 @@ public abstract class DaqifiAppFixture
     private void CaptureFailureArtifacts()
     {
         var outDir = TestContext?.TestResultsDirectory ?? AppContext.BaseDirectory;
-        var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
         var testName = TestContext?.TestName ?? "UnknownTest";
 
         try

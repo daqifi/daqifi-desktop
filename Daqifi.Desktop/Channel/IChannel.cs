@@ -49,12 +49,16 @@ public interface IChannel : IColorable
 
     bool IsScalingActive { get; set; }
     bool HasValidExpression { get; set; }
-    DataSample ActiveSample { get; set; }
+    /// <summary>
+    /// The most recent sample for this channel, or null before the first sample arrives
+    /// and after the owning device clears it on disconnect.
+    /// </summary>
+    DataSample? ActiveSample { get; set; }
     bool IsVisible { get; set; }
     #endregion
 
     #region Events
-    event OnChannelUpdatedHandler OnChannelUpdated;
+    event OnChannelUpdatedHandler? OnChannelUpdated;
     #endregion
 
     void NotifyChannelUpdated(object sender, DataSample e);

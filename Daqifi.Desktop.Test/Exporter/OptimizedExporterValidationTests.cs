@@ -26,7 +26,7 @@ public class OptimizedExporterValidationTests
         var progress = new Progress<int>();
 
         var exporter = new OptimizedLoggingSessionExporter();
-        exporter.ExportLoggingSession(loggingSession, exportPath, false, progress, CancellationToken.None, 0, 1);
+        exporter.ExportLoggingSession(loggingSession, exportPath, false, progress, 0, 1, CancellationToken.None);
 
         // Verify output structure and content
         Assert.IsTrue(File.Exists(exportPath), "Export file should be created");
@@ -50,7 +50,7 @@ public class OptimizedExporterValidationTests
         var progress = new Progress<int>();
 
         var exporter = new OptimizedLoggingSessionExporter();
-        exporter.ExportLoggingSession(loggingSession, exportPath, true, progress, CancellationToken.None, 0, 1);
+        exporter.ExportLoggingSession(loggingSession, exportPath, true, progress, 0, 1, CancellationToken.None);
 
         var content = File.ReadAllText(exportPath);
         Assert.StartsWith("Relative Time (s),", content, "Should start with relative time header");
@@ -68,7 +68,7 @@ public class OptimizedExporterValidationTests
 
         var stopwatch = Stopwatch.StartNew();
         var exporter = new OptimizedLoggingSessionExporter();
-        exporter.ExportLoggingSession(loggingSession, exportPath, false, progress, CancellationToken.None, 0, 1);
+        exporter.ExportLoggingSession(loggingSession, exportPath, false, progress, 0, 1, CancellationToken.None);
         stopwatch.Stop();
 
         Assert.IsTrue(File.Exists(exportPath), "Export file should be created");
@@ -93,7 +93,7 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
         var progress = new Progress<int>();
 
         var exporter = new OptimizedLoggingSessionExporter();
-        exporter.ExportLoggingSession(loggingSession, exportPath, false, progress, CancellationToken.None, 0, 1);
+        exporter.ExportLoggingSession(loggingSession, exportPath, false, progress, 0, 1, CancellationToken.None);
 
         var content = File.ReadAllText(exportPath);
 
@@ -200,7 +200,7 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
 
         // Act — must not throw
         exporter.ExportLoggingSession(
-            loggingSession, exportPath, false, new Progress<int>(), CancellationToken.None, 0, 1);
+            loggingSession, exportPath, false, new Progress<int>(), 0, 1, CancellationToken.None);
 
         // Assert
         Assert.IsTrue(File.Exists(exportPath), "Export file should be created");
@@ -226,7 +226,7 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
         using var holder = new FileStream(exportPath, FileMode.Open, FileAccess.Write, FileShare.Read);
 
         Assert.ThrowsExactly<IOException>(() => exporter.ExportLoggingSession(
-            loggingSession, exportPath, false, new Progress<int>(), CancellationToken.None, 0, 1));
+            loggingSession, exportPath, false, new Progress<int>(), 0, 1, CancellationToken.None));
     }
 
     [TestCleanup]

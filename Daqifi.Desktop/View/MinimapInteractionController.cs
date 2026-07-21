@@ -33,7 +33,8 @@ public class MinimapInteractionController : IDisposable
     private double _dragStartDataX;
     private double _dragStartRectMin;
     private double _dragStartRectMax;
-    private Cursor _lastCursor;
+    /// <summary>Last cursor pushed to the PlotView; null until the first <c>SetCursor</c> call.</summary>
+    private Cursor? _lastCursor;
 
     private const double EDGE_TOLERANCE_FRACTION = 0.02;
 
@@ -61,9 +62,16 @@ public class MinimapInteractionController : IDisposable
         _mainTimeAxisKey = mainTimeAxisKey;
         _minimapTimeAxisKey = minimapTimeAxisKey;
 
+        // CS0618: OxyPlot marks PlotModel's Mouse* events "will be removed in v4.0". The documented
+        // replacement (a custom PlotController / manipulator) changes how hit-testing and event
+        // ordering interact with the selection-rectangle drag and the minimap<->main axis sync, which
+        // is feedback-loop sensitive (see the "Plot Rendering (OxyPlot)" notes in CLAUDE.md). No
+        // OxyPlot v4 exists yet, so the migration is deliberately deferred rather than risked here.
+#pragma warning disable CS0618
         _minimapPlotModel.MouseDown += OnMouseDown;
         _minimapPlotModel.MouseMove += OnMouseMove;
         _minimapPlotModel.MouseUp += OnMouseUp;
+#pragma warning restore CS0618
 
         _renderTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
@@ -367,9 +375,15 @@ public class MinimapInteractionController : IDisposable
     {
         _renderTimer.Stop();
         _renderTimer.Tick -= OnRenderTick;
+
+        // CS0618: see the matching subscription in the constructor.
+#pragma warning disable CS0618
         _minimapPlotModel.MouseDown -= OnMouseDown;
         _minimapPlotModel.MouseMove -= OnMouseMove;
         _minimapPlotModel.MouseUp -= OnMouseUp;
+#pragma warning restore CS0618
+
+        GC.SuppressFinalize(this);
     }
     #endregion
 }

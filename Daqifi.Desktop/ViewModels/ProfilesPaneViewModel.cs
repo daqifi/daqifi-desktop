@@ -65,6 +65,8 @@ public partial class ProfilesPaneViewModel : ObservableObject
     public bool HasDrawerError => !string.IsNullOrEmpty(DrawerError);
 
     /// <summary>Live view of the saved profiles backed by <see cref="LoggingManager"/>.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Bound from XAML through the DataContext; WPF bindings cannot resolve static members.")]
     public ObservableCollection<Profile> Profiles => LoggingManager.Instance.SubscribedProfiles;
 
     /// <summary>Devices available to include when building a new profile.</summary>

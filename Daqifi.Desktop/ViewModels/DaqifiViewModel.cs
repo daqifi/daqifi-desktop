@@ -146,20 +146,21 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private IStreamingDevice? _selectedDevice;
 
     private VersionNotification? _versionNotification;
+    /// <summary>The session highlighted in the logged-data list; null when none is selected.</summary>
     [ObservableProperty]
-    private LoggingSession _selectedLoggingSession;
+    private LoggingSession? _selectedLoggingSession;
     private bool _isLogging;
 
     [ObservableProperty]
     private bool _isDebugModeEnabled;
 
     [ObservableProperty]
-    private DebugDataCollection _debugData = new();
+    private DebugDataHistory _debugData = new();
     private bool _canToggleLogging;
     [ObservableProperty]
-    private string _loggedDataBusyReason;
+    private string _loggedDataBusyReason = string.Empty;
     [ObservableProperty]
-    private string _firmwareFilePath;
+    private string _firmwareFilePath = string.Empty;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CancelFirmwareUploadCommand))]
     [NotifyCanExecuteChangedFor(nameof(UpdateWifiFirmwareOnlyCommand))]
@@ -212,7 +213,9 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private CancellationTokenSource? _firmwareUploadCts;
     private readonly LoggingSessionListViewModel _loggingSessionList;
     private ConnectionDialogViewModel? _connectionDialogViewModel;
-    private string _selectedLoggingMode = "Stream to App";
+    // Nullable because the bound ComboBox can push a null selection (e.g. while its items are being
+    // rebuilt); the setter treats that as "not Log to Device".
+    private string? _selectedLoggingMode = "Stream to App";
     private bool _isLogToDeviceMode;
     private SdCardLogFormat _selectedSdCardLogFormat = SdCardLogFormat.Protobuf;
 
@@ -247,9 +250,13 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     public ObservableCollection<LoggingSession> LoggingSessions => TryGetLoggingManager()?.LoggingSessions ?? _fallbackLoggingSessions;
     public bool HasLoggingSessions => LoggingSessions.Count > 0;
 
-    public PlotLogger Plotter { get; private set; }
-    public DatabaseLogger DbLogger { get; private set; }
-    public SummaryLogger SummaryLogger { get; private set; }
+    // Built once by the host-initialization block in the constructor (the `app.IsWindowInit` path).
+    // null! documents that guarantee: in the live app these are always assigned before any binding or
+    // ILoggingSessionListHost call reaches them, and a construction path without a WPF App host never
+    // touches them.
+    public PlotLogger Plotter { get; private set; } = null!;
+    public DatabaseLogger DbLogger { get; private set; } = null!;
+    public SummaryLogger SummaryLogger { get; private set; } = null!;
 
     /// <summary>
     /// Gets or sets whether a logging session is active.
@@ -363,7 +370,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     private int _notificationCount;
 
     [ObservableProperty]
-    private string _versionName;
+    private string _versionName = string.Empty;
 
     public int SelectedIndex
     {
@@ -397,6 +404,10 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 _dialogService.ShowDialog<ErrorDialog>(this, errorDialogViewModel);
                 return;
             }
+
+            // The frequency box is only enabled with a device selected, but a device can be removed
+            // between the UI raising the change and this setter running.
+            if (SelectedDevice == null) { return; }
 
             SelectedDevice.StreamingFrequency = value;
             _selectedStreamingFrequency = SelectedDevice.StreamingFrequency;
@@ -434,14 +445,14 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         set
         {
             _viewWindowState = value;
-            OnPropertyChanged("FlyoutWidth");
-            OnPropertyChanged("FlyoutHeight");
+            OnPropertyChanged(nameof(FlyoutWidth));
+            OnPropertyChanged(nameof(FlyoutHeight));
         }
     }
     [ObservableProperty]
-    private string _loggedSessionName;
+    private string _loggedSessionName = string.Empty;
 
-    public string SelectedLoggingMode
+    public string? SelectedLoggingMode
     {
         get => _selectedLoggingMode;
         set
@@ -532,13 +543,15 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         }
     }
 
-    public DeviceLogsViewModel DeviceLogsViewModel { get; private set; }
+    // See the Plotter/DbLogger note above: assigned by the host-initialization block in the constructor.
+    public DeviceLogsViewModel DeviceLogsViewModel { get; private set; } = null!;
 
     // Re-add properties for manually instantiated commands
-    public ICommand DeleteLoggingSessionCommand { get; private set; }
-    public AsyncRelayCommand DeleteAllLoggingSessionCommand { get; private set; }
-    public ICommand ToggleChannelVisibilityCommand { get; private set; }
-    public ICommand ToggleLoggedSeriesVisibilityCommand { get; private set; }
+    // Assigned by RegisterCommands(), called from the host-initialization block in the constructor.
+    public ICommand DeleteLoggingSessionCommand { get; private set; } = null!;
+    public AsyncRelayCommand DeleteAllLoggingSessionCommand { get; private set; } = null!;
+    public ICommand ToggleChannelVisibilityCommand { get; private set; } = null!;
+    public ICommand ToggleLoggedSeriesVisibilityCommand { get; private set; } = null!;
     #endregion
 
     #region Constructor
@@ -712,7 +725,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// composition root so <see cref="FirmwareUpdateCoordinator"/> receives a ready-made instance
     /// rather than constructing its own service clients.
     /// </summary>
-    private static IFirmwareDownloadService CreateDefaultFirmwareDownloadService()
+    private static GitHubFirmwareDownloadService CreateDefaultFirmwareDownloadService()
     {
         return new GitHubFirmwareDownloadService(new HttpClient());
     }
@@ -720,7 +733,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// <summary>
     /// Builds the production PIC32 firmware update service used when DI supplies none.
     /// </summary>
-    private static IFirmwareUpdateService CreateDefaultFirmwareUpdateService(
+    private static FirmwareUpdateService CreateDefaultFirmwareUpdateService(
         IFirmwareDownloadService firmwareDownloadService,
         ILogger<FirmwareUpdateService> logger)
     {
@@ -1338,6 +1351,12 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         foreach (var connectedDevice in ConnectionManager.Instance.ConnectedDevices)
         {
             var SerailDeviceProperty = connectedDevice.GetType().GetProperty("DeviceVersion");
+            if (SerailDeviceProperty == null)
+            {
+                // A device type without a DeviceVersion property cannot be version-compared.
+                continue;
+            }
+
             var DeviceVersion = SerailDeviceProperty.GetValue(connectedDevice)?.ToString();
             var latestFirmwareVersion = _firmwareCoordinator.LatestFirmwareVersion;
             if (!string.IsNullOrEmpty(latestFirmwareVersion))
@@ -1387,12 +1406,10 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             _subscribedDevices.Remove(stale);
         }
 
-        var anyAdded = false;
         foreach (var added in current.Except(_subscribedDevices, ReferenceComparer<IStreamingDevice>.Instance).ToList())
         {
             SubscribeDeviceEvents(added);
             _subscribedDevices.Add(added);
-            anyAdded = true;
         }
 
         RaiseLoggingStateChanged();
@@ -1497,7 +1514,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         }
     }
 
-    public async void UpdateUi(object sender, PropertyChangedEventArgs args)
+    public async void UpdateUi(object? sender, PropertyChangedEventArgs args)
     {
 
         switch (args.PropertyName)
@@ -1563,6 +1580,13 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                 break;
             case "NotificationCount":
                 var data = _versionNotification;
+                if (data == null)
+                {
+                    // The version notifier is only built during host initialization; without it there
+                    // is no app-update count to surface.
+                    break;
+                }
+
                 NotificationCount = data.NotificationCount;
                 if (NotificationCount > 0)
                 {
@@ -1600,9 +1624,15 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         _ = _firmwareCoordinator.RefreshFirmwareUpdatesAsync();
         RemoveNotification();
     }
-    public async Task<MessageDialogResult> ShowMessage(string title, string message, MessageDialogStyle dialogStyle)
+    public static async Task<MessageDialogResult> ShowMessage(string title, string message, MessageDialogStyle dialogStyle)
     {
-        var metroWindow = Application.Current.MainWindow as MetroWindow;
+        // No MetroWindow host (shutdown in progress, or a headless test host): there is no dialog to
+        // show, so report the same result a dismissed dialog would.
+        if (Application.Current?.MainWindow is not MetroWindow metroWindow)
+        {
+            return MessageDialogResult.Negative;
+        }
+
         return await metroWindow.ShowMessageAsync(title, message, dialogStyle, metroWindow.MetroDialogOptions);
     }
 

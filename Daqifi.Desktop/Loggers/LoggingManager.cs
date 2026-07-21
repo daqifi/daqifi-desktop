@@ -38,8 +38,12 @@ public partial class LoggingManager : ObservableObject
     [ObservableProperty]
     private LoggingMode _currentMode;
 
+    /// <summary>
+    /// The application-side logging session currently being written to, or null when no session has
+    /// been started (or the last one was finalized).
+    /// </summary>
     [ObservableProperty]
-    private LoggingSession _session;
+    private LoggingSession? _session;
 
     [ObservableProperty]
     private ObservableCollection<LoggingSession> _loggingSessions = [];
@@ -204,8 +208,9 @@ public partial class LoggingManager : ObservableObject
 
     [ObservableProperty] private ObservableCollection<Profile> _subscribedProfiles = [];
 
+    /// <summary>The profile the user currently has selected, or null when none is selected.</summary>
     [ObservableProperty]
-    private Profile _selectedProfile;
+    private Profile? _selectedProfile;
 
     [ObservableProperty]
     private ObservableCollection<ProfileChannel> _selectedProfileChannels = [];
@@ -227,7 +232,7 @@ public partial class LoggingManager : ObservableObject
 
     public void callPropertyChange()
     {
-        OnPropertyChanged("SelectedProfileChannels");
+        OnPropertyChanged(nameof(SelectedProfileChannels));
     }
 
     public void UpdateProfileInXml(Profile profile)
@@ -241,7 +246,9 @@ public partial class LoggingManager : ObservableObject
             }
             var doc = XDocument.Load(ProfileSettingsXmlPath);
             var profileToUpdate = doc.Descendants("Profile")
-                .FirstOrDefault(p => (Guid)p.Element("ProfileID") == profile.ProfileId);
+                // Cast through Guid? so a <Profile> element missing its <ProfileID> child is simply
+                // skipped instead of throwing ArgumentNullException out of the XElement operator.
+                .FirstOrDefault(p => (Guid?)p.Element("ProfileID") == profile.ProfileId);
             if (profileToUpdate != null)
             {
                 profileToUpdate.Element("Name")?.SetValue(profile.Name);
@@ -266,7 +273,7 @@ public partial class LoggingManager : ObservableObject
                             new XElement("IsActive", channel.IsChannelActive)
                         )).ToList();
 
-                    if (activeChannels.Any())
+                    if (activeChannels.Count > 0)
                     {
                         deviceElement.Add(new XElement("Channels", activeChannels));
                     }
@@ -286,7 +293,11 @@ public partial class LoggingManager : ObservableObject
         }
     }
 
-    public void AddAndRemoveProfileXml(Profile profile, bool AddProfileFlag)
+    /// <summary>
+    /// Adds or removes a profile in the profile-settings XML. A null <paramref name="profile"/> only
+    /// ensures the settings file exists (used at startup to seed it).
+    /// </summary>
+    public void AddAndRemoveProfileXml(Profile? profile, bool AddProfileFlag)
     {
         try
         {
@@ -336,7 +347,9 @@ public partial class LoggingManager : ObservableObject
                 else
                 {
                     var profileToRemove = doc.Descendants("Profile")
-                        .FirstOrDefault(p => (Guid)p.Element("ProfileID") == profile.ProfileId);
+                        // Cast through Guid? so a <Profile> element missing its <ProfileID> child is simply
+                        // skipped instead of throwing ArgumentNullException out of the XElement operator.
+                        .FirstOrDefault(p => (Guid?)p.Element("ProfileID") == profile.ProfileId);
                     profileToRemove?.Remove();
                     SubscribedProfiles.Remove(profile);
                 }
@@ -362,29 +375,32 @@ public partial class LoggingManager : ObservableObject
                 var doc = XDocument.Load(ProfileSettingsXmlPath);
 
                 // Parse the XML and retrieve the profiles
+                // Every element read below is cast through its nullable form and defaulted. The XML is
+                // user-writable on disk, and the XElement explicit operators throw
+                // ArgumentNullException on a missing element, which would abort the whole profile load.
                 var loadedProfiles = doc.Descendants("Profile").Select(p => new Profile
                 {
-                    Name = (string)p.Element("Name"),
-                    ProfileId = (Guid)p.Element("ProfileID"),
-                    CreatedOn = (DateTime)p.Element("CreatedOn"),
+                    Name = (string?)p.Element("Name") ?? string.Empty,
+                    ProfileId = (Guid?)p.Element("ProfileID") ?? Guid.Empty,
+                    CreatedOn = (DateTime?)p.Element("CreatedOn") ?? DateTime.MinValue,
                     Devices = new ObservableCollection<ProfileDevice>(p.Element("Devices")?.Elements("Device").Select(d => new ProfileDevice
                     {
-                        DeviceName = (string)d.Element("DeviceName"),
-                        DevicePartName = (string)d.Element("DevicePartNumber"),
-                        MacAddress = (string)d.Element("MACAddress"),
-                        DeviceSerialNo = (string)d.Element("DeviceSerialNo"),
-                        SamplingFrequency = (int)d.Element("SamplingFrequency"),
+                        DeviceName = (string?)d.Element("DeviceName") ?? string.Empty,
+                        DevicePartName = (string?)d.Element("DevicePartNumber") ?? string.Empty,
+                        MacAddress = (string?)d.Element("MACAddress") ?? string.Empty,
+                        DeviceSerialNo = (string?)d.Element("DeviceSerialNo") ?? string.Empty,
+                        SamplingFrequency = (int?)d.Element("SamplingFrequency") ?? 0,
                         // The writer omits <Channels> when the device has no active channels
                         // (see UpdateProfileInXml / AddAndRemoveProfileXml). Default to an empty
                         // list so downstream code can call .Where/.Select without a null check.
                         Channels = d.Element("Channels")?.Elements("Channel").Select(c => new ProfileChannel
                         {
-                            Name = (string)c.Element("Name"),
-                            Type = (string)c.Element("Type"),
-                            IsChannelActive = (bool)c.Element("IsActive"),
-                            SerialNo = (string)d.Element("DeviceSerialNo")
+                            Name = (string?)c.Element("Name") ?? string.Empty,
+                            Type = (string?)c.Element("Type") ?? string.Empty,
+                            IsChannelActive = (bool?)c.Element("IsActive") ?? false,
+                            SerialNo = (string?)d.Element("DeviceSerialNo") ?? string.Empty
                         }).ToList() ?? []
-                    }).ToList())
+                    }).ToList() ?? [])
                 }).ToList();
 
                 // Add each profile to the existing collection
@@ -537,7 +553,7 @@ public partial class LoggingManager : ObservableObject
 
     public void HandleDeviceMessage(object sender, DeviceMessage sample)
     {
-        if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession)
+        if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession || Session == null)
         {
             return;
         }
@@ -553,7 +569,7 @@ public partial class LoggingManager : ObservableObject
 
     public void HandleChannelUpdate(object sender, DataSample sample)
     {
-        if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession)
+        if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession || Session == null)
         {
             return;
         }

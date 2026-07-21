@@ -78,6 +78,8 @@ public sealed class DeviceTileViewModel : ObservableObject, IDisposable
     public Brush StripeBrush => IsUsb ? UsbAccent : WifiAccent;
 
     /// <summary>Background color for the tile.</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Bound from XAML through the DataContext; WPF bindings cannot resolve static members.")]
     public Brush TileBackground => TileBrushes.SurfaceRaised;
 
     /// <summary>Border color — stripe color when connected, dim otherwise.</summary>

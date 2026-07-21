@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Daqifi.Desktop.Test.Device;
 
 [TestClass]
@@ -12,10 +14,10 @@ public class ChannelBitManipulationTests
     public void BitShift_ChannelIndex0_ShouldReturn1()
     {
         // Arrange
-        const int channelIndex = 0;
-        
+        var channelIndex = 0;
+
         // Act
-        const int result = 1 << channelIndex;
+        var result = 1 << channelIndex;
         
         // Assert
         Assert.AreEqual(1, result, "Channel 0 bit mask should be 1");
@@ -25,10 +27,10 @@ public class ChannelBitManipulationTests
     public void BitShift_ChannelIndex8_ShouldReturn256()
     {
         // Arrange
-        const int channelIndex = 8;
-        
+        var channelIndex = 8;
+
         // Act
-        const int result = 1 << channelIndex;
+        var result = 1 << channelIndex;
         
         // Assert
         Assert.AreEqual(256, result, "Channel 8 bit mask should be 256");
@@ -145,7 +147,7 @@ public class ChannelBitManipulationTests
         var channel15Mask = 1 << 15; // 32768
         
         // Act
-        var result = Convert.ToString(channel15Mask);
+        var result = Convert.ToString(channel15Mask, CultureInfo.InvariantCulture);
         
         // Assert
         Assert.AreEqual("32768", result, "String conversion should produce '32768'");
@@ -158,7 +160,7 @@ public class ChannelBitManipulationTests
         var combinedMask = (1 << 8) | (1 << 12) | (1 << 15); // 256 + 4096 + 32768 = 37120
         
         // Act
-        var result = Convert.ToString(combinedMask);
+        var result = Convert.ToString(combinedMask, CultureInfo.InvariantCulture);
         
         // Assert
         Assert.AreEqual("37120", result, "String conversion should produce '37120'");

@@ -17,8 +17,12 @@ public partial class MainWindow
         {
             InitializeComponent();
 
+            // AssemblyName.Version is null only for an assembly built without a version; the build
+            // sets AssemblyVersion repo-wide, so fall back rather than crash the main window.
             var version = Assembly.GetExecutingAssembly().GetName().Version;
-            Title = $"DAQiFi v{version.Major}.{version.Minor}.{version.Build}";
+            Title = version != null
+                ? $"DAQiFi v{version.Major}.{version.Minor}.{version.Build}"
+                : "DAQiFi";
 
             Closing += (sender, e) =>
             {

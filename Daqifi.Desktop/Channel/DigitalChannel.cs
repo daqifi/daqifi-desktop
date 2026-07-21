@@ -1,4 +1,4 @@
-﻿using Daqifi.Desktop.Device;
+using Daqifi.Desktop.Device;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 
@@ -65,7 +65,7 @@ public class DigitalChannel : AbstractChannel
                 IsOutput = value == ChannelDirection.Output;
 
                 // Notify owner of direction change
-                _owner?.SetChannelDirection(this, value);
+                Owner?.SetChannelDirection(this, value);
             }
         }
     }
@@ -113,7 +113,7 @@ public class DigitalChannel : AbstractChannel
                 return;
             }
 
-            _owner?.SetChannelPwmEnabled(this, value);
+            Owner?.SetChannelPwmEnabled(this, value);
 
             // Core zeroes the channel's stored output value when PWM disables (the pin goes
             // transiently high-impedance); keep the desktop commanded-state flag in lockstep
@@ -139,7 +139,7 @@ public class DigitalChannel : AbstractChannel
             {
                 if (_coreChannel.IsPwmEnabled)
                 {
-                    _owner?.SetChannelPwmDutyCycle(this, clamped);
+                    Owner?.SetChannelPwmDutyCycle(this, clamped);
                 }
                 else
                 {
@@ -171,7 +171,7 @@ public class DigitalChannel : AbstractChannel
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(coreChannel);
 
-        _owner = owner;
+        Owner = owner;
         _coreChannel = coreChannel;
 
         // Set desktop-specific properties (not in core)

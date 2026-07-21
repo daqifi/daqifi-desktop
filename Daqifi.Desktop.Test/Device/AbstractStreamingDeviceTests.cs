@@ -12,6 +12,9 @@ namespace Daqifi.Desktop.Test.Device;
 [TestClass]
 public class AbstractStreamingDeviceTests
 {
+    private static readonly string[] ExpectedFriendlyNameCommands =
+        ["SYSTem:DEVice:NAME \"Bench Rig 3\"", "SYSTem:DEVice:NAME:SAVE"];
+
     [TestMethod]
     public void FriendlyName_Property_ShouldDefaultToEmpty()
     {
@@ -188,7 +191,7 @@ public class AbstractStreamingDeviceTests
 
         // Assert
         CollectionAssert.AreEqual(
-            new[] { "SYSTem:DEVice:NAME \"Bench Rig 3\"", "SYSTem:DEVice:NAME:SAVE" },
+            ExpectedFriendlyNameCommands,
             device.SentCommands);
         Assert.AreEqual("Bench Rig 3", device.FriendlyName, "FriendlyName should update optimistically.");
     }
@@ -315,7 +318,7 @@ public class AbstractStreamingDeviceTests
     public async Task UpdateNetworkConfiguration_WhenStreaming_StopsStreamingBeforeDelegatingToCore()
     {
         // Arrange
-        var device = new NetworkConfigurationTestDevice();
+        using var device = new NetworkConfigurationTestDevice();
         device.NetworkConfiguration = new NetworkConfiguration(
             WifiMode.ExistingNetwork,
             WifiSecurityType.WpaPskPhrase,
@@ -345,7 +348,7 @@ public class AbstractStreamingDeviceTests
     public async Task UpdateNetworkConfiguration_WhenNotStreaming_DelegatesWithoutSendingStopStreaming()
     {
         // Arrange
-        var device = new NetworkConfigurationTestDevice();
+        using var device = new NetworkConfigurationTestDevice();
         device.NetworkConfiguration = new NetworkConfiguration(
             WifiMode.ExistingNetwork,
             WifiSecurityType.WpaPskPhrase,
@@ -368,7 +371,7 @@ public class AbstractStreamingDeviceTests
     public async Task UpdateNetworkConfiguration_WhenWifi_DoesNotRestoreSdInterface()
     {
         // Arrange
-        var device = new NetworkConfigurationTestDevice(connectionType: ConnectionType.Wifi);
+        using var device = new NetworkConfigurationTestDevice(connectionType: ConnectionType.Wifi);
         device.NetworkConfiguration = new NetworkConfiguration(
             WifiMode.ExistingNetwork,
             WifiSecurityType.WpaPskPhrase,
@@ -393,7 +396,7 @@ public class AbstractStreamingDeviceTests
     public async Task UpdateNetworkConfiguration_WhenInLogToDevice_RestoresSdInterfaceAfterCoreUpdate()
     {
         // Arrange
-        var device = new NetworkConfigurationTestDevice();
+        using var device = new NetworkConfigurationTestDevice();
         device.NetworkConfiguration = new NetworkConfiguration(
             WifiMode.SelfHosted,
             WifiSecurityType.None,
@@ -423,7 +426,7 @@ public class AbstractStreamingDeviceTests
     public async Task UpdateNetworkConfiguration_WhenCoreUpdateThrowsInLogToDevice_RestoresSdInterface()
     {
         // Arrange
-        var device = new NetworkConfigurationTestDevice(throwOnCommandData: ScpiMessageProducer.SaveNetworkLan.Data);
+        using var device = new NetworkConfigurationTestDevice(throwOnCommandData: ScpiMessageProducer.SaveNetworkLan.Data);
         device.NetworkConfiguration = new NetworkConfiguration(
             WifiMode.SelfHosted,
             WifiSecurityType.None,
@@ -461,7 +464,7 @@ public class AbstractStreamingDeviceTests
         // update failure also drops the Core device (as a mid-update disconnect would, via
         // CleanupConnection nulling CoreDevice), so the finally's PrepareSdInterface would throw
         // "Device is not connected." if the restore were not best-effort.
-        var device = new NetworkConfigurationTestDevice(
+        using var device = new NetworkConfigurationTestDevice(
             throwOnCommandData: ScpiMessageProducer.SaveNetworkLan.Data,
             dropCoreDeviceOnThrow: true);
         device.NetworkConfiguration = new NetworkConfiguration(
@@ -687,7 +690,7 @@ public class AbstractStreamingDeviceTests
     public void StartSdCardLogging_WhenSynchronizationContextIsBlocked_CompletesWithoutDeadlock()
     {
         // Arrange
-        var device = new SdCardLoggingTestDevice();
+        using var device = new SdCardLoggingTestDevice();
         device.SwitchMode(DeviceMode.LogToDevice);
         Exception? capturedException = null;
 
@@ -729,7 +732,7 @@ public class AbstractStreamingDeviceTests
         // DIO enable state itself from its own channel configuration (issue #706) — the desktop
         // no longer builds an analog mask or sends EnableDioPorts/DisableDioPorts directly. The
         // mask/DIO computation itself is Core's responsibility and is covered by Core's own tests.
-        var device = new SdCardLoggingTestDevice();
+        using var device = new SdCardLoggingTestDevice();
         device.SwitchMode(DeviceMode.LogToDevice);
 
         device.StartSdCardLogging();
@@ -743,7 +746,7 @@ public class AbstractStreamingDeviceTests
     [TestMethod]
     public void GetSdCardParseConfiguration_WithAnalogChannels_ReturnsCoreConfiguration()
     {
-        var device = new SdCardLoggingTestDevice();
+        using var device = new SdCardLoggingTestDevice();
         device.PopulateCoreChannels(BuildStatusMessage("1.0.0", 1.5f));
 
         var config = device.GetSdCardParseConfiguration();
@@ -770,7 +773,7 @@ public class AbstractStreamingDeviceTests
     {
         // A Core SD device could theoretically still be set on a non-USB connection type;
         // the USB gate must be explicit rather than relying on that being impossible.
-        var device = new NonUsbSdCoreTestDevice();
+        using var device = new NonUsbSdCoreTestDevice();
         device.PopulateCoreChannels(BuildStatusMessage("1.0.0", 1.5f));
 
         Assert.IsNull(device.GetSdCardParseConfiguration(),
@@ -796,7 +799,7 @@ public class AbstractStreamingDeviceTests
     {
         // PrepareLanInterface now delegates the SD/LAN pair to the connected Core device,
         // so this scenario needs a Core-backed harness rather than the bare TestStreamingDevice.
-        var device = new NetworkConfigurationTestDevice();
+        using var device = new NetworkConfigurationTestDevice();
         device.SwitchMode(DeviceMode.LogToDevice);
         device.SentCommands.Clear();
 
@@ -924,10 +927,14 @@ public class AbstractStreamingDeviceTests
         }
     }
 
-    private sealed class NetworkConfigurationTestDevice : AbstractStreamingDevice
+    private sealed class NetworkConfigurationTestDevice : AbstractStreamingDevice, IDisposable
     {
         private readonly RecordingCoreStreamingDevice _coreDevice;
         private readonly ConnectionType _connectionType;
+
+        // The Core device connected in the constructor is owned by this fixture; disposing it
+        // keeps the suite from leaking one connected device per test (CA1001).
+        public void Dispose() => _coreDevice.Dispose();
         private bool _coreDeviceAvailable = true;
 
         public NetworkConfigurationTestDevice(
@@ -1027,9 +1034,13 @@ public class AbstractStreamingDeviceTests
         }
     }
 
-    private sealed class SdCardLoggingTestDevice : AbstractStreamingDevice
+    private sealed class SdCardLoggingTestDevice : AbstractStreamingDevice, IDisposable
     {
         private readonly RecordingCoreStreamingDevice _coreDevice;
+
+        // The Core device connected in the constructor is owned by this fixture; disposing it
+        // keeps the suite from leaking one connected device per test (CA1001).
+        public void Dispose() => _coreDevice.Dispose();
 
         public SdCardLoggingTestDevice()
         {
@@ -1065,9 +1076,13 @@ public class AbstractStreamingDeviceTests
     /// so tests can prove <see cref="AbstractStreamingDevice.GetSdCardParseConfiguration"/>
     /// gates on <see cref="ConnectionType"/> rather than only on <c>CoreDeviceForSd</c>.
     /// </summary>
-    private sealed class NonUsbSdCoreTestDevice : AbstractStreamingDevice
+    private sealed class NonUsbSdCoreTestDevice : AbstractStreamingDevice, IDisposable
     {
         private readonly RecordingCoreStreamingDevice _coreDevice;
+
+        // The Core device connected in the constructor is owned by this fixture; disposing it
+        // keeps the suite from leaking one connected device per test (CA1001).
+        public void Dispose() => _coreDevice.Dispose();
 
         public NonUsbSdCoreTestDevice()
         {

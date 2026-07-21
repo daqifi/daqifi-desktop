@@ -13,10 +13,10 @@ namespace Daqifi.Desktop.Test.Device;
 /// (Core throws when disconnected; the desktop wrapper must not, see issue #619).
 /// </summary>
 [TestClass]
-public class DigitalOutputDelegationTests
+public class DigitalOutputDelegationTests : IDisposable
 {
-    private DioTestDevice _device;
-    private RecordingCoreDevice _coreDevice;
+    private DioTestDevice _device = null!;
+    private RecordingCoreDevice _coreDevice = null!;
 
     [TestInitialize]
     public void Setup()
@@ -32,6 +32,14 @@ public class DigitalOutputDelegationTests
         });
         _coreDevice.Connect();
         _device.SetCoreDevice(_coreDevice);
+    }
+
+    // MSTest disposes the test-class instance after each test, releasing the Core device this
+    // fixture connects in Setup instead of leaking one per test (CA1001).
+    public void Dispose()
+    {
+        _coreDevice.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     private DigitalChannel WrapCoreChannel(int index)

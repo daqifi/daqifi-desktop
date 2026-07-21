@@ -19,6 +19,9 @@ namespace Daqifi.Desktop.Test.ViewModels;
 [TestClass]
 public class LoggingSessionListViewModelTests
 {
+    private static readonly string[] ExpectedPurgeCallLog =
+        ["Suspend", "ClearBuffer", "DiscardPendingBatch", "Resume"];
+
     private readonly List<string> _tempDbPaths = [];
 
     [TestCleanup]
@@ -309,7 +312,7 @@ public class LoggingSessionListViewModelTests
         // Order matters: the discard must happen inside the suspend window, after the buffer is
         // cleared and before the consumer resumes — otherwise a stranded batch could slip through.
         CollectionAssert.AreEqual(
-            new[] { "Suspend", "ClearBuffer", "DiscardPendingBatch", "Resume" },
+            ExpectedPurgeCallLog,
             host.ConsumerCallLog,
             "The purge must suspend, clear the buffer, discard the retained batch, then resume — in order.");
         Assert.IsTrue(host.SuspendBeforeResume, "Consumer must be suspended before it is resumed.");

@@ -38,7 +38,8 @@ static class ServiceLocator
     private class ServiceInfo
     {
         private readonly Type serviceImplementationType;
-        private object serviceImplementation;
+        // Null until the singleton is first resolved; irrelevant for non-singleton registrations.
+        private object? serviceImplementation;
         private readonly bool isSingleton;
 
 
@@ -77,9 +78,9 @@ static class ServiceLocator
         /// <param name="type">The type of the instance to create.</param>
         private static object CreateInstance(Type type)
         {
-            if (services.ContainsKey(type))
+            if (services.TryGetValue(type, out var registeredService))
             {
-                return services[type].ServiceImplementation;
+                return registeredService.ServiceImplementation;
             }
 
             var ctor = type.GetConstructors().First();
@@ -88,7 +89,8 @@ static class ServiceLocator
                 from parameter in ctor.GetParameters()
                 select CreateInstance(parameter.ParameterType);
 
-            return Activator.CreateInstance(type, parameters.ToArray());
+            return Activator.CreateInstance(type, parameters.ToArray())
+                   ?? throw new InvalidOperationException($"Could not create an instance of '{type.FullName}'.");
         }
     }
 }

@@ -212,9 +212,11 @@ public partial class PlotLogger : ObservableObject, ILogger
         else
         {
             //Check for a change in color
-            if (LoggedChannels[key].Color.ToString().ToLower() != dataSample.Color.ToLower())
+            // Hex color strings: compare ordinal/case-insensitively rather than lower-casing under the
+            // current culture (which mangles ASCII letters in e.g. the Turkish locale).
+            if (!string.Equals(LoggedChannels[key].Color.ToString(), dataSample.Color, StringComparison.OrdinalIgnoreCase))
             {
-                LoggedChannels[key].Color = OxyColor.Parse(dataSample.Color.ToLower());
+                LoggedChannels[key].Color = OxyColor.Parse(dataSample.Color.ToLowerInvariant());
             }
         }
 
@@ -305,7 +307,7 @@ public partial class PlotLogger : ObservableObject, ILogger
         OnPropertyChanged(nameof(PlotModel));
     }
 
-    private void CompositionTargetRendering(object sender, EventArgs e)
+    private void CompositionTargetRendering(object? sender, EventArgs e)
     {
         if (_stopwatch.ElapsedMilliseconds > _lastUpdateMilliSeconds + 1000) // Or your existing update interval
         {
@@ -317,7 +319,7 @@ public partial class PlotLogger : ObservableObject, ILogger
                     foreach (var channel in LoggingManager.Instance.SubscribedChannels)
                     {
                         var key = (channel.DeviceSerialNo, channel.Name);
-                        if (LoggedChannels.TryGetValue(key, out LineSeries series))
+                        if (LoggedChannels.TryGetValue(key, out LineSeries? series))
                         {
                             if (series.IsVisible != channel.IsVisible)
                             {
