@@ -46,9 +46,90 @@ public partial class ConnectionManager : ObservableObject
     public Func<DuplicateDeviceCheckResult, DuplicateDeviceAction> DuplicateDeviceHandler { get; set; }
 
     /// <summary>
-    /// Tracks the device currently undergoing firmware update to suppress disconnect notifications.
+    /// Tracks the device currently undergoing firmware update. Non-null for the whole update (PIC32 +
+    /// WiFi + the post-flash serial reconnect), so it doubles as the app-global "firmware update in
+    /// progress" gate: while it is set, the connection dialog suspends its serial/WiFi discovery and
+    /// <see cref="Connect"/> refuses USB connects, so nothing races Core's post-flash reconnect for the
+    /// COM port (issue #738). Changing it raises <see cref="FirmwareUpdateInProgressChanged"/> so an
+    /// already-open connection dialog can react immediately.
     /// </summary>
-    public IStreamingDevice? DeviceBeingUpdated { get; set; }
+    public IStreamingDevice? DeviceBeingUpdated
+    {
+        get => _deviceBeingUpdated;
+        set
+        {
+            if (ReferenceEquals(_deviceBeingUpdated, value)) { return; }
+
+            var previous = _deviceBeingUpdated;
+            var wasInProgress = _deviceBeingUpdated != null;
+            _deviceBeingUpdated = value;
+
+            // Only raise when the in-progress state actually flips (set from null / cleared to null),
+            // not on a device-to-device change (which never happens today, but keeps the signal clean).
+            if (wasInProgress != (value != null))
+            {
+                FirmwareUpdateInProgressChanged?.Invoke(this, EventArgs.Empty);
+            }
+
+            // When the update ends, reconcile the device whose teardown we suppressed during the flash.
+            // On a successful flash Core reconnected it (IsConnected == true) and there's nothing to do;
+            // but on a failed reconnect (e.g. a JumpingToApp timeout) it is still in ConnectedDevices with
+            // a dead transport, so without this it would show as connected forever and block a clean
+            // reconnect. Tear it down now, matching the normal disconnect path (issue #738 follow-up).
+            if (previous != null && value == null)
+            {
+                ReconcileDeviceAfterUpdate(previous);
+            }
+        }
+    }
+
+    /// <summary>
+    /// After a firmware update ends, tears down the just-updated device iff Core's post-flash reconnect
+    /// left it disconnected. A successful update reconnects the device (no-op here); a failed one leaves
+    /// a stale entry the desktop's teardown paths deliberately skipped during the flash, so reconcile it
+    /// exactly as a normal disconnect would (unsubscribe channels, Disconnect, surface a reason).
+    /// </summary>
+    private void ReconcileDeviceAfterUpdate(IStreamingDevice device)
+    {
+        UiThreadHelper.InvokeOnUiThread(() =>
+        {
+            // Reconnected cleanly, or already removed by another path — nothing to reconcile.
+            if (!ConnectedDevices.Contains(device) || device.IsConnected)
+            {
+                return;
+            }
+
+            foreach (var channel in device.DataChannels)
+            {
+                LoggingManager.Instance.Unsubscribe(channel);
+            }
+
+            Disconnect(device);
+
+            LastDisconnectReason =
+                $"{device.DeviceDisplayName} did not reconnect after the firmware update. " +
+                "Power-cycle the device and reconnect.";
+            NotifyConnection = true;
+        }, failureLogMessage: "Dispatcher unavailable while reconciling device after firmware update.");
+    }
+
+    private IStreamingDevice? _deviceBeingUpdated;
+
+    /// <summary>
+    /// True while a firmware update is in progress (<see cref="DeviceBeingUpdated"/> is set). The
+    /// connection dialog gates its discovery on this, and <see cref="Connect"/> refuses USB connects
+    /// while it is true, so a user-initiated connect or a discovery probe cannot steal the COM port
+    /// during Core's post-flash serial reconnect window (issue #738).
+    /// </summary>
+    public bool IsFirmwareUpdateInProgress => _deviceBeingUpdated != null;
+
+    /// <summary>
+    /// Raised when <see cref="IsFirmwareUpdateInProgress"/> flips. The connection dialog subscribes so a
+    /// dialog that is already open when a flash starts stops its serial/WiFi discovery immediately (and
+    /// resumes it when the flash ends) — the push half of the coordination; the pull half is the guards
+    /// in the dialog's <c>Start*Discovery</c> and in <see cref="Connect"/>.
+    /// </summary>
+    public event EventHandler? FirmwareUpdateInProgressChanged;
 
     #endregion
 
@@ -89,8 +170,24 @@ public partial class ConnectionManager : ObservableObject
     {
         try
         {
+            // Never let a user-initiated USB connect (or a discovery-driven one) open the COM port
+            // while a firmware update is running: the device being flashed re-enumerates its USB-CDC
+            // port mid-update, and Core's own JumpingToApp step reconnects it directly (not through
+            // this method). A competing open here would steal the port out from under that reconnect
+            // and strand the update in a JumpingToApp timeout even though the flash succeeded — the
+            // exact failure in issue #738. WiFi connects are unaffected (different device path).
+            // Core's reconnect calls the Core device's Connect() directly, so this gate can't block it.
+            if (IsFirmwareUpdateInProgress && device.ConnectionType == ConnectionType.Usb)
+            {
+                AppLogger.Instance.Warning(
+                    $"Refusing to connect USB device {device.Name} while a firmware update is in progress " +
+                    "(the device reconnects itself after the flash).");
+                ConnectionStatus = DAQiFiConnectionStatus.Error;
+                return;
+            }
+
             ConnectionStatus = DAQiFiConnectionStatus.Connecting;
-            
+
             // Check for duplicate device before connecting
             var duplicateResult = CheckForDuplicateDevice(device);
             if (duplicateResult.IsDuplicate)
@@ -240,6 +337,19 @@ public partial class ConnectionManager : ObservableObject
 
         UiThreadHelper.InvokeOnUiThread(() =>
         {
+            // During a firmware update the flashing device's transport drop is EXPECTED — it reboots
+            // into the HID bootloader and back into the application. Core's FirmwareUpdateService owns
+            // reconnecting THIS very Core device at the JumpingToApp step. If the desktop tears it down
+            // here, Disconnect() disposes the Core device and its serial transport out from under Core,
+            // so Core's reconnect loop operates on a disposed device and can never succeed — the update
+            // then times out in JumpingToApp even though the flash was written and verified (issue #738).
+            // Leave the connection fully intact; DeviceBeingUpdated clears when the flash finishes, and a
+            // genuinely-failed reconnect is reconciled by the next disconnect event or a user action.
+            if (IsDeviceBeingUpdated(device))
+            {
+                return;
+            }
+
             // Already torn down via another path (e.g. explicit user disconnect raced this event).
             if (!ConnectedDevices.Contains(device))
             {
@@ -253,13 +363,38 @@ public partial class ConnectionManager : ObservableObject
 
             Disconnect(device);
 
-            // Only notify if this isn't an intentional disconnect during firmware update.
-            if (DeviceBeingUpdated == null || DeviceBeingUpdated.Name != device.Name)
-            {
-                LastDisconnectReason = $"{device.DeviceDisplayName} disconnected ({e.Reason}).";
-                NotifyConnection = true;
-            }
+            LastDisconnectReason = $"{device.DeviceDisplayName} disconnected ({e.Reason}).";
+            NotifyConnection = true;
         }, failureLogMessage: "Dispatcher unavailable while handling ConnectionLost; UI update dropped.");
+    }
+
+    /// <summary>
+    /// True when <paramref name="device"/> is the device currently undergoing a firmware update. During
+    /// an update the device's serial transport drops and re-enumerates as an expected part of the flash,
+    /// and Core owns the reconnect — so the desktop's disconnect-detection paths must leave that device's
+    /// connection untouched rather than disposing the Core device Core is reconnecting (issue #738).
+    /// </summary>
+    /// <remarks>
+    /// The firmware flow always drives the exact connected instance, so reference equality is the primary
+    /// (and normally sufficient) match. The fallback compares the serial number — a stable hardware
+    /// identity — never the display <c>Name</c>, which is a mutable, non-unique user label and could make
+    /// an unrelated same-named device's disconnect be wrongly skipped, leaving a zombie connection.
+    /// </remarks>
+    private bool IsDeviceBeingUpdated(IStreamingDevice device)
+    {
+        var updating = DeviceBeingUpdated;
+        if (updating == null)
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(updating, device))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(updating.DeviceSerialNo)
+            && string.Equals(updating.DeviceSerialNo, device.DeviceSerialNo, StringComparison.OrdinalIgnoreCase);
     }
 
     private void CheckIfSerialDeviceWasRemoved()
@@ -293,6 +428,15 @@ public partial class ConnectionManager : ObservableObject
             {
                 System.Windows.Application.Current.Dispatcher.Invoke(delegate
                 {
+                    // The device being flashed drops off the COM port when it reboots mid-update — an
+                    // expected part of the flash that Core reconnects itself. Tearing it down here would
+                    // dispose the Core device out from under Core's JumpingToApp reconnect and time the
+                    // update out (issue #738), so skip it entirely (same guard as OnDeviceConnectionLost).
+                    if (IsDeviceBeingUpdated(serialDevice))
+                    {
+                        return;
+                    }
+
                     foreach (var channel in serialDevice.DataChannels)
                     {
                         LoggingManager.Instance.Unsubscribe(channel);
@@ -300,9 +444,7 @@ public partial class ConnectionManager : ObservableObject
 
                     Disconnect(serialDevice);
 
-                    // Only notify if this isn't an intentional disconnect during firmware update
-                    if (!NotifyConnection &&
-                        (DeviceBeingUpdated == null || DeviceBeingUpdated.Name != serialDevice.Name))
+                    if (!NotifyConnection)
                     {
                         // Scoped to this device so a later notification never shows a stale
                         // reason string left over from a previous, unrelated disconnect.
