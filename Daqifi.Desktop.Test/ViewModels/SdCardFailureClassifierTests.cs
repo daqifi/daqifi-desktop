@@ -1,4 +1,5 @@
 using Daqifi.Core.Device.SdCard;
+using Daqifi.Desktop.Loggers;
 using Daqifi.Desktop.ViewModels;
 
 namespace Daqifi.Desktop.Test.ViewModels;
@@ -35,10 +36,10 @@ public class SdCardFailureClassifierTests
     }
 
     [TestMethod]
-    public void Classify_Timeout_IsExpectedDeviceConditionAndAdvisesPowerCycle()
+    public void Classify_DownloadStalled_IsExpectedDeviceConditionAndAdvisesPowerCycle()
     {
         // Arrange — what the importer's stall watchdog throws when the device goes quiet.
-        var ex = new TimeoutException("The device sent no data.");
+        var ex = new SdCardDownloadStalledException(FileName, TimeSpan.FromSeconds(90));
 
         // Act
         var failure = SdCardFailureClassifier.Classify(ex);
@@ -48,6 +49,24 @@ public class SdCardFailureClassifierTests
         Assert.IsTrue(failure.IsCardUnavailable);
         Assert.AreEqual(SdCardState.Error, failure.State);
         Assert.AreEqual(SdCardFailureClassifier.POWER_CYCLE_GUIDANCE, failure.Guidance);
+    }
+
+    [TestMethod]
+    public void Classify_UnrelatedTimeout_KeepsTheErrorPath()
+    {
+        // Arrange — a timeout from some other layer (a database call, an HTTP request) that
+        // happens to reach an SD catch block. Regression guard: matching TimeoutException by base
+        // type would tell the user to power-cycle a healthy device over an unrelated failure, and
+        // would keep that failure off the Error path where it belongs.
+        var ex = new TimeoutException("The operation has timed out.");
+
+        // Act
+        var failure = SdCardFailureClassifier.Classify(ex);
+
+        // Assert
+        Assert.IsFalse(failure.IsExpectedDeviceCondition);
+        Assert.IsFalse(failure.IsCardUnavailable);
+        Assert.AreNotEqual(SdCardFailureClassifier.POWER_CYCLE_GUIDANCE, failure.Guidance);
     }
 
     [TestMethod]

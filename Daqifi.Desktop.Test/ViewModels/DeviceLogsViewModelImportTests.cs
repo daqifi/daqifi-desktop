@@ -118,11 +118,11 @@ public class DeviceLogsViewModelImportTests
     }
 
     [TestMethod]
-    public async Task ImportFile_Timeout_LogsWarningAndReportsTheStall()
+    public async Task ImportFile_DownloadStalled_LogsWarningAndReportsTheStall()
     {
         // Arrange — what the importer's stall watchdog raises when the device goes quiet.
         await SettleInitialRefreshAsync();
-        SetupImportToThrow(new TimeoutException("The device sent no data."));
+        SetupImportToThrow(new SdCardDownloadStalledException(FileName, TimeSpan.FromSeconds(90)));
 
         // Act
         await ImportAsync();
@@ -184,6 +184,47 @@ public class DeviceLogsViewModelImportTests
         // Assert
         Assert.IsFalse(_viewModel.IsBusy);
         Assert.IsTrue(string.IsNullOrEmpty(_viewModel.BusyMessage));
+    }
+
+    [TestMethod]
+    public async Task ImportFile_WhenSelectionChangesMidImport_UsesTheOriginalDeviceAndLeavesTheNewOneAlone()
+    {
+        // Arrange — an import runs for many seconds on a background thread, so the user can select
+        // a different device while it is in flight. Re-reading SelectedDevice inside the lambda
+        // would download from whichever device is selected by then, and paint the first device's
+        // failure onto the second device's panel.
+        await SettleInitialRefreshAsync();
+
+        var otherDevice = new Mock<IStreamingDevice>();
+        otherDevice.Setup(d => d.ConnectionType).Returns(ConnectionType.Usb);
+        otherDevice.Setup(d => d.DeviceSerialNo).Returns("DAQ-TEST-002");
+        otherDevice.Setup(d => d.SdCardFiles).Returns(new List<SdCardFile>().AsReadOnly());
+
+        IStreamingDevice importedFrom = null;
+        _mockImporter
+            .Setup(i => i.ImportFromDeviceAsync(
+                It.IsAny<IStreamingDevice>(),
+                It.IsAny<string>(),
+                It.IsAny<ImportOptions>(),
+                It.IsAny<IProgress<ImportProgress>>(),
+                It.IsAny<CancellationToken>()))
+            .Returns(Task<SdCardImportResult> (IStreamingDevice device, string _, ImportOptions _,
+                IProgress<ImportProgress> _, CancellationToken _) =>
+            {
+                importedFrom = device;
+                _viewModel.SelectedDevice = otherDevice.Object;
+                throw new SdCardEmptyTransferException(FileName);
+            });
+
+        // Act
+        await ImportAsync();
+        await SettleInitialRefreshAsync();
+
+        // Assert
+        Assert.AreSame(_mockDevice.Object, importedFrom,
+            "The import must run against the device that was selected when it started.");
+        Assert.AreEqual(SdCardState.Ok, _viewModel.SdCardState,
+            "The first device's failure must not be shown against the newly selected device.");
     }
 
     [TestMethod]

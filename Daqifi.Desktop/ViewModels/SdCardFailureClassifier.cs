@@ -1,4 +1,5 @@
 using Daqifi.Core.Device.SdCard;
+using Daqifi.Desktop.Loggers;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -121,8 +122,10 @@ public static class SdCardFailureClassifier
                 IsCardUnavailable: false),
 
             // Raised by the desktop's own stall watchdog (see SdCardSessionImporter) when the
-            // device stops sending data mid-transfer without ever failing the request.
-            TimeoutException => new SdCardFailure(
+            // device stops sending data mid-transfer without ever failing the request. Matched by
+            // its specific type, not by TimeoutException: an unrelated timeout reaching here is
+            // not evidence that the SD subsystem is wedged, and must keep the Error path.
+            SdCardDownloadStalledException => new SdCardFailure(
                 State: SdCardState.Error,
                 StatusMessage: "The device stopped responding during the transfer.",
                 Guidance: POWER_CYCLE_GUIDANCE,

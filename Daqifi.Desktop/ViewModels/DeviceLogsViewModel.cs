@@ -142,6 +142,10 @@ public partial class DeviceLogsViewModel : ObservableObject
         _ => string.Empty
     };
 
+    /// <summary>
+    /// Initializes the ViewModel against the application's own logger and logging database, and
+    /// begins tracking the connected-device list.
+    /// </summary>
     public DeviceLogsViewModel()
         : this(null, null)
     {
@@ -313,7 +317,11 @@ public partial class DeviceLogsViewModel : ObservableObject
     [RelayCommand]
     private async Task ImportFile(SdCardFile? file)
     {
-        if (file == null || SelectedDevice == null || !CanAccessSdCard) return;
+        // Snapshot the selection: an import runs for many seconds on a background thread, and the
+        // user can select another device or disconnect this one while it does. Re-reading
+        // SelectedDevice inside the lambda would download from whatever is selected by then.
+        var device = SelectedDevice;
+        if (file == null || device is not { ConnectionType: ConnectionType.Usb }) return;
 
         try
         {
@@ -328,7 +336,7 @@ public partial class DeviceLogsViewModel : ObservableObject
             });
 
             var result = await Task.Run(() =>
-                importer.ImportFromDeviceAsync(SelectedDevice, file.FileName, null, progress, CancellationToken.None));
+                importer.ImportFromDeviceAsync(device, file.FileName, null, progress, CancellationToken.None));
 
             AddImportedSession(result.Session);
 
@@ -347,7 +355,7 @@ public partial class DeviceLogsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            var failure = HandleImportFailure(ex, file.FileName);
+            var failure = HandleImportFailure(ex, file.FileName, device);
             await ShowMessage("Import Failed",
                 $"Could not import {file.FileName}.\n\n{failure.Guidance}",
                 MessageDialogStyle.Affirmative);
@@ -362,7 +370,9 @@ public partial class DeviceLogsViewModel : ObservableObject
     [RelayCommand]
     private async Task ImportAllFiles()
     {
-        if (SelectedDevice == null || !CanAccessSdCard || DeviceFiles == null || !DeviceFiles.Any()) return;
+        // Snapshot the selection once for the whole batch — see ImportFile.
+        var device = SelectedDevice;
+        if (device is not { ConnectionType: ConnectionType.Usb } || DeviceFiles == null || !DeviceFiles.Any()) return;
 
         var filesToImport = DeviceFiles.ToList();
         var successCount = 0;
@@ -390,7 +400,7 @@ public partial class DeviceLogsViewModel : ObservableObject
                     });
 
                     var result = await Task.Run(() =>
-                        importer.ImportFromDeviceAsync(SelectedDevice, file.FileName, null, progress, CancellationToken.None));
+                        importer.ImportFromDeviceAsync(device, file.FileName, null, progress, CancellationToken.None));
 
                     AddImportedSession(result.Session);
 
@@ -403,7 +413,7 @@ public partial class DeviceLogsViewModel : ObservableObject
                 }
                 catch (Exception ex)
                 {
-                    var failure = HandleImportFailure(ex, file.FileName);
+                    var failure = HandleImportFailure(ex, file.FileName, device);
                     failCount++;
 
                     if (failure.IsCardUnavailable)
@@ -484,20 +494,26 @@ public partial class DeviceLogsViewModel : ObservableObject
     /// Classifies a failed import, reflects it in the SD card status surface, and logs it at the
     /// severity the failure deserves.
     /// </summary>
+    /// <param name="ex">The exception the import failed with.</param>
+    /// <param name="fileName">The SD card file being imported.</param>
+    /// <param name="device">
+    /// The device the import ran against, captured when it started. The selection may have moved
+    /// on since, so the on-screen state is only updated while it is still the selected device.
+    /// </param>
     /// <returns>The classification, so the caller can build the user-facing message from it.</returns>
-    private SdCardFailure HandleImportFailure(Exception ex, string fileName)
+    private SdCardFailure HandleImportFailure(Exception ex, string fileName, IStreamingDevice device)
     {
         var failure = SdCardFailureClassifier.Classify(ex);
 
         // Only an expected device condition tells us anything about the card. An unexpected
         // failure (a defect in the import pipeline, a database error) must not blame the card and
         // hide a perfectly good file list behind an error panel.
-        if (failure.IsExpectedDeviceCondition)
+        if (failure.IsExpectedDeviceCondition && ReferenceEquals(SelectedDevice, device))
         {
             ApplyFailureState(failure);
         }
 
-        LogFailure(ex, failure, $"Error importing {fileName} from device {SelectedDevice?.DeviceSerialNo}");
+        LogFailure(ex, failure, $"Error importing {fileName} from device {device.DeviceSerialNo}");
         return failure;
     }
 

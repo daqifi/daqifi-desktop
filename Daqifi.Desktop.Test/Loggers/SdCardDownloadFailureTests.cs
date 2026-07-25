@@ -61,12 +61,14 @@ public class SdCardDownloadFailureTests
             });
 
         // Act
-        var ex = await Assert.ThrowsExactlyAsync<TimeoutException>(() =>
+        var ex = await Assert.ThrowsExactlyAsync<SdCardDownloadStalledException>(() =>
             _importer.DownloadWithStallWatchdogAsync(_mockDevice.Object, FileName, CancellationToken.None));
 
-        // Assert — a TimeoutException is what the failure classifier turns into "power-cycle the
-        // device", so the type is load-bearing, not incidental.
+        // Assert — this type is what the failure classifier turns into "power-cycle the device",
+        // so it is load-bearing, not incidental. It derives from TimeoutException so callers that
+        // only care that the operation timed out still catch it.
         StringAssert.Contains(ex.Message, FileName);
+        Assert.IsInstanceOfType<TimeoutException>(ex);
     }
 
     [TestMethod]

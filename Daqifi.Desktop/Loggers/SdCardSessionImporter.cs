@@ -32,6 +32,11 @@ public interface ISdCardSessionImporter
         CancellationToken ct = default);
 }
 
+/// <summary>
+/// Imports SD card log files — from a local path, a stream, or straight off a connected device —
+/// into the local logging database, mapping Daqifi.Core's parsed samples onto desktop entities and
+/// bulk-inserting them into SQLite.
+/// </summary>
 public class SdCardSessionImporter : ISdCardSessionImporter
 {
     private const int BatchSize = 1000;
@@ -53,6 +58,10 @@ public class SdCardSessionImporter : ISdCardSessionImporter
     private readonly AppLogger _logger = AppLogger.Instance;
     private readonly TimeSpan _downloadStallTimeout;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SdCardSessionImporter"/> class.
+    /// </summary>
+    /// <param name="loggingContext">Factory for the logging database imported samples are written to.</param>
     public SdCardSessionImporter(IDbContextFactory<LoggingContext> loggingContext)
         : this(loggingContext, DOWNLOAD_STALL_TIMEOUT)
     {
@@ -208,7 +217,7 @@ public class SdCardSessionImporter : ISdCardSessionImporter
     /// restarts every time the device delivers another chunk, so only a device that goes quiet
     /// trips it.
     /// </summary>
-    /// <exception cref="TimeoutException">
+    /// <exception cref="SdCardDownloadStalledException">
     /// Thrown when no data arrives for <see cref="_downloadStallTimeout"/>. Callers surface this
     /// as an expected device condition rather than an app error.
     /// </exception>
@@ -241,10 +250,8 @@ public class SdCardSessionImporter : ISdCardSessionImporter
         catch (OperationCanceledException) when (stallCts.IsCancellationRequested && !ct.IsCancellationRequested)
         {
             // Distinguish our watchdog from a caller-requested cancel: only the watchdog becomes a
-            // TimeoutException, so a genuine user cancel still propagates as OperationCanceledException.
-            throw new TimeoutException(
-                $"The device sent no data for '{fileName}' for " +
-                $"{_downloadStallTimeout.TotalSeconds:N0} seconds, so the download was abandoned.");
+            // stall, so a genuine user cancel still propagates as OperationCanceledException.
+            throw new SdCardDownloadStalledException(fileName, _downloadStallTimeout);
         }
     }
 
