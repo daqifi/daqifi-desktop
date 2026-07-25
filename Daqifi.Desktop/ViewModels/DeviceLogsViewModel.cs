@@ -35,7 +35,13 @@ public enum SdCardState
 
 public partial class DeviceLogsViewModel : ObservableObject
 {
-    private readonly AppLogger _logger = AppLogger.Instance;
+    private readonly IAppLogger _logger;
+
+    /// <summary>
+    /// Importer injected by tests. <c>null</c> in production, where each import resolves a fresh
+    /// importer from the service provider (which is not available under unit test).
+    /// </summary>
+    private readonly ISdCardSessionImporter? _importerOverride;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -61,6 +67,14 @@ public partial class DeviceLogsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasSdCardError))]
     [NotifyPropertyChangedFor(nameof(SdCardStatusLine))]
     private string _sdCardErrorMessage = string.Empty;
+
+    /// <summary>
+    /// The actionable sentence shown under the SD card error panel. Varies by failure — a wedged
+    /// SD subsystem needs a power cycle, a bad filesystem needs a reformat — so the view binds it
+    /// instead of hard-coding one piece of advice for every error.
+    /// </summary>
+    [ObservableProperty]
+    private string _sdCardErrorGuidance = SdCardFailureClassifier.GENERIC_CARD_GUIDANCE;
 
     private ObservableCollection<SdCardFile> _deviceFiles;
 
@@ -89,6 +103,13 @@ public partial class DeviceLogsViewModel : ObservableObject
     }
 
     public bool CanAccessSdCard => SelectedDevice?.ConnectionType == ConnectionType.Usb;
+
+    /// <summary>
+    /// The auto-refresh kicked off when a USB device is selected. Production code fires and
+    /// forgets it; tests await it so a late-landing refresh cannot overwrite the state they are
+    /// asserting on. <c>null</c> until a USB device has been selected.
+    /// </summary>
+    internal Task? InitialRefreshTask { get; private set; }
 
     /// <summary>True when the USB device has an OK SD card but no log files on it.</summary>
     public bool HasNoFiles => (DeviceFiles?.Any() != true) && CanAccessSdCard && SdCardState == SdCardState.Ok;
@@ -122,7 +143,20 @@ public partial class DeviceLogsViewModel : ObservableObject
     };
 
     public DeviceLogsViewModel()
+        : this(null, null)
     {
+    }
+
+    /// <summary>
+    /// Test seam: lets unit tests observe the log level a failure is reported at and drive the
+    /// import path without the <see cref="App.ServiceProvider"/> / <see cref="Application.Current"/>
+    /// singletons, neither of which exists under test.
+    /// </summary>
+    internal DeviceLogsViewModel(IAppLogger? logger, ISdCardSessionImporter? importer)
+    {
+        _logger = logger ?? AppLogger.Instance;
+        _importerOverride = importer;
+
         ConnectedDevices = new ObservableCollection<IStreamingDevice>();
         DeviceFiles = new ObservableCollection<SdCardFile>();
         DeviceFiles.CollectionChanged += OnDeviceFilesCollectionChanged;
@@ -181,7 +215,7 @@ public partial class DeviceLogsViewModel : ObservableObject
         {
             if (CanAccessSdCard)
             {
-                _ = RefreshFilesAsync();
+                InitialRefreshTask = RefreshFilesAsync();
             }
             else
             {
@@ -238,29 +272,13 @@ public partial class DeviceLogsViewModel : ObservableObject
 
             SdCardState = SdCardState.Ok;
         }
-        catch (SdCardNotPresentException ex)
-        {
-            SdCardState = SdCardState.NotPresent;
-            SdCardErrorMessage = string.Empty;
-            _logger.Warning($"SD card not present in device {device.DeviceSerialNo}: {ex.Message}");
-        }
-        catch (SdCardFilesystemException ex)
-        {
-            SdCardState = SdCardState.Error;
-            SdCardErrorMessage = ex.DeviceMessage ?? ex.Message;
-            _logger.Error(ex, "SD card filesystem error");
-        }
-        catch (SdCardOperationException ex)
-        {
-            SdCardState = SdCardState.Error;
-            SdCardErrorMessage = ex.LastScpiError ?? ex.Message;
-            _logger.Error(ex, "SD card operation error");
-        }
         catch (Exception ex)
         {
-            SdCardState = SdCardState.Error;
-            SdCardErrorMessage = ex.Message;
-            _logger.Error(ex, "Failed to refresh SD card files");
+            // Every refresh failure lands the card in a non-Ok state, including the unexpected
+            // ones: the file list on screen is stale either way.
+            var failure = SdCardFailureClassifier.Classify(ex);
+            ApplyFailureState(failure);
+            LogFailure(ex, failure, $"Failed to refresh SD card files on device {device.DeviceSerialNo}");
         }
         finally
         {
@@ -302,8 +320,7 @@ public partial class DeviceLogsViewModel : ObservableObject
             IsBusy = true;
             BusyMessage = $"Downloading {file.FileName}...";
 
-            var loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
-            var importer = new SdCardSessionImporter(loggingContext);
+            var importer = ResolveImporter();
 
             var progress = new Progress<ImportProgress>(p =>
             {
@@ -313,10 +330,7 @@ public partial class DeviceLogsViewModel : ObservableObject
             var result = await Task.Run(() =>
                 importer.ImportFromDeviceAsync(SelectedDevice, file.FileName, null, progress, CancellationToken.None));
 
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                LoggingManager.Instance.LoggingSessions.Add(result.Session);
-            });
+            AddImportedSession(result.Session);
 
             var message = $"Successfully imported {file.FileName}";
             var timestampWarning = result.TimestampQuality.BuildUserWarning();
@@ -333,9 +347,9 @@ public partial class DeviceLogsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, $"Error importing {file.FileName}");
+            var failure = HandleImportFailure(ex, file.FileName);
             await ShowMessage("Import Failed",
-                $"Failed to import {file.FileName}. Please check the device connection and try again.",
+                $"Could not import {file.FileName}.\n\n{failure.Guidance}",
                 MessageDialogStyle.Affirmative);
         }
         finally
@@ -355,12 +369,13 @@ public partial class DeviceLogsViewModel : ObservableObject
         var failCount = 0;
         var timestampWarningCount = 0;
 
+        SdCardFailure? abortingFailure = null;
+
         try
         {
             IsBusy = true;
 
-            var loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
-            var importer = new SdCardSessionImporter(loggingContext);
+            var importer = ResolveImporter();
 
             for (var i = 0; i < filesToImport.Count; i++)
             {
@@ -377,10 +392,7 @@ public partial class DeviceLogsViewModel : ObservableObject
                     var result = await Task.Run(() =>
                         importer.ImportFromDeviceAsync(SelectedDevice, file.FileName, null, progress, CancellationToken.None));
 
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        LoggingManager.Instance.LoggingSessions.Add(result.Session);
-                    });
+                    AddImportedSession(result.Session);
 
                     if (result.TimestampQuality.HasDegenerateTimeAxis)
                     {
@@ -391,8 +403,16 @@ public partial class DeviceLogsViewModel : ObservableObject
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error(ex, $"Error importing {file.FileName}");
+                    var failure = HandleImportFailure(ex, file.FileName);
                     failCount++;
+
+                    if (failure.IsCardUnavailable)
+                    {
+                        // The card itself is gone or wedged: every remaining file would fail the
+                        // same way, each burning the same multi-second timeout. Stop here.
+                        abortingFailure = failure;
+                        break;
+                    }
                 }
             }
 
@@ -400,6 +420,11 @@ public partial class DeviceLogsViewModel : ObservableObject
             if (failCount > 0)
             {
                 message += $"\n{failCount} file(s) failed to import.";
+            }
+
+            if (abortingFailure != null)
+            {
+                message += $"\n\nImport stopped early: {abortingFailure.Guidance}";
             }
 
             if (timestampWarningCount > 0)
@@ -424,9 +449,93 @@ public partial class DeviceLogsViewModel : ObservableObject
         }
     }
 
-    private async Task ShowMessage(string title, string message, MessageDialogStyle dialogStyle)
+    /// <summary>
+    /// Resolves the importer to use: the injected test double when present, otherwise a fresh
+    /// importer over the application's logging database.
+    /// </summary>
+    private ISdCardSessionImporter ResolveImporter()
     {
-        var window = Application.Current.MainWindow as MetroWindow;
+        if (_importerOverride != null)
+        {
+            return _importerOverride;
+        }
+
+        var loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
+        return new SdCardSessionImporter(loggingContext);
+    }
+
+    /// <summary>
+    /// Publishes a freshly imported session to the session list on the UI thread.
+    /// </summary>
+    private static void AddImportedSession(LoggingSession session)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(() => LoggingManager.Instance.LoggingSessions.Add(session));
+        }
+        else
+        {
+            LoggingManager.Instance.LoggingSessions.Add(session);
+        }
+    }
+
+    /// <summary>
+    /// Classifies a failed import, reflects it in the SD card status surface, and logs it at the
+    /// severity the failure deserves.
+    /// </summary>
+    /// <returns>The classification, so the caller can build the user-facing message from it.</returns>
+    private SdCardFailure HandleImportFailure(Exception ex, string fileName)
+    {
+        var failure = SdCardFailureClassifier.Classify(ex);
+
+        // Only an expected device condition tells us anything about the card. An unexpected
+        // failure (a defect in the import pipeline, a database error) must not blame the card and
+        // hide a perfectly good file list behind an error panel.
+        if (failure.IsExpectedDeviceCondition)
+        {
+            ApplyFailureState(failure);
+        }
+
+        LogFailure(ex, failure, $"Error importing {fileName} from device {SelectedDevice?.DeviceSerialNo}");
+        return failure;
+    }
+
+    /// <summary>
+    /// Reflects a classified failure in the properties the SD card panel and status line bind to.
+    /// </summary>
+    private void ApplyFailureState(SdCardFailure failure)
+    {
+        SdCardState = failure.State;
+        SdCardErrorMessage = failure.StatusMessage;
+        SdCardErrorGuidance = failure.Guidance;
+    }
+
+    /// <summary>
+    /// Logs a classified failure: Warning (local log only) for expected device conditions, Error
+    /// (captured to Sentry) for everything else. Keeping expected conditions off the Error path is
+    /// what stopped a wedged SD card from filing issues like #754.
+    /// </summary>
+    private void LogFailure(Exception ex, SdCardFailure failure, string context)
+    {
+        if (failure.IsExpectedDeviceCondition)
+        {
+            _logger.Warning(ex, $"{context}: {failure.Guidance}");
+        }
+        else
+        {
+            _logger.Error(ex, context);
+        }
+    }
+
+    private static async Task ShowMessage(string title, string message, MessageDialogStyle dialogStyle)
+    {
+        // Null under unit test (no WPF Application) — and there is no user to show a dialog to.
+        if (Application.Current?.MainWindow is not MetroWindow window)
+        {
+            return;
+        }
+
         await window.ShowMessageAsync(title, message, dialogStyle);
     }
 }
