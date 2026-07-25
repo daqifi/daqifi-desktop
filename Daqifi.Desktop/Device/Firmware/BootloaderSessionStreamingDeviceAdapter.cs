@@ -70,9 +70,10 @@ public sealed class BootloaderSessionStreamingDeviceAdapter : CoreStreamingDevic
     }
 
     // Channel management and device-control members (channel/DIO/analog-output members added to
-    // Core's IStreamingDevice in 0.24.0; the PWM members and PwmFrequencyHz in 1.0.0) are
-    // intentionally no-op here: the device is already in firmware-update mode and this adapter
-    // does not configure channels, drive outputs, or reboot through the streaming command path.
+    // Core's IStreamingDevice in 0.24.0; the PWM members and PwmFrequencyHz in 1.0.0; the ADC
+    // calibration and NVM persistence members in 1.3.0) are intentionally no-op here: the device
+    // is already in firmware-update mode and this adapter does not configure channels, drive
+    // outputs, calibrate, persist NVM, or reboot through the streaming command path.
     // PwmFrequencyHz => 0 matches Core's documented "none commanded this session" sentinel.
     public void EnableChannel(IChannel channel)
     {
@@ -117,6 +118,42 @@ public sealed class BootloaderSessionStreamingDeviceAdapter : CoreStreamingDevic
     }
 
     public void Reboot()
+    {
+    }
+
+    public void SaveAdcCalibration()
+    {
+    }
+
+    public void LoadAdcCalibration()
+    {
+    }
+
+    public void SetAdcCalibrationSlope(int channelNumber, double calM)
+    {
+    }
+
+    public void SetAdcCalibrationOffset(int channelNumber, double calB)
+    {
+    }
+
+    public void SaveFactoryAdcCalibration()
+    {
+    }
+
+    public void LoadFactoryAdcCalibration()
+    {
+    }
+
+    public void UseAdcCalibration(int bank)
+    {
+    }
+
+    public void SaveVoltagePrecision()
+    {
+    }
+
+    public void LoadVoltagePrecision()
     {
     }
 }

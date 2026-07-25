@@ -405,16 +405,17 @@ public class AbstractStreamingDeviceTests
         // Act
         await device.UpdateNetworkConfiguration();
 
-        // Assert
+        // Assert — Core 1.3.0 persists before applying (daqifi-core#352), so SAVE precedes APPLY.
         CollectionAssert.AreEqual(
             new[]
             {
                 $"core:{ScpiMessageProducer.SaveNetworkLan.Data}",
+                $"core:{ScpiMessageProducer.ApplyNetworkLan.Data}",
                 $"core:{ScpiMessageProducer.DisableNetworkLan.Data}",
                 $"core:{ScpiMessageProducer.EnableStorageSd.Data}",
                 $"desktop:{ScpiMessageProducer.SetStreamInterface(Daqifi.Core.Communication.StreamInterface.SdCard).Data}"
             },
-            device.SentCommands.TakeLast(4).ToArray(),
+            device.SentCommands.TakeLast(5).ToArray(),
             "Core should own the SD/LAN interface SCPI pair; the desktop only adds the USB " +
             "stream-interface switch when restoring the SD interface in LogToDevice mode.");
     }
