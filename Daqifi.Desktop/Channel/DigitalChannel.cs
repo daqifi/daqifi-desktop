@@ -7,12 +7,6 @@ namespace Daqifi.Desktop.Channel;
 public class DigitalChannel : AbstractChannel
 {
     #region Constants
-    /// <summary>
-    /// Duty shown (and later commanded) before the user picks one. Core's bookkeeping starts
-    /// at 0, which is not a commandable duty — the firmware stores but never applies 0.
-    /// </summary>
-    private const int DEFAULT_PWM_DUTY_CYCLE_PERCENT = 50;
-
     private const int MIN_PWM_DUTY_CYCLE_PERCENT = 1;
     private const int MAX_PWM_DUTY_CYCLE_PERCENT = 100;
     #endregion
@@ -183,19 +177,6 @@ public class DigitalChannel : AbstractChannel
         // Initialize derived desktop state based on core
         IsOutput = coreChannel.Direction == ChannelDirection.Output;
         HydrateIsDigitalOn(coreChannel.OutputValue);
-        EnsureCommandableDutyDefault(coreChannel);
-    }
-
-    /// <summary>
-    /// Seeds Core's duty bookkeeping with a usable default so the drawer never shows —
-    /// or commands — the 0 that Core rejects. Bookkeeping-only: no device command.
-    /// </summary>
-    private static void EnsureCommandableDutyDefault(Daqifi.Core.Channel.IDigitalChannel coreChannel)
-    {
-        if (coreChannel.IsPwmCapable && coreChannel.PwmDutyCyclePercent < MIN_PWM_DUTY_CYCLE_PERCENT)
-        {
-            coreChannel.PwmDutyCyclePercent = DEFAULT_PWM_DUTY_CYCLE_PERCENT;
-        }
     }
 
     internal void ReplaceCoreChannel(Daqifi.Core.Channel.IDigitalChannel coreChannel)
@@ -214,7 +195,6 @@ public class DigitalChannel : AbstractChannel
         _coreChannel.OutputValue = outputValue;
         _coreChannel.IsPwmEnabled = isPwmEnabled;
         _coreChannel.PwmDutyCyclePercent = pwmDutyCyclePercent;
-        EnsureCommandableDutyDefault(_coreChannel);
 
         // Keep the desktop commanded-state flag in lockstep with Core's mirror so the
         // tile/toggle cannot desync after a refresh (no device command is re-issued).

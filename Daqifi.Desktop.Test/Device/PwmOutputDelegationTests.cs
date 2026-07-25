@@ -46,16 +46,17 @@ public class PwmOutputDelegationTests
     }
 
     [TestMethod]
-    public void Construction_SeedsDefaultDuty_ForPwmCapableChannels()
+    public void Construction_ExposesCoreCommandableDutyDefault()
     {
-        // Act — Core's bookkeeping starts at 0, which Core rejects as a command
+        // Act — since Core 1.2.0 (daqifi-core#322) Core's own bookkeeping starts at a
+        // commandable 50, so the desktop no longer seeds a default of its own.
         var capable = WrapCoreChannel(4);
         var nonCapable = WrapCoreChannel(1);
 
-        // Assert — capable channels get a commandable default; the seed sends nothing
-        Assert.AreEqual(50, capable.PwmDutyCyclePercent, "Capable channels should seed a usable default duty");
-        Assert.AreEqual(0, nonCapable.PwmDutyCyclePercent, "Non-capable channels keep Core's zero bookkeeping");
-        Assert.AreEqual(0, _coreDevice.SentCommands.Count, "Seeding the duty default must not issue device commands");
+        // Assert — the wrapper surfaces Core's default and issues nothing on construction
+        Assert.AreEqual(50, capable.PwmDutyCyclePercent, "Capable channels expose Core's commandable default duty");
+        Assert.AreEqual(50, nonCapable.PwmDutyCyclePercent, "Core defaults duty for every digital channel");
+        Assert.AreEqual(0, _coreDevice.SentCommands.Count, "Wrapping a Core channel must not issue device commands");
     }
 
     [TestMethod]
