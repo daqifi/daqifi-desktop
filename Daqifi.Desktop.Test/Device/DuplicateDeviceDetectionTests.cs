@@ -20,8 +20,10 @@ public class DuplicateDeviceDetectionTests
         _mockDevice1 = new Mock<IStreamingDevice>();
         _mockDevice2 = new Mock<IStreamingDevice>();
         
-        // Clear any existing devices to ensure clean test state
+        // Clear any existing devices and handler to ensure clean test state — ConnectionManager is a
+        // singleton, so state set by one test would otherwise leak into the next.
         _connectionManager.ConnectedDevices.Clear();
+        _connectionManager.DuplicateDeviceHandler = null;
     }
     #endregion
 
@@ -121,6 +123,92 @@ public class DuplicateDeviceDetectionTests
         // Assert
         Assert.IsTrue(handlerCalled, "Duplicate device handler should be called");
         Assert.AreEqual(1, _connectionManager.ConnectedDevices.Count, "Should keep existing device");
+    }
+    #endregion
+
+    #region Identity Fallback Tests
+    /// <summary>
+    /// The WiFi path knows a device's MAC address before its serial number arrives with the first
+    /// status message, so a blank serial number must fall back to the MAC address (issue #752). The
+    /// previous serial-only comparison could not detect this case at all.
+    /// </summary>
+    [TestMethod]
+    public async Task Connect_WithBlankSerialNumberAndMatchingMacAddress_ShouldSetAlreadyConnectedStatus()
+    {
+        // Arrange
+        _mockDevice1.Setup(d => d.DeviceSerialNo).Returns(string.Empty);
+        _mockDevice1.Setup(d => d.MacAddress).Returns("AA-BB-CC-DD-EE-FF");
+        _mockDevice1.Setup(d => d.ConnectionType).Returns(ConnectionType.Usb);
+        _mockDevice1.Setup(d => d.Connect()).Returns(true);
+
+        // Same unit, MAC reported in the other common separator style.
+        _mockDevice2.Setup(d => d.DeviceSerialNo).Returns(string.Empty);
+        _mockDevice2.Setup(d => d.MacAddress).Returns("aa:bb:cc:dd:ee:ff");
+        _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.Wifi);
+        _mockDevice2.Setup(d => d.Connect()).Returns(true);
+
+        await _connectionManager.Connect(_mockDevice1.Object);
+
+        // Act
+        await _connectionManager.Connect(_mockDevice2.Object);
+
+        // Assert
+        Assert.AreEqual(DAQiFiConnectionStatus.AlreadyConnected, _connectionManager.ConnectionStatus);
+        Assert.AreEqual(1, _connectionManager.ConnectedDevices.Count, "Should only have one device connected");
+    }
+
+    /// <summary>
+    /// A serial mismatch is decisive: two units that differ by serial number are never the same
+    /// device, so a weaker discriminator can never re-merge them.
+    /// </summary>
+    [TestMethod]
+    public async Task Connect_WithDifferentSerialNumbersAndMatchingMacAddress_ShouldConnectBothDevices()
+    {
+        // Arrange
+        _mockDevice1.Setup(d => d.DeviceSerialNo).Returns("DAQ-12345");
+        _mockDevice1.Setup(d => d.MacAddress).Returns("AA-BB-CC-DD-EE-FF");
+        _mockDevice1.Setup(d => d.ConnectionType).Returns(ConnectionType.Usb);
+        _mockDevice1.Setup(d => d.Connect()).Returns(true);
+
+        _mockDevice2.Setup(d => d.DeviceSerialNo).Returns("DAQ-67890");
+        _mockDevice2.Setup(d => d.MacAddress).Returns("AA-BB-CC-DD-EE-FF");
+        _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.Wifi);
+        _mockDevice2.Setup(d => d.Connect()).Returns(true);
+
+        // Act
+        await _connectionManager.Connect(_mockDevice1.Object);
+        await _connectionManager.Connect(_mockDevice2.Object);
+
+        // Assert
+        Assert.AreEqual(DAQiFiConnectionStatus.Connected, _connectionManager.ConnectionStatus);
+        Assert.AreEqual(2, _connectionManager.ConnectedDevices.Count, "Should have both devices connected");
+    }
+
+    /// <summary>
+    /// Two devices that report no discriminator at all must never match each other — the guarantee
+    /// the previous blank-serial skip provided, kept by <c>DeviceIdentity</c>.
+    /// </summary>
+    [TestMethod]
+    public async Task Connect_WithNoIdentityDiscriminators_ShouldConnectBothDevices()
+    {
+        // Arrange
+        _mockDevice1.Setup(d => d.DeviceSerialNo).Returns(string.Empty);
+        _mockDevice1.Setup(d => d.MacAddress).Returns(string.Empty);
+        _mockDevice1.Setup(d => d.ConnectionType).Returns(ConnectionType.Usb);
+        _mockDevice1.Setup(d => d.Connect()).Returns(true);
+
+        _mockDevice2.Setup(d => d.DeviceSerialNo).Returns(string.Empty);
+        _mockDevice2.Setup(d => d.MacAddress).Returns(string.Empty);
+        _mockDevice2.Setup(d => d.ConnectionType).Returns(ConnectionType.Usb);
+        _mockDevice2.Setup(d => d.Connect()).Returns(true);
+
+        // Act
+        await _connectionManager.Connect(_mockDevice1.Object);
+        await _connectionManager.Connect(_mockDevice2.Object);
+
+        // Assert
+        Assert.AreEqual(DAQiFiConnectionStatus.Connected, _connectionManager.ConnectionStatus);
+        Assert.AreEqual(2, _connectionManager.ConnectedDevices.Count, "Unidentifiable devices should never match each other");
     }
     #endregion
 }
