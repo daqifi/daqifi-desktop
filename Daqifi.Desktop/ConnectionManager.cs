@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.IO.Ports;
 using System.Management;
 using CommunityToolkit.Mvvm.ComponentModel;
+using DeviceIdentity = Daqifi.Core.Device.DeviceIdentity;
 
 namespace Daqifi.Desktop;
 
@@ -43,7 +44,7 @@ public partial class ConnectionManager : ObservableObject
     /// Callback for handling duplicate device situations.
     /// Should return the user's choice on how to handle the duplicate.
     /// </summary>
-    public Func<DuplicateDeviceCheckResult, DuplicateDeviceAction> DuplicateDeviceHandler { get; set; }
+    public Func<DuplicateDeviceCheckResult, DuplicateDeviceAction>? DuplicateDeviceHandler { get; set; }
 
     /// <summary>
     /// Tracks the device currently undergoing firmware update. Non-null for the whole update (PIC32 +
@@ -459,30 +460,43 @@ public partial class ConnectionManager : ObservableObject
     }
 
     /// <summary>
-    /// Checks if a device is already connected by comparing serial numbers.
+    /// Checks whether <paramref name="newDevice"/> is the same physical unit as one already in
+    /// <see cref="ConnectedDevices"/>, so the same device reached over USB and over WiFi is not
+    /// connected twice.
     /// </summary>
+    /// <remarks>
+    /// Matching is delegated to Core's transport-independent <see cref="DeviceIdentity"/> (issue #752),
+    /// which compares the serial number first and falls back to the MAC address when the serial number
+    /// is blank — the WiFi path knows a device's MAC before its serial number arrives with the first
+    /// status message, a case the previous serial-only comparison could not detect at all. A serial
+    /// mismatch is decisive, so a weaker discriminator can never merge two genuinely different units,
+    /// and devices carrying no discriminator at all still never match each other.
+    /// </remarks>
     /// <param name="newDevice">The device to check for duplicates</param>
     /// <returns>A result indicating if the device is a duplicate and which existing device it matches</returns>
     private DuplicateDeviceCheckResult CheckForDuplicateDevice(IStreamingDevice newDevice)
     {
-        // If device doesn't have a serial number, we can't check for duplicates reliably
-        if (string.IsNullOrWhiteSpace(newDevice.DeviceSerialNo))
+        var candidateIdentity = DeviceIdentity.Create(newDevice.DeviceSerialNo, newDevice.MacAddress);
+
+        // With no discriminator at all there is nothing to compare against, so duplicates are undetectable.
+        if (candidateIdentity.IsEmpty)
         {
-            AppLogger.Instance.Information($"Device {newDevice.Name} has no serial number - cannot check for duplicates");
+            AppLogger.Instance.Information(
+                $"Device {newDevice.Name} has no serial number or MAC address - cannot check for duplicates");
             return new DuplicateDeviceCheckResult { IsDuplicate = false };
         }
 
-        // Check if any existing device has the same serial number
-        var existingDevice = ConnectedDevices.FirstOrDefault(d => 
-            !string.IsNullOrWhiteSpace(d.DeviceSerialNo) && 
-            d.DeviceSerialNo.Equals(newDevice.DeviceSerialNo, StringComparison.OrdinalIgnoreCase));
+        var existingDevice = ConnectedDevices.FirstOrDefault(d =>
+            DeviceIdentity.Create(d.DeviceSerialNo, d.MacAddress).Matches(candidateIdentity));
 
         if (existingDevice != null)
         {
             var newDeviceInterface = newDevice.ConnectionType == ConnectionType.Usb ? "USB" : "WiFi";
             var existingDeviceInterface = existingDevice.ConnectionType == ConnectionType.Usb ? "USB" : "WiFi";
             
-            AppLogger.Instance.Information($"Duplicate device detected: Device already connected via {existingDeviceInterface}, attempted to add via {newDeviceInterface}");
+            AppLogger.Instance.Information(
+                $"Duplicate device detected ({candidateIdentity}): Device already connected via " +
+                $"{existingDeviceInterface}, attempted to add via {newDeviceInterface}");
             
             return new DuplicateDeviceCheckResult 
             { 
