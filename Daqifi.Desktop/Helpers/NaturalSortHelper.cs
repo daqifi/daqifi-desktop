@@ -16,7 +16,7 @@ public static class NaturalSortHelper
     /// <param name="x">First string to compare</param>
     /// <param name="y">Second string to compare</param>
     /// <returns>A signed integer that indicates the relative values of x and y</returns>
-    public static int NaturalCompare(string x, string y)
+    public static int NaturalCompare(string? x, string? y)
     {
         if (x == null && y == null) return 0;
         if (x == null) return -1;
@@ -41,8 +41,10 @@ public static class NaturalSortHelper
             }
             else
             {
-                // Compare as strings using culture-invariant comparison
-                int stringComparison = string.Compare(xPart, yPart, StringComparison.InvariantCultureIgnoreCase);
+                // Compare as strings using ordinal (culture-independent) comparison. Channel
+                // identifiers are ASCII, so ordinal matches the previous invariant-culture ordering
+                // while being locale-stable and faster.
+                int stringComparison = string.Compare(xPart, yPart, StringComparison.OrdinalIgnoreCase);
                 if (stringComparison != 0)
                     return stringComparison;
             }
@@ -69,7 +71,7 @@ public static class NaturalSortHelper
     /// </summary>
     private class NaturalStringComparer : IComparer<string>
     {
-        public int Compare(string x, string y)
+        public int Compare(string? x, string? y)
         {
             return NaturalCompare(x, y);
         }

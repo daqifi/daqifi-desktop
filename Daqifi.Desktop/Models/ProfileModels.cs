@@ -6,7 +6,7 @@ namespace Daqifi.Desktop.Models;
 public partial class Profile : ObservableObject
 {
     [ObservableProperty]
-    private string name;
+    private string name = string.Empty;
     [ObservableProperty]
     private Guid profileId;
     [ObservableProperty]
@@ -14,33 +14,33 @@ public partial class Profile : ObservableObject
     [ObservableProperty]
     private bool isProfileActive;
     [ObservableProperty]
-    private ObservableCollection<ProfileDevice> devices;
+    private ObservableCollection<ProfileDevice> devices = [];
 }
 
 public partial class ProfileDevice : ObservableObject
 {
     [ObservableProperty]
-    private string deviceName;
+    private string deviceName = string.Empty;
     [ObservableProperty]
-    private string devicePartName;
+    private string devicePartName = string.Empty;
     [ObservableProperty]
-    private string deviceSerialNo;
+    private string deviceSerialNo = string.Empty;
     [ObservableProperty]
-    private string macAddress;
+    private string macAddress = string.Empty;
     [ObservableProperty]
     private int samplingFrequency;
     [ObservableProperty]
-    private List<ProfileChannel> channels;
+    private List<ProfileChannel> channels = [];
 }
 
 public partial class ProfileChannel : ObservableObject
 {
     [ObservableProperty]
-    private string name;
+    private string name = string.Empty;
     [ObservableProperty]
-    private string serialNo;
+    private string serialNo = string.Empty;
     [ObservableProperty]
-    private string type;
+    private string type = string.Empty;
     [ObservableProperty]
     private bool isChannelActive;
 }

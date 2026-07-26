@@ -3,6 +3,7 @@ using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace Daqifi.Desktop.Test.Exporter;
 
@@ -99,8 +100,11 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
         Console.WriteLine("- ExportDialogViewModel updated to use OptimizedLoggingSessionExporter");
         Console.WriteLine("- All export operations now benefit from optimization");
 
-        // This test always passes - it's just documentation
-        Assert.IsTrue(true, "Performance improvements successfully documented and deployed");
+        // Regression guard for the claim above: the legacy exporter must stay deleted from the
+        // production assembly, otherwise the un-optimized export path could be wired back up.
+        Assert.IsNull(
+            typeof(OptimizedLoggingSessionExporter).Assembly.GetType("Daqifi.Desktop.Exporter.LoggingSessionExporter"),
+            "LoggingSessionExporter was replaced by OptimizedLoggingSessionExporter (issue #188) and must not return.");
     }
 
 
@@ -143,9 +147,9 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
             exportFilePath,
             exportRelativeTime: false,
             progress,
-            cts.Token,
             sessionIndex: 0,
-            totalSessions: 1);
+            totalSessions: 1,
+            cts.Token);
 
         stopwatch.Stop();
         var memoryUsedMb = Math.Max(0, GC.GetTotalMemory(false) - initialMemory) / 1024 / 1024;
@@ -266,7 +270,7 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
         var stopwatch = Stopwatch.StartNew();
 
         var optimizedExporter = new OptimizedLoggingSessionExporter();
-        optimizedExporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 1);
+        optimizedExporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 1, CancellationToken.None);
 
         stopwatch.Stop();
         var finalMemory = GC.GetTotalMemory(false);
@@ -277,7 +281,7 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
         Console.WriteLine($"Memory: {memoryUsed}MB");
 
         var samplesPerSecond = stopwatch.ElapsedMilliseconds > 0 ? 48000.0 / stopwatch.ElapsedMilliseconds * 1000 : double.PositiveInfinity;
-        Console.WriteLine($"Samples per second: {(samplesPerSecond == double.PositiveInfinity ? "∞" : samplesPerSecond.ToString("F0"))}");
+        Console.WriteLine($"Samples per second: {(samplesPerSecond == double.PositiveInfinity ? "∞" : samplesPerSecond.ToString("F0", CultureInfo.InvariantCulture))}");
 
         // Verify file was created and has correct structure
         Assert.IsTrue(File.Exists(exportFilePath), "Export file should be created");
@@ -346,7 +350,7 @@ memoryUsed, $"Production optimized exporter should use <100MB for 48K samples. A
         var initialMemory = GC.GetTotalMemory(false);
         var stopwatch = Stopwatch.StartNew();
 
-        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, CancellationToken.None, 0, 0);
+        exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
 
         stopwatch.Stop();
         var finalMemory = GC.GetTotalMemory(false);

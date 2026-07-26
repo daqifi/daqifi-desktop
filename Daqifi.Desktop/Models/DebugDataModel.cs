@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Daqifi.Desktop.Models;
@@ -72,14 +73,15 @@ public partial class DebugDataModel : ObservableObject
         $"[DEBUG] {Timestamp:HH:mm:ss.fff} | Device:{DeviceId} | " +
         $"Channels:{string.Join(",", ActiveChannelNames)} | " +
         $"Raw:[{string.Join(",", RawAnalogValues)}] | " +
-        $"Scaled:[{string.Join(",", ScaledAnalogValues.ConvertAll(v => v.ToString("F3")))}] | " +
+        // Invariant culture: this string is written to the log file, so it must not vary by locale.
+        $"Scaled:[{string.Join(",", ScaledAnalogValues.ConvertAll(v => v.ToString("F3", CultureInfo.InvariantCulture)))}] | " +
         $"Mask:{ChannelEnableMask}({ChannelEnableBinary})";
 }
 
 /// <summary>
-/// Collection to hold recent debug data entries
+/// Holds the most recent debug data entries.
 /// </summary>
-public partial class DebugDataCollection : ObservableObject
+public partial class DebugDataHistory : ObservableObject
 {
     private const int MaxEntries = 100;
 

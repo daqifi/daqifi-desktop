@@ -8,7 +8,7 @@ namespace Daqifi.Desktop.Test.Converters;
 [TestClass]
 public class BrushColorMatchConverterTests
 {
-    private BrushColorMatchConverter _converter;
+    private BrushColorMatchConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()
@@ -23,7 +23,7 @@ public class BrushColorMatchConverterTests
         var values = new object[] { new SolidColorBrush(Colors.Red), new SolidColorBrush(Colors.Red) };
 
         // Act
-        var result = _converter.Convert(values, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(values, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(true, result);
@@ -36,7 +36,7 @@ public class BrushColorMatchConverterTests
         var values = new object[] { new SolidColorBrush(Colors.Red), new SolidColorBrush(Colors.Blue) };
 
         // Act
-        var result = _converter.Convert(values, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(values, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(false, result);
@@ -49,7 +49,7 @@ public class BrushColorMatchConverterTests
         var values = new object[] { new SolidColorBrush(Colors.Green), new SolidColorBrush(Colors.Green) };
 
         // Act
-        var result = _converter.Convert(values, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(values, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Visible, result);
@@ -62,7 +62,7 @@ public class BrushColorMatchConverterTests
         var values = new object[] { new SolidColorBrush(Colors.Green), new SolidColorBrush(Colors.Yellow) };
 
         // Act
-        var result = _converter.Convert(values, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(values, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Collapsed, result);
@@ -75,7 +75,7 @@ public class BrushColorMatchConverterTests
         var values = new object[] { new SolidColorBrush(Colors.Red) };
 
         // Act
-        var result = _converter.Convert(values, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(values, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(false, result);
@@ -88,7 +88,7 @@ public class BrushColorMatchConverterTests
         var values = new object[] { "red", "red" };
 
         // Act
-        var result = _converter.Convert(values, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(values, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(false, result);
@@ -102,6 +102,6 @@ public class BrushColorMatchConverterTests
 
         // Act & Assert
         Assert.ThrowsExactly<NotImplementedException>(() =>
-            _converter.ConvertBack(value, new[] { typeof(SolidColorBrush) }, null, CultureInfo.InvariantCulture));
+            _converter.ConvertBack(value, new[] { typeof(SolidColorBrush) }, null!, CultureInfo.InvariantCulture));
     }
 }

@@ -1,4 +1,4 @@
-﻿using Daqifi.Desktop.Channel;
+using Daqifi.Desktop.Channel;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using Daqifi.Core.Device.Network;
 using Daqifi.Core.Device.SdCard;
@@ -133,17 +133,17 @@ public interface IStreamingDevice : IDevice
     /// <summary>
     /// Sends a command to activate a channel on the streamingDevice
     /// </summary>
-    void AddChannel(IChannel channel);
+    void AddChannel(IChannel channelToAdd);
 
     /// <summary>
     /// Sends a command to deactivate a channel on the streamingDevice
     /// </summary>
-    void RemoveChannel(IChannel channel);
+    void RemoveChannel(IChannel channelToRemove);
 
     /// <summary>
     /// Enables multiple channels on the device with a single SCPI command per channel type.
     /// </summary>
-    void AddChannels(IEnumerable<IChannel> channels);
+    void AddChannels(IEnumerable<IChannel> channelsToAdd);
 
     /// <summary>
     /// Disables all channels on the device.

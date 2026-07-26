@@ -7,9 +7,9 @@ namespace Daqifi.Desktop.Test.Device;
 public class DuplicateDeviceDetectionTests
 {
     #region Private Variables
-    private ConnectionManager _connectionManager;
-    private Mock<IStreamingDevice> _mockDevice1;
-    private Mock<IStreamingDevice> _mockDevice2;
+    private ConnectionManager _connectionManager = null!;
+    private Mock<IStreamingDevice> _mockDevice1 = null!;
+    private Mock<IStreamingDevice> _mockDevice2 = null!;
     #endregion
 
     #region Test Setup

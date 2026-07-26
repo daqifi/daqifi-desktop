@@ -3,7 +3,7 @@ using System.Windows.Data;
 
 namespace Daqifi.Desktop.Helpers;
 
-public class BooleanConverter<T> : IValueConverter
+public class BooleanConverter<T> : IValueConverter where T : notnull
 {
     public BooleanConverter(T trueValue, T falseValue)
     {

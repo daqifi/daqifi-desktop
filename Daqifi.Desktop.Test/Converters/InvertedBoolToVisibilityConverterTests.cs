@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.Test.Converters;
 [TestClass]
 public class InvertedBoolToVisibilityConverterTests
 {
-    private InvertedBoolToVisibilityConverter _converter;
+    private InvertedBoolToVisibilityConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()
@@ -22,7 +22,7 @@ public class InvertedBoolToVisibilityConverterTests
         const bool value = true;
 
         // Act
-        var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Collapsed, result);
@@ -35,7 +35,7 @@ public class InvertedBoolToVisibilityConverterTests
         const bool value = false;
 
         // Act
-        var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Visible, result);
@@ -48,7 +48,7 @@ public class InvertedBoolToVisibilityConverterTests
         object value = "true";
 
         // Act
-        var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Collapsed, result);
@@ -61,7 +61,7 @@ public class InvertedBoolToVisibilityConverterTests
         var value = Visibility.Collapsed;
 
         // Act
-        var result = _converter.ConvertBack(value, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.ConvertBack(value, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(true, result);
@@ -74,7 +74,7 @@ public class InvertedBoolToVisibilityConverterTests
         var value = Visibility.Visible;
 
         // Act
-        var result = _converter.ConvertBack(value, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.ConvertBack(value, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(false, result);
@@ -87,7 +87,7 @@ public class InvertedBoolToVisibilityConverterTests
         object value = 42;
 
         // Act
-        var result = _converter.ConvertBack(value, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.ConvertBack(value, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(false, result);

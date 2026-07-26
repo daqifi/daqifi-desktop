@@ -12,12 +12,12 @@ namespace Daqifi.Desktop.Test.Loggers;
 /// lives in <see cref="SessionDataRepository"/> (extracted from <c>DatabaseLogger</c>, #592).
 /// </summary>
 [TestClass]
-public class SessionDataRepositorySingleTickSpreadTests
+public class SessionDataRepositorySingleTickSpreadTests : IDisposable
 {
     private const string Serial = "9090684023231015079";
     private const long Tick = 638_000_000_000_000_000;
 
-    private TempSqliteLoggingContextFactory _factory;
+    private TempSqliteLoggingContextFactory _factory = null!;
 
     [TestInitialize]
     public void Setup()
@@ -25,10 +25,12 @@ public class SessionDataRepositorySingleTickSpreadTests
         _factory = new TempSqliteLoggingContextFactory();
     }
 
-    [TestCleanup]
-    public void Cleanup()
+    // MSTest disposes the test-class instance after each test; IDisposable (rather than
+    // [TestCleanup]) is what satisfies CA1001 for the owned SQLite context factory.
+    public void Dispose()
     {
         _factory.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     [TestMethod]

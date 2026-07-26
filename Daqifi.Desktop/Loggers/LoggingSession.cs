@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.Logger;
 public class LoggingSession : ObservableObject
 {
     #region Private Data
-    private string _name;
+    private string _name = string.Empty;
     private long? _sampleCount;
     #endregion
 
@@ -182,7 +182,7 @@ public class LoggingSession : ObservableObject
     #endregion
 
     #region Object Overrides
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
     {
         return obj is LoggingSession sessionObj && sessionObj.ID == ID;
     }

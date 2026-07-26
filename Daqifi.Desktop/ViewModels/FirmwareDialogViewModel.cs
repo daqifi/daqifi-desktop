@@ -11,7 +11,7 @@ using File = System.IO.File;
 
 namespace Daqifi.Desktop.ViewModels;
 
-public partial class FirmwareDialogViewModel : ObservableObject
+public partial class FirmwareDialogViewModel : ObservableObject, IDisposable
 {
     private readonly IFirmwareUpdateService _firmwareUpdateService;
     private readonly IFirmwareDownloadService _firmwareDownloadService;
@@ -217,7 +217,7 @@ public partial class FirmwareDialogViewModel : ObservableObject
                 FirmwareFilePath = await _firmwareDownloadService.DownloadLatestFirmwareAsync(
                     GetFirmwareDownloadDirectory(),
                     includePreRelease: true,
-                    cancellationToken: _updateCts.Token);
+                    cancellationToken: _updateCts.Token) ?? string.Empty;
             }
 
             if (string.IsNullOrWhiteSpace(FirmwareFilePath) || !File.Exists(FirmwareFilePath))
@@ -321,5 +321,31 @@ public partial class FirmwareDialogViewModel : ObservableObject
         var firmwareDirectory = Path.Combine(App.DaqifiDataDirectory, "Firmware", "PIC32");
         Directory.CreateDirectory(firmwareDirectory);
         return firmwareDirectory;
+    }
+
+    /// <summary>
+    /// Cancels and releases the firmware-update cancellation source. Called by <c>FirmwareDialog</c>
+    /// when the dialog window closes, so dismissing the dialog mid-flash does not leak the token
+    /// source for the lifetime of the process.
+    /// </summary>
+    public void Dispose()
+    {
+        var cts = _updateCts;
+        _updateCts = null;
+        if (cts != null)
+        {
+            try
+            {
+                cts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Already disposed by the update's finally block — nothing left to cancel.
+            }
+
+            cts.Dispose();
+        }
+
+        GC.SuppressFinalize(this);
     }
 }

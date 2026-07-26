@@ -2,7 +2,10 @@
 	<PropertyGroup>
 		<TargetFramework>net10.0-windows</TargetFramework>
 		<EnableWindowsTargeting>true</EnableWindowsTargeting>
-		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<!-- The SDK generates the assembly info (including the AssemblyVersion set in
+		     Directory.Build.props); this project has no hand-written AssemblyInfo.cs, so
+		     suppressing generation would leave the assembly unversioned (CA1016). -->
+		<GenerateAssemblyInfo>true</GenerateAssemblyInfo>
 		<PlatformTarget>x64</PlatformTarget>
 		<IsPackable>false</IsPackable>
 		<NoWarn>CA1707;CA1416</NoWarn>

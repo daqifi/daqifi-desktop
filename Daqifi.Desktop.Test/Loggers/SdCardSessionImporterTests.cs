@@ -16,12 +16,12 @@ namespace Daqifi.Desktop.Test.Loggers;
 /// </summary>
 [TestClass]
 [TestCategory("Integration")]
-public class SdCardSessionImporterTests
+public class SdCardSessionImporterTests : IDisposable
 {
     private static readonly DateTime BaseTime = new(2026, 6, 9, 12, 0, 0, DateTimeKind.Utc);
 
-    private TempSqliteLoggingContextFactory _factory;
-    private SdCardSessionImporter _importer;
+    private TempSqliteLoggingContextFactory _factory = null!;
+    private SdCardSessionImporter _importer = null!;
 
     [TestInitialize]
     public void Setup()
@@ -30,10 +30,12 @@ public class SdCardSessionImporterTests
         _importer = new SdCardSessionImporter(_factory);
     }
 
-    [TestCleanup]
-    public void Cleanup()
+    // MSTest disposes the test-class instance after each test; IDisposable (rather than
+    // [TestCleanup]) is what satisfies CA1001 for the owned SQLite context factory.
+    public void Dispose()
     {
         _factory.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     [TestMethod]

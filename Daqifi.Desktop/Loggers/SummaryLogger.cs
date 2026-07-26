@@ -380,12 +380,11 @@ public partial class SummaryLogger : ObservableObject, ILogger
 
         lock(_buffer)
         {
-            if (!_buffer.Channels.ContainsKey(dataSample.ChannelName))
+            if (!_buffer.Channels.TryGetValue(dataSample.ChannelName, out var buffer))
             {
-                _buffer.Channels[dataSample.ChannelName] = new ChannelBuffer();
+                buffer = new ChannelBuffer();
+                _buffer.Channels[dataSample.ChannelName] = buffer;
             }
-
-            var buffer = _buffer.Channels[dataSample.ChannelName];
 
             if (buffer.SampleCount == 0)
             {

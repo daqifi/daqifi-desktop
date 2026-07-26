@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.Test.Helpers;
 [TestClass]
 public class BooleanConverterTests
 {
-    private IValueConverter _converter;
+    private IValueConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()
@@ -23,7 +23,7 @@ public class BooleanConverterTests
         object value = true;
 
         // Act
-        var result = _converter.Convert(value, typeof(string), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(string), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual("Y", result);
@@ -36,7 +36,7 @@ public class BooleanConverterTests
         object value = false;
 
         // Act
-        var result = _converter.Convert(value, typeof(string), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(string), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual("N", result);
@@ -46,12 +46,12 @@ public class BooleanConverterTests
     public void Convert_NonBooleanValue_ReturnsFalseValue()
     {
         // Arrange
-        var nonBooleanValues = new object[] { null, "true", 1, 0, new object() };
+        var nonBooleanValues = new object[] { null!, "true", 1, 0, new object() };
 
         foreach (var value in nonBooleanValues)
         {
             // Act
-            var result = _converter.Convert(value, typeof(string), null, CultureInfo.InvariantCulture);
+            var result = _converter.Convert(value, typeof(string), null!, CultureInfo.InvariantCulture);
 
             // Assert
             Assert.AreEqual("N", result, $"Failed for value: {value ?? "null"}");
@@ -65,7 +65,7 @@ public class BooleanConverterTests
         object value = "Y";
 
         // Act
-        var result = _converter.ConvertBack(value, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.ConvertBack(value, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(true, result);
@@ -78,7 +78,7 @@ public class BooleanConverterTests
         object value = "N";
 
         // Act
-        var result = _converter.ConvertBack(value, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.ConvertBack(value, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(false, result);
@@ -91,7 +91,7 @@ public class BooleanConverterTests
         object value = "other";
 
         // Act
-        var result = _converter.ConvertBack(value, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.ConvertBack(value, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(false, result);
@@ -104,7 +104,7 @@ public class BooleanConverterTests
         object value = 123;
 
         // Act
-        var result = _converter.ConvertBack(value, typeof(bool), null, CultureInfo.InvariantCulture);
+        var result = _converter.ConvertBack(value, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(false, result);
@@ -117,8 +117,8 @@ public class BooleanConverterTests
         object original = true;
 
         // Act
-        var forward = _converter.Convert(original, typeof(string), null, CultureInfo.InvariantCulture);
-        var back = _converter.ConvertBack(forward, typeof(bool), null, CultureInfo.InvariantCulture);
+        var forward = _converter.Convert(original, typeof(string), null!, CultureInfo.InvariantCulture);
+        var back = _converter.ConvertBack(forward, typeof(bool), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(true, back);

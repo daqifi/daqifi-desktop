@@ -6,7 +6,7 @@ namespace Daqifi.Desktop.Test.Loggers;
 public class TimestampGapDetectorTests
 {
     #region Private Fields
-    private TimestampGapDetector _detector;
+    private TimestampGapDetector _detector = null!;
     private readonly (string deviceSerial, string channelName) _key = ("SN001", "AI1");
     private readonly (string deviceSerial, string channelName) _key2 = ("SN001", "AI2");
     #endregion

@@ -8,7 +8,7 @@ namespace Daqifi.Desktop.Test.Converters;
 [TestClass]
 public class OxyColorToBrushConverterTests
 {
-    private OxyColorToBrushConverter _converter;
+    private OxyColorToBrushConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()
@@ -23,7 +23,7 @@ public class OxyColorToBrushConverterTests
         var oxyColor = OxyColor.FromArgb(200, 10, 20, 30);
 
         // Act
-        var result = _converter.Convert(oxyColor, typeof(Brush), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(oxyColor, typeof(Brush), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.IsInstanceOfType<SolidColorBrush>(result);
@@ -38,7 +38,7 @@ public class OxyColorToBrushConverterTests
         object value = "not a color";
 
         // Act
-        var result = _converter.Convert(value, typeof(Brush), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Brush), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreSame(Brushes.Transparent, result);
@@ -52,6 +52,6 @@ public class OxyColorToBrushConverterTests
 
         // Act & Assert
         Assert.ThrowsExactly<NotImplementedException>(() =>
-            _converter.ConvertBack(value, typeof(OxyColor), null, CultureInfo.InvariantCulture));
+            _converter.ConvertBack(value, typeof(OxyColor), null!, CultureInfo.InvariantCulture));
     }
 }

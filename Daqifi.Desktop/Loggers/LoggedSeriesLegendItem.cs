@@ -22,14 +22,15 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     private string _channelName;
 
     [ObservableProperty]
-    private string _deviceSerialNo;
+    [NotifyPropertyChangedFor(nameof(TruncatedSerialNo))]
+    private string? _deviceSerialNo;
 
     /// <summary>
     /// Truncated serial number for compact legend display (e.g., "...4104").
     /// </summary>
-    public string TruncatedSerialNo => _deviceSerialNo?.Length > 4
-        ? $"...{_deviceSerialNo[^4..]}"
-        : _deviceSerialNo ?? string.Empty;
+    public string TruncatedSerialNo => DeviceSerialNo?.Length > 4
+        ? $"...{DeviceSerialNo[^4..]}"
+        : DeviceSerialNo ?? string.Empty;
 
     [ObservableProperty]
     private OxyColor _seriesColor;
@@ -47,7 +48,7 @@ public partial class LoggedSeriesLegendItem : ObservableObject
                 void ApplyVisibility()
                 {
                     _plotModel?.InvalidatePlot(true);
-                    _databaseLogger?.SetMinimapSeriesVisibility(_deviceSerialNo, _channelName, _isVisible);
+                    _databaseLogger?.SetMinimapSeriesVisibility(DeviceSerialNo, ChannelName, _isVisible);
                 }
 
                 // In the live app Application.Current is always set, so this is a UI-thread dispatch as
@@ -85,7 +86,7 @@ public partial class LoggedSeriesLegendItem : ObservableObject
     public LoggedSeriesLegendItem(
         string displayName,
         string channelName,
-        string deviceSerialNo,
+        string? deviceSerialNo,
         OxyColor seriesColor,
         bool isVisible,
         LineSeries actualSeries,

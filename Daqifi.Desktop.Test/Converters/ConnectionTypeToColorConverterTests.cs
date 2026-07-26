@@ -8,7 +8,7 @@ namespace Daqifi.Desktop.Test.Converters;
 [TestClass]
 public class ConnectionTypeToColorConverterTests
 {
-    private ConnectionTypeToColorConverter _converter;
+    private ConnectionTypeToColorConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()
@@ -23,7 +23,7 @@ public class ConnectionTypeToColorConverterTests
         var value = ConnectionType.Usb;
 
         // Act
-        var result = _converter.Convert(value, typeof(Brush), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Brush), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.IsInstanceOfType<SolidColorBrush>(result);
@@ -37,7 +37,7 @@ public class ConnectionTypeToColorConverterTests
         var value = ConnectionType.Wifi;
 
         // Act
-        var result = _converter.Convert(value, typeof(Brush), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Brush), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.IsInstanceOfType<SolidColorBrush>(result);
@@ -51,7 +51,7 @@ public class ConnectionTypeToColorConverterTests
         object value = "not a connection type";
 
         // Act
-        var result = _converter.Convert(value, typeof(Brush), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Brush), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.IsInstanceOfType<SolidColorBrush>(result);
@@ -66,6 +66,6 @@ public class ConnectionTypeToColorConverterTests
 
         // Act & Assert
         Assert.ThrowsExactly<NotImplementedException>(() =>
-            _converter.ConvertBack(value, typeof(ConnectionType), null, CultureInfo.InvariantCulture));
+            _converter.ConvertBack(value, typeof(ConnectionType), null!, CultureInfo.InvariantCulture));
     }
 }

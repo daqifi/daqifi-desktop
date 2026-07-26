@@ -52,10 +52,9 @@ internal sealed class TimestampGapDetector
 
         var delta = firmwareDeltaMs.Value;
 
-        if (!_seeded.Contains(key))
+        if (_seeded.Add(key))
         {
             // Second message — seed the EMA with the first real delta.
-            _seeded.Add(key);
             _avgDeltaMs[key] = delta;
             return false;
         }

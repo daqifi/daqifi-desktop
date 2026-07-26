@@ -6,8 +6,8 @@ namespace Daqifi.Desktop.Test.Loggers;
 [TestClass]
 public class SessionDeviceMetadataTests
 {
-    private string _dbPath;
-    private DbContextOptions<LoggingContext> _options;
+    private string _dbPath = null!;
+    private DbContextOptions<LoggingContext> _options = null!;
 
     [TestInitialize]
     public void Setup()

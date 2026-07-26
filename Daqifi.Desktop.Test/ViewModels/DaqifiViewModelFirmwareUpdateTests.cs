@@ -253,7 +253,7 @@ public class DaqifiViewModelFirmwareUpdateTests
         // WINC tool against a no-op device (the tool reaches the board over raw serial via bridge
         // activation) — that's what frees the COM port so the tool can open it. So the WiFi flash does
         // NOT reuse the live core device.
-        Assert.IsInstanceOfType(wifiDevice, typeof(Daqifi.Desktop.Device.Firmware.BootloaderSessionStreamingDeviceAdapter));
+        Assert.IsInstanceOfType<Daqifi.Desktop.Device.Firmware.BootloaderSessionStreamingDeviceAdapter>(wifiDevice);
         Assert.AreEqual("19.7.0", wifiVersion);
         Assert.AreEqual("COM9", wifiPort);
         Assert.IsTrue(host.IsUploadComplete);
@@ -797,7 +797,7 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.AreEqual("Unknown", reportedVersion);
     }
 
-    [DataTestMethod]
+    [TestMethod]
     [DataRow("19.7.7", false)]   // exactly the minimum supported version
     [DataRow("19.8.0", false)]   // newer than the minimum
     [DataRow("20.0.0", false)]

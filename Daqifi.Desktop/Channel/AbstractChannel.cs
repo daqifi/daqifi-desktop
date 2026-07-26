@@ -1,7 +1,8 @@
-﻿using Daqifi.Desktop.Common.Loggers;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using NCalc;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Globalization;
 using Brush = System.Windows.Media.Brush;
 using CommunityToolkit.Mvvm.ComponentModel;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
@@ -12,10 +13,17 @@ namespace Daqifi.Desktop.Channel;
 public abstract partial class AbstractChannel : ObservableObject, IChannel
 {
     #region Private Data
-    private string _scaledExpression;
-    private DataSample _activeSample;
+    private string _scaledExpression = string.Empty;
+    private DataSample? _activeSample;
     private bool _suppressDigitalOutputCommand;
-    protected IStreamingDevice _owner;
+    #endregion
+
+    #region Protected Properties
+    /// <summary>
+    /// The device that owns this channel. Null until the owning device hydrates its channel
+    /// list, and on channels constructed for display only, so every use is null-conditional.
+    /// </summary>
+    protected IStreamingDevice? Owner { get; set; }
     #endregion
 
     #region Properties
@@ -35,7 +43,9 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     public abstract ChannelDirection Direction { get; set; }
 
     [ObservableProperty]
-    private Brush _channelColorBrush;
+    // Transparent until the channel is assigned a color by ChannelColorManager; renders
+    // identically to the previous (null) default while keeping the IChannel contract non-null.
+    private Brush _channelColorBrush = System.Windows.Media.Brushes.Transparent;
 
     [ObservableProperty]
     private bool _isOutput;
@@ -83,8 +93,8 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     /// </summary>
     public abstract int Index { get; }
 
-    public string DeviceName { get; set; }
-    public string DeviceSerialNo { get; set; }
+    public string DeviceName { get; set; } = string.Empty;
+    public string DeviceSerialNo { get; set; } = string.Empty;
 
     public abstract ChannelType Type { get; }
 
@@ -127,7 +137,9 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
         get => _scaledExpression;
         set
         {
-            _scaledExpression = value;
+            // The IChannel contract declares this non-nullable, but the scaling drawer can clear
+            // the field; normalize to empty so the getter never hands back null.
+            _scaledExpression = value ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(_scaledExpression))
             {
@@ -155,12 +167,15 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
         }
     }
 
-    public Expression Expression { get; set; }
+    /// <summary>
+    /// The compiled NCalc scaling expression, or null when no valid expression is configured.
+    /// </summary>
+    public Expression? Expression { get; set; }
 
     [ObservableProperty]
     private bool _isVisible = true;
 
-    public DataSample ActiveSample
+    public DataSample? ActiveSample
     {
         get => _activeSample;
         set
@@ -171,7 +186,9 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
                 try
                 {
                     Expression.Parameters["x"] = _activeSample.Value;
-                    var scaledValue = Convert.ToDouble(Expression.Evaluate());
+                    // Invariant culture: this is a numeric transform feeding the plot and exported
+                    // data, not user-facing display text, so it must not follow the machine locale.
+                    var scaledValue = Convert.ToDouble(Expression.Evaluate(), CultureInfo.InvariantCulture);
 
                     if (double.IsFinite(scaledValue))
                     {
@@ -208,7 +225,7 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     {
         if (Direction == ChannelDirection.Output)
         {
-            _owner?.SetChannelOutputValue(this, value);
+            Owner?.SetChannelOutputValue(this, value);
         }
     }
 
@@ -230,7 +247,7 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
             return;
         }
 
-        _owner?.SetChannelOutputValue(this, value ? 1 : 0);
+        Owner?.SetChannelOutputValue(this, value ? 1 : 0);
     }
 
     /// <summary>
@@ -252,7 +269,7 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     }
 
     #region Events/Handlers
-    public event OnChannelUpdatedHandler OnChannelUpdated;
+    public event OnChannelUpdatedHandler? OnChannelUpdated;
 
     public void NotifyChannelUpdated(object sender, DataSample e)
     {
@@ -261,7 +278,7 @@ public abstract partial class AbstractChannel : ObservableObject, IChannel
     #endregion
 
     #region Object overrides
-    public override bool Equals(object obj)
+    public override bool Equals(object? obj)
     {
         if (obj is not AbstractChannel channel) { return false; }
 

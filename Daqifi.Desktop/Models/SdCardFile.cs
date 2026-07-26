@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 
 namespace Daqifi.Desktop.Models;
@@ -7,7 +8,7 @@ public class SdCardFile
     /// <summary>
     /// The name of the file on the SD card
     /// </summary>
-    public string FileName { get; init; }
+    public required string FileName { get; init; }
 
     /// <summary>
     /// The created date of the file
@@ -19,7 +20,8 @@ public class SdCardFile
     /// </summary>
     public string CreatedDateDisplay => CreatedDate == DateTime.MinValue
         ? "Unknown"
-        : CreatedDate.ToString("g");
+        // User-facing display text, so the current UI culture is the correct format provider.
+        : CreatedDate.ToString("g", CultureInfo.CurrentCulture);
 
     /// <summary>
     /// Gets a user-facing format label based on the file extension.

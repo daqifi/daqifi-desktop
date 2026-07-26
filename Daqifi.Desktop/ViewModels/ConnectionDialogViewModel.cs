@@ -84,7 +84,8 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string? _manualPortError;
 
-    public SerialStreamingDevice ManualSerialDevice { get; set; }
+    /// <summary>The device created by a manual COM-port connection; null until one is attempted.</summary>
+    public SerialStreamingDevice? ManualSerialDevice { get; set; }
 
     /// <summary>
     /// User-facing error message for the discovered-device USB tab. Non-null when a selected
@@ -195,7 +196,7 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
     /// transport completes. <paramref name="start"/> carries its own idempotency and firmware-in-progress
     /// guards, so a redundant or now-invalid call is a harmless no-op.
     /// </summary>
-    private void RestartDiscoveryWhenDrained(Task? stopTask, Action start)
+    private static void RestartDiscoveryWhenDrained(Task? stopTask, Action start)
     {
         if (stopTask is { IsCompleted: false })
         {
@@ -724,7 +725,7 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
 
     #region Desktop Device Event Handlers
 
-    private void HandleWifiDeviceFound(object sender, IDevice device)
+    private void HandleWifiDeviceFound(object? sender, IDevice device)
     {
         if (device is not DaqifiStreamingDevice wifiDevice)
         {
@@ -895,8 +896,9 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
     private static void ObserveFault(Task task, string transportName)
     {
         task.ContinueWith(
+            // OnlyOnFaulted guarantees Task.Exception is non-null in this continuation.
             t => Common.Loggers.AppLogger.Instance.Error(
-                t.Exception,
+                t.Exception!,
                 $"Unobserved fault while stopping {transportName} discovery"),
             TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
     }
@@ -906,6 +908,17 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
     /// </summary>
     private DuplicateDeviceAction HandleDuplicateDevice(DuplicateDeviceCheckResult duplicateResult)
     {
+        // ConnectionManager only invokes this inside its `if (duplicateResult.IsDuplicate)` branch, so
+        // this guard is defensive. It also satisfies [MemberNotNullWhen(true, ...)] on IsDuplicate, which
+        // is what makes ExistingDevice/NewDevice non-null for the dialog below. Cancel is the safe
+        // default: KeepExisting and SwitchToNew both act on ExistingDevice, which is null here.
+        if (!duplicateResult.IsDuplicate)
+        {
+            Daqifi.Desktop.Common.Loggers.AppLogger.Instance.Warning(
+                "Duplicate device handler invoked for a result that is not a duplicate; cancelling.");
+            return DuplicateDeviceAction.Cancel;
+        }
+
         try
         {
             // Create dialog manually since we need access to the Result property

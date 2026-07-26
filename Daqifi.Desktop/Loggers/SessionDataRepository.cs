@@ -72,6 +72,12 @@ public sealed class SessionDataRepository
     /// loaded" decision stays consistent with how this repository samples.
     /// </summary>
     internal const int SAMPLED_POINTS_PER_CHANNEL = 3000;
+
+    /// <summary>
+    /// Series color used when a persisted sample row has no color (legacy or imported data). Must be a
+    /// string <see cref="OxyPlot.OxyColor.Parse"/> accepts.
+    /// </summary>
+    internal const string FALLBACK_CHANNEL_COLOR = "#FF808080";
     #endregion
 
     #region Private Fields
@@ -149,8 +155,11 @@ public sealed class SessionDataRepository
                 "channel sample(s); ignoring duplicates for channel discovery.");
         }
 
+        // Color is nullable in the Samples table (legacy/imported rows can omit it) and the plot
+        // factory feeds it straight to OxyColor.Parse, which throws on null. Fall back to a neutral
+        // grey so one colorless row cannot abort the whole session load.
         var channels = DeduplicateChannelInfo(channelGroups.Select(g =>
-            new SessionChannelInfo(g.ChannelName, g.DeviceSerialNo, (ChannelType)g.Type, g.Color)));
+            new SessionChannelInfo(g.ChannelName, g.DeviceSerialNo, (ChannelType)g.Type, g.Color ?? FALLBACK_CHANNEL_COLOR)));
 
         // Seed one point list per discovered channel, then fill from the initial batch. Channels not
         // present at the first timestamp are intentionally never seeded, so their later samples are

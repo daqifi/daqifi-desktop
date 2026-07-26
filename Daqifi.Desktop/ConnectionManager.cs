@@ -4,6 +4,7 @@ using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.IO.Ports;
 using System.Management;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -11,10 +12,15 @@ using DeviceIdentity = Daqifi.Core.Device.DeviceIdentity;
 
 namespace Daqifi.Desktop;
 
-public partial class ConnectionManager : ObservableObject
+public partial class ConnectionManager : ObservableObject, IDisposable
 {
     #region Private Variables
-    private readonly ManagementEventWatcher _deviceRemovedWatcher;
+    /// <summary>
+    /// WMI watcher for USB device-removal events. Null when the watcher could not be created
+    /// (WMI unavailable); disposed from <see cref="Dispose"/> at application exit.
+    /// </summary>
+    private readonly ManagementEventWatcher? _deviceRemovedWatcher;
+    private bool _isDisposed;
     #endregion
 
     #region Properties
@@ -22,7 +28,7 @@ public partial class ConnectionManager : ObservableObject
     private DAQiFiConnectionStatus _connectionStatus = DAQiFiConnectionStatus.Disconnected;
 
     [ObservableProperty]
-    private List<IStreamingDevice> _connectedDevices;
+    private List<IStreamingDevice> _connectedDevices = [];
 
     [ObservableProperty]
     private bool _isDisconnected = true;
@@ -165,6 +171,32 @@ public partial class ConnectionManager : ObservableObject
 
     public static ConnectionManager Instance => instance;
 
+    /// <summary>
+    /// Stops and releases the WMI device-removal watcher. Called from <c>App.OnExit</c>; the
+    /// connection manager is a process-lifetime singleton, so this runs exactly once.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _isDisposed = true;
+
+        try
+        {
+            _deviceRemovedWatcher?.Stop();
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Instance.Warning($"Failed to stop the device-removal watcher: {ex.Message}");
+        }
+
+        _deviceRemovedWatcher?.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
     #endregion
 
     public async Task Connect(IStreamingDevice device)
@@ -229,8 +261,22 @@ public partial class ConnectionManager : ObservableObject
             var postConnectDuplicateResult = CheckForDuplicateDevice(device);
             if (postConnectDuplicateResult.IsDuplicate)
             {
-                // Disconnect the device we just connected since it's a duplicate
+                // Disconnect the device we just connected since it's a duplicate. It never made it
+                // into ConnectedDevices, so Disconnect(device) does not apply here — but the port was
+                // opened, so it must also be disposed or a rejected USB duplicate leaks its COM handle
+                // for the process lifetime and blocks every later reconnect to that port.
                 device.Disconnect();
+                try
+                {
+                    (device as IDisposable)?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    // Exception-aware overload: keeps the stack trace in DAQiFiAppLog.log (where a
+                    // leaked-handle report is diagnosed from) without escalating to Sentry.
+                    AppLogger.Instance.Warning(
+                        ex, $"Failed to dispose a rejected duplicate device ({device.Name}).");
+                }
                 ConnectionStatus = postConnectDuplicateResult.ExistingDevice != null ? DAQiFiConnectionStatus.AlreadyConnected : DAQiFiConnectionStatus.Error;
                 return;
             }
@@ -238,7 +284,7 @@ public partial class ConnectionManager : ObservableObject
             ConnectedDevices.Add(device);
             device.ConnectionLost += OnDeviceConnectionLost;
             await Task.Delay(1000);
-            OnPropertyChanged("ConnectedDevices");
+            OnPropertyChanged(nameof(ConnectedDevices));
             ConnectionStatus = DAQiFiConnectionStatus.Connected;
 
             var connectionType = device.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
@@ -264,8 +310,11 @@ public partial class ConnectionManager : ObservableObject
         {
             device.ConnectionLost -= OnDeviceConnectionLost;
             device.Disconnect();
+            // Release any transport/port handle the device owns; SerialStreamingDevice.Dispose is
+            // idempotent with the cleanup Disconnect already performed.
+            (device as IDisposable)?.Dispose();
             ConnectedDevices.Remove(device);
-            OnPropertyChanged("ConnectedDevices");
+            OnPropertyChanged(nameof(ConnectedDevices));
 
             AppLogger.Instance.AddBreadcrumb("device", $"Device disconnected: {device.Name} (S/N: {device.DeviceSerialNo}) via {connectionType}");
 
@@ -299,7 +348,7 @@ public partial class ConnectionManager : ObservableObject
             device.ConnectionLost -= OnDeviceConnectionLost;
             device.Reboot();
             ConnectedDevices.Remove(device);
-            OnPropertyChanged("ConnectedDevices");
+            OnPropertyChanged(nameof(ConnectedDevices));
         }
         catch (Exception ex)
         {
@@ -517,11 +566,17 @@ public partial class ConnectionManager : ObservableObject
 /// </summary>
 public class DuplicateDeviceCheckResult
 {
+    /// <summary>
+    /// True when the device being connected is already connected over another interface.
+    /// Only then are <see cref="ExistingDevice"/> and <see cref="NewDevice"/> populated.
+    /// </summary>
+    [MemberNotNullWhen(true, nameof(ExistingDevice), nameof(NewDevice))]
     public bool IsDuplicate { get; set; }
-    public IStreamingDevice ExistingDevice { get; set; }
-    public IStreamingDevice NewDevice { get; set; }
-    public string NewDeviceInterface { get; set; }
-    public string ExistingDeviceInterface { get; set; }
+
+    public IStreamingDevice? ExistingDevice { get; set; }
+    public IStreamingDevice? NewDevice { get; set; }
+    public string NewDeviceInterface { get; set; } = string.Empty;
+    public string ExistingDeviceInterface { get; set; } = string.Empty;
 }
 
 /// <summary>

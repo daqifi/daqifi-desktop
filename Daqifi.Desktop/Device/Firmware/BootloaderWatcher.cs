@@ -356,9 +356,15 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
                 dispatcher.BeginInvoke(action);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Dispatcher unavailable / shutting down — drop the UI update.
+            // Dispatcher unavailable / shutting down — drop the UI update, but record it. The catch
+            // stays broad on purpose (see above: a marshal failure must never strand watcher state),
+            // and Warning keeps this out of Sentry while leaving a trace in DAQiFiAppLog.log so a
+            // silently-not-updating bootloader list is still diagnosable.
+            // Static helper, so the singleton logger rather than the injected one; unreachable in unit
+            // tests anyway (no Application.Current means the inline path above is taken).
+            AppLogger.Instance.Warning(ex, "Could not marshal a bootloader-watcher UI update to the dispatcher.");
         }
     }
     #endregion

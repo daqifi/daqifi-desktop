@@ -6,7 +6,7 @@ namespace Daqifi.Desktop.Test.Converters;
 [TestClass]
 public class ListToStringConverterTests
 {
-    private ListToStringConverter _converter;
+    private ListToStringConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()
@@ -18,10 +18,10 @@ public class ListToStringConverterTests
     public void Convert_NullValue_ReturnsEmptyString()
     {
         // Arrange
-        object value = null;
+        object value = null!;
 
         // Act
-        var result = _converter.Convert(value, typeof(string), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(string), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(string.Empty, result);
@@ -34,7 +34,7 @@ public class ListToStringConverterTests
         var value = new List<string>();
 
         // Act
-        var result = _converter.Convert(value, typeof(string), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(string), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(string.Empty, result);
@@ -47,7 +47,7 @@ public class ListToStringConverterTests
         var value = new List<string> { "a", "b", "c" };
 
         // Act
-        var result = _converter.Convert(value, typeof(string), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(string), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual("a, b, c", result);
@@ -112,7 +112,7 @@ public class ListToStringConverterTests
         object value = 42;
 
         // Act
-        var result = _converter.Convert(value, typeof(string), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(string), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual("42", result);
@@ -126,6 +126,6 @@ public class ListToStringConverterTests
 
         // Act & Assert
         Assert.ThrowsExactly<NotImplementedException>(() =>
-            _converter.ConvertBack(value, typeof(object), null, CultureInfo.InvariantCulture));
+            _converter.ConvertBack(value, typeof(object), null!, CultureInfo.InvariantCulture));
     }
 }

@@ -13,7 +13,7 @@ namespace Daqifi.Desktop.Device.SerialDevice;
 /// <summary>
 /// Streaming device that communicates with DAQiFi hardware over a serial (USB CDC / UART) port.
 /// </summary>
-public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvider
+public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipInfoProvider, IDisposable
 {
     #region Properties
     [ObservableProperty]
@@ -80,6 +80,12 @@ public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipIn
         // Use Core's transport for unified message handling (both send and receive).
         // The transport manages the actual SerialPort connection internally; DTR must stay
         // enabled or the device will not stream over USB.
+        if (Port == null)
+        {
+            throw new InvalidOperationException(
+                "Cannot create the Core device: no serial port has been assigned to this device.");
+        }
+
         _transport = new SerialStreamTransport(Port.PortName, enableDtr: true);
         _transport.Connect();
 
@@ -233,6 +239,18 @@ public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipIn
         }
 
         // Note: Port cleanup is now handled by transport
+    }
+
+    /// <summary>
+    /// Releases the owned serial transport. Idempotent — <see cref="CleanupConnection"/> null-checks
+    /// and clears <c>_transport</c>, so this is safe after a normal <c>Disconnect</c>. Called by
+    /// <see cref="ConnectionManager.Disconnect"/> so a device dropped from the connected list never
+    /// leaves its COM handle open until finalization.
+    /// </summary>
+    public void Dispose()
+    {
+        CleanupConnection();
+        GC.SuppressFinalize(this);
     }
 
     #endregion
