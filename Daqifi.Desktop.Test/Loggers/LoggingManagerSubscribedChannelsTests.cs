@@ -320,13 +320,15 @@ public class LoggingManagerSubscribedChannelsTests
     }
 
     /// <summary>
-    /// Reading the property must hand back the same published snapshot every time until something
-    /// actually changes. A getter that materialized a fresh copy per read would also be safe, but
-    /// it would allocate on the transport thread for every series creation and would silently break
-    /// the reference comparisons the copy-on-write tests above rely on.
+    /// Reading the property must hand back the same published snapshot every time while nothing
+    /// changes. A getter that materialized a fresh copy per read would also be safe, but it would
+    /// allocate on the transport thread for every series creation and would silently break the
+    /// reference comparisons the copy-on-write tests above rely on. The other half of the contract
+    /// — that a mutation publishes a <em>different</em> instance — is asserted by the
+    /// <c>PublishesANewList</c> tests.
     /// </summary>
     [TestMethod]
-    public void SubscribedChannels_ReturnsTheSameSnapshot_UntilSomethingChanges()
+    public void SubscribedChannels_ReturnsTheSameSnapshot_WhileNothingChanges()
     {
         // Arrange
         var manager = NewManager();
@@ -338,8 +340,6 @@ public class LoggingManagerSubscribedChannelsTests
 
         // Assert
         Assert.AreSame(first, second);
-        manager.Subscribe(NewChannel("AI1"));
-        Assert.AreNotSame(first, manager.SubscribedChannels);
     }
     #endregion
 
