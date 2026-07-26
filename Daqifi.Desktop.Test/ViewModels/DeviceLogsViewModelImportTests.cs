@@ -23,10 +23,10 @@ public class DeviceLogsViewModelImportTests
 {
     private const string FileName = "log_20260623_143217.bin";
 
-    private Mock<IStreamingDevice> _mockDevice;
-    private Mock<ISdCardSessionImporter> _mockImporter;
-    private Mock<IAppLogger> _mockLogger;
-    private DeviceLogsViewModel _viewModel;
+    private Mock<IStreamingDevice> _mockDevice = null!;
+    private Mock<ISdCardSessionImporter> _mockImporter = null!;
+    private Mock<IAppLogger> _mockLogger = null!;
+    private DeviceLogsViewModel _viewModel = null!;
 
     [TestInitialize]
     public void Setup()
@@ -200,7 +200,7 @@ public class DeviceLogsViewModelImportTests
         otherDevice.Setup(d => d.DeviceSerialNo).Returns("DAQ-TEST-002");
         otherDevice.Setup(d => d.SdCardFiles).Returns(new List<SdCardFile>().AsReadOnly());
 
-        IStreamingDevice importedFrom = null;
+        IStreamingDevice? importedFrom = null;
         _mockImporter
             .Setup(i => i.ImportFromDeviceAsync(
                 It.IsAny<IStreamingDevice>(),

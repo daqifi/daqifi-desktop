@@ -196,7 +196,7 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
     /// transport completes. <paramref name="start"/> carries its own idempotency and firmware-in-progress
     /// guards, so a redundant or now-invalid call is a harmless no-op.
     /// </summary>
-    private void RestartDiscoveryWhenDrained(Task? stopTask, Action start)
+    private static void RestartDiscoveryWhenDrained(Task? stopTask, Action start)
     {
         if (stopTask is { IsCompleted: false })
         {

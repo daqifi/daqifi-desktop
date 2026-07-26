@@ -27,3 +27,9 @@ dotnet_diagnostic.CA1716.severity = none
 # subject as IValueConverter precisely because that is the interface WPF invokes at runtime.
 # Complying would test the converters through a type WPF never uses.
 dotnet_diagnostic.CA1859.severity = none
+
+# CA1848 ("use the LoggerMessage delegates") is the same kind of high-volume-logging perf rule.
+# A test that calls ILogger once to drive the code under test — as the AppLoggerLoggerProvider
+# fixtures do — has no volume to optimise, and a LoggerMessage delegate per arrangement would
+# bury the one line that matters. It stays on for production code.
+dotnet_diagnostic.CA1848.severity = none

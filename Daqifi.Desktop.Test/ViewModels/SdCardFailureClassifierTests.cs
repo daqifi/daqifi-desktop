@@ -121,6 +121,11 @@ public class SdCardFailureClassifierTests
     }
 
     [TestMethod]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2201:Do not raise reserved exception types",
+        Justification = "The reserved exception is test input, not something this code raises: it stands in " +
+                        "for the runtime-thrown defect the classifier must keep on the Error path. CA2201 " +
+                        "guards against throwing these; substituting a non-reserved type would make the " +
+                        "regression guard less representative of the failure it exists to catch.")]
     public void Classify_UnknownException_KeepsTheErrorPath()
     {
         // Arrange — a defect in the import pipeline, not a device condition. Regression guard:

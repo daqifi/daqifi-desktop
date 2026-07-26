@@ -12,6 +12,11 @@ namespace Daqifi.Desktop.Loggers;
 /// subsystem would tell a user to power-cycle their device over an unrelated timeout — and would
 /// keep that unrelated timeout off the Error path, where it belongs.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "RCS1194:Implement exception constructors",
+    Justification = "This exception exists to carry FileName and StallTimeout — the classifier reads them, " +
+                    "and the message is built from them. The standard parameterless/message-only constructors " +
+                    "would allow a stall report that names neither the file nor the timeout, so the type is " +
+                    "sealed with the single constructor that can produce a meaningful instance.")]
 public sealed class SdCardDownloadStalledException : TimeoutException
 {
     /// <summary>
