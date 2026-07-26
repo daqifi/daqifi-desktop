@@ -22,8 +22,11 @@ namespace Daqifi.Desktop;
 
 public partial class App
 {
-    private SplashScreen SplashScreen { get; set; }
-    public static IServiceProvider ServiceProvider { get; private set; }
+    private SplashScreen? SplashScreen { get; set; }
+
+    // Assigned in OnStartup before any window is created, so every consumer (which can only run
+    // once the UI exists) observes a non-null provider.
+    public static IServiceProvider ServiceProvider { get; private set; } = null!;
 
     /// <summary>
     /// Root directory for DAQiFi application data (logs, database). Resolved by
@@ -188,7 +191,7 @@ public partial class App
         }
     }
 
-    private static void OnUnobservedTaskException(object sender, UnobservedTaskExceptionEventArgs e)
+    private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
         AppLogger.Instance.Error(e.Exception, "Unobserved task exception");
         e.SetObserved();
@@ -196,6 +199,8 @@ public partial class App
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // Release the WMI device-removal watcher the connection manager holds for the process lifetime.
+        ConnectionManager.Instance.Dispose();
         AppLogger.Instance.Shutdown();
         base.OnExit(e);
     }
@@ -211,7 +216,9 @@ public partial class App
         {
             try
             {
-                SplashScreen.Close(new TimeSpan(0, 0, 1));
+                // Null-conditional: if the constructor above threw, there is no splash screen to
+                // close (previously this raised a NullReferenceException inside the catch).
+                SplashScreen?.Close(new TimeSpan(0, 0, 1));
             }
             catch { }
         }

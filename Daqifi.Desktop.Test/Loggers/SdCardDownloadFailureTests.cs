@@ -31,8 +31,8 @@ public class SdCardDownloadFailureTests
     // fast. The production value is SdCardSessionImporter.DOWNLOAD_STALL_TIMEOUT.
     private static readonly TimeSpan StallTimeout = TimeSpan.FromMilliseconds(300);
 
-    private Mock<IStreamingDevice> _mockDevice;
-    private SdCardSessionImporter _importer;
+    private Mock<IStreamingDevice> _mockDevice = null!;
+    private SdCardSessionImporter _importer = null!;
 
     [TestInitialize]
     public void Setup()

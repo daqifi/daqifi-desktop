@@ -71,12 +71,16 @@ public class ConfirmOverlayViewModelTests
         // Re-opening with defaults must clear both so the destructive styling/label do not leak
         // into the next non-destructive confirm — this flag drives which affirmative button
         // (accent vs danger/red) the overlay shows.
-        overlay.ShowAsync("Switch profile?", "Switch to 'Bench'?");
+        var second = overlay.ShowAsync("Switch profile?", "Switch to 'Bench'?");
 
         Assert.IsFalse(overlay.AffirmativeIsDestructive, "Re-opening non-destructive must clear the danger style.");
         Assert.AreEqual("OK", overlay.AffirmativeLabel, "Re-opening must reset the affirmative label to the default.");
         Assert.AreEqual("Switch profile?", overlay.Title);
         Assert.AreEqual("Switch to 'Bench'?", overlay.Message);
+
+        // Resolve the second confirm so the test does not leave a pending awaiter behind.
+        overlay.Cancel();
+        Assert.IsFalse(await second);
     }
 
     #endregion

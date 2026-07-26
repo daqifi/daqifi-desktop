@@ -9,8 +9,8 @@ namespace Daqifi.Desktop.Test.ViewModels;
 [TestClass]
 public class DeviceLogsViewModelTests
 {
-    private Mock<IStreamingDevice> _mockDevice;
-    private DeviceLogsViewModel _viewModel;
+    private Mock<IStreamingDevice> _mockDevice = null!;
+    private DeviceLogsViewModel _viewModel = null!;
 
     [TestInitialize]
     public void Setup()
@@ -219,7 +219,7 @@ public class DeviceLogsViewModelTests
     [TestMethod]
     public void RefreshFiles_SkipsWhenNoDeviceSelected()
     {
-        _viewModel.SelectedDevice = null;
+        _viewModel.SelectedDevice = null!;
 
         // Should not throw; state stays Unknown
         var task = _viewModel.RefreshFilesAsync();
@@ -275,7 +275,7 @@ public class DeviceLogsViewModelTests
         _viewModel.RefreshFilesCommand.CanExecuteChanged += (_, _) => raised = true;
 
         // Act
-        _viewModel.SelectedDevice = null;
+        _viewModel.SelectedDevice = null!;
 
         // Assert
         Assert.IsTrue(raised, "Changing the selected device must re-evaluate the command's CanExecute.");

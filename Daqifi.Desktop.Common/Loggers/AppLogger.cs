@@ -1,4 +1,4 @@
-using NLog;
+﻿using NLog;
 using NLog.Config;
 using NLog.Targets;
 using System.Configuration;
@@ -122,7 +122,10 @@ public class AppLogger : IAppLogger
     public void Error(string message)
     {
         _logger?.Error(message);
-        SentrySdk.CaptureException(new Exception(message));
+        // A dedicated exception type rather than bare System.Exception: Sentry groups by exception
+        // type, so message-only errors get their own bucket instead of colliding with every other
+        // generic Exception reported by the app or its dependencies.
+        SentrySdk.CaptureException(new AppLogErrorException(message));
     }
 
     public void Error(Exception ex, string message)

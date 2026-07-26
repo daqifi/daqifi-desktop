@@ -13,7 +13,7 @@ namespace Daqifi.Desktop.Test.DiskSpace;
 /// suppress-initial-warning plumbing) is unchanged from the pre-refactor view model.
 /// </summary>
 [TestClass]
-public class DiskSpaceMonitorCoordinatorTests
+public class DiskSpaceMonitorCoordinatorTests : IDisposable
 {
     private const long MB = 1024 * 1024;
 
@@ -27,6 +27,15 @@ public class DiskSpaceMonitorCoordinatorTests
         _host = new FakeDiskSpaceMonitorHost();
         _monitor = new FakeDiskSpaceMonitor();
         _coordinator = new DiskSpaceMonitorCoordinator(_host, _monitor, Mock.Of<IAppLogger>());
+    }
+
+    // MSTest disposes the test-class instance after each test, so the coordinator and monitor
+    // owned by this fixture are released instead of leaking across the run (CA1001).
+    public void Dispose()
+    {
+        _coordinator.Dispose();
+        _monitor.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     #region EvaluateStartLogging Tests

@@ -32,7 +32,7 @@ public class DaqifiViewModelNotificationTests
         viewModel.NotificationList.Add(new Notifications
         {
             IsFirmwareUpdate = false,
-            DeviceSerialNo = null,
+            DeviceSerialNo = null!,
             Message = "Please update latest application version:  3.3.0",
             Link = "https://github.com/daqifi/daqifi-desktop/releases"
         });

@@ -32,7 +32,7 @@ public class BootloaderWatcherTests
     private BootloaderWatcher CreateWatcher() =>
         new(_discovery, HoldFactory, _logger.Object);
 
-    private IBootloaderHoldService HoldFactory(string devicePath, string? deviceName)
+    private FakeHold HoldFactory(string devicePath, string? deviceName)
     {
         var hold = new FakeHold(devicePath, deviceName) { WillHold = !_failOpenPaths.Contains(devicePath) };
         _createdHolds[devicePath] = hold;

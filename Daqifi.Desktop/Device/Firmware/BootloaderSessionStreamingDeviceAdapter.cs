@@ -29,7 +29,16 @@ public sealed class BootloaderSessionStreamingDeviceAdapter : CoreStreamingDevic
         : CoreConnectionStatus.Disconnected;
 
     public event EventHandler<CoreDeviceStatusEventArgs>? StatusChanged;
-    public event EventHandler<CoreMessageReceivedEventArgs>? MessageReceived;
+    /// <summary>
+    /// Never raised: this adapter stands in for a device already sitting in bootloader mode, which
+    /// produces no protocol messages. Explicit no-op accessors (rather than a field-like event)
+    /// make that contract part of the code instead of an unused-field warning.
+    /// </summary>
+    public event EventHandler<CoreMessageReceivedEventArgs>? MessageReceived
+    {
+        add { }
+        remove { }
+    }
 
     public int StreamingFrequency { get; set; } = 1;
     public bool IsStreaming => false;

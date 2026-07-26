@@ -253,10 +253,12 @@ public partial class PlotLogger : ObservableObject, ILogger
                     dataSample.ChannelName, dataSample.DeviceSerialNo, dataSample.Type, dataSample.Color);
                 addedSeries = true;
             }
-            else if (series.Color.ToString().ToLower() != dataSample.Color.ToLower())
+            // Check for a change in color. Hex color strings are compared ordinal/case-insensitively
+            // rather than lower-cased under the current culture (which mangles ASCII letters in e.g.
+            // the Turkish locale).
+            else if (!string.Equals(series.Color.ToString(), dataSample.Color, StringComparison.OrdinalIgnoreCase))
             {
-                // Check for a change in color
-                series.Color = OxyColor.Parse(dataSample.Color.ToLower());
+                series.Color = OxyColor.Parse(dataSample.Color.ToLowerInvariant());
             }
 
             FirstTime ??= new DateTime(dataSample.TimestampTicks);
@@ -348,7 +350,7 @@ public partial class PlotLogger : ObservableObject, ILogger
         PlotModel.Series.Add(newLineSeries);
     }
 
-    private void CompositionTargetRendering(object sender, EventArgs e)
+    private void CompositionTargetRendering(object? sender, EventArgs e)
     {
         if (_stopwatch.ElapsedMilliseconds > _lastUpdateMilliSeconds + 1000) // Or your existing update interval
         {
@@ -360,7 +362,7 @@ public partial class PlotLogger : ObservableObject, ILogger
                     foreach (var channel in LoggingManager.Instance.SubscribedChannels)
                     {
                         var key = (channel.DeviceSerialNo, channel.Name);
-                        if (LoggedChannels.TryGetValue(key, out LineSeries series))
+                        if (LoggedChannels.TryGetValue(key, out LineSeries? series))
                         {
                             if (series.IsVisible != channel.IsVisible)
                             {

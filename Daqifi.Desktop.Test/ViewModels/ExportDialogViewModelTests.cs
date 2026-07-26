@@ -34,7 +34,7 @@ public class ExportDialogViewModelTests
         }
     }
 
-    private static ExportDialogViewModel CreateViewModel(IDbContextFactory<LoggingContext> factory = null)
+    private static ExportDialogViewModel CreateViewModel(IDbContextFactory<LoggingContext> factory = null!)
         => new(factory ?? new Mock<IDbContextFactory<LoggingContext>>().Object, sessionId: 1);
 
     #region IsConfiguring (which of the three states is shown)
@@ -82,7 +82,7 @@ public class ExportDialogViewModelTests
     {
         // Arrange
         var vm = CreateViewModel();
-        var raised = new List<string>();
+        var raised = new List<string?>();
         vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 
         // Act
@@ -97,7 +97,7 @@ public class ExportDialogViewModelTests
     {
         // Arrange
         var vm = CreateViewModel();
-        var raised = new List<string>();
+        var raised = new List<string?>();
         vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 
         // Act
@@ -224,6 +224,7 @@ public class ExportDialogViewModelTests
         // Assert
         Assert.IsTrue(vm.IsExportComplete);
         Assert.IsFalse(vm.ExportSucceeded, "A locked destination must not report success.");
+        Assert.IsNotNull(vm.ExportResultMessage, "A failed export must explain itself to the user.");
         Assert.Contains(Path.GetFileName(exportPath), vm.ExportResultMessage,
             "The message should name the file the user has to close.");
         Assert.Contains("open in another program", vm.ExportResultMessage);

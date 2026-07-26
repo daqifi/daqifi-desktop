@@ -190,6 +190,46 @@ public class BootloaderHoldServiceTests
     }
 
     [TestMethod]
+    public async Task Dispose_StillDisposesTransport_AndWarns_WhenKeepAliveDoesNotStopInTime()
+    {
+        // The wedged-transport case the bounded wait in Dispose exists for. Pinned deliberately: the
+        // handle must still be closed (an unbounded drain would hang teardown instead), the timeout
+        // must be reported rather than passing silently, and no HoldDropped may be raised — the stop
+        // was requested, so the loop's post-loop guard must read it as such even though the orphaned
+        // read faults against the transport after it is disposed.
+        using var wedgedRead = new ManualResetEventSlim(false);
+        _transport
+            .Setup(t => t.ReadAsync(It.IsAny<TimeSpan?>(), It.IsAny<CancellationToken>()))
+            // Ignores the cancellation token on purpose: a transport that honours cancellation is the
+            // healthy path already covered by Dispose_DisposesOwnedTransport.
+            .Returns(() => Task.Run(() =>
+            {
+                Interlocked.Increment(ref _readCount);
+                wedgedRead.Wait();
+                return Array.Empty<byte>();
+            }));
+
+        var service = CreateService();
+        var droppedCount = 0;
+        service.HoldDropped += (_, _) => Interlocked.Increment(ref droppedCount);
+
+        await service.BeginHoldAsync();
+        await WaitUntilAsync(() => Volatile.Read(ref _readCount) >= 1, TimeSpan.FromSeconds(2));
+
+        service.Dispose();
+
+        _transport.Verify(t => t.Dispose(), Times.AtLeastOnce);
+        _logger.Verify(
+            l => l.Warning(It.Is<string>(m => m.Contains("did not finish within"))), Times.Once);
+
+        // Let the wedged read unblock so the loop can observe the requested stop and exit.
+        wedgedRead.Set();
+        await Task.Delay(100);
+        Assert.AreEqual(0, Volatile.Read(ref droppedCount),
+            "Disposal is a requested stop, so the read faulting afterwards must not report a drop.");
+    }
+
+    [TestMethod]
     public async Task ReleaseAsync_DoesNotRaiseHoldDropped()
     {
         using var service = CreateService();

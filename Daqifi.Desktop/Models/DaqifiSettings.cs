@@ -59,9 +59,10 @@ public class DaqifiSettings
 
             var xml = XElement.Load(SettingsXmlPath);
 
-            if (xml.Element("CsvDelimiter") != null)
+            var csvDelimiterElement = xml.Element("CsvDelimiter");
+            if (csvDelimiterElement != null)
             {
-                _csvDelimiter = xml.Element("CsvDelimiter").Value;
+                _csvDelimiter = csvDelimiterElement.Value;
             }
         }
         catch(Exception ex)

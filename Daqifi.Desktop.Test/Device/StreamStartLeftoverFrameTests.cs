@@ -18,14 +18,14 @@ namespace Daqifi.Desktop.Test.Device;
 /// disconnect/reconnect, see daqifi-nyquist-firmware#533).
 /// </summary>
 [TestClass]
-public class StreamStartLeftoverFrameTests
+public class StreamStartLeftoverFrameTests : IDisposable
 {
     // Device counter runs at the 50 MHz default; one 100 Hz sample period is 500,000 ticks.
     private const uint SAMPLE_PERIOD_TICKS = 500_000;
     private const uint THIRTEEN_SECOND_GAP_TICKS = 650_000_000;
 
-    private LeftoverFrameTestDevice _device;
-    private AnalogChannel _channel;
+    private LeftoverFrameTestDevice _device = null!;
+    private AnalogChannel _channel = null!;
 
     [TestInitialize]
     public void Setup()
@@ -37,6 +37,14 @@ public class StreamStartLeftoverFrameTests
         };
         _device.DataChannels.Add(_channel);
         _device.InitializeDeviceState();
+    }
+
+    // MSTest disposes the test-class instance after each test, releasing the device's Core
+    // connection instead of leaking one per test (CA1001).
+    public void Dispose()
+    {
+        _device.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     [TestMethod]
@@ -305,9 +313,13 @@ public class StreamStartLeftoverFrameTests
     /// Test implementation that routes protobuf frames through the real inbound pipeline and
     /// records device-message dispatches instead of touching the LoggingManager singleton.
     /// </summary>
-    private sealed class LeftoverFrameTestDevice : AbstractStreamingDevice
+    private sealed class LeftoverFrameTestDevice : AbstractStreamingDevice, IDisposable
     {
         private readonly NoOpCoreStreamingDevice _coreDevice;
+
+        // The Core device connected in the constructor is owned by this fixture; disposing it
+        // keeps the suite from leaking one connected device per test (CA1001).
+        public void Dispose() => _coreDevice.Dispose();
 
         public LeftoverFrameTestDevice()
         {

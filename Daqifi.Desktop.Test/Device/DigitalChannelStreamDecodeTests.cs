@@ -22,17 +22,25 @@ namespace Daqifi.Desktop.Test.Device;
 /// mirroring the synchronous order Core's actual message pump uses in production.
 /// </summary>
 [TestClass]
-public class DigitalChannelStreamDecodeTests
+public class DigitalChannelStreamDecodeTests : IDisposable
 {
     // Large enough to cover every digital channel index exercised below (up to DIO9).
     private const int DIGITAL_PORT_COUNT = 16;
 
-    private DecodeTestDevice _device;
+    private DecodeTestDevice _device = null!;
 
     [TestInitialize]
     public void Setup()
     {
         _device = new DecodeTestDevice(DIGITAL_PORT_COUNT);
+    }
+
+    // MSTest disposes the test-class instance after each test, releasing the device's Core
+    // connection instead of leaking one per test (CA1001).
+    public void Dispose()
+    {
+        _device.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     private DigitalChannel ConfigureDigitalChannel(int index, ChannelDirection direction, bool isActive = true)
@@ -157,9 +165,13 @@ public class DigitalChannelStreamDecodeTests
     /// Test device exposing the real inbound-message pipeline (protocol handler → stream
     /// routing → Core decode → per-channel SampleReceived → desktop DataSample mapping).
     /// </summary>
-    private sealed class DecodeTestDevice : AbstractStreamingDevice
+    private sealed class DecodeTestDevice : AbstractStreamingDevice, IDisposable
     {
         private readonly TestCoreStreamingDevice _coreDevice;
+
+        // The Core device connected in the constructor is owned by this fixture; disposing it
+        // keeps the suite from leaking one connected device per test (CA1001).
+        public void Dispose() => _coreDevice.Dispose();
 
         public DecodeTestDevice(int digitalPortCount)
         {

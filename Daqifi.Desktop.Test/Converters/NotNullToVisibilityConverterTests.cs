@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.Test.Converters;
 [TestClass]
 public class NotNullToVisibilityConverterTests
 {
-    private NotNullToVisibilityConverter _converter;
+    private NotNullToVisibilityConverter _converter = null!;
 
     [TestInitialize]
     public void Setup()
@@ -22,7 +22,7 @@ public class NotNullToVisibilityConverterTests
         object value = "something";
 
         // Act
-        var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Visible, result);
@@ -32,10 +32,10 @@ public class NotNullToVisibilityConverterTests
     public void Convert_NullValue_ReturnsCollapsed()
     {
         // Arrange
-        object value = null;
+        object value = null!;
 
         // Act
-        var result = _converter.Convert(value, typeof(Visibility), null, CultureInfo.InvariantCulture);
+        var result = _converter.Convert(value, typeof(Visibility), null!, CultureInfo.InvariantCulture);
 
         // Assert
         Assert.AreEqual(Visibility.Collapsed, result);
@@ -49,6 +49,6 @@ public class NotNullToVisibilityConverterTests
 
         // Act & Assert
         Assert.ThrowsExactly<NotImplementedException>(() =>
-            _converter.ConvertBack(value, typeof(object), null, CultureInfo.InvariantCulture));
+            _converter.ConvertBack(value, typeof(object), null!, CultureInfo.InvariantCulture));
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Text;
 using System.Windows;
 using Application = System.Windows.Application;
@@ -47,13 +48,13 @@ public partial class DeviceLogsViewModel : ObservableObject
     private bool _isBusy;
 
     [ObservableProperty]
-    private string _busyMessage;
+    private string _busyMessage = string.Empty;
 
     [ObservableProperty]
     private ObservableCollection<IStreamingDevice> _connectedDevices;
 
     [ObservableProperty]
-    private IStreamingDevice _selectedDevice;
+    private IStreamingDevice? _selectedDevice;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNoFiles))]
@@ -76,7 +77,7 @@ public partial class DeviceLogsViewModel : ObservableObject
     [ObservableProperty]
     private string _sdCardErrorGuidance = SdCardFailureClassifier.GENERIC_CARD_GUIDANCE;
 
-    private ObservableCollection<SdCardFile> _deviceFiles;
+    private ObservableCollection<SdCardFile> _deviceFiles = [];
 
     public ObservableCollection<SdCardFile> DeviceFiles
     {
@@ -176,7 +177,7 @@ public partial class DeviceLogsViewModel : ObservableObject
         UpdateConnectedDevices();
     }
 
-    private void OnDeviceFilesCollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    private void OnDeviceFilesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(HasNoFiles));
         OnPropertyChanged(nameof(HasFiles));
@@ -210,7 +211,7 @@ public partial class DeviceLogsViewModel : ObservableObject
         }
     }
 
-    partial void OnSelectedDeviceChanged(IStreamingDevice value)
+    partial void OnSelectedDeviceChanged(IStreamingDevice? value)
     {
         SdCardState = SdCardState.Unknown;
         SdCardErrorMessage = string.Empty;
@@ -294,14 +295,16 @@ public partial class DeviceLogsViewModel : ObservableObject
     [RelayCommand]
     private void CopyDiagnosticInfo()
     {
+        // Invariant culture: this block is copied to the clipboard and pasted into bug reports, so it
+        // must read the same regardless of the operator's locale.
         var sb = new StringBuilder();
-        sb.AppendLine($"Device Serial: {SelectedDevice?.DeviceSerialNo ?? "N/A"}");
-        sb.AppendLine($"Firmware Version: {SelectedDevice?.DeviceVersion ?? "N/A"}");
-        sb.AppendLine($"Connection Type: {SelectedDevice?.ConnectionType}");
-        sb.AppendLine($"SD Card State: {SdCardState}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Device Serial: {SelectedDevice?.DeviceSerialNo ?? "N/A"}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Firmware Version: {SelectedDevice?.DeviceVersion ?? "N/A"}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Connection Type: {SelectedDevice?.ConnectionType}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"SD Card State: {SdCardState}");
         if (!string.IsNullOrEmpty(SdCardErrorMessage))
         {
-            sb.AppendLine($"Error: {SdCardErrorMessage}");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Error: {SdCardErrorMessage}");
         }
 
         try

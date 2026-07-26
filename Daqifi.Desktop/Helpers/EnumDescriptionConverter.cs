@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.Helpers;
 
 public class EnumDescriptionConverter : IValueConverter
 {
-    private string GetEnumDescription(Enum enumObj)
+    private static string GetEnumDescription(Enum enumObj)
     {
         // Undefined/out-of-range enum values are not named members, so GetField returns null.
         // Fall back to the value's string form (its numeric representation) rather than crashing.
@@ -36,7 +36,7 @@ public class EnumDescriptionConverter : IValueConverter
 
         if (value is not Enum myEnum)
         {
-            return value.ToString();
+            return value.ToString() ?? string.Empty;
         }
 
         var description = GetEnumDescription(myEnum);

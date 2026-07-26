@@ -76,7 +76,7 @@ public static class DatabaseMigrator
     /// Creates a backup copy of the SQLite database file before applying migrations.
     /// </summary>
     /// <returns>The backup file path, or null if no backup was created.</returns>
-    private static string BackupDatabase(string databasePath)
+    private static string? BackupDatabase(string databasePath)
     {
         try
         {
@@ -99,7 +99,7 @@ public static class DatabaseMigrator
     /// <summary>
     /// Removes the backup file after a successful migration.
     /// </summary>
-    private static void CleanupBackup(string backupPath)
+    private static void CleanupBackup(string? backupPath)
     {
         try
         {
@@ -142,7 +142,7 @@ public static class DatabaseMigrator
     /// <summary>
     /// Restores the database from backup after a failed migration.
     /// </summary>
-    private static void RestoreBackup(string backupPath, string databasePath)
+    private static void RestoreBackup(string? backupPath, string databasePath)
     {
         try
         {
@@ -150,7 +150,8 @@ public static class DatabaseMigrator
             {
                 SqliteConnection.ClearAllPools();
                 File.Copy(backupPath, databasePath, overwrite: true);
-                AppLogger.Instance.Error(null, "Database restored from backup after migration failure");
+                // No exception to attach here — use the message-only overload rather than passing null.
+                AppLogger.Instance.Error("Database restored from backup after migration failure");
             }
         }
         catch (Exception ex)

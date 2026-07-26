@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Windows;
 using System.Runtime.InteropServices;
@@ -10,7 +11,7 @@ namespace Daqifi.Desktop.Configuration;
 
 public static class FirewallConfiguration
 {
-    private static readonly IAppLogger Logger = AppLogger.Instance;
+    private static readonly AppLogger Logger = AppLogger.Instance;
     private const string RuleName = "DAQiFi Desktop";
     private static IFirewallHelper _firewallHelper;
     private static IMessageBoxService _messageBoxService;
@@ -87,7 +88,7 @@ public static class FirewallConfiguration
         }
     }
 
-    private static bool IsValidApplicationPath(string? path)
+    private static bool IsValidApplicationPath([NotNullWhen(true)] string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
             return false;
@@ -112,7 +113,7 @@ public interface IFirewallHelper
 
 public class WindowsFirewallWrapper : IFirewallHelper
 {
-    private static readonly IAppLogger Logger = AppLogger.Instance;
+    private static readonly AppLogger Logger = AppLogger.Instance;
 
     private static object GetPolicy()
     {
@@ -130,13 +131,19 @@ public class WindowsFirewallWrapper : IFirewallHelper
         try
         {
             policy = GetPolicy();
+            // Invariant culture: these are fixed COM member names and a firewall rule identifier,
+            // never locale-dependent text.
             dynamic rules = policy.GetType().InvokeMember("Rules",
-                System.Reflection.BindingFlags.GetProperty, null, policy, null);
+                                System.Reflection.BindingFlags.GetProperty, null, policy, null,
+                                CultureInfo.InvariantCulture)
+                            ?? throw new InvalidOperationException(
+                                "Windows Firewall policy returned no rules collection.");
 
             try
             {
                 _ = rules.GetType().InvokeMember("Item",
-                    System.Reflection.BindingFlags.InvokeMethod, null, rules, new object[] { ruleName });
+                    System.Reflection.BindingFlags.InvokeMethod, null, rules, new object[] { ruleName },
+                    CultureInfo.InvariantCulture);
                 return true;
             }
             catch (COMException ex) when (ex.HResult == unchecked((int)0x80070002)) // ERROR_FILE_NOT_FOUND
@@ -194,10 +201,15 @@ public class WindowsFirewallWrapper : IFirewallHelper
             }
 
             // Add rule to policy
+            // Invariant culture: fixed COM member names, never locale-dependent text.
             var rules = policy.GetType().InvokeMember("Rules",
-                System.Reflection.BindingFlags.GetProperty, null, policy, null);
+                            System.Reflection.BindingFlags.GetProperty, null, policy, null,
+                            CultureInfo.InvariantCulture)
+                        ?? throw new InvalidOperationException(
+                            "Windows Firewall policy returned no rules collection.");
             rules.GetType().InvokeMember("Add",
-                System.Reflection.BindingFlags.InvokeMethod, null, rules, [rule]);
+                System.Reflection.BindingFlags.InvokeMethod, null, rules, [rule],
+                CultureInfo.InvariantCulture);
         }
         catch (Exception ex)
         {
@@ -221,8 +233,10 @@ public class WindowsFirewallWrapper : IFirewallHelper
     {
         try
         {
+            // Invariant culture: COM property names and their values are protocol data, not display text.
             rule.GetType().InvokeMember(propertyName,
-                System.Reflection.BindingFlags.SetProperty, null, rule, [value]);
+                System.Reflection.BindingFlags.SetProperty, null, rule, [value],
+                CultureInfo.InvariantCulture);
         }
         catch (Exception ex)
         {

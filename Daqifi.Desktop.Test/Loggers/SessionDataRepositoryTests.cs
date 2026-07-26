@@ -21,6 +21,8 @@ namespace Daqifi.Desktop.Test.Loggers;
 [TestClass]
 public class SessionDataRepositoryTests
 {
+    private static readonly string[] ExpectedFirstTimestampChannels = ["AI0", "AI1"];
+
     private const string Serial = "9090684023231015079";
     private const string SerialB = "1111222233334444555";
     private const long BaseTick = 638_000_000_000_000_000;
@@ -88,7 +90,7 @@ public class SessionDataRepositoryTests
 
         Assert.IsFalse(result.IsEmpty);
         CollectionAssert.AreEqual(
-            new[] { "AI0", "AI1" },
+            ExpectedFirstTimestampChannels,
             result.Channels.Select(c => c.ChannelName).ToArray(),
             "Both channels at the first timestamp must be discovered in natural order.");
         Assert.AreEqual(new DateTime(BaseTick), result.FirstTime);
@@ -121,7 +123,7 @@ public class SessionDataRepositoryTests
         var result = repository.LoadInitialSession(SessionId);
 
         CollectionAssert.AreEqual(
-            new[] { "AI0", "AI1" },
+            ExpectedFirstTimestampChannels,
             result.Channels.Select(c => c.ChannelName).ToArray(),
             "Duplicate (serial, channel) at the first timestamp must collapse to one entry per channel.");
         logger.Verify(

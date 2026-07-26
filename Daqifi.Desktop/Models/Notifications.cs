@@ -11,9 +11,17 @@ public class Notifications
     /// </summary>
     public bool IsWifiFirmwareUpdate { get; init; }
 
-    public string DeviceSerialNo { get; init; }
+    /// <summary>
+    /// Serial number of the device this notification belongs to, or <c>null</c> for application-level
+    /// notices (e.g. the "new app version available" prompt). A null serial is the sentinel that keeps
+    /// the notice from being pruned by device-disconnect cleanup.
+    /// </summary>
+    public string? DeviceSerialNo { get; init; }
 
-    public string Message { get; init; }
+    public required string Message { get; init; }
 
-    public string Link { get; set; }
+    /// <summary>
+    /// Optional URL associated with the notification; null when the notification is not actionable.
+    /// </summary>
+    public string? Link { get; set; }
 }

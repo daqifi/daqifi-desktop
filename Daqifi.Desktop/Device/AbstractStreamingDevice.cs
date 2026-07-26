@@ -87,7 +87,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     private int _pwmFrequencyHz = DEFAULT_PWM_FREQUENCY_HZ;
 
-    private readonly ITimestampProcessor _timestampProcessor = new TimestampProcessor();
+    private readonly TimestampProcessor _timestampProcessor = new();
     private List<SdCardFile> _sdCardFiles = [];
 
     // Leftover-frame detection state (issue #573). The last-seen counter is tracked for every
@@ -106,7 +106,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private DaqifiOutMessage? _heldFirstFrame;
 
     // Protocol handler for automatic message routing
-    private IProtocolHandler? _protocolHandler;
+    private ProtobufProtocolHandler? _protocolHandler;
 
     /// <summary>
     /// Per-channel subscriptions onto Core's decode pipeline (issue #613). Core's
@@ -155,7 +155,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     #region Properties
 
-    protected readonly AppLogger AppLogger = AppLogger.Instance;
+    protected AppLogger AppLogger { get; } = AppLogger.Instance;
 
     /// <summary>
     /// Gets the device metadata from Core library
@@ -942,7 +942,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 // (DisableNetworkLan, EnableStorageSd, SetStreamInterface).
                 break;
             default:
-                throw new ArgumentOutOfRangeException();
+                throw new ArgumentOutOfRangeException(nameof(newMode), newMode, "Unsupported device mode.");
         }
 
         OnPropertyChanged(nameof(Mode));

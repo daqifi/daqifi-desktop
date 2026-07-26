@@ -2,6 +2,7 @@
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Models;
 using Daqifi.Desktop.Common.Loggers;
+using System.Globalization;
 using System.IO;
 using System.Xml.Linq;
 using System.Collections.ObjectModel;
@@ -38,8 +39,12 @@ public partial class LoggingManager : ObservableObject
     [ObservableProperty]
     private LoggingMode _currentMode;
 
+    /// <summary>
+    /// The application-side logging session currently being written to, or null when no session has
+    /// been started (or the last one was finalized).
+    /// </summary>
     [ObservableProperty]
-    private LoggingSession _session;
+    private LoggingSession? _session;
 
     [ObservableProperty]
     private ObservableCollection<LoggingSession> _loggingSessions = [];
@@ -204,8 +209,9 @@ public partial class LoggingManager : ObservableObject
 
     [ObservableProperty] private ObservableCollection<Profile> _subscribedProfiles = [];
 
+    /// <summary>The profile the user currently has selected, or null when none is selected.</summary>
     [ObservableProperty]
-    private Profile _selectedProfile;
+    private Profile? _selectedProfile;
 
     [ObservableProperty]
     private ObservableCollection<ProfileChannel> _selectedProfileChannels = [];
@@ -227,7 +233,7 @@ public partial class LoggingManager : ObservableObject
 
     public void callPropertyChange()
     {
-        OnPropertyChanged("SelectedProfileChannels");
+        OnPropertyChanged(nameof(SelectedProfileChannels));
     }
 
     public void UpdateProfileInXml(Profile profile)
@@ -241,7 +247,9 @@ public partial class LoggingManager : ObservableObject
             }
             var doc = XDocument.Load(ProfileSettingsXmlPath);
             var profileToUpdate = doc.Descendants("Profile")
-                .FirstOrDefault(p => (Guid)p.Element("ProfileID") == profile.ProfileId);
+                // Cast through Guid? so a <Profile> element missing its <ProfileID> child is simply
+                // skipped instead of throwing ArgumentNullException out of the XElement operator.
+                .FirstOrDefault(p => (Guid?)p.Element("ProfileID") == profile.ProfileId);
             if (profileToUpdate != null)
             {
                 profileToUpdate.Element("Name")?.SetValue(profile.Name);
@@ -266,7 +274,7 @@ public partial class LoggingManager : ObservableObject
                             new XElement("IsActive", channel.IsChannelActive)
                         )).ToList();
 
-                    if (activeChannels.Any())
+                    if (activeChannels.Count > 0)
                     {
                         deviceElement.Add(new XElement("Channels", activeChannels));
                     }
@@ -286,7 +294,11 @@ public partial class LoggingManager : ObservableObject
         }
     }
 
-    public void AddAndRemoveProfileXml(Profile profile, bool AddProfileFlag)
+    /// <summary>
+    /// Adds or removes a profile in the profile-settings XML. A null <paramref name="profile"/> only
+    /// ensures the settings file exists (used at startup to seed it).
+    /// </summary>
+    public void AddAndRemoveProfileXml(Profile? profile, bool AddProfileFlag)
     {
         try
         {
@@ -336,7 +348,9 @@ public partial class LoggingManager : ObservableObject
                 else
                 {
                     var profileToRemove = doc.Descendants("Profile")
-                        .FirstOrDefault(p => (Guid)p.Element("ProfileID") == profile.ProfileId);
+                        // Cast through Guid? so a <Profile> element missing its <ProfileID> child is simply
+                        // skipped instead of throwing ArgumentNullException out of the XElement operator.
+                        .FirstOrDefault(p => (Guid?)p.Element("ProfileID") == profile.ProfileId);
                     profileToRemove?.Remove();
                     SubscribedProfiles.Remove(profile);
                 }
@@ -361,31 +375,7 @@ public partial class LoggingManager : ObservableObject
                 // Load the XML document
                 var doc = XDocument.Load(ProfileSettingsXmlPath);
 
-                // Parse the XML and retrieve the profiles
-                var loadedProfiles = doc.Descendants("Profile").Select(p => new Profile
-                {
-                    Name = (string)p.Element("Name"),
-                    ProfileId = (Guid)p.Element("ProfileID"),
-                    CreatedOn = (DateTime)p.Element("CreatedOn"),
-                    Devices = new ObservableCollection<ProfileDevice>(p.Element("Devices")?.Elements("Device").Select(d => new ProfileDevice
-                    {
-                        DeviceName = (string)d.Element("DeviceName"),
-                        DevicePartName = (string)d.Element("DevicePartNumber"),
-                        MacAddress = (string)d.Element("MACAddress"),
-                        DeviceSerialNo = (string)d.Element("DeviceSerialNo"),
-                        SamplingFrequency = (int)d.Element("SamplingFrequency"),
-                        // The writer omits <Channels> when the device has no active channels
-                        // (see UpdateProfileInXml / AddAndRemoveProfileXml). Default to an empty
-                        // list so downstream code can call .Where/.Select without a null check.
-                        Channels = d.Element("Channels")?.Elements("Channel").Select(c => new ProfileChannel
-                        {
-                            Name = (string)c.Element("Name"),
-                            Type = (string)c.Element("Type"),
-                            IsChannelActive = (bool)c.Element("IsActive"),
-                            SerialNo = (string)d.Element("DeviceSerialNo")
-                        }).ToList() ?? []
-                    }).ToList())
-                }).ToList();
+                var loadedProfiles = ParseProfiles(doc);
 
                 // Add each profile to the existing collection
                 foreach (var profile in loadedProfiles)
@@ -402,6 +392,193 @@ public partial class LoggingManager : ObservableObject
         }
 
         return SubscribedProfiles.ToList();
+    }
+
+    /// <summary>
+    /// Parses the &lt;Profile&gt; entries of a profile-settings document into <see cref="Profile"/> models.
+    /// </summary>
+    /// <remarks>
+    /// The file is user-writable on disk, so no value is read through an <see cref="XElement"/>
+    /// explicit conversion operator. Those throw twice over: <see cref="ArgumentNullException"/> when
+    /// the element is missing, and <see cref="FormatException"/> when its text is present but
+    /// malformed (<c>&lt;SamplingFrequency&gt;fast&lt;/SamplingFrequency&gt;</c>). Either one would
+    /// escape to <see cref="LoadProfilesFromXml"/>'s single catch and abort the whole load over one
+    /// bad entry. A missing element defaults silently — the writer legitimately omits the optional
+    /// ones — while malformed text defaults with a warning.
+    /// <para>
+    /// &lt;ProfileID&gt; is the exception — a profile with a missing or unparsable ID is skipped
+    /// rather than defaulted. The XML is keyed by that ID (<see cref="UpdateProfileInXml"/> and the
+    /// remove path of <see cref="AddAndRemoveProfileXml"/> both locate their node by matching it),
+    /// so a defaulted <see cref="Guid.Empty"/> profile would load into the UI and then silently fail
+    /// every save and unsubscribe against it — and two malformed entries would collide on the same
+    /// ID. An ID the file spells out as all-zeroes still parses and is kept, since it can be matched.
+    /// </para>
+    /// </remarks>
+    /// <param name="doc">The loaded profile-settings document.</param>
+    /// <returns>The profiles carrying a usable identity, in document order.</returns>
+    internal static List<Profile> ParseProfiles(XDocument doc)
+    {
+        var profiles = new List<Profile>();
+
+        foreach (var p in doc.Descendants("Profile"))
+        {
+            if (!Guid.TryParse((string?)p.Element("ProfileID"), out var profileId))
+            {
+                AppLogger.Instance.Warning(
+                    "Skipping a profile with a missing or unparsable <ProfileID> (Name: " +
+                    $"'{(string?)p.Element("Name") ?? string.Empty}'). The profile XML is keyed by that " +
+                    "ID, so the entry could not be saved to or removed from disk.");
+                continue;
+            }
+
+            profiles.Add(new Profile
+            {
+                Name = (string?)p.Element("Name") ?? string.Empty,
+                ProfileId = profileId,
+                CreatedOn = ReadDateTime(p, "CreatedOn", DateTime.MinValue),
+                // A profile with no devices has no <Devices> element at all. The null-conditional
+                // short-circuits the rest of the chain — Elements/Select/ToList are not evaluated —
+                // so a missing element lands on the empty list rather than throwing.
+                Devices = new ObservableCollection<ProfileDevice>(
+                    p.Element("Devices")?.Elements("Device").Select(ParseProfileDevice).ToList() ?? [])
+            });
+        }
+
+        return profiles;
+    }
+
+    /// <summary>
+    /// Parses one &lt;Device&gt; entry of a profile. See <see cref="ParseProfiles"/> for why nothing
+    /// here uses the <see cref="XElement"/> cast operators.
+    /// </summary>
+    private static ProfileDevice ParseProfileDevice(XElement deviceElement)
+    {
+        var deviceSerialNo = (string?)deviceElement.Element("DeviceSerialNo") ?? string.Empty;
+
+        return new ProfileDevice
+        {
+            DeviceName = (string?)deviceElement.Element("DeviceName") ?? string.Empty,
+            DevicePartName = (string?)deviceElement.Element("DevicePartNumber") ?? string.Empty,
+            MacAddress = (string?)deviceElement.Element("MACAddress") ?? string.Empty,
+            DeviceSerialNo = deviceSerialNo,
+            SamplingFrequency = ReadInt(deviceElement, "SamplingFrequency", 0),
+            // The writer omits <Channels> when the device has no active channels (see
+            // UpdateProfileInXml / AddAndRemoveProfileXml). Default to an empty list so downstream
+            // code can call .Where/.Select without a null check.
+            Channels = deviceElement.Element("Channels")?.Elements("Channel")
+                .Select(c => ParseProfileChannel(c, deviceSerialNo)).ToList() ?? []
+        };
+    }
+
+    /// <summary>
+    /// Parses one &lt;Channel&gt; entry of a profile device.
+    /// </summary>
+    /// <param name="channelElement">The channel node.</param>
+    /// <param name="deviceSerialNo">
+    /// The owning device's serial. The channel carries it so a legend entry can be attributed
+    /// without walking back up to the device.
+    /// </param>
+    private static ProfileChannel ParseProfileChannel(XElement channelElement, string deviceSerialNo)
+    {
+        return new ProfileChannel
+        {
+            Name = (string?)channelElement.Element("Name") ?? string.Empty,
+            Type = (string?)channelElement.Element("Type") ?? string.Empty,
+            IsChannelActive = ReadBool(channelElement, "IsActive", false),
+            SerialNo = deviceSerialNo
+        };
+    }
+
+    /// <summary>
+    /// Reads a child element as a <see cref="DateTime"/>, falling back when it is missing or its text
+    /// cannot be parsed.
+    /// </summary>
+    private static DateTime ReadDateTime(XElement parent, string name, DateTime fallback)
+    {
+        var raw = (string?)parent.Element(name);
+        if (raw is null)
+        {
+            return fallback;
+        }
+
+        // RoundtripKind to match how the writer serializes it: XElement renders a DateTime through
+        // XmlConvert, which emits the offset for a Local/Utc value.
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var value))
+        {
+            return value;
+        }
+
+        WarnUnparsableProfileValue(name, raw);
+        return fallback;
+    }
+
+    /// <summary>
+    /// Reads a child element as an <see cref="int"/>, falling back when it is missing or its text
+    /// cannot be parsed.
+    /// </summary>
+    private static int ReadInt(XElement parent, string name, int fallback)
+    {
+        var raw = (string?)parent.Element(name);
+        if (raw is null)
+        {
+            return fallback;
+        }
+
+        if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value))
+        {
+            return value;
+        }
+
+        WarnUnparsableProfileValue(name, raw);
+        return fallback;
+    }
+
+    /// <summary>
+    /// Reads a child element as a <see cref="bool"/>, falling back when it is missing or its text
+    /// cannot be parsed.
+    /// </summary>
+    private static bool ReadBool(XElement parent, string name, bool fallback)
+    {
+        var raw = (string?)parent.Element(name);
+        if (raw is null)
+        {
+            return fallback;
+        }
+
+        if (bool.TryParse(raw, out var value))
+        {
+            return value;
+        }
+
+        // XmlConvert.ToBoolean — what the XElement operator used before — also accepts the canonical
+        // xs:boolean "1"/"0" spellings, so a file written or hand-edited that way still round-trips.
+        switch (raw.Trim())
+        {
+            case "1":
+                return true;
+            case "0":
+                return false;
+        }
+
+        WarnUnparsableProfileValue(name, raw);
+        return fallback;
+    }
+
+    /// <summary>
+    /// Reports a profile element whose text was present but unparsable. The value is truncated
+    /// because the file is hand-editable and an element can hold arbitrarily long text.
+    /// </summary>
+    private static void WarnUnparsableProfileValue(string elementName, string rawValue)
+    {
+        const int MAX_LOGGED_VALUE_LENGTH = 64;
+
+        var display = rawValue.Length > MAX_LOGGED_VALUE_LENGTH
+            ? rawValue[..MAX_LOGGED_VALUE_LENGTH] + "..."
+            : rawValue;
+
+        AppLogger.Instance.Warning(
+            $"Ignoring an unparsable <{elementName}> value in the profile settings file " +
+            $"('{display}'); the default was used instead.");
     }
 
     public void UnsubscribeProfile(Profile profile)
@@ -537,7 +714,7 @@ public partial class LoggingManager : ObservableObject
 
     public void HandleDeviceMessage(object sender, DeviceMessage sample)
     {
-        if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession)
+        if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession || Session == null)
         {
             return;
         }
@@ -553,7 +730,7 @@ public partial class LoggingManager : ObservableObject
 
     public void HandleChannelUpdate(object sender, DataSample sample)
     {
-        if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession)
+        if (!Active || CurrentMode != LoggingMode.Stream || !_hasActiveApplicationSession || Session == null)
         {
             return;
         }

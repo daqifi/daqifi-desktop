@@ -16,7 +16,7 @@ namespace Daqifi.Desktop.Test.ViewModels;
 [TestClass]
 public class ChannelTileViewModelTests
 {
-    private TileTestDevice _device;
+    private TileTestDevice _device = null!;
 
     [TestInitialize]
     public void Setup()

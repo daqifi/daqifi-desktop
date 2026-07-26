@@ -87,6 +87,8 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     /// The palette shown in the settings drawer. Exposed as an instance
     /// property so WPF's Binding engine can resolve it via the DataContext.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static",
+        Justification = "Bound from XAML through the DataContext; WPF bindings cannot resolve static members.")]
     public Brush[] Palette => ColorPaletteBrushes;
 
     private static Brush[] BuildPalette(string[] hexes)

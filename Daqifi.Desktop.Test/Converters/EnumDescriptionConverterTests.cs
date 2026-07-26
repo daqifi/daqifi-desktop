@@ -7,7 +7,7 @@ namespace Daqifi.Desktop.Test.Converters;
 [TestClass]
 public class EnumDescriptionConverterTests
 {
-    private IValueConverter _converter;
+    private IValueConverter _converter = null!;
 
     // Test enum with Description attributes
     private enum TestEnum
@@ -57,7 +57,7 @@ public class EnumDescriptionConverterTests
     public void Convert_NullValue_ReturnsEmptyString()
     {
         // Arrange
-        object value = null;
+        object value = null!;
 
         // Act
         var result = _converter.Convert(value, typeof(string), null, CultureInfo.InvariantCulture);
@@ -213,7 +213,7 @@ public class EnumDescriptionConverterTests
         var testValues = new object[]
         {
             "Some Description",
-            null,
+            null!,
             123,
             TestEnum.FirstOption
         };

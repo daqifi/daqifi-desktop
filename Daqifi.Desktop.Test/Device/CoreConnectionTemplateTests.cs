@@ -13,6 +13,12 @@ namespace Daqifi.Desktop.Test.Device;
 [TestClass]
 public class CoreConnectionTemplateTests
 {
+    private static readonly string[] ExpectedFullConnectHookCalls =
+        ["CleanupConnection", "CreateCoreDevice", "InitializeAsync", "OnCoreDeviceInitialized"];
+
+    private static readonly string[] ExpectedAbortedConnectHookCalls =
+        ["CleanupConnection", "CreateCoreDevice"];
+
     [TestMethod]
     public void Connect_RunsTemplateStepsInOrder()
     {
@@ -27,7 +33,7 @@ public class CoreConnectionTemplateTests
         Assert.IsNotNull(device.ExposedCoreDevice, "The created Core device should be retained.");
         Assert.AreSame(device.CreatedCoreDevice, device.ExposedCoreDevice);
         CollectionAssert.AreEqual(
-            new[] { "CleanupConnection", "CreateCoreDevice", "InitializeAsync", "OnCoreDeviceInitialized" },
+            ExpectedFullConnectHookCalls,
             device.HookCalls,
             "The template must clean up, create, initialize, then run the post-initialize hook.");
         Assert.AreEqual(0, device.LoggedConnectFailures.Count, "No failure should be logged on success.");
@@ -67,7 +73,7 @@ public class CoreConnectionTemplateTests
         Assert.AreEqual(0, device.LoggedConnectFailures.Count,
             "A null factory result must not be double-logged as a connect failure.");
         CollectionAssert.AreEqual(
-            new[] { "CleanupConnection", "CreateCoreDevice" },
+            ExpectedAbortedConnectHookCalls,
             device.HookCalls,
             "Initialization must not run when no Core device was created.");
     }
