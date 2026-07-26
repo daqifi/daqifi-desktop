@@ -355,19 +355,37 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
         _disposed = true;
         _stopKeepAlive = true;
 
-        try { _keepAliveCts?.Cancel(); }
-        catch (ObjectDisposedException) { /* already torn down */ }
+        try
+        {
+            _keepAliveCts?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already torn down.
+        }
 
         // Best-effort during shutdown: the keep-alive read is expected to fault or be cancelled here.
         // Logged (not swallowed) at warning level so a wedged bootloader teardown is still diagnosable
         // in DAQiFiAppLog.log without escalating a routine shutdown race to Sentry.
-        try { _keepAliveTask?.Wait(TimeSpan.FromSeconds(2)); }
-        catch (Exception ex) { _logger.Warning(ex, "Keep-alive task did not stop cleanly during hold disposal."); }
+        try
+        {
+            _keepAliveTask?.Wait(TimeSpan.FromSeconds(2));
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Keep-alive task did not stop cleanly during hold disposal.");
+        }
 
         // Dispose the owned transport (closes its exclusive HID handle) once the keep-alive read is no
         // longer in flight against it.
-        try { _transport.Dispose(); }
-        catch (Exception ex) { _logger.Warning(ex, "Error disposing the HID bootloader transport."); }
+        try
+        {
+            _transport.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Error disposing the HID bootloader transport.");
+        }
 
         _keepAliveCts?.Dispose();
         _keepAliveCts = null;

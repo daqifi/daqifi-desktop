@@ -407,7 +407,10 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
             // The frequency box is only enabled with a device selected, but a device can be removed
             // between the UI raising the change and this setter running.
-            if (SelectedDevice == null) { return; }
+            if (SelectedDevice == null)
+            {
+                return;
+            }
 
             SelectedDevice.StreamingFrequency = value;
             _selectedStreamingFrequency = SelectedDevice.StreamingFrequency;

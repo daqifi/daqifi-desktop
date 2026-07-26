@@ -261,8 +261,19 @@ public partial class ConnectionManager : ObservableObject, IDisposable
             var postConnectDuplicateResult = CheckForDuplicateDevice(device);
             if (postConnectDuplicateResult.IsDuplicate)
             {
-                // Disconnect the device we just connected since it's a duplicate
+                // Disconnect the device we just connected since it's a duplicate. It never made it
+                // into ConnectedDevices, so Disconnect(device) does not apply here — but the port was
+                // opened, so it must also be disposed or a rejected USB duplicate leaks its COM handle
+                // for the process lifetime and blocks every later reconnect to that port.
                 device.Disconnect();
+                try
+                {
+                    (device as IDisposable)?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    AppLogger.Instance.Warning($"Failed to dispose a rejected duplicate device: {ex.Message}");
+                }
                 ConnectionStatus = postConnectDuplicateResult.ExistingDevice != null ? DAQiFiConnectionStatus.AlreadyConnected : DAQiFiConnectionStatus.Error;
                 return;
             }
