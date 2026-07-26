@@ -40,16 +40,19 @@ public partial class LoggingManager : ObservableObject
     private List<IChannel> _subscribedChannels = [];
 
     /// <summary>
-    /// Gets or sets the channels currently subscribed for logging.
+    /// Gets the channels currently subscribed for logging.
     /// </summary>
     /// <remarks>
-    /// The returned list is <b>immutable by contract</b>: callers must not mutate it, and every
-    /// mutation inside this class publishes a brand-new list instead of changing this one in place
-    /// (copy-on-write). That is what makes the property safe to read from a non-UI thread —
-    /// <see cref="PlotLogger"/> resolves channel visibility from the device transport thread while
-    /// the UI thread subscribes and unsubscribes, and <see cref="List{T}"/> does not tolerate a
-    /// read that overlaps an <c>Add</c>/<c>Remove</c>/<c>Clear</c> (it throws
-    /// <see cref="InvalidOperationException"/> mid-enumeration, or observes a torn state).
+    /// The returned list is a <b>snapshot that is never mutated</b>: every change goes through
+    /// <see cref="Subscribe"/>, <see cref="Unsubscribe"/> or <see cref="ClearChannelList"/>, each of
+    /// which publishes a brand-new list rather than changing this one in place (copy-on-write). That
+    /// is what makes the property safe to read from a non-UI thread — <see cref="PlotLogger"/>
+    /// resolves channel visibility from the device transport thread while the UI thread subscribes
+    /// and unsubscribes, and <see cref="List{T}"/> does not tolerate a read that overlaps an
+    /// <c>Add</c>/<c>Remove</c>/<c>Clear</c> (it throws <see cref="InvalidOperationException"/>
+    /// mid-enumeration, or observes a torn state). It is exposed as
+    /// <see cref="IReadOnlyList{T}"/>, and those three methods are the only way in, so the guarantee
+    /// is a property of the API rather than of caller discipline.
     /// <para>
     /// Written under <see cref="_subscribedChannelsSync"/> and published with
     /// <see cref="Volatile"/> so a reader on another core cannot observe a partially constructed
@@ -57,24 +60,7 @@ public partial class LoggingManager : ObservableObject
     /// that reason — the generated accessors do a plain field read/write.
     /// </para>
     /// </remarks>
-    public List<IChannel> SubscribedChannels
-    {
-        get => Volatile.Read(ref _subscribedChannels);
-        set
-        {
-            lock (_subscribedChannelsSync)
-            {
-                if (ReferenceEquals(_subscribedChannels, value))
-                {
-                    return;
-                }
-
-                Volatile.Write(ref _subscribedChannels, value ?? []);
-            }
-
-            OnPropertyChanged();
-        }
-    }
+    public IReadOnlyList<IChannel> SubscribedChannels => Volatile.Read(ref _subscribedChannels);
 
     [ObservableProperty]
     private bool _active;
@@ -251,10 +237,12 @@ public partial class LoggingManager : ObservableObject
     internal LoggingManager(IDbContextFactory<LoggingContext> loggingContext)
     {
         Loggers = [];
-        SubscribedChannels = [];
         _loggingContext = loggingContext;
     }
 
+    /// <summary>
+    /// Gets the process-wide logging manager. Created on first access.
+    /// </summary>
     public static LoggingManager Instance => _instance.Value;
 
     #endregion
@@ -530,8 +518,8 @@ public partial class LoggingManager : ObservableObject
         {
             var current = _subscribedChannels;
 
-            var subscribedChannel = current
-                .FirstOrDefault(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
+            var subscribedChannel = current.FirstOrDefault(
+                x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
 
             if (subscribedChannel == null)
             {

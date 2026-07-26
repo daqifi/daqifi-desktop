@@ -111,9 +111,10 @@ public class LoggingManagerSubscribedChannelsTests
     /// decode thread.
     /// </summary>
     /// <remarks>
-    /// The reader signals that it is genuinely inside the enumeration loop before the mutations
-    /// start, so the two really do overlap — a stress test whose threads never run at the same time
-    /// passes against broken code.
+    /// The reader signals from inside the <c>foreach</c> body, so when the mutation loop starts the
+    /// reader is provably mid-enumeration rather than merely alive — a stress test whose threads
+    /// never run at the same time passes against broken code. It then keeps enumerating for the
+    /// whole budget, so the overlap is sustained rather than a single lucky instant.
     /// </remarks>
     [TestMethod]
     public void SubscribedChannels_IsSafeToEnumerate_WhileAnotherThreadSubscribesAndUnsubscribes()
@@ -138,9 +139,15 @@ public class LoggingManagerSubscribedChannelsTests
                     foreach (var channel in manager.SubscribedChannels)
                     {
                         _ = channel.Name;
-                    }
 
-                    readerIsEnumerating.Set();
+                        // Signalled from *inside* the enumeration, not after it: the waiter's
+                        // guarantee has to be "the reader is mid-enumeration right now", not merely
+                        // "the reader has run at least once".
+                        if (!readerIsEnumerating.IsSet)
+                        {
+                            readerIsEnumerating.Set();
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -193,7 +200,7 @@ public class LoggingManagerSubscribedChannelsTests
         manager.Subscribe(channel);
 
         // Assert
-        CollectionAssert.AreEqual(new[] { channel }, manager.SubscribedChannels);
+        CollectionAssert.AreEqual(new[] { channel }, manager.SubscribedChannels.ToList());
         Assert.IsTrue(channel.IsActive);
     }
 
@@ -312,21 +319,27 @@ public class LoggingManagerSubscribedChannelsTests
         CollectionAssert.Contains(raised, nameof(LoggingManager.SubscribedChannels));
     }
 
+    /// <summary>
+    /// Reading the property must hand back the same published snapshot every time until something
+    /// actually changes. A getter that materialized a fresh copy per read would also be safe, but
+    /// it would allocate on the transport thread for every series creation and would silently break
+    /// the reference comparisons the copy-on-write tests above rely on.
+    /// </summary>
     [TestMethod]
-    public void SubscribedChannelsSetter_RaisesPropertyChanged_AndCoercesNullToAnEmptyList()
+    public void SubscribedChannels_ReturnsTheSameSnapshot_UntilSomethingChanges()
     {
         // Arrange
         var manager = NewManager();
-        var raised = new List<string?>();
-        manager.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+        manager.Subscribe(NewChannel("AI0"));
 
         // Act
-        manager.SubscribedChannels = null!;
+        var first = manager.SubscribedChannels;
+        var second = manager.SubscribedChannels;
 
         // Assert
-        Assert.IsNotNull(manager.SubscribedChannels);
-        Assert.AreEqual(0, manager.SubscribedChannels.Count);
-        CollectionAssert.Contains(raised, nameof(LoggingManager.SubscribedChannels));
+        Assert.AreSame(first, second);
+        manager.Subscribe(NewChannel("AI1"));
+        Assert.AreNotSame(first, manager.SubscribedChannels);
     }
     #endregion
 
