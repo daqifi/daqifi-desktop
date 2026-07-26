@@ -23,6 +23,14 @@ public partial class LoggingManager : ObservableObject
     private static string ProfileAppDirectory = Daqifi.Desktop.Common.AppDataPaths.DataDirectory;
     private static readonly string ProfileSettingsXmlPath = ProfileAppDirectory + "\\DAQifiProfilesConfiguration.xml";
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
+
+    /// <summary>
+    /// Serializes writers of <see cref="SubscribedChannels"/>. Readers never take it — they read a
+    /// published snapshot — so it is never held while calling into a logger or raising a
+    /// notification, and it cannot nest inside any other lock.
+    /// </summary>
+    private readonly object _subscribedChannelsSync = new();
+
     private bool _hasActiveApplicationSession;
     private bool _hasActiveApplicationSamples;
     #endregion
@@ -30,8 +38,30 @@ public partial class LoggingManager : ObservableObject
     #region Properties
     public List<ILogger> Loggers { get; }
 
-    [ObservableProperty]
     private List<IChannel> _subscribedChannels = [];
+
+    /// <summary>
+    /// Gets the channels currently subscribed for logging.
+    /// </summary>
+    /// <remarks>
+    /// The returned list is a <b>snapshot that is never mutated</b>: every change goes through
+    /// <see cref="Subscribe"/>, <see cref="Unsubscribe"/> or <see cref="ClearChannelList"/>, each of
+    /// which publishes a brand-new list rather than changing this one in place (copy-on-write). That
+    /// is what makes the property safe to read from a non-UI thread — <see cref="PlotLogger"/>
+    /// resolves channel visibility from the device transport thread while the UI thread subscribes
+    /// and unsubscribes, and <see cref="List{T}"/> does not tolerate a read that overlaps an
+    /// <c>Add</c>/<c>Remove</c>/<c>Clear</c> (it throws <see cref="InvalidOperationException"/>
+    /// mid-enumeration, or observes a torn state). It is exposed as
+    /// <see cref="IReadOnlyList{T}"/>, and those three methods are the only way in, so the guarantee
+    /// is a property of the API rather than of caller discipline.
+    /// <para>
+    /// Written under <see cref="_subscribedChannelsSync"/> and published with
+    /// <see cref="Volatile"/> so a reader on another core cannot observe a partially constructed
+    /// list. Written as an explicit property rather than <c>[ObservableProperty]</c> for exactly
+    /// that reason — the generated accessors do a plain field read/write.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<IChannel> SubscribedChannels => Volatile.Read(ref _subscribedChannels);
 
     [ObservableProperty]
     private bool _active;
@@ -190,16 +220,35 @@ public partial class LoggingManager : ObservableObject
     }
 
     #region Singleton Constructor / Initalization
-    private static readonly LoggingManager instance = new();
+    // Deferred rather than an eager static field initializer: the parameterless constructor resolves
+    // from App.ServiceProvider, which is null outside the running app. An eager initializer can run
+    // as soon as the type is touched — and a failed static initializer is permanent for the whole
+    // process — so that turned any use of this type outside the app into a hard failure. Deferring
+    // it to the first Instance access keeps the type usable from unit tests, which build their own
+    // instance through the internal constructor below.
+    private static readonly Lazy<LoggingManager> _instance = new(() => new LoggingManager());
 
     private LoggingManager()
+        : this(App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>())
     {
-        Loggers = [];
-        SubscribedChannels = [];
-        _loggingContext = App.ServiceProvider.GetRequiredService<IDbContextFactory<LoggingContext>>();
     }
 
-    public static LoggingManager Instance => instance;
+    /// <summary>
+    /// Test seam: builds an instance with an explicitly supplied database context factory rather
+    /// than resolving one from <see cref="App.ServiceProvider"/>, which only exists while the
+    /// application is running.
+    /// </summary>
+    /// <param name="loggingContext">Factory used to open <see cref="LoggingContext"/> sessions.</param>
+    internal LoggingManager(IDbContextFactory<LoggingContext> loggingContext)
+    {
+        Loggers = [];
+        _loggingContext = loggingContext;
+    }
+
+    /// <summary>
+    /// Gets the process-wide logging manager. Created on first access.
+    /// </summary>
+    public static LoggingManager Instance => _instance.Value;
 
     #endregion
 
@@ -602,41 +651,70 @@ public partial class LoggingManager : ObservableObject
     #endregion
 
     #region Channel Subscription
+    /// <summary>
+    /// Adds <paramref name="channel"/> to <see cref="SubscribedChannels"/> and activates it.
+    /// Subscribing an already-subscribed channel is a no-op.
+    /// </summary>
+    /// <param name="channel">The channel to subscribe.</param>
     public void Subscribe(IChannel channel)
     {
-        if (SubscribedChannels.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name))
+        lock (_subscribedChannelsSync)
         {
-            return;
+            var current = _subscribedChannels;
+
+            if (current.Any(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name))
+            {
+                return;
+            }
+
+            channel.IsActive = true;
+
+            // Only attach streaming handlers if in Stream mode
+            if (CurrentMode == LoggingMode.Stream)
+            {
+                channel.OnChannelUpdated += HandleChannelUpdate;
+            }
+
+            // Copy-on-write: publish a new list instead of Add-ing to the one a reader on the
+            // transport thread may be enumerating right now. See SubscribedChannels' remarks.
+            Volatile.Write(ref _subscribedChannels, [.. current, channel]);
         }
 
-        channel.IsActive = true;
-
-        // Only attach streaming handlers if in Stream mode
-        if (CurrentMode == LoggingMode.Stream)
-        {
-            channel.OnChannelUpdated += HandleChannelUpdate;
-        }
-
-        SubscribedChannels.Add(channel);
+        // Raised outside the lock so a binding handler can never re-enter under it.
         OnPropertyChanged(nameof(SubscribedChannels));
     }
 
+    /// <summary>
+    /// Removes <paramref name="channel"/> from <see cref="SubscribedChannels"/> and deactivates it.
+    /// Unsubscribing a channel that is not subscribed (or is already inactive) is a no-op.
+    /// </summary>
+    /// <param name="channel">The channel to unsubscribe. Matched by device serial number and name.</param>
     public void Unsubscribe(IChannel channel)
     {
-        var subscribedChannel = SubscribedChannels
-            .FirstOrDefault(x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
-
-        if (subscribedChannel == null)
+        lock (_subscribedChannelsSync)
         {
-            return;
+            var current = _subscribedChannels;
+
+            var subscribedChannel = current.FirstOrDefault(
+                x => x.DeviceSerialNo == channel.DeviceSerialNo && x.Name == channel.Name && x.IsActive);
+
+            if (subscribedChannel == null)
+            {
+                return;
+            }
+
+            subscribedChannel.IsActive = false;
+
+            // Remove event handler if it's attached
+            subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
+
+            // Copy-on-write — see SubscribedChannels' remarks.
+            var updated = new List<IChannel>(current);
+            updated.Remove(subscribedChannel);
+            Volatile.Write(ref _subscribedChannels, updated);
         }
 
-        subscribedChannel.IsActive = false;
-
-        // Remove event handler if it's attached
-        subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
-
-        SubscribedChannels.Remove(subscribedChannel);
+        // Raised outside the lock so a binding handler can never re-enter under it.
         OnPropertyChanged(nameof(SubscribedChannels));
     }
     #endregion
@@ -987,14 +1065,30 @@ public partial class LoggingManager : ObservableObject
         }
     }
 
-    private void ClearChannelList()
+    /// <summary>
+    /// Deactivates and unsubscribes every channel in <see cref="SubscribedChannels"/>.
+    /// </summary>
+    /// <remarks>
+    /// Internal rather than private so it can be covered directly: its only production caller,
+    /// <see cref="UnsubscribeProfile"/>, writes the profiles XML first and swallows any failure,
+    /// so driving this through it would touch the user's real data directory.
+    /// </remarks>
+    internal void ClearChannelList()
     {
-        foreach (var channel in SubscribedChannels)
+        lock (_subscribedChannelsSync)
         {
-            channel.IsActive = false;
-            channel.OnChannelUpdated -= HandleChannelUpdate;
+            foreach (var channel in _subscribedChannels)
+            {
+                channel.IsActive = false;
+                channel.OnChannelUpdated -= HandleChannelUpdate;
+            }
+
+            // Copy-on-write — see SubscribedChannels' remarks. Clear() would empty the very list a
+            // reader on the transport thread may be enumerating.
+            Volatile.Write(ref _subscribedChannels, []);
         }
-        SubscribedChannels.Clear();
+
+        // Raised outside the lock so a binding handler can never re-enter under it.
         OnPropertyChanged(nameof(SubscribedChannels));
     }
 }
