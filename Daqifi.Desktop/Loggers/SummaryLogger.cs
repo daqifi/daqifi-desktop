@@ -68,17 +68,17 @@ public partial class SummaryLogger : ObservableObject, ILogger
         public double MinDelta => _current.MinDeltaTicks;
 
         /// <summary>
-        /// The maximum time between samples
+        /// The largest sample value seen on this channel
         /// </summary>
         public double MaxValue => _current.MaxValue;
 
         /// <summary>
-        /// The minimum time between samples
+        /// The smallest sample value seen on this channel
         /// </summary>
         public double MinValue => _current.MinValue;
 
         /// <summary>
-        /// The minimum time between samples
+        /// The mean of the sample values seen on this channel
         /// </summary>
         public double AverageValue => _current.AverageValue;
     }
@@ -116,17 +116,17 @@ public partial class SummaryLogger : ObservableObject, ILogger
         public long MinDeltaTicks { get; set; }
 
         /// <summary>
-        /// The average value of these samples
+        /// The running mean of these samples
         /// </summary>
         public double AverageValue { get; set; }
 
         /// <summary>
-        /// The minimum value of these samples
+        /// The maximum value of these samples
         /// </summary>
         public double MaxValue { get; set; }
 
         /// <summary>
-        /// The maximum value of these samples
+        /// The minimum value of these samples
         /// </summary>
         public double MinValue { get; set; }
 
@@ -390,8 +390,13 @@ public partial class SummaryLogger : ObservableObject, ILogger
             if (buffer.SampleCount == 0)
             {
                 buffer.FirstSampleTicks = dataSample.TimestampTicks;
-                buffer.MinValue = buffer.MinValue;
-                buffer.MaxValue = buffer.MaxValue;
+
+                // Seed the running extremes from the first sample of the window, the same way
+                // the delta and latency accumulators below seed themselves. ChannelBuffer starts
+                // (and Reset()s) at 0, so without this the extremes stay anchored at 0 and
+                // Math.Min/Math.Max report 0 for any channel that never crosses zero.
+                buffer.MinValue = dataSample.Value;
+                buffer.MaxValue = dataSample.Value;
             }
             else
             {
@@ -399,7 +404,14 @@ public partial class SummaryLogger : ObservableObject, ILogger
                 buffer.MaxValue = Math.Max(dataSample.Value, buffer.MaxValue);
             }
 
-            buffer.AverageValue += dataSample.Value / SampleSize;
+            // Accumulate the mean incrementally over the samples this channel actually received.
+            // SampleSize counts device *messages*, not per-channel samples, and the two differ:
+            // a frame's DeviceMessage is dispatched before that frame's channel samples, and the
+            // buffer swap fires from Log(DeviceMessage), so a completed window holds one fewer
+            // sample per channel than SampleSize. SampleSize is also a live, user-editable field
+            // on the Summary flyout, so dividing by it rescaled an in-progress average. This form
+            // is exact for every window length and independent of SampleSize.
+            buffer.AverageValue += (dataSample.Value - buffer.AverageValue) / (buffer.SampleCount + 1);
 
             if (buffer.SampleCount > 0)
             {
