@@ -374,10 +374,10 @@ public class LoggingManagerSubscribedChannelsTests
         public int PwmDutyCyclePercent { get; set; }
         public bool IsScalingActive { get; set; }
         public bool HasValidExpression { get; set; }
-        public DataSample ActiveSample { get; set; } = null!;
+        public DataSample? ActiveSample { get; set; }
         public bool IsVisible { get; set; } = true;
 
-        public event OnChannelUpdatedHandler OnChannelUpdated = null!;
+        public event OnChannelUpdatedHandler? OnChannelUpdated;
 
         public void NotifyChannelUpdated(object sender, DataSample e) => OnChannelUpdated?.Invoke(sender, e);
 
