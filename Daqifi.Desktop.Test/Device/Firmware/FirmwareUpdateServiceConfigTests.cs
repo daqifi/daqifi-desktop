@@ -55,6 +55,24 @@ public class FirmwareUpdateServiceConfigTests
     }
 
     [TestMethod]
+    public void CreateOptions_LeavesPostReconnectStaleHandleDelayAtCoreDefault()
+    {
+        // Regression guard for issue #738: do NOT zero PostReconnectStaleHandleDelay. Core's XML doc
+        // suggests zeroing it on Windows, but our recorded successful bench flashes show the
+        // close-and-reopen discard step running normally (it appears load-bearing here), and we have no
+        // positive end-to-end validation that zeroing is safe. The #738 race is fixed at its source
+        // (the desktop no longer races the port or tears down the flashing device during Core's
+        // reconnect), not by narrowing this window — so leave the delay at Core's default.
+        var coreDefault = new FirmwareUpdateServiceOptions().PostReconnectStaleHandleDelay;
+
+        var options = FirmwareUpdateServiceConfig.CreateOptions();
+
+        Assert.AreEqual(coreDefault, options.PostReconnectStaleHandleDelay);
+        Assert.AreNotEqual(TimeSpan.Zero, options.PostReconnectStaleHandleDelay,
+            "Do not zero this delay without positive hardware validation (issue #738).");
+    }
+
+    [TestMethod]
     public void CreateOptions_LeavesProgrammingTimeoutAtCoreDefault()
     {
         // Arrange - compare against a fresh Core default rather than a hard-coded value so this

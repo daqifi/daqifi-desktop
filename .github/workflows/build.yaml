@@ -30,6 +30,13 @@ jobs:
     - name: Build with Analysis
       run: dotnet build --no-restore --configuration Release /p:EnforceCodeStyleInBuild=true
 
+    - name: Check for unused PackageReferences (non-blocking)
+      # Reports declared <PackageReference> items with no detectable C#/XAML usage as
+      # ::warning annotations. Runs after the build so SDK-generated compile inputs
+      # (global usings, XAML .g.cs) are present. Non-blocking for now (issue #711); to
+      # promote to a hard failure once it has proven quiet, add `-- . --fail-on-unused`.
+      run: dotnet run eng/CheckUnusedPackages.cs -- .
+
     - name: Publish app (framework-dependent)
       run: dotnet publish Daqifi.Desktop/Daqifi.Desktop.csproj -c Release --no-restore
 

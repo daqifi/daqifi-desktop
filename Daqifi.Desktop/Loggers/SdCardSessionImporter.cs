@@ -11,15 +11,72 @@ using ChannelType = Daqifi.Core.Channel.ChannelType;
 
 namespace Daqifi.Desktop.Loggers;
 
-public class SdCardSessionImporter
+/// <summary>
+/// Imports SD card log files into the local logging database. Extracted as an interface so the
+/// ViewModels that drive an import can be unit-tested against a device that fails.
+/// </summary>
+public interface ISdCardSessionImporter
+{
+    /// <summary>
+    /// Downloads an SD card log file from a connected USB device and imports it.
+    /// </summary>
+    /// <exception cref="TimeoutException">
+    /// Thrown when the device stops sending data mid-transfer (see
+    /// <see cref="SdCardSessionImporter.DOWNLOAD_STALL_TIMEOUT"/>).
+    /// </exception>
+    Task<SdCardImportResult> ImportFromDeviceAsync(
+        IStreamingDevice device,
+        string fileName,
+        ImportOptions? options = null,
+        IProgress<ImportProgress>? progress = null,
+        CancellationToken ct = default);
+}
+
+/// <summary>
+/// Imports SD card log files — from a local path, a stream, or straight off a connected device —
+/// into the local logging database, mapping Daqifi.Core's parsed samples onto desktop entities and
+/// bulk-inserting them into SQLite.
+/// </summary>
+public class SdCardSessionImporter : ISdCardSessionImporter
 {
     private const int BatchSize = 1000;
+
+    /// <summary>
+    /// How long the desktop waits for the device to deliver more of an SD card file before it
+    /// gives up. The deadline is reset on every chunk received, so this bounds a stall, not the
+    /// total transfer — a large file downloading steadily is never cut off.
+    ///
+    /// Deliberately longer than Core's own empty-transfer retry window (~50s observed): when the
+    /// SD subsystem is wedged, Core's typed <c>SdCardEmptyTransferException</c> carries a better
+    /// message than a bare timeout, so it must be allowed to win the race. This watchdog is the
+    /// backstop for the case Core cannot detect — a transfer that simply never completes, which
+    /// otherwise left the UI sitting on a busy overlay indefinitely (issue #754).
+    /// </summary>
+    internal static readonly TimeSpan DOWNLOAD_STALL_TIMEOUT = TimeSpan.FromSeconds(90);
+
     private readonly IDbContextFactory<LoggingContext> _loggingContext;
     private readonly AppLogger _logger = AppLogger.Instance;
+    private readonly TimeSpan _downloadStallTimeout;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SdCardSessionImporter"/> class.
+    /// </summary>
+    /// <param name="loggingContext">Factory for the logging database imported samples are written to.</param>
     public SdCardSessionImporter(IDbContextFactory<LoggingContext> loggingContext)
+        : this(loggingContext, DOWNLOAD_STALL_TIMEOUT)
+    {
+    }
+
+    /// <summary>
+    /// Test seam: constructs an importer with a shortened download stall timeout so the watchdog
+    /// can be exercised without a 90-second unit test.
+    /// </summary>
+    internal SdCardSessionImporter(
+        IDbContextFactory<LoggingContext> loggingContext,
+        TimeSpan downloadStallTimeout)
     {
         _loggingContext = loggingContext;
+        _downloadStallTimeout = downloadStallTimeout;
     }
 
     /// <summary>
@@ -51,9 +108,7 @@ public class SdCardSessionImporter
         return await ImportSessionAsync(logSession, options, progress, ct);
     }
 
-    /// <summary>
-    /// Downloads an SD card log file from a connected USB device and imports it.
-    /// </summary>
+    /// <inheritdoc />
     public async Task<SdCardImportResult> ImportFromDeviceAsync(
         IStreamingDevice device,
         string fileName,
@@ -65,12 +120,17 @@ public class SdCardSessionImporter
 
         _logger.Information($"Starting import of '{fileName}' from device {device.DeviceSerialNo}");
 
-        // Download to temp file
-        var downloadResult = await device.DownloadSdCardFileAsync(fileName, null, ct);
+        // Download to temp file, bounded by a stall watchdog. Core exposes no timeout on either
+        // public DownloadSdCardFileAsync overload (daqifi-core), so the desktop has to impose the
+        // bound itself or a silent device leaves the import hanging forever.
+        var downloadResult = await DownloadWithStallWatchdogAsync(device, fileName, ct);
 
         if (string.IsNullOrEmpty(downloadResult.FilePath))
         {
-            throw new InvalidOperationException($"Download completed but no local file path was returned for '{fileName}'.");
+            // The device answered but delivered nothing to disk — the same "SD subsystem is not
+            // ready" condition Core raises this exception for, so report it the same way rather
+            // than as a generic fault the user cannot act on.
+            throw new SdCardEmptyTransferException(fileName);
         }
 
         // Validate the downloaded file is in a temp directory
@@ -93,9 +153,11 @@ public class SdCardSessionImporter
 
             if (fileInfo.Length == 0)
             {
-                throw new InvalidOperationException(
-                    $"Downloaded file '{fileName}' is empty (0 bytes). " +
-                    "The SD card log file may not contain any data.");
+                // Issue #593 was this check firing as a bare InvalidOperationException, which the
+                // Error path then filed to Sentry. A file the device listed but served as 0 bytes
+                // is the wedged-SD-subsystem condition, not an app fault: same typed exception as
+                // the marker-only transfer Core detects, so it degrades the same way.
+                throw new SdCardEmptyTransferException(fileName);
             }
 
             // Parse using the original device filename (not the temp path)
@@ -148,6 +210,60 @@ public class SdCardSessionImporter
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Downloads <paramref name="fileName"/> while watching for a stalled transfer: the deadline
+    /// restarts every time the device delivers another chunk, so only a device that goes quiet
+    /// trips it.
+    /// </summary>
+    /// <exception cref="SdCardDownloadStalledException">
+    /// Thrown when no data arrives for <see cref="_downloadStallTimeout"/>. Callers surface this
+    /// as an expected device condition rather than an app error.
+    /// </exception>
+    internal async Task<SdCardDownloadResult> DownloadWithStallWatchdogAsync(
+        IStreamingDevice device,
+        string fileName,
+        CancellationToken ct)
+    {
+        using var stallCts = new CancellationTokenSource();
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, stallCts.Token);
+
+        stallCts.CancelAfter(_downloadStallTimeout);
+        var transferProgress = new SynchronousProgress<SdCardTransferProgress>(_ =>
+        {
+            // Another chunk arrived, so the device is alive — restart the deadline.
+            try
+            {
+                stallCts.CancelAfter(_downloadStallTimeout);
+            }
+            catch (ObjectDisposedException)
+            {
+                // The download already finished and disposed the source; nothing left to extend.
+            }
+        });
+
+        try
+        {
+            return await device.DownloadSdCardFileAsync(fileName, transferProgress, linkedCts.Token);
+        }
+        catch (OperationCanceledException) when (stallCts.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            // Distinguish our watchdog from a caller-requested cancel: only the watchdog becomes a
+            // stall, so a genuine user cancel still propagates as OperationCanceledException.
+            throw new SdCardDownloadStalledException(fileName, _downloadStallTimeout);
+        }
+    }
+
+    /// <summary>
+    /// An <see cref="IProgress{T}"/> that invokes its handler inline instead of posting to the
+    /// captured <see cref="SynchronizationContext"/> like <see cref="Progress{T}"/> does. The
+    /// stall watchdog must observe progress the moment it happens; a callback queued behind a
+    /// busy UI thread would let the deadline expire on a healthy transfer.
+    /// </summary>
+    private sealed class SynchronousProgress<T>(Action<T> handler) : IProgress<T>
+    {
+        public void Report(T value) => handler(value);
     }
 
     /// <summary>

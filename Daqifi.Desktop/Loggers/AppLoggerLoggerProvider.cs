@@ -43,6 +43,7 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
         private readonly IAppLogger _appLogger;
         private readonly string _category;
         private readonly bool _isDaqifiCategory;
+        private readonly bool _isFirmwareUpdateCategory;
 
         public AppLoggerBridge(IAppLogger appLogger, string category)
         {
@@ -54,6 +55,19 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
 
             // Our own (DAQiFi/Core) errors are worth capturing to Sentry; framework errors are not.
             _isDaqifiCategory = normalizedCategory.StartsWith("Daqifi", StringComparison.OrdinalIgnoreCase);
+
+            // ...EXCEPT Core's firmware-update logic. Core's FirmwareUpdateService logs a failed update
+            // at LogError from its own viewpoint, but the desktop's FirmwareUpdateCoordinator is the
+            // authority on firmware-outcome severity: it captures genuine flash failures to Sentry
+            // itself (a direct AppLogger.Error, not through this bridge) AND downgrades expected
+            // device/environmental outcomes — most notably a post-verify JumpingToApp reconnect timeout,
+            // where the firmware is already installed and a power-cycle finishes the job (issue #738).
+            // Forwarding Core's duplicate Error to Sentry would both double-report real failures and
+            // undo the coordinator's environmental downgrade, auto-filing noise issues like
+            // DAQIFI-DESKTOP-1N. So route this category's Error/Critical to the file only; the
+            // coordinator remains the single Sentry-capturing decision point for firmware updates.
+            _isFirmwareUpdateCategory =
+                normalizedCategory.StartsWith("Daqifi.Core.Firmware", StringComparison.OrdinalIgnoreCase);
 
             // Tag log lines with the full category for unambiguous attribution. (A short leaf name
             // would read nicer but collides across namespaces — e.g. two ".Foo" types — which
@@ -94,10 +108,12 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
                 {
                     case LogLevel.Critical:
                     case LogLevel.Error:
-                        // Capture our own errors to Sentry (AppLogger.Error); route framework
-                        // errors to the file only (AppLogger.Warning does NOT hit Sentry) so routine
-                        // component Error logs don't spam Sentry. Tag the level so severity isn't lost.
-                        if (_isDaqifiCategory)
+                        // Capture our own errors to Sentry (AppLogger.Error); route framework errors
+                        // (and Core's firmware-update category — the coordinator owns that Sentry
+                        // decision, see _isFirmwareUpdateCategory) to the file only (AppLogger.Warning
+                        // does NOT hit Sentry) so they don't spam Sentry. Tag the level so severity
+                        // isn't lost.
+                        if (_isDaqifiCategory && !_isFirmwareUpdateCategory)
                         {
                             if (exception is not null)
                             {

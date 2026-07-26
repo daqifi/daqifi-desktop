@@ -62,6 +62,21 @@ public static class FirmwareUpdateServiceConfig
     /// A <see cref="FirmwareUpdateServiceOptions"/> with <see cref="FirmwareUpdateServiceOptions.BootloaderResponseTimeout"/>
     /// set to <see cref="BootloaderHidTimeout"/>; all other options retain their Core defaults.
     /// </returns>
+    /// <remarks>
+    /// <para>
+    /// NOTE — <see cref="FirmwareUpdateServiceOptions.PostReconnectStaleHandleDelay"/> is deliberately
+    /// LEFT at Core's non-zero default. Core documents it as a macOS-only workaround ("set to zero on
+    /// Windows, where the first open is already clean"), and issue #738 tempted us to zero it to shrink
+    /// the post-reset reconnect window. We do NOT: the assumption that the Windows first open is clean is
+    /// unverified on our hardware, and the successful bench flashes we have on record show Core's
+    /// close-and-reopen discard step running normally — i.e. it appears load-bearing here. Changing
+    /// firmware-flash reconnect timing without a positive end-to-end hardware validation is not worth the
+    /// marginal window reduction. The #738 race is fixed at its source (the desktop no longer steals the
+    /// port or tears down the flashing device during Core's reconnect — see
+    /// <c>ConnectionManager.IsFirmwareUpdateInProgress</c> and <c>ConnectionManager.IsDeviceBeingUpdated</c>),
+    /// not by narrowing this window.
+    /// </para>
+    /// </remarks>
     public static FirmwareUpdateServiceOptions CreateOptions()
     {
         return new FirmwareUpdateServiceOptions

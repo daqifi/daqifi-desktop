@@ -11,20 +11,28 @@ namespace Daqifi.Desktop.Test.ViewModels;
 public class ConnectionDialogViewModelWifiDiscoveryTests
 {
     private Func<DuplicateDeviceCheckResult, DuplicateDeviceAction>? _originalDuplicateDeviceHandler;
+    private readonly List<ConnectionDialogViewModel> _viewModels = [];
 
     [TestInitialize]
     public void TestInitialize()
     {
         _originalDuplicateDeviceHandler = ConnectionManager.Instance.DuplicateDeviceHandler;
-        ConnectionManager.Instance.DuplicateDeviceHandler = null!;
+        ConnectionManager.Instance.DuplicateDeviceHandler = null;
     }
 
     [TestCleanup]
     public void TestCleanup()
     {
-        // ConnectionManager.DuplicateDeviceHandler is declared non-nullable but is genuinely unset (null)
-        // until a dialog wires it up, so restoring the captured original can legitimately restore null.
-        ConnectionManager.Instance.DuplicateDeviceHandler = _originalDuplicateDeviceHandler!;
+        // Dispose every VM so its FirmwareUpdateInProgressChanged subscription is removed from the
+        // ConnectionManager singleton (issue #738 gating); a leaked handler would otherwise fire in
+        // later tests that flip DeviceBeingUpdated.
+        foreach (var viewModel in _viewModels)
+        {
+            viewModel.Dispose();
+        }
+        _viewModels.Clear();
+
+        ConnectionManager.Instance.DuplicateDeviceHandler = _originalDuplicateDeviceHandler;
     }
 
     [TestMethod]
@@ -151,10 +159,12 @@ public class ConnectionDialogViewModelWifiDiscoveryTests
         Assert.IsFalse(viewModel.HasNoWiFiDevices);
     }
 
-    private static ConnectionDialogViewModel CreateViewModel()
+    private ConnectionDialogViewModel CreateViewModel()
     {
         var dialogService = new Mock<IDialogService>();
-        return new ConnectionDialogViewModel(dialogService.Object);
+        var viewModel = new ConnectionDialogViewModel(dialogService.Object);
+        _viewModels.Add(viewModel);
+        return viewModel;
     }
 
     private static void InvokeHandleCoreWifiDeviceLost(ConnectionDialogViewModel viewModel, DeviceLostEventArgs args)
