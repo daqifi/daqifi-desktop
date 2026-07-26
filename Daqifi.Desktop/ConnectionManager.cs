@@ -481,7 +481,8 @@ public partial class ConnectionManager : ObservableObject
         // With no discriminator at all there is nothing to compare against, so duplicates are undetectable.
         if (candidateIdentity.IsEmpty)
         {
-            AppLogger.Instance.Information($"Device {newDevice.Name} has no serial number or MAC address - cannot check for duplicates");
+            AppLogger.Instance.Information(
+                $"Device {newDevice.Name} has no serial number or MAC address - cannot check for duplicates");
             return new DuplicateDeviceCheckResult { IsDuplicate = false };
         }
 
@@ -493,7 +494,9 @@ public partial class ConnectionManager : ObservableObject
             var newDeviceInterface = newDevice.ConnectionType == ConnectionType.Usb ? "USB" : "WiFi";
             var existingDeviceInterface = existingDevice.ConnectionType == ConnectionType.Usb ? "USB" : "WiFi";
             
-            AppLogger.Instance.Information($"Duplicate device detected ({candidateIdentity}): Device already connected via {existingDeviceInterface}, attempted to add via {newDeviceInterface}");
+            AppLogger.Instance.Information(
+                $"Duplicate device detected ({candidateIdentity}): Device already connected via " +
+                $"{existingDeviceInterface}, attempted to add via {newDeviceInterface}");
             
             return new DuplicateDeviceCheckResult 
             { 
