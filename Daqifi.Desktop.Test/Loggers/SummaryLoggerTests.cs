@@ -61,9 +61,14 @@ public class SummaryLoggerTests
     /// Feeds one complete window: <paramref name="values"/> for a single channel, then enough
     /// sample-less frames to take the window's device-message count up to <c>SampleSize</c>,
     /// which is what swaps the window in and makes it readable through <c>Channels</c>.
+    /// <para>
+    /// Requires <c>values.Length &lt; SampleSize</c> — see <see cref="AssertWindowHasRoomToSwap"/>.
+    /// </para>
     /// </summary>
     private static void PumpWindow(SummaryLogger logger, string channelName, params double[] values)
     {
+        AssertWindowHasRoomToSwap(logger, values.Length);
+
         var ticks = 1_000_000L;
         foreach (var value in values)
         {
@@ -83,9 +88,15 @@ public class SummaryLoggerTests
     /// <paramref name="intervalTicks"/>, then pads the window out to <c>SampleSize</c> device
     /// messages so it swaps in. A run of N intervals produces N + 1 samples on the channel, and the
     /// padding frames carry no samples, so they add no intervals of their own.
+    /// <para>
+    /// Requires <c>intervalTicks.Length + 1 &lt; SampleSize</c> — see
+    /// <see cref="AssertWindowHasRoomToSwap"/>.
+    /// </para>
     /// </summary>
     private static void PumpIntervalWindow(SummaryLogger logger, string channelName, params long[] intervalTicks)
     {
+        AssertWindowHasRoomToSwap(logger, intervalTicks.Length + 1);
+
         var ticks = 1_000_000L;
         PumpFrame(logger, ticks, (channelName, 1.0));
 
@@ -102,6 +113,28 @@ public class SummaryLoggerTests
             ticks += 10_000;
             PumpFrame(logger, ticks);
         }
+    }
+
+    /// <summary>
+    /// Guards the precondition both window helpers depend on: a window must have at least one
+    /// sample-less frame left after its last sample-bearing frame.
+    /// <para>
+    /// The <c>SampleSize</c>-th device message swaps the window in, and it does so <i>before</i>
+    /// that same frame's samples are logged. So a helper asked for <c>SampleSize</c> or more
+    /// sample-bearing frames would swap in a window that silently omits its final sample — and its
+    /// final interval — leaving the caller asserting against data it did not intend. Failing loudly
+    /// here is the point: the helpers deliberately do not paper over it by stretching the window,
+    /// because a test's window size is part of what it is asserting.
+    /// </para>
+    /// </summary>
+    private static void AssertWindowHasRoomToSwap(SummaryLogger logger, int sampleBearingFrames)
+    {
+        Assert.IsTrue(
+            sampleBearingFrames < logger.SampleSize,
+            $"Test-helper misuse: {sampleBearingFrames} sample-bearing frames were requested for a "
+            + $"window of SampleSize {logger.SampleSize}. The SampleSize-th device message swaps the "
+            + "window before its own samples are logged, so the swapped-in window would be missing "
+            + "its last sample. Use a larger SampleSize or fewer samples.");
     }
 
     private static SummaryLogger.ChannelSummary SummaryFor(SummaryLogger logger, string channelName)
