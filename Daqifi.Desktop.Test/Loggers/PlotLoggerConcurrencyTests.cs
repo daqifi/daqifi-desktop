@@ -41,6 +41,14 @@ public class PlotLoggerConcurrencyTests
     /// <summary>How long the thread state must stay <c>WaitSleepJoin</c> to count as parked on the lock.</summary>
     private const int BLOCK_SETTLE_MS = 100;
 
+    /// <summary>
+    /// Budget for observing the background thread park on the lock. Deliberately far larger than
+    /// <see cref="BLOCK_WAIT_TIMEOUT_MS"/> because it is only ever spent on a genuine failure: the poll
+    /// returns the instant the park is seen, so a passing run never waits anywhere near this long.
+    /// A loaded CI agent can take a while to schedule the thread and JIT its way to the lock.
+    /// </summary>
+    private const int PARK_WAIT_TIMEOUT_MS = 30000;
+
     /// <summary>Wall-clock budget for the stress test. Bounded so the unit gate stays fast.</summary>
     private const int STRESS_DURATION_MS = 300;
 
@@ -78,13 +86,36 @@ public class PlotLoggerConcurrencyTests
     }
 
     /// <summary>
-    /// Blocks until <paramref name="thread"/> has been parked in <see cref="ThreadState.WaitSleepJoin"/>
-    /// continuously for <see cref="BLOCK_SETTLE_MS"/> — i.e. it is waiting on the monitor rather than
-    /// momentarily inside a runtime lock while starting up.
+    /// Blocks until <paramref name="thread"/> is parked on <c>PlotModel.SyncRoot</c> inside
+    /// <see cref="PlotLogger.Log(DataSample)"/>, in two steps: first a real synchronization primitive
+    /// (<paramref name="reachedLogCall"/>, set by the thread immediately before the call), then a poll
+    /// for <see cref="ThreadState.WaitSleepJoin"/> held continuously for <see cref="BLOCK_SETTLE_MS"/>
+    /// so a transient runtime/JIT lock during start-up is not mistaken for the park.
     /// </summary>
-    private static void WaitUntilParkedOnLock(Thread thread)
+    /// <remarks>
+    /// The state poll is a heuristic, so it is worth being precise about what rests on it.
+    /// <list type="bullet">
+    /// <item>It is <b>not</b> what makes the interleaving safe. The caller holds the lock across this
+    /// wait and across its <c>ClearPlot()</c>, so a correctly locked <c>Log</c> physically cannot run
+    /// its body in that window whether or not the park is ever observed.</item>
+    /// <item>What it adds is proof that the thread really is <i>inside</i> <c>Log</c> — which is what
+    /// made this test fail against the pre-fix code, where <c>Log</c> read <c>ContainsKey</c> before
+    /// taking the lock. Parked means that unlocked read has already happened, so the following
+    /// <c>ClearPlot()</c> lands in the exact window that threw <c>KeyNotFoundException</c>.</item>
+    /// <item>A false <i>positive</i> cannot turn a real bug green: it would only clear the lock earlier,
+    /// which the fixed code still handles. A false <i>negative</i> could only turn a passing test red,
+    /// which is why the budget is <see cref="PARK_WAIT_TIMEOUT_MS"/> rather than the usual one — a
+    /// thread blocked on a monitor stays in <c>WaitSleepJoin</c> until released, so the state is stable
+    /// and the poll cannot miss it once it is reached.</item>
+    /// </list>
+    /// </remarks>
+    private static void WaitUntilParkedOnLock(Thread thread, ManualResetEventSlim reachedLogCall)
     {
-        var deadline = Environment.TickCount64 + BLOCK_WAIT_TIMEOUT_MS;
+        Assert.IsTrue(
+            reachedLogCall.Wait(BLOCK_WAIT_TIMEOUT_MS),
+            "The background thread never reached its Log() call.");
+
+        var deadline = Environment.TickCount64 + PARK_WAIT_TIMEOUT_MS;
         while (Environment.TickCount64 < deadline)
         {
             if ((thread.ThreadState & ThreadState.WaitSleepJoin) == 0)
@@ -160,10 +191,14 @@ public class PlotLoggerConcurrencyTests
         plotter.Log(Sample(0, 1.0));
 
         Exception? escaped = null;
+        using var reachedLogCall = new ManualResetEventSlim(false);
         var transport = new Thread(() =>
         {
             try
             {
+                // Signalled from the call site so the wait below starts from a known point: everything
+                // between here and Log's lock acquisition is non-blocking.
+                reachedLogCall.Set();
                 plotter.Log(Sample(1, 2.0));
             }
             catch (Exception ex)
@@ -181,7 +216,7 @@ public class PlotLoggerConcurrencyTests
             transport.Start();
 
             // Park the "transport thread" mid-Log, then let the UI thread's session-start clear land.
-            WaitUntilParkedOnLock(transport);
+            WaitUntilParkedOnLock(transport, reachedLogCall);
             plotter.ClearPlot();
         }
 
