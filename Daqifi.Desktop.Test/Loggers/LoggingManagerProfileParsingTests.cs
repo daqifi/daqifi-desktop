@@ -103,6 +103,123 @@ public class LoggingManagerProfileParsingTests
     }
 
     [TestMethod]
+    public void ParseProfiles_DefaultsDevices_WhenDevicesElementIsMissing()
+    {
+        // A profile with no devices has no <Devices> element at all. The null-conditional in the
+        // parser short-circuits the whole Elements/Select/ToList chain, so this must not throw.
+        var doc = XDocument.Parse($"""
+            <Profiles>
+              <Profile>
+                <Name>Deviceless</Name>
+                <ProfileID>{PROFILE_ID_A}</ProfileID>
+              </Profile>
+            </Profiles>
+            """);
+
+        var profiles = LoggingManager.ParseProfiles(doc);
+
+        Assert.AreEqual(1, profiles.Count);
+        Assert.AreEqual(0, profiles[0].Devices.Count);
+    }
+
+    [TestMethod]
+    public void ParseProfiles_DefaultsMalformedValues_AndKeepsTheProfile()
+    {
+        // Present-but-unparsable text is the second way the XElement cast operators threw (missing
+        // elements were the first). None of these fields is an identity, so a typo defaults the one
+        // value instead of discarding the user's whole profile.
+        var doc = XDocument.Parse($"""
+            <Profiles>
+              <Profile>
+                <Name>Hand edited</Name>
+                <ProfileID>{PROFILE_ID_A}</ProfileID>
+                <CreatedOn>last Tuesday</CreatedOn>
+                <Devices>
+                  <Device>
+                    <DeviceName>Nq3</DeviceName>
+                    <SamplingFrequency>fast</SamplingFrequency>
+                    <Channels>
+                      <Channel>
+                        <Name>AI0</Name>
+                        <IsActive>yes</IsActive>
+                      </Channel>
+                    </Channels>
+                  </Device>
+                </Devices>
+              </Profile>
+            </Profiles>
+            """);
+
+        var profiles = LoggingManager.ParseProfiles(doc);
+
+        Assert.AreEqual(1, profiles.Count);
+        Assert.AreEqual(DateTime.MinValue, profiles[0].CreatedOn);
+        Assert.AreEqual(0, profiles[0].Devices[0].SamplingFrequency);
+        Assert.IsFalse(profiles[0].Devices[0].Channels[0].IsChannelActive);
+        // Everything around the bad values is still read.
+        Assert.AreEqual("Hand edited", profiles[0].Name);
+        Assert.AreEqual("Nq3", profiles[0].Devices[0].DeviceName);
+        Assert.AreEqual("AI0", profiles[0].Devices[0].Channels[0].Name);
+    }
+
+    [TestMethod]
+    public void ParseProfiles_KeepsLaterProfiles_WhenAnEarlierOneHasMalformedValues()
+    {
+        // The same "one bad entry must not abort the load" contract as the malformed-ID case, for a
+        // malformed *value*: this used to throw FormatException out of the (DateTime?) cast, which
+        // escaped LoadProfilesFromXml's single catch and dropped every profile after it.
+        var doc = XDocument.Parse($"""
+            <Profiles>
+              <Profile>
+                <Name>Bad date</Name>
+                <ProfileID>{PROFILE_ID_A}</ProfileID>
+                <CreatedOn>not-a-date</CreatedOn>
+              </Profile>
+              <Profile>
+                <Name>Last</Name>
+                <ProfileID>{PROFILE_ID_B}</ProfileID>
+                <CreatedOn>2026-01-02T03:04:05</CreatedOn>
+              </Profile>
+            </Profiles>
+            """);
+
+        var profiles = LoggingManager.ParseProfiles(doc);
+
+        Assert.AreEqual(2, profiles.Count);
+        Assert.AreEqual(DateTime.MinValue, profiles[0].CreatedOn);
+        Assert.AreEqual("Last", profiles[1].Name);
+        Assert.AreEqual(new DateTime(2026, 1, 2, 3, 4, 5), profiles[1].CreatedOn);
+    }
+
+    [TestMethod]
+    public void ParseProfiles_ReadsIsActive_InTheXmlOneZeroSpelling()
+    {
+        // The XElement bool operator went through XmlConvert.ToBoolean, which accepts the canonical
+        // xs:boolean "1"/"0" as well as true/false. Files written or hand-edited that way must keep
+        // round-tripping now that the parser uses bool.TryParse.
+        var doc = XDocument.Parse($"""
+            <Profiles>
+              <Profile>
+                <ProfileID>{PROFILE_ID_A}</ProfileID>
+                <Devices>
+                  <Device>
+                    <Channels>
+                      <Channel><Name>On</Name><IsActive>1</IsActive></Channel>
+                      <Channel><Name>Off</Name><IsActive>0</IsActive></Channel>
+                    </Channels>
+                  </Device>
+                </Devices>
+              </Profile>
+            </Profiles>
+            """);
+
+        var channels = LoggingManager.ParseProfiles(doc)[0].Devices[0].Channels;
+
+        Assert.IsTrue(channels.Single(c => c.Name == "On").IsChannelActive);
+        Assert.IsFalse(channels.Single(c => c.Name == "Off").IsChannelActive);
+    }
+
+    [TestMethod]
     public void ParseProfiles_ReturnsEmpty_WhenDocumentHasNoProfiles()
     {
         var profiles = LoggingManager.ParseProfiles(XDocument.Parse("<Profiles />"));

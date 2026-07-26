@@ -25,6 +25,13 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
     /// and is immediately re-issued.
     /// </summary>
     public static readonly TimeSpan DefaultKeepAliveReadTimeout = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// How long <see cref="Dispose"/> waits for the keep-alive loop to finish before disposing the
+    /// transport regardless. Comfortably above <see cref="DefaultKeepAliveReadTimeout"/>, so a healthy
+    /// loop always finishes inside it once the in-flight read is cancelled.
+    /// </summary>
+    private static readonly TimeSpan KEEP_ALIVE_DISPOSE_TIMEOUT = TimeSpan.FromSeconds(2);
     #endregion
 
     #region Private Fields
@@ -367,9 +374,23 @@ public sealed class BootloaderHoldService : IBootloaderHoldService, IDisposable
         // Best-effort during shutdown: the keep-alive read is expected to fault or be cancelled here.
         // Logged (not swallowed) at warning level so a wedged bootloader teardown is still diagnosable
         // in DAQiFiAppLog.log without escalating a routine shutdown race to Sentry.
+        //
+        // Deliberately a bounded wait rather than the unbounded drain StopKeepAliveAsync does: this runs
+        // on the teardown/shutdown path, where blocking forever on a wedged transport would be worse
+        // than the race it would close. The transport is disposed below even when the wait times out —
+        // that determinism is the whole point of this method (see the summary). A read still pending
+        // against the disposed handle is already handled rather than merely tolerated: the loop catches
+        // the fault, and because _stopKeepAlive was set above, its post-loop guard correctly reads the
+        // stop as requested and suppresses the HoldDropped notification.
         try
         {
-            _keepAliveTask?.Wait(TimeSpan.FromSeconds(2));
+            if (_keepAliveTask?.Wait(KEEP_ALIVE_DISPOSE_TIMEOUT) == false)
+            {
+                _logger.Warning(
+                    "HID bootloader keep-alive loop did not finish within " +
+                    $"{KEEP_ALIVE_DISPOSE_TIMEOUT.TotalSeconds:N0}s of hold disposal; disposing the " +
+                    "transport anyway. Any read still pending against it will fault and be discarded.");
+            }
         }
         catch (Exception ex)
         {

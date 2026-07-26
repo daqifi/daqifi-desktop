@@ -272,7 +272,10 @@ public partial class ConnectionManager : ObservableObject, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    AppLogger.Instance.Warning($"Failed to dispose a rejected duplicate device: {ex.Message}");
+                    // Exception-aware overload: keeps the stack trace in DAQiFiAppLog.log (where a
+                    // leaked-handle report is diagnosed from) without escalating to Sentry.
+                    AppLogger.Instance.Warning(
+                        ex, $"Failed to dispose a rejected duplicate device ({device.Name}).");
                 }
                 ConnectionStatus = postConnectDuplicateResult.ExistingDevice != null ? DAQiFiConnectionStatus.AlreadyConnected : DAQiFiConnectionStatus.Error;
                 return;
