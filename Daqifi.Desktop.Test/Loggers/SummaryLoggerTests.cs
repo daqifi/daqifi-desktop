@@ -23,7 +23,7 @@ namespace Daqifi.Desktop.Test.Loggers;
 [TestClass]
 public class SummaryLoggerTests
 {
-    private const string DeviceSerial = "SN-1";
+    private const string DEVICE_SERIAL = "SN-1";
 
     /// <summary>
     /// Feeds one stream frame: the frame's device message followed by its channel samples,
@@ -37,7 +37,7 @@ public class SummaryLoggerTests
         logger.Log(new DeviceMessage
         {
             DeviceName = "Nq1",
-            DeviceSerialNo = DeviceSerial,
+            DeviceSerialNo = DEVICE_SERIAL,
             TimestampTicks = timestampTicks,
             AppTicks = timestampTicks
         });
@@ -47,7 +47,7 @@ public class SummaryLoggerTests
             logger.Log(new DataSample
             {
                 DeviceName = "Nq1",
-                DeviceSerialNo = DeviceSerial,
+                DeviceSerialNo = DEVICE_SERIAL,
                 ChannelName = channel,
                 Type = ChannelType.Analog,
                 Color = "#FF0000FF",
