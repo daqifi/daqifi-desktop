@@ -29,7 +29,10 @@ public class SummaryLoggerTests
     /// Feeds one stream frame: the frame's device message followed by its channel samples,
     /// matching the production dispatch order described on the class.
     /// </summary>
-    private static void PumpFrame(SummaryLogger logger, long timestampTicks, params (string Channel, double Value)[] samples)
+    private static void PumpFrame(
+        SummaryLogger logger,
+        long timestampTicks,
+        params (string Channel, double Value)[] samples)
     {
         logger.Log(new DeviceMessage
         {
@@ -72,6 +75,32 @@ public class SummaryLoggerTests
         {
             PumpFrame(logger, ticks);
             ticks += 10_000;
+        }
+    }
+
+    /// <summary>
+    /// Feeds one complete window for a single channel whose samples are spaced by
+    /// <paramref name="intervalTicks"/>, then pads the window out to <c>SampleSize</c> device
+    /// messages so it swaps in. A run of N intervals produces N + 1 samples on the channel, and the
+    /// padding frames carry no samples, so they add no intervals of their own.
+    /// </summary>
+    private static void PumpIntervalWindow(SummaryLogger logger, string channelName, params long[] intervalTicks)
+    {
+        var ticks = 1_000_000L;
+        PumpFrame(logger, ticks, (channelName, 1.0));
+
+        var frames = 1;
+        foreach (var interval in intervalTicks)
+        {
+            ticks += interval;
+            PumpFrame(logger, ticks, (channelName, 1.0));
+            frames++;
+        }
+
+        for (; frames < logger.SampleSize; frames++)
+        {
+            ticks += 10_000;
+            PumpFrame(logger, ticks);
         }
     }
 
@@ -178,6 +207,44 @@ public class SummaryLoggerTests
             SummaryFor(large, "AI0").AverageValue,
             1e-9,
             "The reported mean must not scale with SampleSize.");
+    }
+
+    [TestMethod]
+    public void Log_AverageDelta_IsMeanOfTheChannelsOwnIntervals()
+    {
+        // Arrange: four samples on one channel, spaced unevenly, so the three intervals average
+        // 20,000 ticks. Dividing their sum by (SampleSize - 1) = 4 instead reports 15,000 — the
+        // same message-window-vs-per-channel-count mismatch that skewed AverageValue.
+        var logger = new SummaryLogger(sampleSize: 5);
+
+        // Act
+        PumpIntervalWindow(logger, "AI0", 10_000, 30_000, 20_000);
+
+        // Assert
+        var summary = SummaryFor(logger, "AI0");
+        Assert.AreEqual(4, summary.SampleCount, "The completed window should hold four samples.");
+        Assert.AreEqual(20_000.0, summary.AverageDelta, 1e-9,
+            "AverageDelta must be the mean of the intervals between the channel's own samples.");
+    }
+
+    [TestMethod]
+    public void Log_AverageDelta_IsIndependentOfSampleSize()
+    {
+        // Arrange: identical sample spacing read back through two window sizes. How many device
+        // messages bound the window cannot change how far apart a channel's samples were.
+        var small = new SummaryLogger(sampleSize: 5);
+        var large = new SummaryLogger(sampleSize: 16);
+
+        // Act
+        PumpIntervalWindow(small, "AI0", 10_000, 30_000, 20_000);
+        PumpIntervalWindow(large, "AI0", 10_000, 30_000, 20_000);
+
+        // Assert
+        Assert.AreEqual(
+            SummaryFor(small, "AI0").AverageDelta,
+            SummaryFor(large, "AI0").AverageDelta,
+            1e-9,
+            "The reported mean interval must not scale with SampleSize.");
     }
 
     [TestMethod]

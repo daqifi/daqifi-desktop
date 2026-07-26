@@ -426,7 +426,15 @@ public partial class SummaryLogger : ObservableObject, ILogger
                     buffer.MinDeltaTicks = Math.Min(buffer.MinDeltaTicks, elapsed);
                     buffer.MaxDeltaTicks = Math.Max(buffer.MaxDeltaTicks, elapsed);
                 }
-                buffer.AverageDeltaTicks += elapsed / (double)(SampleSize - 1);
+                // Mean over the intervals this channel actually saw, for the same reason
+                // AverageValue above is: SampleSize bounds the window in device *messages*, so it
+                // is neither the channel's sample count nor its interval count. At the k-th
+                // interval SampleCount is exactly k, so this form self-seeds on the first interval,
+                // stays exact for every window length, and cannot divide by zero when SampleSize
+                // is 1. (The device-level accumulator below keeps (SampleSize - 1): that buffer
+                // does count messages, so a completed window really does hold SampleSize - 1
+                // intervals.)
+                buffer.AverageDeltaTicks += (elapsed - buffer.AverageDeltaTicks) / buffer.SampleCount;
             }
             buffer.LastSampleTicks = dataSample.TimestampTicks;
 
