@@ -79,11 +79,13 @@ public class SummaryLoggerLatencyTests
     [TestMethod]
     public void Log_AverageLatency_IsTheMeanOfTheWindowsLatencies()
     {
+        // Arrange
         var logger = new SummaryLogger(5);
 
+        // Act
         PumpWindow(logger, 100, 200, 300, 400, 500);
 
-        // (100 + 200 + 300 + 400 + 500) / 5. Dividing the same sum by SampleSize - 1 gives 375.
+        // Assert - (100 + 200 + 300 + 400 + 500) / 5. Dividing that sum by SampleSize - 1 gives 375.
         Assert.AreEqual(300.0, logger.AverageLatency, 1e-9);
     }
 
@@ -96,12 +98,15 @@ public class SummaryLoggerLatencyTests
     [TestMethod]
     public void Log_AverageLatency_IsIndependentOfSampleSize()
     {
+        // Arrange
         var small = new SummaryLogger(5);
         var large = new SummaryLogger(16);
 
+        // Act - the same latency, measured through two different window bounds.
         PumpWindow(small, Repeated(1000, small.SampleSize));
         PumpWindow(large, Repeated(1000, large.SampleSize));
 
+        // Assert
         Assert.AreEqual(1000.0, small.AverageLatency, 1e-9);
         Assert.AreEqual(1000.0, large.AverageLatency, 1e-9);
         Assert.AreEqual(small.AverageLatency, large.AverageLatency, 1e-9);
@@ -115,10 +120,13 @@ public class SummaryLoggerLatencyTests
     [TestMethod]
     public void Log_AverageLatency_IsFinite_WhenSampleSizeIsOne()
     {
+        // Arrange
         var logger = new SummaryLogger(1);
 
+        // Act
         PumpWindow(logger, 700);
 
+        // Assert
         Assert.IsFalse(double.IsInfinity(logger.AverageLatency), "Average latency must stay finite.");
         Assert.IsFalse(double.IsNaN(logger.AverageLatency), "Average latency must stay a number.");
         Assert.AreEqual(700.0, logger.AverageLatency, 1e-9);
@@ -131,12 +139,21 @@ public class SummaryLoggerLatencyTests
     [TestMethod]
     public void Log_AverageLatency_DoesNotCarryAcrossWindows()
     {
+        // Arrange - complete one window whose mean is a known, non-zero value, so that anything
+        // carried into the next window would show up rather than hide behind a zero. The check on
+        // it is a precondition, not the assertion under test.
         var logger = new SummaryLogger(3);
-
         PumpWindow(logger, 100, 100, 100);
-        Assert.AreEqual(100.0, logger.AverageLatency, 1e-9);
+        Assert.AreEqual(
+            100.0,
+            logger.AverageLatency,
+            1e-9,
+            "Precondition: the first window must report its own mean before carry-over can be judged.");
 
+        // Act - the single window under test.
         PumpWindow(logger, 400, 400, 400);
+
+        // Assert
         Assert.AreEqual(400.0, logger.AverageLatency, 1e-9);
     }
 
@@ -148,10 +165,14 @@ public class SummaryLoggerLatencyTests
     [TestMethod]
     public void Log_MinAndMaxLatency_SpanEveryMessageInTheWindow()
     {
+        // Arrange
         var logger = new SummaryLogger(4);
 
+        // Act - the smallest and largest latencies sit in the middle of the window, so neither can
+        // be reported by accident from the first or last message alone.
         PumpWindow(logger, 300, 100, 900, 500);
 
+        // Assert
         Assert.AreEqual(100.0, logger.MinLatency, 1e-9);
         Assert.AreEqual(900.0, logger.MaxLatency, 1e-9);
     }
@@ -165,10 +186,11 @@ public class SummaryLoggerLatencyTests
     [TestMethod]
     public void Log_AverageDelta_StillAveragesOverSampleSizeMinusOneIntervals()
     {
+        // Arrange
         var logger = new SummaryLogger(5);
-
-        // Four intervals of 10, 20, 30 and 40 ticks between five messages: mean 25.
         var appTicks = FIRST_APP_TICKS;
+
+        // Act - four intervals of 10, 20, 30 and 40 ticks between five messages: mean 25.
         PumpMessage(logger, appTicks, 1);
         foreach (var interval in new long[] { 10, 20, 30, 40 })
         {
@@ -176,6 +198,7 @@ public class SummaryLoggerLatencyTests
             PumpMessage(logger, appTicks, 1);
         }
 
+        // Assert
         Assert.AreEqual(25.0, logger.AverageDelta, 1e-9);
         Assert.AreEqual(10.0, logger.MinDelta, 1e-9);
         Assert.AreEqual(40.0, logger.MaxDelta, 1e-9);
@@ -188,10 +211,13 @@ public class SummaryLoggerLatencyTests
     [TestMethod]
     public void Log_AverageDelta_IsZero_WhenSampleSizeIsOne()
     {
+        // Arrange
         var logger = new SummaryLogger(1);
 
+        // Act
         PumpWindow(logger, 700);
 
+        // Assert
         Assert.AreEqual(0.0, logger.AverageDelta, 1e-9);
     }
 }
