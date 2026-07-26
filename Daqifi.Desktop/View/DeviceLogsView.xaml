@@ -309,7 +309,7 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
-                <TextBlock Text="The card may be corrupt or busy. Try a different card or reformat (FAT32)."
+                <TextBlock Text="{Binding SdCardErrorGuidance}"
                            FontSize="13"
                            FontWeight="Light"
                            Foreground="{StaticResource TextPrimary}"
