@@ -17,6 +17,13 @@ namespace Daqifi.Desktop.Test.Device;
 /// asserted "did not throw", which is true of every switch arm, so they stayed green while the SCPI
 /// arm was unreachable (issue #775) and the condition was silently reaching Sentry.
 /// </para>
+/// <para>
+/// Each case verifies BOTH <see cref="IAppLogger.Error(Exception, string)"/> and
+/// <see cref="IAppLogger.Error(string)"/>, because both capture to Sentry — the exception overload
+/// via <c>SentrySdk.CaptureException(ex, ...)</c> and the message-only overload via a synthesized
+/// <c>AppLogErrorException</c>. Guarding only the exception overload would leave a live Sentry path
+/// a regression could take with these tests still green.
+/// </para>
 /// </summary>
 [TestClass]
 public class SerialStreamingDeviceLogConnectFailureTests
@@ -87,6 +94,7 @@ public class SerialStreamingDeviceLogConnectFailureTests
         // Error path (which is what captures to Sentry). Regression guard for #775.
         logger.Verify(l => l.Warning(ex, It.IsAny<string>()), Times.Once);
         logger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.Never);
+        logger.Verify(l => l.Error(It.IsAny<string>()), Times.Never);
     }
 
     [TestMethod]
@@ -104,6 +112,7 @@ public class SerialStreamingDeviceLogConnectFailureTests
         // Assert
         logger.Verify(l => l.Warning(ex, It.IsAny<string>()), Times.Once);
         logger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.Never);
+        logger.Verify(l => l.Error(It.IsAny<string>()), Times.Never);
     }
 
     [TestMethod]
@@ -122,6 +131,7 @@ public class SerialStreamingDeviceLogConnectFailureTests
         // Assert
         logger.Verify(l => l.Warning(ex, It.IsAny<string>()), Times.Once);
         logger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.Never);
+        logger.Verify(l => l.Error(It.IsAny<string>()), Times.Never);
     }
 
     [TestMethod]
@@ -139,6 +149,10 @@ public class SerialStreamingDeviceLogConnectFailureTests
         // Assert
         logger.Verify(l => l.Error(ex, It.IsAny<string>()), Times.Once);
         logger.Verify(l => l.Warning(It.IsAny<Exception>(), It.IsAny<string>()), Times.Never);
+
+        // ...and via the exception-carrying overload specifically: the message-only Error(string)
+        // synthesizes an AppLogErrorException, which would strand the real stack trace out of Sentry.
+        logger.Verify(l => l.Error(It.IsAny<string>()), Times.Never);
     }
 
     /// <summary>
