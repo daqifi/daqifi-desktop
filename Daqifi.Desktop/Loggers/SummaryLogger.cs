@@ -11,6 +11,24 @@ namespace Daqifi.Desktop.Logger;
 /// </summary>
 public partial class SummaryLogger : ObservableObject, ILogger
 {
+    #region "Constants"
+
+    /// <summary>
+    /// The smallest window this logger will hold, matching the <c>Minimum</c> on the Summary
+    /// flyout's sample-size control (SummaryFlyout.xaml). A window of one message is legal - it
+    /// publishes on every message and spans no interval - but a window of zero or fewer is not a
+    /// window at all, and the property is public, so the floor is enforced here rather than left to
+    /// the control.
+    /// </summary>
+    private const int MINIMUM_SAMPLE_SIZE = 1;
+
+    /// <summary>
+    /// The window length <see cref="ResetCommand"/> restores, and the one a logger built by the
+    /// parameterless constructor starts with.
+    /// </summary>
+    private const int DEFAULT_SAMPLE_SIZE = 1000;
+
+    #endregion
 
     #region "Private Data"
 
@@ -242,15 +260,32 @@ public partial class SummaryLogger : ObservableObject, ILogger
     private bool _enabled;
 
     /// <summary>
-    /// Serializes every access to <see cref="_buffer"/>, <see cref="_current"/> and
-    /// <see cref="_sampleSize"/>.
+    /// Serializes every <em>mutation</em> of <see cref="_buffer"/>, <see cref="_current"/> and
+    /// <see cref="_sampleSize"/>, including the swap that exchanges the two buffers, so that a
+    /// window is always accumulated and published against one sample size.
     /// </summary>
     /// <remarks>
     /// A dedicated object rather than the buffers themselves, because <see cref="SwapBuffer"/>
     /// exchanges what those two fields point at. <c>lock (_buffer)</c> guards whichever instance
     /// the field happened to hold when the lock was taken, so across a swap two threads can lock
     /// two different objects while mutating the same buffer - no mutual exclusion at all. This
-    /// reference never changes, so every path below is genuinely serialized against every other.
+    /// reference never changes, so every mutating path below is genuinely serialized against every
+    /// other.
+    /// <para>
+    /// Deliberately <em>not</em> taken by the read side. <see cref="SampleSize"/>'s getter and the
+    /// properties that project <see cref="_current"/> onto the flyout read without it: they run on
+    /// the UI thread in response to the notifications raised after a swap, and gating them would
+    /// put every repaint behind the streaming thread. The cost is that a swap landing between two
+    /// of those getters can show two fields from two different windows for one frame - a display
+    /// artifact, not corruption, because a published buffer is only ever replaced wholesale and the
+    /// buffer being filled is never the one being read.
+    /// </para>
+    /// <para>
+    /// No change notification is raised while this is held - not by <see cref="Log(DeviceMessage)"/>,
+    /// the <see cref="SampleSize"/> setter, or any command below. A subscriber that reaches back
+    /// into the logger, or a binding marshalling to a UI thread that is itself inside the setter,
+    /// would otherwise do so against a gate the notifying thread still owns.
+    /// </para>
     /// </remarks>
     private readonly object _gate = new();
 
@@ -292,26 +327,42 @@ public partial class SummaryLogger : ObservableObject, ILogger
     /// Both constructors assign the backing field directly, so the restart cannot run before the
     /// buffers exist.
     /// </para>
+    /// <para>
+    /// Values below <see cref="MINIMUM_SAMPLE_SIZE"/> are clamped rather than rejected. The
+    /// property is two-way bound, and throwing out of a bound setter leaves the control and the
+    /// model disagreeing with no way for the user to tell; clamping keeps them in step, because
+    /// the notification below pushes the coerced value straight back to the control.
+    /// </para>
     /// </remarks>
     public int SampleSize
     {
         get => _sampleSize;
         set
         {
+            var coerced = Math.Max(MINIMUM_SAMPLE_SIZE, value);
+            bool changed;
+
             lock (_gate)
             {
-                if (_sampleSize == value)
+                changed = _sampleSize != coerced;
+                if (changed)
                 {
-                    return;
+                    _sampleSize = coerced;
+                    _buffer.Reset();
                 }
-
-                _sampleSize = value;
-                _buffer.Reset();
             }
 
             // Raised outside the lock: a binding's change handler must never run while this
             // instance is holding the gate the streaming thread needs.
-            OnPropertyChanged();
+            //
+            // Notified on a coercion even when the stored size did not move, so a control that
+            // pushed a value this property refused is told to re-read and snap back to the one it
+            // actually holds. Without that, a size of 0 offered against a stored 1 would leave the
+            // flyout displaying 0 forever.
+            if (changed || coerced != value)
+            {
+                OnPropertyChanged();
+            }
         }
     }
 
@@ -412,7 +463,7 @@ public partial class SummaryLogger : ObservableObject, ILogger
 
     public SummaryLogger()
     {
-        _sampleSize = 1000;
+        _sampleSize = DEFAULT_SAMPLE_SIZE;
         _buffer = new SummaryBuffer();
         _current = new SummaryBuffer();
     }
@@ -420,10 +471,14 @@ public partial class SummaryLogger : ObservableObject, ILogger
     /// <summary>
     /// Creates a new instance
     /// </summary>
-    /// <param name="sampleSize">The size of the sample set</param>
+    /// <param name="sampleSize">
+    /// The size of the sample set, clamped to <see cref="MINIMUM_SAMPLE_SIZE"/> on the same terms
+    /// as <see cref="SampleSize"/> - assigning the field directly here would otherwise let a
+    /// caller start the logger at a size the property will not accept.
+    /// </param>
     public SummaryLogger(int sampleSize)
     {
-        _sampleSize = sampleSize;
+        _sampleSize = Math.Max(MINIMUM_SAMPLE_SIZE, sampleSize);
         _buffer = new SummaryBuffer();
         _current = new SummaryBuffer();
         _enabled = true;
@@ -642,35 +697,61 @@ public partial class SummaryLogger : ObservableObject, ILogger
         }
     }
 
+    /// <remarks>
+    /// <see cref="Enabled"/> is written outside <see cref="_gate"/> on purpose. It is not gated
+    /// state - both <c>Log</c> overloads read it without the lock - and assigning it raises
+    /// <c>PropertyChanged</c>, which must not happen while the gate is held. Writing it before the
+    /// gate is taken also makes the intent real: a message already past the <c>Enabled</c> check
+    /// and waiting on the gate cannot be turned back, so stopping first is the only thing that
+    /// narrows the window at all.
+    /// </remarks>
     private void Start()
     {
+        Enabled = false;
+
         lock (_gate)
         {
-            Enabled = false;
             _buffer.Reset();
-            Enabled = true;
-            OnPropertyChanged(nameof(Enabled));
         }
+
+        Enabled = true;
     }
 
+    /// <remarks>
+    /// Touches nothing <see cref="_gate"/> guards, so it does not take it. See
+    /// <see cref="Start"/> for why <see cref="Enabled"/> is not gated state.
+    /// </remarks>
     private void Stop()
     {
-        lock (_gate)
-        {
-            Enabled = false;
-            OnPropertyChanged(nameof(Enabled));
-        }
+        Enabled = false;
     }
 
+    /// <remarks>
+    /// Restores the default window length and clears both buffers as one step, then notifies.
+    /// The sample size is written through the backing field rather than
+    /// <see cref="SampleSize"/> because that setter notifies, and doing so from here would raise
+    /// <c>PropertyChanged</c> with <see cref="_gate"/> still held by this method - a lock is
+    /// re-entrant to its own thread, so the setter releasing its own <c>lock</c> block does not
+    /// release the gate. See <see cref="_gate"/>.
+    /// </remarks>
     [RelayCommand]
     private void Reset()
     {
+        Enabled = false;
+
+        bool sampleSizeChanged;
+
         lock (_gate)
         {
-            Enabled = false;
-            SampleSize = 1000;
+            sampleSizeChanged = _sampleSize != DEFAULT_SAMPLE_SIZE;
+            _sampleSize = DEFAULT_SAMPLE_SIZE;
             _buffer.Reset();
             _current.Reset();
+        }
+
+        if (sampleSizeChanged)
+        {
+            OnPropertyChanged(nameof(SampleSize));
         }
 
         NotifyResultsChanged();
