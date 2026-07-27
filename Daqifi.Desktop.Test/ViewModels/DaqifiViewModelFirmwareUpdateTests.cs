@@ -268,7 +268,8 @@ public class DaqifiViewModelFirmwareUpdateTests
         AssertCommandSent(coreDevice, ScpiMessageProducer.SetLanFirmwareUpdateMode);
         // The post-flash reset (SetTransparentMode 0 / EnableNetworkLan / Apply / Save) no longer
         // travels over the managed connection — it's released before the tool runs, so the transparent-
-        // mode exit happens via the raw ExitWifiTransparentModeRaw path (and the device's reboot).
+        // mode exit happens via ExitWifiTransparentModeAsync, which sends it through Core's
+        // WifiBridgeActivator.DeactivateAsync on its own short-lived transport (and the device's reboot).
 
         pic32FirmwareUpdateService.Verify(service => service.UpdateFirmwareAsync(
             It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
@@ -302,8 +303,8 @@ public class DaqifiViewModelFirmwareUpdateTests
         var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
 
-        // The WiFi-flash cleanup (ExitWifiTransparentModeRaw) tears down the managed connection when it
-        // can't open the COM port for the raw transparent-mode exit — which it can't against a mock
+        // The WiFi-flash cleanup (ExitWifiTransparentModeAsync) tears down the managed connection when
+        // it can't open the COM port for the transparent-mode exit — which it can't against a mock
         // transport. On real hardware the device reboots and the app reconnects with a fresh transport
         // after a flash; model that here with a separate connected device per run so each in-session
         // auto-update runs against a live connection.
