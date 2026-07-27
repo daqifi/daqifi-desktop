@@ -23,6 +23,7 @@ namespace Daqifi.Desktop.Test.Device;
 [TestClass]
 public class FrameTimestampSourceTests : IDisposable
 {
+    #region Constants
     /// <summary>
     /// Clock frequency the fixture's device reports, matching the bench hardware: an Nq1 on
     /// firmware 3.7.2 reports 42 MHz (84 MHz PBCLK, 1:2 prescale), not the 50 MHz that Core's
@@ -35,10 +36,14 @@ public class FrameTimestampSourceTests : IDisposable
 
     /// <summary>A 13 s stop-to-start gap, in device counter ticks.</summary>
     private const uint THIRTEEN_SECOND_GAP_TICKS = DEVICE_TIMESTAMP_FREQUENCY * 13;
+    #endregion
 
+    #region Fields
     private FrameTimestampTestDevice _device = null!;
     private AnalogChannel _channel = null!;
+    #endregion
 
+    #region Setup and Teardown
     [TestInitialize]
     public void Setup()
     {
@@ -55,13 +60,17 @@ public class FrameTimestampSourceTests : IDisposable
         _device.Dispose();
         GC.SuppressFinalize(this);
     }
+    #endregion
 
+    #region Tests
     [TestMethod]
     public void SingleSession_ChannelSampleCarriesTheTimestampOfItsOwnFrame()
     {
-        // Arrange / Act - a fresh connection holds the first frame until its successor validates
-        // the pair, so three frames leave the third as the most recent on both paths
+        // Arrange - a fresh connection holds the first frame until its successor validates the
+        // pair as same-session data
         _device.InitializeStreaming();
+
+        // Act - three frames therefore leave the third as the most recent one on both paths
         _device.RouteStreamFrame(1_000_000_000);
         _device.RouteStreamFrame(1_000_000_000 + SAMPLE_PERIOD_TICKS);
         _device.RouteStreamFrame(1_000_000_000 + 2 * SAMPLE_PERIOD_TICKS);
@@ -104,8 +113,10 @@ public class FrameTimestampSourceTests : IDisposable
     [TestMethod]
     public void DeviceReportedClockFrequency_ScalesTheReconstructedTimeline()
     {
-        // Arrange / Act - two frames exactly one device-second apart at the reported frequency
+        // Arrange - a session on a device that reports its own 42 MHz streaming clock
         _device.InitializeStreaming();
+
+        // Act - two frames exactly one device-second apart at that reported frequency
         _device.RouteStreamFrame(500_000_000);
         _device.RouteStreamFrame(500_000_000 + DEVICE_TIMESTAMP_FREQUENCY);
 
@@ -113,8 +124,9 @@ public class FrameTimestampSourceTests : IDisposable
         // error compounds, because each timestamp is the previous one plus elapsed ticks
         Assert.AreEqual(2, _device.DispatchedMessages.Count,
             "The held first frame and its successor should both be dispatched.");
-        var deltaSeconds = (_device.DispatchedMessages[1].TimestampTicks - _device.DispatchedMessages[0].TimestampTicks)
-            / (double)TimeSpan.TicksPerSecond;
+        var deltaTicks = _device.DispatchedMessages[1].TimestampTicks
+            - _device.DispatchedMessages[0].TimestampTicks;
+        var deltaSeconds = deltaTicks / (double)TimeSpan.TicksPerSecond;
         Assert.AreEqual(1.0, deltaSeconds, 1e-6,
             "One device-second of counter ticks should reconstruct to one second.");
 
@@ -124,6 +136,30 @@ public class FrameTimestampSourceTests : IDisposable
             "The firmware-measured delta should be scaled by the device's own clock frequency.");
     }
 
+    [TestMethod]
+    public void RoutingAFrame_FinishesProcessingIt_BeforeCoreDecodesTheSameFrame()
+    {
+        // Arrange - a session whose first frame has already been validated against its successor,
+        // so the next frame routed is accepted and processed rather than held
+        _device.InitializeStreaming();
+        _device.RouteStreamFrame(1_000_000_000);
+        _device.RouteStreamFrame(1_000_000_000 + SAMPLE_PERIOD_TICKS);
+        var dispatchedBefore = _device.DispatchedMessages.Count;
+
+        // Act - only the desktop half of the pipeline, which is all Core's MessageReceived event
+        // does before Core goes on to decode that same frame into per-channel samples
+        _device.RouteStreamFrameToDesktopOnly(1_000_000_000 + 2 * SAMPLE_PERIOD_TICKS);
+
+        // Assert - the desktop hands the frame to Core's ProtobufProtocolHandler and discards the
+        // returned task, so the per-frame state Core's decode then reads (sample gate, timestamp,
+        // firmware delta) only belongs to the right frame while that handler stays synchronous
+        Assert.AreEqual(dispatchedBefore + 1, _device.DispatchedMessages.Count,
+            "Routing a frame must finish processing it before returning, since Core decodes the same "
+            + "frame immediately afterwards and reads the per-frame state left behind.");
+    }
+    #endregion
+
+    #region Test Doubles
     /// <summary>
     /// Routes frames through both halves of the real production pipeline — the desktop's gating and
     /// dispatch (<c>HandleInboundMessage</c>) and Core's decode step — in that order, exactly as
@@ -132,6 +168,7 @@ public class FrameTimestampSourceTests : IDisposable
     private sealed class FrameTimestampTestDevice : AbstractStreamingDevice, IDisposable
     {
         private const int ANALOG_PORT_COUNT = 2;
+        private const uint DEVICE_SERIAL_NUMBER = 12345;
 
         private readonly FrameTimestampCoreDevice _coreDevice;
 
@@ -143,7 +180,7 @@ public class FrameTimestampSourceTests : IDisposable
             var statusMessage = new DaqifiOutMessage
             {
                 DevicePn = "Nq1",
-                DeviceSn = 12345,
+                DeviceSn = DEVICE_SERIAL_NUMBER,
                 DeviceFwRev = "1.0.0",
                 AnalogInPortNum = ANALOG_PORT_COUNT,
                 AnalogInRes = 4095,
@@ -192,21 +229,37 @@ public class FrameTimestampSourceTests : IDisposable
             DispatchedMessages.Add(deviceMessage);
         }
 
+        /// <summary>Routes a frame through the desktop's inbound path and then Core's decode.</summary>
         public void RouteStreamFrame(uint deviceTimestamp)
         {
-            var message = new DaqifiOutMessage
-            {
-                MsgTimeStamp = deviceTimestamp,
-                DeviceSn = 12345,
-                DeviceFwRev = "1.0.0",
-                AnalogInDataFloat = { 1.25f }
-            };
+            var message = BuildStreamFrame(deviceTimestamp);
+            RouteToDesktop(message);
+            _coreDevice.SimulateStreamFrame(message);
+        }
 
+        /// <summary>
+        /// Routes a frame through the desktop's inbound path only, leaving Core's decode step out,
+        /// so a test can observe what the desktop has finished doing by the time that path returns.
+        /// </summary>
+        public void RouteStreamFrameToDesktopOnly(uint deviceTimestamp)
+        {
+            RouteToDesktop(BuildStreamFrame(deviceTimestamp));
+        }
+
+        private void RouteToDesktop(DaqifiOutMessage message)
+        {
             HandleInboundMessage(
                 new MessageReceivedEventArgs(
                     new GenericInboundMessage<object>(message)));
-            _coreDevice.SimulateStreamFrame(message);
         }
+
+        private static DaqifiOutMessage BuildStreamFrame(uint deviceTimestamp) => new()
+        {
+            MsgTimeStamp = deviceTimestamp,
+            DeviceSn = DEVICE_SERIAL_NUMBER,
+            DeviceFwRev = "1.0.0",
+            AnalogInDataFloat = { 1.25f }
+        };
     }
 
     private sealed class FrameTimestampCoreDevice() : CoreStreamingDevice("TestDevice")
@@ -217,4 +270,5 @@ public class FrameTimestampSourceTests : IDisposable
 
         public void SimulateStreamFrame(DaqifiOutMessage message) => OnStreamMessageReceived(message);
     }
+    #endregion
 }
