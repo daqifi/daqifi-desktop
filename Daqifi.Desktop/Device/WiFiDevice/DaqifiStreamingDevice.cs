@@ -132,8 +132,8 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 // Connection refused / host unreachable. Same classification as above.
                 AppLogger.Warning(ex, $"Cannot reach device at {IpAddress}:{Port}: {socketEx.SocketErrorCode}");
                 break;
-            case InvalidOperationException when IsScpiInitializationError(ex):
-                // Core's InitializeAsync throws a bare InvalidOperationException, message
+            case ScpiInitializationErrorException:
+                // Core's InitializeAsync throws ScpiInitializationErrorException, message
                 // "Device returned a SCPI error during initialization: ...", when any command in
                 // its init sequence gets a SCPI -200 execution error back. The WiFi transport runs
                 // the identical Core init sequence as serial (the shared Connect template calls
@@ -141,6 +141,10 @@ public class DaqifiStreamingDevice : AbstractStreamingDevice
                 // = false), so a device left in a bad state is the same device/environmental
                 // condition here, not an app bug — downgrade to a Warning instead of the default
                 // Error/Sentry path, mirroring the serial classification (issues #589, #709).
+                // Core's typed exception (daqifi-core#317, Core 1.3.0) derives from Exception, not
+                // InvalidOperationException, so the previous `case InvalidOperationException when
+                // IsScpiInitializationError(ex)` arm never matched and this kept hitting the
+                // default Error/Sentry path (issue #775).
                 AppLogger.Warning(ex, $"Device at {IpAddress}:{Port} returned a SCPI error during initialization");
                 break;
             case InvalidOperationException when IsTransportDisconnectedError(ex):
