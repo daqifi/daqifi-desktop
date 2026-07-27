@@ -324,7 +324,7 @@ public class SdCardSessionImporter : ISdCardSessionImporter
             }
 
             sampleIndex++;
-            timestampQuality.Observe(entry.Timestamp.Ticks);
+            timestampQuality.Observe(entry);
 
             // If we didn't have config, discover channel count from first entry
             if (analogPortCount == 0 && entry.AnalogValues.Count > 0)
@@ -401,8 +401,9 @@ public class SdCardSessionImporter : ISdCardSessionImporter
         {
             _logger.Warning(
                 $"Imported session '{session.Name}' (ID={session.ID}) has a degenerate time axis: " +
-                $"{timestampQuality.EntriesAtFirstTimestamp:N0} of {timestampQuality.TotalEntries:N0} " +
-                "entries share the first timestamp. The source file likely lacks per-sample timestamps.");
+                $"{timestampQuality.EntriesWithoutDeviceTimestamp:N0} of {timestampQuality.TotalEntries:N0} " +
+                "entries carried no device timestamp and were placed at the session base time. " +
+                "The source file likely lacks per-sample timestamps.");
         }
 
         // Record the sample count on the session so the list view can show it
