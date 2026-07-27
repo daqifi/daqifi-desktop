@@ -126,11 +126,6 @@ public interface IStreamingDevice : IDevice
     void StopStreaming();
 
     /// <summary>
-    /// Sends a command to get any initialization data from the streamingDevice that might be needed
-    /// </summary>
-    void InitializeDeviceState();
-
-    /// <summary>
     /// Sends a command to activate a channel on the streamingDevice
     /// </summary>
     void AddChannel(IChannel channelToAdd);

@@ -36,7 +36,6 @@ public class StreamStartLeftoverFrameTests : IDisposable
             IsActive = true
         };
         _device.DataChannels.Add(_channel);
-        _device.InitializeDeviceState();
     }
 
     // MSTest disposes the test-class instance after each test, releasing the device's Core
@@ -358,9 +357,10 @@ public class StreamStartLeftoverFrameTests : IDisposable
                 AnalogInDataFloat = { 1.25f }
             };
 
-            HandleInboundMessage(
-                new MessageReceivedEventArgs(
-                    new GenericInboundMessage<object>(message)));
+            // The handler Core invokes when it raises the classified StreamMessageReceived event.
+            // These tests exercise the desktop's leftover-frame gating only, so Core's decode step
+            // is deliberately not driven here.
+            OnStreamMessageReceived(message);
         }
     }
 

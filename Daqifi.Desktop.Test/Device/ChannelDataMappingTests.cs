@@ -12,11 +12,10 @@ namespace Daqifi.Desktop.Test.Device;
 /// Verifies analog stream decode maps device data to the correct channel regardless of which
 /// subset of channels is active (issue #663 predecessor coverage). Channel decoding itself is
 /// delegated to Core's <c>DaqifiStreamingDevice</c> (issue #613), so these tests route frames
-/// through both halves of the real production pipeline: the desktop's own gating/dispatch
-/// (<c>HandleInboundMessage</c>) and Core's decode step
-/// (<see cref="TestCoreStreamingDevice.SimulateStreamFrame"/>) — in that synchronous order, exactly
-/// as Core's actual <c>DaqifiStreamingDevice.OnStreamMessageReceived</c> sequences them in
-/// production.
+/// through Core's real <c>OnStreamMessageReceived</c>
+/// (<see cref="TestCoreStreamingDevice.SimulateStreamFrame"/>): it raises the classified
+/// <c>StreamMessageReceived</c> event the desktop's gating/dispatch subscribes to, then runs Core's
+/// decode step — the same synchronous order production uses.
 /// </summary>
 [TestClass]
 public class ChannelDataMappingTests : IDisposable
@@ -283,7 +282,10 @@ public class ChannelDataMappingTests : IDisposable
             // (including the SampleReceived subscription installed by SyncChannelsFromCore).
             SyncFromCoreDevice(_coreDevice);
 
-            InitializeDeviceState();
+            // Subscribes the wrapper to Core's classified Status/StreamMessageReceived events, which
+            // is what Connect() does in production. Deliberately after PopulateChannelsFromStatus
+            // above so the ChannelsPopulated subscription doesn't re-run the sync mid-setup.
+            SubscribeCoreDeviceEvents(_coreDevice);
 
             _coreDevice.StreamingFrequency = 1;
             _coreDevice.StartStreaming();
@@ -310,17 +312,19 @@ public class ChannelDataMappingTests : IDisposable
         }
 
         /// <summary>
-        /// Routes a raw frame through both halves of the real production pipeline: the desktop's
-        /// own gating/dispatch (<c>HandleInboundMessage</c>) and Core's decode step
-        /// (<see cref="TestCoreStreamingDevice.SimulateStreamFrame"/>) — in that order, exactly as
-        /// Core's actual <c>DaqifiStreamingDevice.OnStreamMessageReceived</c> sequences them in
-        /// production (base call raises <c>MessageReceived</c> before Core decodes).
+        /// Routes a raw frame through the real production pipeline by calling Core's own
+        /// <c>OnStreamMessageReceived</c>: it raises the classified <c>StreamMessageReceived</c>
+        /// event the desktop subscribes to, then decodes the same frame into per-channel samples —
+        /// in that order, which is what makes the desktop's accept-samples gate work.
         /// </summary>
+        /// <remarks>
+        /// Previously this had to drive both halves by hand (<c>HandleInboundMessage</c> then
+        /// <c>SimulateStreamFrame</c>) because the desktop re-classified the frame itself. Now that
+        /// it subscribes to Core's classified event (daqifi-core#308), one call covers both and the
+        /// ordering is Core's rather than something the test has to reproduce correctly.
+        /// </remarks>
         public void RouteStreamFrame(DaqifiOutMessage message)
         {
-            HandleInboundMessage(
-                new MessageReceivedEventArgs(
-                    new GenericInboundMessage<object>(message)));
             _coreDevice.SimulateStreamFrame(message);
         }
     }

@@ -12,7 +12,6 @@ using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProdu
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
 using Daqifi.Core.Device; // Added for DeviceType, DeviceTypeDetector, DeviceMetadata, DeviceCapabilities, DeviceState
-using Daqifi.Core.Device.Protocol; // Added for ProtobufProtocolHandler
 using Daqifi.Core.Communication.Messages; // Added for IInboundMessage
 using CoreStreamingDevice = Daqifi.Core.Device.DaqifiStreamingDevice;
 using Daqifi.Core.Device.SdCard;
@@ -104,9 +103,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     // frame's counter delta validates the pair as same-session data.
     private volatile bool _pendingFirstFrameValidation;
     private DaqifiOutMessage? _heldFirstFrame;
-
-    // Protocol handler for automatic message routing
-    private ProtobufProtocolHandler? _protocolHandler;
 
     /// <summary>
     /// Per-channel subscriptions onto Core's decode pipeline (issue #613). Core's
@@ -374,11 +370,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
             CoreDevice = coreDevice;
 
-            coreDevice.ChannelsPopulated += OnCoreChannelsPopulated;
-            coreDevice.MessageReceived += OnCoreMessageReceived;
-            coreDevice.StatusChanged += OnCoreStatusChanged;
-
-            InitializeDeviceState();
+            SubscribeCoreDeviceEvents(coreDevice);
 
             // Blocking on Core's async initialization is safe because Connect() is invoked
             // from Task.Run by ConnectionManager (see remarks).
@@ -519,21 +511,37 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         CoreDevice = null;
     }
 
+    /// <summary>
+    /// Subscribes the wrapper to the Core device events it mirrors. Core classifies each inbound
+    /// protobuf frame once and raises <see cref="DaqifiDevice.StatusMessageReceived"/> /
+    /// <see cref="DaqifiDevice.StreamMessageReceived"/> accordingly (daqifi-core#308), so the
+    /// desktop no longer runs its own <c>ProtobufProtocolHandler</c> pass over the same frame.
+    /// </summary>
+    /// <remarks>
+    /// Ordering matters for <see cref="_acceptChannelSamples"/>. Core raises the classified event
+    /// synchronously from inside <c>DaqifiStreamingDevice.OnStreamMessageReceived</c>, before that
+    /// method's own <c>DecodeStreamFrame</c> step — so <see cref="ProcessStreamMessage"/> still runs
+    /// to completion, and the gate is still set, before Core decodes the same frame into per-channel
+    /// samples. The previous route (Core's undifferentiated <c>MessageReceived</c> into a
+    /// fire-and-forget <c>HandleAsync</c>) depended on that task happening to complete inline.
+    /// </remarks>
+    /// <param name="coreDevice">The Core device to subscribe to.</param>
+    protected void SubscribeCoreDeviceEvents(CoreStreamingDevice coreDevice)
+    {
+        ArgumentNullException.ThrowIfNull(coreDevice);
+
+        coreDevice.ChannelsPopulated += OnCoreChannelsPopulated;
+        coreDevice.StatusMessageReceived += OnStatusMessageReceived;
+        coreDevice.StreamMessageReceived += OnStreamMessageReceived;
+        coreDevice.StatusChanged += OnCoreStatusChanged;
+    }
+
     private void UnsubscribeCoreDeviceEvents(CoreStreamingDevice coreDevice)
     {
         coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
-        coreDevice.MessageReceived -= OnCoreMessageReceived;
+        coreDevice.StatusMessageReceived -= OnStatusMessageReceived;
+        coreDevice.StreamMessageReceived -= OnStreamMessageReceived;
         coreDevice.StatusChanged -= OnCoreStatusChanged;
-    }
-
-    /// <summary>
-    /// Handles non-status messages received from Core's DaqifiDevice and routes them
-    /// to the protocol handler for streaming data processing.
-    /// Status messages are handled via <see cref="OnCoreChannelsPopulated"/>.
-    /// </summary>
-    private void OnCoreMessageReceived(object? sender, MessageReceivedEventArgs e)
-    {
-        HandleInboundMessage(e);
     }
 
     /// <summary>
@@ -575,41 +583,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     #region Message Handlers
     /// <summary>
-    /// Initializes the protocol handler for automatic message routing.
-    /// Uses Core's ProtobufProtocolHandler to route streaming protobuf messages while Core
-    /// itself owns status parsing and channel population.
-    /// </summary>
-    private void InitializeProtocolHandler()
-    {
-        _protocolHandler = new ProtobufProtocolHandler(
-            statusMessageHandler: OnStatusMessageReceived,
-            streamMessageHandler: OnStreamMessageReceived,
-            sdCardMessageHandler: _ => { } // SD card messages are text-based, handled separately; empty handler prevents NullReferenceException
-        );
-
-        AppLogger.Information("Protocol handler initialized with automatic message routing");
-    }
-
-    /// <summary>
-    /// Routes incoming messages through the protocol handler.
-    /// This method is called by the message consumer for each received message.
-    /// </summary>
-    private void OnInboundMessageReceived(object sender, MessageReceivedEventArgs e)
-    {
-        var inboundMessage = e.Message;
-
-        // Route through protocol handler if available and it can handle this message
-        if (_protocolHandler != null && _protocolHandler.CanHandle(inboundMessage))
-        {
-            // Fire and forget - we don't need to wait for the handler to complete
-            _ = _protocolHandler.HandleAsync(inboundMessage);
-        }
-    }
-
-    /// <summary>
     /// Handles status/info messages received from the device (e.g. the <c>SYSTem:SYSInfoPB?</c>
-    /// response Core sends during <c>InitializeAsync</c>). Called automatically by
-    /// ProtobufProtocolHandler when a status-shaped message is detected.
+    /// response Core sends during <c>InitializeAsync</c>). Invoked by Core's classified
+    /// <see cref="DaqifiDevice.StatusMessageReceived"/> event; Core does the classification.
     /// </summary>
     /// <remarks>
     /// Firmware always includes <c>friendly_device_name</c> in this response — empty when unset —
@@ -620,7 +596,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// never be cleared, since firmware's fast streaming-frame encoder never re-sends the field at
     /// all (see <see cref="CaptureFriendlyDeviceNameIfPresent"/>).
     /// </remarks>
-    private void OnStatusMessageReceived(DaqifiOutMessage message)
+    protected void OnStatusMessageReceived(DaqifiOutMessage message)
     {
         FriendlyName = message.FriendlyDeviceName ?? string.Empty;
     }
@@ -644,10 +620,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     /// <summary>
-    /// Handles streaming messages received from the device.
-    /// Called automatically by ProtobufProtocolHandler when a streaming message is detected.
+    /// Handles streaming messages received from the device. Invoked by Core's classified
+    /// <see cref="DaqifiDevice.StreamMessageReceived"/> event, synchronously and before Core decodes
+    /// the same frame into per-channel samples — see <see cref="SubscribeCoreDeviceEvents"/>.
     /// </summary>
-    private void OnStreamMessageReceived(DaqifiOutMessage message)
+    protected void OnStreamMessageReceived(DaqifiOutMessage message)
     {
         // Closed by default for every frame; only ProcessStreamMessage (reached below when this
         // frame is accepted) opens it for Core's immediately-following decode of this same frame.
@@ -920,15 +897,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         ProcessStreamMessage(message);
     }
 
-    /// <summary>
-    /// Routes a message through the protocol handler for processing.
-    /// Called by derived classes (e.g., WiFi devices) that receive messages directly from Core's DaqifiDevice.
-    /// </summary>
-    /// <param name="e">The message event args containing the protobuf message.</param>
-    protected void HandleInboundMessage(MessageReceivedEventArgs e)
-    {
-        OnInboundMessageReceived(this, e);
-    }
     #endregion
 
     #region Streaming Methods
@@ -1731,12 +1699,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     }
 
     #endregion
-
-    public void InitializeDeviceState()
-    {
-        // Initialize protocol handler for automatic message routing
-        InitializeProtocolHandler();
-    }
 
     public async Task UpdateNetworkConfiguration()
     {
