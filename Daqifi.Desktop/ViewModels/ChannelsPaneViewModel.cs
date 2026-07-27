@@ -23,6 +23,17 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     private bool _disposed;
 
     /// <summary>
+    /// Channel → owning device, captured while <see cref="Rebuild"/> walks each connected device's
+    /// channels. Owner lookups read this map instead of re-scanning
+    /// <see cref="Daqifi.Desktop.Device.IStreamingDevice.DataChannels"/>, which the device mutates
+    /// off the UI thread (<c>AbstractStreamingDevice.SyncChannelsFromCore</c> clears and repopulates
+    /// it from Core's channels-populated callback). The map is keyed by reference identity, so it
+    /// stays correct even when a channel mutates fields that participate in its value hash.
+    /// </summary>
+    private readonly Dictionary<IChannel, Daqifi.Desktop.Device.IStreamingDevice> _channelOwners =
+        new(ReferenceComparer<IChannel>.Instance);
+
+    /// <summary>
     /// Fires at the refresh cadence so tiles can re-read their live value
     /// without each tile owning its own timer.
     /// </summary>
@@ -181,6 +192,7 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         DisposeTiles(DigitalInputs);
         DisposeTiles(DigitalOutputs);
         ConnectedDeviceNames.Clear();
+        _channelOwners.Clear();
 
         var devices = ConnectionManager.Instance.ConnectedDevices.ToList();
         HasConnectedDevice = devices.Count > 0;
@@ -196,6 +208,7 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         {
             foreach (var channel in device.DataChannels.NaturalOrderBy(c => c.Name))
             {
+                _channelOwners[channel] = device;
                 var tile = new ChannelTileViewModel(channel, this, device.Name, HasMultipleDevices);
                 if (channel.IsAnalog && channel.Direction == ChannelDirection.Input)
                 {
@@ -219,7 +232,7 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
             }
         }
         RecomputeCounts();
-        SyncSettingsDrawer(devices);
+        SyncSettingsDrawer();
     }
 
     /// <summary>
@@ -235,13 +248,14 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     /// is open. Identity is stable for as long as the channel is: a metadata re-sync keeps the
     /// existing desktop channel instance for every channel that is still present
     /// (<c>AbstractStreamingDevice.SyncChannelsFromCore</c>), and disconnecting empties
-    /// <see cref="Daqifi.Desktop.Device.IStreamingDevice.DataChannels"/> outright.
+    /// <see cref="Daqifi.Desktop.Device.IStreamingDevice.DataChannels"/> outright. A channel absent
+    /// from <see cref="_channelOwners"/> after a rebuild is therefore one no connected device owns.
     /// </remarks>
-    private void SyncSettingsDrawer(List<Daqifi.Desktop.Device.IStreamingDevice> devices)
+    private void SyncSettingsDrawer()
     {
         if (!IsSettingsOpen) return;
 
-        var owner = SelectedChannel == null ? null : FindOwningDevice(SelectedChannel, devices);
+        var owner = SelectedChannel == null ? null : FindOwningDevice(SelectedChannel);
         if (owner == null)
         {
             CloseSettings();
@@ -332,24 +346,14 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Resolves the connected device that owns <paramref name="channel"/>. Enumerates a
-    /// snapshot of the connected-device list (like <see cref="Rebuild"/>) because the
-    /// list mutates during connect/disconnect flows.
+    /// Resolves the connected device that owns <paramref name="channel"/>, from the map
+    /// <see cref="Rebuild"/> captured. Returns null once the owning device has left
+    /// <see cref="ConnectionManager.ConnectedDevices"/>. See <see cref="SyncSettingsDrawer"/> for
+    /// why ownership is keyed by identity rather than by <see cref="IChannel.DeviceSerialNo"/>.
     /// </summary>
-    private static Daqifi.Desktop.Device.IStreamingDevice? FindOwningDevice(IChannel channel)
+    private Daqifi.Desktop.Device.IStreamingDevice? FindOwningDevice(IChannel channel)
     {
-        return FindOwningDevice(channel, ConnectionManager.Instance.ConnectedDevices.ToList());
-    }
-
-    /// <summary>
-    /// Resolves the owner of <paramref name="channel"/> within an already-materialized
-    /// <paramref name="devices"/> snapshot, by object identity. See <see cref="SyncSettingsDrawer"/>
-    /// for why identity beats a <see cref="IChannel.DeviceSerialNo"/> match here.
-    /// </summary>
-    private static Daqifi.Desktop.Device.IStreamingDevice? FindOwningDevice(
-        IChannel channel, List<Daqifi.Desktop.Device.IStreamingDevice> devices)
-    {
-        return devices.FirstOrDefault(d => d.DataChannels.Any(c => ReferenceEquals(c, channel)));
+        return _channelOwners.GetValueOrDefault(channel);
     }
 
     /// <summary>Closes the inline settings drawer.</summary>
@@ -386,6 +390,7 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         DisposeTiles(AnalogInputs);
         DisposeTiles(DigitalInputs);
         DisposeTiles(DigitalOutputs);
+        _channelOwners.Clear();
 
         GC.SuppressFinalize(this);
     }
