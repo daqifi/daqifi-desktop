@@ -178,10 +178,13 @@ public class SummaryLoggerLatencyTests
     }
 
     /// <summary>
-    /// Regression guard for the accumulator this fix deliberately leaves alone. The device-level
-    /// <c>AverageDelta</c> is guarded by <c>SampleCount &gt; 0</c>, so a window of <c>SampleSize</c>
-    /// messages really does contribute <c>SampleSize - 1</c> intervals and its <c>SampleSize - 1</c>
-    /// denominator is correct.
+    /// Regression guard on the interval count the device-level <c>AverageDelta</c> is a mean over.
+    /// It is guarded by <c>SampleCount &gt; 0</c>, so a window of <c>SampleSize</c> messages really
+    /// does contribute <c>SampleSize - 1</c> intervals, and the mean must be over exactly those.
+    /// The accumulator now reaches that answer incrementally rather than through a literal
+    /// <c>SampleSize - 1</c> denominator (issue #771 - that denominator was only ever right while
+    /// a window was guaranteed to be exactly <c>SampleSize</c> messages long), so this test pins
+    /// the value the two forms agree on for a window nobody resized.
     /// </summary>
     [TestMethod]
     public void Log_AverageDelta_StillAveragesOverSampleSizeMinusOneIntervals()
