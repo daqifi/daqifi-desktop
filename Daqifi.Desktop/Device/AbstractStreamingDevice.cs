@@ -130,7 +130,21 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// this gate keeps them from reaching the desktop's channels.
     /// </summary>
     private bool _acceptChannelSamples;
+
+    /// <summary>
+    /// The timestamp <see cref="ProcessStreamMessage"/> reconstructed for the frame Core is about to
+    /// decode, held so <see cref="OnCoreChannelSampleReceived"/> stamps every channel sample of that
+    /// frame with the very same value the dispatched <see cref="DeviceMessage"/> carries.
+    /// </summary>
+    private DateTime _currentFrameTimestamp;
     private double? _currentFrameFirmwareDeltaMs;
+
+    /// <summary>
+    /// Whether the device-reported clock frequency has been applied to <see cref="_timestampProcessor"/>
+    /// for the current streaming session. Cleared alongside every <c>ResetAll()</c>, which per Core's
+    /// contract also drops per-device frequencies.
+    /// </summary>
+    private bool _timestampFrequencyApplied;
 
     /// <summary>
     /// The Core streaming device created by the shared <see cref="Connect"/> template,
@@ -709,6 +723,19 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         var deviceId = message.DeviceSn.ToString(CultureInfo.InvariantCulture);
 
+        // Without an explicit frequency the processor reconstructs against its 20 ns fallback tick
+        // period (50 MHz) — the legacy clock config. Current firmware runs the streaming timestamp
+        // timer at 42 MHz, which would compress the reconstructed timeline by ~16 % and drift
+        // without bound, since each timestamp is the previous one plus elapsed ticks. Applied here
+        // rather than at session start because this is where the device-id key is known to match
+        // the one ProcessTimestamp uses, and re-applied per session because InitializeStreaming's
+        // ResetAll() drops per-device frequencies along with the baselines.
+        if (!_timestampFrequencyApplied && TimestampFrequency != 0)
+        {
+            _timestampProcessor.SetTimestampFrequency(deviceId, TimestampFrequency);
+            _timestampFrequencyApplied = true;
+        }
+
         // Use Core's TimestampProcessor for rollover handling
         var timestampResult = _timestampProcessor.ProcessTimestamp(deviceId, message.MsgTimeStamp);
         var messageTimestamp = timestampResult.Timestamp;
@@ -720,6 +747,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         // Open the gate for Core's decode of this exact frame, which runs synchronously right
         // after this method returns (see _acceptChannelSamples).
+        _currentFrameTimestamp = messageTimestamp;
         _currentFrameFirmwareDeltaMs = firmwareDeltaMs;
         _acceptChannelSamples = true;
 
@@ -758,10 +786,19 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// immediately after <see cref="ProcessStreamMessage"/> returns, for every enabled channel —
     /// gated by <see cref="_acceptChannelSamples"/> so leftover/held frames (which Core still
     /// decodes, since Core has no notion of the desktop's leftover-frame heuristics) never reach
-    /// desktop channels. Uses <c>coreSample.Timestamp</c> — the same rollover-aware reconstruction
-    /// <see cref="ProcessStreamMessage"/> computed for this frame via <see cref="_timestampProcessor"/> —
-    /// rather than recomputing it, so the two can never diverge.
+    /// desktop channels. Takes only the decoded <c>Value</c> from Core and stamps it with
+    /// <see cref="_currentFrameTimestamp"/> — the reconstruction <see cref="ProcessStreamMessage"/>
+    /// computed for this same frame — so one frame yields exactly one timestamp, shared with the
+    /// <see cref="DeviceMessage"/> dispatched for it.
     /// </summary>
+    /// <remarks>
+    /// <c>coreSample.Timestamp</c> is deliberately not used: Core's <c>DaqifiStreamingDevice</c> owns
+    /// a separate <c>TimestampProcessor</c> whose baseline is anchored on the first frame <em>Core</em>
+    /// decodes. Core has no notion of the desktop's leftover-frame heuristics, so on a stream restart
+    /// that baseline anchors on the discarded leftover frame and shifts every sample of the new
+    /// session into the future by the stop-to-start gap — the artifact issue #573 exists to remove —
+    /// which then lands in the database, since <see cref="DataSample"/> is what gets persisted.
+    /// </remarks>
     private void OnCoreChannelSampleReceived(IChannel desktopChannel, Daqifi.Core.Channel.IDataSample coreSample)
     {
         if (!_acceptChannelSamples)
@@ -770,7 +807,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         desktopChannel.ActiveSample = new DataSample(
-            this, desktopChannel, coreSample.Timestamp, coreSample.Value, _currentFrameFirmwareDeltaMs);
+            this, desktopChannel, _currentFrameTimestamp, coreSample.Value, _currentFrameFirmwareDeltaMs);
     }
 
     /// <summary>
@@ -1159,6 +1196,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // directly; without one (first session after connect — the device's leftover survives a
         // disconnect/reconnect), the first frame is held and validated against its successor.
         _timestampProcessor.ResetAll();
+        _timestampFrequencyApplied = false;
         _discardedLeftoverFrameCount = 0;
         _checkForLeftoverFrames = _hasSeenDeviceTimestamp;
         _pendingFirstFrameValidation = !_hasSeenDeviceTimestamp;
@@ -1191,6 +1229,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         // Reset timestamp processor state for clean restart
         _timestampProcessor.ResetAll();
+        _timestampFrequencyApplied = false;
 
         foreach (var channel in DataChannels)
         {
