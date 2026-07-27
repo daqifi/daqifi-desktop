@@ -709,8 +709,14 @@ public partial class LoggingManager : ObservableObject
             subscribedChannel.OnChannelUpdated -= HandleChannelUpdate;
 
             // Copy-on-write — see SubscribedChannels' remarks.
+            //
+            // Remove by reference, not by value. The lookup above already resolved the exact
+            // instance to drop, and List.Remove would re-match it with the default comparer —
+            // which lands on AbstractChannel.Equals, and that compares Name only. Two devices
+            // both expose "AI0", so a value-based removal drops whichever same-named channel
+            // sits earliest in the list rather than the one that was just deactivated.
             var updated = new List<IChannel>(current);
-            updated.Remove(subscribedChannel);
+            updated.RemoveAll(x => ReferenceEquals(x, subscribedChannel));
             Volatile.Write(ref _subscribedChannels, updated);
         }
 
