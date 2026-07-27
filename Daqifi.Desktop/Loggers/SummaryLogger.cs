@@ -372,6 +372,30 @@ public partial class SummaryLogger : ObservableObject, ILogger
 
     #endregion
 
+    /// <summary>
+    /// Starts a fresh window whenever the sample size changes, so a window is always exactly as
+    /// long as the size it will be measured against.
+    /// </summary>
+    /// <remarks>
+    /// The size is live: it is two-way bound to the Summary flyout's sample-size control, so a user
+    /// can move it mid-window. Carrying the partial accumulation over would publish it against a
+    /// length it was never gathered under, and lowering the size below the count already reached
+    /// would leave the window with no way to close at all. Only the in-progress buffer is cleared -
+    /// the last completed window stays on screen until a new one finishes.
+    /// <para>
+    /// Both constructors assign the backing field directly, so this cannot run before the buffers
+    /// exist.
+    /// </para>
+    /// </remarks>
+    /// <param name="value">The new sample size. Unused: the whole window restarts regardless.</param>
+    partial void OnSampleSizeChanged(int value)
+    {
+        lock (_buffer)
+        {
+            _buffer.Reset();
+        }
+    }
+
     public void Log(DataSample dataSample)
     {
         if (!Enabled)
@@ -493,17 +517,26 @@ public partial class SummaryLogger : ObservableObject, ILogger
                     _buffer.MaxDeltaTicks = Math.Max(_buffer.MaxDeltaTicks, elapsed);
                 }
 
-                // Deliberately keeps the (SampleSize - 1) denominator: this branch IS guarded by
-                // SampleCount > 0, so a completed window of SampleSize messages contributes
-                // exactly SampleSize - 1 intervals. It also cannot divide by zero, because at a
-                // SampleSize of 1 the window swaps after the first message and the guard never
-                // opens.
-                _buffer.AverageDeltaTicks += elapsed / (double)(SampleSize - 1);
+                // Mean over the intervals this window actually holds, in the same incremental form
+                // as its three siblings. SampleCount is still the pre-increment count here, and a
+                // window's k-th message closes its (k - 1)-th interval, so dividing by SampleCount
+                // divides the first interval by 1 (seeding exactly) and the n-th by n. The
+                // (SampleSize - 1) denominator this replaces was correct only while a window was
+                // guaranteed to be exactly SampleSize messages long; SampleSize is live and
+                // user-editable, so a size lowered to 1 mid-window left this branch open and
+                // divided by zero.
+                _buffer.AverageDeltaTicks += (elapsed - _buffer.AverageDeltaTicks) / _buffer.SampleCount;
             }
             _buffer.LastSampleTicks = dataSample.AppTicks;
 
             ++_buffer.SampleCount;
-            if (_buffer.SampleCount == SampleSize)
+
+            // Closed on >=, not ==. OnSampleSizeChanged restarts the window whenever the size
+            // moves, so the count should never overshoot; equality alone made that an unguarded
+            // assumption, and a count that got past its target - as it did for every size lowered
+            // mid-window before that handler existed - stranded the summary forever, because this
+            // is the only path that publishes a completed window.
+            if (_buffer.SampleCount >= SampleSize)
             {
                 lock (_current)
                 {
