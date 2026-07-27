@@ -207,24 +207,37 @@ public class DigitalOutputDelegationTests : IDisposable
         Assert.AreEqual(0, _coreDevice.SentCommands.Count, "Hydration must not issue device commands");
     }
 
+    /// <summary>
+    /// A status re-population must not disturb a digital output's commanded state, and must not
+    /// re-drive the pin. This used to be the desktop's job — <c>DigitalChannel.ReplaceCoreChannel</c>
+    /// copied the state onto whatever fresh instance Core had built. Since daqifi-core#309 Core
+    /// updates the channel in place, so the wrapper keeps pointing at the same live object.
+    /// </summary>
     [TestMethod]
-    public void ReplaceCoreChannel_KeepsIsDigitalOnInLockstepWithCoreMirror()
+    public void RepopulatingChannels_KeepsIsDigitalOnAndDoesNotRedriveThePin()
     {
-        // Arrange — command HIGH through the normal path, then refresh the core channel
+        // Arrange — command HIGH through the normal path
         var channel = WrapCoreChannel(8);
         channel.Direction = ChannelDirection.Output;
         channel.IsDigitalOn = true;
-        var freshCoreChannel = new Daqifi.Core.Channel.DigitalChannel(8) { Name = "DIO8" };
+        var coreChannelBefore = channel.CoreChannel;
         _coreDevice.SentCommands.Clear();
 
-        // Act
-        channel.ReplaceCoreChannel(freshCoreChannel);
+        // Act — a second status message, exactly what a routine device status frame triggers
+        _coreDevice.PopulateChannelsFromStatus(new DaqifiOutMessage
+        {
+            DevicePn = "Nq1",
+            DeviceSn = 12345,
+            DeviceFwRev = "1.0.0",
+            DigitalPortNum = 16
+        });
 
-        // Assert — commanded state carried onto the fresh core channel and the desktop
-        // flag stays consistent, with no extra device command
-        Assert.IsTrue(channel.CoreChannel.OutputValue, "Core mirror should carry across the refresh");
-        Assert.IsTrue(channel.IsDigitalOn, "Desktop commanded-state flag should stay in lockstep");
-        Assert.AreEqual(0, _coreDevice.SentCommands.Count, "A core-channel refresh must not drive the pin");
+        // Assert — same instance, state intact, and the pin is not re-driven
+        Assert.AreSame(coreChannelBefore, channel.CoreChannel,
+            "Core must update the channel in place so the wrapper is not left holding a stale instance.");
+        Assert.IsTrue(channel.CoreChannel.OutputValue, "Core's output mirror must survive a re-population");
+        Assert.IsTrue(channel.IsDigitalOn, "Desktop commanded-state flag must stay in lockstep");
+        Assert.AreEqual(0, _coreDevice.SentCommands.Count, "A re-population must not drive the pin");
     }
 
     [TestMethod]

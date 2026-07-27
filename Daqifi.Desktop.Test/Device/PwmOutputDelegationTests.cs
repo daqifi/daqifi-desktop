@@ -318,23 +318,38 @@ public class PwmOutputDelegationTests : IDisposable
         Assert.AreEqual(0, _coreDevice.SentCommands.Count, "Analog channels must not produce PWM commands");
     }
 
+    /// <summary>
+    /// A status re-population must not disturb a channel's PWM state. This used to be the desktop's
+    /// job — <c>DigitalChannel.ReplaceCoreChannel</c> copied the bookkeeping onto whatever fresh
+    /// instance Core had built. Since daqifi-core#309 Core updates the channel in place instead, so
+    /// the wrapper keeps pointing at the same live object and there is nothing to carry across.
+    /// This asserts that guarantee at the level the desktop actually depends on it.
+    /// </summary>
     [TestMethod]
-    public void ReplaceCoreChannel_CarriesPwmBookkeepingAcrossRefresh()
+    public void RepopulatingChannels_KeepsPwmBookkeepingOnTheSameCoreInstance()
     {
-        // Arrange — enable through the normal path, then refresh the core channel
+        // Arrange — enable through the normal path
         var channel = WrapCoreChannel(4);
         channel.PwmDutyCyclePercent = 30;
         channel.IsPwmEnabled = true;
-        var freshCoreChannel = new Daqifi.Core.Channel.DigitalChannel(4, isPwmCapable: true) { Name = "DIO4" };
+        var coreChannelBefore = channel.CoreChannel;
         _coreDevice.SentCommands.Clear();
 
-        // Act
-        channel.ReplaceCoreChannel(freshCoreChannel);
+        // Act — a second status message, exactly what a routine device status frame triggers
+        _coreDevice.PopulateChannelsFromStatus(new DaqifiOutMessage
+        {
+            DevicePn = "Nq1",
+            DeviceSn = 12345,
+            DeviceFwRev = "1.0.0",
+            DigitalPortNum = 16
+        });
 
-        // Assert — PWM state carried onto the fresh core channel with no device command
-        Assert.IsTrue(channel.IsPwmEnabled, "PWM enabled bookkeeping should carry across the refresh");
-        Assert.AreEqual(30, channel.PwmDutyCyclePercent, "Duty bookkeeping should carry across the refresh");
-        Assert.AreEqual(0, _coreDevice.SentCommands.Count, "A core-channel refresh must not command the device");
+        // Assert — same instance, state intact, no device command
+        Assert.AreSame(coreChannelBefore, channel.CoreChannel,
+            "Core must update the channel in place so the wrapper is not left holding a stale instance.");
+        Assert.IsTrue(channel.IsPwmEnabled, "PWM enabled bookkeeping must survive a re-population");
+        Assert.AreEqual(30, channel.PwmDutyCyclePercent, "Duty bookkeeping must survive a re-population");
+        Assert.AreEqual(0, _coreDevice.SentCommands.Count, "A re-population must not command the device");
     }
 
     private sealed class PwmTestDevice : AbstractStreamingDevice
