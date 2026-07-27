@@ -2,11 +2,13 @@ using System.ComponentModel;
 using System.Diagnostics;
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Configuration;
+using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
+using CoreAnalogChannel = Daqifi.Core.Channel.AnalogChannel;
 
 namespace Daqifi.Desktop.Test.Loggers;
 
@@ -47,6 +49,40 @@ public class LoggingManagerSubscribedChannelsTests
     private static FakeChannel NewChannel(string name, string deviceSerial = DEVICE_SERIAL)
     {
         return new FakeChannel { Name = name, DeviceSerialNo = deviceSerial };
+    }
+
+    /// <summary>
+    /// Builds a real <see cref="AnalogChannel"/> — the production type — owned by a mocked device
+    /// reporting <paramref name="deviceSerial"/>.
+    /// <para>
+    /// The multi-device tests below deliberately do <em>not</em> use <see cref="FakeChannel"/>.
+    /// <c>FakeChannel</c> does not override <c>Equals</c>, so every collection operation on it falls
+    /// back to reference equality — which is the behaviour under test. Using it would restate the
+    /// expected outcome instead of exercising the name-only <see cref="AbstractChannel.Equals"/>
+    /// that the production channel types actually carry.
+    /// </para>
+    /// </summary>
+    /// <param name="name">The channel name, e.g. <c>AI0</c>. Devices name channels by index, so
+    /// two different units both expose the same names.</param>
+    /// <param name="deviceSerial">Serial number the owning device reports.</param>
+    private static AnalogChannel NewAnalogChannel(string name, string deviceSerial)
+    {
+        var owner = new Mock<IStreamingDevice>();
+        owner.SetupGet(d => d.DeviceSerialNo).Returns(deviceSerial);
+        owner.SetupGet(d => d.DevicePartNumber).Returns("Nq3");
+
+        var coreChannel = new CoreAnalogChannel(0, 4096)
+        {
+            Name = name,
+            Direction = ChannelDirection.Input,
+            CalibrationB = 0,
+            CalibrationM = 1,
+            InternalScaleM = 1,
+            PortRange = 5
+        };
+
+        // The AnalogChannel constructor copies DeviceSerialNo off the owner.
+        return new AnalogChannel(owner.Object, coreChannel);
     }
     #endregion
 
@@ -282,6 +318,112 @@ public class LoggingManagerSubscribedChannelsTests
         Assert.AreEqual(0, manager.SubscribedChannels.Count);
         Assert.IsFalse(first.IsActive);
         Assert.IsFalse(second.IsActive);
+    }
+    #endregion
+
+    #region Same-named channels across two devices (issue #773)
+    /// <summary>
+    /// Two connected devices both expose <c>AI0</c>, and <see cref="AbstractChannel.Equals"/> compares
+    /// <c>Name</c> only. <c>Unsubscribe</c> resolves the target with a device-qualified predicate, but
+    /// used to drop it with a value-based <c>List.Remove</c> — which re-matched by name and removed
+    /// whichever same-named channel sat earliest in the list. Unsubscribing the second device's
+    /// channel therefore deactivated the right one and removed the wrong one, leaving the other
+    /// device's channel logging while invisible to the UI.
+    /// <para>
+    /// Note the assertions use <see cref="Assert.AreSame"/>, never <c>CollectionAssert.AreEqual</c>:
+    /// the latter would compare with the very name-only equality under test and pass on either channel.
+    /// </para>
+    /// </summary>
+    [TestMethod]
+    public void Unsubscribe_RemovesTheTargetedChannel_WhenASameNamedChannelWasSubscribedFirst()
+    {
+        // Arrange - device A subscribes AI0 first, so it occupies the index a name-only
+        // removal would land on.
+        var manager = NewManager();
+        var deviceA = NewAnalogChannel("AI0", DEVICE_SERIAL);
+        var deviceB = NewAnalogChannel("AI0", OTHER_DEVICE_SERIAL);
+        manager.Subscribe(deviceA);
+        manager.Subscribe(deviceB);
+
+        // Act - tear down the second device's channel.
+        manager.Unsubscribe(deviceB);
+
+        // Assert - A must be the survivor, and must still be streaming.
+        Assert.AreEqual(1, manager.SubscribedChannels.Count);
+        Assert.AreSame(deviceA, manager.SubscribedChannels[0],
+            "Unsubscribing device B's AI0 must not remove device A's AI0.");
+        Assert.IsTrue(deviceA.IsActive, "The other device's channel must keep streaming.");
+        Assert.IsFalse(deviceB.IsActive, "The unsubscribed channel must be deactivated.");
+    }
+
+    /// <summary>
+    /// The mirror ordering. This case was already correct before the fix — the targeted channel was
+    /// also the first name-match — so it is a preservation control rather than a second catch: it
+    /// proves the reference-based removal did not break the ordinary path.
+    /// </summary>
+    [TestMethod]
+    public void Unsubscribe_RemovesTheTargetedChannel_WhenItIsItselfTheFirstSameNamedChannel()
+    {
+        // Arrange
+        var manager = NewManager();
+        var deviceA = NewAnalogChannel("AI0", DEVICE_SERIAL);
+        var deviceB = NewAnalogChannel("AI0", OTHER_DEVICE_SERIAL);
+        manager.Subscribe(deviceA);
+        manager.Subscribe(deviceB);
+
+        // Act
+        manager.Unsubscribe(deviceA);
+
+        // Assert
+        Assert.AreEqual(1, manager.SubscribedChannels.Count);
+        Assert.AreSame(deviceB, manager.SubscribedChannels[0]);
+        Assert.IsTrue(deviceB.IsActive);
+        Assert.IsFalse(deviceA.IsActive);
+    }
+
+    /// <summary>
+    /// The stuck-entry consequence of the wrong removal. Once the wrong channel has been dropped, the
+    /// deactivated one that stayed behind can never be removed: <c>Unsubscribe</c> filters on
+    /// <c>IsActive</c>, so every later attempt early-returns and the entry survives until
+    /// <c>ClearChannelList</c> or an app restart — the legend keeps showing a dead channel.
+    /// </summary>
+    [TestMethod]
+    public void Unsubscribe_EmptiesTheList_WhenBothDevicesSameNamedChannelsAreUnsubscribed()
+    {
+        // Arrange
+        var manager = NewManager();
+        var deviceA = NewAnalogChannel("AI0", DEVICE_SERIAL);
+        var deviceB = NewAnalogChannel("AI0", OTHER_DEVICE_SERIAL);
+        manager.Subscribe(deviceA);
+        manager.Subscribe(deviceB);
+
+        // Act - tear both down, second device first (the disconnect-loop order).
+        manager.Unsubscribe(deviceB);
+        manager.Unsubscribe(deviceA);
+
+        // Assert
+        Assert.AreEqual(0, manager.SubscribedChannels.Count,
+            "Both channels were unsubscribed, so neither may be left stranded in the list.");
+        Assert.IsFalse(deviceA.IsActive);
+        Assert.IsFalse(deviceB.IsActive);
+    }
+
+    /// <summary>
+    /// Guards the premise the other tests rest on: the production channel type really does compare by
+    /// name alone, so a value-based removal on this list is genuinely ambiguous. If channel equality is
+    /// ever made device-aware, this test fails and points at <c>Unsubscribe</c>'s removal comment.
+    /// </summary>
+    [TestMethod]
+    public void AnalogChannel_ComparesEqual_WhenOnlyTheNameMatchesAcrossDevices()
+    {
+        // Arrange
+        var deviceA = NewAnalogChannel("AI0", DEVICE_SERIAL);
+        var deviceB = NewAnalogChannel("AI0", OTHER_DEVICE_SERIAL);
+
+        // Assert
+        Assert.AreNotEqual(deviceA.DeviceSerialNo, deviceB.DeviceSerialNo);
+        Assert.IsTrue(deviceA.Equals(deviceB),
+            "Premise of issue #773: channel equality is name-only, so removal must go by reference.");
     }
     #endregion
 
