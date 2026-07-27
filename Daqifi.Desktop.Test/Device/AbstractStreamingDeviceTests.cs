@@ -12,8 +12,10 @@ namespace Daqifi.Desktop.Test.Device;
 [TestClass]
 public class AbstractStreamingDeviceTests
 {
+    // "core:" prefixed because Core composes and sends these now (daqifi-core#302); the desktop
+    // wrapper no longer builds the SCPI text itself. See RecordingCoreStreamingDevice.
     private static readonly string[] ExpectedFriendlyNameCommands =
-        ["SYSTem:DEVice:NAME \"Bench Rig 3\"", "SYSTem:DEVice:NAME:SAVE"];
+        ["core:SYSTem:DEVice:NAME \"Bench Rig 3\"", "core:SYSTem:DEVice:NAME:SAVE"];
 
     [TestMethod]
     public void FriendlyName_Property_ShouldDefaultToEmpty()
@@ -195,16 +197,47 @@ public class AbstractStreamingDeviceTests
     [TestMethod]
     public void SetFriendlyName_AtMaxLength_Succeeds()
     {
-        // Arrange
+        // Arrange — length taken from Core so this cannot drift from the bound it is testing.
         var device = new TestStreamingDevice();
         device.SetCoreDeviceConnected(true);
-        var maxLengthName = new string('A', 31);
+        var maxLengthName = new string('A', ScpiMessageProducer.MaxFriendlyNameLength);
 
         // Act
         device.SetFriendlyName(maxLengthName);
 
         // Assert
         Assert.AreEqual(maxLengthName, device.FriendlyName);
+    }
+
+    [TestMethod]
+    public void SetFriendlyName_OneOverMaxLength_ThrowsArgumentException()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        device.SetCoreDeviceConnected(true);
+        var tooLongName = new string('A', ScpiMessageProducer.MaxFriendlyNameLength + 1);
+
+        // Act & Assert
+        Assert.ThrowsExactly<ArgumentException>(() => device.SetFriendlyName(tooLongName));
+        Assert.AreEqual(0, device.SentCommands.Count);
+    }
+
+    /// <summary>
+    /// Validation must run before the connected check, not after. Core's
+    /// <c>SetFriendlyNameAsync</c> validates only after its own connected check and throws when
+    /// disconnected, so leaning on Core's validation alone would let an invalid name pass silently
+    /// whenever no device is attached — the exact case the Devices drawer hits while the user types
+    /// with nothing connected.
+    /// </summary>
+    [TestMethod]
+    public void SetFriendlyName_WithInvalidNameWhileDisconnected_StillThrows()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        device.SetCoreDeviceConnected(false);
+
+        // Act & Assert
+        Assert.ThrowsExactly<ArgumentException>(() => device.SetFriendlyName("Has a \"quote\""));
     }
 
     [TestMethod]
@@ -924,10 +957,16 @@ public class AbstractStreamingDeviceTests
         public void RouteStreamMessage(DaqifiOutMessage message) => OnStreamMessageReceived(message);
 
         /// <summary>
-        /// Fakes a connected Core device (transport-less, mirrors <see cref="RecordingCoreStreamingDevice"/>)
-        /// so <see cref="IStreamingDevice.IsConnected"/>-gated commands can be exercised without a real
-        /// connect flow. Pass <c>null</c> to simulate a disconnected/missing Core device.
+        /// Fakes a connected Core device (transport-less) so
+        /// <see cref="IStreamingDevice.IsConnected"/>-gated commands can be exercised without a
+        /// real connect flow. Pass <c>false</c> to simulate a disconnected/missing Core device.
         /// </summary>
+        /// <remarks>
+        /// Uses <see cref="RecordingCoreStreamingDevice"/> so commands Core composes on the
+        /// desktop's behalf land in <see cref="SentCommands"/> (prefixed <c>core:</c>) alongside
+        /// the ones the wrapper sends itself (unprefixed, via the <c>SendMessage</c> override).
+        /// Friendly-name commands moved to the Core side in daqifi-core#302.
+        /// </remarks>
         public void SetCoreDeviceConnected(bool connected)
         {
             if (!connected)
@@ -936,7 +975,7 @@ public class AbstractStreamingDeviceTests
                 return;
             }
 
-            var coreDevice = new CoreStreamingDevice("TestDevice");
+            var coreDevice = new RecordingCoreStreamingDevice(SentCommands, throwOnCommandData: null);
             coreDevice.Connect();
             CoreDevice = coreDevice;
         }
