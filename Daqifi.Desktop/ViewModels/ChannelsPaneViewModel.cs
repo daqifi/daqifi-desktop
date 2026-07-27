@@ -19,7 +19,19 @@ namespace Daqifi.Desktop.ViewModels;
 public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
 {
     private readonly DispatcherTimer _valueRefreshTimer;
+    private readonly LoggingManager _loggingManager;
     private bool _disposed;
+
+    /// <summary>
+    /// Channel → owning device, captured while <see cref="Rebuild"/> walks each connected device's
+    /// channels. Owner lookups read this map instead of re-scanning
+    /// <see cref="Daqifi.Desktop.Device.IStreamingDevice.DataChannels"/>, which the device mutates
+    /// off the UI thread (<c>AbstractStreamingDevice.SyncChannelsFromCore</c> clears and repopulates
+    /// it from Core's channels-populated callback). The map is keyed by reference identity, so it
+    /// stays correct even when a channel mutates fields that participate in its value hash.
+    /// </summary>
+    private readonly Dictionary<IChannel, Daqifi.Desktop.Device.IStreamingDevice> _channelOwners =
+        new(ReferenceComparer<IChannel>.Instance);
 
     /// <summary>
     /// Fires at the refresh cadence so tiles can re-read their live value
@@ -102,15 +114,27 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Creates the view-model and begins watching for connected devices.</summary>
-    public ChannelsPaneViewModel()
+    public ChannelsPaneViewModel() : this(LoggingManager.Instance)
     {
+    }
+
+    /// <summary>
+    /// Test seam. <see cref="LoggingManager.Instance"/> resolves its context factory from
+    /// <c>App.ServiceProvider</c>, which does not exist in the test host, so tests hand in a
+    /// manager built through <see cref="LoggingManager"/>'s own internal constructor.
+    /// </summary>
+    /// <param name="loggingManager">Manager supplying the logging-active state this pane mirrors.</param>
+    internal ChannelsPaneViewModel(LoggingManager loggingManager)
+    {
+        _loggingManager = loggingManager;
+
         _valueRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _valueRefreshTimer.Tick += OnValueRefreshTick;
         _valueRefreshTimer.Start();
 
         ConnectionManager.Instance.PropertyChanged += OnConnectionManagerPropertyChanged;
-        LoggingManager.Instance.PropertyChanged += OnLoggingManagerPropertyChanged;
-        IsLoggingActive = LoggingManager.Instance.Active;
+        _loggingManager.PropertyChanged += OnLoggingManagerPropertyChanged;
+        IsLoggingActive = _loggingManager.Active;
         Rebuild();
     }
 
@@ -129,11 +153,11 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
             var dispatcher = _valueRefreshTimer.Dispatcher;
             if (dispatcher.CheckAccess())
             {
-                IsLoggingActive = LoggingManager.Instance.Active;
+                IsLoggingActive = _loggingManager.Active;
             }
             else
             {
-                dispatcher.BeginInvoke(() => IsLoggingActive = LoggingManager.Instance.Active);
+                dispatcher.BeginInvoke(() => IsLoggingActive = _loggingManager.Active);
             }
         }
     }
@@ -168,6 +192,7 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         DisposeTiles(DigitalInputs);
         DisposeTiles(DigitalOutputs);
         ConnectedDeviceNames.Clear();
+        _channelOwners.Clear();
 
         var devices = ConnectionManager.Instance.ConnectedDevices.ToList();
         HasConnectedDevice = devices.Count > 0;
@@ -179,16 +204,11 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
             ConnectedDeviceNames.Add(device.Name);
         }
 
-        if (devices.Count == 0)
-        {
-            RecomputeCounts();
-            return;
-        }
-
         foreach (var device in devices)
         {
             foreach (var channel in device.DataChannels.NaturalOrderBy(c => c.Name))
             {
+                _channelOwners[channel] = device;
                 var tile = new ChannelTileViewModel(channel, this, device.Name, HasMultipleDevices);
                 if (channel.IsAnalog && channel.Direction == ChannelDirection.Input)
                 {
@@ -212,6 +232,39 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
             }
         }
         RecomputeCounts();
+        SyncSettingsDrawer();
+    }
+
+    /// <summary>
+    /// Preserves the settings drawer across a rebuild while the channel it is showing is still
+    /// owned by a connected device, and closes it otherwise so it cannot sit over an empty pane
+    /// pointing at hardware that is gone (issue #765). This is the same preserve-or-close rule
+    /// <see cref="DevicesPaneViewModel"/>'s own rebuild already applies to its drawer.
+    /// </summary>
+    /// <remarks>
+    /// Ownership is resolved by <em>object identity</em> rather than by
+    /// <see cref="IChannel.DeviceSerialNo"/>: a blank serial is a real state elsewhere in this
+    /// codebase, so a string match can resolve to the wrong device — or to none — while the drawer
+    /// is open. Identity is stable for as long as the channel is: a metadata re-sync keeps the
+    /// existing desktop channel instance for every channel that is still present
+    /// (<c>AbstractStreamingDevice.SyncChannelsFromCore</c>), and disconnecting empties
+    /// <see cref="Daqifi.Desktop.Device.IStreamingDevice.DataChannels"/> outright. A channel absent
+    /// from <see cref="_channelOwners"/> after a rebuild is therefore one no connected device owns.
+    /// </remarks>
+    private void SyncSettingsDrawer()
+    {
+        if (!IsSettingsOpen) return;
+
+        var owner = SelectedChannel == null ? null : FindOwningDevice(SelectedChannel);
+        if (owner == null)
+        {
+            CloseSettings();
+            return;
+        }
+
+        // The drawer edits device-scoped state too (the device-wide PWM frequency), so point it at
+        // the device that provably owns the channel.
+        SelectedDevice = owner;
     }
 
     private static void DisposeTiles(ObservableCollection<ChannelTileViewModel> tiles)
@@ -242,13 +295,13 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
 
         if (channel.IsActive)
         {
-            LoggingManager.Instance.Unsubscribe(channel);
+            _loggingManager.Unsubscribe(channel);
             device.RemoveChannel(channel);
         }
         else
         {
             device.AddChannel(channel);
-            LoggingManager.Instance.Subscribe(channel);
+            _loggingManager.Subscribe(channel);
         }
         RecomputeCounts();
     }
@@ -293,14 +346,14 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>
-    /// Resolves the connected device that owns <paramref name="channel"/>. Enumerates a
-    /// snapshot of the connected-device list (like <see cref="Rebuild"/>) because the
-    /// list mutates during connect/disconnect flows.
+    /// Resolves the connected device that owns <paramref name="channel"/>, from the map
+    /// <see cref="Rebuild"/> captured. Returns null once the owning device has left
+    /// <see cref="ConnectionManager.ConnectedDevices"/>. See <see cref="SyncSettingsDrawer"/> for
+    /// why ownership is keyed by identity rather than by <see cref="IChannel.DeviceSerialNo"/>.
     /// </summary>
-    private static Daqifi.Desktop.Device.IStreamingDevice? FindOwningDevice(IChannel channel)
+    private Daqifi.Desktop.Device.IStreamingDevice? FindOwningDevice(IChannel channel)
     {
-        return ConnectionManager.Instance.ConnectedDevices.ToList()
-            .FirstOrDefault(d => d.DeviceSerialNo == channel.DeviceSerialNo);
+        return _channelOwners.GetValueOrDefault(channel);
     }
 
     /// <summary>Closes the inline settings drawer.</summary>
@@ -332,11 +385,12 @@ public partial class ChannelsPaneViewModel : ObservableObject, IDisposable
         _valueRefreshTimer.Stop();
         _valueRefreshTimer.Tick -= OnValueRefreshTick;
         ConnectionManager.Instance.PropertyChanged -= OnConnectionManagerPropertyChanged;
-        LoggingManager.Instance.PropertyChanged -= OnLoggingManagerPropertyChanged;
+        _loggingManager.PropertyChanged -= OnLoggingManagerPropertyChanged;
 
         DisposeTiles(AnalogInputs);
         DisposeTiles(DigitalInputs);
         DisposeTiles(DigitalOutputs);
+        _channelOwners.Clear();
 
         GC.SuppressFinalize(this);
     }
