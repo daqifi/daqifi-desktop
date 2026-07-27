@@ -121,8 +121,8 @@ public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipIn
                 // #517, #632).
                 AppLogger.Warning(ex, $"Device on {PortName} did not respond within the connection timeout");
                 break;
-            case InvalidOperationException when IsScpiInitializationError(ex):
-                // Core's init sequence throws a bare InvalidOperationException when a command gets
+            case ScpiInitializationErrorException:
+                // Core's init sequence throws ScpiInitializationErrorException when a command gets
                 // a SCPI -200 execution error back, from two sibling sites with distinct wording:
                 //   * "Device returned a SCPI error during initialization: ..." (a command in the
                 //     echo/stop/power/stream-format/sysinfo sequence), and
@@ -133,9 +133,12 @@ public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipIn
                 // Firmware persists the last stream interface across sessions, so a device
                 // previously left streaming over WiFi is a common trigger on the very next USB
                 // connect, but any command in the sequence can hit this transient/timing condition.
-                // Matched by message substring (Core doesn't yet throw a typed exception for this —
-                // daqifi-core issue tracks that) so other InvalidOperationException bugs still hit
-                // Error. Device/environmental condition, not an app bug (issue #589).
+                // Matched on Core's typed exception (added in daqifi-core#317, shipped in Core
+                // 1.3.0) rather than a message substring. It derives from Exception, NOT from
+                // InvalidOperationException, so the previous `case InvalidOperationException when
+                // IsScpiInitializationError(ex)` arm could never match and this condition was still
+                // reaching the default Error/Sentry path (issue #775). Device/environmental
+                // condition, not an app bug (issues #589, #709).
                 AppLogger.Warning(ex,
                     $"Device on {PortName} returned a SCPI error during initialization " +
                     "(including stream-interface setup)");
