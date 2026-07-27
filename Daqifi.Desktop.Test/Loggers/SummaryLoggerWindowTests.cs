@@ -1,5 +1,7 @@
+using System;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Device;
 using Daqifi.Desktop.Logger;
@@ -157,6 +159,84 @@ public class SummaryLoggerWindowTests
         // Assert - relaxing the swap condition to >= must not change the cadence of a window that
         // is never resized
         Assert.AreEqual(2, _windowsPublished, "Six messages must complete exactly two windows of three.");
+    }
+
+    [TestMethod]
+    public void SampleSize_SetToItsCurrentValue_DoesNotRestartTheWindow()
+    {
+        // Arrange - a window in progress, three of its five messages already banked
+        NewLogger(sampleSize: 5);
+        PumpFrames(3);
+
+        // Act - the flyout re-assigns the size it already holds, which its NumericUpDown does on a
+        // coerced or re-committed edit
+        _logger.SampleSize = 5;
+        PumpFrames(2);
+
+        // Assert - restarting here would silently stretch the gap between summaries. Writing the
+        // property by hand means keeping the equality guard [ObservableProperty] used to generate
+        Assert.AreEqual(1, _windowsPublished,
+            "Re-assigning the sample size it already has must not restart the window in progress.");
+    }
+
+    [TestMethod]
+    public void SampleSize_WhenChanged_RaisesPropertyChangedOnlyOnAnActualChange()
+    {
+        // Arrange
+        NewLogger(sampleSize: 5);
+        var notifications = 0;
+        _logger.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SummaryLogger.SampleSize))
+            {
+                notifications++;
+            }
+        };
+
+        // Act
+        _logger.SampleSize = 7;
+        _logger.SampleSize = 7;
+
+        // Assert - the flyout's NumericUpDown is two-way bound to this property, so a hand-written
+        // setter that stopped notifying would leave the control and the logger permanently out of
+        // step with each other
+        Assert.AreEqual(7, _logger.SampleSize);
+        Assert.AreEqual(1, notifications,
+            "A changed sample size must notify exactly once, and an unchanged one not at all.");
+    }
+
+    [TestMethod]
+    public void Log_PublishingAWindow_DoesNotHoldTheLockThatASampleSizeChangeNeeds()
+    {
+        // Arrange - a subscriber that, while it is handling the publication, has another thread
+        // change the sample size. Publishing raised its notifications with the buffer lock still
+        // held, so that thread could not enter the setter until the handler returned - and the
+        // handler is what is waiting on the thread
+        NewLogger(sampleSize: 2);
+        var resizedWhileNotifying = false;
+        _logger.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(SummaryLogger.Channels))
+            {
+                return;
+            }
+
+            // A dedicated thread rather than the pool, so the wait measures the lock and not the
+            // thread-pool's willingness to start the work item
+            var resizer = new Thread(() => _logger.SampleSize = 9) { IsBackground = true };
+            resizer.Start();
+            resizedWhileNotifying = resizer.Join(TimeSpan.FromSeconds(5));
+        };
+
+        // Act - the second message closes the window and publishes it
+        PumpFrames(2);
+
+        // Assert - five seconds is four orders of magnitude more than an uncontended lock needs;
+        // failing it means the notification is being raised from inside the lock
+        Assert.IsTrue(resizedWhileNotifying,
+            "A completed window's notifications must be raised after the lock is released, or a "
+            + "subscriber that reaches back into the logger deadlocks the streaming thread against "
+            + "whichever thread is changing the sample size.");
     }
     #endregion
 
