@@ -7,6 +7,10 @@ namespace Daqifi.Desktop.Channel;
 public class DigitalChannel : AbstractChannel
 {
     #region Constants
+    // Mirrors Core's own DigitalChannel duty-cycle bounds, which are private consts there. Kept
+    // local because Core exposes neither the bounds nor a public clamping helper: its clamp lives
+    // in the IDigitalChannel.PwmDutyCyclePercent setter, while IStreamingDevice.SetPwmDutyCycle —
+    // the path taken while PWM is enabled — throws on an out-of-range value instead.
     private const int MIN_PWM_DUTY_CYCLE_PERCENT = 1;
     private const int MAX_PWM_DUTY_CYCLE_PERCENT = 100;
     #endregion
@@ -118,11 +122,18 @@ public class DigitalChannel : AbstractChannel
     }
 
     /// <summary>
-    /// Gets or sets the PWM duty cycle in whole percent (1-100, coerced). While PWM is
-    /// enabled the change is commanded live through the owner device (Core mirrors it into
-    /// bookkeeping on success); otherwise only the bookkeeping is updated and the value is
-    /// applied on the next enable.
+    /// Gets or sets the PWM duty cycle in whole percent (coerced into Core's commandable
+    /// range). While PWM is enabled the change is commanded live through the owner device (Core
+    /// mirrors it into bookkeeping on success); otherwise only the bookkeeping is updated and the
+    /// value is applied on the next enable.
     /// </summary>
+    /// <remarks>
+    /// The clamp is load-bearing at this binding boundary and cannot be left to Core: Core clamps
+    /// only on <c>IDigitalChannel.PwmDutyCyclePercent</c> assignment, while
+    /// <c>IStreamingDevice.SetPwmDutyCycle</c> — the path taken while PWM is enabled — throws
+    /// <see cref="ArgumentOutOfRangeException"/> instead. Coercing here turns an out-of-range edit
+    /// in a bound control into a snap-back rather than an exception. Only the bounds come from Core.
+    /// </remarks>
     public override int PwmDutyCyclePercent
     {
         get => _coreChannel.PwmDutyCyclePercent;

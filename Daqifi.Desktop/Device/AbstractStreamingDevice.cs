@@ -7,7 +7,6 @@ using ChannelDirection = Daqifi.Core.Channel.ChannelDirection;
 using ChannelType = Daqifi.Core.Channel.ChannelType;
 using Daqifi.Desktop.Models;
 using System.Globalization;
-using System.IO;
 using ScpiMessageProducer = Daqifi.Core.Communication.Producers.ScpiMessageProducer;
 using System.Runtime.InteropServices; // Added for P/Invoke
 using CommunityToolkit.Mvvm.ComponentModel; // Added using
@@ -79,13 +78,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private const int MAX_FRIENDLY_NAME_LENGTH = 31;
 
     /// <summary>
-    /// Device-wide PWM frequency shown (and commanded on the first enable) before the user
-    /// picks one. The device does not report its frequency usefully — readback echoes the
-    /// last request — so the session starts from a mid-range default.
+    /// Device-wide PWM frequency shown (and commanded on the first enable) before the user picks
+    /// one, seeded from Core's <see cref="CoreStreamingDevice.DefaultPwmFrequencyHz"/>. Shadowed
+    /// rather than read through to Core's <c>PwmFrequencyHz</c> because the UI binds this before a
+    /// device exists (<see cref="CoreDevice"/> is null until connect) and Core's mirror is
+    /// private-set.
     /// </summary>
-    private const int DEFAULT_PWM_FREQUENCY_HZ = 1000;
-
-    private int _pwmFrequencyHz = DEFAULT_PWM_FREQUENCY_HZ;
+    private int _pwmFrequencyHz = CoreStreamingDevice.DefaultPwmFrequencyHz;
 
     private readonly TimestampProcessor _timestampProcessor = new();
     private List<SdCardFile> _sdCardFiles = [];
@@ -1147,10 +1146,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             return false;
         }
 
-        var extension = Path.GetExtension(fileName);
-        return extension.Equals(".bin", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".json", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".csv", StringComparison.OrdinalIgnoreCase);
+        // Core's parser factory is the authority on which extensions it can actually parse, so a
+        // format it gains (or drops) never needs a matching edit here.
+        return SdCardFileParserFactory.TryDetectFormat(fileName, out _);
     }
 
     public void InitializeStreaming()
@@ -1674,19 +1672,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     {
         ArgumentNullException.ThrowIfNull(coreMetadata);
 
-        Metadata.PartNumber = coreMetadata.PartNumber;
-        Metadata.SerialNumber = coreMetadata.SerialNumber;
-        Metadata.FirmwareVersion = coreMetadata.FirmwareVersion;
-        Metadata.HardwareRevision = coreMetadata.HardwareRevision;
-        Metadata.DeviceType = coreMetadata.DeviceType;
-        Metadata.Capabilities = CloneCapabilities(coreMetadata.Capabilities);
-        Metadata.IpAddress = coreMetadata.IpAddress;
-        Metadata.MacAddress = coreMetadata.MacAddress;
-        Metadata.Ssid = coreMetadata.Ssid;
-        Metadata.HostName = coreMetadata.HostName;
-        Metadata.DevicePort = coreMetadata.DevicePort;
-        Metadata.WifiSecurityMode = coreMetadata.WifiSecurityMode;
-        Metadata.WifiInfrastructureMode = coreMetadata.WifiInfrastructureMode;
+        // Core owns the field list: CopyFrom deep-clones Capabilities and Health and picks up any
+        // field a future Core version adds, which a hand-rolled copy here would silently drop.
+        Metadata.CopyFrom(coreMetadata);
 
         // DeviceType is an [ObservableProperty] and not backed by Metadata, so set it explicitly.
         DeviceType = Metadata.DeviceType;
@@ -1713,21 +1701,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         AppLogger.Information($"Detected device type: {DeviceType} from part number: {Metadata.PartNumber}");
-    }
-
-    private static DeviceCapabilities CloneCapabilities(DeviceCapabilities capabilities)
-    {
-        return new DeviceCapabilities
-        {
-            SupportsStreaming = capabilities.SupportsStreaming,
-            HasSdCard = capabilities.HasSdCard,
-            HasWiFi = capabilities.HasWiFi,
-            HasUsb = capabilities.HasUsb,
-            AnalogInputChannels = capabilities.AnalogInputChannels,
-            AnalogOutputChannels = capabilities.AnalogOutputChannels,
-            DigitalChannels = capabilities.DigitalChannels,
-            MaxSamplingRate = capabilities.MaxSamplingRate
-        };
     }
 
     #endregion

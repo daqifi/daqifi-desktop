@@ -120,7 +120,9 @@ public class FirmwareDialogViewModelTests
 
         var vm = new FirmwareDialogViewModel("TestHid", firmwareUpdateService: update.Object, firmwareDownloadService: download.Object);
         // Stand in for the async dropdown load so we exercise the no-file path deterministically.
-        vm.SelectedFirmware = new Models.FirmwareOption { DeviceModel = "DAQiFi", Version = "3.6.1" };
+        // Fully qualified: a relative "Models." here binds to whichever Models namespace is nearest,
+        // so it breaks as soon as the test project grows a Daqifi.Desktop.Test.Models folder.
+        vm.SelectedFirmware = new Daqifi.Desktop.Models.FirmwareOption { DeviceModel = "DAQiFi", Version = "3.6.1" };
 
         await vm.UploadFirmwareCommand.ExecuteAsync(null);
 

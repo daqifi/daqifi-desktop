@@ -58,6 +58,63 @@ public class CoreConnectionTemplateTests
         Assert.AreEqual("1.2.3", device.DeviceVersion, "Metadata should hydrate via the wired event.");
     }
 
+    /// <summary>
+    /// Metadata hydration hands the field list to Core's <c>DeviceMetadata.CopyFrom</c> rather than
+    /// enumerating fields here (daqifi-core#305). The hand-rolled copy it replaced listed 13 fields
+    /// and silently dropped any Core added later — <c>FriendlyName</c> and <c>Health</c> were
+    /// already being dropped when it was removed.
+    /// </summary>
+    [TestMethod]
+    public void ChannelsPopulated_HydratesEveryMetadataField_NotJustAHandPickedSubset()
+    {
+        // Arrange
+        var device = new TemplateTestDevice();
+        device.Connect();
+
+        var statusMessage = BuildStatusMessage();
+        device.CreatedCoreDevice!.Metadata.UpdateFromProtobuf(statusMessage);
+
+        // A field the replaced hand-rolled copy did not carry across.
+        device.CreatedCoreDevice.Metadata.FriendlyName = "Bench Rig 3";
+
+        // Act
+        device.CreatedCoreDevice.PopulateChannelsFromStatus(statusMessage);
+
+        // Assert
+        Assert.AreEqual("Bench Rig 3", device.Metadata.FriendlyName,
+            "Delegating to CopyFrom is what stops a Core metadata field from being silently dropped here.");
+        Assert.AreEqual("Nq1", device.Metadata.PartNumber);
+        Assert.AreEqual("12345", device.Metadata.SerialNumber);
+    }
+
+    /// <summary>
+    /// The wrapper's capabilities must stay an independent copy: Core rebuilds
+    /// <c>Metadata.Capabilities</c> on every status message that carries a part number, so sharing
+    /// the instance would let a Core-side rebuild mutate what the UI is bound to.
+    /// </summary>
+    [TestMethod]
+    public void ChannelsPopulated_CopiesCapabilitiesRatherThanSharingCoresInstance()
+    {
+        // Arrange
+        var device = new TemplateTestDevice();
+        device.Connect();
+
+        var statusMessage = BuildStatusMessage();
+        device.CreatedCoreDevice!.Metadata.UpdateFromProtobuf(statusMessage);
+
+        // Act
+        device.CreatedCoreDevice.PopulateChannelsFromStatus(statusMessage);
+
+        // Assert
+        Assert.IsNotNull(device.Capabilities);
+        Assert.AreNotSame(device.CreatedCoreDevice.Metadata.Capabilities, device.Capabilities,
+            "Capabilities must be deep-copied, not aliased to Core's live instance.");
+        Assert.AreEqual(
+            device.CreatedCoreDevice.Metadata.Capabilities.AnalogInputChannels,
+            device.Capabilities.AnalogInputChannels,
+            "The copy must still carry Core's values.");
+    }
+
     [TestMethod]
     public void Connect_WhenCreateCoreDeviceReturnsNull_ReturnsFalseWithoutFailureLogging()
     {

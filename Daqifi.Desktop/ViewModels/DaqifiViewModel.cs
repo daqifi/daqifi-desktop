@@ -1173,7 +1173,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = "SD Card Log Files (*.bin;*.json;*.csv)|*.bin;*.json;*.csv|Protobuf (*.bin)|*.bin|JSON (*.json)|*.json|CSV (*.csv)|*.csv|All Files (*.*)|*.*",
+                Filter = SdCardLogFormatInfo.BuildOpenFileDialogFilter(),
                 Title = "Select SD Card Log File to Import"
             };
 
