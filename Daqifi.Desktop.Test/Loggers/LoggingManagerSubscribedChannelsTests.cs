@@ -416,13 +416,18 @@ public class LoggingManagerSubscribedChannelsTests
     [TestMethod]
     public void AnalogChannel_ComparesEqual_WhenOnlyTheNameMatchesAcrossDevices()
     {
-        // Arrange
+        // Arrange - two channels that share a name but genuinely belong to different devices, so any
+        // equality between them can only come from the name.
         var deviceA = NewAnalogChannel("AI0", DEVICE_SERIAL);
         var deviceB = NewAnalogChannel("AI0", OTHER_DEVICE_SERIAL);
+        Assert.AreNotEqual(deviceA.DeviceSerialNo, deviceB.DeviceSerialNo,
+            "Precondition: the two channels must report different device serials.");
+
+        // Act
+        var comparesEqual = deviceA.Equals(deviceB);
 
         // Assert
-        Assert.AreNotEqual(deviceA.DeviceSerialNo, deviceB.DeviceSerialNo);
-        Assert.IsTrue(deviceA.Equals(deviceB),
+        Assert.IsTrue(comparesEqual,
             "Premise of issue #773: channel equality is name-only, so removal must go by reference.");
     }
     #endregion
