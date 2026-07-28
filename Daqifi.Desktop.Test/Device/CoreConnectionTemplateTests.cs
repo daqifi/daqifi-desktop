@@ -322,12 +322,14 @@ public class CoreConnectionTemplateTests
         /// Runs Core's status-message path for <paramref name="message"/>, which raises the
         /// classified <c>StatusMessageReceived</c> event the wrapper subscribes to.
         /// </summary>
+        /// <param name="message">The frame Core has classified as a status message.</param>
         public void SimulateStatusMessage(DaqifiOutMessage message) => OnStatusMessageReceived(message);
 
         /// <summary>
         /// Runs Core's stream-message path for <paramref name="message"/>, which raises the
         /// classified <c>StreamMessageReceived</c> event the wrapper subscribes to.
         /// </summary>
+        /// <param name="message">The frame Core has classified as a streaming frame.</param>
         public void SimulateStreamMessage(DaqifiOutMessage message) => OnStreamMessageReceived(message);
     }
 }
