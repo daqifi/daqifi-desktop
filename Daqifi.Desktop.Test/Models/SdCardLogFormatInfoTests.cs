@@ -19,7 +19,7 @@ public class SdCardLogFormatInfoTests
     /// to keep stable; which other entries appear — and in what order — is Core's call now, so
     /// they are asserted individually rather than by pinning the whole filter string.
     /// </summary>
-    private static readonly string[] LEGACY_FILTER_ENTRIES =
+    private static readonly string[] LegacyFilterEntries =
     [
         "Protobuf (*.bin)|*.bin",
         "JSON (*.json)|*.json",
@@ -73,7 +73,7 @@ public class SdCardLogFormatInfoTests
 
         // Assert — the three formats the hardcoded literal offered are still offered under the
         // same labels and patterns, so the import dialog reads the same as it did.
-        foreach (var entry in LEGACY_FILTER_ENTRIES)
+        foreach (var entry in LegacyFilterEntries)
         {
             StringAssert.Contains(filter, entry,
                 $"The filter this replaced offered '{entry}', so the generated one must too.");
@@ -96,21 +96,27 @@ public class SdCardLogFormatInfoTests
     }
 
     [TestMethod]
-    public void DisplayNameFor_UsesTheLabelsShownBeforeTheCoreSwitch()
+    [DataRow("log.bin", "Protobuf")]
+    [DataRow("log.json", "JSON")]
+    [DataRow("log.csv", "CSV")]
+    public void DisplayNameFor_UsesTheLabelsShownBeforeTheCoreSwitch(string fileName, string expected)
     {
+        // Act
+        var display = SdCardLogFormatInfo.DisplayNameFor(fileName);
+
         // Assert — the three formats that shipped with the old hardcoded switch keep their exact
         // labels, so the Format column reads the same as it did.
-        Assert.AreEqual("Protobuf", SdCardLogFormatInfo.DisplayNameFor("log.bin"));
-        Assert.AreEqual("JSON", SdCardLogFormatInfo.DisplayNameFor("log.json"));
-        Assert.AreEqual("CSV", SdCardLogFormatInfo.DisplayNameFor("log.csv"));
+        Assert.AreEqual(expected, display);
     }
 
     [TestMethod]
     public void DisplayNameFor_IsCaseInsensitive()
     {
-        // Arrange — firmware has shipped upper-case names on the card before now.
-        // Act & Assert
-        Assert.AreEqual("Protobuf", SdCardLogFormatInfo.DisplayNameFor("LOG.BIN"));
+        // Act — firmware has shipped upper-case names on the card before now.
+        var display = SdCardLogFormatInfo.DisplayNameFor("LOG.BIN");
+
+        // Assert
+        Assert.AreEqual("Protobuf", display);
     }
 
     [TestMethod]
@@ -128,14 +134,16 @@ public class SdCardLogFormatInfoTests
     }
 
     [TestMethod]
-    public void DisplayNameFor_EmptyOrWhitespaceName_IsUnknownRatherThanThrowing()
+    [DataRow("")]
+    [DataRow("   ")]
+    public void DisplayNameFor_EmptyOrWhitespaceName_IsUnknownRatherThanThrowing(string fileName)
     {
-        // Core's TryDetectFormat throws on null; an empty or blank name reaching the Format column
-        // must degrade to a label, not take down the SD card file list.
-        Assert.AreEqual(SdCardLogFormatInfo.UNKNOWN_FORMAT_DISPLAY,
-            SdCardLogFormatInfo.DisplayNameFor(string.Empty));
-        Assert.AreEqual(SdCardLogFormatInfo.UNKNOWN_FORMAT_DISPLAY,
-            SdCardLogFormatInfo.DisplayNameFor("   "));
+        // Act — Core's TryDetectFormat throws on null, so the guard has to run before it.
+        var display = SdCardLogFormatInfo.DisplayNameFor(fileName);
+
+        // Assert — a blank name reaching the Format column must degrade to a label, not take down
+        // the SD card file list.
+        Assert.AreEqual(SdCardLogFormatInfo.UNKNOWN_FORMAT_DISPLAY, display);
     }
 
     [TestMethod]
@@ -144,8 +152,11 @@ public class SdCardLogFormatInfoTests
         // Arrange
         var file = new SdCardFile { FileName = "log_20260623_143217.csv" };
 
-        // Act & Assert
-        Assert.AreEqual(SdCardLogFormatInfo.DisplayNameFor(file.FileName), file.FormatDisplay);
-        Assert.AreEqual("CSV", file.FormatDisplay);
+        // Act
+        var formatDisplay = file.FormatDisplay;
+
+        // Assert
+        Assert.AreEqual(SdCardLogFormatInfo.DisplayNameFor(file.FileName), formatDisplay);
+        Assert.AreEqual("CSV", formatDisplay);
     }
 }
