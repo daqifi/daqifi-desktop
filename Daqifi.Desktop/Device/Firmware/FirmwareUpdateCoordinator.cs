@@ -45,7 +45,7 @@ public class FirmwareUpdateCoordinator : IDisposable
 
     // Windows does not free a USB-CDC handle the instant Disconnect returns; give it a moment
     // before retrying the transparent-mode exit or the retry fails on the same "access denied".
-    private static readonly TimeSpan PortReleaseDelayBeforeTransparentModeExit = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan PORT_RELEASE_DELAY_BEFORE_TRANSPARENT_MODE_EXIT = TimeSpan.FromMilliseconds(500);
 
     /// <summary>Production default for <see cref="_wifiUpdateModeSettleDelay"/>.</summary>
     public static readonly TimeSpan DefaultWifiUpdateModeSettleDelay = TimeSpan.FromSeconds(5);
@@ -469,7 +469,7 @@ public class FirmwareUpdateCoordinator : IDisposable
                 try { serialStreamingDevice.ResetLanAfterUpdate(); }
                 catch (Exception ex)
                 {
-                    _appLogger.Warning($"ResetLanAfterUpdate failed for {serialStreamingDevice.PortName}: {ex.Message}");
+                    _appLogger.Warning(ex, $"ResetLanAfterUpdate failed for {serialStreamingDevice.PortName}.");
                 }
 
                 await ExitWifiTransparentModeAsync(serialStreamingDevice);
@@ -506,10 +506,10 @@ public class FirmwareUpdateCoordinator : IDisposable
         try { device.Disconnect(); }
         catch (Exception ex)
         {
-            _appLogger.Warning($"Disconnect before transparent-mode exit failed for {portName}: {ex.Message}");
+            _appLogger.Warning(ex, $"Disconnect before transparent-mode exit failed for {portName}.");
         }
 
-        await Task.Delay(PortReleaseDelayBeforeTransparentModeExit);
+        await Task.Delay(PORT_RELEASE_DELAY_BEFORE_TRANSPARENT_MODE_EXIT);
         await TrySendTransparentModeExitAsync(portName);
     }
 
@@ -536,7 +536,10 @@ public class FirmwareUpdateCoordinator : IDisposable
         }
         catch (Exception ex)
         {
-            _appLogger.Warning($"Transparent-mode exit could not complete on {portName}: {ex.Message}");
+            // Exception-aware overload: the first attempt failing is expected (the managed connection
+            // usually still holds the port), so this must not raise a Sentry event — but the type and
+            // stack still matter, because a SECOND failure leaves the device stranded in transparent mode.
+            _appLogger.Warning(ex, $"Transparent-mode exit could not complete on {portName}.");
             return false;
         }
     }
