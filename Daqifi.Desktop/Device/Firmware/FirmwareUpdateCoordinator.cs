@@ -1,5 +1,4 @@
 using System.IO;
-using System.IO.Ports;
 using Daqifi.Core.Firmware;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device.SerialDevice;
@@ -32,6 +31,15 @@ public class FirmwareUpdateCoordinator : IDisposable
     private readonly Func<string, string, IFirmwareUpdateService> _wifiFirmwareUpdateServiceFactory;
 
     /// <summary>
+    /// Sends the USB-transparent-mode exit on a COM port. Production is Core's bridge deactivation
+    /// (<see cref="DeactivateWifiBridgeAsync"/>); tests inject a fake so the post-flash recovery
+    /// policy can be exercised without a serial port. Injected rather than called statically for the
+    /// same reason as <see cref="_wifiFirmwareUpdateServiceFactory"/>: it is the one step in that
+    /// policy that touches hardware.
+    /// </summary>
+    private readonly Func<string, Task> _transparentModeExitAsync;
+
+    /// <summary>
     /// App-global bootloader watcher. During an auto-update the connected device reboots into the HID
     /// bootloader; the watcher would otherwise discover and exclusively grab it, starving the
     /// coordinator's own flasher. The coordinator suspends the watcher's discovery for the PIC32 flash so
@@ -43,6 +51,10 @@ public class FirmwareUpdateCoordinator : IDisposable
 
     private const int WifiChipInfoMaxAttempts = 3;
     private static readonly TimeSpan WifiChipInfoRetryDelay = TimeSpan.FromSeconds(2);
+
+    // Windows does not free a USB-CDC handle the instant Disconnect returns; give it a moment
+    // before retrying the transparent-mode exit or the retry fails on the same "access denied".
+    private static readonly TimeSpan PORT_RELEASE_DELAY_BEFORE_TRANSPARENT_MODE_EXIT = TimeSpan.FromMilliseconds(500);
 
     /// <summary>Production default for <see cref="_wifiUpdateModeSettleDelay"/>.</summary>
     public static readonly TimeSpan DefaultWifiUpdateModeSettleDelay = TimeSpan.FromSeconds(5);
@@ -85,6 +97,10 @@ public class FirmwareUpdateCoordinator : IDisposable
     /// App-global bootloader watcher whose discovery is suspended around the PIC32 flash so it doesn't
     /// grab the rebooting device. Null is tolerated (tests / no watcher).
     /// </param>
+    /// <param name="transparentModeExitAsync">
+    /// Overrides how the USB-transparent-mode exit is sent. Null uses Core's bridge deactivation;
+    /// tests inject a failing fake to exercise the release-and-retry recovery without a serial port.
+    /// </param>
     public FirmwareUpdateCoordinator(
         IFirmwareUpdateHost host,
         IFirmwareUpdateService firmwareUpdateService,
@@ -94,7 +110,8 @@ public class FirmwareUpdateCoordinator : IDisposable
         string firmwareDataDirectory,
         Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null,
         TimeSpan? wifiUpdateModeSettleDelay = null,
-        IBootloaderWatcher? watcher = null)
+        IBootloaderWatcher? watcher = null,
+        Func<string, Task>? transparentModeExitAsync = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _firmwareUpdateService = firmwareUpdateService ?? throw new ArgumentNullException(nameof(firmwareUpdateService));
@@ -105,6 +122,16 @@ public class FirmwareUpdateCoordinator : IDisposable
         _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
         _wifiUpdateModeSettleDelay = wifiUpdateModeSettleDelay ?? DefaultWifiUpdateModeSettleDelay;
         _watcher = watcher;
+        _transparentModeExitAsync = transparentModeExitAsync ?? DeactivateWifiBridgeAsync;
+    }
+
+    /// <summary>
+    /// Production <see cref="_transparentModeExitAsync"/>: hands the transparent-mode exit to Core,
+    /// which owns the wire sequence and opens its own short-lived transport for it.
+    /// </summary>
+    private static Task DeactivateWifiBridgeAsync(string portName)
+    {
+        return WifiBridgeActivator.DeactivateAsync(portName);
     }
     #endregion
 
@@ -466,71 +493,100 @@ public class FirmwareUpdateCoordinator : IDisposable
                 try { serialStreamingDevice.ResetLanAfterUpdate(); }
                 catch (Exception ex)
                 {
-                    _appLogger.Warning($"ResetLanAfterUpdate failed for {serialStreamingDevice.PortName}: {ex.Message}");
+                    _appLogger.Warning(ex, $"ResetLanAfterUpdate failed for {serialStreamingDevice.PortName}.");
                 }
 
-                ExitWifiTransparentModeRaw(serialStreamingDevice);
+                await ExitWifiTransparentModeAsync(serialStreamingDevice);
             }
         }
     }
 
     /// <summary>
-    /// Brings the device out of USB-transparent / FW-update mode by sending
-    /// <c>SYSTem:USB:SetTransparentMode 0</c> over a raw serial write (while transparent the device
-    /// ignores the managed protobuf connection — only a raw write reaches the PIC32). If the port is
+    /// Brings the device out of USB-transparent / FW-update mode via Core's
+    /// <see cref="WifiBridgeActivator.DeactivateAsync"/> (while transparent the device ignores the
+    /// managed protobuf connection — only a direct serial write reaches the PIC32). If the port is
     /// still held by the managed connection — which can't itself exit the mode — that connection is
     /// disconnected to free the port and the exit is retried. A flash must never leave the device
     /// stranded in transparent mode, where it stops answering and vanishes from the app.
     /// </summary>
-    private void ExitWifiTransparentModeRaw(SerialStreamingDevice device)
+    /// <remarks>
+    /// The release-and-retry is desktop policy Core has no equivalent for: only this app knows a
+    /// managed <see cref="SerialStreamingDevice"/> may still own the port. Core owns the wire
+    /// sequence itself, which is the mirror of the <see cref="WifiBridgeActivator.Activate"/> call
+    /// this flow already makes at the "Power cycle WINC" prompt.
+    /// </remarks>
+    private async Task ExitWifiTransparentModeAsync(SerialStreamingDevice device)
     {
         var portName = device.PortName;
-        if (TrySendTransparentModeExit(portName))
+        if (await TrySendTransparentModeExitAsync(portName, isFinalAttempt: false))
         {
             return;
         }
 
-        // The raw open failed — almost always because the managed connection still holds the port (yet
+        // The open failed — almost always because the managed connection still holds the port (yet
         // can't send the exit itself while the device is transparent). Release it, let the OS free the
-        // handle, then retry the raw exit.
+        // handle, then retry.
         _appLogger.Information($"Releasing managed connection on {portName} to send the transparent-mode exit.");
         try { device.Disconnect(); }
         catch (Exception ex)
         {
-            _appLogger.Warning($"Disconnect before transparent-mode exit failed for {portName}: {ex.Message}");
+            _appLogger.Warning(ex, $"Disconnect before transparent-mode exit failed for {portName}.");
         }
-        Thread.Sleep(500);
-        TrySendTransparentModeExit(portName);
+
+        await Task.Delay(PORT_RELEASE_DELAY_BEFORE_TRANSPARENT_MODE_EXIT);
+
+        // The result is intentionally not inspected: this is the last recovery step, so there is no
+        // further action left to take. Failing here means the device is stranded in transparent mode,
+        // and the helper reports that terminally itself (Error -> Sentry) rather than silently.
+        await TrySendTransparentModeExitAsync(portName, isFinalAttempt: true);
     }
 
     /// <summary>
-    /// Opens <paramref name="portName"/> raw and sends the transparent-mode exit + LAN apply. Returns
-    /// false if the port can't be opened (e.g. still held by the managed connection).
+    /// Sends the transparent-mode exit + LAN apply on <paramref name="portName"/> through Core.
+    /// Returns false if the port can't be opened (e.g. still held by the managed connection) or the
+    /// open wedged past Core's hard timeout.
     /// </summary>
-    private bool TrySendTransparentModeExit(string portName)
+    /// <param name="portName">COM port of the device to bring out of transparent mode.</param>
+    /// <param name="isFinalAttempt">
+    /// False for the speculative first attempt (the managed connection commonly still owns the port,
+    /// so a failure there is expected and recoverable); true for the retry after that connection has
+    /// been released. Only the final attempt's failure is terminal, so only it is logged at Error —
+    /// the level that reports remotely — keeping the routine first-attempt failure out of Sentry.
+    /// </param>
+    /// <remarks>
+    /// Deliberately not passed the flash's <c>CancellationToken</c>: this runs from a
+    /// <c>finally</c> as recovery, so it must still execute when the flash was cancelled — leaving
+    /// the device transparent is exactly the state this exists to prevent.
+    /// </remarks>
+    private async Task<bool> TrySendTransparentModeExitAsync(string portName, bool isFinalAttempt)
     {
         try
         {
-            // USB CDC virtual ports ignore the baud rate; match the bridge-activation defaults.
-            using var port = new SerialPort(portName, 9600, Parity.None, 8, StopBits.One)
-            {
-                DtrEnable = true,
-                RtsEnable = false,
-                WriteTimeout = 2000
-            };
-            port.Open();
-            Thread.Sleep(200);
-            port.Write("SYSTem:USB:SetTransparentMode 0\n");
-            Thread.Sleep(150);
-            // Re-apply normal LAN config so the module returns to its operating mode.
-            port.Write("SYSTem:COMMunicate:LAN:APPLY\n");
-            Thread.Sleep(300);
-            _appLogger.Information($"Sent transparent-mode exit to {portName} (raw) after WiFi flash.");
+            // Core's async overload isolates SerialPort.Open onto a worker and races it against a
+            // hard timeout. That matters here: a wedged open (daqifi-core#294/#295) previously
+            // blocked this thread with no way out, and this path runs during cleanup after a flash.
+            await _transparentModeExitAsync(portName);
+            _appLogger.Information($"Sent transparent-mode exit to {portName} after WiFi flash.");
             return true;
+        }
+        catch (Exception ex) when (!isFinalAttempt)
+        {
+            // Expected and recoverable: the managed connection almost always still holds the port.
+            // Warning(ex, ...) keeps the type and stack in the local log without raising a Sentry
+            // event — the caller releases the connection and retries.
+            _appLogger.Warning(ex,
+                $"Transparent-mode exit could not open {portName}; releasing the managed connection and retrying.");
+            return false;
         }
         catch (Exception ex)
         {
-            _appLogger.Warning($"Raw transparent-mode exit could not open {portName}: {ex.Message}");
+            // Terminal: the retry after the port release also failed, so the device is left in
+            // transparent mode — it stops answering and vanishes from the app until it is power
+            // cycled. That is a silent, user-visible break, so report it remotely (Error captures to
+            // Sentry) instead of burying it in a local warning nobody reads.
+            _appLogger.Error(ex,
+                $"Transparent-mode exit failed on {portName} after releasing the managed connection. " +
+                "The device may be stranded in USB-transparent mode after the WiFi flash and need a power cycle.");
             return false;
         }
     }
