@@ -17,18 +17,18 @@ namespace Daqifi.Desktop.Test.Loggers;
 [TestClass]
 public class ImportTimestampQualityTests
 {
-    private static readonly DateTime BaseTime = new(2026, 6, 23, 14, 32, 17, DateTimeKind.Utc);
-    private static readonly TimeSpan SampleStep = TimeSpan.FromMilliseconds(100);
+    private static readonly DateTime BASE_TIME = new(2026, 6, 23, 14, 32, 17, DateTimeKind.Utc);
+    private static readonly TimeSpan SAMPLE_STEP = TimeSpan.FromMilliseconds(100);
 
     /// <summary>An entry Core reconstructed a real device timestamp for.</summary>
     private static SdCardLogEntry EntryWithDeviceTimestamp(int index) =>
-        new(BaseTime + index * SampleStep, [1.25], 0, null);
+        new(BASE_TIME + index * SAMPLE_STEP, [1.25], 0, null);
 
     /// <summary>
     /// An entry Core had no usable device timestamp for, so it substituted the session base time.
     /// </summary>
     private static SdCardLogEntry EntryWithoutDeviceTimestamp() =>
-        new(BaseTime, [1.25], 0, null) { HasDeviceTimestamp = false };
+        new(BASE_TIME, [1.25], 0, null) { HasDeviceTimestamp = false };
 
     [TestMethod]
     public void Observe_AllEntriesCarryDeviceTimestamps_IsHealthy()
@@ -123,7 +123,8 @@ public class ImportTimestampQualityTests
         var warning = quality.BuildUserWarning();
         Assert.IsNotNull(warning);
         StringAssert.Contains(warning, "30");
-        StringAssert.Contains(warning, "%");
+        StringAssert.Contains(warning, "(30.0%)",
+            "The percentage always carries one decimal so small shares cannot render as a bare 0.");
     }
 
     /// <summary>
@@ -152,8 +153,40 @@ public class ImportTimestampQualityTests
 
         var warning = quality.BuildUserWarning();
         Assert.IsNotNull(warning);
-        StringAssert.Contains(warning, "0.1%",
+        StringAssert.Contains(warning, "(0.1%)",
             "A sub-1% share must not round to 0% and read as though nothing was substituted.");
+    }
+
+    /// <summary>
+    /// A substitution rate too small to survive the displayed precision (1 in 5,000 is 0.02%) must
+    /// still not render as "0%" — the same sentence states a non-zero substituted count, so a zero
+    /// percentage beside it would contradict the very thing the warning exists to report.
+    /// </summary>
+    [TestMethod]
+    [DataRow(5000)]
+    [DataRow(10000)]
+    public void Observe_SubstitutionRateBelowDisplayedPrecision_IsNotReportedAsZeroPercent(int totalEntries)
+    {
+        // Arrange
+        var quality = new ImportTimestampQuality();
+
+        // Act — exactly one substituted sample in an otherwise healthy file
+        for (var i = 0; i < totalEntries - 1; i++)
+        {
+            quality.Observe(EntryWithDeviceTimestamp(i));
+        }
+        quality.Observe(EntryWithoutDeviceTimestamp());
+
+        // Assert
+        Assert.AreEqual(totalEntries, quality.TotalEntries);
+        Assert.AreEqual(1, quality.EntriesWithoutDeviceTimestamp);
+
+        var warning = quality.BuildUserWarning();
+        Assert.IsNotNull(warning);
+        StringAssert.Contains(warning, "(<0.1%)",
+            "A share below the displayed precision must read as a small one, not as none at all.");
+        Assert.IsFalse(warning.Contains("0%", StringComparison.Ordinal),
+            $"A substituted sample must never be reported at 0%. Warning was: {warning}");
     }
 
     [TestMethod]

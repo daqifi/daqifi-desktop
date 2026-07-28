@@ -22,6 +22,21 @@ namespace Daqifi.Desktop.Loggers;
 /// </remarks>
 public sealed class ImportTimestampQuality
 {
+    #region Constants
+    /// <summary>
+    /// Format for the substituted-sample percentage. Always renders one decimal, so a small
+    /// non-zero share can never collapse to a bare "0".
+    /// </summary>
+    private const string PERCENT_FORMAT = "0.0";
+
+    /// <summary>
+    /// Stands in for a percentage too small to survive <see cref="PERCENT_FORMAT"/>'s precision.
+    /// Substitutions did happen, so rendering "0.0%" would state the opposite of the sentence it
+    /// sits in.
+    /// </summary>
+    private const string BELOW_PERCENT_RESOLUTION = "<0.1";
+    #endregion
+
     #region Public Properties
     /// <summary>
     /// Total number of entries observed.
@@ -90,11 +105,29 @@ public sealed class ImportTimestampQuality
                    "Older device firmware may not record timestamps in SD card logs.";
         }
 
-        var percent = (SubstitutedFraction * 100).ToString("0.#", CultureInfo.InvariantCulture);
+        var percent = FormatSubstitutedPercent();
         var count = EntriesWithoutDeviceTimestamp.ToString("N0", CultureInfo.CurrentCulture);
         return $"{count} of the samples in this file ({percent}%) have no usable timestamp and " +
                "were placed at the session start time, so time spacing for those samples is not " +
                "meaningful. Older device firmware may not record timestamps in SD card logs.";
+    }
+    #endregion
+
+    #region Private Methods
+    /// <summary>
+    /// Renders <see cref="SubstitutedFraction"/> as a percentage that can never read as zero while
+    /// entries were in fact substituted: a rate below the format's resolution (1 in 5,000, say)
+    /// reports as <c>&lt;0.1</c> rather than rounding down to nothing.
+    /// </summary>
+    private string FormatSubstitutedPercent()
+    {
+        // Round first and format the rounded value, so the "did this collapse to zero" test and
+        // the text the user actually reads can never disagree.
+        var percent = Math.Round(SubstitutedFraction * 100, 1, MidpointRounding.AwayFromZero);
+
+        return percent > 0.0
+            ? percent.ToString(PERCENT_FORMAT, CultureInfo.InvariantCulture)
+            : BELOW_PERCENT_RESOLUTION;
     }
     #endregion
 }
