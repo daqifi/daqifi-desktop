@@ -142,11 +142,13 @@ public class DaqifiViewModelFriendlyNameTests
     }
 
     [TestMethod]
-    public void DeviceReportsName_AfterSelectionMovedOn_LeavesTheNewDrawerAlone()
+    public void SelectionMovingOn_DetachesThePreviousDevicesNameUpdates()
     {
-        // Arrange — unsubscription races the async inbound-message pipeline, so an update from a
-        // device the user has navigated away from can still reach the handler. Now that the guard
-        // runs on the UI thread at apply time, it is checked against the drawer's current selection.
+        // Arrange — the first line of defence against a name from a device the user has navigated
+        // away from landing in the successor's drawer: OnSelectedDeviceChanged unsubscribes the
+        // outgoing device. (The apply-time `device != SelectedDevice` guard in the handler covers
+        // the residual case this cannot reach — an update already in flight when the selection
+        // changes, which needs a real dispatcher queue to stage and so is not simulated here.)
         var device = CreateNotifyingDevice("Name From Old Device");
         var viewModel = CreateViewModel(device.Object);
         viewModel.SelectedDevice = CreateConnectedDevice().Object;
