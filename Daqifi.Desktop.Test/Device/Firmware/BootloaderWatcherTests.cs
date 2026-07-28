@@ -242,50 +242,71 @@ public class BootloaderWatcherTests
     }
 
     [TestMethod]
-    public async Task PrepareFlash_ReportsFlashInProgress_AndRaisesOnBothEdges()
+    public async Task PrepareFlash_MarksFlashInProgress_AndRaisesTheRisingEdge()
     {
         // The connection dialog keys its serial + WiFi discovery on this flag so a coordinator
         // auto-update of another device finishing mid-write can't restart bus probing during the HID
-        // flash, and on the event so the end of the write is a resume trigger (issue #777).
+        // flash (issue #777).
         using var watcher = CreateWatcher();
         watcher.Start();
         _discovery.Raise(PathA, "DAQiFi Bootloader");
         await WaitUntilAsync(() => watcher.Bootloaders.Count == 1);
-
         var flagsSeen = new List<bool>();
         watcher.FlashInProgressChanged += (_, _) => flagsSeen.Add(watcher.IsFlashInProgress);
-
         Assert.IsFalse(watcher.IsFlashInProgress, "No flash is in progress before PrepareFlashAsync.");
 
-        var lease = await watcher.PrepareFlashAsync(PathA);
+        await watcher.PrepareFlashAsync(PathA);
+
         Assert.IsTrue(watcher.IsFlashInProgress, "A prepared flash must report as in progress.");
-
-        await lease.DisposeAsync();
-        Assert.IsFalse(watcher.IsFlashInProgress, "Disposing the flash lease must clear the in-progress flag.");
-
-        Assert.AreEqual(2, flagsSeen.Count,
-            "FlashInProgressChanged must fire exactly once per edge.");
-        Assert.IsTrue(flagsSeen[0], "The first event is the rising edge.");
-        Assert.IsFalse(flagsSeen[1], "The second event is the falling edge.");
+        Assert.AreEqual(1, flagsSeen.Count, "The rising edge must fire exactly once.");
+        Assert.IsTrue(flagsSeen[0], "The rising edge must report the flash as in progress.");
     }
 
     [TestMethod]
-    public async Task FlashInProgressChanged_WithThrowingSubscriber_DoesNotFaultTheLease()
+    public async Task DisposingFlashLease_ClearsFlashInProgress_AndRaisesTheFallingEdge()
     {
-        // The falling edge is raised from the flash lease's disposal, which runs in the firmware
-        // dialog's finally. A faulting subscriber must not propagate there and mask the flash outcome.
+        // The falling edge is a subscriber's resume trigger: a write can outlive the modal dialog that
+        // started it, so without it a resume refused mid-write would never be retried (issue #777).
         using var watcher = CreateWatcher();
         watcher.Start();
         _discovery.Raise(PathA, "DAQiFi Bootloader");
         await WaitUntilAsync(() => watcher.Bootloaders.Count == 1);
+        var lease = await watcher.PrepareFlashAsync(PathA);
+        var flagsSeen = new List<bool>();
+        watcher.FlashInProgressChanged += (_, _) => flagsSeen.Add(watcher.IsFlashInProgress);
 
+        await lease.DisposeAsync();
+
+        Assert.IsFalse(watcher.IsFlashInProgress, "Disposing the flash lease must clear the in-progress flag.");
+        Assert.AreEqual(1, flagsSeen.Count, "The falling edge must fire exactly once.");
+        Assert.IsFalse(flagsSeen[0], "The falling edge must report the flash as finished.");
+        Assert.AreEqual(2, _createdHolds[PathA].BeginHoldCount,
+            "The flag must not clear before the target's re-grab has completed.");
+    }
+
+    [TestMethod]
+    public async Task FlashInProgressChanged_WithThrowingSubscriber_StillReachesLaterSubscribers()
+    {
+        // The falling edge is raised from the flash lease's disposal, which runs in the firmware
+        // dialog's finally. A faulting subscriber must neither propagate there and mask the flash
+        // outcome, nor swallow the edge for a subscriber registered after it.
+        using var watcher = CreateWatcher();
+        watcher.Start();
+        _discovery.Raise(PathA, "DAQiFi Bootloader");
+        await WaitUntilAsync(() => watcher.Bootloaders.Count == 1);
         watcher.FlashInProgressChanged += (_, _) => throw new InvalidOperationException("subscriber blew up");
+        var flagsSeen = new List<bool>();
+        watcher.FlashInProgressChanged += (_, _) => flagsSeen.Add(watcher.IsFlashInProgress);
 
         var lease = await watcher.PrepareFlashAsync(PathA);
         await lease.DisposeAsync();
 
         Assert.IsFalse(watcher.IsFlashInProgress);
         Assert.IsTrue(_discovery.IsRunning, "Discovery must still resume when a subscriber throws.");
+        Assert.AreEqual(2, flagsSeen.Count,
+            "A throwing subscriber must not swallow either edge for the subscribers after it.");
+        Assert.IsTrue(flagsSeen[0]);
+        Assert.IsFalse(flagsSeen[1]);
         _logger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.Exactly(2));
     }
 

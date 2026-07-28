@@ -47,8 +47,12 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
     /// of the window <see cref="ConnectHid"/> deliberately quiesced — most importantly the time the user
     /// spends picking a .hex before the write starts, during which an auto-update ending would otherwise
     /// restart discovery and leave it running when they hit Upload (issue #777).
+    /// <para>
+    /// Volatile: the quiesce window spans awaits, so the write that clears it can land on a thread-pool
+    /// thread when no dispatcher is present (unit tests), while a restart continuation reads it.
+    /// </para>
     /// </summary>
-    private bool _hidFirmwareDialogOpen;
+    private volatile bool _hidFirmwareDialogOpen;
 
     [ObservableProperty]
     private bool _hasNoWiFiDevices = true;
@@ -216,7 +220,7 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
     {
         InvokeOnUiThread(() =>
         {
-            if (_closed || _watcher is not { IsFlashInProgress: false }) { return; }
+            if (_closed || _watcher == null || _watcher.IsFlashInProgress) { return; }
 
             RestartDiscoveryAfterFirmwarePause();
         });
