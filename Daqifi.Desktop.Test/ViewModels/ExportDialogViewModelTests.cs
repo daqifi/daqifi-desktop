@@ -1,5 +1,6 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Test.TestSupport;
 using Daqifi.Desktop.ViewModels;
 using Microsoft.EntityFrameworkCore;
 using Moq;
@@ -14,25 +15,17 @@ namespace Daqifi.Desktop.Test.ViewModels;
 [TestClass]
 public class ExportDialogViewModelTests
 {
-    private static readonly string TestDirectoryPath =
-        Path.Combine(Path.GetTempPath(), "DAQiFi", "ExportDialogViewModelTests");
+    private TempTestDirectory _testDirectory = null!;
+
+    private string TestDirectoryPath => _testDirectory.FullPath;
 
     [TestInitialize]
-    public void Setup() => Directory.CreateDirectory(TestDirectoryPath);
+    public void Setup() => _testDirectory = new TempTestDirectory("export-dialog-vm");
 
+    // Removes exported CSVs / temp DBs so repeated runs don't accumulate files under %TEMP%.
+    // The directory is unique per test invocation, so this can never delete another run's files.
     [TestCleanup]
-    public void Cleanup()
-    {
-        // Remove exported CSVs / temp DBs so repeated runs don't accumulate files under %TEMP%.
-        try
-        {
-            if (Directory.Exists(TestDirectoryPath)) { Directory.Delete(TestDirectoryPath, recursive: true); }
-        }
-        catch
-        {
-            // Best-effort cleanup.
-        }
-    }
+    public void Cleanup() => _testDirectory?.Delete();
 
     private static ExportDialogViewModel CreateViewModel(IDbContextFactory<LoggingContext> factory = null!)
         => new(factory ?? new Mock<IDbContextFactory<LoggingContext>>().Object, sessionId: 1);

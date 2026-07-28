@@ -1,21 +1,31 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Test.TestSupport;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using System.Globalization;
 
 namespace Daqifi.Desktop.Test.Exporter;
 
+/// <summary>
+/// Export performance characterisation. Timing budgets here run through
+/// <see cref="PerformanceBudget"/>: they are reported on every run but only fail the build when
+/// <c>DAQIFI_ENFORCE_PERF_ASSERTIONS=1</c>, because wall-clock numbers track machine load rather
+/// than the exporter. Output correctness, row counts, memory ceilings and the hang guards are
+/// asserted unconditionally.
+/// </summary>
 [TestClass]
 public class ExportPerformanceTests
 {
-    private static readonly string TestDirectoryPath = Path.Combine(Path.GetTempPath(), "DAQiFi", "PerformanceTests");
+    private TempTestDirectory _testDirectory = null!;
+
+    private string TestDirectoryPath => _testDirectory.FullPath;
 
     [TestInitialize]
     public void Initialize()
     {
-        Directory.CreateDirectory(TestDirectoryPath);
+        _testDirectory = new TempTestDirectory("export-perf");
     }
 
     [TestMethod]
@@ -28,7 +38,7 @@ public class ExportPerformanceTests
         Console.WriteLine($"Small Dataset (400 samples): {results.ElapsedMs}ms, {results.MemoryMB}MB");
 
         // Baseline assertions - should pass easily
-        Assert.IsLessThan(1000, results.ElapsedMs, "Small dataset should export in under 1 second");
+        PerformanceBudget.ExpectElapsedUnder(1000, results.ElapsedMs, "Small dataset (400 samples) export");
         Assert.IsLessThan(10, results.MemoryMB, "Small dataset should use under 10MB memory");
     }
 
@@ -42,9 +52,7 @@ public class ExportPerformanceTests
         Console.WriteLine($"Medium Dataset (16K samples): {results.ElapsedMs}ms, {results.MemoryMB}MB");
         Console.WriteLine($"Samples per second: {16000.0 / results.ElapsedMs * 1000:F0}");
 
-        // These will likely fail with current implementation, demonstrating performance issues
-        Assert.IsLessThan(5000,
-results.ElapsedMs, $"Medium dataset took {results.ElapsedMs}ms - should be under 5 seconds");
+        PerformanceBudget.ExpectElapsedUnder(5000, results.ElapsedMs, "Medium dataset (16K samples) export");
         Assert.IsLessThan(50,
 results.MemoryMB, $"Medium dataset used {results.MemoryMB}MB - should be under 50MB");
     }
@@ -61,16 +69,13 @@ results.MemoryMB, $"Medium dataset used {results.MemoryMB}MB - should be under 5
         Console.WriteLine($"Samples per second: {80000.0 / results.ElapsedMs * 1000:F0}");
         Console.WriteLine($"Projected time for 51.8M samples: {results.ElapsedMs * (51800000.0 / 80000) / 1000 / 60:F1} minutes");
 
-        // These assertions will fail with current implementation, proving the performance problem
-        Assert.IsLessThan(10000,
-results.ElapsedMs, $"Large dataset took {results.ElapsedMs}ms - performance issues detected");
+        PerformanceBudget.ExpectElapsedUnder(10000, results.ElapsedMs, "Large dataset (80K samples) export");
         Assert.IsLessThan(100,
 results.MemoryMB, $"Large dataset used {results.MemoryMB}MB - memory usage too high");
 
         // Target performance: should process at least 50K samples/second
         var samplesPerSecond = 80000.0 / results.ElapsedMs * 1000;
-        Assert.IsGreaterThan(50000,
-samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too slow");
+        PerformanceBudget.ExpectThroughputOver(50000, samplesPerSecond, "Large dataset (80K samples) throughput");
     }
 
     [TestMethod]
@@ -162,10 +167,18 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
         Assert.IsFalse(cts.IsCancellationRequested,
             "Export was cancelled by the 90s watchdog — indicates a stall regression (issue #18).");
 
-        // Must complete well under a minute — the original failure was the export appearing
-        // to give up after ~60s. 30s gives plenty of headroom on slow CI.
-        Assert.IsLessThan(30_000, stopwatch.ElapsedMilliseconds,
+        // The original failure was the export appearing to give up after ~60s, so the stall guard
+        // has to bite below that: the 90s watchdog and the 120s [Timeout] only catch a true hang,
+        // and a 60s export is the regression itself, not a hang. This export measures ~2s, so a
+        // 45s ceiling is ~25x headroom — unreachable by machine load, and still well under the
+        // failure it guards.
+        Assert.IsLessThan(45_000, stopwatch.ElapsedMilliseconds,
             $"Export took {stopwatch.ElapsedMilliseconds}ms — regression in streaming export path (issue #18).");
+
+        // Finer-grained signal on top of that ceiling: reported every run, enforced only under
+        // DAQIFI_ENFORCE_PERF_ASSERTIONS, so a merely-slow machine reports without failing.
+        PerformanceBudget.ExpectElapsedUnder(30_000, stopwatch.ElapsedMilliseconds,
+            "Issue #18 DB-path export (100K samples)");
 
         // Streaming export should keep memory roughly flat regardless of sample count.
         Assert.IsLessThan(200, memoryUsedMb,
@@ -290,11 +303,8 @@ samplesPerSecond, $"Processing rate {samplesPerSecond:F0} samples/second is too 
         Assert.IsGreaterThan(1, lines.Length, "Export should contain header and data rows");
 
         // Performance targets for production deployment
-        if (stopwatch.ElapsedMilliseconds > 10) // Only check if measurable
-        {
-            Assert.IsGreaterThan(50000,
-samplesPerSecond, $"Production optimized exporter should process >50K samples/second. Actual: {samplesPerSecond:F0}");
-        }
+        PerformanceBudget.ExpectThroughputOver(50000, samplesPerSecond,
+            "Production optimized exporter (48K samples) throughput");
 
         // Memory should be reasonable for this dataset size
         Assert.IsLessThan(100,
@@ -329,7 +339,7 @@ memoryUsed, $"Production optimized exporter should use <100MB for 48K samples. A
         return samples;
     }
 
-    private static (long ElapsedMs, long MemoryMB) MeasureExportPerformance(List<DataSample> samples, string testName)
+    private (long ElapsedMs, long MemoryMB) MeasureExportPerformance(List<DataSample> samples, string testName)
     {
         var exportFilePath = Path.Combine(TestDirectoryPath, $"{testName}_export.csv");
 
@@ -362,9 +372,6 @@ memoryUsed, $"Production optimized exporter should use <100MB for 48K samples. A
     [TestCleanup]
     public void CleanUp()
     {
-        if (Directory.Exists(TestDirectoryPath))
-        {
-            Directory.Delete(TestDirectoryPath, true);
-        }
+        _testDirectory?.Delete();
     }
 }

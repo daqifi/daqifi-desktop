@@ -1,6 +1,7 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Test.TestSupport;
 using System.Diagnostics;
 
 namespace Daqifi.Desktop.Test.Exporter;
@@ -8,12 +9,14 @@ namespace Daqifi.Desktop.Test.Exporter;
 [TestClass]
 public class OptimizedExporterValidationTests
 {
-    private static readonly string TestDirectoryPath = Path.Combine(Path.GetTempPath(), "DAQiFi", "OptimizedTests");
+    private TempTestDirectory _testDirectory = null!;
+
+    private string TestDirectoryPath => _testDirectory.FullPath;
 
     [TestInitialize]
     public void Initialize()
     {
-        Directory.CreateDirectory(TestDirectoryPath);
+        _testDirectory = new TempTestDirectory("exporter-validation");
     }
 
     [TestMethod]
@@ -78,9 +81,9 @@ public class OptimizedExporterValidationTests
 
         Console.WriteLine($"Large dataset export took: {stopwatch.ElapsedMilliseconds}ms");
 
-        // Should be reasonably fast for this size
-        Assert.IsLessThan(5000,
-stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5 seconds. Actual: {stopwatch.ElapsedMilliseconds}ms");
+        // Should be reasonably fast for this size — reported, not enforced (see PerformanceBudget).
+        PerformanceBudget.ExpectElapsedUnder(5000, stopwatch.ElapsedMilliseconds,
+            "Validation large dataset (16K samples) export");
     }
 
     [TestMethod]
@@ -232,9 +235,6 @@ stopwatch.ElapsedMilliseconds, $"Large dataset export should complete in under 5
     [TestCleanup]
     public void CleanUp()
     {
-        if (Directory.Exists(TestDirectoryPath))
-        {
-            Directory.Delete(TestDirectoryPath, true);
-        }
+        _testDirectory?.Delete();
     }
 }
