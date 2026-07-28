@@ -100,6 +100,21 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// </summary>
     private bool _isSeedingPendingFriendlyName;
 
+    /// <summary>
+    /// Marshals a drawer-buffer update onto the UI thread — the mechanism that keeps the three
+    /// fields above UI-thread-confined. Defaults to <see cref="UiThreadHelper.InvokeOnUiThread"/>
+    /// and is only swapped by tests.
+    /// </summary>
+    /// <remarks>
+    /// The seam exists because the hop is otherwise unobservable in the unit-test host: with no
+    /// <c>Application.Current</c> the production helper runs its action inline, so a regression that
+    /// mutated the edit buffer straight from the event thread would still pass. Substituting an
+    /// invoker that captures the action instead of running it makes "the mutation goes through the
+    /// hop" directly assertable, without standing up a process-global WPF <c>Application</c> that
+    /// other test classes rely on being absent.
+    /// </remarks>
+    internal Action<Action, string?> UiInvoker { get; set; } = UiThreadHelper.InvokeOnUiThread;
+
     [ObservableProperty]
     private bool _friendlyNameApplied;
 
@@ -1051,20 +1066,6 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             newNotifier.PropertyChanged += OnSelectedDeviceFriendlyNameChanged;
         }
     }
-
-    /// <summary>
-    /// Marshals a drawer-buffer update onto the UI thread. Defaults to
-    /// <see cref="UiThreadHelper.InvokeOnUiThread"/> and is only swapped by tests.
-    /// </summary>
-    /// <remarks>
-    /// The seam exists because the hop is otherwise unobservable in the unit-test host: with no
-    /// <c>Application.Current</c> the production helper runs its action inline, so a regression that
-    /// mutated the edit buffer straight from the event thread would still pass. Substituting an
-    /// invoker that captures the action instead of running it makes "the mutation goes through the
-    /// hop" directly assertable, without standing up a process-global WPF <c>Application</c> that
-    /// other test classes rely on being absent.
-    /// </remarks>
-    internal Action<Action, string?> UiInvoker { get; set; } = UiThreadHelper.InvokeOnUiThread;
 
     private void OnSelectedDeviceFriendlyNameChanged(object? sender, PropertyChangedEventArgs e)
     {
