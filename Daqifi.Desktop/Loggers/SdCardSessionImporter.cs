@@ -20,9 +20,10 @@ public interface ISdCardSessionImporter
     /// <summary>
     /// Downloads an SD card log file from a connected USB device and imports it.
     /// </summary>
-    /// <exception cref="TimeoutException">
-    /// Thrown when the device stops sending data mid-transfer (see
-    /// <see cref="SdCardSessionImporter.DOWNLOAD_STALL_TIMEOUT"/>).
+    /// <exception cref="SdCardDownloadStalledException">
+    /// Thrown when the device stops sending data mid-transfer — either because the desktop's own
+    /// watchdog ran out of patience (see <see cref="SdCardSessionImporter.DOWNLOAD_STALL_TIMEOUT"/>)
+    /// or because the transport reported a timeout first.
     /// </exception>
     Task<SdCardImportResult> ImportFromDeviceAsync(
         IStreamingDevice device,
@@ -218,8 +219,9 @@ public class SdCardSessionImporter : ISdCardSessionImporter
     /// trips it.
     /// </summary>
     /// <exception cref="SdCardDownloadStalledException">
-    /// Thrown when no data arrives for <see cref="_downloadStallTimeout"/>. Callers surface this
-    /// as an expected device condition rather than an app error.
+    /// Thrown when no data arrives for <see cref="_downloadStallTimeout"/>, or when the transport
+    /// reports a timeout of its own first. Callers surface this as an expected device condition
+    /// rather than an app error.
     /// </exception>
     internal async Task<SdCardDownloadResult> DownloadWithStallWatchdogAsync(
         IStreamingDevice device,
@@ -252,6 +254,26 @@ public class SdCardSessionImporter : ISdCardSessionImporter
             // Distinguish our watchdog from a caller-requested cancel: only the watchdog becomes a
             // stall, so a genuine user cancel still propagates as OperationCanceledException.
             throw new SdCardDownloadStalledException(fileName, _downloadStallTimeout);
+        }
+        catch (TimeoutException ex)
+        {
+            // Issue #779: over USB serial — the only transport SD import supports — the watchdog
+            // above is effectively unreachable. Core's serial transport drops SerialPort.ReadTimeout
+            // to 500ms after connect and hands the raw BaseStream to SdCardFileReceiver, and .NET's
+            // SerialStream returns 0 bytes on a read timeout rather than throwing or honouring the
+            // token. The receiver treats a 0-byte read as fatal, so a wedged device raises a plain
+            // TimeoutException in about half a second — never as the cancellation the catch above
+            // is waiting for, which left this whole degradation path dead code on real hardware.
+            //
+            // Caught by type rather than by message, and deliberately not tied to that one throw
+            // site: SdCardFileReceiver raises TimeoutException from three places (the 0-byte read
+            // plus two paths for its own 30-minute cap), and Core is free to add more. What makes
+            // the normalisation safe is the *scope* — a timeout out of the download call is by
+            // definition a transfer that did not complete, whereas a TimeoutException from anywhere
+            // else in the import says nothing about the SD card and must keep the generic Error
+            // path. Core's exception is preserved as the inner one so the byte count and reason it
+            // reports still reach the log.
+            throw new SdCardDownloadStalledException(fileName, ex);
         }
     }
 

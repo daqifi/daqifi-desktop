@@ -29,7 +29,7 @@ public class SdCardDownloadFailureTests
 
     // Long enough that scheduling jitter cannot trip it spuriously, short enough to keep the test
     // fast. The production value is SdCardSessionImporter.DOWNLOAD_STALL_TIMEOUT.
-    private static readonly TimeSpan StallTimeout = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan STALL_TIMEOUT = TimeSpan.FromMilliseconds(300);
 
     private Mock<IStreamingDevice> _mockDevice = null!;
     private SdCardSessionImporter _importer = null!;
@@ -43,7 +43,7 @@ public class SdCardDownloadFailureTests
         // The watchdog runs entirely before anything is written, so a stub context factory is
         // enough — these tests never reach the database.
         _importer = new SdCardSessionImporter(
-            new Mock<IDbContextFactory<LoggingContext>>().Object, StallTimeout);
+            new Mock<IDbContextFactory<LoggingContext>>().Object, STALL_TIMEOUT);
     }
 
     [TestMethod]
@@ -69,6 +69,59 @@ public class SdCardDownloadFailureTests
         // only care that the operation timed out still catch it.
         StringAssert.Contains(ex.Message, FileName);
         Assert.IsInstanceOfType<TimeoutException>(ex);
+        Assert.IsTrue(ex.IsProlongedSilence,
+            "The watchdog watched the device say nothing for the full window, which is what makes " +
+            "this one broad enough to abandon a batch import over.");
+        Assert.AreEqual(STALL_TIMEOUT, ex.StallTimeout);
+    }
+
+    [TestMethod]
+    public async Task Download_WhenCoreReportsATimeout_BecomesAStallRatherThanABareTimeout()
+    {
+        // Arrange — issue #779. Over USB serial the watchdog above never gets to fire: Core's
+        // serial transport drops SerialPort.ReadTimeout to 500ms and hands the raw BaseStream to
+        // SdCardFileReceiver, .NET's SerialStream returns 0 bytes on a read timeout instead of
+        // throwing or honouring the token, and the receiver treats that as fatal. So a wedged
+        // device produces this — a plain TimeoutException in about half a second — and never the
+        // cancellation the watchdog converts. Unnormalised it fell through to the classifier's
+        // default arm: a Sentry issue plus "check the device connection", which is the exact #754
+        // behaviour the stall machinery was written to eliminate.
+        var transportTimeout = new TimeoutException(
+            "Transport stream closed before receiving the EOF marker. Received 0 bytes.");
+
+        _mockDevice
+            .Setup(d => d.DownloadSdCardFileAsync(
+                It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(transportTimeout);
+
+        // Act
+        var ex = await Assert.ThrowsExactlyAsync<SdCardDownloadStalledException>(() =>
+            _importer.DownloadWithStallWatchdogAsync(_mockDevice.Object, FileName, CancellationToken.None));
+
+        // Assert
+        StringAssert.Contains(ex.Message, FileName);
+        Assert.AreSame(transportTimeout, ex.InnerException,
+            "Core's own message carries the byte count, which is the only diagnostic the log gets.");
+        Assert.IsFalse(ex.IsProlongedSilence,
+            "The transport gave up in well under a second, so this says far less about the card " +
+            "than the watchdog firing does and must not abort a batch (issue #780).");
+        Assert.IsNull(ex.StallTimeout);
+    }
+
+    [TestMethod]
+    public async Task Download_WhenTheDeviceFailsForANonTimeoutReason_IsLeftAlone()
+    {
+        // Arrange — regression guard on the scope of the #779 normalisation. Only timeouts out of
+        // the download call become stalls; a typed device condition Core already names must reach
+        // the classifier unchanged so it keeps its own state and guidance.
+        _mockDevice
+            .Setup(d => d.DownloadSdCardFileAsync(
+                It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new SdCardNotPresentException(new List<string>(), "No card"));
+
+        // Act & Assert
+        await Assert.ThrowsExactlyAsync<SdCardNotPresentException>(() =>
+            _importer.DownloadWithStallWatchdogAsync(_mockDevice.Object, FileName, CancellationToken.None));
     }
 
     [TestMethod]
@@ -77,8 +130,8 @@ public class SdCardDownloadFailureTests
         // Arrange — a slow but healthy transfer: it runs for several stall windows, reporting a
         // chunk at a time. Regression guard against turning the watchdog into a wall-clock cap,
         // which would break exactly the large downloads it is supposed to protect.
-        var totalTransferTime = StallTimeout * 4;
-        var chunkInterval = StallTimeout / 4;
+        var totalTransferTime = STALL_TIMEOUT * 4;
+        var chunkInterval = STALL_TIMEOUT / 4;
         var expected = new SdCardDownloadResult(FileName, 4096, totalTransferTime, "C:\\temp\\file.bin");
 
         _mockDevice
