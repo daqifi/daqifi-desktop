@@ -87,9 +87,17 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// device's <see cref="IStreamingDevice.FriendlyName"/> changes. Reset whenever the buffer is
     /// (re)seeded programmatically.
     /// </summary>
+    /// <remarks>
+    /// UI-thread-confined, and unsynchronized because of it: the device-reported updates that read
+    /// it arrive on a background thread and are marshalled by
+    /// <see cref="OnSelectedDeviceFriendlyNameChanged"/> before they touch this field (issue #778).
+    /// </remarks>
     private bool _pendingFriendlyNameDirty;
 
-    /// <summary>Guards <see cref="OnPendingFriendlyNameChanged"/> during a programmatic seed.</summary>
+    /// <summary>
+    /// Guards <see cref="OnPendingFriendlyNameChanged"/> during a programmatic seed.
+    /// UI-thread-confined for the same reason as <see cref="_pendingFriendlyNameDirty"/>.
+    /// </summary>
     private bool _isSeedingPendingFriendlyName;
 
     [ObservableProperty]
@@ -1046,20 +1054,56 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
 
     private void OnSelectedDeviceFriendlyNameChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // PropertyChangedEventArgs is immutable, so this filter is safe to run on the raising
+        // thread — and it keeps the common case (any other property changing) from paying for a
+        // dispatcher hop.
         if (e.PropertyName != nameof(IStreamingDevice.FriendlyName))
         {
             return;
         }
-        // Don't clobber an in-progress edit, and ignore stale events from a device that is no
-        // longer selected (unsubscription races with the async inbound-message pipeline).
-        if (_pendingFriendlyNameDirty || sender != SelectedDevice)
+        if (sender is not IStreamingDevice device)
         {
             return;
         }
-        if (sender is IStreamingDevice device)
+
+        // This event does not arrive on the UI thread. Core raises StatusMessageReceived from its
+        // inbound-message consumer (a dedicated background thread), which is what drives
+        // AbstractStreamingDevice.OnStatusMessageReceived's FriendlyName write; the optimistic
+        // write at the end of AbstractStreamingDevice.SetFriendlyName runs on a thread-pool thread
+        // because SetFriendlyName is invoked via Task.Run. The drawer's edit buffer
+        // (PendingFriendlyName, _pendingFriendlyNameDirty, _isSeedingPendingFriendlyName) is
+        // otherwise touched only by the UI thread as the user types, and those flags carry no
+        // synchronization — so an update landing mid-edit could seed over the in-progress edit, or
+        // race the dirty flag and let the next update wipe it (issue #778). Marshaling the whole
+        // body keeps every one of those fields UI-thread-confined.
+        //
+        // The guards below deliberately live inside the hop: evaluating them here would be exactly
+        // the unsynchronized cross-thread read this is fixing.
+        UiThreadHelper.InvokeOnUiThread(
+            () => ApplyDeviceFriendlyName(device),
+            "Dispatcher unavailable while syncing the Devices drawer NAME field; update dropped.");
+    }
+
+    /// <summary>
+    /// Applies <paramref name="device"/>'s reported <see cref="IStreamingDevice.FriendlyName"/> to
+    /// the drawer's edit buffer. Always runs on the UI thread — see
+    /// <see cref="OnSelectedDeviceFriendlyNameChanged"/>, which marshals it there.
+    /// </summary>
+    private void ApplyDeviceFriendlyName(IStreamingDevice device)
+    {
+        // Don't clobber an in-progress edit, and ignore stale events from a device that is no
+        // longer selected (unsubscription races with the async inbound-message pipeline). Both are
+        // evaluated against the drawer's state at apply time, which is the state the user is
+        // actually looking at.
+        if (_pendingFriendlyNameDirty || device != SelectedDevice)
         {
-            SeedPendingFriendlyName(device.FriendlyName);
+            return;
         }
+
+        // Read the name here rather than capturing it when the event was raised: if several updates
+        // queue up behind each other the last one wins either way, and reading at apply time can
+        // never seed a value the device has already superseded.
+        SeedPendingFriendlyName(device.FriendlyName);
     }
 
     private async Task ShowFriendlyNameAppliedStatusAsync()
