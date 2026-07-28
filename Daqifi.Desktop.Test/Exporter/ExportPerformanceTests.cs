@@ -167,10 +167,16 @@ results.MemoryMB, $"Large dataset used {results.MemoryMB}MB - memory usage too h
         Assert.IsFalse(cts.IsCancellationRequested,
             "Export was cancelled by the 90s watchdog — indicates a stall regression (issue #18).");
 
-        // Should complete well under a minute — the original failure was the export appearing
-        // to give up after ~60s. The unconditional stall guards are the 90s watchdog above and
-        // the [Timeout] on the method; this 30s budget is the finer-grained signal and is
-        // reported rather than enforced so machine load cannot fail the run.
+        // The original failure was the export appearing to give up after ~60s, so the stall guard
+        // has to bite below that: the 90s watchdog and the 120s [Timeout] only catch a true hang,
+        // and a 60s export is the regression itself, not a hang. This export measures ~2s, so a
+        // 45s ceiling is ~25x headroom — unreachable by machine load, and still well under the
+        // failure it guards.
+        Assert.IsLessThan(45_000, stopwatch.ElapsedMilliseconds,
+            $"Export took {stopwatch.ElapsedMilliseconds}ms — regression in streaming export path (issue #18).");
+
+        // Finer-grained signal on top of that ceiling: reported every run, enforced only under
+        // DAQIFI_ENFORCE_PERF_ASSERTIONS, so a merely-slow machine reports without failing.
         PerformanceBudget.ExpectElapsedUnder(30_000, stopwatch.ElapsedMilliseconds,
             "Issue #18 DB-path export (100K samples)");
 

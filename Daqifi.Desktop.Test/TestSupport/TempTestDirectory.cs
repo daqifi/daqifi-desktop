@@ -69,7 +69,11 @@ internal sealed class TempTestDirectory
             {
                 if (attempt == DELETE_ATTEMPTS)
                 {
-                    Console.WriteLine($"Could not delete temp test directory '{FullPath}': {ex.Message}");
+                    // Swallowed so cleanup cannot fail an otherwise-passing test, but reported in
+                    // full — type and stack included — because a leftover directory here means a
+                    // handle the test failed to close, and ex.Message alone won't say which.
+                    Console.WriteLine(
+                        $"Could not delete temp test directory '{FullPath}' after {DELETE_ATTEMPTS} attempts: {ex}");
                     return;
                 }
 
