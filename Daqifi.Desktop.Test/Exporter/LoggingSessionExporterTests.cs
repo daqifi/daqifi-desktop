@@ -1,6 +1,7 @@
 using Daqifi.Desktop.Channel;
 using Daqifi.Desktop.Exporter;
 using Daqifi.Desktop.Logger;
+using Daqifi.Desktop.Test.TestSupport;
 using System.Diagnostics;
 
 namespace Daqifi.Desktop.Test.Exporter;
@@ -8,18 +9,20 @@ namespace Daqifi.Desktop.Test.Exporter;
 [TestClass]
 public class OptimizedLoggingSessionExporterTests
 {
-    private const string ExportFileName = "testExportFile.csv";
-    private static readonly string TestDirectoryPath = Path.Combine(Path.GetTempPath(), "DAQiFi", "Tests");
+    private const string EXPORT_FILE_NAME = "testExportFile.csv";
 
     private readonly DateTime _firstTime = new(2018, 2, 9, 1, 3, 30);
     private readonly DateTime _secondTime = new(2018, 2, 9, 1, 3, 31);
 
+    private TempTestDirectory _testDirectory = null!;
     private List<DataSample> _dataSamples = null!;
+
+    private string TestDirectoryPath => _testDirectory.FullPath;
 
     [TestInitialize]
     public void Initialize()
     {
-        Directory.CreateDirectory(TestDirectoryPath);
+        _testDirectory = new TempTestDirectory("exporter");
 
         _dataSamples =
         [
@@ -66,7 +69,7 @@ public class OptimizedLoggingSessionExporterTests
         };
 
         var exporter = new OptimizedLoggingSessionExporter();
-        var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
+        var exportFilePath = Path.Combine(TestDirectoryPath, EXPORT_FILE_NAME);
         var progress = new Progress<int>();
 
         exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
@@ -93,7 +96,7 @@ public class OptimizedLoggingSessionExporterTests
 
 
         var exporter = new OptimizedLoggingSessionExporter();
-        var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
+        var exportFilePath = Path.Combine(TestDirectoryPath, EXPORT_FILE_NAME);
         var progress = new Progress<int>();
 
         exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
@@ -116,7 +119,7 @@ public class OptimizedLoggingSessionExporterTests
         };
 
         var exporter = new OptimizedLoggingSessionExporter();
-        var exportFilePath = Path.Combine(TestDirectoryPath, ExportFileName);
+        var exportFilePath = Path.Combine(TestDirectoryPath, EXPORT_FILE_NAME);
         var progress = new Progress<int>();
 
         exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
@@ -134,7 +137,7 @@ public class OptimizedLoggingSessionExporterTests
         };
 
         var exporter = new OptimizedLoggingSessionExporter();
-        var exportFilePath = Path.Combine(TestDirectoryPath, "relative_" + ExportFileName);
+        var exportFilePath = Path.Combine(TestDirectoryPath, "relative_" + EXPORT_FILE_NAME);
         var progress = new Progress<int>();
 
         exporter.ExportLoggingSession(loggingSession, exportFilePath, true, progress, 0, 0, CancellationToken.None);
@@ -161,7 +164,7 @@ public class OptimizedLoggingSessionExporterTests
         };
 
         var exporter = new OptimizedLoggingSessionExporter();
-        var exportFilePath = Path.Combine(TestDirectoryPath, "large_" + ExportFileName);
+        var exportFilePath = Path.Combine(TestDirectoryPath, "large_" + EXPORT_FILE_NAME);
         var progress = new Progress<int>();
 
         exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
@@ -193,7 +196,7 @@ public class OptimizedLoggingSessionExporterTests
         };
 
         var exporter = new OptimizedLoggingSessionExporter();
-        var exportFilePath = Path.Combine(TestDirectoryPath, "performance_" + ExportFileName);
+        var exportFilePath = Path.Combine(TestDirectoryPath, "performance_" + EXPORT_FILE_NAME);
         var progress = new Progress<int>();
 
         // Measure execution time and memory
@@ -244,7 +247,7 @@ public class OptimizedLoggingSessionExporterTests
         };
 
         var exporter = new OptimizedLoggingSessionExporter();
-        var exportFilePath = Path.Combine(TestDirectoryPath, "multidevice_" + ExportFileName);
+        var exportFilePath = Path.Combine(TestDirectoryPath, "multidevice_" + EXPORT_FILE_NAME);
         var progress = new Progress<int>();
 
         exporter.ExportLoggingSession(loggingSession, exportFilePath, false, progress, 0, 0, CancellationToken.None);
@@ -290,22 +293,8 @@ public class OptimizedLoggingSessionExporterTests
     [TestCleanup]
     public void CleanUp()
     {
-        var testFiles = new[]
-        {
-            ExportFileName,
-            "relative_" + ExportFileName,
-            "large_" + ExportFileName,
-            "performance_" + ExportFileName,
-            "multidevice_" + ExportFileName
-        };
-
-        foreach (var fileName in testFiles)
-        {
-            var exportFilePath = Path.Combine(TestDirectoryPath, fileName);
-            if (File.Exists(exportFilePath))
-            {
-                File.Delete(exportFilePath);
-            }
-        }
+        // Deleting the whole per-run directory also covers files a future test adds, and cannot
+        // throw into an otherwise-passing test the way the old enumerate-and-delete did.
+        _testDirectory?.Delete();
     }
 }
