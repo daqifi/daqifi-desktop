@@ -13,7 +13,8 @@ namespace Daqifi.Desktop.Test.ViewModels;
 [TestClass]
 public class DaqifiViewModelFriendlyNameTests
 {
-    private const string GENERIC_FAILURE_MESSAGE = "Failed to set the device name. See the application log for details.";
+    private const string GENERIC_FAILURE_MESSAGE =
+        "Failed to set the device name. See the application log for details.";
 
     [TestMethod]
     public async Task SetFriendlyName_WhenDeviceThrowsArgumentException_ShowsValidationMessageVerbatim()
@@ -50,6 +51,55 @@ public class DaqifiViewModelFriendlyNameTests
         // Assert
         Assert.AreEqual(GENERIC_FAILURE_MESSAGE, viewModel.FriendlyNameError);
         Assert.IsFalse(viewModel.FriendlyNameApplied);
+    }
+
+    [TestMethod]
+    public async Task SetFriendlyName_WhenSelectionChangesDuringWrite_LeavesTheNewDrawerAlone()
+    {
+        // Arrange — the write runs off the UI thread, so the user can open another device's drawer
+        // before it returns. FriendlyNameError is shared drawer state that OpenSettings clears on
+        // selection, so a late failure from the previous device must not land on its successor.
+        var successor = CreateConnectedDevice().Object;
+        var device = CreateConnectedDevice();
+        DaqifiViewModel? viewModel = null;
+        device.Setup(d => d.SetFriendlyName(It.IsAny<string>()))
+            .Callback(() =>
+            {
+                viewModel!.SelectedDevice = successor;
+                viewModel.PendingFriendlyName = "Successor Rig";
+            })
+            .Throws(new InvalidOperationException("Device is not connected."));
+        viewModel = CreateViewModel(device.Object);
+
+        // Act
+        await viewModel.SetFriendlyName();
+
+        // Assert
+        Assert.IsNull(viewModel.FriendlyNameError, "A stale failure must not surface on the newly selected device.");
+    }
+
+    [TestMethod]
+    public async Task SetFriendlyName_WhenSelectionChangesDuringWrite_DoesNotSeedTheNewDevicesField()
+    {
+        // Arrange — same race on the success path: seeding would overwrite the successor's NAME
+        // field with the name just written to the device the user navigated away from.
+        var successor = CreateConnectedDevice().Object;
+        var device = CreateConnectedDevice();
+        DaqifiViewModel? viewModel = null;
+        device.Setup(d => d.SetFriendlyName(It.IsAny<string>()))
+            .Callback(() =>
+            {
+                viewModel!.SelectedDevice = successor;
+                viewModel.PendingFriendlyName = "Successor Rig";
+            });
+        viewModel = CreateViewModel(device.Object);
+
+        // Act
+        await viewModel.SetFriendlyName();
+
+        // Assert
+        Assert.AreEqual("Successor Rig", viewModel.PendingFriendlyName);
+        Assert.IsFalse(viewModel.FriendlyNameApplied, "The applied banner belongs to the drawer that is now closed.");
     }
 
     private static Mock<IStreamingDevice> CreateConnectedDevice()

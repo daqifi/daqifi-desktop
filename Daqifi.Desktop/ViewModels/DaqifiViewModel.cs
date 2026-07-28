@@ -947,18 +947,14 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             // SetFriendlyName sends SCPI commands synchronously (serial/TCP write); run it off
             // the UI thread so a slow or stalled device write cannot freeze the UI.
             await Task.Run(() => device.SetFriendlyName(name));
-
-            // Show the committed value rather than clearing the field — a blank box after a
-            // successful save reads as "it didn't take" even though the device now has the name.
-            SeedPendingFriendlyName(name);
-            _ = ShowFriendlyNameAppliedStatusAsync();
         }
         catch (ArgumentException ex)
         {
             // The only exception SetFriendlyName raises on its own behalf, and the one the user can
             // act on: show the validation message verbatim.
             _appLogger.Warning(ex, $"Rejected friendly name '{name}' for device {device.DeviceDisplayName}");
-            FriendlyNameError = ex.Message;
+            ShowFriendlyNameError(device, ex.Message);
+            return;
         }
         catch (Exception ex)
         {
@@ -966,8 +962,39 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             // cannot fix from this field, so log the detail and show a generic message instead of
             // letting it escape the command as an unhandled exception.
             _appLogger.Error(ex, $"Failed to set friendly name '{name}' for device {device.DeviceDisplayName}");
-            FriendlyNameError = "Failed to set the device name. See the application log for details.";
+            ShowFriendlyNameError(device, "Failed to set the device name. See the application log for details.");
+            return;
         }
+
+        if (SelectedDevice != device)
+        {
+            // The drawer moved to another device while the write was in flight (same guard as
+            // DeviceLogsViewModel.RefreshFilesAsync). Seeding here would overwrite the newly
+            // selected device's NAME field with the name just written to the previous one.
+            return;
+        }
+
+        // Show the committed value rather than clearing the field — a blank box after a
+        // successful save reads as "it didn't take" even though the device now has the name.
+        SeedPendingFriendlyName(name);
+        _ = ShowFriendlyNameAppliedStatusAsync();
+    }
+
+    /// <summary>
+    /// Publishes an inline NAME-field error for <paramref name="device"/>, unless the drawer has
+    /// since moved to another device. <see cref="FriendlyNameError"/> is shared drawer state that
+    /// <c>DevicesPaneViewModel.OpenSettings</c> clears on selection, so a late failure from a
+    /// device the user has already navigated away from must not surface on its successor.
+    /// The failure is logged by the caller either way.
+    /// </summary>
+    private void ShowFriendlyNameError(IStreamingDevice device, string message)
+    {
+        if (SelectedDevice != device)
+        {
+            return;
+        }
+
+        FriendlyNameError = message;
     }
 
     /// <summary>
