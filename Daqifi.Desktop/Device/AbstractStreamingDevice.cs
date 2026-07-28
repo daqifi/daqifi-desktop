@@ -116,8 +116,17 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// below. Keyed by the desktop channel wrapper so the handler installed on its Core channel can
     /// be found and removed when the wrapper leaves <see cref="DataChannels"/>.
     /// </summary>
+    /// <remarks>
+    /// Keyed by <em>reference identity</em>: <see cref="AbstractChannel"/> overrides equality and
+    /// hashing on its mutable <see cref="IChannel.Name"/>, so under default equality two wrappers
+    /// for the same logical channel would share one entry — a rebuilt wrapper's subscription would
+    /// overwrite the outgoing wrapper's, and the cleanup in <see cref="SyncChannelsFromCore"/> would
+    /// then detach the wrong delegate, leaking the old Core subscription and leaving the new one
+    /// untracked. A rename would likewise strand an entry. <see cref="ReferenceComparer{T}"/> makes
+    /// every wrapper its own key regardless of what its name does.
+    /// </remarks>
     private readonly Dictionary<IChannel, EventHandler<Daqifi.Core.Channel.SampleReceivedEventArgs>>
-        _channelSampleHandlers = new();
+        _channelSampleHandlers = new(ReferenceComparer<IChannel>.Instance);
 
     /// <summary>
     /// Gate for <see cref="OnCoreChannelSampleReceived"/>: true only while the raw frame Core is
@@ -807,6 +816,16 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     private void SubscribeChannelSamples(IChannel desktopChannel, Daqifi.Core.Channel.IChannel coreChannel)
     {
+        // Subscribing a wrapper that already has a tracked handler would strand the old delegate:
+        // the map holds one handler per wrapper, so the previous one becomes unreachable and stays
+        // attached, doubling every sample the wrapper routes. Detach it first — a wrapper's Core
+        // channel is readonly, so the delegate found here is necessarily attached to this same
+        // coreChannel.
+        if (_channelSampleHandlers.Remove(desktopChannel, out var previousHandler))
+        {
+            coreChannel.SampleReceived -= previousHandler;
+        }
+
         EventHandler<Daqifi.Core.Channel.SampleReceivedEventArgs> handler =
             (_, e) => OnCoreChannelSampleReceived(desktopChannel, e.Sample);
         coreChannel.SampleReceived += handler;
