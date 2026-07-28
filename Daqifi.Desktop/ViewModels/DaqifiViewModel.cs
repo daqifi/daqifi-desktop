@@ -955,8 +955,18 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         }
         catch (ArgumentException ex)
         {
+            // The only exception SetFriendlyName raises on its own behalf, and the one the user can
+            // act on: show the validation message verbatim.
             _appLogger.Warning(ex, $"Rejected friendly name '{name}' for device {device.DeviceDisplayName}");
             FriendlyNameError = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            // Same shape as UpdateNetworkConfiguration: a device write can fail for reasons the user
+            // cannot fix from this field, so log the detail and show a generic message instead of
+            // letting it escape the command as an unhandled exception.
+            _appLogger.Error(ex, $"Failed to set friendly name '{name}' for device {device.DeviceDisplayName}");
+            FriendlyNameError = "Failed to set the device name. See the application log for details.";
         }
     }
 

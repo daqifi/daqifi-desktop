@@ -12,10 +12,14 @@ namespace Daqifi.Desktop.Test.Device;
 [TestClass]
 public class AbstractStreamingDeviceTests
 {
+    // First of the two commands Core composes for a friendly-name change; also the injection point
+    // for the mid-sequence failure tests below.
+    private const string SET_FRIENDLY_NAME_COMMAND = "SYSTem:DEVice:NAME \"Bench Rig 3\"";
+
     // "core:" prefixed because Core composes and sends these now (daqifi-core#302); the desktop
     // wrapper no longer builds the SCPI text itself. See RecordingCoreStreamingDevice.
     private static readonly string[] ExpectedFriendlyNameCommands =
-        ["core:SYSTem:DEVice:NAME \"Bench Rig 3\"", "core:SYSTem:DEVice:NAME:SAVE"];
+        [$"core:{SET_FRIENDLY_NAME_COMMAND}", "core:SYSTem:DEVice:NAME:SAVE"];
 
     [TestMethod]
     public void FriendlyName_Property_ShouldDefaultToEmpty()
@@ -253,6 +257,41 @@ public class AbstractStreamingDeviceTests
         // Assert
         Assert.AreEqual(0, device.SentCommands.Count);
         Assert.AreEqual(string.Empty, device.FriendlyName, "A disconnected no-op must not update the local property.");
+    }
+
+    /// <summary>
+    /// The device can drop after the connected check passes — <c>CleanupConnection</c> clears
+    /// <c>CoreDevice</c> from whichever thread notices the disconnect — and Core's own guards throw
+    /// where the pre-delegation send path logged and returned. That no-op has to survive delegation:
+    /// <c>DaqifiViewModel.SetFriendlyName</c> treats <see cref="ArgumentException"/> as the only
+    /// expected failure, so a disconnect race must not escape the UI command as a different type.
+    /// </summary>
+    [TestMethod]
+    public void SetFriendlyName_WhenDeviceDisconnectsMidCall_NoOpsWithoutThrowing()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        device.SetCoreDeviceFailingOn(SET_FRIENDLY_NAME_COMMAND, disconnectOnThrow: true);
+
+        // Act
+        device.SetFriendlyName("Bench Rig 3");
+
+        // Assert
+        Assert.AreEqual(
+            string.Empty, device.FriendlyName, "A send that never reached the device must not update the property.");
+    }
+
+    [TestMethod]
+    public void SetFriendlyName_WhenCoreFailsWhileStillConnected_Propagates()
+    {
+        // Arrange
+        var device = new TestStreamingDevice();
+        device.SetCoreDeviceFailingOn(SET_FRIENDLY_NAME_COMMAND, disconnectOnThrow: false);
+
+        // Act & Assert — a failure that is not a disconnect is a real fault. Swallowing it here
+        // would report success to the user and hide the cause (the masking trap from issue #619).
+        Assert.ThrowsExactly<InvalidOperationException>(() => device.SetFriendlyName("Bench Rig 3"));
+        Assert.AreEqual(string.Empty, device.FriendlyName);
     }
 
     [TestMethod]
@@ -976,6 +1015,23 @@ public class AbstractStreamingDeviceTests
             }
 
             var coreDevice = new RecordingCoreStreamingDevice(SentCommands, throwOnCommandData: null);
+            coreDevice.Connect();
+            CoreDevice = coreDevice;
+        }
+
+        /// <summary>
+        /// Fakes a connected Core device whose send of <paramref name="commandData"/> throws.
+        /// With <paramref name="disconnectOnThrow"/> the Core device drops its connection first,
+        /// reproducing a disconnect that lands between the wrapper's connected check and Core's own
+        /// guard; without it the failure stands for an unrelated Core fault, which must propagate.
+        /// </summary>
+        public void SetCoreDeviceFailingOn(string commandData, bool disconnectOnThrow)
+        {
+            RecordingCoreStreamingDevice? coreDevice = null;
+            coreDevice = new RecordingCoreStreamingDevice(
+                SentCommands,
+                commandData,
+                onThrow: disconnectOnThrow ? () => coreDevice!.Disconnect() : null);
             coreDevice.Connect();
             CoreDevice = coreDevice;
         }
