@@ -31,6 +31,15 @@ public class FirmwareUpdateCoordinator : IDisposable
     private readonly Func<string, string, IFirmwareUpdateService> _wifiFirmwareUpdateServiceFactory;
 
     /// <summary>
+    /// Sends the USB-transparent-mode exit on a COM port. Production is Core's bridge deactivation
+    /// (<see cref="DeactivateWifiBridgeAsync"/>); tests inject a fake so the post-flash recovery
+    /// policy can be exercised without a serial port. Injected rather than called statically for the
+    /// same reason as <see cref="_wifiFirmwareUpdateServiceFactory"/>: it is the one step in that
+    /// policy that touches hardware.
+    /// </summary>
+    private readonly Func<string, Task> _transparentModeExitAsync;
+
+    /// <summary>
     /// App-global bootloader watcher. During an auto-update the connected device reboots into the HID
     /// bootloader; the watcher would otherwise discover and exclusively grab it, starving the
     /// coordinator's own flasher. The coordinator suspends the watcher's discovery for the PIC32 flash so
@@ -88,6 +97,10 @@ public class FirmwareUpdateCoordinator : IDisposable
     /// App-global bootloader watcher whose discovery is suspended around the PIC32 flash so it doesn't
     /// grab the rebooting device. Null is tolerated (tests / no watcher).
     /// </param>
+    /// <param name="transparentModeExitAsync">
+    /// Overrides how the USB-transparent-mode exit is sent. Null uses Core's bridge deactivation;
+    /// tests inject a failing fake to exercise the release-and-retry recovery without a serial port.
+    /// </param>
     public FirmwareUpdateCoordinator(
         IFirmwareUpdateHost host,
         IFirmwareUpdateService firmwareUpdateService,
@@ -97,7 +110,8 @@ public class FirmwareUpdateCoordinator : IDisposable
         string firmwareDataDirectory,
         Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null,
         TimeSpan? wifiUpdateModeSettleDelay = null,
-        IBootloaderWatcher? watcher = null)
+        IBootloaderWatcher? watcher = null,
+        Func<string, Task>? transparentModeExitAsync = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _firmwareUpdateService = firmwareUpdateService ?? throw new ArgumentNullException(nameof(firmwareUpdateService));
@@ -108,6 +122,16 @@ public class FirmwareUpdateCoordinator : IDisposable
         _wifiFirmwareUpdateServiceFactory = wifiFirmwareUpdateServiceFactory ?? CreateWifiFirmwareUpdateService;
         _wifiUpdateModeSettleDelay = wifiUpdateModeSettleDelay ?? DefaultWifiUpdateModeSettleDelay;
         _watcher = watcher;
+        _transparentModeExitAsync = transparentModeExitAsync ?? DeactivateWifiBridgeAsync;
+    }
+
+    /// <summary>
+    /// Production <see cref="_transparentModeExitAsync"/>: hands the transparent-mode exit to Core,
+    /// which owns the wire sequence and opens its own short-lived transport for it.
+    /// </summary>
+    private static Task DeactivateWifiBridgeAsync(string portName)
+    {
+        return WifiBridgeActivator.DeactivateAsync(portName);
     }
     #endregion
 
@@ -538,10 +562,10 @@ public class FirmwareUpdateCoordinator : IDisposable
     {
         try
         {
-            // The async overload isolates SerialPort.Open onto a worker and races it against a hard
-            // timeout. That matters here: a wedged open (daqifi-core#294/#295) previously blocked
-            // this thread with no way out, and this path runs during cleanup after a flash.
-            await WifiBridgeActivator.DeactivateAsync(portName);
+            // Core's async overload isolates SerialPort.Open onto a worker and races it against a
+            // hard timeout. That matters here: a wedged open (daqifi-core#294/#295) previously
+            // blocked this thread with no way out, and this path runs during cleanup after a flash.
+            await _transparentModeExitAsync(portName);
             _appLogger.Information($"Sent transparent-mode exit to {portName} after WiFi flash.");
             return true;
         }

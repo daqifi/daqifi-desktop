@@ -303,11 +303,10 @@ public class DaqifiViewModelFirmwareUpdateTests
         var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
         var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
 
-        // The WiFi-flash cleanup (ExitWifiTransparentModeAsync) tears down the managed connection when
-        // it can't open the COM port for the transparent-mode exit — which it can't against a mock
-        // transport. On real hardware the device reboots and the app reconnects with a fresh transport
-        // after a flash; model that here with a separate connected device per run so each in-session
-        // auto-update runs against a live connection.
+        // The WiFi flash releases the managed connection before running the WINC tool (that release is
+        // what frees the COM port), so a run always ends with the device disconnected. On real hardware
+        // it reboots and the app reconnects with a fresh transport; model that here with a separate
+        // connected device per run so each in-session auto-update runs against a live connection.
         using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
         coreDevice.Connect();
         using var coreDevice2 = new TestCoreStreamingDevice("DAQiFi Core");
@@ -927,9 +926,7 @@ public class DaqifiViewModelFirmwareUpdateTests
         using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
         coreDevice.Connect();
 
-        // A name no machine can expose as a real serial port, so BOTH exit attempts fail on every
-        // host — including a bench PC with a device actually attached.
-        var serialDevice = CreateSerialDeviceWithCoreDevice("COM_NOT_A_PORT", coreDevice);
+        var serialDevice = CreateSerialDeviceWithCoreDevice("COM9", coreDevice);
         var pic32FirmwarePath = CreateTempFile(".hex");
         var wifiPackageDirectory = CreateTempDirectory();
 
@@ -956,14 +953,28 @@ public class DaqifiViewModelFirmwareUpdateTests
             SelectedDevice = serialDevice
         };
 
+        // The one hardware-touching step of the recovery policy is injected, so the test drives the
+        // policy itself with no serial port involved: every attempt fails, exactly as it would on a
+        // device that never leaves transparent mode.
+        var exitAttempts = new List<string>();
         var coordinator = CreateCoordinator(
             host,
             pic32FirmwareUpdateService.Object,
             firmwareDownloadService.Object,
             (_, _) => wifiFirmwareUpdateService.Object,
-            appLogger.Object);
+            appLogger.Object,
+            portName =>
+            {
+                exitAttempts.Add(portName);
+                throw new IOException($"The port '{portName}' does not exist.");
+            });
 
         await coordinator.UploadFirmwareAsync();
+
+        // Both attempts run: the speculative one, then the retry after the port release.
+        Assert.AreEqual(2, exitAttempts.Count,
+            "The exit must be retried once after the managed connection is released.");
+        Assert.IsTrue(exitAttempts.TrueForAll(port => port == "COM9"));
 
         // First attempt: local Warning only, carrying the exception.
         appLogger.Verify(
@@ -987,7 +998,8 @@ public class DaqifiViewModelFirmwareUpdateTests
         IFirmwareUpdateService firmwareUpdateService,
         IFirmwareDownloadService firmwareDownloadService,
         Func<string, string, IFirmwareUpdateService>? wifiFirmwareUpdateServiceFactory = null,
-        IAppLogger? appLogger = null)
+        IAppLogger? appLogger = null,
+        Func<string, Task>? transparentModeExitAsync = null)
     {
         return new FirmwareUpdateCoordinator(
             host,
@@ -1001,7 +1013,11 @@ public class DaqifiViewModelFirmwareUpdateTests
             // deterministic. (Production timing is exercised by the integration gate.) Flash
             // success/failure is now verified by Core from the tool output, so there is no
             // desktop-side duration guard to configure here.
-            wifiUpdateModeSettleDelay: TimeSpan.Zero);
+            wifiUpdateModeSettleDelay: TimeSpan.Zero,
+            // Default the post-flash transparent-mode exit to a no-op. Production hands it to Core,
+            // which opens a real serial port — nothing a unit test should reach. Tests that assert
+            // the recovery policy pass their own fake.
+            transparentModeExitAsync: transparentModeExitAsync ?? (_ => Task.CompletedTask));
     }
 
     private static Mock<Daqifi.Desktop.Device.IStreamingDevice> CreateDeviceMock(string serialNo, string version)
