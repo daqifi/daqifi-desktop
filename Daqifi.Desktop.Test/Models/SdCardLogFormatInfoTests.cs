@@ -13,19 +13,6 @@ namespace Daqifi.Desktop.Test.Models;
 [TestClass]
 public class SdCardLogFormatInfoTests
 {
-    /// <summary>
-    /// The per-format entries that lived in <c>DaqifiViewModel.ImportSdCardLogFile</c>'s filter
-    /// literal before the switch to Core-driven construction. Only these three are the desktop's
-    /// to keep stable; which other entries appear — and in what order — is Core's call now, so
-    /// they are asserted individually rather than by pinning the whole filter string.
-    /// </summary>
-    private static readonly string[] LegacyFilterEntries =
-    [
-        "Protobuf (*.bin)|*.bin",
-        "JSON (*.json)|*.json",
-        "CSV (*.csv)|*.csv"
-    ];
-
     [TestMethod]
     public void BuildOpenFileDialogFilter_HasTheShapeTheImportDialogExpects()
     {
@@ -65,19 +52,23 @@ public class SdCardLogFormatInfoTests
         }
     }
 
+    // The per-format entries that lived in DaqifiViewModel.ImportSdCardLogFile's filter literal
+    // before the switch to Core-driven construction. Only these three are the desktop's to keep
+    // stable; which other entries appear — and in what order — is Core's call now, so they are
+    // asserted one at a time rather than by pinning the whole filter string.
     [TestMethod]
-    public void BuildOpenFileDialogFilter_KeepsTheEntriesItReplacedVerbatim()
+    [DataRow("Protobuf (*.bin)|*.bin")]
+    [DataRow("JSON (*.json)|*.json")]
+    [DataRow("CSV (*.csv)|*.csv")]
+    public void BuildOpenFileDialogFilter_KeepsTheEntriesItReplacedVerbatim(string legacyEntry)
     {
         // Act
         var filter = SdCardLogFormatInfo.BuildOpenFileDialogFilter();
 
-        // Assert — the three formats the hardcoded literal offered are still offered under the
-        // same labels and patterns, so the import dialog reads the same as it did.
-        foreach (var entry in LegacyFilterEntries)
-        {
-            StringAssert.Contains(filter, entry,
-                $"The filter this replaced offered '{entry}', so the generated one must too.");
-        }
+        // Assert — the format is still offered under the same label and pattern it had before, so
+        // the import dialog reads the same as it did.
+        StringAssert.Contains(filter, legacyEntry,
+            $"The filter this replaced offered '{legacyEntry}', so the generated one must too.");
     }
 
     [TestMethod]
