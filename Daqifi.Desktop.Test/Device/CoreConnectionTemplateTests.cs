@@ -155,6 +155,41 @@ public class CoreConnectionTemplateTests
     }
 
     [TestMethod]
+    public void Disconnect_UnsubscribesCoresClassifiedMessageEvents()
+    {
+        // Arrange — a connected device receiving Core's classified frames. Core classifies each
+        // inbound frame once and raises StatusMessageReceived/StreamMessageReceived (daqifi-core#308);
+        // the wrapper subscribes to both in SubscribeCoreDeviceEvents.
+        var device = new TemplateTestDevice();
+        device.Connect();
+        var coreDevice = device.CreatedCoreDevice!;
+        coreDevice.SimulateStatusMessage(BuildStatusMessage(friendlyDeviceName: "Bench NQ1"));
+        Assert.AreEqual("Bench NQ1", device.FriendlyName,
+            "Precondition: Core's classified status event must reach the wrapper while connected.");
+
+        // Act
+        device.Disconnect();
+
+        // Assert — the Core device outlives the wrapper's connection (Disconnect only drops the
+        // wrapper's reference), so every classified subscription must have a matching removal or a
+        // late frame would keep mutating the disconnected device's bound state. Covers both events
+        // added when the desktop stopped running its own ProtobufProtocolHandler pass.
+        coreDevice.SimulateStatusMessage(BuildStatusMessage(friendlyDeviceName: "A different device"));
+        Assert.AreEqual("Bench NQ1", device.FriendlyName,
+            "StatusMessageReceived must be unsubscribed on disconnect.");
+
+        coreDevice.SimulateStreamMessage(new DaqifiOutMessage
+        {
+            MsgTimeStamp = 1000,
+            DeviceSn = 12345,
+            FriendlyDeviceName = "A different device",
+            AnalogInDataFloat = { 1.25f }
+        });
+        Assert.AreEqual("Bench NQ1", device.FriendlyName,
+            "StreamMessageReceived must be unsubscribed on disconnect.");
+    }
+
+    [TestMethod]
     public void Connect_WhenNotOverridden_ReturnsFalse()
     {
         // Arrange — a device that does not provide a Core device factory
@@ -165,13 +200,14 @@ public class CoreConnectionTemplateTests
             "The default template must fail safely when CreateCoreDevice is not overridden.");
     }
 
-    private static DaqifiOutMessage BuildStatusMessage()
+    private static DaqifiOutMessage BuildStatusMessage(string? friendlyDeviceName = null)
     {
         return new DaqifiOutMessage
         {
             DevicePn = "Nq1",
             DeviceSn = 12345,
             DeviceFwRev = "1.2.3",
+            FriendlyDeviceName = friendlyDeviceName ?? string.Empty,
             AnalogInPortNum = 1,
             AnalogInRes = 4095,
             DigitalPortNum = 1,
@@ -281,5 +317,17 @@ public class CoreConnectionTemplateTests
         public override void Send<T>(IOutboundMessage<T> message)
         {
         }
+
+        /// <summary>
+        /// Runs Core's status-message path for <paramref name="message"/>, which raises the
+        /// classified <c>StatusMessageReceived</c> event the wrapper subscribes to.
+        /// </summary>
+        public void SimulateStatusMessage(DaqifiOutMessage message) => OnStatusMessageReceived(message);
+
+        /// <summary>
+        /// Runs Core's stream-message path for <paramref name="message"/>, which raises the
+        /// classified <c>StreamMessageReceived</c> event the wrapper subscribes to.
+        /// </summary>
+        public void SimulateStreamMessage(DaqifiOutMessage message) => OnStreamMessageReceived(message);
     }
 }

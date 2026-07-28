@@ -53,7 +53,7 @@ flowchart TB
 
     user -- "Uses" --> ui
     ui -- "Commands &amp;<br/>observable state" --> domain
-    domain -- "SCPI out,<br/>MessageReceived in" --> core
+    domain -- "SCPI out,<br/>classified message<br/>events in" --> core
     core -- "Wire protocol" --> nyquist
     domain -- "Bulk inserts" --> sqlite
     ui -- "Reads / writes" --> config
@@ -84,8 +84,8 @@ sequenceDiagram
 
     HW->>Core: Bytes (TCP or USB-Serial)
     Core->>Core: Decode protobuf → DaqifiOutMessage
-    Core->>Dev: MessageReceived event
-    Dev->>Dev: HandleInboundMessage → ProtobufProtocolHandler.HandleAsync
+    Core->>Core: Classify frame (ProtobufProtocolHandler)
+    Core->>Dev: StreamMessageReceived event (classified)
     Dev->>Dev: OnStreamMessageReceived(DaqifiOutMessage)
     Note over Dev: For each active analog channel:<br/>scale raw ADC (WiFi) or<br/>use pre-scaled float (USB)
     Dev->>Ch: channel.ActiveSample = new DataSample(...)

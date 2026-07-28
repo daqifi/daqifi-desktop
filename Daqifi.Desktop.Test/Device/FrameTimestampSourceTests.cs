@@ -234,7 +234,6 @@ public class FrameTimestampSourceTests : IDisposable
             DispatchedMessages.Add(deviceMessage);
         }
 
-        /// <summary>Routes a frame through the desktop's inbound path and then Core's decode.</summary>
         /// <summary>
         /// Routes a frame the way production does: Core's own <c>OnStreamMessageReceived</c> raises
         /// the classified <c>StreamMessageReceived</c> event this device is subscribed to, then runs
