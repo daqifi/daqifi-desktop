@@ -30,11 +30,17 @@ public sealed class ImportTimestampQuality
     private const string PERCENT_FORMAT = "0.0";
 
     /// <summary>
-    /// Stands in for a percentage too small to survive <see cref="PERCENT_FORMAT"/>'s precision.
-    /// Substitutions did happen, so rendering "0.0%" would state the opposite of the sentence it
-    /// sits in.
+    /// Decimal places <see cref="PERCENT_FORMAT"/> shows. Rounding uses the same count, so the
+    /// value tested for zero is the value the user ends up reading.
     /// </summary>
-    private const string BELOW_PERCENT_RESOLUTION = "<0.1";
+    private const int PERCENT_DECIMALS = 1;
+
+    /// <summary>
+    /// Smallest share <see cref="PERCENT_FORMAT"/> can express. A non-zero count landing below it
+    /// reports as "less than this": rendering "0.0%" would state the opposite of the count sitting
+    /// in the same sentence.
+    /// </summary>
+    private const double SMALLEST_SHOWN_PERCENT = 0.1;
     #endregion
 
     #region Public Properties
@@ -121,13 +127,17 @@ public sealed class ImportTimestampQuality
     /// </summary>
     private string FormatSubstitutedPercent()
     {
+        // The sample count beside it is formatted for the user's locale, so the percentage is too.
+        // One sentence carrying two decimal conventions reads as a formatting bug.
+        var culture = CultureInfo.CurrentCulture;
+
         // Round first and format the rounded value, so the "did this collapse to zero" test and
         // the text the user actually reads can never disagree.
-        var percent = Math.Round(SubstitutedFraction * 100, 1, MidpointRounding.AwayFromZero);
+        var percent = Math.Round(SubstitutedFraction * 100, PERCENT_DECIMALS, MidpointRounding.AwayFromZero);
 
         return percent > 0.0
-            ? percent.ToString(PERCENT_FORMAT, CultureInfo.InvariantCulture)
-            : BELOW_PERCENT_RESOLUTION;
+            ? percent.ToString(PERCENT_FORMAT, culture)
+            : $"<{SMALLEST_SHOWN_PERCENT.ToString(PERCENT_FORMAT, culture)}";
     }
     #endregion
 }

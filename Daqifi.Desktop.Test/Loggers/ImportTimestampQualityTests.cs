@@ -1,3 +1,4 @@
+using System.Globalization;
 using Daqifi.Core.Device.SdCard;
 using Daqifi.Desktop.Loggers;
 
@@ -19,6 +20,25 @@ public class ImportTimestampQualityTests
 {
     private static readonly DateTime BASE_TIME = new(2026, 6, 23, 14, 32, 17, DateTimeKind.Utc);
     private static readonly TimeSpan SAMPLE_STEP = TimeSpan.FromMilliseconds(100);
+
+    private CultureInfo _originalCulture = CultureInfo.CurrentCulture;
+
+    /// <summary>
+    /// The warning is formatted for the user's locale, so the fixture pins a known culture rather
+    /// than inheriting the build agent's. The comma-decimal test overrides it deliberately.
+    /// </summary>
+    [TestInitialize]
+    public void PinCulture()
+    {
+        _originalCulture = Thread.CurrentThread.CurrentCulture;
+        Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
+    }
+
+    [TestCleanup]
+    public void RestoreCulture()
+    {
+        Thread.CurrentThread.CurrentCulture = _originalCulture;
+    }
 
     /// <summary>An entry Core reconstructed a real device timestamp for.</summary>
     private static SdCardLogEntry EntryWithDeviceTimestamp(int index) =>
@@ -187,6 +207,46 @@ public class ImportTimestampQualityTests
             "A share below the displayed precision must read as a small one, not as none at all.");
         Assert.IsFalse(warning.Contains("0%", StringComparison.Ordinal),
             $"A substituted sample must never be reported at 0%. Warning was: {warning}");
+    }
+
+    /// <summary>
+    /// The sample count in this sentence is formatted for the user's locale, so the percentage
+    /// beside it must be too — one sentence carrying two decimal conventions reads as a bug. The
+    /// below-resolution marker is built from the same culture rather than a hardcoded "&lt;0.1".
+    /// </summary>
+    [TestMethod]
+    public void BuildUserWarning_CommaDecimalCulture_FormatsPercentInThatCulture()
+    {
+        // Arrange
+        Thread.CurrentThread.CurrentCulture = new CultureInfo("de-DE");
+        var mixed = new ImportTimestampQuality();
+        var tiny = new ImportTimestampQuality();
+
+        // Act
+        for (var i = 0; i < 70; i++)
+        {
+            mixed.Observe(EntryWithDeviceTimestamp(i));
+        }
+        for (var i = 0; i < 30; i++)
+        {
+            mixed.Observe(EntryWithoutDeviceTimestamp());
+        }
+
+        for (var i = 0; i < 4999; i++)
+        {
+            tiny.Observe(EntryWithDeviceTimestamp(i));
+        }
+        tiny.Observe(EntryWithoutDeviceTimestamp());
+
+        // Assert
+        var mixedWarning = mixed.BuildUserWarning();
+        var tinyWarning = tiny.BuildUserWarning();
+        Assert.IsNotNull(mixedWarning);
+        Assert.IsNotNull(tinyWarning);
+        StringAssert.Contains(mixedWarning, "(30,0%)",
+            "The percentage must use the same decimal separator as the count beside it.");
+        StringAssert.Contains(tinyWarning, "(<0,1%)",
+            "The below-resolution marker is a formatted number too, not a hardcoded string.");
     }
 
     [TestMethod]
