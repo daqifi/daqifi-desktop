@@ -21,64 +21,100 @@ public class ChannelSampleSubscriptionTests
     private const string SHARED_CHANNEL_NAME = "AI0";
 
     [TestMethod]
-    public void SubscribeChannelSamples_TwoWrappersSharingAName_DetachesEachWrappersOwnHandler()
+    public void UnsubscribeChannelSamples_WhenAnotherWrapperSharesItsName_DetachesItsOwnHandler()
     {
-        // Arrange — two wrappers for the same logical channel, which is what SyncChannelsFromCore
-        // produces when Core hands back a different IChannel instance for a key it already has a
-        // wrapper for: the replacement is built and subscribed before the trailing cleanup loop
-        // unsubscribes the outgoing one.
+        // Arrange
+        var scenario = ArrangeCollidingSubscriptions();
+
+        // Act
+        InvokeUnsubscribeChannelSamples(
+            scenario.Device, scenario.OutgoingWrapper, scenario.OutgoingCore.Channel);
+
+        // Assert
+        CollectionAssert.AreEqual(
+            scenario.OutgoingCore.Added,
+            scenario.OutgoingCore.Removed,
+            "The outgoing wrapper's own delegate must come off its own Core channel. Detaching " +
+            "some other wrapper's delegate is a no-op there and leaves the real subscription live " +
+            "on a channel that is no longer in DataChannels.");
+        Assert.AreEqual(
+            0,
+            scenario.ReplacementCore.Removed.Count,
+            "Unsubscribing the outgoing wrapper must not disturb the replacement's subscription.");
+    }
+
+    [TestMethod]
+    public void UnsubscribeChannelSamples_AfterAWrapperSharingItsNameWasRemoved_StillTracksItsHandler()
+    {
+        // Arrange — the outgoing wrapper has already been cleaned up, exactly as the trailing loop
+        // in SyncChannelsFromCore does once the replacement is in place.
+        var scenario = ArrangeCollidingSubscriptions();
+        InvokeUnsubscribeChannelSamples(
+            scenario.Device, scenario.OutgoingWrapper, scenario.OutgoingCore.Channel);
+
+        // Act
+        InvokeUnsubscribeChannelSamples(
+            scenario.Device, scenario.ReplacementWrapper, scenario.ReplacementCore.Channel);
+
+        // Assert
+        CollectionAssert.AreEqual(
+            scenario.ReplacementCore.Added,
+            scenario.ReplacementCore.Removed,
+            "The replacement wrapper's handler must survive the outgoing wrapper's cleanup as a " +
+            "tracked entry, so it can be detached in turn instead of leaking.");
+    }
+
+    [TestMethod]
+    public void SubscribeChannelSamples_WhenTheSameWrapperIsAlreadySubscribed_DetachesThePreviousHandler()
+    {
+        // Arrange
         var device = new SubscriptionTestDevice();
-        var outgoingCore = CreateCoreChannel(out var outgoingAdded, out var outgoingRemoved);
-        var replacementCore = CreateCoreChannel(out var replacementAdded, out var replacementRemoved);
-        var outgoingWrapper = new AnalogChannel(device, outgoingCore);
-        var replacementWrapper = new AnalogChannel(device, replacementCore);
+        var coreChannel = CreateCoreChannel();
+        var wrapper = new AnalogChannel(device, coreChannel.Channel);
+        InvokeSubscribeChannelSamples(device, wrapper, coreChannel.Channel);
+
+        // Act — a second subscribe for the very same wrapper reference
+        InvokeSubscribeChannelSamples(device, wrapper, coreChannel.Channel);
+
+        // Assert — only one handler can be tracked per wrapper, so the first must be detached
+        // rather than left attached and unreachable, which would route every sample twice.
+        Assert.AreEqual(2, coreChannel.Added.Count);
+        CollectionAssert.AreEqual(
+            new[] { coreChannel.Added[0] },
+            coreChannel.Removed,
+            "Re-subscribing a wrapper must detach the handler it is replacing.");
+    }
+
+    /// <summary>
+    /// Builds the state <c>SyncChannelsFromCore</c> reaches when Core hands back a different
+    /// <c>IChannel</c> instance for a key the device already has a wrapper for: the replacement
+    /// wrapper is created and subscribed while the outgoing wrapper is still subscribed. The two
+    /// wrappers are distinct objects that compare equal, because
+    /// <see cref="AbstractChannel"/> equality is <c>Name</c>-based — so they collide as keys in any
+    /// default-equality dictionary.
+    /// </summary>
+    private static CollidingSubscriptions ArrangeCollidingSubscriptions()
+    {
+        var device = new SubscriptionTestDevice();
+        var outgoingCore = CreateCoreChannel();
+        var replacementCore = CreateCoreChannel();
+        var outgoingWrapper = new AnalogChannel(device, outgoingCore.Channel);
+        var replacementWrapper = new AnalogChannel(device, replacementCore.Channel);
 
         Assert.AreNotSame(outgoingWrapper, replacementWrapper);
         Assert.IsTrue(
             outgoingWrapper.Equals(replacementWrapper),
-            "Precondition: AbstractChannel equality is Name-based, so these two distinct wrappers " +
-            "collide as keys in any default-equality dictionary.");
+            "Precondition: the two wrappers must compare equal for this scenario to exercise the " +
+            "key collision at all.");
 
-        // Act
-        InvokeSubscribeChannelSamples(device, outgoingWrapper, outgoingCore);
-        InvokeSubscribeChannelSamples(device, replacementWrapper, replacementCore);
-        InvokeUnsubscribeChannelSamples(device, outgoingWrapper, outgoingCore);
-        InvokeUnsubscribeChannelSamples(device, replacementWrapper, replacementCore);
+        InvokeSubscribeChannelSamples(device, outgoingWrapper, outgoingCore.Channel);
+        InvokeSubscribeChannelSamples(device, replacementWrapper, replacementCore.Channel);
 
-        // Assert
-        Assert.AreEqual(1, outgoingAdded.Count, "The outgoing wrapper should be subscribed exactly once.");
-        Assert.AreEqual(1, replacementAdded.Count, "The replacement wrapper should be subscribed exactly once.");
-        CollectionAssert.AreEqual(
-            outgoingAdded,
-            outgoingRemoved,
-            "The outgoing wrapper's own delegate must come off its Core channel. Detaching some " +
-            "other wrapper's delegate is a no-op there and leaves the real subscription attached.");
-        CollectionAssert.AreEqual(
-            replacementAdded,
-            replacementRemoved,
-            "The replacement wrapper's handler must still be tracked after the outgoing wrapper is " +
-            "unsubscribed, so it can be detached in turn instead of leaking.");
-    }
+        Assert.AreEqual(1, outgoingCore.Added.Count, "The outgoing wrapper should be subscribed once.");
+        Assert.AreEqual(1, replacementCore.Added.Count, "The replacement wrapper should be subscribed once.");
 
-    [TestMethod]
-    public void SubscribeChannelSamples_SameWrapperSubscribedTwice_DetachesThePreviousHandler()
-    {
-        // Arrange
-        var device = new SubscriptionTestDevice();
-        var coreChannel = CreateCoreChannel(out var added, out var removed);
-        var wrapper = new AnalogChannel(device, coreChannel);
-
-        // Act — a second subscribe for the very same wrapper reference
-        InvokeSubscribeChannelSamples(device, wrapper, coreChannel);
-        InvokeSubscribeChannelSamples(device, wrapper, coreChannel);
-
-        // Assert — only one handler can be tracked per wrapper, so the first must be detached
-        // rather than left attached and unreachable, which would route every sample twice.
-        Assert.AreEqual(2, added.Count);
-        CollectionAssert.AreEqual(
-            new[] { added[0] },
-            removed,
-            "Re-subscribing a wrapper must detach the handler it is replacing.");
+        return new CollidingSubscriptions(
+            device, outgoingWrapper, outgoingCore, replacementWrapper, replacementCore);
     }
 
     /// <summary>
@@ -86,26 +122,22 @@ public class ChannelSampleSubscriptionTests
     /// handed to them, so a test can tell <em>which</em> handler was attached or detached rather
     /// than just how many calls were made.
     /// </summary>
-    private static Daqifi.Core.Channel.IAnalogChannel CreateCoreChannel(
-        out List<EventHandler<CoreSampleReceivedEventArgs>> added,
-        out List<EventHandler<CoreSampleReceivedEventArgs>> removed)
+    private static RecordedCoreChannel CreateCoreChannel()
     {
-        var addedHandlers = new List<EventHandler<CoreSampleReceivedEventArgs>>();
-        var removedHandlers = new List<EventHandler<CoreSampleReceivedEventArgs>>();
+        var added = new List<EventHandler<CoreSampleReceivedEventArgs>>();
+        var removed = new List<EventHandler<CoreSampleReceivedEventArgs>>();
 
         var coreChannel = new Mock<Daqifi.Core.Channel.IAnalogChannel>();
         coreChannel.SetupGet(channel => channel.Name).Returns(SHARED_CHANNEL_NAME);
         coreChannel.SetupGet(channel => channel.Direction).Returns(CoreChannelDirection.Input);
         coreChannel
             .SetupAdd(channel => channel.SampleReceived += It.IsAny<EventHandler<CoreSampleReceivedEventArgs>>())
-            .Callback<EventHandler<CoreSampleReceivedEventArgs>>(addedHandlers.Add);
+            .Callback<EventHandler<CoreSampleReceivedEventArgs>>(added.Add);
         coreChannel
             .SetupRemove(channel => channel.SampleReceived -= It.IsAny<EventHandler<CoreSampleReceivedEventArgs>>())
-            .Callback<EventHandler<CoreSampleReceivedEventArgs>>(removedHandlers.Add);
+            .Callback<EventHandler<CoreSampleReceivedEventArgs>>(removed.Add);
 
-        added = addedHandlers;
-        removed = removedHandlers;
-        return coreChannel.Object;
+        return new RecordedCoreChannel(coreChannel.Object, added, removed);
     }
 
     private static void InvokeSubscribeChannelSamples(
@@ -142,6 +174,20 @@ public class ChannelSampleSubscriptionTests
         Assert.IsNotNull(method, $"{methodName} was not found on AbstractStreamingDevice.");
         method.Invoke(device, [desktopChannel, coreChannel]);
     }
+
+    /// <summary>A Core channel paired with the handlers added to and removed from it.</summary>
+    private sealed record RecordedCoreChannel(
+        Daqifi.Core.Channel.IAnalogChannel Channel,
+        List<EventHandler<CoreSampleReceivedEventArgs>> Added,
+        List<EventHandler<CoreSampleReceivedEventArgs>> Removed);
+
+    /// <summary>Two subscribed wrappers for one logical channel, sharing a name.</summary>
+    private sealed record CollidingSubscriptions(
+        AbstractStreamingDevice Device,
+        AnalogChannel OutgoingWrapper,
+        RecordedCoreChannel OutgoingCore,
+        AnalogChannel ReplacementWrapper,
+        RecordedCoreChannel ReplacementCore);
 
     private sealed class SubscriptionTestDevice : AbstractStreamingDevice
     {
