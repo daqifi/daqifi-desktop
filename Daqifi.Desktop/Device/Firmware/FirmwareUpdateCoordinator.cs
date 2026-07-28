@@ -494,7 +494,7 @@ public class FirmwareUpdateCoordinator : IDisposable
     private async Task ExitWifiTransparentModeAsync(SerialStreamingDevice device)
     {
         var portName = device.PortName;
-        if (await TrySendTransparentModeExitAsync(portName))
+        if (await TrySendTransparentModeExitAsync(portName, isFinalAttempt: false))
         {
             return;
         }
@@ -510,7 +510,11 @@ public class FirmwareUpdateCoordinator : IDisposable
         }
 
         await Task.Delay(PORT_RELEASE_DELAY_BEFORE_TRANSPARENT_MODE_EXIT);
-        await TrySendTransparentModeExitAsync(portName);
+
+        // The result is intentionally not inspected: this is the last recovery step, so there is no
+        // further action left to take. Failing here means the device is stranded in transparent mode,
+        // and the helper reports that terminally itself (Error -> Sentry) rather than silently.
+        await TrySendTransparentModeExitAsync(portName, isFinalAttempt: true);
     }
 
     /// <summary>
@@ -518,12 +522,19 @@ public class FirmwareUpdateCoordinator : IDisposable
     /// Returns false if the port can't be opened (e.g. still held by the managed connection) or the
     /// open wedged past Core's hard timeout.
     /// </summary>
+    /// <param name="portName">COM port of the device to bring out of transparent mode.</param>
+    /// <param name="isFinalAttempt">
+    /// False for the speculative first attempt (the managed connection commonly still owns the port,
+    /// so a failure there is expected and recoverable); true for the retry after that connection has
+    /// been released. Only the final attempt's failure is terminal, so only it is logged at Error —
+    /// the level that reports remotely — keeping the routine first-attempt failure out of Sentry.
+    /// </param>
     /// <remarks>
     /// Deliberately not passed the flash's <c>CancellationToken</c>: this runs from a
     /// <c>finally</c> as recovery, so it must still execute when the flash was cancelled — leaving
     /// the device transparent is exactly the state this exists to prevent.
     /// </remarks>
-    private async Task<bool> TrySendTransparentModeExitAsync(string portName)
+    private async Task<bool> TrySendTransparentModeExitAsync(string portName, bool isFinalAttempt)
     {
         try
         {
@@ -534,12 +545,24 @@ public class FirmwareUpdateCoordinator : IDisposable
             _appLogger.Information($"Sent transparent-mode exit to {portName} after WiFi flash.");
             return true;
         }
+        catch (Exception ex) when (!isFinalAttempt)
+        {
+            // Expected and recoverable: the managed connection almost always still holds the port.
+            // Warning(ex, ...) keeps the type and stack in the local log without raising a Sentry
+            // event — the caller releases the connection and retries.
+            _appLogger.Warning(ex,
+                $"Transparent-mode exit could not open {portName}; releasing the managed connection and retrying.");
+            return false;
+        }
         catch (Exception ex)
         {
-            // Exception-aware overload: the first attempt failing is expected (the managed connection
-            // usually still holds the port), so this must not raise a Sentry event — but the type and
-            // stack still matter, because a SECOND failure leaves the device stranded in transparent mode.
-            _appLogger.Warning(ex, $"Transparent-mode exit could not complete on {portName}.");
+            // Terminal: the retry after the port release also failed, so the device is left in
+            // transparent mode — it stops answering and vanishes from the app until it is power
+            // cycled. That is a silent, user-visible break, so report it remotely (Error captures to
+            // Sentry) instead of burying it in a local warning nobody reads.
+            _appLogger.Error(ex,
+                $"Transparent-mode exit failed on {portName} after releasing the managed connection. " +
+                "The device may be stranded in USB-transparent mode after the WiFi flash and need a power cycle.");
             return false;
         }
     }

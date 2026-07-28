@@ -910,6 +910,72 @@ public class DaqifiViewModelFirmwareUpdateTests
         appLogger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.AtLeastOnce);
     }
 
+    [TestMethod]
+    public async Task UploadFirmware_TransparentModeExitFailsAfterPortRelease_ReportedAsError()
+    {
+        // The post-flash transparent-mode exit gets two attempts: a speculative one, then a retry
+        // after the managed connection is released. The first failure is routine (the connection
+        // normally still owns the port) and must stay a local Warning. The SECOND failure is
+        // terminal — the device is left in USB-transparent mode, where it stops answering and
+        // vanishes from the app until power-cycled — so it must be logged at Error, the level that
+        // reports to Sentry. Without that split a stranded device leaves no remotely visible trace.
+        var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
+        var appLogger = new Mock<IAppLogger>();
+
+        using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
+        coreDevice.Connect();
+
+        // A name no machine can expose as a real serial port, so BOTH exit attempts fail on every
+        // host — including a bench PC with a device actually attached.
+        var serialDevice = CreateSerialDeviceWithCoreDevice("COM_NOT_A_PORT", coreDevice);
+        var pic32FirmwarePath = CreateTempFile(".hex");
+        var wifiPackageDirectory = CreateTempDirectory();
+
+        firmwareDownloadService
+            .Setup(service => service.DownloadLatestFirmwareAsync(
+                It.IsAny<string>(),
+                true,
+                It.IsAny<IProgress<int>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pic32FirmwarePath);
+
+        firmwareDownloadService
+            .Setup(service => service.DownloadWifiFirmwareAsync(
+                It.IsAny<string>(),
+                It.IsAny<IProgress<int>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((wifiPackageDirectory, "v19.7.0"));
+
+        // Unreadable chip info reads as out-of-date, so the WiFi flash (and its cleanup) runs.
+        coreDevice.LanChipInfoResult = null;
+
+        var host = new FakeFirmwareUpdateHost
+        {
+            SelectedDevice = serialDevice
+        };
+
+        var coordinator = CreateCoordinator(
+            host,
+            pic32FirmwareUpdateService.Object,
+            firmwareDownloadService.Object,
+            (_, _) => wifiFirmwareUpdateService.Object,
+            appLogger.Object);
+
+        await coordinator.UploadFirmwareAsync();
+
+        // First attempt: local Warning only, carrying the exception.
+        appLogger.Verify(
+            l => l.Warning(It.IsAny<Exception>(), It.Is<string>(m => m.Contains("could not open"))),
+            Times.Once);
+
+        // Final attempt: Error, so the stranded device surfaces remotely.
+        appLogger.Verify(
+            l => l.Error(It.IsAny<Exception>(), It.Is<string>(m => m.Contains("Transparent-mode exit failed"))),
+            Times.Once);
+    }
+
     /// <summary>
     /// Builds a coordinator with no-op test loggers and a throwaway firmware data directory.
     /// Dialog/flyout host operations are captured by <see cref="FakeFirmwareUpdateHost"/>, so no
