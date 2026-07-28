@@ -71,12 +71,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private const string NOT_CONNECTED_MESSAGE = "Device is not connected.";
 
     /// <summary>
-    /// Max length for a friendly device name, matching firmware's
-    /// <c>FRIENDLY_DEVICE_NAME_SIZE</c> (32-byte NVM buffer, NUL-terminated).
-    /// </summary>
-    private const int MAX_FRIENDLY_NAME_LENGTH = 31;
-
-    /// <summary>
     /// Device-wide PWM frequency shown (and commanded on the first enable) before the user picks
     /// one, seeded from Core's <see cref="CoreStreamingDevice.DefaultPwmFrequencyHz"/>. Shadowed
     /// rather than read through to Core's <c>PwmFrequencyHz</c> because the UI binds this before a
@@ -1739,62 +1733,76 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// Sets and persists a user-defined friendly name to the device's NVM.
     /// </summary>
     /// <remarks>
-    /// No producer helper exists in <c>Daqifi.Core.Communication.Producers.ScpiMessageProducer</c>
-    /// for this firmware command yet, so the SCPI text is built directly here (mirrors the
-    /// quoted-string pattern <c>ScpiMessageProducer</c> already uses for SSID/password).
-    /// Commands: <c>SYSTem:DEVice:NAME "name"</c> then <c>SYSTem:DEVice:NAME:SAVE</c>.
+    /// Delegates to Core's <c>DaqifiStreamingDevice.SetFriendlyNameAsync</c>, which composes
+    /// <c>SYSTem:DEVice:NAME "name"</c> then <c>SYSTem:DEVice:NAME:SAVE</c>. The desktop keeps only
+    /// what Core does not provide: the no-op-when-disconnected policy (Core throws instead) and the
+    /// WPF-bound <see cref="FriendlyName"/> update.
+    ///
+    /// <para>Disconnecting is never an error here: whether the device is already gone or drops
+    /// between the connected check and the send, the call logs a warning and returns without
+    /// touching <see cref="FriendlyName"/>. <see cref="ArgumentException"/> is therefore the only
+    /// exception this method raises on its own behalf; anything else Core throws is a genuine
+    /// fault and still propagates rather than being masked.</para>
     /// </remarks>
     /// <param name="name">
-    /// 1-31 printable ASCII characters (0x20-0x7E); cannot contain <c>"</c> or <c>\</c> — matches
-    /// firmware's <c>daqifi_settings_FriendlyNameIsValid</c> validation exactly, so a name that
-    /// passes here will not be rejected by the device.
+    /// 1-<see cref="ScpiMessageProducer.MaxFriendlyNameLength"/> printable ASCII characters
+    /// (0x20-0x7E); cannot contain <c>"</c> or <c>\</c> — see
+    /// <see cref="ScpiMessageProducer.IsFriendlyNameValid"/>, which mirrors firmware's
+    /// <c>daqifi_settings_FriendlyNameIsValid</c> exactly, so a name that passes will not be
+    /// rejected by the device.
     /// </param>
     /// <exception cref="ArgumentException">Thrown when <paramref name="name"/> fails validation.</exception>
     public void SetFriendlyName(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        if (!IsFriendlyNameValid(name))
+
+        // Validated here, before the connected check, so an invalid name is rejected whether or not
+        // a device is attached. Core re-validates inside SetFriendlyNameAsync, but only after its
+        // own connected check — which would silently accept an invalid name while disconnected.
+        if (!ScpiMessageProducer.IsFriendlyNameValid(name))
         {
             throw new ArgumentException(
-                "Device name must be 1-31 printable ASCII characters and cannot contain '\"' or '\\'.",
+                $"Device name must be 1-{ScpiMessageProducer.MaxFriendlyNameLength} printable ASCII " +
+                "characters and cannot contain '\"' or '\\'.",
                 nameof(name));
         }
 
-        if (CoreDevice is not { IsConnected: true })
+        // Read CoreDevice once and use that reference for both the check and the call. The property
+        // is cleared by CleanupConnection() from whichever thread notices the disconnect, so
+        // re-reading it for the call could observe null after the check passed — a
+        // NullReferenceException escaping a UI command that only expects ArgumentException.
+        var coreDevice = CoreDevice;
+        if (coreDevice is not { IsConnected: true })
         {
             AppLogger.Warning($"Ignored SetFriendlyName for device {DeviceDisplayName}: device is not connected.");
             return;
         }
 
-        SendMessage(new ScpiMessage($"SYSTem:DEVice:NAME \"{name}\""));
-        SendMessage(new ScpiMessage("SYSTem:DEVice:NAME:SAVE"));
+        try
+        {
+            // Core owns the SCPI composition (SYSTem:DEVice:NAME + :SAVE). The returned task is already
+            // complete once both commands are enqueued — Core does not await on-device application or
+            // NVM persistence, which firmware never acknowledges — so there is nothing to block on here.
+            coreDevice.SetFriendlyNameAsync(name).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException
+                                   && !coreDevice.IsConnected)
+        {
+            // The device dropped between the check above and Core's own guard. Before delegation the
+            // send simply logged and returned here, and that no-op is what the caller still expects;
+            // the filter keeps it to a confirmed disconnect so an unrelated Core failure is not
+            // swallowed into a silent success (the trap from issue #619).
+            AppLogger.Warning(
+                ex, $"Ignored SetFriendlyName for device {DeviceDisplayName}: device disconnected mid-call.");
+            return;
+        }
 
         // Optimistic local update: the device does not echo the new name back synchronously,
         // and it may not stream another status frame for a while (e.g. StreamToApp is idle).
+        // Core makes the same optimistic update to its own Metadata.FriendlyName; this is the
+        // WPF-bound copy, kept separate because the desktop must also be able to clear it (see
+        // OnStatusMessageReceived).
         FriendlyName = name;
-    }
-
-    /// <summary>
-    /// Validates a candidate friendly name against firmware's acceptance rule: printable ASCII
-    /// (0x20-0x7E) only, excluding <c>"</c> and <c>\</c> (which would break the SCPI string
-    /// literal and the JSON info-message encoding), within <see cref="MAX_FRIENDLY_NAME_LENGTH"/>.
-    /// </summary>
-    private static bool IsFriendlyNameValid(string name)
-    {
-        if (name.Length is 0 or > MAX_FRIENDLY_NAME_LENGTH)
-        {
-            return false;
-        }
-
-        foreach (var c in name)
-        {
-            if (c is < (char)0x20 or > (char)0x7E or '"' or '\\')
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     // SD and LAN share one SPI bus and can't both be enabled (hardware limitation).
