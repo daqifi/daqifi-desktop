@@ -72,12 +72,17 @@ public class SdCardSessionImporterTests : IDisposable
     [TestMethod]
     public async Task ImportSessionAsync_CollapsedTimestamps_ImportsAndFlagsDegenerateTimeAxis()
     {
-        // Arrange - the issue #572 shape: every entry shares one timestamp
-        // (messages without msg_time_stamp collapse onto the parser's base time)
+        // Arrange - the issue #572 shape: no entry carries a device timestamp, so Core substitutes
+        // the session base time into all of them. HasDeviceTimestamp is what says so
+        // (daqifi-core#303); sharing a timestamp is the symptom, not the signal — real samples can
+        // legitimately repeat a tick, which is why the old inference needed a tolerance margin.
         var entries = new List<SdCardLogEntry>();
         for (var i = 0; i < 50; i++)
         {
-            entries.Add(new SdCardLogEntry(BaseTime, [1.0 + i, 2.0 + i], 0u, null));
+            entries.Add(new SdCardLogEntry(BaseTime, [1.0 + i, 2.0 + i], 0u, null)
+            {
+                HasDeviceTimestamp = false
+            });
         }
 
         var logSession = new SdCardLogSession("log_20260609_120000.bin", BaseTime, null, AsAsync(entries));

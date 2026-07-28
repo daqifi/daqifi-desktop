@@ -1,4 +1,5 @@
 using System.Globalization;
+using Daqifi.Core.Device.SdCard;
 
 namespace Daqifi.Desktop.Loggers;
 
@@ -7,31 +8,39 @@ namespace Daqifi.Desktop.Loggers;
 /// classifies whether the file's time axis could be reconstructed.
 /// </summary>
 /// <remarks>
-/// Core's SD card parsers assign the session base time to any entry whose
-/// message carries no usable timestamp (e.g. <c>msg_time_stamp == 0</c>, or a
-/// CSV row without a timestamp column), so such entries collapse onto one
-/// identical tick. A healthy parse produces strictly advancing timestamps with
-/// only the anchor entry at the base time, which is what makes the collapse
-/// detectable here with O(1) memory: count entries that share the first
-/// entry's tick. See issue #572 for the full background.
+/// Core's SD card parsers assign the session base time to any entry whose message carries no
+/// usable timestamp (e.g. <c>msg_time_stamp == 0</c>, an unknown tick rate, or a CSV row without a
+/// timestamp column) and report that per entry via
+/// <see cref="SdCardLogEntry.HasDeviceTimestamp"/> (daqifi-core#303). Counting those flags is an
+/// exact answer to "how much of this file has a real time axis".
+///
+/// <para>Before Core exposed the flag this had to be inferred: substituted entries all collapse
+/// onto one identical tick, so the old implementation counted entries sharing the first entry's
+/// tick and called the axis degenerate past a 20% margin. That inference had false positives the
+/// margin existed to absorb — the hardware genuinely emits duplicate ticks on occasion, and those
+/// are real samples, not substituted ones. See issue #572 for the original background.</para>
 /// </remarks>
 public sealed class ImportTimestampQuality
 {
     #region Constants
     /// <summary>
-    /// Fraction of entries (beyond the first) collapsed onto the first
-    /// timestamp above which the time axis is reported as degenerate. A
-    /// healthy file sits at ~0; a file whose messages all lack timestamps
-    /// sits at 1.0. The margin tolerates occasional firmware stragglers
-    /// without missing mostly-collapsed files.
+    /// Format for the substituted-sample percentage. Always renders one decimal, so a small
+    /// non-zero share can never collapse to a bare "0".
     /// </summary>
-    private const double DEGENERATE_COLLAPSED_FRACTION = 0.2;
-    #endregion
+    private const string PERCENT_FORMAT = "0.0";
 
-    #region Private Fields
-    private long _firstTicks;
-    private long _minTicks = long.MaxValue;
-    private long _maxTicks = long.MinValue;
+    /// <summary>
+    /// Decimal places <see cref="PERCENT_FORMAT"/> shows. Rounding uses the same count, so the
+    /// value tested for zero is the value the user ends up reading.
+    /// </summary>
+    private const int PERCENT_DECIMALS = 1;
+
+    /// <summary>
+    /// Smallest share <see cref="PERCENT_FORMAT"/> can express. A non-zero count landing below it
+    /// reports as "less than this": rendering "0.0%" would state the opposite of the count sitting
+    /// in the same sentence.
+    /// </summary>
+    private const double SMALLEST_SHOWN_PERCENT = 0.1;
     #endregion
 
     #region Public Properties
@@ -41,60 +50,46 @@ public sealed class ImportTimestampQuality
     public long TotalEntries { get; private set; }
 
     /// <summary>
-    /// Number of entries (including the first) whose timestamp equals the
-    /// first entry's timestamp.
+    /// Number of entries Core could not reconstruct a device timestamp for, and substituted the
+    /// session base time into.
     /// </summary>
-    public long EntriesAtFirstTimestamp { get; private set; }
+    public long EntriesWithoutDeviceTimestamp { get; private set; }
 
     /// <summary>
-    /// Fraction of entries beyond the first that collapsed onto the first
-    /// entry's timestamp. Zero for an empty or single-entry import.
+    /// Fraction of entries carrying no device timestamp. Zero for an empty import.
     /// </summary>
-    public double CollapsedFraction => TotalEntries > 1
-        ? (EntriesAtFirstTimestamp - 1) / (double)(TotalEntries - 1)
+    public double SubstitutedFraction => TotalEntries > 0
+        ? EntriesWithoutDeviceTimestamp / (double)TotalEntries
         : 0.0;
 
     /// <summary>
-    /// True when every observed entry shares one identical timestamp.
+    /// True when no entry in the file carried a device timestamp, so every sample sits at the
+    /// session base time and the time axis is entirely flat.
     /// </summary>
-    public bool HasFlatTimeAxis => TotalEntries > 1 && _minTicks == _maxTicks;
+    public bool HasFlatTimeAxis => TotalEntries > 0 && EntriesWithoutDeviceTimestamp == TotalEntries;
 
     /// <summary>
-    /// True when the time axis is unusable for analysis: either fully flat,
-    /// or a meaningful fraction of entries collapsed onto the first timestamp.
+    /// True when any part of the time axis is not real: at least one entry's timestamp was
+    /// substituted rather than reconstructed from the device.
     /// </summary>
-    public bool HasDegenerateTimeAxis =>
-        HasFlatTimeAxis || (TotalEntries > 1 && CollapsedFraction >= DEGENERATE_COLLAPSED_FRACTION);
+    public bool HasDegenerateTimeAxis => EntriesWithoutDeviceTimestamp > 0;
     #endregion
 
     #region Public Methods
     /// <summary>
-    /// Records one parsed entry's timestamp.
+    /// Records one parsed entry.
     /// </summary>
-    /// <param name="timestampTicks">The entry's reconstructed timestamp, in ticks.</param>
-    public void Observe(long timestampTicks)
+    /// <param name="entry">The entry Core produced for this sample.</param>
+    public void Observe(SdCardLogEntry entry)
     {
-        if (TotalEntries == 0)
-        {
-            _firstTicks = timestampTicks;
-        }
-
-        if (timestampTicks == _firstTicks)
-        {
-            EntriesAtFirstTimestamp++;
-        }
-
-        if (timestampTicks < _minTicks)
-        {
-            _minTicks = timestampTicks;
-        }
-
-        if (timestampTicks > _maxTicks)
-        {
-            _maxTicks = timestampTicks;
-        }
+        ArgumentNullException.ThrowIfNull(entry);
 
         TotalEntries++;
+
+        if (!entry.HasDeviceTimestamp)
+        {
+            EntriesWithoutDeviceTimestamp++;
+        }
     }
 
     /// <summary>
@@ -116,10 +111,33 @@ public sealed class ImportTimestampQuality
                    "Older device firmware may not record timestamps in SD card logs.";
         }
 
-        var percent = (CollapsedFraction * 100).ToString("0", CultureInfo.InvariantCulture);
-        return $"About {percent}% of the samples in this file have no usable timestamp and were " +
-               "collapsed onto the session start time, so time spacing for those samples is not " +
+        var percent = FormatSubstitutedPercent();
+        var count = EntriesWithoutDeviceTimestamp.ToString("N0", CultureInfo.CurrentCulture);
+        return $"{count} of the samples in this file ({percent}%) have no usable timestamp and " +
+               "were placed at the session start time, so time spacing for those samples is not " +
                "meaningful. Older device firmware may not record timestamps in SD card logs.";
+    }
+    #endregion
+
+    #region Private Methods
+    /// <summary>
+    /// Renders <see cref="SubstitutedFraction"/> as a percentage that can never read as zero while
+    /// entries were in fact substituted: a rate below the format's resolution (1 in 5,000, say)
+    /// reports as <c>&lt;0.1</c> rather than rounding down to nothing.
+    /// </summary>
+    private string FormatSubstitutedPercent()
+    {
+        // The sample count beside it is formatted for the user's locale, so the percentage is too.
+        // One sentence carrying two decimal conventions reads as a formatting bug.
+        var culture = CultureInfo.CurrentCulture;
+
+        // Round first and format the rounded value, so the "did this collapse to zero" test and
+        // the text the user actually reads can never disagree.
+        var percent = Math.Round(SubstitutedFraction * 100, PERCENT_DECIMALS, MidpointRounding.AwayFromZero);
+
+        return percent > 0.0
+            ? percent.ToString(PERCENT_FORMAT, culture)
+            : $"<{SMALLEST_SHOWN_PERCENT.ToString(PERCENT_FORMAT, culture)}";
     }
     #endregion
 }
