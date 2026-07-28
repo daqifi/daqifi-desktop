@@ -66,15 +66,25 @@ public static class SdCardFailureClassifier
         "The device's SD card subsystem is not responding. Power-cycle the device and try again.";
 
     /// <summary>
-    /// Guidance for a transfer that delivered nothing for one file. Core deliberately cannot tell a
+    /// Guidance for a transfer that delivered nothing at all for one file. Core cannot tell a
     /// genuinely empty (0-byte) log — routinely left behind on a FAT card by an interrupted logging
     /// session — from an SD subsystem that was not ready when it opened the file, so the advice has
     /// to cover both: this file is skipped, and the power cycle is only worth reaching for when
     /// every file behaves the same way.
     /// </summary>
-    internal const string INCOMPLETE_TRANSFER_GUIDANCE =
+    internal const string EMPTY_TRANSFER_GUIDANCE =
         "The device sent no data for this file, which may simply be an empty log. If every file " +
         "fails the same way, power-cycle the device and try again.";
+
+    /// <summary>
+    /// Guidance for a transfer that stopped part-way. Distinct from
+    /// <see cref="EMPTY_TRANSFER_GUIDANCE"/> because a stall can interrupt a transfer that was
+    /// already delivering data, and how much arrived is not knowable here — so this must not
+    /// diagnose an empty file the way that one does.
+    /// </summary>
+    internal const string INCOMPLETE_TRANSFER_GUIDANCE =
+        "The device stopped sending this file before it was complete. Try importing it on its " +
+        "own; if every file fails the same way, power-cycle the device and try again.";
 
     /// <summary>Guidance for a device with no card in the slot.</summary>
     internal const string NO_CARD_GUIDANCE =
@@ -120,7 +130,7 @@ public static class SdCardFailureClassifier
             SdCardEmptyTransferException => new SdCardFailure(
                 State: SdCardState.Error,
                 StatusMessage: "The device returned no data for this file.",
-                Guidance: INCOMPLETE_TRANSFER_GUIDANCE,
+                Guidance: EMPTY_TRANSFER_GUIDANCE,
                 IsExpectedDeviceCondition: true,
                 IsCardUnavailable: false),
 
@@ -156,17 +166,18 @@ public static class SdCardFailureClassifier
             // TimeoutException: an unrelated timeout reaching here is not evidence that the SD
             // subsystem is wedged, and must keep the Error path.
             //
-            // How the stall was detected decides how far it generalises. The desktop's watchdog
-            // firing means the device said nothing for 90 seconds — device-wide, and worth
-            // aborting a batch over, since every remaining file would cost another 90 seconds. A
-            // transport-reported timeout gives up in well under a second and can be one unreadable
-            // file, so it is treated like any other per-file failure (issue #779).
+            // What the attempt cost decides how far it generalises. A prolonged failure — the
+            // watchdog seeing 90 seconds of silence, or Core's 30-minute transfer cap elapsing —
+            // is evidence about the device, and repeating it for every remaining file would cost
+            // the user that wait again per file. A transport timeout that gave up in well under a
+            // second is neither: it can be one unreadable file, so it is treated like any other
+            // per-file failure (issue #779).
             SdCardDownloadStalledException stalled => new SdCardFailure(
                 State: SdCardState.Error,
                 StatusMessage: "The device stopped responding during the transfer.",
-                Guidance: stalled.IsProlongedSilence ? POWER_CYCLE_GUIDANCE : INCOMPLETE_TRANSFER_GUIDANCE,
+                Guidance: stalled.IsProlongedFailure ? POWER_CYCLE_GUIDANCE : INCOMPLETE_TRANSFER_GUIDANCE,
                 IsExpectedDeviceCondition: true,
-                IsCardUnavailable: stalled.IsProlongedSilence),
+                IsCardUnavailable: stalled.IsProlongedFailure),
 
             _ => new SdCardFailure(
                 State: SdCardState.Error,

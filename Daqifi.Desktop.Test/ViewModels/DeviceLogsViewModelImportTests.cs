@@ -130,6 +130,16 @@ public class DeviceLogsViewModelImportTests
         }
     }
 
+    /// <summary>
+    /// The stall a wedged device actually produces over USB serial: Core's transport timeout,
+    /// normalised by the importer, having given up in well under the desktop's stall window.
+    /// </summary>
+    private static SdCardDownloadStalledException QuickTransportStall(string fileName) =>
+        new(fileName,
+            new TimeoutException("Transport stream closed before receiving the EOF marker."),
+            elapsed: TimeSpan.FromMilliseconds(500),
+            patienceWindow: TimeSpan.FromSeconds(90));
+
     private IEnumerable<string> ImportedFileNames() =>
         _mockImporter.Invocations
             .Where(invocation => invocation.Method.Name == nameof(ISdCardSessionImporter.ImportFromDeviceAsync))
@@ -199,8 +209,7 @@ public class DeviceLogsViewModelImportTests
         // actually produces. Before the importer normalised it, the bare TimeoutException hit the
         // classifier's default arm and filed a Sentry issue on every attempt.
         await SettleInitialRefreshAsync();
-        SetupImportToThrow(new SdCardDownloadStalledException(
-            FileName, new TimeoutException("Transport stream closed before receiving the EOF marker.")));
+        SetupImportToThrow(QuickTransportStall(FileName));
 
         // Act
         await ImportAsync();
@@ -413,10 +422,7 @@ public class DeviceLogsViewModelImportTests
         await SettleInitialRefreshAsync();
         AddDeviceFiles(THREE_FILES);
 
-        SetupImportToFailOnly(
-            new SdCardDownloadStalledException(
-                "log_b.bin", new TimeoutException("Transport stream closed before receiving the EOF marker.")),
-            "log_b.bin");
+        SetupImportToFailOnly(QuickTransportStall("log_b.bin"), "log_b.bin");
 
         // Act
         await _viewModel.ImportAllFilesCommand.ExecuteAsync(null);
@@ -433,7 +439,7 @@ public class DeviceLogsViewModelImportTests
         // Arrange — the completion dialog used to say "Import stopped early: power-cycle the
         // device" for a benign empty log, which is advice for a fault that is not there.
         var outcome = new ImportAllOutcome { TotalCount = 3, ImportedCount = 2 };
-        outcome.RecordSkip("log_a.bin", SdCardFailureClassifier.INCOMPLETE_TRANSFER_GUIDANCE);
+        outcome.RecordSkip("log_a.bin", SdCardFailureClassifier.EMPTY_TRANSFER_GUIDANCE);
 
         // Act
         var summary = DeviceLogsViewModel.BuildImportAllSummary(outcome);
@@ -443,7 +449,7 @@ public class DeviceLogsViewModelImportTests
         StringAssert.Contains(summary, "Skipped 1 file(s)");
         StringAssert.Contains(summary, "log_a.bin",
             "Naming the skipped file is what lets the user retry it individually.");
-        StringAssert.Contains(summary, SdCardFailureClassifier.INCOMPLETE_TRANSFER_GUIDANCE);
+        StringAssert.Contains(summary, SdCardFailureClassifier.EMPTY_TRANSFER_GUIDANCE);
         Assert.IsFalse(summary.Contains("Import stopped"),
             "Nothing stopped: the batch ran to the end, so the dialog must not claim otherwise.");
         Assert.IsFalse(summary.Contains(SdCardFailureClassifier.POWER_CYCLE_GUIDANCE),
@@ -458,7 +464,7 @@ public class DeviceLogsViewModelImportTests
         var outcome = new ImportAllOutcome { TotalCount = 8, ImportedCount = 0 };
         for (var i = 0; i < 8; i++)
         {
-            outcome.RecordSkip($"log_{i}.bin", SdCardFailureClassifier.INCOMPLETE_TRANSFER_GUIDANCE);
+            outcome.RecordSkip($"log_{i}.bin", SdCardFailureClassifier.EMPTY_TRANSFER_GUIDANCE);
         }
 
         // Act
@@ -468,7 +474,7 @@ public class DeviceLogsViewModelImportTests
         StringAssert.Contains(summary, "log_4.bin");
         Assert.IsFalse(summary.Contains("log_5.bin"), "Only the first few names are listed.");
         StringAssert.Contains(summary, "...and 3 more");
-        Assert.AreEqual(1, CountOccurrences(summary, SdCardFailureClassifier.INCOMPLETE_TRANSFER_GUIDANCE),
+        Assert.AreEqual(1, CountOccurrences(summary, SdCardFailureClassifier.EMPTY_TRANSFER_GUIDANCE),
             "Identical guidance must be stated once, not once per file.");
     }
 

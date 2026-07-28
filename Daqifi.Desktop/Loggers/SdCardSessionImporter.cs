@@ -245,6 +245,11 @@ public class SdCardSessionImporter : ISdCardSessionImporter
             }
         });
 
+        // How long the attempt cost is what decides whether a batch import should stop on it, so
+        // it has to be measured here: Core reports its half-second serial read timeout and its
+        // 30-minute transfer cap through the same untyped exception.
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+
         try
         {
             return await device.DownloadSdCardFileAsync(fileName, transferProgress, linkedCts.Token);
@@ -275,7 +280,14 @@ public class SdCardSessionImporter : ISdCardSessionImporter
             // reports still reach the log.
             //
             // Workaround: retire once Core reports stalls with a type. See daqifi-core#398 (gap 1).
-            throw new SdCardDownloadStalledException(fileName, ex);
+            //
+            // A caller-requested cancel wins over all of that. Over serial the read does not
+            // observe the token, so pressing cancel can surface as a transport timeout rather than
+            // a cancellation — and reporting that back as a device fault would tell the user their
+            // hardware failed when in fact they stopped it themselves.
+            ct.ThrowIfCancellationRequested();
+
+            throw new SdCardDownloadStalledException(fileName, ex, elapsed.Elapsed, _downloadStallTimeout);
         }
     }
 

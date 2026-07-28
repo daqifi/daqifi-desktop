@@ -33,7 +33,7 @@ public class SdCardFailureClassifierTests
             "Issue #780: Core cannot tell a genuinely empty 0-byte log from a wedged subsystem, so " +
             "this must not abort a batch and strand every file listed after it.");
         Assert.AreEqual(SdCardState.Error, failure.State);
-        Assert.AreEqual(SdCardFailureClassifier.INCOMPLETE_TRANSFER_GUIDANCE, failure.Guidance,
+        Assert.AreEqual(SdCardFailureClassifier.EMPTY_TRANSFER_GUIDANCE, failure.Guidance,
             "The advice has to cover both readings, not send the user after a power cycle they may not need.");
     }
 
@@ -57,14 +57,17 @@ public class SdCardFailureClassifierTests
     }
 
     [TestMethod]
-    public void Classify_TransportDetectedStall_IsExpectedDeviceConditionAndKeepsTheBatchGoing()
+    public void Classify_QuickTransportStall_IsExpectedDeviceConditionAndKeepsTheBatchGoing()
     {
         // Arrange — issue #779: over USB serial Core's SdCardFileReceiver raises a plain
         // TimeoutException within about half a second, long before the watchdog. The importer
         // normalises it to this type so it stops landing on the Sentry path, but it gives up too
         // fast and too ambiguously to justify writing off the whole card.
         var ex = new SdCardDownloadStalledException(
-            FileName, new TimeoutException("Transport stream closed before receiving the EOF marker."));
+            FileName,
+            new TimeoutException("Transport stream closed before receiving the EOF marker."),
+            elapsed: TimeSpan.FromMilliseconds(500),
+            patienceWindow: TimeSpan.FromSeconds(90));
 
         // Act
         var failure = SdCardFailureClassifier.Classify(ex);
@@ -76,6 +79,29 @@ public class SdCardFailureClassifierTests
             "It costs under a second to try the next file, and this one may just be unreadable.");
         Assert.AreEqual(SdCardState.Error, failure.State);
         Assert.AreEqual(SdCardFailureClassifier.INCOMPLETE_TRANSFER_GUIDANCE, failure.Guidance);
+        Assert.AreNotEqual(SdCardFailureClassifier.EMPTY_TRANSFER_GUIDANCE, failure.Guidance,
+            "A stall can interrupt a transfer that was already delivering data, so the advice must " +
+            "not diagnose an empty file the way the empty-transfer arm does.");
+    }
+
+    [TestMethod]
+    public void Classify_ProlongedTransportStall_StopsTheBatchLikeTheWatchdogWould()
+    {
+        // Arrange — Core reports its 30-minute transfer cap through the same untyped
+        // TimeoutException as its half-second read timeout. Letting a batch pay that wait once
+        // per remaining file would be far worse than the abort #780 removed.
+        var ex = new SdCardDownloadStalledException(
+            FileName,
+            new TimeoutException("SD card file download timed out after 1800 seconds."),
+            elapsed: TimeSpan.FromMinutes(30),
+            patienceWindow: TimeSpan.FromSeconds(90));
+
+        // Act
+        var failure = SdCardFailureClassifier.Classify(ex);
+
+        // Assert
+        Assert.IsTrue(failure.IsCardUnavailable);
+        Assert.AreEqual(SdCardFailureClassifier.POWER_CYCLE_GUIDANCE, failure.Guidance);
     }
 
     [TestMethod]

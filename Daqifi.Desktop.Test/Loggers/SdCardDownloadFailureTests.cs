@@ -69,10 +69,10 @@ public class SdCardDownloadFailureTests
         // only care that the operation timed out still catch it.
         StringAssert.Contains(ex.Message, FileName);
         Assert.IsInstanceOfType<TimeoutException>(ex);
-        Assert.IsTrue(ex.IsProlongedSilence,
+        Assert.IsTrue(ex.IsProlongedFailure,
             "The watchdog watched the device say nothing for the full window, which is what makes " +
             "this one broad enough to abandon a batch import over.");
-        Assert.AreEqual(STALL_TIMEOUT, ex.StallTimeout);
+        Assert.AreEqual(STALL_TIMEOUT, ex.Elapsed);
     }
 
     [TestMethod]
@@ -102,10 +102,66 @@ public class SdCardDownloadFailureTests
         StringAssert.Contains(ex.Message, FileName);
         Assert.AreSame(transportTimeout, ex.InnerException,
             "Core's own message carries the byte count, which is the only diagnostic the log gets.");
-        Assert.IsFalse(ex.IsProlongedSilence,
+        Assert.IsFalse(ex.IsProlongedFailure,
             "The transport gave up in well under a second, so this says far less about the card " +
             "than the watchdog firing does and must not abort a batch (issue #780).");
-        Assert.IsNull(ex.StallTimeout);
+    }
+
+    [TestMethod]
+    public async Task Download_WhenCoreBurnsTheWholeStallWindowFirst_CountsAsProlonged()
+    {
+        // Arrange — Core reports its 30-minute transfer cap through the same untyped
+        // TimeoutException as its half-second serial read timeout. Treating both as cheap
+        // per-file failures would let a batch pay that wait once for every remaining file, so
+        // what separates them is how long the attempt actually ran.
+        _mockDevice
+            .Setup(d => d.DownloadSdCardFileAsync(
+                It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
+            .Returns(async (string _, IProgress<SdCardTransferProgress> progress, CancellationToken ct) =>
+            {
+                // Keep reporting progress so the desktop's own watchdog never fires: this has to
+                // be Core's cap being reached, not ours.
+                for (var i = 1; i <= 8; i++)
+                {
+                    await Task.Delay(STALL_TIMEOUT / 4, ct);
+                    progress?.Report(new SdCardTransferProgress(i * 1024L, FileName));
+                }
+
+                throw new TimeoutException("SD card file download timed out after 1800 seconds.");
+            });
+
+        // Act
+        var ex = await Assert.ThrowsExactlyAsync<SdCardDownloadStalledException>(() =>
+            _importer.DownloadWithStallWatchdogAsync(_mockDevice.Object, FileName, CancellationToken.None));
+
+        // Assert
+        Assert.IsTrue(ex.IsProlongedFailure,
+            "An attempt that already cost the full stall window must not be repeated per file.");
+        Assert.IsTrue(ex.Elapsed >= STALL_TIMEOUT);
+    }
+
+    [TestMethod]
+    public async Task Download_WhenTheCallerCancelsAndTheTransportTimesOut_StaysCancelled()
+    {
+        // Arrange — over serial the read does not observe the cancellation token, so pressing
+        // cancel can surface as a transport timeout rather than a cancellation. Relabelling that
+        // as a stall would report a device fault the user caused themselves, and would let a
+        // batch import carry on past a cancel instead of stopping.
+        using var cts = new CancellationTokenSource();
+        _mockDevice
+            .Setup(d => d.DownloadSdCardFileAsync(
+                It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
+            .Returns(async (string _, IProgress<SdCardTransferProgress> _, CancellationToken _) =>
+            {
+                await cts.CancelAsync();
+                throw new TimeoutException("Transport stream closed before receiving the EOF marker.");
+            });
+
+        // Act
+        var download = () => _importer.DownloadWithStallWatchdogAsync(_mockDevice.Object, FileName, cts.Token);
+
+        // Assert
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(download);
     }
 
     [TestMethod]
@@ -119,9 +175,12 @@ public class SdCardDownloadFailureTests
                 It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new SdCardNotPresentException(new List<string>(), "No card"));
 
-        // Act & Assert
-        await Assert.ThrowsExactlyAsync<SdCardNotPresentException>(() =>
-            _importer.DownloadWithStallWatchdogAsync(_mockDevice.Object, FileName, CancellationToken.None));
+        // Act
+        var download = () => _importer.DownloadWithStallWatchdogAsync(
+            _mockDevice.Object, FileName, CancellationToken.None);
+
+        // Assert
+        await Assert.ThrowsExactlyAsync<SdCardNotPresentException>(download);
     }
 
     [TestMethod]
