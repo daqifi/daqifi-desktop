@@ -23,6 +23,41 @@ namespace Daqifi.Desktop.Test.ViewModels;
 [TestClass]
 public class DaqifiViewModelFirmwareUpdateTests
 {
+    #region Constants
+    // The exact strings Daqifi.Core v1.3.0 (the consumed package version) attaches to the two
+    // FirmwareUpdateState.Verifying failures, recorded here so the firmware-classification tests
+    // model real Core exceptions rather than invented ones — and so a Core bump has ONE obvious
+    // place to re-check. Production code deliberately does not match on any of them: the carve-out
+    // keys on the flash phase + FailedState instead (see FirmwareFailureClassifier).
+
+    /// <summary>
+    /// PIC32 CRC-verify failure operation, from Core's <c>TransitionToState(Verifying, ...)</c>
+    /// immediately before the CRC-verify step (<c>src/Daqifi.Core/Firmware/FirmwareUpdateService.cs</c>).
+    /// </summary>
+    private const string CORE_PIC32_CRC_VERIFY_OPERATION = "Verifying flash contents via CRC.";
+
+    /// <summary>
+    /// WiFi post-flash reconnect operation, from Core's <c>TransitionToState(Verifying, ...)</c>
+    /// that follows the WINC success-marker check.
+    /// <para>
+    /// Deliberately NOT <c>"reconnect serial transport after WiFi flash"</c>: that label is Core's
+    /// <c>ExecuteWithStateTimeoutAsync</c> argument and reaches only the inner
+    /// <see cref="TimeoutException"/>'s message. <c>FirmwareUpdateException.Operation</c> is
+    /// assigned solely from <c>TransitionToState</c>.
+    /// </para>
+    /// </summary>
+    private const string CORE_WIFI_RECONNECT_OPERATION = "Reconnecting device and restoring LAN configuration.";
+
+    /// <summary>
+    /// Core's recovery guidance for <c>FirmwareUpdateState.Verifying</c>. Core derives it from the
+    /// failed state alone, so BOTH Verifying failures carry this CRC text — correct for the PIC32
+    /// CRC check, misleading for the WiFi reconnect timeout.
+    /// </summary>
+    private const string CORE_VERIFYING_CRC_GUIDANCE =
+        "Flash verification failed — the device's flash CRC did not match the firmware image. " +
+        "Retry the update and confirm the expected firmware package was selected.";
+    #endregion
+
     private readonly List<string> _tempFiles = [];
     private readonly List<string> _tempDirectories = [];
 
@@ -907,6 +942,177 @@ public class DaqifiViewModelFirmwareUpdateTests
         Assert.AreEqual(1, host.FirmwareErrors.Count);
         StringAssert.Contains(host.FirmwareErrors[0], "ErasingFlash");
         appLogger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.AtLeastOnce);
+    }
+
+    [TestMethod]
+    public async Task UploadFirmware_WifiPostFlashReconnectTimeout_ReportedAsInstalledWarningNotError()
+    {
+        // Issue #776 — the symmetric case of #738 on the WiFi module. Core's WiFi flow enters
+        // Verifying ONLY after the WINC flash tool printed its success marker, so a timeout in that
+        // state means both firmwares were flashed and verified and the device merely did not come
+        // back on its serial port within VerifyingTimeout. It must be classified exactly like the
+        // PIC32 JumpingToApp case: Warning (no Sentry capture) and an "installed, power-cycle"
+        // message — not the generic Error + "Firmware update failed during '...'" dialog.
+        var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
+        var appLogger = new Mock<IAppLogger>();
+
+        using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
+        coreDevice.Connect();
+
+        var serialDevice = CreateSerialDeviceWithCoreDevice("COM9", coreDevice);
+        var pic32FirmwarePath = CreateTempFile(".hex");
+        var wifiPackageDirectory = CreateTempDirectory();
+
+        firmwareDownloadService
+            .Setup(service => service.DownloadLatestFirmwareAsync(
+                It.IsAny<string>(),
+                true,
+                It.IsAny<IProgress<int>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pic32FirmwarePath);
+
+        firmwareDownloadService
+            .Setup(service => service.DownloadWifiFirmwareAsync(
+                It.IsAny<string>(),
+                It.IsAny<IProgress<int>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((wifiPackageDirectory, "v19.7.0"));
+
+        // Unreadable chip info reads as out-of-date, so the WiFi flash actually runs.
+        coreDevice.LanChipInfoResult = null;
+
+        // Exactly what Core v1.3.0 throws for this condition: state Verifying, the operation text
+        // from its Verifying transition, and — critically — the CRC recovery guidance, which Core
+        // maps from FailedState alone and which is therefore WRONG here (nothing CRC-related
+        // happened). The downgraded path must not repeat it to the user.
+        wifiFirmwareUpdateService
+            .Setup(service => service.UpdateWifiModuleAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                wifiPackageDirectory,
+                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new FirmwareUpdateException(
+                FirmwareUpdateState.Verifying,
+                CORE_WIFI_RECONNECT_OPERATION,
+                "Firmware update failed in state 'Verifying' while " + CORE_WIFI_RECONNECT_OPERATION,
+                recoveryGuidance: CORE_VERIFYING_CRC_GUIDANCE,
+                innerException: new TimeoutException(
+                    "State 'Verifying' timed out while attempting to reconnect serial transport " +
+                    "after WiFi flash after 45.0 seconds.")));
+
+        var host = new FakeFirmwareUpdateHost
+        {
+            SelectedDevice = serialDevice
+        };
+
+        var coordinator = CreateCoordinator(
+            host,
+            pic32FirmwareUpdateService.Object,
+            firmwareDownloadService.Object,
+            (_, _) => wifiFirmwareUpdateService.Object,
+            appLogger.Object);
+
+        await coordinator.UploadFirmwareAsync();
+
+        // The user is told the WiFi firmware installed and to power-cycle — not that it failed.
+        Assert.AreEqual(1, host.FirmwareErrors.Count);
+        StringAssert.Contains(host.FirmwareErrors[0], "WiFi firmware was installed successfully");
+        StringAssert.Contains(host.FirmwareErrors[0], "power-cycle");
+
+        // Core's FailedState-derived guidance is misleading here; it must never reach the user.
+        Assert.IsFalse(
+            host.FirmwareErrors[0].Contains("CRC", StringComparison.OrdinalIgnoreCase),
+            "The WiFi reconnect timeout must not repeat Core's PIC32 CRC guidance.");
+        Assert.IsFalse(
+            host.FirmwareErrors[0].Contains("failed", StringComparison.OrdinalIgnoreCase),
+            "The firmware installed; the message must not tell the user it failed.");
+
+        // Logged at Warning (file only), never at Error (which captures to Sentry).
+        appLogger.Verify(l => l.Warning(It.IsAny<Exception>(), It.IsAny<string>()), Times.AtLeastOnce);
+        appLogger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.Never);
+        appLogger.Verify(l => l.Error(It.IsAny<string>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task UploadFirmware_Pic32CrcVerifyFailure_StillReportedAsErrorToSentry()
+    {
+        // The other direction of issue #776, and the reason the carve-out cannot simply add
+        // "|| FailedState == Verifying": on the PIC32 that state is the flash CRC check. A CRC
+        // mismatch is a genuine, deterministic failure — the flash does NOT match the image — so it
+        // must keep the Error (Sentry) path and Core's "CRC did not match" recovery guidance.
+        //
+        // Driven through a full AUTO update (not a manual PIC32-only upload) so it also proves the
+        // coordinator is still on the PIC32 phase while the PIC32 step runs: if the WiFi phase were
+        // latched too early, this genuine failure would be silently downgraded.
+        var pic32FirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var wifiFirmwareUpdateService = new Mock<IFirmwareUpdateService>();
+        var firmwareDownloadService = new Mock<IFirmwareDownloadService>();
+        var appLogger = new Mock<IAppLogger>();
+
+        using var coreDevice = new TestCoreStreamingDevice("DAQiFi Core");
+        coreDevice.Connect();
+
+        var serialDevice = CreateSerialDeviceWithCoreDevice("COM9", coreDevice);
+        var pic32FirmwarePath = CreateTempFile(".hex");
+
+        firmwareDownloadService
+            .Setup(service => service.DownloadLatestFirmwareAsync(
+                It.IsAny<string>(),
+                true,
+                It.IsAny<IProgress<int>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pic32FirmwarePath);
+
+        var wifiFactoryCalls = 0;
+
+        pic32FirmwareUpdateService
+            .Setup(service => service.UpdateFirmwareAsync(
+                It.IsAny<Daqifi.Core.Device.IStreamingDevice>(),
+                pic32FirmwarePath,
+                It.IsAny<IProgress<FirmwareUpdateProgress>>(),
+                It.IsAny<string>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new FirmwareUpdateException(
+                FirmwareUpdateState.Verifying,
+                CORE_PIC32_CRC_VERIFY_OPERATION,
+                "Firmware update failed in state 'Verifying' while " + CORE_PIC32_CRC_VERIFY_OPERATION,
+                recoveryGuidance: CORE_VERIFYING_CRC_GUIDANCE));
+
+        var host = new FakeFirmwareUpdateHost
+        {
+            SelectedDevice = serialDevice
+        };
+
+        var coordinator = CreateCoordinator(
+            host,
+            pic32FirmwareUpdateService.Object,
+            firmwareDownloadService.Object,
+            (_, _) =>
+            {
+                wifiFactoryCalls++;
+                return wifiFirmwareUpdateService.Object;
+            },
+            appLogger.Object);
+
+        await coordinator.UploadFirmwareAsync();
+
+        // Reported as the failure it is, with Core's CRC guidance intact.
+        Assert.AreEqual(1, host.FirmwareErrors.Count);
+        StringAssert.Contains(host.FirmwareErrors[0], "Firmware update failed");
+        StringAssert.Contains(host.FirmwareErrors[0], "Verifying");
+        StringAssert.Contains(host.FirmwareErrors[0], "CRC did not match");
+
+        // Captured to Sentry, and never downgraded to the "installed, power-cycle" message.
+        appLogger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.AtLeastOnce);
+        Assert.IsFalse(
+            host.FirmwareErrors[0].Contains("installed successfully", StringComparison.Ordinal),
+            "A CRC mismatch must never be reported as an installed firmware.");
+
+        // The PIC32 step threw, so the WiFi flash was never attempted.
+        Assert.AreEqual(0, wifiFactoryCalls);
     }
 
     [TestMethod]
