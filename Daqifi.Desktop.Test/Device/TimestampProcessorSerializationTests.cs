@@ -328,11 +328,24 @@ public class TimestampProcessorSerializationTests : IDisposable
             }
         }
 
+        /// <summary>
+        /// Releases the fixture's Core connection, and the race handshake signals once the racing
+        /// thread can no longer touch them.
+        /// </summary>
         public void Dispose()
         {
-            _racingStopStart?.Join(PROGRESS_TIMEOUT_MS);
-            _racingResetAtBoundary.Dispose();
-            _racingStopStartCompleted.Dispose();
+            // The racing thread signals both events, so they can only be disposed once it has
+            // provably exited. If the join times out, the test has already failed on that timeout —
+            // disposing here would then hand the still-running worker an ObjectDisposedException on a
+            // background thread, masking the real failure and destabilizing the test host. Leaking
+            // two ManualResetEventSlim instances on that path is by far the cheaper outcome.
+            var racingThreadExited = _racingStopStart?.Join(PROGRESS_TIMEOUT_MS) ?? true;
+            if (racingThreadExited)
+            {
+                _racingResetAtBoundary.Dispose();
+                _racingStopStartCompleted.Dispose();
+            }
+
             _coreDevice.Dispose();
         }
 
@@ -437,12 +450,25 @@ public class TimestampProcessorSerializationTests : IDisposable
     }
 
     /// <summary>
-    /// Swallows the device's diagnostics, except for the one breadcrumb
-    /// (<see cref="RESET_BOUNDARY_BREADCRUMB"/>) that <c>StopStreaming</c> records immediately before
-    /// its guarded region — which it turns into the signal the race probe starts from.
+    /// Turns the one breadcrumb <c>StopStreaming</c> records immediately before its guarded region
+    /// (<see cref="RESET_BOUNDARY_BREADCRUMB"/>) into the signal the race probe starts from.
     /// </summary>
+    /// <remarks>
+    /// Every other member is a deliberate no-op: the device under test logs routinely (sleep-state
+    /// changes, leftover-frame discards) and none of it is what these tests observe. Swallowing it
+    /// also keeps the suite from writing to the real NLog sink for diagnostics no one reads.
+    /// </remarks>
+    /// <param name="reachedResetBoundary">
+    /// Set when the racing thread reaches the statement immediately before the guarded region.
+    /// </param>
     private sealed class BoundarySignallingAppLogger(ManualResetEventSlim reachedResetBoundary) : IAppLogger
     {
+        /// <summary>
+        /// Signals <c>reachedResetBoundary</c> on the reset-boundary breadcrumb; ignores all others.
+        /// </summary>
+        /// <param name="category">Breadcrumb category. Unused — the message alone identifies the boundary.</param>
+        /// <param name="message">Breadcrumb message, matched against <see cref="RESET_BOUNDARY_BREADCRUMB"/>.</param>
+        /// <param name="level">Breadcrumb severity. Unused.</param>
         public void AddBreadcrumb(
             string category,
             string message,
@@ -454,35 +480,55 @@ public class TimestampProcessorSerializationTests : IDisposable
             }
         }
 
+        /// <summary>No-op. See the class remarks.</summary>
+        /// <param name="message">Ignored.</param>
         public void Information(string message)
         {
         }
 
+        /// <summary>No-op. See the class remarks.</summary>
+        /// <param name="message">Ignored.</param>
         public void Warning(string message)
         {
         }
 
+        /// <summary>No-op. See the class remarks.</summary>
+        /// <param name="ex">Ignored.</param>
+        /// <param name="message">Ignored.</param>
         public void Warning(Exception ex, string message)
         {
         }
 
+        /// <summary>No-op. See the class remarks.</summary>
+        /// <param name="message">Ignored.</param>
         public void Error(string message)
         {
         }
 
+        /// <summary>No-op. See the class remarks.</summary>
+        /// <param name="ex">Ignored.</param>
+        /// <param name="message">Ignored.</param>
         public void Error(Exception ex, string message)
         {
         }
 
+        /// <summary>No-op. See the class remarks.</summary>
+        /// <param name="model">Ignored.</param>
+        /// <param name="serialNumber">Ignored.</param>
+        /// <param name="firmwareVersion">Ignored.</param>
+        /// <param name="connectionType">Ignored.</param>
+        /// <param name="activeChannels">Ignored.</param>
         public void SetDeviceContext(
             string model, string serialNumber, string firmwareVersion, string connectionType, int activeChannels)
         {
         }
 
+        /// <summary>No-op. See the class remarks.</summary>
         public void ClearDeviceContext()
         {
         }
 
+        /// <summary>No-op. See the class remarks.</summary>
         public void Shutdown()
         {
         }
