@@ -65,6 +65,14 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     public event EventHandler<BootloaderHoldDroppedEventArgs>? HoldDropped;
 
     /// <inheritdoc />
+    public event EventHandler? FlashInProgressChanged;
+
+    /// <inheritdoc />
+    // Volatile read: _flashingPath is written under _gate, but this is polled from callers that hold no
+    // gate (the connection dialog's Start*Discovery guards), so the read must not be hoisted/cached.
+    public bool IsFlashInProgress => Volatile.Read(ref _flashingPath) != null;
+
+    /// <inheritdoc />
     public void Start()
     {
         if (_disposed || _started)
@@ -83,13 +91,15 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     {
         ArgumentNullException.ThrowIfNull(devicePath);
 
+        bool flashStarted;
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
             // Pause discovery and mark this device as the flash target so it isn't re-grabbed while the
             // flasher owns it. Other holds are left untouched (they stay wedge-proof).
             _discovery.Stop();
-            _flashingPath = devicePath;
+            flashStarted = _flashingPath == null;
+            Volatile.Write(ref _flashingPath, devicePath);
 
             if (_holds.TryGetValue(devicePath, out var hold))
             {
@@ -102,6 +112,11 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
         finally
         {
             _gate.Release();
+        }
+
+        if (flashStarted)
+        {
+            RaiseFlashInProgressChanged();
         }
 
         return new WatcherLease(() => ResumeAfterFlashAsync(devicePath));
@@ -129,10 +144,12 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     #region Resume (lease disposal)
     private async Task ResumeAfterFlashAsync(string devicePath)
     {
+        bool flashEnded;
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            _flashingPath = null;
+            flashEnded = _flashingPath != null;
+            Volatile.Write(ref _flashingPath, null);
 
             if (_holds.TryGetValue(devicePath, out var hold))
             {
@@ -151,6 +168,30 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
         finally
         {
             _gate.Release();
+        }
+
+        if (flashEnded)
+        {
+            RaiseFlashInProgressChanged();
+        }
+    }
+
+    /// <summary>
+    /// Raises <see cref="FlashInProgressChanged"/>. Always called with <see cref="_gate"/> released:
+    /// subscribers react by marshalling onto the UI thread, and doing that under the gate could
+    /// lock-invert with a UI-thread gate acquisition (the same reason <see cref="HoldDropped"/> is raised
+    /// outside it). Guarded so a faulting subscriber cannot propagate into the flash lease's disposal and
+    /// mask the flash's own outcome.
+    /// </summary>
+    private void RaiseFlashInProgressChanged()
+    {
+        try
+        {
+            FlashInProgressChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "A FlashInProgressChanged subscriber threw while the flash state changed.");
         }
     }
 

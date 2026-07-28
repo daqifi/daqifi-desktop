@@ -241,6 +241,54 @@ public class BootloaderWatcherTests
         Assert.IsTrue(_discovery.IsRunning, "Discovery must resume only once both operations complete.");
     }
 
+    [TestMethod]
+    public async Task PrepareFlash_ReportsFlashInProgress_AndRaisesOnBothEdges()
+    {
+        // The connection dialog keys its serial + WiFi discovery on this flag so a coordinator
+        // auto-update of another device finishing mid-write can't restart bus probing during the HID
+        // flash, and on the event so the end of the write is a resume trigger (issue #777).
+        using var watcher = CreateWatcher();
+        watcher.Start();
+        _discovery.Raise(PathA, "DAQiFi Bootloader");
+        await WaitUntilAsync(() => watcher.Bootloaders.Count == 1);
+
+        var flagsSeen = new List<bool>();
+        watcher.FlashInProgressChanged += (_, _) => flagsSeen.Add(watcher.IsFlashInProgress);
+
+        Assert.IsFalse(watcher.IsFlashInProgress, "No flash is in progress before PrepareFlashAsync.");
+
+        var lease = await watcher.PrepareFlashAsync(PathA);
+        Assert.IsTrue(watcher.IsFlashInProgress, "A prepared flash must report as in progress.");
+
+        await lease.DisposeAsync();
+        Assert.IsFalse(watcher.IsFlashInProgress, "Disposing the flash lease must clear the in-progress flag.");
+
+        Assert.AreEqual(2, flagsSeen.Count,
+            "FlashInProgressChanged must fire exactly once per edge.");
+        Assert.IsTrue(flagsSeen[0], "The first event is the rising edge.");
+        Assert.IsFalse(flagsSeen[1], "The second event is the falling edge.");
+    }
+
+    [TestMethod]
+    public async Task FlashInProgressChanged_WithThrowingSubscriber_DoesNotFaultTheLease()
+    {
+        // The falling edge is raised from the flash lease's disposal, which runs in the firmware
+        // dialog's finally. A faulting subscriber must not propagate there and mask the flash outcome.
+        using var watcher = CreateWatcher();
+        watcher.Start();
+        _discovery.Raise(PathA, "DAQiFi Bootloader");
+        await WaitUntilAsync(() => watcher.Bootloaders.Count == 1);
+
+        watcher.FlashInProgressChanged += (_, _) => throw new InvalidOperationException("subscriber blew up");
+
+        var lease = await watcher.PrepareFlashAsync(PathA);
+        await lease.DisposeAsync();
+
+        Assert.IsFalse(watcher.IsFlashInProgress);
+        Assert.IsTrue(_discovery.IsRunning, "Discovery must still resume when a subscriber throws.");
+        _logger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.Exactly(2));
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 2000)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(timeoutMs);
