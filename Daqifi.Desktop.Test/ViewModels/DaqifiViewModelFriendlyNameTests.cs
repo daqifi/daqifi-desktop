@@ -197,6 +197,49 @@ public class DaqifiViewModelFriendlyNameTests
         Assert.AreEqual("Bench Rig 3", viewModel.PendingFriendlyName);
     }
 
+    [TestMethod]
+    public void DeviceReportsName_DoesNotMutateTheBufferOnTheEventThread()
+    {
+        // Arrange — the guard against this PR silently regressing. The other tests here run in a
+        // host with no Application.Current, where UiThreadHelper deliberately falls back to running
+        // inline, so they would still pass if the handler went back to mutating the UI-bound buffer
+        // straight from the message-consumer thread. Swapping in an invoker that captures the action
+        // instead of running it makes the hop itself observable: nothing may reach the buffer until
+        // the marshalled action is actually run.
+        var device = CreateNotifyingDevice("Name From Device");
+        var viewModel = CreateViewModel(device.Object);
+        viewModel.SeedPendingFriendlyName("Bench Rig 3");
+        Action? marshalled = null;
+        viewModel.UiInvoker = (action, _) => marshalled = action;
+
+        // Act
+        RaiseFriendlyNameChangedOnBackgroundThread(device);
+
+        // Assert
+        Assert.IsNotNull(marshalled, "The update was not handed to the UI-thread invoker at all.");
+        Assert.AreEqual(
+            "Bench Rig 3", viewModel.PendingFriendlyName,
+            "The edit buffer was mutated on the event thread instead of being marshalled.");
+    }
+
+    [TestMethod]
+    public void DeviceReportsName_AppliesTheNameOnceTheMarshalledActionRuns()
+    {
+        // Arrange — the other half of the contract: the update must be deferred, not discarded.
+        var device = CreateNotifyingDevice("Name From Device");
+        var viewModel = CreateViewModel(device.Object);
+        viewModel.SeedPendingFriendlyName("Bench Rig 3");
+        Action? marshalled = null;
+        viewModel.UiInvoker = (action, _) => marshalled = action;
+        RaiseFriendlyNameChangedOnBackgroundThread(device);
+
+        // Act — stand in for the dispatcher draining its queue on the UI thread.
+        marshalled!();
+
+        // Assert
+        Assert.AreEqual("Name From Device", viewModel.PendingFriendlyName);
+    }
+
     /// <summary>
     /// Raises the device's <see cref="IStreamingDevice.FriendlyName"/> change notification from a
     /// thread-pool thread and waits for it, mirroring how Core's message-consumer thread delivers

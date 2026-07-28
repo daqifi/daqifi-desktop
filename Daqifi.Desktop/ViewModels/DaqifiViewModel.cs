@@ -1052,6 +1052,20 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         }
     }
 
+    /// <summary>
+    /// Marshals a drawer-buffer update onto the UI thread. Defaults to
+    /// <see cref="UiThreadHelper.InvokeOnUiThread"/> and is only swapped by tests.
+    /// </summary>
+    /// <remarks>
+    /// The seam exists because the hop is otherwise unobservable in the unit-test host: with no
+    /// <c>Application.Current</c> the production helper runs its action inline, so a regression that
+    /// mutated the edit buffer straight from the event thread would still pass. Substituting an
+    /// invoker that captures the action instead of running it makes "the mutation goes through the
+    /// hop" directly assertable, without standing up a process-global WPF <c>Application</c> that
+    /// other test classes rely on being absent.
+    /// </remarks>
+    internal Action<Action, string?> UiInvoker { get; set; } = UiThreadHelper.InvokeOnUiThread;
+
     private void OnSelectedDeviceFriendlyNameChanged(object? sender, PropertyChangedEventArgs e)
     {
         // PropertyChangedEventArgs is immutable, so this filter is safe to run on the raising
@@ -1079,7 +1093,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         //
         // The guards below deliberately live inside the hop: evaluating them here would be exactly
         // the unsynchronized cross-thread read this is fixing.
-        UiThreadHelper.InvokeOnUiThread(
+        UiInvoker(
             () => ApplyDeviceFriendlyName(device),
             "Dispatcher unavailable while syncing the Devices drawer NAME field; update dropped.");
     }
