@@ -215,38 +215,30 @@ public class ImportTimestampQualityTests
     /// below-resolution marker is built from the same culture rather than a hardcoded "&lt;0.1".
     /// </summary>
     [TestMethod]
-    public void BuildUserWarning_CommaDecimalCulture_FormatsPercentInThatCulture()
+    [DataRow(30, 100, "(30,0%)")]
+    [DataRow(1, 5000, "(<0,1%)")]
+    public void BuildUserWarning_CommaDecimalCulture_FormatsPercentInThatCulture(
+        int substituted, int totalEntries, string expectedPercent)
     {
         // Arrange
         Thread.CurrentThread.CurrentCulture = new CultureInfo("de-DE");
-        var mixed = new ImportTimestampQuality();
-        var tiny = new ImportTimestampQuality();
+        var quality = new ImportTimestampQuality();
+        for (var i = 0; i < totalEntries - substituted; i++)
+        {
+            quality.Observe(EntryWithDeviceTimestamp(i));
+        }
+        for (var i = 0; i < substituted; i++)
+        {
+            quality.Observe(EntryWithoutDeviceTimestamp());
+        }
 
         // Act
-        for (var i = 0; i < 70; i++)
-        {
-            mixed.Observe(EntryWithDeviceTimestamp(i));
-        }
-        for (var i = 0; i < 30; i++)
-        {
-            mixed.Observe(EntryWithoutDeviceTimestamp());
-        }
-
-        for (var i = 0; i < 4999; i++)
-        {
-            tiny.Observe(EntryWithDeviceTimestamp(i));
-        }
-        tiny.Observe(EntryWithoutDeviceTimestamp());
+        var warning = quality.BuildUserWarning();
 
         // Assert
-        var mixedWarning = mixed.BuildUserWarning();
-        var tinyWarning = tiny.BuildUserWarning();
-        Assert.IsNotNull(mixedWarning);
-        Assert.IsNotNull(tinyWarning);
-        StringAssert.Contains(mixedWarning, "(30,0%)",
-            "The percentage must use the same decimal separator as the count beside it.");
-        StringAssert.Contains(tinyWarning, "(<0,1%)",
-            "The below-resolution marker is a formatted number too, not a hardcoded string.");
+        Assert.IsNotNull(warning);
+        StringAssert.Contains(warning, expectedPercent,
+            "The percentage — marker included — must use the same separators as the count beside it.");
     }
 
     [TestMethod]
