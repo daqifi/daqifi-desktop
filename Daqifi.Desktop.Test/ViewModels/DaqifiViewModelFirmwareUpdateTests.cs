@@ -29,6 +29,9 @@ public class DaqifiViewModelFirmwareUpdateTests
     // model real Core exceptions rather than invented ones — and so a Core bump has ONE obvious
     // place to re-check. Production code deliberately does not match on any of them: the carve-out
     // keys on the flash phase + FailedState instead (see FirmwareFailureClassifier).
+    //
+    // See daqifi-core#398 (gap 4) — the upstream ask to replace these unversioned progress strings,
+    // and the FailedState-derived recovery guidance below, with a real discriminator.
 
     /// <summary>
     /// PIC32 CRC-verify failure operation, from Core's <c>TransitionToState(Verifying, ...)</c>

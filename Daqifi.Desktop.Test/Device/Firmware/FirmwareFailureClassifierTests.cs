@@ -17,10 +17,14 @@ namespace Daqifi.Desktop.Test.Device.Firmware;
 public class FirmwareFailureClassifierTests
 {
     #region Constants
+    // See daqifi-core#398 (gap 4) — the upstream ask to replace these unversioned progress strings
+    // with a real discriminator. Until that lands, this is the ONE place to re-check on a Core bump.
+
     /// <summary>
     /// The <c>Operation</c> Core attaches to a PIC32 CRC-verify failure, verified against
     /// Daqifi.Core v1.3.0 (<c>src/Daqifi.Core/Firmware/FirmwareUpdateService.cs</c>, the
     /// <c>TransitionToState(Verifying, ...)</c> immediately before the CRC-verify step).
+    /// See daqifi-core#398 (gap 4).
     /// </summary>
     private const string CORE_PIC32_CRC_VERIFY_OPERATION = "Verifying flash contents via CRC.";
 
@@ -34,6 +38,7 @@ public class FirmwareFailureClassifierTests
     /// <see cref="TimeoutException"/>'s message. <c>FirmwareUpdateException.Operation</c> is
     /// assigned solely from <c>TransitionToState</c>. Recorded here so a Core bump has one obvious
     /// place to re-check — production code deliberately does not match on either string.
+    /// See daqifi-core#398 (gap 4).
     /// </para>
     /// </summary>
     private const string CORE_WIFI_RECONNECT_OPERATION = "Reconnecting device and restoring LAN configuration.";
@@ -93,13 +98,31 @@ public class FirmwareFailureClassifierTests
     [DataRow(FirmwareUpdateState.Failed)]
     [DataRow(FirmwareUpdateState.CleaningUp)]
     [DataRow(FirmwareUpdateState.Recovered)]
-    public void IsPostFlashReconnectTimeout_GenuineFailureStates_AreNotDowngraded(FirmwareUpdateState failedState)
+    public void IsPostFlashReconnectTimeout_Pic32GenuineFailureStates_AreNotDowngraded(
+        FirmwareUpdateState failedState)
     {
-        // Every state that is not a post-flash reconnect keeps the Error/Sentry path on BOTH phases.
+        // Every PIC32 state that is not the JumpingToApp reconnect keeps the Error/Sentry path.
         var exception = new FirmwareUpdateException(failedState, "some operation", "Failure.");
 
         Assert.IsFalse(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(
             exception, FirmwareFlashPhase.Pic32));
+    }
+
+    [TestMethod]
+    [DataRow(FirmwareUpdateState.PreparingDevice)]
+    [DataRow(FirmwareUpdateState.WaitingForBootloader)]
+    [DataRow(FirmwareUpdateState.Connecting)]
+    [DataRow(FirmwareUpdateState.ErasingFlash)]
+    [DataRow(FirmwareUpdateState.Programming)]
+    [DataRow(FirmwareUpdateState.Failed)]
+    [DataRow(FirmwareUpdateState.CleaningUp)]
+    [DataRow(FirmwareUpdateState.Recovered)]
+    public void IsPostFlashReconnectTimeout_WifiGenuineFailureStates_AreNotDowngraded(
+        FirmwareUpdateState failedState)
+    {
+        // Every WiFi state that is not the Verifying reconnect keeps the Error/Sentry path.
+        var exception = new FirmwareUpdateException(failedState, "some operation", "Failure.");
+
         Assert.IsFalse(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(
             exception, FirmwareFlashPhase.WifiModule));
     }
@@ -126,23 +149,24 @@ public class FirmwareFailureClassifierTests
             FirmwareFailureClassifier.IsPostFlashReconnectTimeout(null!, FirmwareFlashPhase.Pic32));
     }
 
+    // The expected opening is phase-specific and case-sensitive, which is also what proves the two
+    // messages are distinct: the WiFi text reads "WiFi firmware was installed successfully", so it
+    // cannot satisfy the PIC32 row's capital-F "Firmware was installed successfully" and vice versa.
+    // A separate distinctness assertion would need a second Act, so this carries that guarantee.
     [TestMethod]
-    public void BuildInstalledButNotReconnectedMessage_TellsUserTheFirmwareInstalledAndToPowerCycle()
+    [DataRow(FirmwareFlashPhase.Pic32, "Firmware was installed successfully")]
+    [DataRow(FirmwareFlashPhase.WifiModule, "WiFi firmware was installed successfully")]
+    public void BuildInstalledButNotReconnectedMessage_TellsUserTheFirmwareInstalledAndToPowerCycle(
+        FirmwareFlashPhase phase, string expectedOpening)
     {
-        var pic32Message = FirmwareFailureClassifier.BuildInstalledButNotReconnectedMessage(
-            FirmwareFlashPhase.Pic32);
-        var wifiMessage = FirmwareFailureClassifier.BuildInstalledButNotReconnectedMessage(
-            FirmwareFlashPhase.WifiModule);
+        var message = FirmwareFailureClassifier.BuildInstalledButNotReconnectedMessage(phase);
 
-        // Both say "installed" (not "failed") and name the recovery action.
-        StringAssert.Contains(pic32Message, "installed successfully");
-        StringAssert.Contains(pic32Message, "power-cycle");
-        StringAssert.Contains(wifiMessage, "installed successfully");
-        StringAssert.Contains(wifiMessage, "power-cycle");
-
-        // The WiFi variant names the module so the user knows which image is on the device.
-        StringAssert.Contains(wifiMessage, "WiFi firmware");
-        Assert.AreNotEqual(pic32Message, wifiMessage);
+        // Says "installed" (never "failed") and names the recovery action.
+        StringAssert.Contains(message, expectedOpening);
+        StringAssert.Contains(message, "power-cycle");
+        Assert.IsFalse(
+            message.Contains("failed", StringComparison.OrdinalIgnoreCase),
+            "The firmware installed; the message must not tell the user it failed.");
     }
     #endregion
 }

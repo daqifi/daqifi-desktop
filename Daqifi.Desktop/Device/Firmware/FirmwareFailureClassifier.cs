@@ -96,9 +96,17 @@ public static class FirmwareFailureClassifier
     /// Verified against Daqifi.Core v1.3.0, the consumed package version
     /// (<c>FirmwareUpdateService.cs</c>: PIC32 CRC-verify and jump at the <c>ErasingFlash</c> →
     /// <c>JumpingToApp</c> sequence, WiFi success-marker check immediately followed by the
-    /// <c>Verifying</c> transition and <c>WaitForSerialReconnectAsync</c>). A dedicated Core-side
-    /// signal — so consumers need not infer "the image is on the device" from state + phase — is
-    /// requested as daqifi-core#397; this classifier is the desktop-side fix in the meantime.
+    /// <c>Verifying</c> transition and <c>WaitForSerialReconnectAsync</c>).
+    /// </para>
+    /// <para>
+    /// <b>Upstream:</b> this classifier is a workaround, tracked as daqifi-core#398 (gap 4). Core
+    /// knows at every throw site whether the image was written, but exposes no machine-readable way
+    /// to say so — the only other discriminator available is a UI progress string that was never an
+    /// API contract and could be reworded in any release without anyone noticing. Core's
+    /// <c>BuildRecoveryGuidance</c> has the same root cause: it maps by <c>FailedState</c> alone, so
+    /// Core itself already emits the PIC32 CRC text for a *successful* WiFi flash. Once Core lands a
+    /// dedicated state or flag for the post-flash reconnect, the phase parameter and this type can
+    /// be replaced by a direct check on that signal.
     /// </para>
     /// </remarks>
     public static bool IsPostFlashReconnectTimeout(FirmwareUpdateException exception, FirmwareFlashPhase phase)
