@@ -146,13 +146,15 @@ public class FrameTimestampSourceTests : IDisposable
         _device.RouteStreamFrame(1_000_000_000 + SAMPLE_PERIOD_TICKS);
         var dispatchedBefore = _device.DispatchedMessages.Count;
 
-        // Act - only the desktop half of the pipeline, which is all Core's MessageReceived event
-        // does before Core goes on to decode that same frame into per-channel samples
+        // Act - only the desktop half of the pipeline: the handler Core invokes when it raises the
+        // classified StreamMessageReceived event, before going on to decode that same frame into
+        // per-channel samples
         _device.RouteStreamFrameToDesktopOnly(1_000_000_000 + 2 * SAMPLE_PERIOD_TICKS);
 
-        // Assert - the desktop hands the frame to Core's ProtobufProtocolHandler and discards the
-        // returned task, so the per-frame state Core's decode then reads (sample gate, timestamp,
-        // firmware delta) only belongs to the right frame while that handler stays synchronous
+        // Assert - Core decodes the frame immediately after this handler returns, and that decode
+        // reads per-frame state the handler leaves behind (sample gate, timestamp, firmware delta).
+        // That state only belongs to the right frame if the handler completes synchronously, so an
+        // await introduced inside it would silently let Core decode against the previous frame's state.
         Assert.AreEqual(dispatchedBefore + 1, _device.DispatchedMessages.Count,
             "Routing a frame must finish processing it before returning, since Core decodes the same "
             + "frame immediately afterwards and reads the per-frame state left behind.");
@@ -161,9 +163,9 @@ public class FrameTimestampSourceTests : IDisposable
 
     #region Test Doubles
     /// <summary>
-    /// Routes frames through both halves of the real production pipeline — the desktop's gating and
-    /// dispatch (<c>HandleInboundMessage</c>) and Core's decode step — in that order, exactly as
-    /// Core's <c>DaqifiStreamingDevice.OnStreamMessageReceived</c> sequences them in production.
+    /// Routes frames through Core's real <c>OnStreamMessageReceived</c>, which raises the classified
+    /// <c>StreamMessageReceived</c> event the desktop's gating/dispatch subscribes to and then runs
+    /// Core's decode step — in that order, exactly as production sequences them.
     /// </summary>
     private sealed class FrameTimestampTestDevice : AbstractStreamingDevice, IDisposable
     {
@@ -201,7 +203,10 @@ public class FrameTimestampSourceTests : IDisposable
             // the SampleReceived subscription installed by SyncChannelsFromCore.
             SyncFromCoreDevice(_coreDevice);
 
-            InitializeDeviceState();
+            // Subscribes the wrapper to Core's classified Status/StreamMessageReceived events, which
+            // is what Connect() does in production. Deliberately after PopulateChannelsFromStatus
+            // above so the ChannelsPopulated subscription doesn't re-run the sync mid-setup.
+            SubscribeCoreDeviceEvents(_coreDevice);
         }
 
         public List<DeviceMessage> DispatchedMessages { get; } = [];
@@ -229,12 +234,15 @@ public class FrameTimestampSourceTests : IDisposable
             DispatchedMessages.Add(deviceMessage);
         }
 
-        /// <summary>Routes a frame through the desktop's inbound path and then Core's decode.</summary>
+        /// <summary>
+        /// Routes a frame the way production does: Core's own <c>OnStreamMessageReceived</c> raises
+        /// the classified <c>StreamMessageReceived</c> event this device is subscribed to, then runs
+        /// Core's decode step. The desktop handler must not also be invoked directly here — it is
+        /// already reached through that subscription, and calling both would process every frame twice.
+        /// </summary>
         public void RouteStreamFrame(uint deviceTimestamp)
         {
-            var message = BuildStreamFrame(deviceTimestamp);
-            RouteToDesktop(message);
-            _coreDevice.SimulateStreamFrame(message);
+            _coreDevice.SimulateStreamFrame(BuildStreamFrame(deviceTimestamp));
         }
 
         /// <summary>
@@ -248,9 +256,9 @@ public class FrameTimestampSourceTests : IDisposable
 
         private void RouteToDesktop(DaqifiOutMessage message)
         {
-            HandleInboundMessage(
-                new MessageReceivedEventArgs(
-                    new GenericInboundMessage<object>(message)));
+            // Exactly what Core invokes when it raises the classified StreamMessageReceived event,
+            // with Core's own decode step left out.
+            OnStreamMessageReceived(message);
         }
 
         private static DaqifiOutMessage BuildStreamFrame(uint deviceTimestamp) => new()

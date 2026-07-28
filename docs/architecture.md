@@ -53,7 +53,7 @@ flowchart TB
 
     user -- "Uses" --> ui
     ui -- "Commands &amp;<br/>observable state" --> domain
-    domain -- "SCPI out,<br/>MessageReceived in" --> core
+    domain -- "SCPI out,<br/>classified message<br/>events in" --> core
     core -- "Wire protocol" --> nyquist
     domain -- "Bulk inserts" --> sqlite
     ui -- "Reads / writes" --> config
@@ -84,10 +84,13 @@ sequenceDiagram
 
     HW->>Core: Bytes (TCP or USB-Serial)
     Core->>Core: Decode protobuf → DaqifiOutMessage
-    Core->>Dev: MessageReceived event
-    Dev->>Dev: HandleInboundMessage → ProtobufProtocolHandler.HandleAsync
-    Dev->>Dev: OnStreamMessageReceived(DaqifiOutMessage)
-    Note over Dev: For each active analog channel:<br/>scale raw ADC (WiFi) or<br/>use pre-scaled float (USB)
+    Core->>Core: Classify frame (ProtobufProtocolHandler)
+    Core->>Dev: StreamMessageReceived event (classified)
+    Dev->>Dev: OnStreamMessageReceived → ProcessStreamMessage
+    Note over Dev: Reconstructs this frame's timestamp and opens<br/>the _acceptChannelSamples gate — synchronously,<br/>before Core decodes the same frame
+    Core->>Core: DecodeStreamFrame (same frame, once the event returns)
+    Note over Core: For each active analog channel:<br/>scale raw ADC (WiFi) or use<br/>pre-scaled float (USB); unpack digital bits
+    Core->>Dev: IChannel.SampleReceived (per channel)
     Dev->>Ch: channel.ActiveSample = new DataSample(...)
     Ch->>Ch: Apply NCalc scale expression (if set)
     Ch->>LM: OnChannelUpdated event
@@ -99,7 +102,8 @@ sequenceDiagram
 
 ### Notes on the flow
 
-- **WiFi vs USB scaling.** WiFi firmware sends raw ADC counts; USB firmware sends pre-scaled floats already in volts. `OnStreamMessageReceived` branches on this — see `AnalogInData` vs `AnalogInDataFloat` in [AbstractStreamingDevice.cs](../Daqifi.Desktop/Device/AbstractStreamingDevice.cs).
+- **WiFi vs USB scaling.** WiFi firmware sends raw ADC counts; USB firmware sends pre-scaled floats already in volts. Channel decoding — including that `AnalogInData` vs `AnalogInDataFloat` branch — belongs to Core's `DaqifiStreamingDevice.DecodeStreamFrame` since issue #613. The desktop only stamps each decoded value with the frame's own timestamp, in `OnCoreChannelSampleReceived` — see [AbstractStreamingDevice.cs](../Daqifi.Desktop/Device/AbstractStreamingDevice.cs).
+- **One frame, one timestamp.** Core raises the classified `StreamMessageReceived` *before* its own decode of that same frame, so `ProcessStreamMessage` has already computed `_currentFrameTimestamp` and opened `_acceptChannelSamples` by the time the per-channel samples arrive. Frames the desktop rejects (a leftover frame from the previous streaming session) are still decoded by Core — it has no notion of that heuristic — and are dropped by that gate instead.
 - **Two parallel paths per protobuf message.** The same `DaqifiOutMessage` produces per-channel `DataSample`s (the path above) *and* a single `DeviceMessage` carrying device-level state (battery, status, target frequency). The latter is dispatched via `LoggingManager.HandleDeviceMessage`.
 - **Loggers are a list, not a single class.** `LoggingManager.Loggers` is an `ILogger` collection. `DatabaseLogger` is the persistent one, but `PlotLogger` and `SummaryLogger` also subscribe.
 - **Backpressure.** `DatabaseLogger` uses a `BlockingCollection<DataSample>` producer/consumer split so the UI/device threads never wait on disk. The consumer drains in ~100 ms ticks and bulk-inserts via `EFCore.BulkExtensions.Sqlite`.

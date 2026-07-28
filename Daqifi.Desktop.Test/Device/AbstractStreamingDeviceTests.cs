@@ -26,20 +26,17 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
-    public void RouteInboundMessage_StatusMessageWithFriendlyDeviceName_UpdatesFriendlyName()
+    public void StatusMessageWithFriendlyDeviceName_UpdatesFriendlyName()
     {
         // Arrange
         var device = new TestStreamingDevice();
-        device.InitializeDeviceState(); // wires the protocol handler that classifies/routes inbound messages
 
         // Act — firmware's fast streaming-frame encoder (Nanopb_EncodeStreamingFast) hardcodes
         // only msg_time_stamp/analog_in_data/digital_data/digital_port_dir; friendly_device_name
         // is only ever populated on "info" responses like SYSTem:SYSInfoPB? (Core sends this once
-        // during InitializeAsync). Core's ProtobufProtocolHandler classifies a message with no
-        // analog/digital sample data but a nonzero port-count field as "Status", routed to
-        // OnStatusMessageReceived — not OnStreamMessageReceived (see ProtobufProtocolHandler.
-        // IsStatusMessage/IsStreamMessage).
-        device.RouteInboundMessage(new DaqifiOutMessage
+        // during InitializeAsync). Core classifies a message with no analog/digital sample data but
+        // a nonzero port-count field as Status and raises StatusMessageReceived for it.
+        device.RouteStatusMessage(new DaqifiOutMessage
         {
             AnalogInPortNum = 1,
             DeviceSn = 12345,
@@ -52,16 +49,15 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
-    public void RouteInboundMessage_StreamMessageWithFriendlyDeviceName_UpdatesFriendlyName()
+    public void StreamMessageWithFriendlyDeviceName_UpdatesFriendlyName()
     {
         // Arrange — belt-and-suspenders: a real Stream-classified frame never carries this field
         // (see the Status-message test above), but the desktop code captures it there too in
         // case firmware's streaming field set ever changes.
         var device = new TestStreamingDevice();
-        device.InitializeDeviceState();
 
         // Act
-        device.RouteInboundMessage(new DaqifiOutMessage
+        device.RouteStreamMessage(new DaqifiOutMessage
         {
             MsgTimeStamp = 1000,
             DeviceSn = 12345,
@@ -74,15 +70,17 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
-    public void RouteInboundMessage_StatusMessageWithoutFriendlyDeviceName_ClearsStaleFriendlyName()
+    public void StatusMessageWithoutFriendlyDeviceName_ClearsStaleFriendlyName()
     {
         // Arrange — e.g. SerialStreamingDevice instances are reused across reconnects on the same
         // COM port (ConnectionDialogViewModel dedups discovery by port), so a name captured from a
         // previously connected device must not leak onto a different/renamed device that reports
         // no name (issue #83 Qodo review: "stale friendlyname leaks").
+        //
+        // This is also why FriendlyName is not folded into Core's Metadata.FriendlyName: Core's
+        // UpdateFromProtobuf assigns the name only when non-empty, so it can never clear.
         var device = new TestStreamingDevice();
-        device.InitializeDeviceState();
-        device.RouteInboundMessage(new DaqifiOutMessage
+        device.RouteStatusMessage(new DaqifiOutMessage
         {
             AnalogInPortNum = 1,
             DeviceSn = 12345,
@@ -92,7 +90,7 @@ public class AbstractStreamingDeviceTests
 
         // Act — a fresh connect's status response with no name (firmware always includes the
         // field, empty when unset) is authoritative and must clear the stale value.
-        device.RouteInboundMessage(new DaqifiOutMessage
+        device.RouteStatusMessage(new DaqifiOutMessage
         {
             AnalogInPortNum = 1,
             DeviceSn = 67890
@@ -103,14 +101,13 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
-    public void RouteInboundMessage_StreamMessageWithoutFriendlyDeviceName_LeavesFriendlyNameUnchanged()
+    public void StreamMessageWithoutFriendlyDeviceName_LeavesFriendlyNameUnchanged()
     {
         // Arrange — a Stream-classified frame never carries this field at all (firmware's fast
         // streaming encoder omits it), so it must not clobber the value the status response
         // already captured — unlike the status-message case above, which is authoritative.
         var device = new TestStreamingDevice();
-        device.InitializeDeviceState();
-        device.RouteInboundMessage(new DaqifiOutMessage
+        device.RouteStatusMessage(new DaqifiOutMessage
         {
             AnalogInPortNum = 1,
             DeviceSn = 12345,
@@ -118,7 +115,7 @@ public class AbstractStreamingDeviceTests
         });
 
         // Act
-        device.RouteInboundMessage(new DaqifiOutMessage
+        device.RouteStreamMessage(new DaqifiOutMessage
         {
             MsgTimeStamp = 1000,
             DeviceSn = 12345,
@@ -137,8 +134,7 @@ public class AbstractStreamingDeviceTests
         {
             DeviceSerialNo = "12345"
         };
-        device.InitializeDeviceState();
-        device.RouteInboundMessage(new DaqifiOutMessage
+        device.RouteStatusMessage(new DaqifiOutMessage
         {
             AnalogInPortNum = 1,
             DeviceSn = 12345,
@@ -819,7 +815,7 @@ public class AbstractStreamingDeviceTests
     }
 
     [TestMethod]
-    public void HandleInboundMessage_WhenInLogToDevice_IgnoresStreamingSamples()
+    public void StreamMessage_WhenInLogToDevice_IgnoresStreamingSamples()
     {
         var device = new TestStreamingDevice();
         var coreChannel = new Daqifi.Core.Channel.AnalogChannel(0, 4096)
@@ -838,11 +834,10 @@ public class AbstractStreamingDeviceTests
         };
 
         device.DataChannels.Add(channel);
-        device.InitializeDeviceState();
         device.SwitchMode(DeviceMode.LogToDevice);
         device.IsStreaming = true;
 
-        device.RouteInboundMessage(new DaqifiOutMessage
+        device.RouteStreamMessage(new DaqifiOutMessage
         {
             MsgTimeStamp = 1000,
             DeviceSn = 12345,
@@ -902,12 +897,19 @@ public class AbstractStreamingDeviceTests
             SentCommands.Add(message.Data);
         }
 
-        public void RouteInboundMessage(DaqifiOutMessage message)
-        {
-            HandleInboundMessage(
-                new MessageReceivedEventArgs(
-                    new GenericInboundMessage<object>(message)));
-        }
+        /// <summary>
+        /// Invokes the handler Core calls when it classifies a frame as a status message and raises
+        /// <c>StatusMessageReceived</c> (daqifi-core#308). The desktop no longer classifies frames
+        /// itself, so which handler a given frame reaches is Core's decision and these tests state
+        /// it explicitly rather than re-deriving it.
+        /// </summary>
+        public void RouteStatusMessage(DaqifiOutMessage message) => OnStatusMessageReceived(message);
+
+        /// <summary>
+        /// Invokes the handler Core calls when it classifies a frame as a streaming data message and
+        /// raises <c>StreamMessageReceived</c>. Core's own decode step is not driven here.
+        /// </summary>
+        public void RouteStreamMessage(DaqifiOutMessage message) => OnStreamMessageReceived(message);
 
         /// <summary>
         /// Fakes a connected Core device (transport-less, mirrors <see cref="RecordingCoreStreamingDevice"/>)
