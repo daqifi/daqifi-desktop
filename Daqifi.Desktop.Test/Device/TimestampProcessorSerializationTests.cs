@@ -1,3 +1,5 @@
+using System.Globalization;
+using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
 using Daqifi.Core.Communication.Messages;
 using Daqifi.Core.Device;
@@ -16,10 +18,12 @@ namespace Daqifi.Desktop.Test.Device;
 /// reconstructs every timestamp scaled by 50/42 against firmware's 42 MHz streaming timer.
 /// </para>
 /// <para>
-/// The interleave is driven deterministically rather than by a stress loop: the fixture substitutes an
+/// The interleave is driven deterministically rather than by a stress loop. The fixture substitutes an
 /// instrumented <see cref="ITimestampProcessor"/> whose <c>SetTimestampFrequency</c> starts a real
-/// stop/start on another thread and gives it a window to land, which is exactly the sequence the
-/// serialization has to make impossible.
+/// stop/start on another thread, and an instrumented <see cref="IAppLogger"/> that reports when that
+/// thread reaches the statement immediately preceding <c>StopStreaming</c>'s guarded region. The probe
+/// therefore starts only once the reset is genuinely at the critical-section boundary, rather than
+/// timing a thread that may not have got there yet.
 /// </para>
 /// </summary>
 [TestClass]
@@ -45,14 +49,22 @@ public class TimestampProcessorSerializationTests : IDisposable
     private const uint FIRST_FRAME_TIMESTAMP = 1_000_000_000;
 
     /// <summary>
-    /// How long the racing stop/start is given to complete while the transport thread is still inside
-    /// its guarded region. Long enough that an unserialized reset — a handful of field writes and two
-    /// no-op Core sends — would comfortably finish; bounded so the serialized case cannot deadlock.
+    /// How long the racing reset is watched for completion <em>after</em> it has already reached the
+    /// statement immediately before the guarded region — so this measures blocking, not thread
+    /// start-up latency. All that remains for an unserialized reset at that point is taking the lock
+    /// and clearing two fields.
     /// </summary>
     private const int RESET_PROBE_TIMEOUT_MS = 250;
 
     /// <summary>Generous ceiling on waits that must succeed, so a hang fails as an assertion.</summary>
     private const int PROGRESS_TIMEOUT_MS = 30_000;
+
+    /// <summary>
+    /// The breadcrumb <c>StopStreaming</c> records on the statement immediately preceding its
+    /// <c>ResetAll</c> + gate-clear region. Reaching it means the racing thread has finished every
+    /// step before the lock and has nothing left to do but acquire it.
+    /// </summary>
+    private const string RESET_BOUNDARY_BREADCRUMB = "Streaming stopped";
 
     private const string SET_FREQUENCY_CALL = "SetTimestampFrequency";
     private const string PROCESS_TIMESTAMP_CALL = "ProcessTimestamp";
@@ -64,14 +76,17 @@ public class TimestampProcessorSerializationTests : IDisposable
     #endregion
 
     #region Setup and Teardown
+    /// <summary>Builds a fresh device fixture, with its own instrumented processor and logger.</summary>
     [TestInitialize]
     public void Setup()
     {
         _device = new InterleavingTestDevice();
     }
 
-    // MSTest disposes the test-class instance after each test, releasing the device's Core connection
-    // instead of leaking one per test (CA1001).
+    /// <summary>
+    /// Releases the fixture's Core connection. MSTest disposes the test-class instance after each
+    /// test, so this keeps the suite from leaking one connected device per test (CA1001).
+    /// </summary>
     public void Dispose()
     {
         _device.Dispose();
@@ -83,15 +98,21 @@ public class TimestampProcessorSerializationTests : IDisposable
     [TestMethod]
     public void ResetRacingTheFrequencyApply_CannotLandBeforeTheGateIsWritten()
     {
-        // Arrange & Act
-        RunFrequencyApplyRacedByStopStart();
+        // Arrange — a session holding its first frame, with a stop/start armed to fire from inside
+        // the frequency apply
+        StartSessionAndArmTheRace();
 
-        // Assert — the racing stop/start was already running and trying to reset while the transport
-        // thread held the frame open, so if it completed there, the gate write that follows would have
-        // latched "applied" over a frequency the reset had just dropped.
-        Assert.IsTrue(_device.RacingStopStartWasRunning,
-            "Precondition: the racing stop/start should have started before the guarded region ended.");
-        Assert.IsFalse(_device.RacingStopStartCompletedInsideTheGuardedRegion,
+        // Act — the successor frame releases the held pair, so the apply (and the armed race) happens
+        // inside this call
+        DriveTheRacedFrame();
+
+        // Assert — the racing reset had reached the statement immediately before its guarded region
+        // while the transport thread still held the frame open, so if it had completed there, the gate
+        // write that follows would have latched "applied" over a frequency the reset just dropped
+        Assert.IsTrue(_device.RacingResetReachedTheBoundary,
+            "Precondition: the racing stop/start should have reached the reset's critical-section "
+            + "boundary before the guarded region ended.");
+        Assert.IsFalse(_device.RacingResetCompletedInsideTheGuardedRegion,
             "A stream stop/start must not be able to reset the timestamp processor while a frame is "
             + "between its frequency apply and the gate write that records it.");
     }
@@ -99,12 +120,15 @@ public class TimestampProcessorSerializationTests : IDisposable
     [TestMethod]
     public void ResetRacingTheFrequencyApply_CannotSplitTheApplyFromTheReconstructionItWasAppliedFor()
     {
-        // Arrange & Act
-        RunFrequencyApplyRacedByStopStart();
+        // Arrange
+        StartSessionAndArmTheRace();
+
+        // Act
+        DriveTheRacedFrame();
 
         // Assert — a reset between the apply and this frame's reconstruction would silently revert the
         // frame to the 50 MHz fallback tick and re-baseline it, so the apply and the ProcessTimestamp
-        // it was performed for have to stay adjacent.
+        // it was performed for have to stay adjacent
         var calls = _device.ProcessorCalls;
         var applyIndex = calls.IndexOf(SET_FREQUENCY_CALL);
         Assert.AreNotEqual(-1, applyIndex, "The session should have applied the device-reported frequency.");
@@ -119,7 +143,8 @@ public class TimestampProcessorSerializationTests : IDisposable
     {
         // Arrange — a stop/start raced the previous session's frequency apply and has now landed, so
         // the restarted session starts with the processor's frequency table cleared
-        RunFrequencyApplyRacedByStopStart();
+        StartSessionAndArmTheRace();
+        DriveTheRacedFrame();
 
         // Act — two frames of the restarted session exactly one device-second apart at the reported
         // frequency, a restart gap past the racing session's last counter value
@@ -144,16 +169,23 @@ public class TimestampProcessorSerializationTests : IDisposable
 
     #region Helpers
     /// <summary>
-    /// Runs one streaming session whose first frequency apply is raced by a real stop/start on another
-    /// thread, and returns once that stop/start has finished. A fresh connection holds the first frame
-    /// until its successor validates the pair as same-session data, so the apply — and with it the
-    /// armed race — happens inside the second routed frame.
+    /// Starts a streaming session and routes its first frame, which a fresh connection holds until a
+    /// successor validates the pair as same-session data, then arms the race. Nothing has reached
+    /// <c>ProcessStreamMessage</c> yet, so no frequency has been applied.
     /// </summary>
-    private void RunFrequencyApplyRacedByStopStart()
+    private void StartSessionAndArmTheRace()
     {
         _device.InitializeStreaming();
         _device.RouteStreamFrame(FIRST_FRAME_TIMESTAMP);
         _device.ArmStopStartDuringFrequencyApply();
+    }
+
+    /// <summary>
+    /// Routes the successor frame, which releases the held pair and so performs the session's first
+    /// frequency apply — firing the armed race — and returns once that race has finished.
+    /// </summary>
+    private void DriveTheRacedFrame()
+    {
         _device.RouteStreamFrame(FIRST_FRAME_TIMESTAMP + SAMPLE_PERIOD_TICKS);
         _device.WaitForRacingStopStart();
     }
@@ -171,7 +203,7 @@ public class TimestampProcessorSerializationTests : IDisposable
 
         private readonly SilentCoreDevice _coreDevice;
         private readonly RecordingTimestampProcessor _processor;
-        private readonly ManualResetEventSlim _racingStopStartStarted = new(false);
+        private readonly ManualResetEventSlim _racingResetAtBoundary = new(false);
         private readonly ManualResetEventSlim _racingStopStartCompleted = new(false);
         private Thread? _racingStopStart;
         private Exception? _racingStopStartFailure;
@@ -180,9 +212,10 @@ public class TimestampProcessorSerializationTests : IDisposable
         {
             _processor = new RecordingTimestampProcessor(new TimestampProcessor());
 
-            // The production processor is init-only precisely so a test double can substitute an
-            // instrumented one here; nothing can swap it afterwards.
+            // Both dependencies are init-only precisely so a test double can substitute an
+            // instrumented one here; nothing can swap them afterwards.
             FrameTimestampProcessor = _processor;
+            AppLogger = new BoundarySignallingAppLogger(_racingResetAtBoundary);
 
             _coreDevice = new SilentCoreDevice();
             _coreDevice.Connect();
@@ -218,16 +251,20 @@ public class TimestampProcessorSerializationTests : IDisposable
         /// frequency is applied, and the silent 20 ns fallback when it is not.
         /// </summary>
         public double EffectiveTickPeriod =>
-            _processor.GetTickPeriod(DEVICE_SERIAL_NUMBER.ToString(System.Globalization.CultureInfo.InvariantCulture));
-
-        /// <summary>Whether the racing stop/start had actually begun before the guarded region ended.</summary>
-        public bool RacingStopStartWasRunning { get; private set; }
+            _processor.GetTickPeriod(DEVICE_SERIAL_NUMBER.ToString(CultureInfo.InvariantCulture));
 
         /// <summary>
-        /// Whether the racing stop/start ran to completion while the transport thread was still between
-        /// the frequency apply and the gate write — the interleaving the fix has to make impossible.
+        /// Whether the racing thread reached the statement immediately before <c>StopStreaming</c>'s
+        /// guarded region while the transport thread still held that region open. Without this, a
+        /// completion timeout would only prove the thread had not got going yet.
         /// </summary>
-        public bool RacingStopStartCompletedInsideTheGuardedRegion { get; private set; }
+        public bool RacingResetReachedTheBoundary { get; private set; }
+
+        /// <summary>
+        /// Whether the racing reset ran to completion while the transport thread was still between the
+        /// frequency apply and the gate write — the interleaving the fix has to make impossible.
+        /// </summary>
+        public bool RacingResetCompletedInsideTheGuardedRegion { get; private set; }
 
         public override ConnectionType ConnectionType => ConnectionType.Usb;
 
@@ -263,8 +300,8 @@ public class TimestampProcessorSerializationTests : IDisposable
 
         /// <summary>
         /// Arms a one-shot race: the next frequency apply starts a real stop/start on another thread
-        /// and does not return until that thread is running and has been given
-        /// <see cref="RESET_PROBE_TIMEOUT_MS"/> to complete.
+        /// and does not return until that thread has reached the reset's critical-section boundary and
+        /// then been watched for <see cref="RESET_PROBE_TIMEOUT_MS"/>.
         /// </summary>
         public void ArmStopStartDuringFrequencyApply()
         {
@@ -294,15 +331,15 @@ public class TimestampProcessorSerializationTests : IDisposable
         public void Dispose()
         {
             _racingStopStart?.Join(PROGRESS_TIMEOUT_MS);
-            _racingStopStartStarted.Dispose();
+            _racingResetAtBoundary.Dispose();
             _racingStopStartCompleted.Dispose();
             _coreDevice.Dispose();
         }
 
         /// <summary>
         /// Runs on the transport thread, from inside the frequency apply. Starts the stop/start a user
-        /// could trigger at this instant and gives it a real window to land before the gate write that
-        /// follows.
+        /// could trigger at this instant, waits until it is provably at the reset's critical-section
+        /// boundary, and only then measures whether it can get past it before the gate write.
         /// </summary>
         private void RaceStopStartAgainstThisFrame()
         {
@@ -310,7 +347,6 @@ public class TimestampProcessorSerializationTests : IDisposable
 
             _racingStopStart = new Thread(() =>
             {
-                _racingStopStartStarted.Set();
                 try
                 {
                     StopStreaming();
@@ -329,8 +365,10 @@ public class TimestampProcessorSerializationTests : IDisposable
             };
             _racingStopStart.Start();
 
-            RacingStopStartWasRunning = _racingStopStartStarted.Wait(PROGRESS_TIMEOUT_MS);
-            RacingStopStartCompletedInsideTheGuardedRegion = _racingStopStartCompleted.Wait(RESET_PROBE_TIMEOUT_MS);
+            // Signalled by the instrumented logger from StopStreaming's last statement before the
+            // guarded region, so from here an unserialized reset has only the lock left to take.
+            RacingResetReachedTheBoundary = _racingResetAtBoundary.Wait(PROGRESS_TIMEOUT_MS);
+            RacingResetCompletedInsideTheGuardedRegion = _racingStopStartCompleted.Wait(RESET_PROBE_TIMEOUT_MS);
         }
     }
 
@@ -395,6 +433,58 @@ public class TimestampProcessorSerializationTests : IDisposable
             {
                 _calls.Add(call);
             }
+        }
+    }
+
+    /// <summary>
+    /// Swallows the device's diagnostics, except for the one breadcrumb
+    /// (<see cref="RESET_BOUNDARY_BREADCRUMB"/>) that <c>StopStreaming</c> records immediately before
+    /// its guarded region — which it turns into the signal the race probe starts from.
+    /// </summary>
+    private sealed class BoundarySignallingAppLogger(ManualResetEventSlim reachedResetBoundary) : IAppLogger
+    {
+        public void AddBreadcrumb(
+            string category,
+            string message,
+            Common.Loggers.BreadcrumbLevel level = Common.Loggers.BreadcrumbLevel.Info)
+        {
+            if (message == RESET_BOUNDARY_BREADCRUMB)
+            {
+                reachedResetBoundary.Set();
+            }
+        }
+
+        public void Information(string message)
+        {
+        }
+
+        public void Warning(string message)
+        {
+        }
+
+        public void Warning(Exception ex, string message)
+        {
+        }
+
+        public void Error(string message)
+        {
+        }
+
+        public void Error(Exception ex, string message)
+        {
+        }
+
+        public void SetDeviceContext(
+            string model, string serialNumber, string firmwareVersion, string connectionType, int activeChannels)
+        {
+        }
+
+        public void ClearDeviceContext()
+        {
+        }
+
+        public void Shutdown()
+        {
         }
     }
 
