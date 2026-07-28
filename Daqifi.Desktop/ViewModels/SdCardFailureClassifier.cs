@@ -115,6 +115,8 @@ public static class SdCardFailureClassifier
             // FAT card, is therefore indistinguishable from a wedged subsystem. Treat it as
             // per-file: one benign empty file used to make every file listed after it unimportable
             // through Import All (issue #780).
+            //
+            // Revisit once Core makes the empty-transfer check size-aware. See daqifi-core#398 (gap 2).
             SdCardEmptyTransferException => new SdCardFailure(
                 State: SdCardState.Error,
                 StatusMessage: "The device returned no data for this file.",

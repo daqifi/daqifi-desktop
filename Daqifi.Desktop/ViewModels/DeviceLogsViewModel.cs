@@ -514,7 +514,8 @@ public partial class DeviceLogsViewModel : ObservableObject
 
         if (outcome.AbortingFailure != null)
         {
-            message.Append(CultureInfo.CurrentCulture, $"\n\nImport stopped at {outcome.AbortedOnFile}: {outcome.AbortingFailure.Guidance}");
+            message.Append(CultureInfo.CurrentCulture,
+                $"\n\nImport stopped at {outcome.AbortedOnFile}: {outcome.AbortingFailure.Guidance}");
         }
 
         if (outcome.TimestampWarningCount > 0)

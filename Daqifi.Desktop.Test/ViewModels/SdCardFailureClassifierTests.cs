@@ -27,7 +27,8 @@ public class SdCardFailureClassifierTests
 
         // Assert
         Assert.IsTrue(failure.IsExpectedDeviceCondition,
-            "A device that serves no data is a device condition, so it must log at Warning and not file a Sentry issue.");
+            "A device that serves no data is a device condition, so it must log at Warning and not " +
+            "file a Sentry issue.");
         Assert.IsFalse(failure.IsCardUnavailable,
             "Issue #780: Core cannot tell a genuinely empty 0-byte log from a wedged subsystem, so " +
             "this must not abort a batch and strand every file listed after it.");

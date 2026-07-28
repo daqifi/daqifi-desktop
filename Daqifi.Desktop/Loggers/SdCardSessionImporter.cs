@@ -273,6 +273,8 @@ public class SdCardSessionImporter : ISdCardSessionImporter
             // else in the import says nothing about the SD card and must keep the generic Error
             // path. Core's exception is preserved as the inner one so the byte count and reason it
             // reports still reach the log.
+            //
+            // Workaround: retire once Core reports stalls with a type. See daqifi-core#398 (gap 1).
             throw new SdCardDownloadStalledException(fileName, ex);
         }
     }
