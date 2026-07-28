@@ -158,7 +158,8 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
                     if (!hold.IsHolding)
                     {
                         RemoveHold(devicePath, hold);
-                        _logger.Information($"{devicePath} is no longer a bootloader after flashing; dropped from the held list.");
+                        _logger.Information(
+                            $"{devicePath} is no longer a bootloader after flashing; dropped from the held list.");
                     }
                 }
             }
