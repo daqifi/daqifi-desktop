@@ -210,15 +210,17 @@ public class ImportTimestampQualityTests
     }
 
     /// <summary>
-    /// The sample count in this sentence is formatted for the user's locale, so the percentage
-    /// beside it must be too — one sentence carrying two decimal conventions reads as a bug. The
+    /// The count and the percentage in this sentence come from separate formatting paths, so both
+    /// are pinned here: a warning reading "1.500 of the samples ... (30.0%)" mixes two conventions
+    /// in one breath. The 1,500 row is the one with a culture-dependent grouping separator, and the
     /// below-resolution marker is built from the same culture rather than a hardcoded "&lt;0.1".
     /// </summary>
     [TestMethod]
-    [DataRow(30, 100, "(30,0%)")]
-    [DataRow(1, 5000, "(<0,1%)")]
-    public void BuildUserWarning_CommaDecimalCulture_FormatsPercentInThatCulture(
-        int substituted, int totalEntries, string expectedPercent)
+    [DataRow(30, 100, "30", "(30,0%)")]
+    [DataRow(1, 5000, "1", "(<0,1%)")]
+    [DataRow(1500, 5000, "1.500", "(30,0%)")]
+    public void BuildUserWarning_CommaDecimalCulture_FormatsCountAndPercentInThatCulture(
+        int substituted, int totalEntries, string expectedCount, string expectedPercent)
     {
         // Arrange
         Thread.CurrentThread.CurrentCulture = new CultureInfo("de-DE");
@@ -237,6 +239,8 @@ public class ImportTimestampQualityTests
 
         // Assert
         Assert.IsNotNull(warning);
+        StringAssert.Contains(warning, $"{expectedCount} of the samples",
+            "The sample count must carry the culture's grouping separator.");
         StringAssert.Contains(warning, expectedPercent,
             "The percentage — marker included — must use the same separators as the count beside it.");
     }
