@@ -108,11 +108,20 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// <c>DaqifiStreamingDevice</c> decodes every raw stream frame into per-channel samples and
     /// raises <see cref="Daqifi.Core.Channel.IChannel.SampleReceived"/> automatically whenever its
     /// own <c>IsStreaming</c> flag is set — independent of the leftover-frame/first-frame gating
-    /// below. Keyed by the desktop channel wrapper (stable across <c>ReplaceCoreChannel</c> calls)
-    /// so the handler on the previous Core channel instance can be found and removed.
+    /// below. Keyed by the desktop channel wrapper so the handler installed on its Core channel can
+    /// be found and removed when the wrapper leaves <see cref="DataChannels"/>.
     /// </summary>
+    /// <remarks>
+    /// Keyed by <em>reference identity</em>: <see cref="AbstractChannel"/> overrides equality and
+    /// hashing on its mutable <see cref="IChannel.Name"/>, so under default equality two wrappers
+    /// for the same logical channel would share one entry — a rebuilt wrapper's subscription would
+    /// overwrite the outgoing wrapper's, and the cleanup in <see cref="SyncChannelsFromCore"/> would
+    /// then detach the wrong delegate, leaking the old Core subscription and leaving the new one
+    /// untracked. A rename would likewise strand an entry. <see cref="ReferenceComparer{T}"/> makes
+    /// every wrapper its own key regardless of what its name does.
+    /// </remarks>
     private readonly Dictionary<IChannel, EventHandler<Daqifi.Core.Channel.SampleReceivedEventArgs>>
-        _channelSampleHandlers = new();
+        _channelSampleHandlers = new(ReferenceComparer<IChannel>.Instance);
 
     /// <summary>
     /// Gate for <see cref="OnCoreChannelSampleReceived"/>: true only while the raw frame Core is
@@ -778,11 +787,21 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// Subscribes to a Core channel's <see cref="Daqifi.Core.Channel.IChannel.SampleReceived"/>,
     /// routing decoded samples through <see cref="OnCoreChannelSampleReceived"/> for the given
     /// desktop channel wrapper. Tracks the handler by desktop channel so
-    /// <see cref="UnsubscribeChannelSamples"/> can remove it later even after
-    /// <c>ReplaceCoreChannel</c> has swapped in a different Core channel instance.
+    /// <see cref="UnsubscribeChannelSamples"/> can remove exactly the delegate that was added —
+    /// the handler closes over the wrapper, so it cannot be reconstructed for removal.
     /// </summary>
     private void SubscribeChannelSamples(IChannel desktopChannel, Daqifi.Core.Channel.IChannel coreChannel)
     {
+        // Subscribing a wrapper that already has a tracked handler would strand the old delegate:
+        // the map holds one handler per wrapper, so the previous one becomes unreachable and stays
+        // attached, doubling every sample the wrapper routes. Detach it first — a wrapper's Core
+        // channel is readonly, so the delegate found here is necessarily attached to this same
+        // coreChannel.
+        if (_channelSampleHandlers.Remove(desktopChannel, out var previousHandler))
+        {
+            coreChannel.SampleReceived -= previousHandler;
+        }
+
         EventHandler<Daqifi.Core.Channel.SampleReceivedEventArgs> handler =
             (_, e) => OnCoreChannelSampleReceived(desktopChannel, e.Sample);
         coreChannel.SampleReceived += handler;
@@ -1543,31 +1562,25 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         {
             var channelKey = GetChannelKey(coreChannel);
 
-            if (existingChannels.TryGetValue(channelKey, out var existingChannel))
+            // Core updates a channel in place when its (type, number) identity is unchanged
+            // (daqifi-core#309), so a re-population hands back the very same IChannel instance the
+            // wrapper is already built around, with its enable/direction/output/PWM state intact.
+            // Reference equality is the check: it is what makes rewiring unnecessary, and it fails
+            // closed — if Core ever hands back a different instance for the same key, the wrapper
+            // is rebuilt below rather than left pointing at a channel the device no longer owns.
+            if (existingChannels.TryGetValue(channelKey, out var existingChannel)
+                && ReferenceEquals(GetCoreChannel(existingChannel), coreChannel))
             {
                 handledExistingKeys.Add(channelKey);
-                switch (existingChannel)
-                {
-                    case AnalogChannel desktopAnalogChannel
-                        when coreChannel is Daqifi.Core.Channel.IAnalogChannel coreAnalogChannel:
-                        UnsubscribeChannelSamples(desktopAnalogChannel, desktopAnalogChannel.CoreChannel);
-                        desktopAnalogChannel.ReplaceCoreChannel(coreAnalogChannel);
-                        desktopAnalogChannel.DeviceName = DevicePartNumber;
-                        desktopAnalogChannel.DeviceSerialNo = DeviceSerialNo;
-                        SubscribeChannelSamples(desktopAnalogChannel, coreAnalogChannel);
-                        updatedChannels.Add(desktopAnalogChannel);
-                        continue;
 
-                    case DigitalChannel desktopDigitalChannel
-                        when coreChannel is Daqifi.Core.Channel.IDigitalChannel coreDigitalChannel:
-                        UnsubscribeChannelSamples(desktopDigitalChannel, desktopDigitalChannel.CoreChannel);
-                        desktopDigitalChannel.ReplaceCoreChannel(coreDigitalChannel);
-                        desktopDigitalChannel.DeviceName = DevicePartNumber;
-                        desktopDigitalChannel.DeviceSerialNo = DeviceSerialNo;
-                        SubscribeChannelSamples(desktopDigitalChannel, coreDigitalChannel);
-                        updatedChannels.Add(desktopDigitalChannel);
-                        continue;
-                }
+                // Metadata can land after the channels do, so these are refreshed every sync.
+                existingChannel.DeviceName = DevicePartNumber;
+                existingChannel.DeviceSerialNo = DeviceSerialNo;
+
+                // The sample subscription is still attached to this same Core instance — tearing it
+                // down and re-adding it would only risk dropping a frame mid-stream.
+                updatedChannels.Add(existingChannel);
+                continue;
             }
 
             var desktopChannel = CreateDesktopChannel(coreChannel);
@@ -1578,9 +1591,10 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             }
         }
 
-        // A channel present before this sync but absent from the new Core snapshot (e.g. a
-        // reconfigured channel count) still holds a subscription onto its old Core channel —
-        // remove it so a stale handler can't fire against a channel no longer in DataChannels.
+        // Any wrapper not carried forward above — dropped from the new Core snapshot (e.g. a
+        // reconfigured channel count), or replaced because Core handed back a different instance
+        // for its key — still holds a subscription onto its old Core channel. Remove it so a stale
+        // handler can't fire against a channel no longer in DataChannels.
         foreach (var (key, oldChannel) in existingChannels)
         {
             if (handledExistingKeys.Contains(key))

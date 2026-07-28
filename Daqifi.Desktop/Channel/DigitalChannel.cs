@@ -19,7 +19,9 @@ public class DigitalChannel : AbstractChannel
     /// <summary>
     /// Core channel implementation handling device communication
     /// </summary>
-    private Daqifi.Core.Channel.IDigitalChannel _coreChannel;
+    // readonly: Core updates a channel in place across re-population rather than recreating it
+    // (daqifi-core#309), so a wrapper is built around one Core instance for its whole lifetime.
+    private readonly Daqifi.Core.Channel.IDigitalChannel _coreChannel;
     #endregion
 
     #region Properties
@@ -190,35 +192,6 @@ public class DigitalChannel : AbstractChannel
         HydrateIsDigitalOn(coreChannel.OutputValue);
     }
 
-    internal void ReplaceCoreChannel(Daqifi.Core.Channel.IDigitalChannel coreChannel)
-    {
-        ArgumentNullException.ThrowIfNull(coreChannel);
-
-        var wasEnabled = _coreChannel.IsEnabled;
-        var direction = _coreChannel.Direction;
-        var outputValue = _coreChannel.OutputValue;
-        var isPwmEnabled = _coreChannel.IsPwmEnabled;
-        var pwmDutyCyclePercent = _coreChannel.PwmDutyCyclePercent;
-
-        _coreChannel = coreChannel;
-        _coreChannel.IsEnabled = wasEnabled;
-        _coreChannel.Direction = direction;
-        _coreChannel.OutputValue = outputValue;
-        _coreChannel.IsPwmEnabled = isPwmEnabled;
-        _coreChannel.PwmDutyCyclePercent = pwmDutyCyclePercent;
-
-        // Keep the desktop commanded-state flag in lockstep with Core's mirror so the
-        // tile/toggle cannot desync after a refresh (no device command is re-issued).
-        HydrateIsDigitalOn(outputValue);
-
-        OnPropertyChanged(nameof(Name));
-        OnPropertyChanged(nameof(Direction));
-        OnPropertyChanged(nameof(Index));
-        OnPropertyChanged(nameof(IsActive));
-        OnPropertyChanged(nameof(IsPwmCapable));
-        OnPropertyChanged(nameof(IsPwmEnabled));
-        OnPropertyChanged(nameof(PwmDutyCyclePercent));
-    }
     #endregion
 
     #region Object Overrides

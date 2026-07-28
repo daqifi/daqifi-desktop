@@ -509,12 +509,12 @@ public class AbstractStreamingDeviceTests
         digitalChannel.CoreChannel.Direction = Daqifi.Core.Channel.ChannelDirection.Output;
         digitalChannel.CoreChannel.OutputValue = true;
 
-        var refreshedCoreDevice = BuildCoreDeviceSnapshot(
-            firmwareVersion: "2.0.0",
-            calibrationM: 2.5f);
+        // A refresh re-populates the same Core device — Core updates its channels in place
+        // (daqifi-core#309) rather than building new instances.
+        RepopulateCoreDevice(initialCoreDevice, firmwareVersion: "2.0.0", calibrationM: 2.5f);
 
         // Act
-        device.ApplyCoreSnapshot(refreshedCoreDevice);
+        device.ApplyCoreSnapshot(initialCoreDevice);
 
         // Assert
         var refreshedAnalogChannel = device.DataChannels.OfType<AnalogChannel>().Single();
@@ -530,10 +530,10 @@ public class AbstractStreamingDeviceTests
         Assert.AreEqual(
             Daqifi.Core.Channel.ChannelDirection.Output,
             refreshedDigitalChannel.Direction,
-            "Channel direction should survive a core-channel replacement.");
+            "Channel direction should survive a channel refresh.");
         Assert.IsTrue(
             refreshedDigitalChannel.CoreChannel.OutputValue,
-            "Commanded output state should survive a core-channel replacement (issue #663).");
+            "Commanded output state should survive a channel refresh (issue #663).");
         Assert.AreEqual(2.5d, refreshedAnalogChannel.CalibrationMValue, 0.001d, "Core calibration data should refresh.");
         Assert.AreEqual("2.0.0", device.DeviceVersion);
         Assert.AreEqual(DeviceType.Nyquist1, device.DeviceType);
@@ -601,9 +601,10 @@ public class AbstractStreamingDeviceTests
         originalAnalog.ScaleExpression = "x * 5";
         originalAnalog.IsScalingActive = true;
 
-        // Act — same-session channel refresh (e.g., re-query device info)
-        var refreshedCoreDevice = BuildCoreDeviceSnapshot(firmwareVersion: "1.0.0", calibrationM: 2.0f);
-        device.SimulateChannelsPopulated(refreshedCoreDevice);
+        // Act — same-session channel refresh (e.g., re-query device info) on the same Core device,
+        // which is the only shape a refresh takes in production
+        RepopulateCoreDevice(coreDevice, firmwareVersion: "1.0.0", calibrationM: 2.0f);
+        device.SimulateChannelsPopulated(coreDevice);
 
         // Assert — wrapper identity preserved, core calibration refreshed
         var refreshedAnalog = device.DataChannels.OfType<AnalogChannel>().Single();
@@ -850,11 +851,22 @@ public class AbstractStreamingDeviceTests
 
     private static DaqifiDevice BuildCoreDeviceSnapshot(string firmwareVersion, float calibrationM)
     {
-        var statusMessage = BuildStatusMessage(firmwareVersion, calibrationM);
         var coreDevice = new DaqifiDevice("Core Test Device");
+        RepopulateCoreDevice(coreDevice, firmwareVersion, calibrationM);
+        return coreDevice;
+    }
+
+    /// <summary>
+    /// Re-runs metadata + channel population on an existing Core device, which is what a routine
+    /// status frame does in production. A same-session refresh always comes from the one Core
+    /// device the wrapper connected — a reconnect builds a new Core device but also clears
+    /// <c>DataChannels</c> first, so a wrapper never survives to meet a different Core instance.
+    /// </summary>
+    private static void RepopulateCoreDevice(DaqifiDevice coreDevice, string firmwareVersion, float calibrationM)
+    {
+        var statusMessage = BuildStatusMessage(firmwareVersion, calibrationM);
         coreDevice.Metadata.UpdateFromProtobuf(statusMessage);
         coreDevice.PopulateChannelsFromStatus(statusMessage);
-        return coreDevice;
     }
 
     private static DaqifiOutMessage BuildStatusMessage(string firmwareVersion, float calibrationM)
