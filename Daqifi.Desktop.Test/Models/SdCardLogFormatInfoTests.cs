@@ -1,0 +1,153 @@
+using Daqifi.Core.Device.SdCard;
+using Daqifi.Desktop.Models;
+
+namespace Daqifi.Desktop.Test.Models;
+
+/// <summary>
+/// Covers the SD card log format presentation that replaced the desktop's own hardcoded
+/// <c>.bin</c>/<c>.json</c>/<c>.csv</c> lists (daqifi-core#307). The point of the change is that
+/// Core's <see cref="SdCardFileParserFactory"/> — not this app — decides which extensions are
+/// importable, so these tests assert the mapping is driven off Core rather than re-asserting a
+/// second hardcoded list.
+/// </summary>
+[TestClass]
+public class SdCardLogFormatInfoTests
+{
+    [TestMethod]
+    public void BuildOpenFileDialogFilter_HasTheShapeTheImportDialogExpects()
+    {
+        // Arrange — the expectation is derived from Core, so a format Core adds flows through
+        // instead of failing CI.
+        var patterns = SdCardFileParserFactory.SupportedExtensions
+            .Select(extension => $"*{extension}")
+            .ToList();
+        var combined = string.Join(";", patterns);
+
+        // Act
+        var filter = SdCardLogFormatInfo.BuildOpenFileDialogFilter();
+
+        // Assert — a combined "all log files" group first, an All Files escape hatch last, and
+        // description/pattern pairs throughout, which is all OpenFileDialog.Filter requires.
+        StringAssert.StartsWith(filter, $"SD Card Log Files ({combined})|{combined}|",
+            "The dialog must still open on a combined group listing every format Core parses.");
+        StringAssert.EndsWith(filter, "|All Files (*.*)|*.*",
+            "The dialog must still let the user reach a file Core has no parser for.");
+        Assert.AreEqual(0, filter.Split('|').Length % 2,
+            "OpenFileDialog.Filter is description/pattern pairs, so its section count must be even.");
+    }
+
+    [TestMethod]
+    public void BuildOpenFileDialogFilter_CoversEveryExtensionCoreSupports()
+    {
+        // Act
+        var filter = SdCardLogFormatInfo.BuildOpenFileDialogFilter();
+
+        // Assert — the guarantee that makes this Core-driven rather than a second hardcoded list.
+        foreach (var extension in SdCardFileParserFactory.SupportedExtensions)
+        {
+            var pattern = $"*{extension}";
+
+            StringAssert.Contains(filter, $"({pattern})|{pattern}",
+                $"Core parses '{extension}', so the import dialog must offer it its own entry.");
+        }
+    }
+
+    // The per-format entries that lived in DaqifiViewModel.ImportSdCardLogFile's filter literal
+    // before the switch to Core-driven construction. Only these three are the desktop's to keep
+    // stable; which other entries appear — and in what order — is Core's call now, so they are
+    // asserted one at a time rather than by pinning the whole filter string.
+    [TestMethod]
+    [DataRow("Protobuf (*.bin)|*.bin")]
+    [DataRow("JSON (*.json)|*.json")]
+    [DataRow("CSV (*.csv)|*.csv")]
+    public void BuildOpenFileDialogFilter_KeepsTheEntriesItReplacedVerbatim(string legacyEntry)
+    {
+        // Act
+        var filter = SdCardLogFormatInfo.BuildOpenFileDialogFilter();
+
+        // Assert — the format is still offered under the same label and pattern it had before, so
+        // the import dialog reads the same as it did.
+        StringAssert.Contains(filter, legacyEntry,
+            $"The filter this replaced offered '{legacyEntry}', so the generated one must too.");
+    }
+
+    [TestMethod]
+    public void DisplayNameFor_LabelsEveryFormatCoreCanDetect()
+    {
+        // Act & Assert — no extension Core recognizes may fall through to "Unknown", which is
+        // what the user sees in the SD card file list's Format column.
+        foreach (var extension in SdCardFileParserFactory.SupportedExtensions)
+        {
+            var display = SdCardLogFormatInfo.DisplayNameFor($"log_20260623_143217{extension}");
+
+            Assert.AreNotEqual(SdCardLogFormatInfo.UNKNOWN_FORMAT_DISPLAY, display,
+                $"Core detects a format for '{extension}', so it must have a user-facing label.");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(display));
+        }
+    }
+
+    [TestMethod]
+    [DataRow("log.bin", "Protobuf")]
+    [DataRow("log.json", "JSON")]
+    [DataRow("log.csv", "CSV")]
+    public void DisplayNameFor_UsesTheLabelsShownBeforeTheCoreSwitch(string fileName, string expected)
+    {
+        // Act
+        var display = SdCardLogFormatInfo.DisplayNameFor(fileName);
+
+        // Assert — the three formats that shipped with the old hardcoded switch keep their exact
+        // labels, so the Format column reads the same as it did.
+        Assert.AreEqual(expected, display);
+    }
+
+    [TestMethod]
+    public void DisplayNameFor_IsCaseInsensitive()
+    {
+        // Act — firmware has shipped upper-case names on the card before now.
+        var display = SdCardLogFormatInfo.DisplayNameFor("LOG.BIN");
+
+        // Assert
+        Assert.AreEqual("Protobuf", display);
+    }
+
+    [TestMethod]
+    public void DisplayNameFor_UnrecognizedExtension_IsUnknown()
+    {
+        Assert.AreEqual(SdCardLogFormatInfo.UNKNOWN_FORMAT_DISPLAY,
+            SdCardLogFormatInfo.DisplayNameFor("readme.txt"));
+    }
+
+    [TestMethod]
+    public void DisplayNameFor_NameWithNoExtension_IsUnknown()
+    {
+        Assert.AreEqual(SdCardLogFormatInfo.UNKNOWN_FORMAT_DISPLAY,
+            SdCardLogFormatInfo.DisplayNameFor("LOG"));
+    }
+
+    [TestMethod]
+    [DataRow("")]
+    [DataRow("   ")]
+    public void DisplayNameFor_EmptyOrWhitespaceName_IsUnknownRatherThanThrowing(string fileName)
+    {
+        // Act — Core's TryDetectFormat throws on null, so the guard has to run before it.
+        var display = SdCardLogFormatInfo.DisplayNameFor(fileName);
+
+        // Assert — a blank name reaching the Format column must degrade to a label, not take down
+        // the SD card file list.
+        Assert.AreEqual(SdCardLogFormatInfo.UNKNOWN_FORMAT_DISPLAY, display);
+    }
+
+    [TestMethod]
+    public void SdCardFile_FormatDisplay_DelegatesToTheSharedMapping()
+    {
+        // Arrange
+        var file = new SdCardFile { FileName = "log_20260623_143217.csv" };
+
+        // Act
+        var formatDisplay = file.FormatDisplay;
+
+        // Assert
+        Assert.AreEqual(SdCardLogFormatInfo.DisplayNameFor(file.FileName), formatDisplay);
+        Assert.AreEqual("CSV", formatDisplay);
+    }
+}
