@@ -14,24 +14,39 @@ namespace Daqifi.Desktop.Test.Models;
 public class SdCardLogFormatInfoTests
 {
     /// <summary>
-    /// The filter literal that lived in <c>DaqifiViewModel.ImportSdCardLogFile</c> before the
-    /// switch to Core-driven construction. Pinned so the refactor is provably behavior-preserving.
+    /// The per-format entries that lived in <c>DaqifiViewModel.ImportSdCardLogFile</c>'s filter
+    /// literal before the switch to Core-driven construction. Only these three are the desktop's
+    /// to keep stable; which other entries appear — and in what order — is Core's call now, so
+    /// they are asserted individually rather than by pinning the whole filter string.
     /// </summary>
-    private const string LEGACY_FILTER =
-        "SD Card Log Files (*.bin;*.json;*.csv)|*.bin;*.json;*.csv|" +
-        "Protobuf (*.bin)|*.bin|JSON (*.json)|*.json|CSV (*.csv)|*.csv|" +
-        "All Files (*.*)|*.*";
+    private static readonly string[] LEGACY_FILTER_ENTRIES =
+    [
+        "Protobuf (*.bin)|*.bin",
+        "JSON (*.json)|*.json",
+        "CSV (*.csv)|*.csv"
+    ];
 
     [TestMethod]
-    public void BuildOpenFileDialogFilter_MatchesTheFilterItReplaced()
+    public void BuildOpenFileDialogFilter_HasTheShapeTheImportDialogExpects()
     {
+        // Arrange — the expectation is derived from Core, so a format Core adds flows through
+        // instead of failing CI.
+        var patterns = SdCardFileParserFactory.SupportedExtensions
+            .Select(extension => $"*{extension}")
+            .ToList();
+        var combined = string.Join(";", patterns);
+
         // Act
         var filter = SdCardLogFormatInfo.BuildOpenFileDialogFilter();
 
-        // Assert
-        Assert.AreEqual(LEGACY_FILTER, filter,
-            "Building the filter from Core's SupportedExtensions must reproduce the literal it " +
-            "replaced — otherwise the import dialog silently changed which files it offers.");
+        // Assert — a combined "all log files" group first, an All Files escape hatch last, and
+        // description/pattern pairs throughout, which is all OpenFileDialog.Filter requires.
+        StringAssert.StartsWith(filter, $"SD Card Log Files ({combined})|{combined}|",
+            "The dialog must still open on a combined group listing every format Core parses.");
+        StringAssert.EndsWith(filter, "|All Files (*.*)|*.*",
+            "The dialog must still let the user reach a file Core has no parser for.");
+        Assert.AreEqual(0, filter.Split('|').Length % 2,
+            "OpenFileDialog.Filter is description/pattern pairs, so its section count must be even.");
     }
 
     [TestMethod]
@@ -43,8 +58,25 @@ public class SdCardLogFormatInfoTests
         // Assert — the guarantee that makes this Core-driven rather than a second hardcoded list.
         foreach (var extension in SdCardFileParserFactory.SupportedExtensions)
         {
-            StringAssert.Contains(filter, $"*{extension}",
-                $"Core parses '{extension}', so the import dialog must offer it.");
+            var pattern = $"*{extension}";
+
+            StringAssert.Contains(filter, $"({pattern})|{pattern}",
+                $"Core parses '{extension}', so the import dialog must offer it its own entry.");
+        }
+    }
+
+    [TestMethod]
+    public void BuildOpenFileDialogFilter_KeepsTheEntriesItReplacedVerbatim()
+    {
+        // Act
+        var filter = SdCardLogFormatInfo.BuildOpenFileDialogFilter();
+
+        // Assert — the three formats the hardcoded literal offered are still offered under the
+        // same labels and patterns, so the import dialog reads the same as it did.
+        foreach (var entry in LEGACY_FILTER_ENTRIES)
+        {
+            StringAssert.Contains(filter, entry,
+                $"The filter this replaced offered '{entry}', so the generated one must too.");
         }
     }
 
@@ -100,8 +132,10 @@ public class SdCardLogFormatInfoTests
     {
         // Core's TryDetectFormat throws on null; an empty or blank name reaching the Format column
         // must degrade to a label, not take down the SD card file list.
-        Assert.AreEqual(SdCardLogFormatInfo.UNKNOWN_FORMAT_DISPLAY, SdCardLogFormatInfo.DisplayNameFor(string.Empty));
-        Assert.AreEqual(SdCardLogFormatInfo.UNKNOWN_FORMAT_DISPLAY, SdCardLogFormatInfo.DisplayNameFor("   "));
+        Assert.AreEqual(SdCardLogFormatInfo.UNKNOWN_FORMAT_DISPLAY,
+            SdCardLogFormatInfo.DisplayNameFor(string.Empty));
+        Assert.AreEqual(SdCardLogFormatInfo.UNKNOWN_FORMAT_DISPLAY,
+            SdCardLogFormatInfo.DisplayNameFor("   "));
     }
 
     [TestMethod]

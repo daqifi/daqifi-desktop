@@ -25,6 +25,11 @@ public static class SdCardLogFormatInfo
     /// <see cref="UNKNOWN_FORMAT_DISPLAY"/> when Core does not recognize the extension.
     /// </summary>
     /// <param name="fileName">The file name or path to label.</param>
+    /// <returns>
+    /// The user-facing label for the detected format, the format's enum name when Core recognizes
+    /// a format this app has no label for, or <see cref="UNKNOWN_FORMAT_DISPLAY"/> when Core does
+    /// not recognize the extension.
+    /// </returns>
     public static string DisplayNameFor(string fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName) ||
@@ -48,6 +53,10 @@ public static class SdCardLogFormatInfo
     /// Builds an <c>OpenFileDialog.Filter</c> covering every format Core can parse: one combined
     /// entry, one entry per format, then "All Files".
     /// </summary>
+    /// <returns>
+    /// A pipe-delimited <c>OpenFileDialog.Filter</c> string of description/pattern pairs, ordered
+    /// as the combined group, one pair per format Core supports, then "All Files".
+    /// </returns>
     public static string BuildOpenFileDialogFilter()
     {
         // "*.bin" rather than a bare ".bin" so the label lookup's Path.GetExtension sees a file
