@@ -16,10 +16,10 @@ public class SdCardFailureClassifierTests
     private const string FileName = "log_20260623_143217.bin";
 
     [TestMethod]
-    public void Classify_EmptyTransfer_IsExpectedDeviceConditionAndAdvisesPowerCycle()
+    public void Classify_EmptyTransfer_IsExpectedDeviceConditionButDoesNotWriteOffTheCard()
     {
-        // Arrange — the exact exception Core 1.3.0 throws for the wedged SD subsystem, and the
-        // one Sentry issue #754 was filed from.
+        // Arrange — the exact exception Core 1.3.0 throws when the device serves a marker-only
+        // transfer, and the one Sentry issue #754 was filed from.
         var ex = new SdCardEmptyTransferException(FileName);
 
         // Act
@@ -27,27 +27,82 @@ public class SdCardFailureClassifierTests
 
         // Assert
         Assert.IsTrue(failure.IsExpectedDeviceCondition,
-            "A wedged SD subsystem is a device condition, so it must log at Warning and not file a Sentry issue.");
-        Assert.IsTrue(failure.IsCardUnavailable,
-            "Nothing else on the card will download either, so a batch import must stop early.");
+            "A device that serves no data is a device condition, so it must log at Warning and not " +
+            "file a Sentry issue.");
+        Assert.IsFalse(failure.IsCardUnavailable,
+            "Issue #780: Core cannot tell a genuinely empty 0-byte log from a wedged subsystem, so " +
+            "this must not abort a batch and strand every file listed after it.");
         Assert.AreEqual(SdCardState.Error, failure.State);
-        Assert.AreEqual(SdCardFailureClassifier.POWER_CYCLE_GUIDANCE, failure.Guidance,
-            "Only a power cycle clears this state, so that is what the user must be told.");
+        Assert.AreEqual(SdCardFailureClassifier.EMPTY_TRANSFER_GUIDANCE, failure.Guidance,
+            "The advice has to cover both readings, not send the user after a power cycle they may not need.");
     }
 
     [TestMethod]
-    public void Classify_DownloadStalled_IsExpectedDeviceConditionAndAdvisesPowerCycle()
+    public void Classify_WatchdogDetectedStall_AdvisesPowerCycleAndStopsTheBatch()
     {
-        // Arrange — what the importer's stall watchdog throws when the device goes quiet.
-        var ex = new SdCardDownloadStalledException(FileName, TimeSpan.FromSeconds(90));
+        // Arrange — what the importer's stall watchdog throws when the device goes quiet: silence
+        // for the full 90-second window. That is unambiguously device-wide, so it is the one
+        // download failure worth abandoning the rest of the batch over.
+        var ex = new SdCardDownloadStalledException(
+            FileName, silentFor: TimeSpan.FromSeconds(90), patienceWindow: TimeSpan.FromSeconds(90));
 
         // Act
         var failure = SdCardFailureClassifier.Classify(ex);
 
         // Assert
         Assert.IsTrue(failure.IsExpectedDeviceCondition);
-        Assert.IsTrue(failure.IsCardUnavailable);
+        Assert.IsTrue(failure.IsCardUnavailable,
+            "90 seconds of total silence per file makes grinding through the rest of the batch pointless and slow.");
         Assert.AreEqual(SdCardState.Error, failure.State);
+        Assert.AreEqual(SdCardFailureClassifier.POWER_CYCLE_GUIDANCE, failure.Guidance);
+    }
+
+    [TestMethod]
+    public void Classify_QuickTransportStall_IsExpectedDeviceConditionAndKeepsTheBatchGoing()
+    {
+        // Arrange — issue #779: over USB serial Core's SdCardFileReceiver raises a plain
+        // TimeoutException within about half a second, long before the watchdog. The importer
+        // normalises it to this type so it stops landing on the Sentry path, but it gives up too
+        // fast and too ambiguously to justify writing off the whole card.
+        var ex = new SdCardDownloadStalledException(
+            FileName,
+            silentFor: TimeSpan.FromMilliseconds(500),
+            patienceWindow: TimeSpan.FromSeconds(90),
+            new TimeoutException("Transport stream closed before receiving the EOF marker."));
+
+        // Act
+        var failure = SdCardFailureClassifier.Classify(ex);
+
+        // Assert
+        Assert.IsTrue(failure.IsExpectedDeviceCondition,
+            "This is the #754 condition on the transport that actually ships, so it must stay off the Error path.");
+        Assert.IsFalse(failure.IsCardUnavailable,
+            "It costs under a second to try the next file, and this one may just be unreadable.");
+        Assert.AreEqual(SdCardState.Error, failure.State);
+        Assert.AreEqual(SdCardFailureClassifier.INCOMPLETE_TRANSFER_GUIDANCE, failure.Guidance);
+        Assert.AreNotEqual(SdCardFailureClassifier.EMPTY_TRANSFER_GUIDANCE, failure.Guidance,
+            "A stall can interrupt a transfer that was already delivering data, so the advice must " +
+            "not diagnose an empty file the way the empty-transfer arm does.");
+    }
+
+    [TestMethod]
+    public void Classify_ProlongedTransportStall_StopsTheBatchLikeTheWatchdogWould()
+    {
+        // Arrange — Core reports its 30-minute transfer cap through the same untyped
+        // TimeoutException as its half-second read timeout. Letting a batch pay that wait once
+        // per remaining file would be far worse than the abort #780 removed, so what decides it
+        // is how long the device had been quiet, not which Core code path raised it.
+        var ex = new SdCardDownloadStalledException(
+            FileName,
+            silentFor: TimeSpan.FromMinutes(30),
+            patienceWindow: TimeSpan.FromSeconds(90),
+            new TimeoutException("SD card file download timed out after 1800 seconds."));
+
+        // Act
+        var failure = SdCardFailureClassifier.Classify(ex);
+
+        // Assert
+        Assert.IsTrue(failure.IsCardUnavailable);
         Assert.AreEqual(SdCardFailureClassifier.POWER_CYCLE_GUIDANCE, failure.Guidance);
     }
 
@@ -83,11 +138,29 @@ public class SdCardFailureClassifierTests
         Assert.AreEqual(string.Empty, failure.StatusMessage,
             "The 'no card installed' panel is self-explanatory; a raw device string would only add noise.");
         Assert.IsTrue(failure.IsExpectedDeviceCondition);
+        Assert.IsTrue(failure.IsCardUnavailable,
+            "An empty slot is unambiguously device-wide: no file on it can be read.");
+    }
+
+    [TestMethod]
+    public void Classify_Busy_IsUnambiguouslyDeviceWide()
+    {
+        // Arrange — the device is logging to the card itself, so nothing on it can be served.
+        // Along with a missing card this is one of only two conditions broad enough to abandon a
+        // batch import over (issue #780).
+        var ex = new SdCardBusyException(new List<string>(), "Card busy");
+
+        // Act
+        var failure = SdCardFailureClassifier.Classify(ex);
+
+        // Assert
+        Assert.AreEqual(SdCardState.Error, failure.State);
+        Assert.IsTrue(failure.IsExpectedDeviceCondition);
         Assert.IsTrue(failure.IsCardUnavailable);
     }
 
     [TestMethod]
-    public void Classify_FilesystemError_SurfacesTheDeviceMessage()
+    public void Classify_FilesystemError_SurfacesTheDeviceMessageAndKeepsTheRestOfTheCardUsable()
     {
         // Arrange
         const string deviceMessage = "FS corrupt";
@@ -100,6 +173,9 @@ public class SdCardFailureClassifierTests
         Assert.AreEqual(SdCardState.Error, failure.State);
         Assert.AreEqual(deviceMessage, failure.StatusMessage);
         Assert.IsTrue(failure.IsExpectedDeviceCondition);
+        Assert.IsFalse(failure.IsCardUnavailable,
+            "Issue #780: a filesystem error can be one corrupt directory entry, so the other files " +
+            "are still worth trying rather than being dropped unattempted.");
         Assert.AreEqual(SdCardFailureClassifier.GENERIC_CARD_GUIDANCE, failure.Guidance);
     }
 

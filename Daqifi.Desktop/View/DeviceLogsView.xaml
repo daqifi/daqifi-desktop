@@ -122,6 +122,7 @@
 
             <Button Grid.Column="3"
                     Style="{StaticResource AccentPillButton}"
+                    AutomationProperties.AutomationId="ImportAllSdCardFilesButton"
                     Command="{Binding ImportAllFilesCommand}"
                     ToolTip="Import all files to application"
                     IsEnabled="{Binding CanAccessSdCard}">

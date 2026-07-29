@@ -20,9 +20,10 @@ public interface ISdCardSessionImporter
     /// <summary>
     /// Downloads an SD card log file from a connected USB device and imports it.
     /// </summary>
-    /// <exception cref="TimeoutException">
-    /// Thrown when the device stops sending data mid-transfer (see
-    /// <see cref="SdCardSessionImporter.DOWNLOAD_STALL_TIMEOUT"/>).
+    /// <exception cref="SdCardDownloadStalledException">
+    /// Thrown when the device stops sending data mid-transfer — either because the desktop's own
+    /// watchdog ran out of patience (see <see cref="SdCardSessionImporter.DOWNLOAD_STALL_TIMEOUT"/>)
+    /// or because the transport reported a timeout first.
     /// </exception>
     Task<SdCardImportResult> ImportFromDeviceAsync(
         IStreamingDevice device,
@@ -218,8 +219,9 @@ public class SdCardSessionImporter : ISdCardSessionImporter
     /// trips it.
     /// </summary>
     /// <exception cref="SdCardDownloadStalledException">
-    /// Thrown when no data arrives for <see cref="_downloadStallTimeout"/>. Callers surface this
-    /// as an expected device condition rather than an app error.
+    /// Thrown when no data arrives for <see cref="_downloadStallTimeout"/>, or when the transport
+    /// reports a timeout of its own first. Callers surface this as an expected device condition
+    /// rather than an app error.
     /// </exception>
     internal async Task<SdCardDownloadResult> DownloadWithStallWatchdogAsync(
         IStreamingDevice device,
@@ -229,10 +231,19 @@ public class SdCardSessionImporter : ISdCardSessionImporter
         using var stallCts = new CancellationTokenSource();
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, stallCts.Token);
 
+        // How long the device has been quiet is what tells a stalled transfer apart from a slow
+        // one, and Core reports both through the same untyped exception, so the desktop has to
+        // measure it. Written from the progress callback and read from the catch blocks, which can
+        // be different threads — hence the volatile tick count rather than a TimeSpan field.
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        long lastProgressTicks = 0;
+
         stallCts.CancelAfter(_downloadStallTimeout);
         var transferProgress = new SynchronousProgress<SdCardTransferProgress>(_ =>
         {
             // Another chunk arrived, so the device is alive — restart the deadline.
+            Volatile.Write(ref lastProgressTicks, elapsed.Elapsed.Ticks);
+
             try
             {
                 stallCts.CancelAfter(_downloadStallTimeout);
@@ -250,8 +261,54 @@ public class SdCardSessionImporter : ISdCardSessionImporter
         catch (OperationCanceledException) when (stallCts.IsCancellationRequested && !ct.IsCancellationRequested)
         {
             // Distinguish our watchdog from a caller-requested cancel: only the watchdog becomes a
-            // stall, so a genuine user cancel still propagates as OperationCanceledException.
-            throw new SdCardDownloadStalledException(fileName, _downloadStallTimeout);
+            // stall, so a genuine user cancel still propagates as OperationCanceledException. The
+            // watchdog fires on exactly one condition — the full stall window with nothing arriving
+            // — so that window is the silence, by construction.
+            throw new SdCardDownloadStalledException(
+                fileName, _downloadStallTimeout, _downloadStallTimeout);
+        }
+        catch (TimeoutException ex)
+        {
+            // Issue #779: over USB serial — the only transport SD import supports — the watchdog
+            // above is effectively unreachable. Core's serial transport drops SerialPort.ReadTimeout
+            // to 500ms after connect and hands the raw BaseStream to SdCardFileReceiver, and .NET's
+            // SerialStream returns 0 bytes on a read timeout rather than throwing or honouring the
+            // token. The receiver treats a 0-byte read as fatal, so a wedged device raises a plain
+            // TimeoutException in about half a second — never as the cancellation the catch above
+            // is waiting for, which left this whole degradation path dead code on real hardware.
+            //
+            // Caught by type rather than by message, and deliberately not tied to that one throw
+            // site: SdCardFileReceiver raises TimeoutException from three places (the 0-byte read
+            // plus two paths for its own 30-minute cap), and Core is free to add more. What makes
+            // the normalisation safe is the *scope* — a timeout out of the download call is by
+            // definition a transfer that did not complete, whereas a TimeoutException from anywhere
+            // else in the import says nothing about the SD card and must keep the generic Error
+            // path. Core's exception is preserved as the inner one so the byte count and reason it
+            // reports still reach the log.
+            //
+            // Workaround: retire once Core reports stalls with a type. See daqifi-core#398 (gap 1).
+            //
+            // A caller-requested cancel wins over all of that. Over serial the read does not
+            // observe the token, so pressing cancel can surface as a transport timeout rather than
+            // a cancellation — and reporting that back as a device fault would tell the user their
+            // hardware failed when in fact they stopped it themselves.
+            ct.ThrowIfCancellationRequested();
+
+            // Report the silence, not the total transfer time. A large file that streamed steadily
+            // for ten minutes and then hit one brief transport timeout is a healthy device and one
+            // unlucky file; ten minutes of nothing is a wedged subsystem. Measuring the whole
+            // attempt would collapse those two into the same answer and abort a batch import over
+            // the first of them.
+            //
+            // Read the last-progress stamp BEFORE sampling the clock. The callback runs on Core's
+            // thread, so sampling the clock first would let a chunk landing in between stamp a
+            // time later than the "now" it is subtracted from, and report a negative silence. This
+            // order cannot: the stopwatch only moves forward, so a stamp read earlier is never
+            // ahead of a reading taken after it. A chunk arriving in the gap merely makes the
+            // reported silence slightly conservative, which is the harmless direction.
+            var lastProgress = TimeSpan.FromTicks(Volatile.Read(ref lastProgressTicks));
+            var silentFor = elapsed.Elapsed - lastProgress;
+            throw new SdCardDownloadStalledException(fileName, silentFor, _downloadStallTimeout, ex);
         }
     }
 

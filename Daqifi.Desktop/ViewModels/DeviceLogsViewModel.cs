@@ -36,6 +36,15 @@ public enum SdCardState
 
 public partial class DeviceLogsViewModel : ObservableObject
 {
+    #region Constants
+    /// <summary>
+    /// How many skipped file names the completion dialog lists before collapsing the rest into a
+    /// count. A card carrying dozens of empty logs would otherwise produce a dialog taller than
+    /// the screen.
+    /// </summary>
+    private const int MAX_LISTED_SKIPPED_FILES = 5;
+    #endregion
+
     private readonly IAppLogger _logger;
 
     /// <summary>
@@ -43,6 +52,13 @@ public partial class DeviceLogsViewModel : ObservableObject
     /// importer from the service provider (which is not available under unit test).
     /// </summary>
     private readonly ISdCardSessionImporter? _importerOverride;
+
+    /// <summary>
+    /// Where a freshly imported session is published, injected by tests. <c>null</c> in production,
+    /// where it goes to <see cref="LoggingManager.Instance"/> — a singleton tests cannot touch,
+    /// because its constructor resolves services from <see cref="App.ServiceProvider"/>.
+    /// </summary>
+    private readonly Action<LoggingSession>? _sessionSinkOverride;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -157,10 +173,17 @@ public partial class DeviceLogsViewModel : ObservableObject
     /// import path without the <see cref="App.ServiceProvider"/> / <see cref="Application.Current"/>
     /// singletons, neither of which exists under test.
     /// </summary>
-    internal DeviceLogsViewModel(IAppLogger? logger, ISdCardSessionImporter? importer)
+    /// <param name="logger">Logger to report failures through.</param>
+    /// <param name="importer">Importer to run imports with.</param>
+    /// <param name="sessionSink">Where successfully imported sessions are published.</param>
+    internal DeviceLogsViewModel(
+        IAppLogger? logger,
+        ISdCardSessionImporter? importer,
+        Action<LoggingSession>? sessionSink = null)
     {
         _logger = logger ?? AppLogger.Instance;
         _importerOverride = importer;
+        _sessionSinkOverride = sessionSink;
 
         ConnectedDevices = new ObservableCollection<IStreamingDevice>();
         DeviceFiles = new ObservableCollection<SdCardFile>();
@@ -378,11 +401,7 @@ public partial class DeviceLogsViewModel : ObservableObject
         if (device is not { ConnectionType: ConnectionType.Usb } || DeviceFiles == null || !DeviceFiles.Any()) return;
 
         var filesToImport = DeviceFiles.ToList();
-        var successCount = 0;
-        var failCount = 0;
-        var timestampWarningCount = 0;
-
-        SdCardFailure? abortingFailure = null;
+        var outcome = new ImportAllOutcome { TotalCount = filesToImport.Count };
 
         try
         {
@@ -409,44 +428,34 @@ public partial class DeviceLogsViewModel : ObservableObject
 
                     if (result.TimestampQuality.HasDegenerateTimeAxis)
                     {
-                        timestampWarningCount++;
+                        outcome.TimestampWarningCount++;
                     }
 
-                    successCount++;
+                    outcome.ImportedCount++;
                 }
                 catch (Exception ex)
                 {
                     var failure = HandleImportFailure(ex, file.FileName, device);
-                    failCount++;
 
                     if (failure.IsCardUnavailable)
                     {
                         // The card itself is gone or wedged: every remaining file would fail the
                         // same way, each burning the same multi-second timeout. Stop here.
-                        abortingFailure = failure;
+                        outcome.AbortingFailure = failure;
+                        outcome.AbortedOnFile = file.FileName;
                         break;
                     }
+
+                    // Anything else may be specific to this file — an empty log, one corrupt
+                    // directory entry, a rejected command. Skip it and keep going: aborting here
+                    // silently dropped every later healthy file, and because the device lists
+                    // files in the same order every time, a retry stopped at the same file
+                    // (issue #780).
+                    outcome.RecordSkip(file.FileName, failure.Guidance);
                 }
             }
 
-            var message = $"Imported {successCount} of {filesToImport.Count} files.";
-            if (failCount > 0)
-            {
-                message += $"\n{failCount} file(s) failed to import.";
-            }
-
-            if (abortingFailure != null)
-            {
-                message += $"\n\nImport stopped early: {abortingFailure.Guidance}";
-            }
-
-            if (timestampWarningCount > 0)
-            {
-                message += $"\nWarning: {timestampWarningCount} file(s) have missing or unusable per-sample " +
-                           "timestamps; their sessions' time axes may be flat or partially collapsed.";
-            }
-
-            await ShowMessage("Import Complete", message, MessageDialogStyle.Affirmative);
+            await ShowMessage("Import Complete", BuildImportAllSummary(outcome), MessageDialogStyle.Affirmative);
         }
         catch (Exception ex)
         {
@@ -460,6 +469,63 @@ public partial class DeviceLogsViewModel : ObservableObject
             IsBusy = false;
             BusyMessage = string.Empty;
         }
+    }
+
+    /// <summary>
+    /// Builds the text of the "Import Complete" dialog from what the batch actually did.
+    ///
+    /// Skipped files are reported as skipped, by name, with the advice that applies to them — not
+    /// as a card-wide abort. Telling the user to power-cycle the device because one log file was
+    /// empty sent them after a fault that was not there and hid the fact that every other file
+    /// imported fine (issue #780).
+    /// </summary>
+    /// <param name="outcome">What the batch imported, skipped, and stopped at.</param>
+    /// <returns>The message body shown in the completion dialog.</returns>
+    internal static string BuildImportAllSummary(ImportAllOutcome outcome)
+    {
+        ArgumentNullException.ThrowIfNull(outcome);
+
+        var message = new StringBuilder();
+        message.Append(CultureInfo.CurrentCulture, $"Imported {outcome.ImportedCount} of {outcome.TotalCount} files.");
+
+        if (outcome.SkippedFiles.Count > 0)
+        {
+            message.Append(CultureInfo.CurrentCulture, $"\n\nSkipped {outcome.SkippedFiles.Count} file(s).");
+            message.Append(" You can retry any of them on their own from the file list.");
+
+            foreach (var fileName in outcome.SkippedFiles.Take(MAX_LISTED_SKIPPED_FILES))
+            {
+                message.Append(CultureInfo.CurrentCulture, $"\n  • {fileName}");
+            }
+
+            var undisplayed = outcome.SkippedFiles.Count - MAX_LISTED_SKIPPED_FILES;
+            if (undisplayed > 0)
+            {
+                message.Append(CultureInfo.CurrentCulture, $"\n  • ...and {undisplayed} more");
+            }
+
+            // One line per distinct reason: a card holding both an empty log and a corrupt one
+            // needs both pieces of advice, but a card holding ten empty logs needs it once.
+            foreach (var guidance in outcome.SkipGuidance)
+            {
+                message.Append(CultureInfo.CurrentCulture, $"\n\n{guidance}");
+            }
+        }
+
+        if (outcome.AbortingFailure != null)
+        {
+            message.Append(CultureInfo.CurrentCulture,
+                $"\n\nImport stopped at {outcome.AbortedOnFile}: {outcome.AbortingFailure.Guidance}");
+        }
+
+        if (outcome.TimestampWarningCount > 0)
+        {
+            message.Append(CultureInfo.CurrentCulture,
+                $"\n\nWarning: {outcome.TimestampWarningCount} file(s) have missing or unusable per-sample");
+            message.Append(" timestamps; their sessions' time axes may be flat or partially collapsed.");
+        }
+
+        return message.ToString();
     }
 
     /// <summary>
@@ -480,16 +546,27 @@ public partial class DeviceLogsViewModel : ObservableObject
     /// <summary>
     /// Publishes a freshly imported session to the session list on the UI thread.
     /// </summary>
-    private static void AddImportedSession(LoggingSession session)
+    private void AddImportedSession(LoggingSession session)
     {
+        void Publish()
+        {
+            if (_sessionSinkOverride != null)
+            {
+                _sessionSinkOverride(session);
+                return;
+            }
+
+            LoggingManager.Instance.LoggingSessions.Add(session);
+        }
+
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher != null && !dispatcher.CheckAccess())
         {
-            dispatcher.Invoke(() => LoggingManager.Instance.LoggingSessions.Add(session));
+            dispatcher.Invoke(Publish);
         }
         else
         {
-            LoggingManager.Instance.LoggingSessions.Add(session);
+            Publish();
         }
     }
 
@@ -508,10 +585,13 @@ public partial class DeviceLogsViewModel : ObservableObject
     {
         var failure = SdCardFailureClassifier.Classify(ex);
 
-        // Only an expected device condition tells us anything about the card. An unexpected
-        // failure (a defect in the import pipeline, a database error) must not blame the card and
-        // hide a perfectly good file list behind an error panel.
-        if (failure.IsExpectedDeviceCondition && ReferenceEquals(SelectedDevice, device))
+        // Only a card-wide device condition belongs on the SD card panel. That panel *replaces*
+        // the file list, so showing a single file's failure there hides every healthy file and
+        // takes away the per-file retry that skipping the file exists to leave available (issue
+        // #780). An unexpected failure (a defect in the import pipeline, a database error) says
+        // nothing about the card either. Both still reach the user through the import dialog.
+        if (failure is { IsExpectedDeviceCondition: true, IsCardUnavailable: true }
+            && ReferenceEquals(SelectedDevice, device))
         {
             ApplyFailureState(failure);
         }
@@ -556,5 +636,60 @@ public partial class DeviceLogsViewModel : ObservableObject
         }
 
         await window.ShowMessageAsync(title, message, dialogStyle);
+    }
+}
+
+/// <summary>
+/// What an "Import All" run did, in the terms its completion dialog reports. Accumulated as the
+/// batch runs and handed to <see cref="DeviceLogsViewModel.BuildImportAllSummary"/>, which is
+/// separated out so the wording can be unit-tested without a WPF dialog.
+/// </summary>
+internal sealed class ImportAllOutcome
+{
+    private readonly List<string> _skippedFiles = [];
+    private readonly List<string> _skipGuidance = [];
+
+    /// <summary>How many files the batch started with.</summary>
+    public int TotalCount { get; init; }
+
+    /// <summary>How many files imported successfully.</summary>
+    public int ImportedCount { get; set; }
+
+    /// <summary>How many imported sessions came out with an unusable time axis.</summary>
+    public int TimestampWarningCount { get; set; }
+
+    /// <summary>
+    /// Files that failed for a reason that may be specific to them, in list order. The batch
+    /// carried on past each of these, and the user can still retry them individually.
+    /// </summary>
+    public IReadOnlyList<string> SkippedFiles => _skippedFiles;
+
+    /// <summary>
+    /// The distinct guidance sentences the skipped files produced, in first-seen order. Deduped
+    /// so ten empty logs read out their advice once rather than ten times.
+    /// </summary>
+    public IReadOnlyList<string> SkipGuidance => _skipGuidance;
+
+    /// <summary>
+    /// The card-wide failure that ended the batch early, or <c>null</c> if it ran to completion.
+    /// </summary>
+    public SdCardFailure? AbortingFailure { get; set; }
+
+    /// <summary>The file the batch stopped at, set with <see cref="AbortingFailure"/>.</summary>
+    public string? AbortedOnFile { get; set; }
+
+    /// <summary>
+    /// Records a file the batch skipped and carried on past.
+    /// </summary>
+    /// <param name="fileName">The file that failed.</param>
+    /// <param name="guidance">What the user should do about it.</param>
+    public void RecordSkip(string fileName, string guidance)
+    {
+        _skippedFiles.Add(fileName);
+
+        if (!_skipGuidance.Contains(guidance))
+        {
+            _skipGuidance.Add(guidance);
+        }
     }
 }
