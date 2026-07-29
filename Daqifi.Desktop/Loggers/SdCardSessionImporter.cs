@@ -299,7 +299,15 @@ public class SdCardSessionImporter : ISdCardSessionImporter
             // unlucky file; ten minutes of nothing is a wedged subsystem. Measuring the whole
             // attempt would collapse those two into the same answer and abort a batch import over
             // the first of them.
-            var silentFor = elapsed.Elapsed - TimeSpan.FromTicks(Volatile.Read(ref lastProgressTicks));
+            //
+            // Read the last-progress stamp BEFORE sampling the clock. The callback runs on Core's
+            // thread, so sampling the clock first would let a chunk landing in between stamp a
+            // time later than the "now" it is subtracted from, and report a negative silence. This
+            // order cannot: the stopwatch only moves forward, so a stamp read earlier is never
+            // ahead of a reading taken after it. A chunk arriving in the gap merely makes the
+            // reported silence slightly conservative, which is the harmless direction.
+            var lastProgress = TimeSpan.FromTicks(Volatile.Read(ref lastProgressTicks));
+            var silentFor = elapsed.Elapsed - lastProgress;
             throw new SdCardDownloadStalledException(fileName, silentFor, _downloadStallTimeout, ex);
         }
     }

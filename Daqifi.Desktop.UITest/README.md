@@ -218,7 +218,7 @@ suffix), also hosted by `MainWindow.xaml`.
 | Logged Data → APP LOGS / DEVICE LOGS sub-tabs | `AppLogsTab` / `DeviceLogsTab` | `View/Prototype/LoggedDataPanePrototype.xaml` |
 | SD refresh button / status line / file list | `RefreshSdCardFilesButton` / `SdCardStatusText` / `SdCardFileList` | `View/DeviceLogsView.xaml` |
 | Per-row SD file IMPORT button | `ImportSdCardFileButton` | `View/DeviceLogsView.xaml` |
-| **IMPORT ALL** SD files button (batch import: skips a per-file failure and carries on, aborting only when the card itself is unavailable — issues #779/#780) | `ImportAllSdCardFilesButton` | `View/DeviceLogsView.xaml` |
+| **IMPORT ALL** SD files button (see note below) | `ImportAllSdCardFilesButton` | `View/DeviceLogsView.xaml` |
 | Per-row SD file NAME cell (for deterministic file-name reads) | `SdCardFileNameText` | `View/DeviceLogsView.xaml` |
 | Profiles: saved-profile list | `ProfileList` | `View/ProfilesPane.xaml` |
 | Profiles: per-tile settings (gear) → opens the edit drawer | `ProfileSettingsButton` | `View/ProfilesPane.xaml` |
@@ -313,13 +313,24 @@ why.
 13. **The Logged Data pane's two sub-tabs are mutually exclusive in the UIA tree.** APP LOGS
     (`AppLogsTab`, the default — hosts `LoggedSessionList`) and DEVICE LOGS (`DeviceLogsTab` —
     hosts the SD card browser: `SdCardFileList`, `RefreshSdCardFilesButton`, the per-row
-    `ImportSdCardFileButton`) each bind their content's `Visibility` to their radio's
-    `IsChecked`. A `Collapsed` subtree is absent from the UIA tree, so **only the selected
-    sub-tab's content is reachable**. After working on DEVICE LOGS (e.g. importing a file) you
-    must switch back to APP LOGS before reading `LoggedSessionList` — `GetLoggedSessionCount`
-    now does this via `SelectAppLogsSubTab` so it is robust regardless of the prior sub-tab.
-    Both sub-tab radios are driven by `IsChecked` (no bound `Command`), so the SelectionItem
-    pattern switches them reliably (cf. gotcha #12).
+    `ImportSdCardFileButton`, and `ImportAllSdCardFilesButton`) each bind their content's
+    `Visibility` to their radio's `IsChecked`. A `Collapsed` subtree is absent from the UIA tree,
+    so **only the selected sub-tab's content is reachable**. After working on DEVICE LOGS (e.g.
+    importing a file) you must switch back to APP LOGS before reading `LoggedSessionList` —
+    `GetLoggedSessionCount` now does this via `SelectAppLogsSubTab` so it is robust regardless of
+    the prior sub-tab. Both sub-tab radios are driven by `IsChecked` (no bound `Command`), so the
+    SelectionItem pattern switches them reliably (cf. gotcha #12).
+
+    Note this cuts both ways: `GetLoggedSessionCount` leaves you on APP LOGS, so read the session
+    count **before** navigating to DEVICE LOGS, or `ImportAllSdCardFilesButton` will not be in the
+    tree when you go to invoke it.
+
+    **What IMPORT ALL does** (issues #779/#780), since a scenario asserting on it needs to know:
+    a failure that may be specific to one file — an empty log, a corrupt entry, a short transport
+    stall — is skipped and the batch carries on, with the file named in the completion dialog. Only
+    a card-wide fault (no card, card busy, or the device silent for the full 90 s stall window)
+    stops the batch early. A skipped file therefore leaves the card state `Ok` and the file list
+    on screen, so it can still be retried through its own row.
 
 14. **MahApps `ShowMessageAsync` dialogs are NOT suppressed in test mode.** The test-mode
     no-op message box (`NoOpMessageBoxService`) only covers the firewall-warning path; the
