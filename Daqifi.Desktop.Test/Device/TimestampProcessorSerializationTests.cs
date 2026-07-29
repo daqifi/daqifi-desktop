@@ -334,19 +334,21 @@ public class TimestampProcessorSerializationTests : IDisposable
         /// </summary>
         public void Dispose()
         {
-            // The racing thread signals both events, so they can only be disposed once it has
-            // provably exited. If the join times out, the test has already failed on that timeout —
-            // disposing here would then hand the still-running worker an ObjectDisposedException on a
-            // background thread, masking the real failure and destabilizing the test host. Leaking
-            // two ManualResetEventSlim instances on that path is by far the cheaper outcome.
+            // Nothing the racing thread can still touch may be disposed until it has provably
+            // exited. It signals both events, and its StopStreaming/InitializeStreaming run against
+            // the Core device — so all three are on that thread's reachable set. If the join times
+            // out, the test has already failed on that timeout; disposing here would then hand the
+            // still-running worker an ObjectDisposedException on a background thread, masking the
+            // real failure and destabilizing the test host. Leaking two ManualResetEventSlim
+            // instances and one transport-less Core device on that path is by far the cheaper
+            // outcome.
             var racingThreadExited = _racingStopStart?.Join(PROGRESS_TIMEOUT_MS) ?? true;
             if (racingThreadExited)
             {
                 _racingResetAtBoundary.Dispose();
                 _racingStopStartCompleted.Dispose();
+                _coreDevice.Dispose();
             }
-
-            _coreDevice.Dispose();
         }
 
         /// <summary>
