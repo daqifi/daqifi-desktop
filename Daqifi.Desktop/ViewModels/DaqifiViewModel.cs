@@ -1053,7 +1053,8 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// <see cref="IStreamingDevice.FriendlyName"/>, which can arrive asynchronously (fire-and-forget
     /// inbound-message handling) after the drawer has already opened. Re-subscribes on every
     /// selection change so only the currently selected device's updates apply — an update from a
-    /// device the user has since deselected/disconnected from must not touch the buffer.
+    /// device the user has since deselected/disconnected from must not touch the buffer. Torn down in
+    /// <see cref="Dispose"/>, which is also why a disposed view model never re-attaches.
     /// </summary>
     partial void OnSelectedDeviceChanged(IStreamingDevice? oldValue, IStreamingDevice? newValue)
     {
@@ -1061,7 +1062,12 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         {
             oldNotifier.PropertyChanged -= OnSelectedDeviceFriendlyNameChanged;
         }
-        if (newValue is INotifyPropertyChanged newNotifier)
+
+        // Detaching is always safe, but re-attaching after Dispose would undo its teardown and root
+        // this view model on the newly selected device again. Reachable because Dispose runs from
+        // MainWindow's Closing handler, not Closed: if any other Closing handler cancels the close,
+        // the window stays open and a device-tile click still assigns SelectedDevice.
+        if (!_disposed && newValue is INotifyPropertyChanged newNotifier)
         {
             newNotifier.PropertyChanged += OnSelectedDeviceFriendlyNameChanged;
         }
@@ -2581,8 +2587,8 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// main window closes (see <c>MainWindow</c>). Consolidates the previously ad-hoc cleanup into a
     /// single deterministic path (issue #592): the disk-space coordinator, the transient
     /// network-settings status timer, the SD-card elapsed-time timer, and the long-lived singleton /
-    /// per-device event subscriptions wired up in the constructor (which would otherwise pin this view
-    /// model for the life of the process).
+    /// per-device event subscriptions wired up in the constructor and as devices are connected or
+    /// selected (which would otherwise pin this view model for the life of the process).
     /// </summary>
     public void Dispose()
     {
@@ -2615,8 +2621,17 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
         // view model alive after the window closes. (-= is a no-op for handlers that were never wired,
         // e.g. in non-window-init construction paths.)
         ConnectionManager.Instance.PropertyChanged -= UpdateUi;
-        LoggingManager.Instance.PropertyChanged -= UpdateUi;
         ConnectedDevices.CollectionChanged -= OnConnectedDevicesCollectionChanged;
+
+        // Go through TryGetLoggingManager rather than LoggingManager.Instance: the first touch of
+        // Instance *constructs* the singleton, whose parameterless constructor resolves from
+        // App.ServiceProvider and throws when that is absent. Null here is exactly the
+        // non-window-init path, where the handler was never wired in the first place.
+        var loggingManager = TryGetLoggingManager();
+        if (loggingManager != null)
+        {
+            loggingManager.PropertyChanged -= UpdateUi;
+        }
 
         // Per-device subscriptions (logging-state PropertyChanged + debug-data) wired up as devices
         // are added in OnConnectedDevicesCollectionChanged. Left subscribed, a device keeps this VM
@@ -2627,6 +2642,15 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             UnsubscribeDeviceEvents(device);
         }
         _subscribedDevices.Clear();
+
+        // The drawer's NAME-field sync is subscribed on a different axis than _subscribedDevices —
+        // whichever device is currently SelectedDevice (see OnSelectedDeviceChanged) — so the loop
+        // above does not reach it. Left subscribed, the selected device keeps this VM rooted and a
+        // late name update would still run ApplyDeviceFriendlyName against a disposed VM.
+        if (SelectedDevice is INotifyPropertyChanged selectedNotifier)
+        {
+            selectedNotifier.PropertyChanged -= OnSelectedDeviceFriendlyNameChanged;
+        }
 
         // The session-list view model observes the singleton LoggingManager.LoggingSessions collection.
         _loggingSessionList.DetachCollection();

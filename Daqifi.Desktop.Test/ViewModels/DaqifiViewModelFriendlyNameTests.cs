@@ -240,6 +240,50 @@ public class DaqifiViewModelFriendlyNameTests
         Assert.AreEqual("Name From Device", viewModel.PendingFriendlyName);
     }
 
+    [TestMethod]
+    public void Dispose_DetachesTheSelectedDevicesNameUpdates()
+    {
+        // Arrange — the drawer's NAME-field sync is subscribed on whichever device is SelectedDevice,
+        // not on the _subscribedDevices set Dispose loops over, so it needs its own teardown. Left
+        // attached, the selected device keeps the disposed view model rooted — exactly the leak the
+        // rest of Dispose exists to prevent (issue #592) — and a late name update still runs against
+        // a disposed view model.
+        var device = CreateNotifyingDevice("Name From Device");
+        var viewModel = CreateViewModel(device.Object);
+        viewModel.SeedPendingFriendlyName("Bench Rig 3");
+
+        // Act
+        viewModel.Dispose();
+        RaiseFriendlyNameChangedOnBackgroundThread(device);
+
+        // Assert
+        Assert.AreEqual(
+            "Bench Rig 3", viewModel.PendingFriendlyName,
+            "A device-reported name reached the edit buffer after the view model was disposed.");
+    }
+
+    [TestMethod]
+    public void SelectingADeviceAfterDispose_DoesNotReattachTheNameUpdates()
+    {
+        // Arrange — Dispose runs from MainWindow's Closing handler, not Closed, so the window is
+        // still alive when it returns: another Closing handler cancelling the close leaves a device
+        // tile clickable, and that click assigns SelectedDevice. Re-attaching there would undo the
+        // teardown and root the disposed view model on the newly selected device.
+        var viewModel = CreateViewModel(CreateConnectedDevice().Object);
+        viewModel.Dispose();
+        var successor = CreateNotifyingDevice("Name From Successor");
+
+        // Act
+        viewModel.SelectedDevice = successor.Object;
+        viewModel.SeedPendingFriendlyName("Bench Rig 3");
+        RaiseFriendlyNameChangedOnBackgroundThread(successor);
+
+        // Assert
+        Assert.AreEqual(
+            "Bench Rig 3", viewModel.PendingFriendlyName,
+            "The disposed view model re-subscribed to the newly selected device.");
+    }
+
     /// <summary>
     /// Raises the device's <see cref="IStreamingDevice.FriendlyName"/> change notification from a
     /// thread-pool thread and waits for it, mirroring how Core's message-consumer thread delivers
