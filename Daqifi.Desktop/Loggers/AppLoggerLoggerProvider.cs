@@ -60,8 +60,9 @@ public sealed class AppLoggerLoggerProvider : ILoggerProvider
             // at LogError from its own viewpoint, but the desktop's FirmwareUpdateCoordinator is the
             // authority on firmware-outcome severity: it captures genuine flash failures to Sentry
             // itself (a direct AppLogger.Error, not through this bridge) AND downgrades expected
-            // device/environmental outcomes — most notably a post-verify JumpingToApp reconnect timeout,
-            // where the firmware is already installed and a power-cycle finishes the job (issue #738).
+            // device/environmental outcomes — most notably a post-flash reconnect timeout (the PIC32's
+            // JumpingToApp step, issue #738, and the WiFi module's Verifying step, issue #776), where
+            // the firmware is already installed and a power-cycle finishes the job.
             // Forwarding Core's duplicate Error to Sentry would both double-report real failures and
             // undo the coordinator's environmental downgrade, auto-filing noise issues like
             // DAQIFI-DESKTOP-1N. So route this category's Error/Critical to the file only; the

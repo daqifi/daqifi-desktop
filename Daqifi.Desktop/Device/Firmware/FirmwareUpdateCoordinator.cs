@@ -182,6 +182,12 @@ public class FirmwareUpdateCoordinator : IDisposable
         _host.IsFirmwareUploading = true;
         _appLogger.AddBreadcrumb("firmware", $"Firmware update started for {serialStreamingDevice.Name}");
 
+        // Which image the run is on when it faults. Core reuses one state machine for both, so
+        // FirmwareUpdateState.Verifying is ambiguous on its own (PIC32 CRC-verify vs the WiFi
+        // module's post-flash reconnect) and the failure classifier needs this to tell them apart.
+        // Declared outside the try so the catch below can read it.
+        var flashPhase = FirmwareFlashPhase.Pic32;
+
         try
         {
             // Quiesce inside the try so a fault here still runs the finally (which clears
@@ -259,6 +265,7 @@ public class FirmwareUpdateCoordinator : IDisposable
 
             if (!isManualUpload)
             {
+                flashPhase = FirmwareFlashPhase.WifiModule;
                 await UpdateWifiModuleAsync(coreDevice, serialStreamingDevice, _firmwareUploadCts.Token);
             }
 
@@ -274,7 +281,7 @@ public class FirmwareUpdateCoordinator : IDisposable
         }
         catch (FirmwareUpdateException ex)
         {
-            HandleFirmwareUpdateException(ex);
+            HandleFirmwareUpdateException(ex, flashPhase);
         }
         catch (Exception ex)
         {
@@ -735,32 +742,36 @@ public class FirmwareUpdateCoordinator : IDisposable
         return normalized;
     }
 
-    private void HandleFirmwareUpdateException(FirmwareUpdateException exception)
+    private void HandleFirmwareUpdateException(FirmwareUpdateException exception, FirmwareFlashPhase phase)
     {
         _host.HasErrorOccured = true;
 
-        // A JumpingToApp failure is categorically different from a mid-flash failure: it is the LAST
-        // PIC32 step and only runs after erase + program + CRC-verify all succeeded, so the firmware is
-        // already installed and verified — the device just didn't re-open its serial port in time. Treat
-        // it as an expected device/environmental condition (a power-cycle finishes the job), not an app
-        // bug: log at Warning (no Sentry capture) and tell the user their firmware installed rather than
+        // A post-flash reconnect timeout is categorically different from a mid-flash failure: the image
+        // was fully written and verified and only the device's return to normal serial operation timed
+        // out. On the PIC32 that is the JumpingToApp step (reached only after erase + program +
+        // CRC-verify all succeeded, issue #738); on the WiFi module it is the Verifying step, which Core
+        // enters only after the WINC flash tool reported its success marker (issue #776). Treat both as
+        // an expected device/environmental condition (a power-cycle finishes the job), not an app bug:
+        // log at Warning (no Sentry capture) and tell the user their firmware installed rather than
         // claiming it failed. Mirrors the serial/WiFi connect classification (issues #589 / #740) and
-        // stops this from filing Sentry issues like DAQIFI-DESKTOP-1N (issue #738).
-        if (exception.FailedState == FirmwareUpdateState.JumpingToApp)
+        // stops this from filing Sentry issues like DAQIFI-DESKTOP-1N.
+        //
+        // Note the asymmetry the classifier encodes: Verifying is downgraded ONLY on the WiFi module.
+        // On the PIC32 the same state is the flash CRC check — a genuine failure that keeps its
+        // Error/Sentry path and its "CRC did not match" recovery guidance.
+        if (FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception, phase))
         {
             _appLogger.AddBreadcrumb(
                 "firmware",
-                $"Firmware installed but device did not reconnect: {exception.FailedState}",
+                $"Firmware installed but device did not reconnect: {exception.FailedState} ({phase})",
                 Common.Loggers.BreadcrumbLevel.Warning);
             _appLogger.Warning(
                 exception,
-                "Firmware was installed and verified, but the device did not automatically return to " +
-                "application mode after the flash. This is a device/environmental condition (power-cycle " +
-                "recovers it), not an app failure.");
+                $"Firmware was installed and verified ({phase}), but the device did not automatically " +
+                "return to application mode after the flash. This is a device/environmental condition " +
+                "(power-cycle recovers it), not an app failure.");
 
-            _host.ShowFirmwareError(
-                "Firmware was installed successfully, but the device did not return to normal mode on its " +
-                "own. Please power-cycle the device (unplug and replug its USB cable), then reconnect.");
+            _host.ShowFirmwareError(FirmwareFailureClassifier.BuildInstalledButNotReconnectedMessage(phase));
             return;
         }
 
