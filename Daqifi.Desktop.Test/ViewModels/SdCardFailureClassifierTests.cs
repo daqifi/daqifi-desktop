@@ -43,7 +43,8 @@ public class SdCardFailureClassifierTests
         // Arrange — what the importer's stall watchdog throws when the device goes quiet: silence
         // for the full 90-second window. That is unambiguously device-wide, so it is the one
         // download failure worth abandoning the rest of the batch over.
-        var ex = new SdCardDownloadStalledException(FileName, TimeSpan.FromSeconds(90));
+        var ex = new SdCardDownloadStalledException(
+            FileName, silentFor: TimeSpan.FromSeconds(90), patienceWindow: TimeSpan.FromSeconds(90));
 
         // Act
         var failure = SdCardFailureClassifier.Classify(ex);
@@ -65,9 +66,9 @@ public class SdCardFailureClassifierTests
         // fast and too ambiguously to justify writing off the whole card.
         var ex = new SdCardDownloadStalledException(
             FileName,
-            new TimeoutException("Transport stream closed before receiving the EOF marker."),
-            elapsed: TimeSpan.FromMilliseconds(500),
-            patienceWindow: TimeSpan.FromSeconds(90));
+            silentFor: TimeSpan.FromMilliseconds(500),
+            patienceWindow: TimeSpan.FromSeconds(90),
+            new TimeoutException("Transport stream closed before receiving the EOF marker."));
 
         // Act
         var failure = SdCardFailureClassifier.Classify(ex);
@@ -89,12 +90,13 @@ public class SdCardFailureClassifierTests
     {
         // Arrange — Core reports its 30-minute transfer cap through the same untyped
         // TimeoutException as its half-second read timeout. Letting a batch pay that wait once
-        // per remaining file would be far worse than the abort #780 removed.
+        // per remaining file would be far worse than the abort #780 removed, so what decides it
+        // is how long the device had been quiet, not which Core code path raised it.
         var ex = new SdCardDownloadStalledException(
             FileName,
-            new TimeoutException("SD card file download timed out after 1800 seconds."),
-            elapsed: TimeSpan.FromMinutes(30),
-            patienceWindow: TimeSpan.FromSeconds(90));
+            silentFor: TimeSpan.FromMinutes(30),
+            patienceWindow: TimeSpan.FromSeconds(90),
+            new TimeoutException("SD card file download timed out after 1800 seconds."));
 
         // Act
         var failure = SdCardFailureClassifier.Classify(ex);

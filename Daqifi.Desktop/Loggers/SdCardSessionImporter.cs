@@ -231,10 +231,19 @@ public class SdCardSessionImporter : ISdCardSessionImporter
         using var stallCts = new CancellationTokenSource();
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, stallCts.Token);
 
+        // How long the device has been quiet is what tells a stalled transfer apart from a slow
+        // one, and Core reports both through the same untyped exception, so the desktop has to
+        // measure it. Written from the progress callback and read from the catch blocks, which can
+        // be different threads — hence the volatile tick count rather than a TimeSpan field.
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        long lastProgressTicks = 0;
+
         stallCts.CancelAfter(_downloadStallTimeout);
         var transferProgress = new SynchronousProgress<SdCardTransferProgress>(_ =>
         {
             // Another chunk arrived, so the device is alive — restart the deadline.
+            Volatile.Write(ref lastProgressTicks, elapsed.Elapsed.Ticks);
+
             try
             {
                 stallCts.CancelAfter(_downloadStallTimeout);
@@ -245,11 +254,6 @@ public class SdCardSessionImporter : ISdCardSessionImporter
             }
         });
 
-        // How long the attempt cost is what decides whether a batch import should stop on it, so
-        // it has to be measured here: Core reports its half-second serial read timeout and its
-        // 30-minute transfer cap through the same untyped exception.
-        var elapsed = System.Diagnostics.Stopwatch.StartNew();
-
         try
         {
             return await device.DownloadSdCardFileAsync(fileName, transferProgress, linkedCts.Token);
@@ -257,8 +261,11 @@ public class SdCardSessionImporter : ISdCardSessionImporter
         catch (OperationCanceledException) when (stallCts.IsCancellationRequested && !ct.IsCancellationRequested)
         {
             // Distinguish our watchdog from a caller-requested cancel: only the watchdog becomes a
-            // stall, so a genuine user cancel still propagates as OperationCanceledException.
-            throw new SdCardDownloadStalledException(fileName, _downloadStallTimeout);
+            // stall, so a genuine user cancel still propagates as OperationCanceledException. The
+            // watchdog fires on exactly one condition — the full stall window with nothing arriving
+            // — so that window is the silence, by construction.
+            throw new SdCardDownloadStalledException(
+                fileName, _downloadStallTimeout, _downloadStallTimeout);
         }
         catch (TimeoutException ex)
         {
@@ -287,7 +294,13 @@ public class SdCardSessionImporter : ISdCardSessionImporter
             // hardware failed when in fact they stopped it themselves.
             ct.ThrowIfCancellationRequested();
 
-            throw new SdCardDownloadStalledException(fileName, ex, elapsed.Elapsed, _downloadStallTimeout);
+            // Report the silence, not the total transfer time. A large file that streamed steadily
+            // for ten minutes and then hit one brief transport timeout is a healthy device and one
+            // unlucky file; ten minutes of nothing is a wedged subsystem. Measuring the whole
+            // attempt would collapse those two into the same answer and abort a batch import over
+            // the first of them.
+            var silentFor = elapsed.Elapsed - TimeSpan.FromTicks(Volatile.Read(ref lastProgressTicks));
+            throw new SdCardDownloadStalledException(fileName, silentFor, _downloadStallTimeout, ex);
         }
     }
 

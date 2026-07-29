@@ -136,9 +136,16 @@ public class DeviceLogsViewModelImportTests
     /// </summary>
     private static SdCardDownloadStalledException QuickTransportStall(string fileName) =>
         new(fileName,
-            new TimeoutException("Transport stream closed before receiving the EOF marker."),
-            elapsed: TimeSpan.FromMilliseconds(500),
-            patienceWindow: TimeSpan.FromSeconds(90));
+            silentFor: TimeSpan.FromMilliseconds(500),
+            patienceWindow: TimeSpan.FromSeconds(90),
+            new TimeoutException("Transport stream closed before receiving the EOF marker."));
+
+    /// <summary>
+    /// The stall the desktop's own watchdog raises: the device delivered nothing for the full
+    /// window, which is the one download failure broad enough to abandon a batch import over.
+    /// </summary>
+    private static SdCardDownloadStalledException WatchdogStall(string fileName) =>
+        new(fileName, silentFor: TimeSpan.FromSeconds(90), patienceWindow: TimeSpan.FromSeconds(90));
 
     private IEnumerable<string> ImportedFileNames() =>
         _mockImporter.Invocations
@@ -188,7 +195,7 @@ public class DeviceLogsViewModelImportTests
         // Arrange — what the importer's stall watchdog raises when the device goes quiet for the
         // full window. That is card-wide, so it does belong on the panel.
         await SettleInitialRefreshAsync();
-        SetupImportToThrow(new SdCardDownloadStalledException(FileName, TimeSpan.FromSeconds(90)));
+        SetupImportToThrow(WatchdogStall(FileName));
 
         // Act
         await ImportAsync();
@@ -488,7 +495,7 @@ public class DeviceLogsViewModelImportTests
             ImportedCount = 1,
             AbortedOnFile = "log_b.bin",
             AbortingFailure = SdCardFailureClassifier.Classify(
-                new SdCardDownloadStalledException("log_b.bin", TimeSpan.FromSeconds(90)))
+                WatchdogStall("log_b.bin"))
         };
 
         // Act

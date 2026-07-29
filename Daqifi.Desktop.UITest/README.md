@@ -218,6 +218,7 @@ suffix), also hosted by `MainWindow.xaml`.
 | Logged Data → APP LOGS / DEVICE LOGS sub-tabs | `AppLogsTab` / `DeviceLogsTab` | `View/Prototype/LoggedDataPanePrototype.xaml` |
 | SD refresh button / status line / file list | `RefreshSdCardFilesButton` / `SdCardStatusText` / `SdCardFileList` | `View/DeviceLogsView.xaml` |
 | Per-row SD file IMPORT button | `ImportSdCardFileButton` | `View/DeviceLogsView.xaml` |
+| **IMPORT ALL** SD files button (batch import: skips a per-file failure and carries on, aborting only when the card itself is unavailable — issues #779/#780) | `ImportAllSdCardFilesButton` | `View/DeviceLogsView.xaml` |
 | Per-row SD file NAME cell (for deterministic file-name reads) | `SdCardFileNameText` | `View/DeviceLogsView.xaml` |
 | Profiles: saved-profile list | `ProfileList` | `View/ProfilesPane.xaml` |
 | Profiles: per-tile settings (gear) → opens the edit drawer | `ProfileSettingsButton` | `View/ProfilesPane.xaml` |

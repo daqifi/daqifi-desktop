@@ -72,7 +72,7 @@ public class SdCardDownloadFailureTests
         Assert.IsTrue(ex.IsProlongedFailure,
             "The watchdog watched the device say nothing for the full window, which is what makes " +
             "this one broad enough to abandon a batch import over.");
-        Assert.AreEqual(STALL_TIMEOUT, ex.Elapsed);
+        Assert.AreEqual(STALL_TIMEOUT, ex.SilentFor);
     }
 
     [TestMethod]
@@ -108,25 +108,54 @@ public class SdCardDownloadFailureTests
     }
 
     [TestMethod]
-    public async Task Download_WhenCoreBurnsTheWholeStallWindowFirst_CountsAsProlonged()
+    public async Task Download_WhenALongHealthyTransferTimesOutAtTheEnd_StaysPerFile()
     {
-        // Arrange — Core reports its 30-minute transfer cap through the same untyped
-        // TimeoutException as its half-second serial read timeout. Treating both as cheap
-        // per-file failures would let a batch pay that wait once for every remaining file, so
-        // what separates them is how long the attempt actually ran.
+        // Arrange — a large file that streams steadily for several stall windows and then hits one
+        // brief transport timeout. The device was alive right up to the failure, so this says
+        // nothing about the card and must not abort the batch. Measuring the whole attempt instead
+        // of the silence would classify it as device-wide purely for being a big file.
         _mockDevice
             .Setup(d => d.DownloadSdCardFileAsync(
                 It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
             .Returns(async (string _, IProgress<SdCardTransferProgress> progress, CancellationToken ct) =>
             {
-                // Keep reporting progress so the desktop's own watchdog never fires: this has to
-                // be Core's cap being reached, not ours.
                 for (var i = 1; i <= 8; i++)
                 {
                     await Task.Delay(STALL_TIMEOUT / 4, ct);
                     progress?.Report(new SdCardTransferProgress(i * 1024L, FileName));
                 }
 
+                // Fails immediately after the last chunk — no silence to speak of.
+                throw new TimeoutException("Transport stream closed before receiving the EOF marker.");
+            });
+
+        // Act
+        var ex = await Assert.ThrowsExactlyAsync<SdCardDownloadStalledException>(() =>
+            _importer.DownloadWithStallWatchdogAsync(_mockDevice.Object, FileName, CancellationToken.None));
+
+        // Assert
+        Assert.IsFalse(ex.IsProlongedFailure,
+            "The device was delivering data until the moment it failed, so the remaining files are " +
+            "still worth trying.");
+        Assert.IsTrue(ex.SilentFor < STALL_TIMEOUT,
+            $"Expected the reported silence to be shorter than the stall window, but it was {ex.SilentFor}. " +
+            "Reporting total transfer time here is the bug this guards.");
+    }
+
+    [TestMethod]
+    public async Task Download_WhenTheDeviceGoesQuietThenCoreTimesOut_CountsAsProlonged()
+    {
+        // Arrange — the device delivers a chunk, then goes quiet for longer than the stall window
+        // before Core reports the timeout itself. Core raises its half-second serial read timeout
+        // and its 30-minute transfer cap through the identical untyped exception, so silence — not
+        // exception identity — is what says this one is broad enough to stop a batch over.
+        _mockDevice
+            .Setup(d => d.DownloadSdCardFileAsync(
+                It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
+            .Returns(async (string _, IProgress<SdCardTransferProgress> progress, CancellationToken _) =>
+            {
+                progress?.Report(new SdCardTransferProgress(1024L, FileName));
+                await Task.Delay(STALL_TIMEOUT * 2, CancellationToken.None);
                 throw new TimeoutException("SD card file download timed out after 1800 seconds.");
             });
 
@@ -136,8 +165,8 @@ public class SdCardDownloadFailureTests
 
         // Assert
         Assert.IsTrue(ex.IsProlongedFailure,
-            "An attempt that already cost the full stall window must not be repeated per file.");
-        Assert.IsTrue(ex.Elapsed >= STALL_TIMEOUT);
+            "Silence for the full stall window must not be paid again for every remaining file.");
+        Assert.IsTrue(ex.SilentFor >= STALL_TIMEOUT);
     }
 
     [TestMethod]

@@ -166,12 +166,11 @@ public static class SdCardFailureClassifier
             // TimeoutException: an unrelated timeout reaching here is not evidence that the SD
             // subsystem is wedged, and must keep the Error path.
             //
-            // What the attempt cost decides how far it generalises. A prolonged failure — the
-            // watchdog seeing 90 seconds of silence, or Core's 30-minute transfer cap elapsing —
-            // is evidence about the device, and repeating it for every remaining file would cost
-            // the user that wait again per file. A transport timeout that gave up in well under a
-            // second is neither: it can be one unreadable file, so it is treated like any other
-            // per-file failure (issue #779).
+            // How long the device had been quiet decides how far it generalises. Silence lasting
+            // the full stall window is evidence about the device, and repeating that wait for
+            // every remaining file would cost the user it again per file. A transport timeout on a
+            // device that was delivering data until moments before is neither: it can be one
+            // unreadable file, so it is treated like any other per-file failure (issue #779).
             SdCardDownloadStalledException stalled => new SdCardFailure(
                 State: SdCardState.Error,
                 StatusMessage: "The device stopped responding during the transfer.",
