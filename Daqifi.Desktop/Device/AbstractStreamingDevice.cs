@@ -79,7 +79,38 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     private int _pwmFrequencyHz = CoreStreamingDevice.DefaultPwmFrequencyHz;
 
-    private readonly TimestampProcessor _timestampProcessor = new();
+    /// <summary>
+    /// Serializes the reset / apply / reconstruct sequence on <see cref="FrameTimestampProcessor"/>
+    /// and its <see cref="_timestampFrequencyApplied"/> gate (issue #782). <c>ResetAll</c> runs on the
+    /// UI thread (<see cref="InitializeStreaming"/> / <see cref="StopStreaming"/>) while
+    /// <c>SetTimestampFrequency</c> and <c>ProcessTimestamp</c> run on the transport thread, driven by
+    /// the fire-and-forget inbound message pipeline.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Core's <see cref="TimestampProcessor"/> is itself thread-safe — concurrent maps plus a
+    /// per-device lock around <c>ProcessTimestamp</c> — so what is being protected here is the
+    /// desktop's own two-part invariant, not Core's internals: <c>ResetAll()</c> discards the device's
+    /// reported <em>clock configuration</em> along with the session baseline, so the gate and the
+    /// frequency it stands for have to change together. Unserialized, a reset interleaved between the
+    /// transport thread's apply and its gate write drops the just-applied frequency yet leaves the gate
+    /// latched "applied". Nothing reports that: <c>SetTimestampFrequency(id, 0)</c> reverts silently
+    /// and <c>GetTickPeriod</c> silently falls back to the processor-wide 20 ns (50 MHz) default, so
+    /// the session simply reconstructs every timestamp scaled by 50/42 ≈ 1.19 against firmware's
+    /// 42 MHz streaming timer. Holding the lock across the reconstruction as well keeps a frame's
+    /// timestamp on the frequency that was applied for it.
+    /// </para>
+    /// <para>
+    /// A leaf lock: nothing inside any guarded region raises events, performs I/O, marshals to the
+    /// dispatcher, or re-enters this device, so it cannot participate in a lock cycle and never holds
+    /// the hot streaming path for longer than a few dictionary lookups.
+    /// </para>
+    /// </remarks>
+    // See daqifi-core#398 (gap 3): the gate this guards exists only because ResetAll() discards the
+    // device's reported frequency along with the session baseline. If Core preserves it across a
+    // baseline reset, the gate — and most of this lock — goes away.
+    private readonly object _timestampProcessorSync = new();
+
     private List<SdCardFile> _sdCardFiles = [];
 
     // Leftover-frame detection state (issue #573). The last-seen counter is tracked for every
@@ -138,11 +169,24 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private double? _currentFrameFirmwareDeltaMs;
 
     /// <summary>
-    /// Whether the device-reported clock frequency has been applied to <see cref="_timestampProcessor"/>
-    /// for the current streaming session. Cleared alongside every <c>ResetAll()</c>, which per Core's
-    /// contract also drops per-device frequencies.
+    /// Whether the device-reported clock frequency has been applied to
+    /// <see cref="FrameTimestampProcessor"/> for the current streaming session. Cleared alongside every
+    /// <c>ResetAll()</c>, which per Core's contract also drops per-device frequencies. Every read and
+    /// write is serialized under <see cref="_timestampProcessorSync"/> (issue #782), which supplies the
+    /// cross-thread ordering and visibility a bare — or even <c>volatile</c> — flag could not: the gate
+    /// and the frequency it stands for have to change together or not at all.
     /// </summary>
     private bool _timestampFrequencyApplied;
+
+    /// <summary>
+    /// Core's rollover-aware reconstruction of each stream frame's timestamp, guarded by
+    /// <see cref="_timestampProcessorSync"/>. Typed as <see cref="ITimestampProcessor"/> and
+    /// <c>init</c>-only so a derived test double can substitute an instrumented processor in its own
+    /// constructor — which is what makes the apply/gate/reset serialization assertable against a
+    /// deliberately interleaved reset instead of only under a nondeterministic stress loop. Production
+    /// code still cannot swap it after construction.
+    /// </summary>
+    protected ITimestampProcessor FrameTimestampProcessor { get; init; } = new TimestampProcessor();
 
     /// <summary>
     /// The Core streaming device created by the shared <see cref="Connect"/> template,
@@ -697,20 +741,33 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // rather than at session start because this is where the device-id key is known to match
         // the one ProcessTimestamp uses, and re-applied per session because InitializeStreaming's
         // ResetAll() drops per-device frequencies along with the baselines.
-        if (!_timestampFrequencyApplied && TimestampFrequency != 0)
+        //
+        // Apply, gate write and reconstruction all run under _timestampProcessorSync so a UI-thread
+        // ResetAll can neither interleave between the apply and its gate write — which would silently
+        // strand the whole session on the 50 MHz fallback (issue #782) — nor drop the frequency
+        // between the apply and the reconstruction it was applied for. Only the three frame-derived
+        // scalars leave the lock; everything after it (debug dispatch, DeviceMessage construction,
+        // the logging handoff) stays outside.
+        DateTime messageTimestamp;
+        bool rollover;
+        double? firmwareDeltaMs;
+        lock (_timestampProcessorSync)
         {
-            _timestampProcessor.SetTimestampFrequency(deviceId, TimestampFrequency);
-            _timestampFrequencyApplied = true;
-        }
+            if (!_timestampFrequencyApplied && TimestampFrequency != 0)
+            {
+                FrameTimestampProcessor.SetTimestampFrequency(deviceId, TimestampFrequency);
+                _timestampFrequencyApplied = true;
+            }
 
-        // Use Core's TimestampProcessor for rollover handling
-        var timestampResult = _timestampProcessor.ProcessTimestamp(deviceId, message.MsgTimeStamp);
-        var messageTimestamp = timestampResult.Timestamp;
-        var rollover = timestampResult.WasRollover;
-        // Firmware-measured inter-message delta (immune to TCP jitter); null for the first message.
-        var firmwareDeltaMs = timestampResult.IsFirstMessage
-            ? (double?)null
-            : timestampResult.SecondsBetweenMessages * 1000.0;
+            // Use Core's TimestampProcessor for rollover handling
+            var timestampResult = FrameTimestampProcessor.ProcessTimestamp(deviceId, message.MsgTimeStamp);
+            messageTimestamp = timestampResult.Timestamp;
+            rollover = timestampResult.WasRollover;
+            // Firmware-measured inter-message delta (immune to TCP jitter); null for the first message.
+            firmwareDeltaMs = timestampResult.IsFirstMessage
+                ? (double?)null
+                : timestampResult.SecondsBetweenMessages * 1000.0;
+        }
 
         // Open the gate for Core's decode of this exact frame, which runs synchronously right
         // after this method returns (see _acceptChannelSamples).
@@ -1162,8 +1219,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         // With a counter reference (any frame seen on this connection), leftovers are recognized
         // directly; without one (first session after connect — the device's leftover survives a
         // disconnect/reconnect), the first frame is held and validated against its successor.
-        _timestampProcessor.ResetAll();
-        _timestampFrequencyApplied = false;
+        lock (_timestampProcessorSync)
+        {
+            FrameTimestampProcessor.ResetAll();
+            _timestampFrequencyApplied = false;
+        }
+
         _discardedLeftoverFrameCount = 0;
         _checkForLeftoverFrames = _hasSeenDeviceTimestamp;
         _pendingFirstFrameValidation = !_hasSeenDeviceTimestamp;
@@ -1195,8 +1256,11 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         AppLogger.AddBreadcrumb("streaming", "Streaming stopped");
 
         // Reset timestamp processor state for clean restart
-        _timestampProcessor.ResetAll();
-        _timestampFrequencyApplied = false;
+        lock (_timestampProcessorSync)
+        {
+            FrameTimestampProcessor.ResetAll();
+            _timestampFrequencyApplied = false;
+        }
 
         foreach (var channel in DataChannels)
         {
