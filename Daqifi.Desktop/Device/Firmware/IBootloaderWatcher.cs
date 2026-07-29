@@ -27,6 +27,24 @@ public interface IBootloaderWatcher
     /// <summary>Raised when a held bootloader drops off the list (device removed / surprise-detached).</summary>
     event EventHandler<BootloaderHoldDroppedEventArgs>? HoldDropped;
 
+    /// <summary>
+    /// True while a HID bootloader write is in flight — i.e. between <see cref="PrepareFlashAsync"/> and
+    /// the disposal of the lease it returned. The watcher itself uses this to keep HID discovery paused;
+    /// it is public so the connection dialog can key its own serial + WiFi discovery on the same "a
+    /// bootloader is being flashed" fact instead of a parallel flag (issue #777), because a manual flash
+    /// never sets <c>ConnectionManager.DeviceBeingUpdated</c> and so is invisible to
+    /// <c>ConnectionManager.IsFirmwareUpdateInProgress</c>.
+    /// </summary>
+    bool IsFlashInProgress { get; }
+
+    /// <summary>
+    /// Raised on both edges of <see cref="IsFlashInProgress"/>. Subscribers that quiesced their own
+    /// device I/O for the flash use the falling edge to resume: a flash lease is released asynchronously
+    /// and can outlive the dialog that started it, so the dialog's own resume may already have been
+    /// refused by the time the write actually finishes.
+    /// </summary>
+    event EventHandler? FlashInProgressChanged;
+
     /// <summary>Begins discovery and holding. Idempotent; call once at app startup.</summary>
     void Start();
 

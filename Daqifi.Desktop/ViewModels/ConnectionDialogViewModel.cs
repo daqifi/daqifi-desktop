@@ -40,6 +40,20 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
     /// </summary>
     private readonly IBootloaderWatcher? _watcher;
 
+    /// <summary>
+    /// True from the moment <see cref="ConnectHid"/> starts quiescing discovery until the HID firmware
+    /// dialog it opened has closed. The watcher's own <see cref="IBootloaderWatcher.IsFlashInProgress"/>
+    /// only covers the write itself (<c>PrepareFlashAsync</c> → lease disposal), so this covers the rest
+    /// of the window <see cref="ConnectHid"/> deliberately quiesced — most importantly the time the user
+    /// spends picking a .hex before the write starts, during which an auto-update ending would otherwise
+    /// restart discovery and leave it running when they hit Upload (issue #777).
+    /// <para>
+    /// Volatile: the quiesce window spans awaits, so the write that clears it can land on a thread-pool
+    /// thread when no dispatcher is present (unit tests), while a restart continuation reads it.
+    /// </para>
+    /// </summary>
+    private volatile bool _hidFirmwareDialogOpen;
+
     [ObservableProperty]
     private bool _hasNoWiFiDevices = true;
 
@@ -153,6 +167,12 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
             HasNoHidDevices = _watcher.Bootloaders.Count == 0;
             ((System.Collections.Specialized.INotifyCollectionChanged)_watcher.Bootloaders).CollectionChanged
                 += OnHidDevicesChanged;
+
+            // A HID bootloader write can outlive the modal firmware dialog (closing it mid-flash only
+            // cancels; the watcher's flash lease is released asynchronously afterwards). Subscribe so the
+            // end of the write is a restart trigger of its own — without it, a resume refused while the
+            // write was still running would never be retried (issue #777).
+            _watcher.FlashInProgressChanged += OnBootloaderFlashInProgressChanged;
         }
 
         // Set up the duplicate device handler
@@ -180,16 +200,62 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
             }
             else
             {
-                // Flash finished — bring discovery back so the dialog keeps listing devices. The stop we
-                // issued at flash start may still be draining (a wedged port can hold StopSerialDiscoveryAsync
-                // past its timeout, leaving _serialStopTask incomplete), and Start*Discovery refuses to
-                // start while that drain is in flight. So retry the start once the drain completes rather
-                // than dropping it — otherwise discovery could stay stopped for the rest of the dialog.
-                RestartDiscoveryWhenDrained(_wifiStopTask, StartWiFiDiscovery);
-                RestartDiscoveryWhenDrained(_serialStopTask, StartSerialDiscovery);
+                // Auto-update finished — bring discovery back so the dialog keeps listing devices. The
+                // restart carries the IsDiscoveryPausedForFirmware guard, so it is correctly refused when
+                // a concurrent HID bootloader flash still needs the bus quiet (issue #777); that flash's
+                // own release path calls the restart again.
+                RestartDiscoveryAfterFirmwarePause();
             }
         });
     }
+
+    /// <summary>
+    /// Reacts to a HID bootloader write starting or finishing on the app-global watcher. Only the falling
+    /// edge needs work: <see cref="ConnectHid"/> already drained both transports before the write could
+    /// start, and <see cref="IsDiscoveryPausedForFirmware"/> keeps them from restarting while it runs.
+    /// When it ends, retry the restart — the firmware dialog may already have closed (and had its own
+    /// restart refused) while the write was still unwinding (issue #777).
+    /// </summary>
+    private void OnBootloaderFlashInProgressChanged(object? sender, EventArgs e)
+    {
+        InvokeOnUiThread(() =>
+        {
+            if (_closed || _watcher == null || _watcher.IsFlashInProgress) { return; }
+
+            RestartDiscoveryAfterFirmwarePause();
+        });
+    }
+
+    /// <summary>
+    /// Brings serial + WiFi discovery back after one of the firmware pause reasons cleared. Both starts
+    /// re-check <see cref="IsDiscoveryPausedForFirmware"/>, so calling this while another reason is still
+    /// active is a harmless no-op — and because every reason calls this when it clears, whichever one
+    /// clears last performs the actual restart. That is what stops a guard from leaving discovery paused
+    /// for the rest of the dialog's life.
+    /// </summary>
+    private void RestartDiscoveryAfterFirmwarePause()
+    {
+        // The stop issued when the pause began may still be draining (a wedged port can hold
+        // StopSerialDiscoveryAsync past its timeout, leaving _serialStopTask incomplete), and
+        // Start*Discovery refuses to start while that drain is in flight. So retry the start once the
+        // drain completes rather than dropping it — otherwise discovery could stay stopped for the rest
+        // of the dialog (issue #738).
+        RestartDiscoveryWhenDrained(_wifiStopTask, StartWiFiDiscovery);
+        RestartDiscoveryWhenDrained(_serialStopTask, StartSerialDiscovery);
+    }
+
+    /// <summary>
+    /// True while some firmware operation needs this dialog's serial + WiFi discovery quiesced: a
+    /// coordinator auto-update (<see cref="ConnectionManager.IsFirmwareUpdateInProgress"/>), an open HID
+    /// firmware dialog, or a HID bootloader write still in flight on the app-global watcher. The last two
+    /// are invisible to the connection manager — a manual flash never sets <c>DeviceBeingUpdated</c> — so
+    /// gating on the connection manager alone let one device's auto-update ending re-open COM ports and
+    /// resume WiFi broadcasts in the middle of another device's HID flash (issue #777).
+    /// </summary>
+    private bool IsDiscoveryPausedForFirmware =>
+        ConnectionManager.Instance.IsFirmwareUpdateInProgress
+        || _hidFirmwareDialogOpen
+        || _watcher?.IsFlashInProgress == true;
 
     /// <summary>
     /// Starts a discovery transport, deferring the start until any in-flight stop/drain for that
@@ -232,10 +298,11 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
         // draining (see _wifiStopTask above) so a fresh finder never races an old one for the socket.
         if (_closed || _wifiFinder != null || _wifiStopTask is { IsCompleted: false }) { return; }
 
-        // Don't run discovery during a firmware update: its per-cycle bus probing can starve the
-        // flash / steal the reconnecting COM port (issue #738). Covers a dialog opened mid-flash;
-        // OnFirmwareUpdateInProgressChanged restarts discovery when the flash ends.
-        if (ConnectionManager.Instance.IsFirmwareUpdateInProgress) { return; }
+        // Don't run discovery during any firmware operation: its per-cycle bus probing can starve the
+        // flash / steal the reconnecting COM port (issue #738) and can starve a HID bootloader's I/O
+        // mid-write (issue #777). Covers a dialog opened mid-flash; the release path of whichever pause
+        // reason clears last restarts discovery.
+        if (IsDiscoveryPausedForFirmware) { return; }
 
         // Reset the bound list to match the new finder's dedup set: a fresh ContinuousDeviceFinder
         // means a fresh, empty live set, so a list that outlives the finder it was populated from
@@ -268,12 +335,13 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
     {
         if (_closed || _serialFinder != null || _serialStopTask is { IsCompleted: false }) { return; }
 
-        // Don't probe COM ports during a firmware update: Core opens/reconnects the device's port
+        // Don't probe COM ports during a firmware operation: Core opens/reconnects the device's port
         // itself across the flash, and the SerialDeviceFinder opens every DAQiFi VID/PID port each
         // cycle — a probe landing in Core's JumpingToApp reconnect window steals the port and strands
-        // the update in a timeout (issue #738). Covers a dialog opened mid-flash;
-        // OnFirmwareUpdateInProgressChanged restarts discovery when the flash ends.
-        if (ConnectionManager.Instance.IsFirmwareUpdateInProgress) { return; }
+        // the update in a timeout (issue #738), and the same probing can starve a HID bootloader's I/O
+        // mid-write on another device (issue #777). Covers a dialog opened mid-flash; the release path
+        // of whichever pause reason clears last restarts discovery.
+        if (IsDiscoveryPausedForFirmware) { return; }
 
         var options = new ContinuousDiscoveryOptions
         {
@@ -523,6 +591,20 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
         var bootloader = enumerable.Cast<HeldBootloader>().FirstOrDefault();
         if (bootloader == null) { return; }
 
+        await RunWithHidFlashQuiescedAsync(() =>
+        {
+            var firmwareDialogViewModel = new FirmwareDialogViewModel(bootloader.DisplayName, bootloader.DevicePath);
+            _dialogService.ShowDialog<FirmwareDialog>(this, firmwareDialogViewModel);
+        });
+    }
+
+    /// <summary>
+    /// Runs the (modal) HID firmware dialog with WiFi + serial discovery quiesced for the whole window,
+    /// then restores discovery.
+    /// </summary>
+    /// <param name="showFirmwareDialog">Shows the modal firmware dialog; returns once it has closed.</param>
+    private async Task RunWithHidFlashQuiescedAsync(Action showFirmwareDialog)
+    {
         // Pause WiFi + serial discovery while the firmware dialog is open: their per-cycle bus probing
         // (serial opens/probes every COM port; WiFi UDP-broadcasts) can starve the bootloader's HID I/O
         // mid-flash. HID discovery and the per-device holds belong to the app-global watcher — it pauses
@@ -531,20 +613,26 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
         // bootloader stays wedge-proof. Awaiting the drains matters: cancel/dispose does NOT abort an
         // in-flight DiscoverAsync cycle, so a still-running probe could otherwise hold a handle when the
         // flasher fires.
-        await StopWiFiDiscoveryAsync();
-        await StopSerialDiscoveryAsync();
-
+        //
+        // The flag goes up BEFORE the drains: a coordinator auto-update of a different device can finish
+        // while we are awaiting them, and its FirmwareUpdateInProgressChanged handler would otherwise
+        // restart the very discovery we are tearing down (issue #777).
+        _hidFirmwareDialogOpen = true;
         try
         {
-            var firmwareDialogViewModel = new FirmwareDialogViewModel(bootloader.DisplayName, bootloader.DevicePath);
-            _dialogService.ShowDialog<FirmwareDialog>(this, firmwareDialogViewModel);
+            await StopWiFiDiscoveryAsync();
+            await StopSerialDiscoveryAsync();
+
+            showFirmwareDialog();
         }
         finally
         {
             // Resume discovery once the flash dialog closes so the device list stays live. The watcher
-            // keeps holding the bootloader (or drops it if the flash succeeded) on its own.
-            StartWiFiDiscovery();
-            StartSerialDiscovery();
+            // keeps holding the bootloader (or drops it if the flash succeeded) on its own. If an
+            // auto-update or a still-unwinding bootloader write is holding the bus, this restart is
+            // refused and that operation's own release path retries it.
+            _hidFirmwareDialogOpen = false;
+            RestartDiscoveryAfterFirmwarePause();
         }
     }
     #endregion
@@ -763,6 +851,7 @@ public partial class ConnectionDialogViewModel : ObservableObject, IDisposable
         {
             ((System.Collections.Specialized.INotifyCollectionChanged)_watcher.Bootloaders).CollectionChanged
                 -= OnHidDevicesChanged;
+            _watcher.FlashInProgressChanged -= OnBootloaderFlashInProgressChanged;
         }
     }
 

@@ -65,6 +65,14 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     public event EventHandler<BootloaderHoldDroppedEventArgs>? HoldDropped;
 
     /// <inheritdoc />
+    public event EventHandler? FlashInProgressChanged;
+
+    /// <inheritdoc />
+    // Volatile read: _flashingPath is written under _gate, but this is polled from callers that hold no
+    // gate (the connection dialog's Start*Discovery guards), so the read must not be hoisted/cached.
+    public bool IsFlashInProgress => Volatile.Read(ref _flashingPath) != null;
+
+    /// <inheritdoc />
     public void Start()
     {
         if (_disposed || _started)
@@ -83,13 +91,15 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     {
         ArgumentNullException.ThrowIfNull(devicePath);
 
+        bool flashStarted;
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
             // Pause discovery and mark this device as the flash target so it isn't re-grabbed while the
             // flasher owns it. Other holds are left untouched (they stay wedge-proof).
             _discovery.Stop();
-            _flashingPath = devicePath;
+            flashStarted = _flashingPath == null;
+            Volatile.Write(ref _flashingPath, devicePath);
 
             if (_holds.TryGetValue(devicePath, out var hold))
             {
@@ -102,6 +112,11 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
         finally
         {
             _gate.Release();
+        }
+
+        if (flashStarted)
+        {
+            RaiseFlashInProgressChanged();
         }
 
         return new WatcherLease(() => ResumeAfterFlashAsync(devicePath));
@@ -129,28 +144,77 @@ public sealed class BootloaderWatcher : IBootloaderWatcher, IDisposable
     #region Resume (lease disposal)
     private async Task ResumeAfterFlashAsync(string devicePath)
     {
+        var flashEnded = false;
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            _flashingPath = null;
-
-            if (_holds.TryGetValue(devicePath, out var hold))
+            try
             {
-                // Re-grab the exact device by path. A failed/cancelled flash leaves it a bootloader →
-                // re-held. A successful flash left it in application mode → the open fails and we drop it.
-                await hold.BeginHoldAsync().ConfigureAwait(false);
-                if (!hold.IsHolding)
+                if (_holds.TryGetValue(devicePath, out var hold))
                 {
-                    RemoveHold(devicePath, hold);
-                    _logger.Information($"{devicePath} is no longer a bootloader after flashing; dropped from the held list.");
+                    // Re-grab the exact device by path. A failed/cancelled flash leaves it a bootloader →
+                    // re-held. A successful flash left it in application mode → the open fails and we drop it.
+                    await hold.BeginHoldAsync().ConfigureAwait(false);
+                    if (!hold.IsHolding)
+                    {
+                        RemoveHold(devicePath, hold);
+                        _logger.Information(
+                            $"{devicePath} is no longer a bootloader after flashing; dropped from the held list.");
+                    }
                 }
             }
+            finally
+            {
+                // Clear the marker only once the handoff is complete. IsFlashInProgress is polled with no
+                // gate held (the connection dialog's discovery guards), so clearing it before awaiting the
+                // re-grab would advertise "flash over" while the HID handle is still being reopened and let
+                // the dialog resume bus probing into it. The finally is what keeps an unexpected re-grab
+                // failure from stranding the marker set, which would pause that discovery for good.
+                flashEnded = _flashingPath != null;
+                Volatile.Write(ref _flashingPath, null);
 
-            ResumeDiscoveryIfIdle();
+                ResumeDiscoveryIfIdle();
+            }
         }
         finally
         {
             _gate.Release();
+
+            if (flashEnded)
+            {
+                RaiseFlashInProgressChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Raises <see cref="FlashInProgressChanged"/>. Always called with <see cref="_gate"/> released:
+    /// subscribers react by marshalling onto the UI thread, and doing that under the gate could
+    /// lock-invert with a UI-thread gate acquisition (the same reason <see cref="HoldDropped"/> is raised
+    /// outside it). Guarded so a faulting subscriber cannot propagate into the flash lease's disposal and
+    /// mask the flash's own outcome.
+    /// </summary>
+    private void RaiseFlashInProgressChanged()
+    {
+        var handlers = FlashInProgressChanged;
+        if (handlers == null)
+        {
+            return;
+        }
+
+        // Invoke each subscriber independently rather than wrapping the multicast delegate in one
+        // try/catch: a single throwing subscriber would otherwise swallow the edge for every handler
+        // registered after it, and for a connection dialog the falling edge is its only resume trigger.
+        foreach (var handler in handlers.GetInvocationList().Cast<EventHandler>())
+        {
+            try
+            {
+                handler(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "A FlashInProgressChanged subscriber threw while the flash state changed.");
+            }
         }
     }
 
