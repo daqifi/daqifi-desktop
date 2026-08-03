@@ -1,5 +1,4 @@
 using Daqifi.Core.Device.SdCard;
-using Daqifi.Desktop.Loggers;
 
 namespace Daqifi.Desktop.ViewModels;
 
@@ -86,6 +85,14 @@ public static class SdCardFailureClassifier
         "The device stopped sending this file before it was complete. Try importing it on its " +
         "own; if every file fails the same way, power-cycle the device and try again.";
 
+    /// <summary>
+    /// Guidance for a transfer whose transport went away mid-file. Distinct from the two above
+    /// because the card is not the problem: Core states that retrying on the same transport cannot
+    /// succeed, so the user has to re-establish the connection first.
+    /// </summary>
+    internal const string TRANSPORT_CLOSED_GUIDANCE =
+        "The connection to the device was lost during the transfer. Reconnect the device and try again.";
+
     /// <summary>Guidance for a device with no card in the slot.</summary>
     internal const string NO_CARD_GUIDANCE =
         "No SD card is installed in the device. Insert a card and refresh.";
@@ -118,21 +125,55 @@ public static class SdCardFailureClassifier
             // The device opened the file and closed it again without sending a byte, after Core
             // exhausted its own retries.
             //
-            // Core's own doc calls this "never a valid download for a file the directory listing
-            // reports as non-empty" — but SdCardFileReceiver has no access to the listed size at
-            // the point it throws, so it raises the same exception for any marker-only transfer.
-            // A genuinely 0-byte log, which an interrupted logging session routinely leaves on a
-            // FAT card, is therefore indistinguishable from a wedged subsystem. Treat it as
-            // per-file: one benign empty file used to make every file listed after it unimportable
-            // through Import All (issue #780).
+            // Since Core v1.4.0 this is size-aware: the receiver compares the marker-only transfer
+            // against the directory listing's reported size and only raises this for a file the
+            // listing calls non-empty, or whose listed size it could not determine
+            // (daqifi-core#398 gap 2). A genuinely 0-byte log — routinely left on a FAT card by an
+            // interrupted logging session — now downloads as a legitimate empty file and never
+            // reaches here.
             //
-            // Revisit once Core makes the empty-transfer check size-aware. See daqifi-core#398 (gap 2).
+            // Still per-file rather than card-wide: the unknown-listed-size case keeps Core's
+            // conservative throw, and one wedged file must not make every file listed after it
+            // unimportable through Import All (issue #780).
             SdCardEmptyTransferException => new SdCardFailure(
                 State: SdCardState.Error,
                 StatusMessage: "The device returned no data for this file.",
                 Guidance: EMPTY_TRANSFER_GUIDANCE,
                 IsExpectedDeviceCondition: true,
                 IsCardUnavailable: false),
+
+            // The transfer stopped making progress before the end-of-file marker arrived. Core
+            // raises this directly for a transport that returned an empty read or closed; the
+            // importer raises it for its own stall watchdog and for Core's hard download deadline
+            // (see SdCardSessionImporter.DownloadWithStallWatchdogAsync).
+            //
+            // Reason is what decides how far the failure generalises — the typed replacement for
+            // the desktop's old binary "was the device quiet for the full window" measurement
+            // (daqifi-core#398 gap 1). It must precede the SdCardOperationException arm below,
+            // which is its base type.
+            SdCardTransferStalledException stalled => new SdCardFailure(
+                State: SdCardState.Error,
+                StatusMessage: stalled.Reason == SdCardTransferStallReason.TransportClosed
+                    ? "The connection to the device dropped during the transfer."
+                    : "The device stopped responding during the transfer.",
+                Guidance: stalled.Reason switch
+                {
+                    // The whole transfer deadline elapsed with the file incomplete. That is
+                    // evidence about the device, and far too expensive to pay again per file.
+                    SdCardTransferStallReason.TransferTimeout => POWER_CYCLE_GUIDANCE,
+
+                    // The transport is gone; Core states a retry on it cannot succeed.
+                    SdCardTransferStallReason.TransportClosed => TRANSPORT_CLOSED_GUIDANCE,
+
+                    // NoDataReceived — over USB serial this is the ordinary per-read stall and
+                    // fires in well under a second, so it can be one unreadable file (issue #779).
+                    _ => INCOMPLETE_TRANSFER_GUIDANCE
+                },
+                IsExpectedDeviceCondition: true,
+                // Deliberately narrow (issue #780): only the two reasons that are unmistakably
+                // about the device rather than about this one file stop a batch.
+                IsCardUnavailable: stalled.Reason is SdCardTransferStallReason.TransferTimeout
+                    or SdCardTransferStallReason.TransportClosed),
 
             // Unambiguously device-wide: the device is using the card itself, so no file on it can
             // be downloaded until logging stops.
@@ -161,23 +202,11 @@ public static class SdCardFailureClassifier
                 // is still worth trying.
                 IsCardUnavailable: false),
 
-            // Raised by SdCardSessionImporter when the device stops sending data mid-transfer
-            // without ever failing the request. Matched by its specific type, not by
-            // TimeoutException: an unrelated timeout reaching here is not evidence that the SD
-            // subsystem is wedged, and must keep the Error path.
-            //
-            // How long the device had been quiet decides how far it generalises. Silence lasting
-            // the full stall window is evidence about the device, and repeating that wait for
-            // every remaining file would cost the user it again per file. A transport timeout on a
-            // device that was delivering data until moments before is neither: it can be one
-            // unreadable file, so it is treated like any other per-file failure (issue #779).
-            SdCardDownloadStalledException stalled => new SdCardFailure(
-                State: SdCardState.Error,
-                StatusMessage: "The device stopped responding during the transfer.",
-                Guidance: stalled.IsProlongedFailure ? POWER_CYCLE_GUIDANCE : INCOMPLETE_TRANSFER_GUIDANCE,
-                IsExpectedDeviceCondition: true,
-                IsCardUnavailable: stalled.IsProlongedFailure),
-
+            // A bare TimeoutException is deliberately NOT matched: one reaching here from some
+            // other layer is not evidence that the SD subsystem is wedged and must keep the Error
+            // path. The importer normalises the one timeout that IS about the card — Core's hard
+            // download deadline — onto SdCardTransferStalledException at the call site, where the
+            // scope makes it safe.
             _ => new SdCardFailure(
                 State: SdCardState.Error,
                 StatusMessage: ex.Message,

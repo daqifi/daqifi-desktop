@@ -131,21 +131,21 @@ public class DeviceLogsViewModelImportTests
     }
 
     /// <summary>
-    /// The stall a wedged device actually produces over USB serial: Core's transport timeout,
-    /// normalised by the importer, having given up in well under the desktop's stall window.
+    /// The stall a wedged device actually produces over USB serial: Core's per-read stall, raised
+    /// within about half a second of the request (issue #779).
     /// </summary>
-    private static SdCardDownloadStalledException QuickTransportStall(string fileName) =>
-        new(fileName,
-            silentFor: TimeSpan.FromMilliseconds(500),
-            patienceWindow: TimeSpan.FromSeconds(90),
-            new TimeoutException("Transport stream closed before receiving the EOF marker."));
+    private static SdCardTransferStalledException QuickTransportStall(string fileName) =>
+        new(fileName, bytesReceived: 0, SdCardTransferStallReason.NoDataReceived);
 
     /// <summary>
     /// The stall the desktop's own watchdog raises: the device delivered nothing for the full
     /// window, which is the one download failure broad enough to abandon a batch import over.
     /// </summary>
-    private static SdCardDownloadStalledException WatchdogStall(string fileName) =>
-        new(fileName, silentFor: TimeSpan.FromSeconds(90), patienceWindow: TimeSpan.FromSeconds(90));
+    private static SdCardTransferStalledException WatchdogStall(string fileName) =>
+        new(fileName,
+            bytesReceived: 0,
+            SdCardTransferStallReason.TransferTimeout,
+            TimeSpan.FromSeconds(90));
 
     private IEnumerable<string> ImportedFileNames() =>
         _mockImporter.Invocations
@@ -213,8 +213,9 @@ public class DeviceLogsViewModelImportTests
     public async Task ImportFile_TransportDetectedStall_LogsWarningNotError()
     {
         // Arrange — issue #779: over USB serial this, not the watchdog, is what a wedged device
-        // actually produces. Before the importer normalised it, the bare TimeoutException hit the
-        // classifier's default arm and filed a Sentry issue on every attempt.
+        // actually produces. Before it was classified, the bare TimeoutException hit the
+        // classifier's default arm and filed a Sentry issue on every attempt. Core v1.4.0 now types
+        // it (daqifi-core#398 gap 1) — the arm has to follow, or the Sentry path comes back.
         await SettleInitialRefreshAsync();
         SetupImportToThrow(QuickTransportStall(FileName));
 
@@ -226,6 +227,25 @@ public class DeviceLogsViewModelImportTests
         _mockLogger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.Never,
             "The whole point of #779 is that this stopped reaching the Sentry path.");
         _mockLogger.Verify(l => l.Error(It.IsAny<string>()), Times.Never);
+    }
+
+    [TestMethod]
+    public async Task ImportFile_TransportClosedStall_LogsWarningNotError()
+    {
+        // Arrange — the third of Core's stall reasons: the transport went away mid-file. Retrying
+        // on it cannot succeed, so it stops the batch — but it is still a device condition, not an
+        // app defect, and must stay off the Sentry path like the other two.
+        await SettleInitialRefreshAsync();
+        SetupImportToThrow(new SdCardTransferStalledException(
+            FileName, bytesReceived: 4096, SdCardTransferStallReason.TransportClosed));
+
+        // Act
+        await ImportAsync();
+
+        // Assert
+        _mockLogger.Verify(l => l.Warning(It.IsAny<Exception>(), It.IsAny<string>()), Times.Once);
+        _mockLogger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.Never);
+        Assert.AreEqual(SdCardFailureClassifier.TRANSPORT_CLOSED_GUIDANCE, _viewModel.SdCardErrorGuidance);
     }
 
     [TestMethod]
@@ -423,9 +443,8 @@ public class DeviceLogsViewModelImportTests
     [TestMethod]
     public async Task ImportAllFiles_WhenTheTransportTimesOut_KeepsGoingAndStaysOffTheErrorPath()
     {
-        // Arrange — #779 and #780 together on the transport that actually ships. Core's plain
-        // TimeoutException, normalised by the importer, must neither file a Sentry issue nor end
-        // the batch.
+        // Arrange — #779 and #780 together on the transport that actually ships. Core's per-read
+        // stall must neither file a Sentry issue nor end the batch.
         await SettleInitialRefreshAsync();
         AddDeviceFiles(THREE_FILES);
 

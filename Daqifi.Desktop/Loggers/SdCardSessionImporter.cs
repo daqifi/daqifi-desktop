@@ -20,10 +20,11 @@ public interface ISdCardSessionImporter
     /// <summary>
     /// Downloads an SD card log file from a connected USB device and imports it.
     /// </summary>
-    /// <exception cref="SdCardDownloadStalledException">
-    /// Thrown when the device stops sending data mid-transfer — either because the desktop's own
-    /// watchdog ran out of patience (see <see cref="SdCardSessionImporter.DOWNLOAD_STALL_TIMEOUT"/>)
-    /// or because the transport reported a timeout first.
+    /// <exception cref="SdCardTransferStalledException">
+    /// Thrown when the transfer stops making progress before the end-of-file marker arrives. Core
+    /// raises it directly for a transport that goes quiet or closes; the desktop raises it for its
+    /// own stall watchdog and for Core's hard download deadline (see
+    /// <see cref="SdCardSessionImporter.DOWNLOAD_STALL_TIMEOUT"/>).
     /// </exception>
     Task<SdCardImportResult> ImportFromDeviceAsync(
         IStreamingDevice device,
@@ -52,6 +53,11 @@ public class SdCardSessionImporter : ISdCardSessionImporter
     /// message than a bare timeout, so it must be allowed to win the race. This watchdog is the
     /// backstop for the case Core cannot detect — a transfer that simply never completes, which
     /// otherwise left the UI sitting on a busy overlay indefinitely (issue #754).
+    ///
+    /// Core v1.4.0 bounds the download itself (daqifi-core#399/#401), but its budget is 30 minutes
+    /// and is not settable from here (<c>DaqifiStreamingDevice.SdCardDownloadTimeout</c> is
+    /// <c>internal virtual</c>), so this shorter bound is kept rather than handing the UI a
+    /// half-hour busy overlay.
     /// </summary>
     internal static readonly TimeSpan DOWNLOAD_STALL_TIMEOUT = TimeSpan.FromSeconds(90);
 
@@ -121,17 +127,20 @@ public class SdCardSessionImporter : ISdCardSessionImporter
 
         _logger.Information($"Starting import of '{fileName}' from device {device.DeviceSerialNo}");
 
-        // Download to temp file, bounded by a stall watchdog. Core exposes no timeout on either
-        // public DownloadSdCardFileAsync overload (daqifi-core), so the desktop has to impose the
-        // bound itself or a silent device leaves the import hanging forever.
+        // Download to temp file, bounded by a stall watchdog tighter than Core's own 30-minute
+        // download budget (see DOWNLOAD_STALL_TIMEOUT).
         var downloadResult = await DownloadWithStallWatchdogAsync(device, fileName, ct);
 
         if (string.IsNullOrEmpty(downloadResult.FilePath))
         {
-            // The device answered but delivered nothing to disk — the same "SD subsystem is not
-            // ready" condition Core raises this exception for, so report it the same way rather
-            // than as a generic fault the user cannot act on.
-            throw new SdCardEmptyTransferException(fileName);
+            // A contract violation, not a device condition: Core's temp-file overload always sets
+            // FilePath on the result it returns, and throws otherwise. Left as an unclassified
+            // failure on purpose — it keeps the Error/Sentry path, which is where a broken
+            // implementation of IStreamingDevice belongs. It is NOT the wedged-SD-subsystem
+            // condition it used to be reported as: a device that opens a file and serves nothing is
+            // Core's SdCardEmptyTransferException, raised from inside the download call above.
+            throw new InvalidOperationException(
+                $"The SD card download of '{fileName}' reported success without producing a local file.");
         }
 
         // Validate the downloaded file is in a temp directory
@@ -154,11 +163,17 @@ public class SdCardSessionImporter : ISdCardSessionImporter
 
             if (fileInfo.Length == 0)
             {
-                // Issue #593 was this check firing as a bare InvalidOperationException, which the
-                // Error path then filed to Sentry. A file the device listed but served as 0 bytes
-                // is the wedged-SD-subsystem condition, not an app fault: same typed exception as
-                // the marker-only transfer Core detects, so it degrades the same way.
-                throw new SdCardEmptyTransferException(fileName);
+                // A legitimately empty log, not a failure. Core v1.4.0 discriminates the two using
+                // the directory listing's reported size (daqifi-core#398 gap 2): a marker-only
+                // transfer for a file the listing calls non-empty — or whose listed size is unknown
+                // — still raises SdCardEmptyTransferException from inside the download call, so
+                // reaching here means the listing itself said 0 bytes. An interrupted logging
+                // session routinely leaves such a file on a FAT card; it imports as an empty
+                // session rather than failing (and taking the rest of an Import All batch with it,
+                // issue #780).
+                _logger.Warning(
+                    $"SD card file '{fileName}' is empty: the device listed it as 0 bytes and served no " +
+                    "data. Importing it as an empty session.");
             }
 
             // Parse using the original device filename (not the temp path)
@@ -218,10 +233,11 @@ public class SdCardSessionImporter : ISdCardSessionImporter
     /// restarts every time the device delivers another chunk, so only a device that goes quiet
     /// trips it.
     /// </summary>
-    /// <exception cref="SdCardDownloadStalledException">
-    /// Thrown when no data arrives for <see cref="_downloadStallTimeout"/>, or when the transport
-    /// reports a timeout of its own first. Callers surface this as an expected device condition
-    /// rather than an app error.
+    /// <exception cref="SdCardTransferStalledException">
+    /// Thrown when no data arrives for <see cref="_downloadStallTimeout"/>, or when Core abandons
+    /// the download on its own hard deadline. Core's own stalls — a transport that returned an
+    /// empty read or closed — already arrive as this type and pass through untouched. Callers
+    /// surface all of them as expected device conditions rather than app errors.
     /// </exception>
     internal async Task<SdCardDownloadResult> DownloadWithStallWatchdogAsync(
         IStreamingDevice device,
@@ -231,18 +247,17 @@ public class SdCardSessionImporter : ISdCardSessionImporter
         using var stallCts = new CancellationTokenSource();
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, stallCts.Token);
 
-        // How long the device has been quiet is what tells a stalled transfer apart from a slow
-        // one, and Core reports both through the same untyped exception, so the desktop has to
-        // measure it. Written from the progress callback and read from the catch blocks, which can
-        // be different threads — hence the volatile tick count rather than a TimeSpan field.
+        // How much of the file arrived before it stalled, so the stall report carries the same
+        // diagnostic Core's own stalls do. Written from the progress callback and read from the
+        // catch blocks, which can be different threads.
+        long bytesReceived = 0;
         var elapsed = System.Diagnostics.Stopwatch.StartNew();
-        long lastProgressTicks = 0;
 
         stallCts.CancelAfter(_downloadStallTimeout);
-        var transferProgress = new SynchronousProgress<SdCardTransferProgress>(_ =>
+        var transferProgress = new SynchronousProgress<SdCardTransferProgress>(report =>
         {
             // Another chunk arrived, so the device is alive — restart the deadline.
-            Volatile.Write(ref lastProgressTicks, elapsed.Elapsed.Ticks);
+            Volatile.Write(ref bytesReceived, report.BytesReceived);
 
             try
             {
@@ -261,32 +276,36 @@ public class SdCardSessionImporter : ISdCardSessionImporter
         catch (OperationCanceledException) when (stallCts.IsCancellationRequested && !ct.IsCancellationRequested)
         {
             // Distinguish our watchdog from a caller-requested cancel: only the watchdog becomes a
-            // stall, so a genuine user cancel still propagates as OperationCanceledException. The
-            // watchdog fires on exactly one condition — the full stall window with nothing arriving
-            // — so that window is the silence, by construction.
-            throw new SdCardDownloadStalledException(
-                fileName, _downloadStallTimeout, _downloadStallTimeout);
+            // stall, so a genuine user cancel still propagates as OperationCanceledException.
+            //
+            // Reported as TransferTimeout rather than NoDataReceived because that is what it means
+            // to the classifier: the deadline this importer imposes on a transfer elapsed with the
+            // file incomplete. NoDataReceived is Core's ordinary per-read stall, which gives up in
+            // well under a second and says far less about the device (see SdCardFailureClassifier).
+            throw new SdCardTransferStalledException(
+                fileName,
+                Volatile.Read(ref bytesReceived),
+                SdCardTransferStallReason.TransferTimeout,
+                _downloadStallTimeout);
         }
         catch (TimeoutException ex)
         {
-            // Issue #779: over USB serial — the only transport SD import supports — the watchdog
-            // above is effectively unreachable. Core's serial transport drops SerialPort.ReadTimeout
-            // to 500ms after connect and hands the raw BaseStream to SdCardFileReceiver, and .NET's
-            // SerialStream returns 0 bytes on a read timeout rather than throwing or honouring the
-            // token. The receiver treats a 0-byte read as fatal, so a wedged device raises a plain
-            // TimeoutException in about half a second — never as the cancellation the catch above
-            // is waiting for, which left this whole degradation path dead code on real hardware.
+            // Core v1.4.0 types its transport stalls (daqifi-core#398 gap 1), but its own hard
+            // download deadline still surfaces as a bare TimeoutException: the worker was abandoned
+            // mid-transfer, possibly parked in native serial I/O, so there is no receiver left to
+            // report a reason. Unnormalised it would fall through to the classifier's default arm —
+            // a Sentry issue plus "check the device connection", which is the exact #779 regression
+            // this catch exists to prevent.
             //
-            // Caught by type rather than by message, and deliberately not tied to that one throw
-            // site: SdCardFileReceiver raises TimeoutException from three places (the 0-byte read
-            // plus two paths for its own 30-minute cap), and Core is free to add more. What makes
-            // the normalisation safe is the *scope* — a timeout out of the download call is by
-            // definition a transfer that did not complete, whereas a TimeoutException from anywhere
-            // else in the import says nothing about the SD card and must keep the generic Error
-            // path. Core's exception is preserved as the inner one so the byte count and reason it
-            // reports still reach the log.
+            // Caught by type rather than by message, and deliberately not tied to one Core throw
+            // site. What makes the normalisation safe is the *scope*: a timeout out of the download
+            // call is by definition a transfer that did not complete, whereas a TimeoutException
+            // from anywhere else in the import says nothing about the SD card and must keep the
+            // generic Error path. Core's exception is preserved as the inner one.
             //
-            // Workaround: retire once Core reports stalls with a type. See daqifi-core#398 (gap 1).
+            // Note that Core's own typed stalls do not come through here at all:
+            // SdCardTransferStalledException derives from SdCardOperationException, not
+            // TimeoutException, so it propagates to the classifier untouched.
             //
             // A caller-requested cancel wins over all of that. Over serial the read does not
             // observe the token, so pressing cancel can surface as a transport timeout rather than
@@ -294,21 +313,15 @@ public class SdCardSessionImporter : ISdCardSessionImporter
             // hardware failed when in fact they stopped it themselves.
             ct.ThrowIfCancellationRequested();
 
-            // Report the silence, not the total transfer time. A large file that streamed steadily
-            // for ten minutes and then hit one brief transport timeout is a healthy device and one
-            // unlucky file; ten minutes of nothing is a wedged subsystem. Measuring the whole
-            // attempt would collapse those two into the same answer and abort a batch import over
-            // the first of them.
-            //
-            // Read the last-progress stamp BEFORE sampling the clock. The callback runs on Core's
-            // thread, so sampling the clock first would let a chunk landing in between stamp a
-            // time later than the "now" it is subtracted from, and report a negative silence. This
-            // order cannot: the stopwatch only moves forward, so a stamp read earlier is never
-            // ahead of a reading taken after it. A chunk arriving in the gap merely makes the
-            // reported silence slightly conservative, which is the harmless direction.
-            var lastProgress = TimeSpan.FromTicks(Volatile.Read(ref lastProgressTicks));
-            var silentFor = elapsed.Elapsed - lastProgress;
-            throw new SdCardDownloadStalledException(fileName, silentFor, _downloadStallTimeout, ex);
+            // The elapsed time, not the desktop's stall window: reaching Core's own deadline means
+            // progress kept arriving inside every one of this importer's windows, so reporting the
+            // window would misstate how long the user actually waited.
+            throw new SdCardTransferStalledException(
+                fileName,
+                Volatile.Read(ref bytesReceived),
+                SdCardTransferStallReason.TransferTimeout,
+                elapsed.Elapsed,
+                ex);
         }
     }
 

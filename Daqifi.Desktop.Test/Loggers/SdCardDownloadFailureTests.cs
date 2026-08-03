@@ -11,16 +11,18 @@ namespace Daqifi.Desktop.Test.Loggers;
 /// Covers how <see cref="SdCardSessionImporter"/> bounds and reports a download that the device
 /// does not honour.
 ///
-/// The stall watchdog exists because neither public <c>DaqifiStreamingDevice.DownloadSdCardFileAsync</c>
-/// overload in Daqifi.Core 1.3.0 exposes the timeout its underlying <c>SdCardFileReceiver.ReceiveAsync</c>
-/// accepts, so the desktop cannot bound an SD download through Core. Issue #754 showed what that
-/// costs: an import sat on a busy overlay for two minutes with no error. Until Core exposes the
-/// knob, the importer bounds the wait itself — but on <i>silence</i>, not on total elapsed time,
-/// so a large file that is downloading steadily is never cut off.
+/// Core v1.4.0 bounds the download itself, but its budget is 30 minutes and
+/// <c>DaqifiStreamingDevice.SdCardDownloadTimeout</c> is <c>internal virtual</c>, so the importer
+/// keeps a shorter bound of its own. Issue #754 showed what an unbounded wait costs: an import sat
+/// on a busy overlay for two minutes with no error. The importer's bound is on <i>silence</i>, not
+/// on total elapsed time, so a large file that is downloading steadily is never cut off.
 ///
-/// The empty-download cases cover issue #593: the importer's own "0 bytes" guard is the same
-/// wedged-SD-subsystem condition, and used to escape as a bare <see cref="InvalidOperationException"/>
-/// that the Error path filed to Sentry.
+/// Everything the importer raises for a transfer that did not complete is Core's typed
+/// <see cref="SdCardTransferStalledException"/> (daqifi-core#398 gap 1), so it reaches the
+/// classifier's stall arm rather than the default Sentry arm — the #779 regression.
+///
+/// The empty-download cases cover issues #593 and daqifi-core#398 gap 2: a file the device listed
+/// as 0 bytes is a legitimate empty log and must import rather than fail.
 /// </summary>
 [TestClass]
 public class SdCardDownloadFailureTests
@@ -61,112 +63,86 @@ public class SdCardDownloadFailureTests
             });
 
         // Act
-        var ex = await Assert.ThrowsExactlyAsync<SdCardDownloadStalledException>(() =>
+        var ex = await Assert.ThrowsExactlyAsync<SdCardTransferStalledException>(() =>
             _importer.DownloadWithStallWatchdogAsync(_mockDevice.Object, FileName, CancellationToken.None));
 
-        // Assert — this type is what the failure classifier turns into "power-cycle the device",
-        // so it is load-bearing, not incidental. It derives from TimeoutException so callers that
-        // only care that the operation timed out still catch it.
+        // Assert — the reason is what the failure classifier turns into "power-cycle the device"
+        // and into abandoning the rest of a batch, so it is load-bearing, not incidental.
         StringAssert.Contains(ex.Message, FileName);
-        Assert.IsInstanceOfType<TimeoutException>(ex);
-        Assert.IsTrue(ex.IsProlongedFailure,
-            "The watchdog watched the device say nothing for the full window, which is what makes " +
+        Assert.AreEqual(SdCardTransferStallReason.TransferTimeout, ex.Reason,
+            "The watchdog watched the device say nothing for its full window, which is what makes " +
             "this one broad enough to abandon a batch import over.");
-        Assert.AreEqual(STALL_TIMEOUT, ex.SilentFor);
+        Assert.AreEqual(STALL_TIMEOUT, ex.Timeout);
     }
 
     [TestMethod]
-    public async Task Download_WhenCoreReportsATimeout_BecomesAStallRatherThanABareTimeout()
+    public async Task Download_WhenCoreStallsTheTransfer_ReachesTheCallerUntouched()
     {
         // Arrange — issue #779. Over USB serial the watchdog above never gets to fire: Core's
         // serial transport drops SerialPort.ReadTimeout to 500ms and hands the raw BaseStream to
         // SdCardFileReceiver, .NET's SerialStream returns 0 bytes on a read timeout instead of
         // throwing or honouring the token, and the receiver treats that as fatal. So a wedged
-        // device produces this — a plain TimeoutException in about half a second — and never the
-        // cancellation the watchdog converts. Unnormalised it fell through to the classifier's
-        // default arm: a Sentry issue plus "check the device connection", which is the exact #754
-        // behaviour the stall machinery was written to eliminate.
-        var transportTimeout = new TimeoutException(
-            "Transport stream closed before receiving the EOF marker. Received 0 bytes.");
+        // device produces this in about half a second, never the cancellation the watchdog converts.
+        //
+        // Core v1.4.0 types it (daqifi-core#398 gap 1), and it does not derive from
+        // TimeoutException, so it must pass straight through the normalisation below rather than
+        // being re-wrapped and losing its reason and byte count.
+        var coreStall = new SdCardTransferStalledException(
+            FileName, bytesReceived: 0, SdCardTransferStallReason.NoDataReceived);
 
         _mockDevice
             .Setup(d => d.DownloadSdCardFileAsync(
                 It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(transportTimeout);
+            .ThrowsAsync(coreStall);
 
         // Act
-        var ex = await Assert.ThrowsExactlyAsync<SdCardDownloadStalledException>(() =>
+        var ex = await Assert.ThrowsExactlyAsync<SdCardTransferStalledException>(() =>
             _importer.DownloadWithStallWatchdogAsync(_mockDevice.Object, FileName, CancellationToken.None));
 
         // Assert
-        StringAssert.Contains(ex.Message, FileName);
-        Assert.AreSame(transportTimeout, ex.InnerException,
-            "Core's own message carries the byte count, which is the only diagnostic the log gets.");
-        Assert.IsFalse(ex.IsProlongedFailure,
+        Assert.AreSame(coreStall, ex, "Core already named this failure; re-wrapping it would only lose detail.");
+        Assert.AreEqual(SdCardTransferStallReason.NoDataReceived, ex.Reason,
             "The transport gave up in well under a second, so this says far less about the card " +
-            "than the watchdog firing does and must not abort a batch (issue #780).");
+            "than a transfer deadline does and must not abort a batch (issue #780).");
     }
 
     [TestMethod]
-    public async Task Download_WhenALongHealthyTransferTimesOutAtTheEnd_StaysPerFile()
+    public async Task Download_WhenCoreAbandonsOnItsHardDeadline_BecomesAStallRatherThanABareTimeout()
     {
-        // Arrange — a large file that streams steadily for several stall windows and then hits one
-        // brief transport timeout. The device was alive right up to the failure, so this says
-        // nothing about the card and must not abort the batch. Measuring the whole attempt instead
-        // of the silence would classify it as device-wide purely for being a big file.
+        // Arrange — Core v1.4.0 still reports its own hard download deadline as a bare
+        // TimeoutException: the worker was abandoned mid-transfer, so no receiver is left to name a
+        // reason (daqifi-core#399/#401). Unnormalised it falls through to the classifier's default
+        // arm — a Sentry issue plus "check the device connection", the exact #779 regression.
+        var coreDeadline = new TimeoutException(
+            "SD card download of 'x' did not complete within 1800s and was abandoned.");
+
         _mockDevice
             .Setup(d => d.DownloadSdCardFileAsync(
                 It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
             .Returns(async (string _, IProgress<SdCardTransferProgress> progress, CancellationToken ct) =>
             {
-                for (var i = 1; i <= 8; i++)
+                // Keep the watchdog fed so it is Core's deadline, not the desktop's, that decides.
+                for (var i = 1; i <= 4; i++)
                 {
                     await Task.Delay(STALL_TIMEOUT / 4, ct);
                     progress?.Report(new SdCardTransferProgress(i * 1024L, FileName));
                 }
 
-                // Fails immediately after the last chunk — no silence to speak of.
-                throw new TimeoutException("Transport stream closed before receiving the EOF marker.");
+                throw coreDeadline;
             });
 
         // Act
-        var ex = await Assert.ThrowsExactlyAsync<SdCardDownloadStalledException>(() =>
+        var ex = await Assert.ThrowsExactlyAsync<SdCardTransferStalledException>(() =>
             _importer.DownloadWithStallWatchdogAsync(_mockDevice.Object, FileName, CancellationToken.None));
 
         // Assert
-        Assert.IsFalse(ex.IsProlongedFailure,
-            "The device was delivering data until the moment it failed, so the remaining files are " +
-            "still worth trying.");
-        Assert.IsTrue(ex.SilentFor < STALL_TIMEOUT,
-            $"Expected the reported silence to be shorter than the stall window, but it was {ex.SilentFor}. " +
-            "Reporting total transfer time here is the bug this guards.");
-    }
-
-    [TestMethod]
-    public async Task Download_WhenTheDeviceGoesQuietThenCoreTimesOut_CountsAsProlonged()
-    {
-        // Arrange — the device delivers a chunk, then goes quiet for longer than the stall window
-        // before Core reports the timeout itself. Core raises its half-second serial read timeout
-        // and its 30-minute transfer cap through the identical untyped exception, so silence — not
-        // exception identity — is what says this one is broad enough to stop a batch over.
-        _mockDevice
-            .Setup(d => d.DownloadSdCardFileAsync(
-                It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
-            .Returns(async (string _, IProgress<SdCardTransferProgress> progress, CancellationToken _) =>
-            {
-                progress?.Report(new SdCardTransferProgress(1024L, FileName));
-                await Task.Delay(STALL_TIMEOUT * 2, CancellationToken.None);
-                throw new TimeoutException("SD card file download timed out after 1800 seconds.");
-            });
-
-        // Act
-        var ex = await Assert.ThrowsExactlyAsync<SdCardDownloadStalledException>(() =>
-            _importer.DownloadWithStallWatchdogAsync(_mockDevice.Object, FileName, CancellationToken.None));
-
-        // Assert
-        Assert.IsTrue(ex.IsProlongedFailure,
-            "Silence for the full stall window must not be paid again for every remaining file.");
-        Assert.IsTrue(ex.SilentFor >= STALL_TIMEOUT);
+        StringAssert.Contains(ex.Message, FileName);
+        Assert.AreEqual(SdCardTransferStallReason.TransferTimeout, ex.Reason);
+        Assert.AreSame(coreDeadline, ex.InnerException,
+            "Core's own message is the only diagnostic the log gets about how long it waited.");
+        Assert.AreEqual(4096L, ex.BytesReceived,
+            "How much of the file arrived is what separates a device that was delivering data from " +
+            "one that never started.");
     }
 
     [TestMethod]
@@ -246,47 +222,21 @@ public class SdCardDownloadFailureTests
     }
 
     [TestMethod]
-    public async Task Import_WhenTheDownloadedFileIsEmpty_ReportsTheWedgedSubsystemCondition()
+    public async Task Import_WhenNoFileIsDelivered_KeepsTheErrorPathBecauseItIsAContractViolation()
     {
-        // Arrange — the device lists the file and "downloads" it, but nothing lands on disk. This
-        // is issue #593: previously an InvalidOperationException, which the ViewModel could only
-        // treat as an app fault and file to Sentry.
-        var tempPath = Path.Combine(Path.GetTempPath(), $"daqifi_test_{Guid.NewGuid():N}.bin");
-        await File.WriteAllBytesAsync(tempPath, []);
-
-        try
-        {
-            _mockDevice
-                .Setup(d => d.DownloadSdCardFileAsync(
-                    It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new SdCardDownloadResult(FileName, 0, TimeSpan.Zero, tempPath));
-
-            // Act & Assert — the typed exception is what routes this to Warning plus
-            // "power-cycle the device" instead of the Error path.
-            await Assert.ThrowsExactlyAsync<SdCardEmptyTransferException>(() =>
-                _importer.ImportFromDeviceAsync(_mockDevice.Object, FileName));
-        }
-        finally
-        {
-            if (File.Exists(tempPath))
-            {
-                File.Delete(tempPath);
-            }
-        }
-    }
-
-    [TestMethod]
-    public async Task Import_WhenNoFileIsDelivered_ReportsTheWedgedSubsystemCondition()
-    {
-        // Arrange — the download "succeeds" without producing a local file at all.
+        // Arrange — the download reports success without producing a local file at all. Core's
+        // temp-file overload always sets FilePath on a successful result, so this cannot come from
+        // a device: it is a broken IStreamingDevice implementation and belongs on the Error/Sentry
+        // path, NOT reported as the wedged-SD-subsystem condition it used to masquerade as.
         _mockDevice
             .Setup(d => d.DownloadSdCardFileAsync(
                 It.IsAny<string>(), It.IsAny<IProgress<SdCardTransferProgress>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new SdCardDownloadResult(FileName, 0, TimeSpan.Zero, null));
 
         // Act & Assert
-        await Assert.ThrowsExactlyAsync<SdCardEmptyTransferException>(() =>
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
             _importer.ImportFromDeviceAsync(_mockDevice.Object, FileName));
+        StringAssert.Contains(ex.Message, FileName);
     }
 
     [TestMethod]

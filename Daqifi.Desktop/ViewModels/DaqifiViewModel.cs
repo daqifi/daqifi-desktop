@@ -2184,7 +2184,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
             // confirmed, and only the device's serial re-enumeration ran out of time. That is a
             // device/environmental condition a power-cycle finishes — Warning (no Sentry) and an
             // "installed, power-cycle" message, not a scary flash-failure dialog (issue #776).
-            if (FirmwareFailureClassifier.IsPostFlashReconnectTimeout(ex, FirmwareFlashPhase.WifiModule))
+            if (FirmwareFailureClassifier.IsPostFlashReconnectTimeout(ex))
             {
                 _appLogger.AddBreadcrumb(
                     "firmware",
@@ -2196,7 +2196,7 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
                     "return to normal mode after the flash. This is a device/environmental condition " +
                     "(power-cycle recovers it), not an app failure.");
 
-                ShowWifiFirmwareInstalledPowerCycleDialog();
+                ShowWifiFirmwareInstalledPowerCycleDialog(ex.FailedState);
                 return;
             }
 
@@ -2334,12 +2334,16 @@ public partial class DaqifiViewModel : ObservableObject, IFirmwareUpdateHost, IL
     /// Presented through the same dialog as a failure because the user still has an action to take;
     /// the wording, and the Warning-level logging behind it, are what differ.
     /// </summary>
-    private void ShowWifiFirmwareInstalledPowerCycleDialog()
+    /// <param name="failedState">
+    /// The state Core failed in, which selects the wording. This path only runs on a WiFi-module
+    /// flash, so it is <c>ReconnectingAfterFlash</c> in practice.
+    /// </param>
+    private void ShowWifiFirmwareInstalledPowerCycleDialog(FirmwareUpdateState failedState)
     {
         void ShowDialog()
         {
             var dialogViewModel = new ErrorDialogViewModel(
-                FirmwareFailureClassifier.BuildInstalledButNotReconnectedMessage(FirmwareFlashPhase.WifiModule));
+                FirmwareFailureClassifier.BuildInstalledButNotReconnectedMessage(failedState));
             _dialogService.ShowDialog<ErrorDialog>(this, dialogViewModel);
         }
 

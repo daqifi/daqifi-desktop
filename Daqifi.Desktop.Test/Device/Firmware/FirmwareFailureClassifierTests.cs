@@ -8,38 +8,32 @@ namespace Daqifi.Desktop.Test.Device.Firmware;
 /// failures are post-flash reconnect timeouts (the image is installed; only the device's return to
 /// normal serial operation timed out) and which are genuine flash failures.
 /// <para>
-/// The load-bearing case is that <see cref="FirmwareUpdateState.Verifying"/> is overloaded across
-/// the two images — the PIC32 CRC check versus the WiFi module's post-flash reconnect — so it must
-/// downgrade on one phase and stay an Error on the other.
+/// The load-bearing case is that <see cref="FirmwareUpdateState.Verifying"/> must stay a genuine
+/// failure while the two post-flash reconnect states —
+/// <see cref="FirmwareUpdateState.JumpingToApp"/> on the PIC32 and
+/// <see cref="FirmwareUpdateState.ReconnectingAfterFlash"/> on the WiFi module — are downgraded.
+/// Core v1.4.0 split those apart (daqifi-core#398 gap 4); before it, the WiFi reconnect shared
+/// <c>Verifying</c> with the PIC32 CRC check and only the caller's flash phase could tell them
+/// apart (issue #776).
 /// </para>
 /// </summary>
 [TestClass]
 public class FirmwareFailureClassifierTests
 {
     #region Constants
-    // See daqifi-core#398 (gap 4) — the upstream ask to replace these unversioned progress strings
-    // with a real discriminator. Until that lands, this is the ONE place to re-check on a Core bump.
-
     /// <summary>
     /// The <c>Operation</c> Core attaches to a PIC32 CRC-verify failure, verified against
-    /// Daqifi.Core v1.3.0 (<c>src/Daqifi.Core/Firmware/FirmwareUpdateService.cs</c>, the
-    /// <c>TransitionToState(Verifying, ...)</c> immediately before the CRC-verify step).
-    /// See daqifi-core#398 (gap 4).
+    /// Daqifi.Core v1.4.0 (<c>src/Daqifi.Core/Firmware/Pic32BootloaderSession.cs</c>, the
+    /// <c>Verifying</c> transition around the CRC-verify step). Recorded so a Core bump has one
+    /// obvious place to re-check — production code deliberately does not match on it.
     /// </summary>
     private const string CORE_PIC32_CRC_VERIFY_OPERATION = "Verifying flash contents via CRC.";
 
     /// <summary>
     /// The <c>Operation</c> Core attaches to a WiFi post-flash reconnect timeout, verified against
-    /// Daqifi.Core v1.3.0 (<c>src/Daqifi.Core/Firmware/FirmwareUpdateService.cs</c>, the
-    /// <c>TransitionToState(Verifying, ...)</c> that follows the WINC success-marker check).
-    /// <para>
-    /// Note this is NOT <c>"reconnect serial transport after WiFi flash"</c>: that label is the
-    /// <c>ExecuteWithStateTimeoutAsync</c> argument and reaches only the inner
-    /// <see cref="TimeoutException"/>'s message. <c>FirmwareUpdateException.Operation</c> is
-    /// assigned solely from <c>TransitionToState</c>. Recorded here so a Core bump has one obvious
-    /// place to re-check — production code deliberately does not match on either string.
-    /// See daqifi-core#398 (gap 4).
-    /// </para>
+    /// Daqifi.Core v1.4.0 (<c>src/Daqifi.Core/Firmware/WifiModuleUpdater.cs</c>, the
+    /// <c>TransitionToState(ReconnectingAfterFlash, ...)</c> that follows the WINC success-marker
+    /// check). As above: recorded, not matched on.
     /// </summary>
     private const string CORE_WIFI_RECONNECT_OPERATION = "Reconnecting device and restoring LAN configuration.";
     #endregion
@@ -55,111 +49,112 @@ public class FirmwareFailureClassifierTests
             "Jumping to application firmware.",
             "State 'JumpingToApp' timed out.");
 
-        Assert.IsTrue(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(
-            exception, FirmwareFlashPhase.Pic32));
+        Assert.IsTrue(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception));
     }
 
     [TestMethod]
-    public void IsPostFlashReconnectTimeout_WifiVerifying_IsDowngraded()
+    public void IsPostFlashReconnectTimeout_WifiReconnectingAfterFlash_IsDowngraded()
     {
-        // The WiFi flow enters Verifying only AFTER the WINC flash tool printed its success marker,
-        // so a timeout here means the module was flashed and only the serial reconnect ran out of
-        // time (issue #776).
+        // Core v1.4.0 enters this state only AFTER the WINC flash tool printed its success marker,
+        // so a timeout here means the module was flashed and only the serial re-enumeration ran out
+        // of time (issue #776, daqifi-core#398 gap 4).
         var exception = new FirmwareUpdateException(
-            FirmwareUpdateState.Verifying,
+            FirmwareUpdateState.ReconnectingAfterFlash,
             CORE_WIFI_RECONNECT_OPERATION,
-            "Firmware update failed in state 'Verifying' while Reconnecting device and restoring LAN configuration.");
+            "Firmware update failed in state 'ReconnectingAfterFlash' while Reconnecting device and " +
+            "restoring LAN configuration.");
 
-        Assert.IsTrue(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(
-            exception, FirmwareFlashPhase.WifiModule));
+        Assert.IsTrue(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception));
     }
 
     [TestMethod]
-    public void IsPostFlashReconnectTimeout_Pic32CrcVerifying_IsNotDowngraded()
+    public void IsPostFlashReconnectTimeout_CrcVerifying_IsNotDowngraded()
     {
-        // The whole point of keying on the phase: the SAME state on the PIC32 is the flash CRC
-        // check, a deterministic "the flash does not match the image" failure. Downgrading it would
-        // tell a user with a bad flash that their firmware installed fine.
+        // The regression this whole classifier exists to prevent: Verifying is now unambiguously the
+        // PIC32 flash CRC check, a deterministic "the flash does not match the image" failure.
+        // Downgrading it would tell a user with a bad flash that their firmware installed fine.
         var exception = new FirmwareUpdateException(
             FirmwareUpdateState.Verifying,
             CORE_PIC32_CRC_VERIFY_OPERATION,
             "Firmware update failed in state 'Verifying' while Verifying flash contents via CRC.");
 
-        Assert.IsFalse(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(
-            exception, FirmwareFlashPhase.Pic32));
+        Assert.IsFalse(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception));
     }
 
     [TestMethod]
+    [DataRow(FirmwareUpdateState.Idle)]
     [DataRow(FirmwareUpdateState.PreparingDevice)]
     [DataRow(FirmwareUpdateState.WaitingForBootloader)]
     [DataRow(FirmwareUpdateState.Connecting)]
     [DataRow(FirmwareUpdateState.ErasingFlash)]
     [DataRow(FirmwareUpdateState.Programming)]
+    [DataRow(FirmwareUpdateState.Verifying)]
+    [DataRow(FirmwareUpdateState.Complete)]
     [DataRow(FirmwareUpdateState.Failed)]
     [DataRow(FirmwareUpdateState.CleaningUp)]
     [DataRow(FirmwareUpdateState.Recovered)]
-    public void IsPostFlashReconnectTimeout_Pic32GenuineFailureStates_AreNotDowngraded(
+    public void IsPostFlashReconnectTimeout_EveryOtherState_IsNotDowngraded(
         FirmwareUpdateState failedState)
     {
-        // Every PIC32 state that is not the JumpingToApp reconnect keeps the Error/Sentry path.
+        // Exhaustive over FirmwareUpdateState as of Core v1.4.0: every member except the two
+        // post-flash reconnect states keeps the Error/Sentry path. A new Core state arriving without
+        // a deliberate decision here shows up as a compile-time gap in this list, not as a silent
+        // downgrade.
         var exception = new FirmwareUpdateException(failedState, "some operation", "Failure.");
 
-        Assert.IsFalse(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(
-            exception, FirmwareFlashPhase.Pic32));
+        Assert.IsFalse(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception));
     }
 
     [TestMethod]
-    [DataRow(FirmwareUpdateState.PreparingDevice)]
-    [DataRow(FirmwareUpdateState.WaitingForBootloader)]
-    [DataRow(FirmwareUpdateState.Connecting)]
-    [DataRow(FirmwareUpdateState.ErasingFlash)]
-    [DataRow(FirmwareUpdateState.Programming)]
-    [DataRow(FirmwareUpdateState.Failed)]
-    [DataRow(FirmwareUpdateState.CleaningUp)]
-    [DataRow(FirmwareUpdateState.Recovered)]
-    public void IsPostFlashReconnectTimeout_WifiGenuineFailureStates_AreNotDowngraded(
-        FirmwareUpdateState failedState)
+    public void IsPostFlashReconnectTimeout_CoversEveryCoreState()
     {
-        // Every WiFi state that is not the Verifying reconnect keeps the Error/Sentry path.
-        var exception = new FirmwareUpdateException(failedState, "some operation", "Failure.");
-
-        Assert.IsFalse(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(
-            exception, FirmwareFlashPhase.WifiModule));
-    }
-
-    [TestMethod]
-    public void IsPostFlashReconnectTimeout_WifiJumpingToApp_IsNotDowngraded()
-    {
-        // The WiFi flow has no bootloader jump, so JumpingToApp is unreachable there. If Core ever
-        // did surface it on this phase we have no evidence the module was programmed — stay on the
-        // Error path rather than guessing.
-        var exception = new FirmwareUpdateException(
+        // Guards the exhaustiveness the DataRows above claim: if Core adds a state, this fails and
+        // forces a decision about which side of the classifier it belongs on.
+        var downgraded = new[]
+        {
             FirmwareUpdateState.JumpingToApp,
-            "Jumping to application firmware.",
-            "State 'JumpingToApp' timed out.");
+            FirmwareUpdateState.ReconnectingAfterFlash
+        };
+        var notDowngraded = new[]
+        {
+            FirmwareUpdateState.Idle,
+            FirmwareUpdateState.PreparingDevice,
+            FirmwareUpdateState.WaitingForBootloader,
+            FirmwareUpdateState.Connecting,
+            FirmwareUpdateState.ErasingFlash,
+            FirmwareUpdateState.Programming,
+            FirmwareUpdateState.Verifying,
+            FirmwareUpdateState.Complete,
+            FirmwareUpdateState.Failed,
+            FirmwareUpdateState.CleaningUp,
+            FirmwareUpdateState.Recovered
+        };
 
-        Assert.IsFalse(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(
-            exception, FirmwareFlashPhase.WifiModule));
+        CollectionAssert.AreEquivalent(
+            Enum.GetValues<FirmwareUpdateState>(),
+            downgraded.Concat(notDowngraded).ToArray(),
+            "Core gained or lost a FirmwareUpdateState. Decide whether the new one is a post-flash " +
+            "reconnect (the image is installed) or a genuine failure, then update both lists.");
     }
 
     [TestMethod]
     public void IsPostFlashReconnectTimeout_NullException_Throws()
     {
         Assert.ThrowsExactly<ArgumentNullException>(() =>
-            FirmwareFailureClassifier.IsPostFlashReconnectTimeout(null!, FirmwareFlashPhase.Pic32));
+            FirmwareFailureClassifier.IsPostFlashReconnectTimeout(null!));
     }
 
-    // The expected opening is phase-specific and case-sensitive, which is also what proves the two
+    // The expected opening is state-specific and case-sensitive, which is also what proves the two
     // messages are distinct: the WiFi text reads "WiFi firmware was installed successfully", so it
     // cannot satisfy the PIC32 row's capital-F "Firmware was installed successfully" and vice versa.
     // A separate distinctness assertion would need a second Act, so this carries that guarantee.
     [TestMethod]
-    [DataRow(FirmwareFlashPhase.Pic32, "Firmware was installed successfully")]
-    [DataRow(FirmwareFlashPhase.WifiModule, "WiFi firmware was installed successfully")]
+    [DataRow(FirmwareUpdateState.JumpingToApp, "Firmware was installed successfully")]
+    [DataRow(FirmwareUpdateState.ReconnectingAfterFlash, "WiFi firmware was installed successfully")]
     public void BuildInstalledButNotReconnectedMessage_TellsUserTheFirmwareInstalledAndToPowerCycle(
-        FirmwareFlashPhase phase, string expectedOpening)
+        FirmwareUpdateState failedState, string expectedOpening)
     {
-        var message = FirmwareFailureClassifier.BuildInstalledButNotReconnectedMessage(phase);
+        var message = FirmwareFailureClassifier.BuildInstalledButNotReconnectedMessage(failedState);
 
         // Says "installed" (never "failed") and names the recovery action.
         StringAssert.Contains(message, expectedOpening);
