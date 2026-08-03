@@ -35,6 +35,14 @@ public class StreamFrameDiscardDiagnosticsTests : IDisposable
 
     private const string BREADCRUMB_CATEGORY = "streaming";
 
+    /// <summary>
+    /// Wall-clock stamp handed to Core when priming a channel's active sample. Fixed rather than
+    /// <c>DateTime.Now</c> so the test never reads the system clock: these assertions are about
+    /// whether a sample reaches the wrapper at all, so the instant is arbitrary and only needs to
+    /// be stable.
+    /// </summary>
+    private static readonly DateTime SAMPLE_WALL_CLOCK = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
     private Mock<IAppLogger> _logger = null!;
     private DiscardDiagnosticsTestDevice _device = null!;
 
@@ -187,7 +195,7 @@ public class StreamFrameDiscardDiagnosticsTests : IDisposable
 
         _device.InitializeStreaming();
         _device.RouteStreamFrame(3_000_000_000);
-        coreChannel.SetActiveSample(1.25, DateTime.Now);
+        coreChannel.SetActiveSample(1.25, SAMPLE_WALL_CLOCK);
         Assert.IsNotNull(wrapper.ActiveSample,
             "Precondition: an accepted frame opens the gate, so Core's decode of it reaches the wrapper.");
 
@@ -200,7 +208,7 @@ public class StreamFrameDiscardDiagnosticsTests : IDisposable
         // the frame itself, which is why the discard has to close the gate.
         _device.InitializeStreaming();
         _device.RouteStreamFrame(3_000_000_000 + SAMPLE_PERIOD_TICKS);
-        coreChannel.SetActiveSample(9.99, DateTime.Now);
+        coreChannel.SetActiveSample(9.99, SAMPLE_WALL_CLOCK.AddSeconds(1));
 
         // Assert
         Assert.IsNull(wrapper.ActiveSample,
