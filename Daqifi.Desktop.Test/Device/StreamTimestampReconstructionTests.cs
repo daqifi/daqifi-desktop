@@ -157,6 +157,36 @@ public class StreamTimestampReconstructionTests : IDisposable
         // Assert
         Assert.AreEqual(0, _device.FallbackWarnings.Count);
     }
+
+    [TestMethod]
+    public void WhenTheWrapperRepresentsADifferentDevice_WarnsAgain()
+    {
+        // Arrange — one wrapper instance can outlive the unit it describes: discovery reuses the
+        // SerialStreamingDevice already registered for a COM port rather than constructing a new one
+        // (ConnectionDialogViewModel.AddSerialDeviceFromDiscovery), so swapping units on that port
+        // leaves the same instance decoding a different device's frames. The warning is keyed on the
+        // serial carried by the frame itself, so the second unit is a genuinely different id.
+        // Suppressing on a bare "already warned" flag would silently drop the diagnostic for it —
+        // the device the user is actually looking at.
+        _device = new StreamingTestDevice(publishTimestampFrequency: false);
+        _device.InitializeStreaming();
+
+        // Two frames, not one: the stream-start guard holds the very first frame until a successor
+        // arrives to validate it against, so a lone frame never reaches timestamp reconstruction.
+        _device.RouteStreamFrame(FIRST_FRAME_TIMESTAMP);
+        _device.RouteStreamFrame(FIRST_FRAME_TIMESTAMP + SAMPLE_PERIOD_TICKS);
+        Assert.AreEqual(1, _device.FallbackWarnings.Count, "Guard: the first device must warn.");
+
+        // Act — same wrapper, frames now arriving from a different physical unit.
+        _device.RouteStreamFrame(
+            FIRST_FRAME_TIMESTAMP + (2 * SAMPLE_PERIOD_TICKS),
+            StreamingTestDevice.OtherDeviceSerialNumber);
+
+        // Assert
+        Assert.AreEqual(2, _device.FallbackWarnings.Count,
+            "A different serial is a different device and gets its own warning.");
+        Assert.AreEqual(0, _device.ErrorCount);
+    }
     #endregion
 
     #region Test Doubles
@@ -254,13 +284,22 @@ public class StreamTimestampReconstructionTests : IDisposable
         /// out; these tests read the dispatched <see cref="DeviceMessage"/>s rather than channel
         /// samples.
         /// </summary>
-        public void RouteStreamFrame(uint deviceTimestamp) => OnStreamMessageReceived(new DaqifiOutMessage
-        {
-            MsgTimeStamp = deviceTimestamp,
-            DeviceSn = DEVICE_SERIAL_NUMBER,
-            DeviceFwRev = "3.7.2",
-            AnalogInDataFloat = { 1.25f }
-        });
+        /// <param name="deviceTimestamp">The frame's device-clock tick.</param>
+        /// <param name="deviceSerialNumber">
+        /// Serial carried by the frame. Defaults to this device's own; pass a different value to
+        /// model a different physical unit streaming through the same reused wrapper.
+        /// </param>
+        public void RouteStreamFrame(uint deviceTimestamp, uint? deviceSerialNumber = null) =>
+            OnStreamMessageReceived(new DaqifiOutMessage
+            {
+                MsgTimeStamp = deviceTimestamp,
+                DeviceSn = deviceSerialNumber ?? DEVICE_SERIAL_NUMBER,
+                DeviceFwRev = "3.7.2",
+                AnalogInDataFloat = { 1.25f }
+            });
+
+        /// <summary>A serial that is not this device's, for the wrapper-reuse case.</summary>
+        public static uint OtherDeviceSerialNumber => DEVICE_SERIAL_NUMBER + 1;
 
         public void Dispose() => _coreDevice.Dispose();
     }

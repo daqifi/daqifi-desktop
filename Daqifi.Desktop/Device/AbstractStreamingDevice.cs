@@ -137,11 +137,21 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     private double? _currentFrameFirmwareDeltaMs;
 
     /// <summary>
-    /// Whether this device has already been reported as reconstructing timestamps against Core's
-    /// fallback tick period. One warning per device is the whole signal — the condition is static
-    /// device configuration, so repeating it once per stream frame would bury the log.
+    /// Device id already reported as reconstructing timestamps against Core's fallback tick period,
+    /// or <c>null</c> if none has been. One warning per device is the whole signal — the condition
+    /// is static device configuration, so repeating it once per stream frame would bury the log.
     /// </summary>
-    private bool _warnedAboutFallbackTickPeriod;
+    /// <remarks>
+    /// Keyed on the device id rather than a bare "already warned" flag because one wrapper instance
+    /// can outlive the physical device it represents: discovery reuses the
+    /// <see cref="SerialDevice.SerialStreamingDevice"/> already registered for a COM port rather
+    /// than constructing a new one (<c>ConnectionDialogViewModel.AddSerialDeviceFromDiscovery</c>),
+    /// so swapping units on that port leaves this instance decoding a different device's frames.
+    /// The id compared here is the serial carried by the frame itself, not this wrapper's
+    /// <see cref="DeviceSerialNo"/>, so the second unit is a genuinely different key and warns
+    /// rather than being silently suppressed.
+    /// </remarks>
+    private string? _fallbackTickPeriodWarnedDeviceId;
 
     /// <summary>
     /// Core's rollover-aware reconstruction of each stream frame's timestamp. Typed as
@@ -874,12 +884,14 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </remarks>
     private void WarnOnceAboutFallbackTickPeriod(string deviceId)
     {
-        if (_warnedAboutFallbackTickPeriod)
+        // Exchange returns the previous id, so claiming the warning and testing whether this device
+        // already owned it are a single atomic step — two stream frames racing here emit once, not
+        // twice. A different id than last time is a genuinely different device and warns again.
+        var previouslyWarnedDeviceId = Interlocked.Exchange(ref _fallbackTickPeriodWarnedDeviceId, deviceId);
+        if (string.Equals(previouslyWarnedDeviceId, deviceId, StringComparison.Ordinal))
         {
             return;
         }
-
-        _warnedAboutFallbackTickPeriod = true;
 
         var fallbackFrequencyMhz = 1.0 / FrameTimestampProcessor.TickPeriod / 1_000_000.0;
         AppLogger.Warning(

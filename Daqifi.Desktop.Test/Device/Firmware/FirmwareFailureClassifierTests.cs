@@ -44,12 +44,17 @@ public class FirmwareFailureClassifierTests
     {
         // The last PIC32 step: reached only after erase + program + CRC-verify all succeeded, so the
         // firmware is on the device and a power-cycle finishes the job (issue #738).
+        // Arrange
         var exception = new FirmwareUpdateException(
             FirmwareUpdateState.JumpingToApp,
             "Jumping to application firmware.",
             "State 'JumpingToApp' timed out.");
 
-        Assert.IsTrue(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception));
+        // Act
+        var isDowngraded = FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception);
+
+        // Assert
+        Assert.IsTrue(isDowngraded);
     }
 
     [TestMethod]
@@ -58,13 +63,18 @@ public class FirmwareFailureClassifierTests
         // Core v1.4.0 enters this state only AFTER the WINC flash tool printed its success marker,
         // so a timeout here means the module was flashed and only the serial re-enumeration ran out
         // of time (issue #776, daqifi-core#398 gap 4).
+        // Arrange
         var exception = new FirmwareUpdateException(
             FirmwareUpdateState.ReconnectingAfterFlash,
             CORE_WIFI_RECONNECT_OPERATION,
             "Firmware update failed in state 'ReconnectingAfterFlash' while Reconnecting device and " +
             "restoring LAN configuration.");
 
-        Assert.IsTrue(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception));
+        // Act
+        var isDowngraded = FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception);
+
+        // Assert
+        Assert.IsTrue(isDowngraded);
     }
 
     [TestMethod]
@@ -73,12 +83,17 @@ public class FirmwareFailureClassifierTests
         // The regression this whole classifier exists to prevent: Verifying is now unambiguously the
         // PIC32 flash CRC check, a deterministic "the flash does not match the image" failure.
         // Downgrading it would tell a user with a bad flash that their firmware installed fine.
+        // Arrange
         var exception = new FirmwareUpdateException(
             FirmwareUpdateState.Verifying,
             CORE_PIC32_CRC_VERIFY_OPERATION,
             "Firmware update failed in state 'Verifying' while Verifying flash contents via CRC.");
 
-        Assert.IsFalse(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception));
+        // Act
+        var isDowngraded = FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception);
+
+        // Assert
+        Assert.IsFalse(isDowngraded);
     }
 
     [TestMethod]
@@ -100,9 +115,14 @@ public class FirmwareFailureClassifierTests
         // post-flash reconnect states keeps the Error/Sentry path. A new Core state arriving without
         // a deliberate decision here shows up as a compile-time gap in this list, not as a silent
         // downgrade.
+        // Arrange
         var exception = new FirmwareUpdateException(failedState, "some operation", "Failure.");
 
-        Assert.IsFalse(FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception));
+        // Act
+        var isDowngraded = FirmwareFailureClassifier.IsPostFlashReconnectTimeout(exception);
+
+        // Assert
+        Assert.IsFalse(isDowngraded);
     }
 
     [TestMethod]
