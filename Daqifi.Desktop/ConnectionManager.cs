@@ -1,28 +1,43 @@
 ﻿using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device;
-using Daqifi.Desktop.Device.SerialDevice;
 using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
-using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
-using System.IO.Ports;
-using System.Management;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DeviceIdentity = Daqifi.Core.Device.DeviceIdentity;
 
 namespace Daqifi.Desktop;
 
-public partial class ConnectionManager : ObservableObject, IDisposable
+/// <summary>
+/// Process-lifetime singleton owning the set of currently connected devices and the app-level
+/// aggregate connection status the UI binds to.
+/// </summary>
+/// <remarks>
+/// Responsibilities that are deliberately app-level policy rather than Core's:
+/// <list type="bullet">
+/// <item><description>
+/// The aggregate <see cref="ConnectionStatus"/>. Core's <c>ConnectionStatus</c> is per-device;
+/// this is the single status the shell renders.
+/// </description></item>
+/// <item><description>
+/// Duplicate-device resolution across transports, and the <c>KeepExisting</c>/<c>SwitchToNew</c>
+/// prompt the connection dialog renders. Matching itself delegates to Core's
+/// <see cref="DeviceIdentity"/> (issue #752, stage 1).
+/// </description></item>
+/// <item><description>
+/// The firmware-update carve-out: a device being flashed drops its transport as an expected part
+/// of the flash, and Core owns reconnecting it, so this class must not tear it down (issue #738).
+/// </description></item>
+/// </list>
+/// <para>
+/// Spontaneous transport drops arrive via <see cref="IDevice.ConnectionLost"/> and are handled by
+/// <see cref="OnDeviceConnectionLost"/>. This class previously also ran a <c>Win32_DeviceChangeEvent</c>
+/// WMI watcher to catch serial unplugs; Core 1.4.0 detects those itself, so the watcher was removed
+/// (issue #752, stage 3).
+/// </para>
+/// </remarks>
+public partial class ConnectionManager : ObservableObject
 {
-    #region Private Variables
-    /// <summary>
-    /// WMI watcher for USB device-removal events. Null when the watcher could not be created
-    /// (WMI unavailable); disposed from <see cref="Dispose"/> at application exit.
-    /// </summary>
-    private readonly ManagementEventWatcher? _deviceRemovedWatcher;
-    private bool _isDisposed;
-    #endregion
-
     #region Properties
     [ObservableProperty]
     private DAQiFiConnectionStatus _connectionStatus = DAQiFiConnectionStatus.Disconnected;
@@ -152,50 +167,9 @@ public partial class ConnectionManager : ObservableObject, IDisposable
     private ConnectionManager()
     {
         ConnectedDevices = new List<IStreamingDevice>();
-
-        try
-        {
-            // EventType 3 is Device Removal
-            var deviceRemovedQuery = new WqlEventQuery("SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 3");
-
-            _deviceRemovedWatcher = new ManagementEventWatcher(deviceRemovedQuery);
-            _deviceRemovedWatcher.EventArrived += (sender, eventArgs) => CheckIfSerialDeviceWasRemoved();
-            _deviceRemovedWatcher.Start();
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Instance.Error(ex, "Failed to initialize ManagementEventWatcher: " + ex.Message);
-        }
-
     }
 
     public static ConnectionManager Instance => instance;
-
-    /// <summary>
-    /// Stops and releases the WMI device-removal watcher. Called from <c>App.OnExit</c>; the
-    /// connection manager is a process-lifetime singleton, so this runs exactly once.
-    /// </summary>
-    public void Dispose()
-    {
-        if (_isDisposed)
-        {
-            return;
-        }
-
-        _isDisposed = true;
-
-        try
-        {
-            _deviceRemovedWatcher?.Stop();
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Instance.Warning($"Failed to stop the device-removal watcher: {ex.Message}");
-        }
-
-        _deviceRemovedWatcher?.Dispose();
-        GC.SuppressFinalize(this);
-    }
 
     #endregion
 
@@ -372,12 +346,24 @@ public partial class ConnectionManager : ObservableObject, IDisposable
     /// <summary>
     /// Handles a device's <see cref="IDevice.ConnectionLost"/> event — Core detected a
     /// spontaneous transport drop (reboot, unplug, WiFi/TCP timeout, HID disconnect) that this
-    /// class would otherwise never learn about (issue #638). Mirrors the existing
-    /// <see cref="CheckIfSerialDeviceWasRemoved"/> teardown: unsubscribe the device's channels,
-    /// tear the connection down via <see cref="Disconnect(IStreamingDevice)"/> (which always
-    /// re-runs a fresh Core device + <c>InitializeAsync</c> on the next connect), and surface a
+    /// class would otherwise never learn about (issue #638). Unsubscribes the device's channels,
+    /// tears the connection down via <see cref="Disconnect(IStreamingDevice)"/> (which always
+    /// re-runs a fresh Core device + <c>InitializeAsync</c> on the next connect), and surfaces a
     /// notification naming the device and the reason.
     /// </summary>
+    /// <remarks>
+    /// This is the only unplug-detection path (issue #752, stage 3). It replaced a
+    /// <c>Win32_DeviceChangeEvent</c> WMI watcher that re-enumerated
+    /// <c>SerialPort.GetPortNames()</c> on every USB removal on the machine: Core 1.4.0
+    /// (daqifi-core#382/#403) made <c>SerialStreamTransport</c> poll for its own port's continued
+    /// presence and raise <c>ConnectionStatus.Lost</c>, which reaches here as a
+    /// <see cref="ConnectionLostEventArgs"/>. Core requires two consecutive misses of a one-second
+    /// poll, so a physically unplugged device is reported within roughly three seconds even with
+    /// no traffic — the idle case the WMI watcher existed to cover — and the check is armed only
+    /// when the port was visible to that probe at connect time, so it cannot report a false drop.
+    /// The replacement is strictly wider: the watcher only ever tore down
+    /// <c>SerialStreamingDevice</c>s, while this fires for every transport.
+    /// </remarks>
     private void OnDeviceConnectionLost(object? sender, ConnectionLostEventArgs e)
     {
         if (sender is not IStreamingDevice device)
@@ -421,8 +407,10 @@ public partial class ConnectionManager : ObservableObject, IDisposable
     /// <summary>
     /// True when <paramref name="device"/> is the device currently undergoing a firmware update. During
     /// an update the device's serial transport drops and re-enumerates as an expected part of the flash,
-    /// and Core owns the reconnect — so the desktop's disconnect-detection paths must leave that device's
+    /// and Core owns the reconnect — so <see cref="OnDeviceConnectionLost"/> must leave that device's
     /// connection untouched rather than disposing the Core device Core is reconnecting (issue #738).
+    /// This carve-out matters more since Core 1.4.0, not less: Core now reports the mid-flash drop
+    /// itself, within about three seconds of the device leaving the bus (issue #752, stage 3).
     /// </summary>
     /// <remarks>
     /// The firmware flow always drives the exact connected instance, so reference equality is the primary
@@ -445,67 +433,6 @@ public partial class ConnectionManager : ObservableObject, IDisposable
 
         return !string.IsNullOrWhiteSpace(updating.DeviceSerialNo)
             && string.Equals(updating.DeviceSerialNo, device.DeviceSerialNo, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void CheckIfSerialDeviceWasRemoved()
-    {
-        NotifyConnection = false;
-        var bw = new BackgroundWorker();
-        bw.DoWork += delegate
-        {
-            HashSet<string> availableSerialPorts;
-            try
-            {
-                availableSerialPorts = new HashSet<string>(
-                    SerialPort.GetPortNames(),
-                    StringComparer.OrdinalIgnoreCase);
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Instance.Error(ex, "Failed to enumerate serial ports after device change.");
-                return;
-            }
-
-            var devicesToRemove = ConnectedDevices
-                .OfType<SerialStreamingDevice>()
-                .Where(device =>
-                    string.IsNullOrWhiteSpace(device.Port?.PortName) ||
-                    !availableSerialPorts.Contains(device.Port.PortName))
-                .Cast<IStreamingDevice>()
-                .ToList();
-
-            foreach (var serialDevice in devicesToRemove)
-            {
-                System.Windows.Application.Current.Dispatcher.Invoke(delegate
-                {
-                    // The device being flashed drops off the COM port when it reboots mid-update — an
-                    // expected part of the flash that Core reconnects itself. Tearing it down here would
-                    // dispose the Core device out from under Core's JumpingToApp reconnect and time the
-                    // update out (issue #738), so skip it entirely (same guard as OnDeviceConnectionLost).
-                    if (IsDeviceBeingUpdated(serialDevice))
-                    {
-                        return;
-                    }
-
-                    foreach (var channel in serialDevice.DataChannels)
-                    {
-                        LoggingManager.Instance.Unsubscribe(channel);
-                    }
-
-                    Disconnect(serialDevice);
-
-                    if (!NotifyConnection)
-                    {
-                        // Scoped to this device so a later notification never shows a stale
-                        // reason string left over from a previous, unrelated disconnect.
-                        LastDisconnectReason = $"{serialDevice.DeviceDisplayName} disconnected (port removed).";
-                        NotifyConnection = true;
-                    }
-                });
-            }
-        };
-
-        bw.RunWorkerAsync();
     }
 
     /// <summary>

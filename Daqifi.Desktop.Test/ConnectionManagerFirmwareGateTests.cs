@@ -10,16 +10,29 @@ namespace Daqifi.Desktop.Test;
 /// in-progress-state transitions must raise <see cref="ConnectionManager.FirmwareUpdateInProgressChanged"/>
 /// so an open connection dialog can pause its discovery.
 /// </summary>
+/// <remarks>
+/// Also covers the <c>OnDeviceConnectionLost</c> teardown itself, which since issue #752 stage 3 is the
+/// only unplug-detection path — the <c>Win32_DeviceChangeEvent</c> WMI watcher that used to raise the
+/// same notification is gone, so its <c>LastDisconnectReason</c>/<c>NotifyConnection</c> surface is
+/// asserted here instead. Every device mock leaves <c>DataChannels</c> empty on purpose: the teardown's
+/// unsubscribe loop dereferences <c>LoggingManager.Instance</c>, whose lazy singleton resolves from
+/// <c>App.ServiceProvider</c> and therefore throws (and caches that throw process-wide) outside the
+/// running app.
+/// </remarks>
 [TestClass]
 public class ConnectionManagerFirmwareGateTests
 {
+    private const string DISPLAY_NAME = "Nyquist-1 (SN-TEST)";
+
     [TestCleanup]
     public void TestCleanup()
     {
-        // ConnectionManager is a process-wide singleton; leave the gate and device list clear for
-        // other tests.
+        // ConnectionManager is a process-wide singleton; leave the gate, device list and pending
+        // disconnect notification clear for other tests.
         ConnectionManager.Instance.DeviceBeingUpdated = null;
         ConnectionManager.Instance.ConnectedDevices.Clear();
+        ConnectionManager.Instance.NotifyConnection = false;
+        ConnectionManager.Instance.LastDisconnectReason = string.Empty;
     }
 
     [TestMethod]
@@ -127,6 +140,64 @@ public class ConnectionManagerFirmwareGateTests
             new ConnectionLostEventArgs("cable pulled"));
 
         other.Verify(d => d.Disconnect(), Times.Once);
+    }
+
+    [TestMethod]
+    public void OnDeviceConnectionLost_SurfacesNotificationNamingTheDeviceAndReason()
+    {
+        // The user-visible half of the teardown, and the only thing the deleted WMI watcher
+        // contributed that Disconnect() itself does not do: DaqifiViewModel shows an error dialog off
+        // NotifyConnection and reads its text from LastDisconnectReason, so a silent teardown would
+        // leave a device vanishing from the UI with no explanation (issues #638, #752).
+        var device = CreateDevice(ConnectionType.Usb);
+        device.SetupGet(d => d.DeviceDisplayName).Returns(DISPLAY_NAME);
+        device.SetupGet(d => d.DataChannels).Returns([]);
+        ConnectionManager.Instance.ConnectedDevices.Add(device.Object);
+
+        InvokePrivate("OnDeviceConnectionLost", device.Object,
+            new ConnectionLostEventArgs("connection lost"));
+
+        Assert.IsTrue(ConnectionManager.Instance.NotifyConnection);
+        StringAssert.Contains(ConnectionManager.Instance.LastDisconnectReason, DISPLAY_NAME);
+        StringAssert.Contains(ConnectionManager.Instance.LastDisconnectReason, "connection lost");
+    }
+
+    [TestMethod]
+    public void OnDeviceConnectionLost_RaisesNoNotification_ForDeviceBeingUpdated()
+    {
+        // Core 1.4.0 reports the flashing device's mid-flash drop within ~3s (daqifi-core#382), so the
+        // carve-out now runs on every update rather than only when the WMI watcher happened to notice.
+        // Besides not tearing the device down, it must not pop a "device disconnected" dialog over a
+        // running firmware update.
+        var device = CreateDevice(ConnectionType.Usb);
+        device.SetupGet(d => d.DeviceDisplayName).Returns(DISPLAY_NAME);
+        device.SetupGet(d => d.DataChannels).Returns([]);
+        ConnectionManager.Instance.ConnectedDevices.Add(device.Object);
+        ConnectionManager.Instance.DeviceBeingUpdated = device.Object;
+
+        InvokePrivate("OnDeviceConnectionLost", device.Object,
+            new ConnectionLostEventArgs("connection lost"));
+
+        Assert.IsFalse(ConnectionManager.Instance.NotifyConnection);
+        Assert.AreEqual(string.Empty, ConnectionManager.Instance.LastDisconnectReason);
+        Assert.IsTrue(ConnectionManager.Instance.ConnectedDevices.Contains(device.Object));
+    }
+
+    [TestMethod]
+    public void OnDeviceConnectionLost_IgnoresDeviceThatIsNoLongerConnected()
+    {
+        // A user-initiated Disconnect racing Core's drop detection: the device is already gone from
+        // ConnectedDevices, so re-running the teardown would double-dispose it and raise a spurious
+        // "disconnected unexpectedly" dialog for something the user did on purpose.
+        var device = CreateDevice(ConnectionType.Usb);
+        device.SetupGet(d => d.DeviceDisplayName).Returns(DISPLAY_NAME);
+        device.SetupGet(d => d.DataChannels).Returns([]);
+
+        InvokePrivate("OnDeviceConnectionLost", device.Object,
+            new ConnectionLostEventArgs("connection lost"));
+
+        device.Verify(d => d.Disconnect(), Times.Never);
+        Assert.IsFalse(ConnectionManager.Instance.NotifyConnection);
     }
 
     [TestMethod]
