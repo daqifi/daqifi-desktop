@@ -423,6 +423,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
             coreDevice.InitializeAsync().GetAwaiter().GetResult();
 
             OnCoreDeviceInitialized();
+            AdoptDeviceChannelSet(coreDevice);
             return true;
         }
         catch (Exception ex)
@@ -491,6 +492,61 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// </summary>
     protected virtual void OnCoreDeviceInitialized()
     {
+    }
+
+    /// <summary>
+    /// Brings the device's enabled-channel set in line with the app's, which starts empty: a
+    /// freshly connected device has nothing active until the user picks channels.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Required since Core 1.4.0 (daqifi-core#409), which resyncs analog <c>IsEnabled</c> from the
+    /// device's own <c>analog_in_port_enabled</c> on every status message. Firmware persists its
+    /// enabled set across power cycles and a bench Nq1 on 3.7.2 reports <c>FFFF</c> — every analog
+    /// channel enabled — so from the first status message onward the app inherited an active set it
+    /// never asked for.
+    /// </para>
+    /// <para>
+    /// That broke channel activation outright (issue #811). <see cref="IChannel.IsActive"/> reads
+    /// straight through to Core's flag, so every tile rendered active while nothing was subscribed
+    /// to <c>LoggingManager</c>; <c>ChannelsPaneViewModel.SelectAll</c> skips tiles already
+    /// reporting active, so it became a no-op, no channel was ever subscribed, and
+    /// <c>CanToggleLogging</c> — which counts subscribed channels — left Start Logging disabled
+    /// with no way for the user to enable it.
+    /// </para>
+    /// <para>
+    /// Reconciling toward the app rather than the device matches what already happened before
+    /// Core 1.4.0 made the device's view visible: the first enable sends a set-replace mask
+    /// computed from the app's own state, so the app has always owned the enabled set. This just
+    /// makes that ownership explicit at connect instead of implicit at first click.
+    /// </para>
+    /// <para>
+    /// Best-effort: a device that refuses the command is logged and left alone rather than failing
+    /// the connection, since the user can still pick channels by hand.
+    /// </para>
+    /// </remarks>
+    /// <param name="coreDevice">The freshly initialized Core device.</param>
+    private void AdoptDeviceChannelSet(CoreStreamingDevice coreDevice)
+    {
+        var deviceReportedActive = coreDevice.Channels?.Count(channel => channel.IsEnabled) ?? 0;
+        if (deviceReportedActive == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            coreDevice.DisableAllChannels();
+            AppLogger.Information(
+                $"Cleared {deviceReportedActive} channel(s) the device reported as already enabled on " +
+                $"{DisplayIdentifier}, so the app starts from its own empty active set (issue #811).");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Warning(ex,
+                $"Could not clear the device-reported enabled channels on {DisplayIdentifier}. " +
+                "Channel tiles may show as active before any channel has been selected.");
+        }
     }
 
     /// <summary>

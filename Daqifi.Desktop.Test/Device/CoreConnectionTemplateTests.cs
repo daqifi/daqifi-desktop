@@ -257,6 +257,55 @@ public class CoreConnectionTemplateTests
             "The default template must fail safely when CreateCoreDevice is not overridden.");
     }
 
+    /// <summary>
+    /// A device that boots with channels already enabled must not hand the app an active set it
+    /// never chose (issue #811).
+    /// </summary>
+    /// <remarks>
+    /// Firmware persists its enabled set, and since Core 1.4.0 (daqifi-core#409) that set is resynced
+    /// onto <c>IsEnabled</c> from every status message. <see cref="IChannel.IsActive"/> reads straight
+    /// through, so without this every channel tile rendered active while nothing was subscribed to
+    /// <c>LoggingManager</c> — and <c>ChannelsPaneViewModel.SelectAll</c>, which skips tiles already
+    /// reporting active, became a no-op that left Start Logging permanently disabled.
+    /// </remarks>
+    [TestMethod]
+    public void Connect_ClearsChannelsTheDeviceReportsAsAlreadyEnabled()
+    {
+        // Arrange
+        var device = new TemplateTestDevice(deviceReportsChannelsEnabled: true);
+
+        // Act
+        var connected = device.Connect();
+
+        // Assert
+        Assert.IsTrue(connected, "Adopting the channel set must not fail the connection.");
+        Assert.IsTrue(
+            device.CreatedCoreDevice!.Channels!.Count > 0,
+            "Guard: the fixture must actually have populated channels, or this asserts nothing.");
+        Assert.IsTrue(
+            device.CreatedCoreDevice.Channels!.All(channel => !channel.IsEnabled),
+            "The app starts with an empty active set, so a device reporting channels already " +
+            "enabled must be reconciled toward the app rather than the other way around.");
+    }
+
+    [TestMethod]
+    public void Connect_LeavesChannelsAloneWhenTheDeviceReportsNoneEnabled()
+    {
+        // Arrange — the ordinary case. Regression guard in the other direction: the adopt step must
+        // not fire (and must not send a disable) when there is nothing to reconcile.
+        var device = new TemplateTestDevice();
+
+        // Act
+        var connected = device.Connect();
+
+        // Assert
+        Assert.IsTrue(connected);
+        CollectionAssert.AreEqual(
+            ExpectedFullConnectHookCalls,
+            device.HookCalls,
+            "Adopting an already-empty set must not disturb the template's hook sequence.");
+    }
+
     private static DaqifiOutMessage BuildStatusMessage(string? friendlyDeviceName = null)
     {
         return new DaqifiOutMessage
@@ -281,7 +330,8 @@ public class CoreConnectionTemplateTests
     private sealed class TemplateTestDevice(
         bool returnNullCoreDevice = false,
         Exception? createException = null,
-        Exception? postInitializeException = null) : AbstractStreamingDevice
+        Exception? postInitializeException = null,
+        bool deviceReportsChannelsEnabled = false) : AbstractStreamingDevice
     {
         public List<string> HookCalls { get; } = [];
         public List<Exception> LoggedConnectFailures { get; } = [];
@@ -311,7 +361,26 @@ public class CoreConnectionTemplateTests
                 return null;
             }
 
-            CreatedCoreDevice = new TemplateCoreDevice(() => HookCalls.Add("InitializeAsync"));
+            CreatedCoreDevice = new TemplateCoreDevice(() =>
+            {
+                HookCalls.Add("InitializeAsync");
+
+                if (!deviceReportsChannelsEnabled)
+                {
+                    return;
+                }
+
+                // Models firmware that persists its enabled set across power cycles: a bench Nq1 on
+                // 3.7.2 reports analog_in_port_enabled = FFFF, and Core 1.4.0 resyncs IsEnabled from
+                // it (daqifi-core#409). Set directly rather than through the protobuf mask so the
+                // test does not depend on Core's bit layout — what matters is that channels are
+                // already enabled by the time the connect template's adopt step runs.
+                CreatedCoreDevice!.PopulateChannelsFromStatus(BuildStatusMessage());
+                foreach (var channel in CreatedCoreDevice.Channels!)
+                {
+                    channel.IsEnabled = true;
+                }
+            });
             CreatedCoreDevice.Connect();
             return CreatedCoreDevice;
         }
