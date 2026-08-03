@@ -15,7 +15,7 @@ namespace Daqifi.Desktop.Test.Device;
 /// <para>
 /// This needs a fixture no existing one provides: desktop channels wired onto Core's real decode
 /// pipeline (so <c>ActiveSample</c> is populated, as in <c>ChannelDataMappingTests</c>),
-/// <em>plus</em> captured <see cref="DeviceMessage"/>s (as in <c>StreamStartLeftoverFrameTests</c>),
+/// <em>plus</em> captured <see cref="DeviceMessage"/>s (as in <c>StreamFrameDiscardDiagnosticsTests</c>),
 /// <em>plus</em> the real <c>InitializeStreaming</c>/<c>StopStreaming</c> session lifecycle, which is
 /// what resets the desktop's timestamp baseline.
 /// </para>
@@ -66,11 +66,10 @@ public class FrameTimestampSourceTests : IDisposable
     [TestMethod]
     public void SingleSession_ChannelSampleCarriesTheTimestampOfItsOwnFrame()
     {
-        // Arrange - a fresh connection holds the first frame until its successor validates the
-        // pair as same-session data
+        // Arrange
         _device.InitializeStreaming();
 
-        // Act - three frames therefore leave the third as the most recent one on both paths
+        // Act - three frames leave the third as the most recent one on both paths
         _device.RouteStreamFrame(1_000_000_000);
         _device.RouteStreamFrame(1_000_000_000 + SAMPLE_PERIOD_TICKS);
         _device.RouteStreamFrame(1_000_000_000 + 2 * SAMPLE_PERIOD_TICKS);
@@ -92,8 +91,8 @@ public class FrameTimestampSourceTests : IDisposable
         _device.RouteStreamFrame(1_000_000_000 + SAMPLE_PERIOD_TICKS);
         _device.StopStreaming();
 
-        // Act - on restart the device emits the held prior-session frame first (discarded by the
-        // desktop, still decoded by Core), then genuine frames a 13 s gap later
+        // Act - on restart the device emits the latched prior-session frame first (withheld by
+        // Core's stream-frame gate), then genuine frames a 13 s gap later
         _device.InitializeStreaming();
         var leftoverTimestamp = 1_000_000_000 + 2 * SAMPLE_PERIOD_TICKS;
         _device.RouteStreamFrame(leftoverTimestamp);
@@ -123,7 +122,7 @@ public class FrameTimestampSourceTests : IDisposable
         // Assert - reconstructed against the 50 MHz fallback this pair reads 0.84 s apart, and the
         // error compounds, because each timestamp is the previous one plus elapsed ticks
         Assert.AreEqual(2, _device.DispatchedMessages.Count,
-            "The held first frame and its successor should both be dispatched.");
+            "Both frames of the first session should be dispatched.");
         var deltaTicks = _device.DispatchedMessages[1].TimestampTicks
             - _device.DispatchedMessages[0].TimestampTicks;
         var deltaSeconds = deltaTicks / (double)TimeSpan.TicksPerSecond;
@@ -139,8 +138,8 @@ public class FrameTimestampSourceTests : IDisposable
     [TestMethod]
     public void RoutingAFrame_FinishesProcessingIt_BeforeCoreDecodesTheSameFrame()
     {
-        // Arrange - a session whose first frame has already been validated against its successor,
-        // so the next frame routed is accepted and processed rather than held
+        // Arrange - a session already past its first frames, so the next frame routed is an
+        // ordinary accepted one
         _device.InitializeStreaming();
         _device.RouteStreamFrame(1_000_000_000);
         _device.RouteStreamFrame(1_000_000_000 + SAMPLE_PERIOD_TICKS);
