@@ -65,7 +65,6 @@
 		</PackageReference>
 		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
 		<PackageReference Include="System.IO.Ports" Version="10.0.10" />
-		<PackageReference Include="System.Management" Version="10.0.10" />
 	</ItemGroup>
 
 	<ItemGroup>

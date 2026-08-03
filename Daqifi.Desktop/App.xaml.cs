@@ -199,8 +199,6 @@ public partial class App
 
     protected override void OnExit(ExitEventArgs e)
     {
-        // Release the WMI device-removal watcher the connection manager holds for the process lifetime.
-        ConnectionManager.Instance.Dispose();
         AppLogger.Instance.Shutdown();
         base.OnExit(e);
     }
