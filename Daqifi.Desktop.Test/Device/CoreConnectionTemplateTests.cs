@@ -288,6 +288,14 @@ public class CoreConnectionTemplateTests
             "enabled must be reconciled toward the app rather than the other way around.");
     }
 
+    /// <summary>
+    /// A device that declines the disable must not cost the user the connection.
+    /// </summary>
+    /// <remarks>
+    /// The counterpart to <see cref="Connect_FailsWhenTheTransportDroppedWhileClearingChannels"/>:
+    /// adoption is best-effort precisely because the user can still pick channels by hand, so only
+    /// a genuinely dead transport is allowed to fail the connect.
+    /// </remarks>
     [TestMethod]
     public void Connect_SucceedsWhenTheDeviceMerelyRefusesToClearChannels()
     {
@@ -333,6 +341,13 @@ public class CoreConnectionTemplateTests
         Assert.IsNull(device.ExposedCoreDevice, "CleanupConnection must have torn the Core device down.");
     }
 
+    /// <summary>
+    /// The ordinary case: a device reporting nothing enabled needs no reconciling.
+    /// </summary>
+    /// <remarks>
+    /// Guards the other direction — the adopt step must stay inert when there is nothing to adopt,
+    /// rather than sending a disable on every connect.
+    /// </remarks>
     [TestMethod]
     public void Connect_LeavesChannelsAloneWhenTheDeviceReportsNoneEnabled()
     {
@@ -482,12 +497,19 @@ public class CoreConnectionTemplateTests
     private sealed class TemplateCoreDevice(Action onInitialize) : CoreStreamingDevice("TemplateCore")
     {
         /// <summary>
-        /// When set, the next outbound command throws this instead of being swallowed.
+        /// When set, <b>every</b> outbound command throws this until it is cleared — it is not
+        /// one-shot.
         /// </summary>
         /// <remarks>
         /// Core's <c>DisableAllChannels</c> is not virtual, so the connect template's channel-set
         /// adoption is failed through the transport it ultimately writes to. Armed only after
         /// initialization, so it targets the adopt step rather than anything Core sends earlier.
+        /// <para>
+        /// Persistent rather than one-shot on purpose: <c>DisableAllChannels</c> can send more than
+        /// one message, and the teardown that follows a fatal adoption sends as well. A one-shot
+        /// failure would be consumed by the first of those and let the rest quietly succeed, which
+        /// is exactly the kind of half-failed state these tests exist to catch.
+        /// </para>
         /// </remarks>
         public Exception? SendException { get; set; }
 
