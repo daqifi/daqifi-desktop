@@ -8,6 +8,34 @@ using DeviceIdentity = Daqifi.Core.Device.DeviceIdentity;
 
 namespace Daqifi.Desktop;
 
+/// <summary>
+/// Process-lifetime singleton owning the set of currently connected devices and the app-level
+/// aggregate connection status the UI binds to.
+/// </summary>
+/// <remarks>
+/// Responsibilities that are deliberately app-level policy rather than Core's:
+/// <list type="bullet">
+/// <item><description>
+/// The aggregate <see cref="ConnectionStatus"/>. Core's <c>ConnectionStatus</c> is per-device;
+/// this is the single status the shell renders.
+/// </description></item>
+/// <item><description>
+/// Duplicate-device resolution across transports, and the <c>KeepExisting</c>/<c>SwitchToNew</c>
+/// prompt the connection dialog renders. Matching itself delegates to Core's
+/// <see cref="DeviceIdentity"/> (issue #752, stage 1).
+/// </description></item>
+/// <item><description>
+/// The firmware-update carve-out: a device being flashed drops its transport as an expected part
+/// of the flash, and Core owns reconnecting it, so this class must not tear it down (issue #738).
+/// </description></item>
+/// </list>
+/// <para>
+/// Spontaneous transport drops arrive via <see cref="IDevice.ConnectionLost"/> and are handled by
+/// <see cref="OnDeviceConnectionLost"/>. This class previously also ran a <c>Win32_DeviceChangeEvent</c>
+/// WMI watcher to catch serial unplugs; Core 1.4.0 detects those itself, so the watcher was removed
+/// (issue #752, stage 3).
+/// </para>
+/// </remarks>
 public partial class ConnectionManager : ObservableObject
 {
     #region Properties
