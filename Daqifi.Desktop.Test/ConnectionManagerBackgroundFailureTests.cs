@@ -34,8 +34,11 @@ public class ConnectionManagerBackgroundFailureTests
 {
     private const string DISPLAY_NAME = "Nyquist-1 (SN-805)";
 
-    // A password-carrying SCPI command is the reason send-failure logging reports the verb only.
-    private const string WIFI_PASSWORD = "hunter2-not-in-the-log";
+    // A synthetic marker string, not a credential: it is passed where a password-carrying SCPI
+    // command takes its argument, purely so the test can assert the argument bytes never reach the
+    // log. SecureString would be meaningless here — nothing secret is being protected, and Core's
+    // SetNetworkWifiPassword takes a plain string anyway.
+    private const string SENTINEL_COMMAND_ARGUMENT = "sentinel-argument-not-in-the-log";
 
     #region ErrorOccurred severity mapping
     [TestMethod]
@@ -234,19 +237,19 @@ public class ConnectionManagerBackgroundFailureTests
         var device = CreateDevice();
         _ = CreateSubscribedManager(logger, device);
         var error = new IOException("The port is closed.");
-        var passwordCommand = ScpiMessageProducer.SetNetworkWifiPassword(WIFI_PASSWORD);
+        var secretBearingCommand = ScpiMessageProducer.SetNetworkWifiPassword(SENTINEL_COMMAND_ARGUMENT);
 
         Assert.IsTrue(
-            passwordCommand.Data.Contains(WIFI_PASSWORD, StringComparison.Ordinal),
+            secretBearingCommand.Data.Contains(SENTINEL_COMMAND_ARGUMENT, StringComparison.Ordinal),
             "Precondition: Core still embeds the password in the command payload.");
 
         device.Raise(
             d => d.SendFailed += null,
             device.Object,
-            new CoreSendFailedEventArgs(passwordCommand, error));
+            new CoreSendFailedEventArgs(secretBearingCommand, error));
 
         logger.Verify(
-            l => l.Warning(error, It.Is<string>(m => !m.Contains(WIFI_PASSWORD, StringComparison.Ordinal))),
+            l => l.Warning(error, It.Is<string>(m => !m.Contains(SENTINEL_COMMAND_ARGUMENT, StringComparison.Ordinal))),
             Times.Once);
     }
     #endregion
