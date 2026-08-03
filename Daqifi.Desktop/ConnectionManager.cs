@@ -4,6 +4,9 @@ using Daqifi.Desktop.Helpers;
 using Daqifi.Desktop.Logger;
 using System.Diagnostics.CodeAnalysis;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CoreDeviceErrorEventArgs = Daqifi.Core.Device.DeviceErrorEventArgs;
+using CoreSendFailedEventArgs = Daqifi.Core.Communication.Producers.MessageSendFailedEventArgs<string>;
+using DeviceErrorSource = Daqifi.Core.Device.DeviceErrorSource;
 using DeviceIdentity = Daqifi.Core.Device.DeviceIdentity;
 
 namespace Daqifi.Desktop;
@@ -28,6 +31,12 @@ namespace Daqifi.Desktop;
 /// The firmware-update carve-out: a device being flashed drops its transport as an expected part
 /// of the flash, and Core owns reconnecting it, so this class must not tear it down (issue #738).
 /// </description></item>
+/// <item><description>
+/// Log severity for Core's background-failure events (<see cref="IDevice.ErrorOccurred"/> and
+/// <see cref="IDevice.SendFailed"/>). Whether a device failure is an app bug worth capturing to
+/// Sentry or an environmental condition worth only a local Warning is app policy, not Core's —
+/// see <see cref="IsAppBug"/> (issue #805).
+/// </description></item>
 /// </list>
 /// <para>
 /// Spontaneous transport drops arrive via <see cref="IDevice.ConnectionLost"/> and are handled by
@@ -38,6 +47,14 @@ namespace Daqifi.Desktop;
 /// </remarks>
 public partial class ConnectionManager : ObservableObject
 {
+    #region Constants
+    /// <summary>
+    /// Longest SCPI verb written to the log when a send fails. Real verbs are far shorter; the cap
+    /// only exists so a malformed payload cannot turn one failure into a wall of log.
+    /// </summary>
+    private const int MAX_LOGGED_COMMAND_LENGTH = 64;
+    #endregion
+
     #region Properties
     [ObservableProperty]
     private DAQiFiConnectionStatus _connectionStatus = DAQiFiConnectionStatus.Disconnected;
@@ -169,7 +186,27 @@ public partial class ConnectionManager : ObservableObject
         ConnectedDevices = new List<IStreamingDevice>();
     }
 
+    /// <summary>
+    /// Test-only constructor. <see cref="Instance"/> is a process-wide singleton, so asserting the
+    /// severity a background-failure report is logged at (issue #805) against the shared instance
+    /// would have every other test class's logging land in the same mock. Tests build their own
+    /// instance with their own sink instead.
+    /// </summary>
+    /// <param name="appLogger">The logging sink this instance reports through.</param>
+    internal ConnectionManager(IAppLogger appLogger) : this()
+    {
+        AppLogger = appLogger;
+    }
+
     public static ConnectionManager Instance => instance;
+
+    /// <summary>
+    /// Logging sink for this connection manager. Defaults to the process-wide
+    /// <see cref="Common.Loggers.AppLogger.Instance"/>; typed as <see cref="IAppLogger"/> and
+    /// settable only through the test constructor so the log level of a report can be asserted
+    /// rather than merely that nothing threw.
+    /// </summary>
+    internal IAppLogger AppLogger { get; init; } = Common.Loggers.AppLogger.Instance;
 
     #endregion
 
@@ -186,7 +223,7 @@ public partial class ConnectionManager : ObservableObject
             // Core's reconnect calls the Core device's Connect() directly, so this gate can't block it.
             if (IsFirmwareUpdateInProgress && device.ConnectionType == ConnectionType.Usb)
             {
-                AppLogger.Instance.Warning(
+                AppLogger.Warning(
                     $"Refusing to connect USB device {device.Name} while a firmware update is in progress " +
                     "(the device reconnects itself after the flash).");
                 ConnectionStatus = DAQiFiConnectionStatus.Error;
@@ -248,7 +285,7 @@ public partial class ConnectionManager : ObservableObject
                 {
                     // Exception-aware overload: keeps the stack trace in DAQiFiAppLog.log (where a
                     // leaked-handle report is diagnosed from) without escalating to Sentry.
-                    AppLogger.Instance.Warning(
+                    AppLogger.Warning(
                         ex, $"Failed to dispose a rejected duplicate device ({device.Name}).");
                 }
                 ConnectionStatus = postConnectDuplicateResult.ExistingDevice != null ? DAQiFiConnectionStatus.AlreadyConnected : DAQiFiConnectionStatus.Error;
@@ -256,23 +293,23 @@ public partial class ConnectionManager : ObservableObject
             }
             
             ConnectedDevices.Add(device);
-            device.ConnectionLost += OnDeviceConnectionLost;
+            SubscribeDeviceEvents(device);
             await Task.Delay(1000);
             OnPropertyChanged(nameof(ConnectedDevices));
             ConnectionStatus = DAQiFiConnectionStatus.Connected;
 
             var connectionType = device.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
-            AppLogger.Instance.SetDeviceContext(
+            AppLogger.SetDeviceContext(
                 device.DevicePartNumber,
                 device.DeviceSerialNo,
                 device.DeviceVersion,
                 connectionType,
                 device.DataChannels?.Count(c => c.IsActive) ?? 0);
-            AppLogger.Instance.AddBreadcrumb("device", $"Device connected: {device.Name} (S/N: {device.DeviceSerialNo}) via {connectionType}");
+            AppLogger.AddBreadcrumb("device", $"Device connected: {device.Name} (S/N: {device.DeviceSerialNo}) via {connectionType}");
         }
         catch (Exception ex)
         {
-            AppLogger.Instance.Error(ex, "Failed to Connect in Connection");
+            AppLogger.Error(ex, "Failed to Connect in Connection");
             ConnectionStatus = DAQiFiConnectionStatus.Error;
         }
     }
@@ -282,7 +319,7 @@ public partial class ConnectionManager : ObservableObject
         var connectionType = device.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
         try
         {
-            device.ConnectionLost -= OnDeviceConnectionLost;
+            UnsubscribeDeviceEvents(device);
             device.Disconnect();
             // Release any transport/port handle the device owns; SerialStreamingDevice.Dispose is
             // idempotent with the cleanup Disconnect already performed.
@@ -290,17 +327,17 @@ public partial class ConnectionManager : ObservableObject
             ConnectedDevices.Remove(device);
             OnPropertyChanged(nameof(ConnectedDevices));
 
-            AppLogger.Instance.AddBreadcrumb("device", $"Device disconnected: {device.Name} (S/N: {device.DeviceSerialNo}) via {connectionType}");
+            AppLogger.AddBreadcrumb("device", $"Device disconnected: {device.Name} (S/N: {device.DeviceSerialNo}) via {connectionType}");
 
             if (ConnectedDevices.Count == 0)
             {
-                AppLogger.Instance.ClearDeviceContext();
+                AppLogger.ClearDeviceContext();
             }
             else
             {
                 var remaining = ConnectedDevices[^1];
                 var remainingType = remaining.ConnectionType == ConnectionType.Usb ? "usb" : "wifi";
-                AppLogger.Instance.SetDeviceContext(
+                AppLogger.SetDeviceContext(
                     remaining.DevicePartNumber,
                     remaining.DeviceSerialNo,
                     remaining.DeviceVersion,
@@ -310,8 +347,8 @@ public partial class ConnectionManager : ObservableObject
         }
         catch (Exception ex)
         {
-            AppLogger.Instance.AddBreadcrumb("device", $"Device disconnect failed: {device.Name} (S/N: {device.DeviceSerialNo}) via {connectionType}", Common.Loggers.BreadcrumbLevel.Error);
-            AppLogger.Instance.Error(ex, "Failed in Disconnect");
+            AppLogger.AddBreadcrumb("device", $"Device disconnect failed: {device.Name} (S/N: {device.DeviceSerialNo}) via {connectionType}", Common.Loggers.BreadcrumbLevel.Error);
+            AppLogger.Error(ex, "Failed in Disconnect");
         }
     }
 
@@ -319,14 +356,14 @@ public partial class ConnectionManager : ObservableObject
     {
         try
         {
-            device.ConnectionLost -= OnDeviceConnectionLost;
+            UnsubscribeDeviceEvents(device);
             device.Reboot();
             ConnectedDevices.Remove(device);
             OnPropertyChanged(nameof(ConnectedDevices));
         }
         catch (Exception ex)
         {
-            AppLogger.Instance.Error(ex, "Failed in Reboot");
+            AppLogger.Error(ex, "Failed in Reboot");
         }
     }
 
@@ -342,6 +379,163 @@ public partial class ConnectionManager : ObservableObject
             _ => "Error"
         };
     }
+
+    #region Device Event Wiring
+    /// <summary>
+    /// Attaches every per-device event this class listens to. Kept as a single method with an exact
+    /// mirror in <see cref="UnsubscribeDeviceEvents"/> so a newly wired event cannot be attached at
+    /// connect and forgotten at teardown — the leak shape fixed in issue #795. Runs once the device
+    /// has connected and been accepted into <see cref="ConnectedDevices"/>, which is also when the
+    /// Core device behind these events exists.
+    /// </summary>
+    private void SubscribeDeviceEvents(IStreamingDevice device)
+    {
+        device.ConnectionLost += OnDeviceConnectionLost;
+        device.ErrorOccurred += OnDeviceErrorOccurred;
+        device.SendFailed += OnDeviceSendFailed;
+    }
+
+    /// <summary>
+    /// Detaches everything <see cref="SubscribeDeviceEvents"/> attached. Called from both teardown
+    /// paths (<see cref="Disconnect(IStreamingDevice)"/> and <see cref="Reboot"/>) before the
+    /// device's own teardown runs, while the underlying Core device is still alive to detach from.
+    /// </summary>
+    private void UnsubscribeDeviceEvents(IStreamingDevice device)
+    {
+        device.ConnectionLost -= OnDeviceConnectionLost;
+        device.ErrorOccurred -= OnDeviceErrorOccurred;
+        device.SendFailed -= OnDeviceSendFailed;
+    }
+
+    /// <summary>
+    /// Reports a failure Core caught on one of a device's background threads (issue #805). Before
+    /// Core 1.4.0 these had nowhere to go, so a read loop that could not read and a decoder that
+    /// could not decode both presented to the user as a device that had simply stopped sending.
+    /// </summary>
+    /// <remarks>
+    /// Observability only: Core does not tear the connection down for these, and neither does this
+    /// handler. A genuinely dead link arrives separately as <see cref="IDevice.ConnectionLost"/>,
+    /// which is where teardown and the user-facing notification live; automatic recovery is issue
+    /// #804. No dispatcher hop either — nothing here touches bound state, and Core raises from a
+    /// background thread.
+    /// </remarks>
+    private void OnDeviceErrorOccurred(object? sender, CoreDeviceErrorEventArgs e)
+    {
+        // Core already collapses repeats per (source, exception type) and reports how many it
+        // swallowed, so this reports the count instead of adding a second throttle on top.
+        var suppressed = e.SuppressedCount > 0
+            ? $"; {e.SuppressedCount} further like failure(s) suppressed by Core's throttle"
+            : string.Empty;
+        var message =
+            $"Device {DescribeDevice(sender)} reported a background failure from {e.Source} " +
+            $"({e.Error.GetType().Name}: {e.Error.Message}){suppressed}.";
+
+        if (IsAppBug(e.Source))
+        {
+            AppLogger.Error(e.Error, message);
+            return;
+        }
+
+        AppLogger.Warning(e.Error, message);
+    }
+
+    /// <summary>
+    /// Decides whether a background device failure is an app bug (log at Error, which captures to
+    /// Sentry) or an environmental condition (log at Warning, which does not).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Routing environmental conditions to Error has burned this app three times (#775, #779, #801):
+    /// the noise buries real bugs and the volume tracks how often users unplug things. So every
+    /// source Core actually raises today is a Warning:
+    /// </para>
+    /// <list type="bullet">
+    /// <item><description>
+    /// <c>MessageConsumer</c> — a failed transport read, parse, or subscriber dispatch. The
+    /// dominant cause by far is a link that is dying or gone, which Core independently escalates to
+    /// <c>ConnectionStatus.Lost</c>; every unplug would otherwise file a Sentry event. Core does not
+    /// separate the subscriber-dispatch subcase (which would be an app bug), so that one is
+    /// knowingly under-reported here rather than paying for it with a flood — it is still written to
+    /// DAQiFiAppLog.log with its stack trace.
+    /// </description></item>
+    /// <item><description>
+    /// <c>StreamDecode</c> — one malformed streaming frame. Core drops the frame and the stream
+    /// survives, so this is firmware or link noise, not an app fault.
+    /// </description></item>
+    /// <item><description>
+    /// <c>Reconnect</c> — Core exhausted its reconnect attempts. Terminal, but the cause is a device
+    /// that is unplugged, powered off, or off the network. The user already gets the
+    /// <see cref="IDevice.ConnectionLost"/> teardown and its dialog.
+    /// </description></item>
+    /// </list>
+    /// <para>
+    /// <c>Unknown</c> is the exception, and it is deliberately the same call made for
+    /// <c>SerialPortConnectFailure.Unknown</c> in #801: no Core 1.4.0 path raises it, so seeing one
+    /// means Core hit a failure it could not classify — expected volume zero, and worth a look.
+    /// A source value this build does not recognise is a different thing (the desktop is behind
+    /// Core, not the device misbehaving) and stays a Warning.
+    /// </para>
+    /// </remarks>
+    internal static bool IsAppBug(DeviceErrorSource source) => source switch
+    {
+        DeviceErrorSource.Unknown => true,
+        DeviceErrorSource.MessageConsumer => false,
+        DeviceErrorSource.StreamDecode => false,
+        DeviceErrorSource.Reconnect => false,
+        _ => false
+    };
+
+    /// <summary>
+    /// Reports a command that never reached the device (issue #805). Sending is fire-and-forget, so
+    /// before Core 1.4.0 a failed write was indistinguishable from a delivered one and the app's
+    /// idea of device state could silently diverge from the device's.
+    /// </summary>
+    /// <remarks>
+    /// Always a Warning: a write fails because the port closed, the device went away, or the device
+    /// stopped draining its receive buffer (<c>IsTimeout</c>) — all conditions of the link, not app
+    /// bugs. The distinction is still logged because "busy device" and "gone device" are diagnosed
+    /// differently.
+    /// </remarks>
+    private void OnDeviceSendFailed(object? sender, CoreSendFailedEventArgs e)
+    {
+        var outcome = e.IsTimeout
+            ? "timed out on the way to"
+            : "failed to reach";
+        AppLogger.Warning(
+            e.Error,
+            $"Command '{DescribeCommand(e.Message.Data)}' {outcome} device {DescribeDevice(sender)} " +
+            $"and was not delivered ({e.Error.GetType().Name}: {e.Error.Message}).");
+    }
+
+    /// <summary>
+    /// Names the device a background failure came from, the way the user sees it in the UI.
+    /// </summary>
+    private static string DescribeDevice(object? sender) =>
+        sender is IStreamingDevice device ? device.DeviceDisplayName : "(unknown)";
+
+    /// <summary>
+    /// Reduces a SCPI command to its verb — everything before the first space — for logging.
+    /// </summary>
+    /// <remarks>
+    /// Arguments are dropped deliberately: <c>SYSTem:COMMunicate:LAN:PASs "..."</c> carries the user's
+    /// WiFi password in plaintext, and DAQiFiAppLog.log must never contain it. The verb alone
+    /// answers the question a send failure raises — which command was lost.
+    /// </remarks>
+    private static string DescribeCommand(string? data)
+    {
+        if (string.IsNullOrWhiteSpace(data))
+        {
+            return "(empty)";
+        }
+
+        var trimmed = data.Trim();
+        var firstSpace = trimmed.IndexOf(' ');
+        var verb = firstSpace < 0 ? trimmed : trimmed[..firstSpace];
+
+        // A malformed or oversized payload must not turn one failure into a wall of log.
+        return verb.Length <= MAX_LOGGED_COMMAND_LENGTH ? verb : verb[..MAX_LOGGED_COMMAND_LENGTH] + "...";
+    }
+    #endregion
 
     /// <summary>
     /// Handles a device's <see cref="IDevice.ConnectionLost"/> event — Core detected a
@@ -457,7 +651,7 @@ public partial class ConnectionManager : ObservableObject
         // With no discriminator at all there is nothing to compare against, so duplicates are undetectable.
         if (candidateIdentity.IsEmpty)
         {
-            AppLogger.Instance.Information(
+            AppLogger.Information(
                 $"Device {newDevice.Name} has no serial number or MAC address - cannot check for duplicates");
             return new DuplicateDeviceCheckResult { IsDuplicate = false };
         }
@@ -470,7 +664,7 @@ public partial class ConnectionManager : ObservableObject
             var newDeviceInterface = newDevice.ConnectionType == ConnectionType.Usb ? "USB" : "WiFi";
             var existingDeviceInterface = existingDevice.ConnectionType == ConnectionType.Usb ? "USB" : "WiFi";
             
-            AppLogger.Instance.Information(
+            AppLogger.Information(
                 $"Duplicate device detected ({candidateIdentity}): Device already connected via " +
                 $"{existingDeviceInterface}, attempted to add via {newDeviceInterface}");
             
