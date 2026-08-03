@@ -2,6 +2,7 @@ using System.Net;
 using Daqifi.Core.Channel;
 using Daqifi.Core.Communication.Messages;
 using CoreConnectionStatus = Daqifi.Core.Device.ConnectionStatus;
+using CoreDeviceErrorEventArgs = Daqifi.Core.Device.DeviceErrorEventArgs;
 using CoreDeviceStatusEventArgs = Daqifi.Core.Device.DeviceStatusEventArgs;
 using CoreMessageReceivedEventArgs = Daqifi.Core.Device.MessageReceivedEventArgs;
 using CoreStreamingDevice = Daqifi.Core.Device.IStreamingDevice;
@@ -35,6 +36,17 @@ public sealed class BootloaderSessionStreamingDeviceAdapter : CoreStreamingDevic
     /// make that contract part of the code instead of an unused-field warning.
     /// </summary>
     public event EventHandler<CoreMessageReceivedEventArgs>? MessageReceived
+    {
+        add { }
+        remove { }
+    }
+
+    /// <summary>
+    /// Never raised, for the same reason as <see cref="MessageReceived"/>: this adapter runs no
+    /// read loop, message producer, or consumer, so it has no background work that could fail.
+    /// Added to <c>IDevice</c> in Core 1.4.0 (daqifi-core#415).
+    /// </summary>
+    public event EventHandler<CoreDeviceErrorEventArgs>? ErrorOccurred
     {
         add { }
         remove { }
@@ -80,7 +92,8 @@ public sealed class BootloaderSessionStreamingDeviceAdapter : CoreStreamingDevic
 
     // Channel management and device-control members (channel/DIO/analog-output members added to
     // Core's IStreamingDevice in 0.24.0; the PWM members and PwmFrequencyHz in 1.0.0; the ADC
-    // calibration and NVM persistence members in 1.3.0) are intentionally no-op here: the device
+    // calibration and NVM persistence members in 1.3.0; ErrorOccurred — on IDevice rather than
+    // IStreamingDevice — in 1.4.0) are intentionally no-op here: the device
     // is already in firmware-update mode and this adapter does not configure channels, drive
     // outputs, calibrate, persist NVM, or reboot through the streaming command path.
     // PwmFrequencyHz => 0 matches Core's documented "none commanded this session" sentinel.

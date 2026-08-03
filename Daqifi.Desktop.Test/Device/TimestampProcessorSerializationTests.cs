@@ -424,6 +424,12 @@ public class TimestampProcessorSerializationTests : IDisposable
 
         public double GetTickPeriod(string deviceId) => inner.GetTickPeriod(deviceId);
 
+        /// <summary>
+        /// Added to <see cref="ITimestampProcessor"/> in Core 1.4.0. Forwarded, not recorded: these
+        /// tests observe the apply/reset ordering, and this is a pure query.
+        /// </summary>
+        public bool HasTimestampFrequency(string deviceId) => inner.HasTimestampFrequency(deviceId);
+
         public TimestampResult ProcessTimestamp(string deviceId, uint deviceTimestamp)
         {
             Record(PROCESS_TIMESTAMP_CALL);

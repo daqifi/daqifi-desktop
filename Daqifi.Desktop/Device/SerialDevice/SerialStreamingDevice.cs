@@ -100,6 +100,31 @@ public partial class SerialStreamingDevice : AbstractStreamingDevice, ILanChipIn
     {
         switch (ex)
         {
+            // Core 1.4.0 (daqifi-core#427) translates SerialPort.Open failures into a typed
+            // SerialPortConnectException carrying a stable, cross-platform SerialPortConnectFailure
+            // reason. These arms must come first: the exception derives from IOException, so without
+            // them every missing or busy port — the two most common things a user hits — falls
+            // through to the default Error arm and is captured to Sentry as an app bug (issue #801).
+            //
+            // Matching on the reason rather than the platform exception type is also the first time
+            // this classification can be correct. Core's investigation found a missing port and a
+            // busy port throw byte-identical exceptions on macOS, the inner IOException message is
+            // not stable across processes for the same port, and the inner HResult is a stale errno.
+            // The FileNotFoundException/UnauthorizedAccessException arms below were matching on
+            // platform-specific accidents; they are kept as a fallback for any path that still
+            // surfaces the raw platform exception rather than Core's translated one.
+            case SerialPortConnectException { Reason: SerialPortConnectFailure.NotFound }:
+                AppLogger.Warning(ex, $"Cannot connect on {PortName}: port is not available");
+                break;
+            case SerialPortConnectException { Reason: SerialPortConnectFailure.InUse }:
+                AppLogger.Warning(ex, $"Cannot connect on {PortName}: port is in use by another process");
+                break;
+            case SerialPortConnectException { Reason: SerialPortConnectFailure.AccessDenied }:
+                AppLogger.Warning(ex, $"Cannot connect on {PortName}: access denied");
+                break;
+            // SerialPortConnectFailure.Unknown is deliberately NOT handled here. It means Core saw a
+            // serial-open failure it could not classify, which is genuinely worth investigating, so
+            // it falls through to the default Error arm.
             case FileNotFoundException:
                 // .NET's SerialPort.Open throws FileNotFoundException when the COM port no
                 // longer exists (device unplugged, never present, or renamed). Treat as a
