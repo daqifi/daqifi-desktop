@@ -1,3 +1,5 @@
+using System.IO;
+using Daqifi.Core.Communication.Transport;
 using Daqifi.Desktop.Common.Loggers;
 using Daqifi.Desktop.Device.SerialDevice;
 using Moq;
@@ -153,6 +155,65 @@ public class SerialStreamingDeviceLogConnectFailureTests
         // ...and via the exception-carrying overload specifically: the message-only Error(string)
         // synthesizes an AppLogErrorException, which would strand the real stack trace out of Sentry.
         logger.Verify(l => l.Error(It.IsAny<string>()), Times.Never);
+    }
+
+    [TestMethod]
+    [DataRow(SerialPortConnectFailure.NotFound)]
+    [DataRow(SerialPortConnectFailure.InUse)]
+    [DataRow(SerialPortConnectFailure.AccessDenied)]
+    public void LogConnectFailure_WithClassifiedSerialPortConnectFailure_LogsWarningAndNotError(
+        SerialPortConnectFailure reason)
+    {
+        // Arrange — Core 1.4.0 (daqifi-core#427) translates SerialPort.Open failures into this typed
+        // exception. It derives from IOException, so it matches NEITHER of the FileNotFoundException
+        // / UnauthorizedAccessException arms that used to catch a missing or busy port. Without the
+        // Reason arms, all three of these — the most common things a user hits — reach the default
+        // Error path and are captured to Sentry as app bugs (issue #801).
+        var logger = new Mock<IAppLogger>();
+        var device = new TestableSerialStreamingDevice("COM_TEST_801", logger.Object);
+        var ex = new SerialPortConnectException("COM_TEST_801", reason, $"Serial open failed: {reason}");
+
+        // Act
+        device.ExposedLogConnectFailure(ex);
+
+        // Assert
+        logger.Verify(l => l.Warning(ex, It.IsAny<string>()), Times.Once);
+        logger.Verify(l => l.Error(It.IsAny<Exception>(), It.IsAny<string>()), Times.Never);
+        logger.Verify(l => l.Error(It.IsAny<string>()), Times.Never);
+    }
+
+    [TestMethod]
+    public void LogConnectFailure_WithUnknownSerialPortConnectFailure_LogsError()
+    {
+        // Arrange — the guard in the other direction. SerialPortConnectFailure.Unknown means Core saw
+        // a serial-open failure it could NOT classify, which is worth investigating, so it must keep
+        // reaching the Error/Sentry path rather than being blanket-downgraded with its siblings.
+        var logger = new Mock<IAppLogger>();
+        var device = new TestableSerialStreamingDevice("COM_TEST_801", logger.Object);
+        var ex = new SerialPortConnectException(
+            "COM_TEST_801", SerialPortConnectFailure.Unknown, "Serial open failed for an unknown reason");
+
+        // Act
+        device.ExposedLogConnectFailure(ex);
+
+        // Assert
+        logger.Verify(l => l.Error(ex, It.IsAny<string>()), Times.Once);
+        logger.Verify(l => l.Warning(It.IsAny<Exception>(), It.IsAny<string>()), Times.Never);
+        logger.Verify(l => l.Error(It.IsAny<string>()), Times.Never);
+    }
+
+    [TestMethod]
+    public void SerialPortConnectException_DerivesFromIoException_NotTheLegacyPlatformTypes()
+    {
+        // The structural fact that makes the arms above necessary, asserted directly so a future Core
+        // change to the hierarchy fails here with an explanatory name rather than silently re-routing
+        // routine connect failures to Sentry. This is the third time Core changed a thrown type and a
+        // classification arm quietly stopped matching (#775, #779, #801); this test is the tripwire.
+        var ex = new SerialPortConnectException("COM_TEST_801", SerialPortConnectFailure.NotFound, "x");
+
+        Assert.IsInstanceOfType<IOException>(ex);
+        Assert.IsNotInstanceOfType<FileNotFoundException>(ex);
+        Assert.IsNotInstanceOfType<UnauthorizedAccessException>(ex);
     }
 
     /// <summary>
