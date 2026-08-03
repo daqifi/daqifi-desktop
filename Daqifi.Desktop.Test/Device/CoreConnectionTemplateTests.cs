@@ -289,6 +289,51 @@ public class CoreConnectionTemplateTests
     }
 
     [TestMethod]
+    public void Connect_SucceedsWhenTheDeviceMerelyRefusesToClearChannels()
+    {
+        // Arrange — adoption is best-effort. A device that declines the disable is survivable: the
+        // user can still pick channels by hand, so the connection must stand.
+        var device = new TemplateTestDevice(
+            deviceReportsChannelsEnabled: true,
+            disableAllChannelsException: new InvalidOperationException("Device returned a SCPI error."));
+
+        // Act
+        var connected = device.Connect();
+
+        // Assert
+        Assert.IsTrue(connected, "A refused disable must not fail an otherwise good connection.");
+        Assert.AreEqual(0, device.LoggedConnectFailures.Count, "A refusal is not a connect failure.");
+    }
+
+    /// <summary>
+    /// A dropped transport during adoption must fail the connection, not be swallowed as
+    /// best-effort.
+    /// </summary>
+    /// <remarks>
+    /// Swallowing it would let <c>Connect</c> return <c>true</c> for a device that is already gone,
+    /// so <c>ConnectionManager</c> would add it to <c>ConnectedDevices</c> having skipped both
+    /// <c>LogConnectFailure</c> and <c>CleanupConnection</c>. Same hazard as issue #619, where
+    /// delegating to Core turned disconnected no-ops into throws.
+    /// </remarks>
+    [TestMethod]
+    public void Connect_FailsWhenTheTransportDroppedWhileClearingChannels()
+    {
+        // Arrange
+        var device = new TemplateTestDevice(
+            deviceReportsChannelsEnabled: true,
+            disableAllChannelsException: new InvalidOperationException("Transport is not connected."));
+
+        // Act
+        var connected = device.Connect();
+
+        // Assert
+        Assert.IsFalse(connected, "A dropped transport must fail the connection.");
+        Assert.AreEqual(1, device.LoggedConnectFailures.Count,
+            "The failure must reach the connect template's own handling, not be swallowed.");
+        Assert.IsNull(device.ExposedCoreDevice, "CleanupConnection must have torn the Core device down.");
+    }
+
+    [TestMethod]
     public void Connect_LeavesChannelsAloneWhenTheDeviceReportsNoneEnabled()
     {
         // Arrange — the ordinary case. Regression guard in the other direction: the adopt step must
@@ -331,7 +376,8 @@ public class CoreConnectionTemplateTests
         bool returnNullCoreDevice = false,
         Exception? createException = null,
         Exception? postInitializeException = null,
-        bool deviceReportsChannelsEnabled = false) : AbstractStreamingDevice
+        bool deviceReportsChannelsEnabled = false,
+        Exception? disableAllChannelsException = null) : AbstractStreamingDevice
     {
         public List<string> HookCalls { get; } = [];
         public List<Exception> LoggedConnectFailures { get; } = [];
@@ -380,6 +426,9 @@ public class CoreConnectionTemplateTests
                 {
                     channel.IsEnabled = true;
                 }
+
+                // Armed last so it fails the adopt step specifically, not initialization.
+                CreatedCoreDevice.SendException = disableAllChannelsException;
             });
             CreatedCoreDevice.Connect();
             return CreatedCoreDevice;
@@ -432,6 +481,16 @@ public class CoreConnectionTemplateTests
     /// </summary>
     private sealed class TemplateCoreDevice(Action onInitialize) : CoreStreamingDevice("TemplateCore")
     {
+        /// <summary>
+        /// When set, the next outbound command throws this instead of being swallowed.
+        /// </summary>
+        /// <remarks>
+        /// Core's <c>DisableAllChannels</c> is not virtual, so the connect template's channel-set
+        /// adoption is failed through the transport it ultimately writes to. Armed only after
+        /// initialization, so it targets the adopt step rather than anything Core sends earlier.
+        /// </remarks>
+        public Exception? SendException { get; set; }
+
         public override Task InitializeAsync(
             TimeSpan? channelPopulationTimeout = null,
             CancellationToken cancellationToken = default)
@@ -442,6 +501,10 @@ public class CoreConnectionTemplateTests
 
         public override void Send<T>(IOutboundMessage<T> message)
         {
+            if (SendException != null)
+            {
+                throw SendException;
+            }
         }
 
         /// <summary>

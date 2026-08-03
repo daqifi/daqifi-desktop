@@ -541,13 +541,38 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
                 $"Cleared {deviceReportedActive} channel(s) the device reported as already enabled on " +
                 $"{DisplayIdentifier}, so the app starts from its own empty active set (issue #811).");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!IsConnectionFatal(coreDevice, ex))
         {
             AppLogger.Warning(ex,
                 $"Could not clear the device-reported enabled channels on {DisplayIdentifier}. " +
                 "Channel tiles may show as active before any channel has been selected.");
         }
     }
+
+    /// <summary>
+    /// Whether a failure raised while adopting the channel set means the connection itself is gone,
+    /// rather than the device merely declining the command.
+    /// </summary>
+    /// <remarks>
+    /// The distinction decides whether <see cref="Connect"/> can still return <c>true</c>. Adoption
+    /// is best-effort — a device that refuses is survivable, because the user can still pick
+    /// channels by hand — but a dropped transport is not: swallowing it would let
+    /// <see cref="Connect"/> report success and <c>ConnectionManager</c> add a device that is
+    /// already gone, skipping <see cref="LogConnectFailure"/> and <see cref="CleanupConnection"/>.
+    /// Used as an exception filter so a fatal failure propagates to the connect template's own
+    /// catch with its stack intact, instead of being rethrown from a nested frame.
+    /// <para>
+    /// This is the same hazard as issue #619: delegating to Core turns calls that used to no-op
+    /// while disconnected into calls that throw, so every such site has to decide explicitly what a
+    /// disconnect means for it.
+    /// </para>
+    /// </remarks>
+    /// <param name="coreDevice">The device the command was issued against.</param>
+    /// <param name="ex">The failure raised by that command.</param>
+    private static bool IsConnectionFatal(CoreStreamingDevice coreDevice, Exception ex) =>
+        !coreDevice.IsConnected
+        || ex is DeviceNotConnectedException
+        || IsTransportDisconnectedError(ex);
 
     /// <summary>
     /// Logs a failure of the shared <see cref="Connect"/> template. Default logs an error;
