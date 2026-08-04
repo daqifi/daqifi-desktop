@@ -18,9 +18,11 @@ public class SdCardFailureClassifierTests
     [TestMethod]
     public void Classify_EmptyTransfer_IsExpectedDeviceConditionButDoesNotWriteOffTheCard()
     {
-        // Arrange — the exact exception Core 1.3.0 throws when the device serves a marker-only
-        // transfer, and the one Sentry issue #754 was filed from.
-        var ex = new SdCardEmptyTransferException(FileName);
+        // Arrange — what Core still throws when the device serves a marker-only transfer for a file
+        // its listing called non-empty (or whose listed size it could not determine), and the one
+        // Sentry issue #754 was filed from. A listed 0-byte file no longer reaches here at all —
+        // Core v1.4.0 returns it as a legitimate empty download (daqifi-core#398 gap 2).
+        var ex = new SdCardEmptyTransferException(FileName, listedSizeInBytes: 4096);
 
         // Act
         var failure = SdCardFailureClassifier.Classify(ex);
@@ -30,21 +32,25 @@ public class SdCardFailureClassifierTests
             "A device that serves no data is a device condition, so it must log at Warning and not " +
             "file a Sentry issue.");
         Assert.IsFalse(failure.IsCardUnavailable,
-            "Issue #780: Core cannot tell a genuinely empty 0-byte log from a wedged subsystem, so " +
-            "this must not abort a batch and strand every file listed after it.");
+            "Issue #780: Core's unknown-listed-size case keeps its conservative throw, so this can " +
+            "still be one file rather than the card, and must not strand every file listed after it.");
         Assert.AreEqual(SdCardState.Error, failure.State);
         Assert.AreEqual(SdCardFailureClassifier.EMPTY_TRANSFER_GUIDANCE, failure.Guidance,
             "The advice has to cover both readings, not send the user after a power cycle they may not need.");
     }
 
     [TestMethod]
-    public void Classify_WatchdogDetectedStall_AdvisesPowerCycleAndStopsTheBatch()
+    public void Classify_TransferTimeoutStall_AdvisesPowerCycleAndStopsTheBatch()
     {
-        // Arrange — what the importer's stall watchdog throws when the device goes quiet: silence
-        // for the full 90-second window. That is unambiguously device-wide, so it is the one
-        // download failure worth abandoning the rest of the batch over.
-        var ex = new SdCardDownloadStalledException(
-            FileName, silentFor: TimeSpan.FromSeconds(90), patienceWindow: TimeSpan.FromSeconds(90));
+        // Arrange — the reason both the importer's own stall watchdog and Core's hard download
+        // deadline report: a transfer deadline elapsed with the file incomplete. That is
+        // unambiguously device-wide, so it is the one download failure worth abandoning the rest of
+        // the batch over.
+        var ex = new SdCardTransferStalledException(
+            FileName,
+            bytesReceived: 0,
+            SdCardTransferStallReason.TransferTimeout,
+            TimeSpan.FromSeconds(90));
 
         // Act
         var failure = SdCardFailureClassifier.Classify(ex);
@@ -60,15 +66,12 @@ public class SdCardFailureClassifierTests
     [TestMethod]
     public void Classify_QuickTransportStall_IsExpectedDeviceConditionAndKeepsTheBatchGoing()
     {
-        // Arrange — issue #779: over USB serial Core's SdCardFileReceiver raises a plain
-        // TimeoutException within about half a second, long before the watchdog. The importer
-        // normalises it to this type so it stops landing on the Sentry path, but it gives up too
-        // fast and too ambiguously to justify writing off the whole card.
-        var ex = new SdCardDownloadStalledException(
-            FileName,
-            silentFor: TimeSpan.FromMilliseconds(500),
-            patienceWindow: TimeSpan.FromSeconds(90),
-            new TimeoutException("Transport stream closed before receiving the EOF marker."));
+        // Arrange — issue #779: over USB serial Core's SdCardFileReceiver gives up on a zero-length
+        // read within about half a second, long before any deadline. Core v1.4.0 types it as
+        // NoDataReceived (daqifi-core#398 gap 1); it must stay off the Sentry path, but it gives up
+        // too fast and too ambiguously to justify writing off the whole card.
+        var ex = new SdCardTransferStalledException(
+            FileName, bytesReceived: 0, SdCardTransferStallReason.NoDataReceived);
 
         // Act
         var failure = SdCardFailureClassifier.Classify(ex);
@@ -86,24 +89,45 @@ public class SdCardFailureClassifierTests
     }
 
     [TestMethod]
-    public void Classify_ProlongedTransportStall_StopsTheBatchLikeTheWatchdogWould()
+    public void Classify_TransportClosedStall_TellsTheUserToReconnectAndStopsTheBatch()
     {
-        // Arrange — Core reports its 30-minute transfer cap through the same untyped
-        // TimeoutException as its half-second read timeout. Letting a batch pay that wait once
-        // per remaining file would be far worse than the abort #780 removed, so what decides it
-        // is how long the device had been quiet, not which Core code path raised it.
-        var ex = new SdCardDownloadStalledException(
-            FileName,
-            silentFor: TimeSpan.FromMinutes(30),
-            patienceWindow: TimeSpan.FromSeconds(90),
-            new TimeoutException("SD card file download timed out after 1800 seconds."));
+        // Arrange — Core's third stall reason: the transport went away underneath the transfer.
+        // Core's own contract says retrying the download on it cannot succeed, so grinding through
+        // the remaining files would only produce the same failure — but the advice is to reconnect,
+        // not to power-cycle a card that was never the problem.
+        var ex = new SdCardTransferStalledException(
+            FileName, bytesReceived: 4096, SdCardTransferStallReason.TransportClosed);
 
         // Act
         var failure = SdCardFailureClassifier.Classify(ex);
 
         // Assert
+        Assert.IsTrue(failure.IsExpectedDeviceCondition,
+            "A dropped connection is a device/environmental condition, not an app defect.");
         Assert.IsTrue(failure.IsCardUnavailable);
-        Assert.AreEqual(SdCardFailureClassifier.POWER_CYCLE_GUIDANCE, failure.Guidance);
+        Assert.AreEqual(SdCardFailureClassifier.TRANSPORT_CLOSED_GUIDANCE, failure.Guidance);
+    }
+
+    [TestMethod]
+    public void Classify_Stall_IsMatchedBeforeItsOperationExceptionBaseType()
+    {
+        // Arrange — regression guard on switch-arm order. SdCardTransferStalledException derives
+        // from SdCardOperationException, so an arm added above it would swallow every stall into
+        // the generic "card may be corrupt" advice and drop the reason entirely.
+        var ex = new SdCardTransferStalledException(
+            FileName,
+            bytesReceived: 0,
+            SdCardTransferStallReason.TransferTimeout,
+            TimeSpan.FromSeconds(90));
+
+        // Act
+        var failure = SdCardFailureClassifier.Classify(ex);
+
+        // Assert
+        Assert.AreNotEqual(SdCardFailureClassifier.GENERIC_CARD_GUIDANCE, failure.Guidance);
+        Assert.IsTrue(failure.IsCardUnavailable,
+            "The SdCardOperationException arm reports IsCardUnavailable: false, so reaching it " +
+            "would silently turn a device-wide stall into a per-file one.");
     }
 
     [TestMethod]
@@ -112,7 +136,9 @@ public class SdCardFailureClassifierTests
         // Arrange — a timeout from some other layer (a database call, an HTTP request) that
         // happens to reach an SD catch block. Regression guard: matching TimeoutException by base
         // type would tell the user to power-cycle a healthy device over an unrelated failure, and
-        // would keep that failure off the Error path where it belongs.
+        // would keep that failure off the Error path where it belongs. Core's own hard download
+        // deadline is the one timeout that IS about the card, and the importer normalises it at
+        // the call site, where the scope makes it safe.
         var ex = new TimeoutException("The operation has timed out.");
 
         // Act
