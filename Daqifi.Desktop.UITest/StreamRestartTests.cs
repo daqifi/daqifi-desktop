@@ -26,8 +26,9 @@ public class StreamRestartTests : DaqifiAppFixture
 
     // The stop-to-start gap is the TEST STIMULUS, not a readiness wait: the leftover frame's
     // counter offset from the new session equals this gap, which is exactly what mis-anchors
-    // the axis on unfixed builds. It must comfortably exceed the app's leftover detection
-    // window (2.5 s) and the axis-anchor assertion bound below.
+    // the axis on unfixed builds. It must comfortably exceed the detection window Core's
+    // StreamFrameGate arms (2.5 sample periods — 25 ms at the 100 Hz used here; the desktop's
+    // own guard, retired in issue #679, used a fixed 2.5 s) and the axis-anchor bound below.
     private static readonly TimeSpan StopStartGap = TimeSpan.FromSeconds(8);
 
     // The new session's first rendered sample must sit this close to X = 0 ms. A session

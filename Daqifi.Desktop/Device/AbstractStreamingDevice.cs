@@ -49,23 +49,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     [ObservableProperty]
     private DeviceState _deviceState = DeviceState.Disconnected;
 
-    /// <summary>
-    /// Detection window for leftover frames at stream start, in seconds of device-counter time.
-    /// The device holds the final frame of a stopped session in its transmit path and emits it
-    /// as the first frame of the next session (issue #573); that frame's counter sits one sample
-    /// period (1 s at the minimum 1 Hz rate) after the last counter seen before the stop, while
-    /// a genuine new-session frame is offset by the full stop-to-start gap. The same window also
-    /// bounds the plausible counter advance between two consecutive frames of one session, which
-    /// is how the no-reference first-frame validation tells a leftover from genuine data.
-    /// </summary>
-    private const double STALE_FRAME_WINDOW_SECONDS = 2.5;
-
-    /// <summary>
-    /// Safety cap on leftover-frame discards per stream start so genuine data can never be
-    /// dropped indefinitely (e.g., a stop-to-start gap that aliases the ~86 s counter wrap).
-    /// </summary>
-    private const int MAX_DISCARDED_LEFTOVER_FRAMES = 5;
-
     private const string SD_UNAVAILABLE_MESSAGE = "Core SD card operations are not available for this device.";
     private const string STREAMING_UNAVAILABLE_MESSAGE = "Core live streaming operations are not available for this device.";
     private const string NOT_CONNECTED_MESSAGE = "Device is not connected.";
@@ -81,28 +64,13 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
     private List<SdCardFile> _sdCardFiles = [];
 
-    // Leftover-frame detection state (issue #573). The last-seen counter is tracked for every
-    // stream frame — including frames dropped while not streaming — because the leftover frame
-    // emitted at the next start follows the device's last emitted frame by one sample period.
-    private uint _lastSeenDeviceTimestamp;
-    private bool _hasSeenDeviceTimestamp;
-    private volatile bool _checkForLeftoverFrames;
-    private int _discardedLeftoverFrameCount;
-
-    // First-frame validation state (issue #573 follow-up). The device's leftover frame survives
-    // a USB disconnect/reconnect, and a freshly connected instance has no counter reference to
-    // recognize it against — so the first frame of the first session is held until the next
-    // frame's counter delta validates the pair as same-session data.
-    private volatile bool _pendingFirstFrameValidation;
-    private DaqifiOutMessage? _heldFirstFrame;
-
     /// <summary>
     /// Per-channel subscriptions onto Core's decode pipeline (issue #613). Core's
     /// <c>DaqifiStreamingDevice</c> decodes every raw stream frame into per-channel samples and
     /// raises <see cref="Daqifi.Core.Channel.IChannel.SampleReceived"/> automatically whenever its
-    /// own <c>IsStreaming</c> flag is set — independent of the leftover-frame/first-frame gating
-    /// below. Keyed by the desktop channel wrapper so the handler installed on its Core channel can
-    /// be found and removed when the wrapper leaves <see cref="DataChannels"/>.
+    /// own <c>IsStreaming</c> flag is set — independent of the desktop's own gating. Keyed by the
+    /// desktop channel wrapper so the handler installed on its Core channel can be found and
+    /// removed when the wrapper leaves <see cref="DataChannels"/>.
     /// </summary>
     /// <remarks>
     /// Keyed by <em>reference identity</em>: <see cref="AbstractChannel"/> overrides equality and
@@ -122,10 +90,16 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// decode step synchronously, immediately after the <c>MessageReceived</c> event that reaches
     /// <see cref="OnStreamMessageReceived"/> returns — so setting this at the end of
     /// <see cref="ProcessStreamMessage"/> reliably covers Core's decode of that same frame.
-    /// Frames rejected by leftover-frame/first-frame validation never call
-    /// <see cref="ProcessStreamMessage"/>, so Core still decodes and broadcasts their samples, but
-    /// this gate keeps them from reaching the desktop's channels.
     /// </summary>
+    /// <remarks>
+    /// Default-closed for every frame, which is what makes it correct for the frames the desktop
+    /// never sees. A frame Core withholds (<see cref="CoreStreamingDevice.StreamFrameDiscarded"/>)
+    /// raises no <c>StreamMessageReceived</c>, so <see cref="OnStreamMessageReceived"/> does not run
+    /// for it and cannot close the gate — yet a <c>PartialAnalogFrame</c> discard is still decoded by
+    /// Core for its digital payload. <see cref="OnCoreStreamFrameDiscarded"/> therefore closes the
+    /// gate itself, so those samples cannot reach desktop channels carrying
+    /// <see cref="_currentFrameTimestamp"/> from whichever frame was accepted before them.
+    /// </remarks>
     private bool _acceptChannelSamples;
 
     /// <summary>
@@ -642,6 +616,7 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         coreDevice.ChannelsPopulated += OnCoreChannelsPopulated;
         coreDevice.StatusMessageReceived += OnStatusMessageReceived;
         coreDevice.StreamMessageReceived += OnStreamMessageReceived;
+        coreDevice.StreamFrameDiscarded += OnCoreStreamFrameDiscarded;
         coreDevice.StatusChanged += OnCoreStatusChanged;
     }
 
@@ -650,7 +625,52 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         coreDevice.ChannelsPopulated -= OnCoreChannelsPopulated;
         coreDevice.StatusMessageReceived -= OnStatusMessageReceived;
         coreDevice.StreamMessageReceived -= OnStreamMessageReceived;
+        coreDevice.StreamFrameDiscarded -= OnCoreStreamFrameDiscarded;
         coreDevice.StatusChanged -= OnCoreStatusChanged;
+    }
+
+    /// <summary>
+    /// Handles Core's report that it withheld a stream frame the device should not have sent
+    /// (issue #679): the frame latched from the previous streaming session
+    /// (<see cref="StreamFrameDiscardReason.StaleLeftoverFrame"/>) or firmware's malformed leading
+    /// frame at stream start (<see cref="StreamFrameDiscardReason.PartialAnalogFrame"/>).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The desktop ran its own stream-start leftover-frame guard until Core v1.4.0 took ownership of
+    /// it (daqifi-core#425/#428, <c>StreamFrameGate</c>). Core's version is the better one: its
+    /// detection window is 2.5 <em>sample periods</em> computed from the session's streaming
+    /// frequency, where the desktop's was a fixed 2.5 <em>seconds</em> — 100x wider than needed at
+    /// 100 Hz, and that margin is exactly where a genuine early frame could be misread as a leftover.
+    /// Core also screens the raw-frame path, so a withheld frame never reaches
+    /// <see cref="OnStreamMessageReceived"/> at all; this handler is what keeps the discard from
+    /// being invisible, which is the diagnostic signal the deleted discard counter used to give.
+    /// </para>
+    /// <para>
+    /// Recorded as a Sentry breadcrumb rather than logged at Error or Warning. These discards are
+    /// <em>expected</em> on affected firmware — one <c>PartialAnalogFrame</c> per stream start on
+    /// firmware up to 3.7.2, plus one <c>StaleLeftoverFrame</c> per restart — so the Error path
+    /// (the only one that captures to Sentry) would file an issue per streaming session for a
+    /// device-side condition no app change can fix. This repo has hit that exact flood three times
+    /// (#775, #779, #801). A breadcrumb still puts every discard on the timeline of any error that
+    /// does get captured, which is where it is actually useful.
+    /// </para>
+    /// </remarks>
+    /// <param name="sender">Core's streaming device.</param>
+    /// <param name="e">The reason for the discard and the counts behind it.</param>
+    private void OnCoreStreamFrameDiscarded(object? sender, StreamFrameDiscardedEventArgs e)
+    {
+        // Core raises this synchronously before decoding the frame it withheld, and a
+        // PartialAnalogFrame is still decoded for its digital payload — close the sample gate so
+        // those samples cannot be stamped with the previously accepted frame's timestamp.
+        _acceptChannelSamples = false;
+
+        AppLogger.AddBreadcrumb(
+            "streaming",
+            $"Core discarded a stream frame ({e.Reason}) from device {DisplayIdentifier}: " +
+            $"counter {e.DeviceTimestamp}, {e.AnalogValueCount} analog value(s) for " +
+            $"{e.EnabledAnalogChannelCount} enabled analog channel(s).",
+            Common.Loggers.BreadcrumbLevel.Debug);
     }
 
     /// <summary>
@@ -733,6 +753,12 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// <see cref="DaqifiDevice.StreamMessageReceived"/> event, synchronously and before Core decodes
     /// the same frame into per-channel samples — see <see cref="SubscribeCoreDeviceEvents"/>.
     /// </summary>
+    /// <remarks>
+    /// Every frame that reaches here has already cleared Core's own screening: since Core v1.4.0 a
+    /// frame latched from the previous session or carrying firmware's malformed leading analog
+    /// payload is withheld from this event entirely and reported through
+    /// <see cref="OnCoreStreamFrameDiscarded"/> instead (issue #679).
+    /// </remarks>
     protected void OnStreamMessageReceived(DaqifiOutMessage message)
     {
         // Closed by default for every frame; only ProcessStreamMessage (reached below when this
@@ -748,27 +774,9 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
 
         if (!IsStreaming || Mode != DeviceMode.StreamToApp)
         {
-            // Track the counter even while not streaming: the device can emit a final frame
-            // after the stop command lands, and the leftover frame at the next start follows
-            // it by one sample period — it must be included in the detection reference.
-            TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
-            return;
-        }
-
-        if (_checkForLeftoverFrames)
-        {
-            if (IsLeftoverFrameFromPreviousSession(message.MsgTimeStamp))
-            {
-                TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
-                return;
-            }
-
-            _checkForLeftoverFrames = false;
-        }
-
-        if (_pendingFirstFrameValidation)
-        {
-            ValidateFirstFramesWithoutReference(message);
+            // Core keeps its own counter reference for frames that arrive outside a session — the
+            // device can emit a final frame after the stop command lands, and the frame latched for
+            // the next session follows that one by a sample period (StreamFrameGate.TrackFrame).
             return;
         }
 
@@ -790,8 +798,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// <param name="message">The streaming protobuf message to process.</param>
     private void ProcessStreamMessage(DaqifiOutMessage message)
     {
-        TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
-
         // Protocol handler already validated this is a streaming message with timestamp
         // No need to revalidate here
 
@@ -904,20 +910,22 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     /// Maps a sample Core's <c>DaqifiStreamingDevice</c> decoded from the current stream frame
     /// into the desktop's richer <see cref="DataSample"/> (issue #613). Fires synchronously,
     /// immediately after <see cref="ProcessStreamMessage"/> returns, for every enabled channel —
-    /// gated by <see cref="_acceptChannelSamples"/> so leftover/held frames (which Core still
-    /// decodes, since Core has no notion of the desktop's leftover-frame heuristics) never reach
-    /// desktop channels. Takes only the decoded <c>Value</c> from Core and stamps it with
+    /// gated by <see cref="_acceptChannelSamples"/> so samples Core decodes from a frame the desktop
+    /// never accepted never reach desktop channels. Takes only the decoded <c>Value</c> from Core
+    /// and stamps it with
     /// <see cref="_currentFrameTimestamp"/> — the reconstruction <see cref="ProcessStreamMessage"/>
     /// computed for this same frame — so one frame yields exactly one timestamp, shared with the
     /// <see cref="DeviceMessage"/> dispatched for it.
     /// </summary>
     /// <remarks>
     /// <c>coreSample.Timestamp</c> is deliberately not used: Core's <c>DaqifiStreamingDevice</c> owns
-    /// a separate <c>TimestampProcessor</c> whose baseline is anchored on the first frame <em>Core</em>
-    /// decodes. Core has no notion of the desktop's leftover-frame heuristics, so on a stream restart
-    /// that baseline anchors on the discarded leftover frame and shifts every sample of the new
-    /// session into the future by the stop-to-start gap — the artifact issue #573 exists to remove —
-    /// which then lands in the database, since <see cref="DataSample"/> is what gets persisted.
+    /// a separate <c>TimestampProcessor</c> whose baseline is anchored and re-anchored on Core's own
+    /// session boundaries, while the desktop re-anchors its own on
+    /// <see cref="InitializeStreaming"/> — including the paths where the two cannot agree, such as a
+    /// stream that stops without <see cref="StopStreaming"/> running (unplug, error). Taking Core's
+    /// timestamp here would let a sample and the <see cref="DeviceMessage"/> dispatched for the very
+    /// same frame carry two independently reconstructed times (issue #769), and the divergence lands
+    /// in the database, since <see cref="DataSample"/> is what gets persisted.
     /// </remarks>
     private void OnCoreChannelSampleReceived(IChannel desktopChannel, Daqifi.Core.Channel.IDataSample coreSample)
     {
@@ -977,89 +985,6 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
     protected virtual void DispatchDeviceMessage(DeviceMessage deviceMessage)
     {
         Logger.LoggingManager.Instance.HandleDeviceMessage(this, deviceMessage);
-    }
-
-    /// <summary>
-    /// Records the most recent device counter value seen on any stream frame.
-    /// </summary>
-    /// <param name="deviceTimestamp">The raw 32-bit counter value from the frame.</param>
-    private void TrackLastSeenDeviceTimestamp(uint deviceTimestamp)
-    {
-        _lastSeenDeviceTimestamp = deviceTimestamp;
-        _hasSeenDeviceTimestamp = true;
-    }
-
-    /// <summary>
-    /// Determines whether a frame received at stream start is a leftover from the previous
-    /// streaming session (issue #573). The device's free-running counter is never reset, so a
-    /// leftover frame sits within one sample period of the last counter value seen before the
-    /// stop, while a genuine new-session frame is offset by the full stop-to-start gap. Modular
-    /// uint subtraction keeps the comparison correct across the ~86 s counter wrap.
-    /// </summary>
-    /// <param name="deviceTimestamp">The raw 32-bit counter value from the frame.</param>
-    /// <returns><c>true</c> if the frame belongs to the previous session and must be discarded.</returns>
-    private bool IsLeftoverFrameFromPreviousSession(uint deviceTimestamp)
-    {
-        if (!_hasSeenDeviceTimestamp || _discardedLeftoverFrameCount >= MAX_DISCARDED_LEFTOVER_FRAMES)
-        {
-            return false;
-        }
-
-        var timestampFrequency = TimestampFrequency != 0 ? TimestampFrequency : TimestampProcessor.DefaultTimestampFrequency;
-        var elapsedSeconds = unchecked(deviceTimestamp - _lastSeenDeviceTimestamp) / (double)timestampFrequency;
-        if (elapsedSeconds >= STALE_FRAME_WINDOW_SECONDS)
-        {
-            return false;
-        }
-
-        _discardedLeftoverFrameCount++;
-        AppLogger.Information(
-            $"Discarded leftover frame from previous streaming session at stream start " +
-            $"(counter advanced {elapsedSeconds:F4}s, discard {_discardedLeftoverFrameCount} of {MAX_DISCARDED_LEFTOVER_FRAMES} max)");
-        return true;
-    }
-
-    /// <summary>
-    /// Validates the leading frames of a session started without a counter reference (the first
-    /// session after connect). The device's leftover frame survives a USB disconnect/reconnect,
-    /// so the first frame cannot be trusted on arrival: it is held until the next frame arrives,
-    /// and released only when the pair's counter delta fits within one session
-    /// (&lt; <see cref="STALE_FRAME_WINDOW_SECONDS"/>). A held frame whose successor implies a
-    /// multi-second jump is a leftover from an earlier session and is discarded, the successor
-    /// becoming the new held candidate — capped at <see cref="MAX_DISCARDED_LEFTOVER_FRAMES"/>
-    /// so genuine data can never be withheld indefinitely. Costs one sample period of latency
-    /// on the first sample of the first session only.
-    /// </summary>
-    /// <param name="message">The streaming frame received while validation is pending.</param>
-    private void ValidateFirstFramesWithoutReference(DaqifiOutMessage message)
-    {
-        var heldFrame = _heldFirstFrame;
-        if (heldFrame == null)
-        {
-            _heldFirstFrame = message;
-            TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
-            return;
-        }
-
-        var timestampFrequency = TimestampFrequency != 0 ? TimestampFrequency : TimestampProcessor.DefaultTimestampFrequency;
-        var elapsedSeconds = unchecked(message.MsgTimeStamp - heldFrame.MsgTimeStamp) / (double)timestampFrequency;
-        if (elapsedSeconds >= STALE_FRAME_WINDOW_SECONDS
-            && _discardedLeftoverFrameCount < MAX_DISCARDED_LEFTOVER_FRAMES)
-        {
-            _discardedLeftoverFrameCount++;
-            AppLogger.Information(
-                $"Discarded leftover frame at stream start (no counter reference; counter advanced " +
-                $"{elapsedSeconds:F4}s to the next frame, discard {_discardedLeftoverFrameCount} of " +
-                $"{MAX_DISCARDED_LEFTOVER_FRAMES} max)");
-            _heldFirstFrame = message;
-            TrackLastSeenDeviceTimestamp(message.MsgTimeStamp);
-            return;
-        }
-
-        _pendingFirstFrameValidation = false;
-        _heldFirstFrame = null;
-        ProcessStreamMessage(heldFrame);
-        ProcessStreamMessage(message);
     }
 
     #endregion
@@ -1306,25 +1231,22 @@ public abstract partial class AbstractStreamingDevice : ObservableObject, IStrea
         }
 
         var coreStreamingDevice = GetCoreDevice(CoreDeviceForStreaming, STREAMING_UNAVAILABLE_MESSAGE);
+
+        // Load-bearing beyond commanding the device's rate: StartStreaming arms Core's leftover-frame
+        // gate with this value, and the gate's detection window is 2.5 sample periods of it
+        // (StreamFrameGate.BeginSession). Assigning it after StartStreaming would size this session's
+        // window from the previous session's rate.
         coreStreamingDevice.StreamingFrequency = StreamingFrequency;
 
-        // A session must never anchor its time axis on prior-session data (issue #573).
-        // Reset the timestamp baseline here — StopStreaming's reset is skipped on unplug and
-        // error paths — and arm leftover-frame detection: the device holds the final frame of
-        // the previous session in its transmit path and emits it first when streaming resumes.
-        // With a counter reference (any frame seen on this connection), leftovers are recognized
-        // directly; without one (first session after connect — the device's leftover survives a
-        // disconnect/reconnect), the first frame is held and validated against its successor.
+        // A session must never anchor its time axis on prior-session data (issue #573). Reset the
+        // desktop's timestamp baseline here because StopStreaming's reset is skipped on unplug and
+        // error paths. The leftover frame that motivated the rest of this block is now screened out
+        // by Core itself (issue #679, daqifi-core#425/#428) — see OnCoreStreamFrameDiscarded.
         //
         // The device-reported clock frequency survives this: Core v1.4.0's ResetAll() clears session
         // baselines only (daqifi-core#398 gap 3), so there is nothing to re-apply and nothing to
         // serialize against the transport thread.
         FrameTimestampProcessor.ResetAll();
-
-        _discardedLeftoverFrameCount = 0;
-        _checkForLeftoverFrames = _hasSeenDeviceTimestamp;
-        _pendingFirstFrameValidation = !_hasSeenDeviceTimestamp;
-        _heldFirstFrame = null;
 
         coreStreamingDevice.StartStreaming();
         IsStreaming = coreStreamingDevice.IsStreaming;
