@@ -7,13 +7,13 @@
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="NLog" Version="6.1.4" />
-		<PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
+		<PackageReference Include="NLog" Version="6.2.0" />
+		<PackageReference Include="Roslynator.Analyzers" Version="4.16.1">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Sentry" Version="6.8.0" />
-		<PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.10" />
+		<PackageReference Include="Sentry" Version="6.9.0" />
+		<PackageReference Include="System.Configuration.ConfigurationManager" Version="10.0.11" />
 	</ItemGroup>
 
 </Project>
